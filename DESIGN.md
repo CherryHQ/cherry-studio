@@ -495,16 +495,23 @@ These patterns reflect the current v2 pages and should be treated as valid desig
 - Border: 1px solid `var(--input)`
 - Radius: `var(--radius-md)` (8px)
 - Shadow: none — inputs stay flat at rest; per the depth philosophy, shadows are reserved for hover feedback and floating elements
-- Focus: change the field's own border to `border-ring`; do not add an outer ring, outline, or focus shadow
+- Focus: text-entry fields may change their own border to `border-primary` while editing; do not add an outer ring,
+  outline, or focus shadow
 - Font: `var(--font-family-body)` between `var(--font-size-body-sm)` and `var(--font-size-body-md)`, `var(--font-weight-regular)`
 - Placeholder: `var(--muted-foreground)`
 
 ### Focus Feedback
 
-Keyboard focus must remain visible without adding a second frame outside the component.
+Keyboard focus must remain visible without adding a second frame outside the component. Pointer interaction should
+not add a theme-colored border merely because a control was clicked or a popup was opened.
 
-- Bordered controls (inputs, textareas, selects, cards acting as controls): change the existing border color with
-  `focus-visible:border-ring` or the corresponding `focus-within:*` selector.
+- Text-entry fields (inputs, textareas, editors, and wrappers whose primary purpose is text entry) may change the
+  existing border to `border-primary` while editing so it follows the selected theme.
+- Select triggers, popup controls, buttons, selectable cards, and containers with nested actions must not change
+  their border for pointer focus, `open`, `expanded`, or `pressed` state. Use `focus-visible:border-primary` or
+  `has-[:focus-visible]:border-primary` only when a border is the appropriate keyboard-focus treatment.
+- Persistent semantic states such as `selected`, `checked`, `active`, and `invalid` may use a border when the border
+  communicates that lasting state rather than a transient click.
 - Buttons, menu items, icon actions, tabs, and selectable rows: reuse the component's hover vocabulary through a
   focus-visible background, text-color, opacity, or underline change.
 - Text links and link-style buttons: use `focus-visible:underline` plus the link's focused text color.

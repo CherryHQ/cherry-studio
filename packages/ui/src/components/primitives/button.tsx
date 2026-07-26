@@ -20,7 +20,7 @@ const buttonVariants = cva(
           'bg-neutral-900 text-white hover:bg-neutral-800 focus-visible:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200 dark:focus-visible:bg-neutral-200',
         destructive: 'bg-destructive text-white hover:bg-destructive-hover focus-visible:bg-destructive-hover',
         outline:
-          'border border-border bg-transparent text-foreground shadow-none hover:bg-accent focus-visible:border-ring focus-visible:bg-accent',
+          'border border-border bg-transparent text-foreground shadow-none hover:bg-accent focus-visible:border-primary focus-visible:bg-accent',
         secondary:
           'rounded-lg bg-secondary text-secondary-foreground shadow-none hover:bg-secondary-hover focus-visible:bg-secondary-hover',
         /** Dialog primary action style: same color hierarchy as default, with a flatter v2 shell. */

@@ -123,7 +123,7 @@ export const customHeaderDrawerClasses = {
   bodyScroll: 'flex flex-col gap-4',
   /** JSON mode — matches structured monospace block for custom headers. */
   headersJsonEditor:
-    'min-h-[120px] w-full resize-y rounded-xl border border-border-muted bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:border-ring placeholder:text-muted-foreground/45',
+    'min-h-[120px] w-full resize-y rounded-xl border border-border-muted bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:border-primary placeholder:text-muted-foreground/45',
   /** Header rows stack; each row is `[name] [value] [delete]` on a single line. */
   headerList: 'flex flex-col gap-2',
   headerRow: 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] items-center gap-2',
@@ -143,10 +143,10 @@ export const drawerClasses = {
   field: 'space-y-1.5',
   fieldTitle: 'font-medium text-sm leading-5 text-foreground-secondary',
   input:
-    'h-8 min-h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm leading-5 text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-ring',
+    'h-8 min-h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm leading-5 text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-primary',
   inputDisabled: 'bg-muted text-foreground-muted',
   selectTrigger:
-    'h-auto w-full rounded-md border-input bg-background px-3 py-2 text-sm leading-5 text-foreground shadow-none data-[placeholder]:text-foreground-muted aria-expanded:border-ring',
+    'h-auto w-full rounded-md border-input bg-background px-3 py-2 text-sm leading-5 text-foreground shadow-none data-[placeholder]:text-foreground-muted focus-visible:border-primary',
   selectContent: 'rounded-lg border-[0.5px] border-border bg-popover text-popover-foreground shadow-lg',
   helpText: 'text-xs leading-tight text-foreground-muted',
   errorText: 'text-xs leading-tight text-destructive',
@@ -373,7 +373,7 @@ export const modelSyncClasses = {
   fetchWarning:
     'my-2 gap-2 rounded-lg [--model-sync-warning-accent:oklch(0.83_0.164_84)] border-[color:color-mix(in_srgb,var(--model-sync-warning-accent)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--warning-subtle)_52%,transparent)] px-2.5 py-2 text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
   fetchRowNew:
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border/60 hover:bg-accent/30 focus-visible:border-ring focus-visible:bg-accent/30 focus-visible:outline-none data-[checked=true]:border-border/40 data-[checked=true]:bg-background',
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border/60 hover:bg-accent/30 focus-visible:border-primary focus-visible:bg-accent/30 focus-visible:outline-none data-[checked=true]:border-border/40 data-[checked=true]:bg-background',
   fetchRowRemoved:
     'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-destructive/15 hover:bg-destructive/[0.03] focus-visible:border-destructive/30 focus-visible:bg-destructive/[0.03] focus-visible:outline-none data-[checked=true]:border-destructive/15 data-[checked=true]:bg-background',
   fetchAvatar:

@@ -637,10 +637,10 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     <span
       className={cn(
         'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
-        'group-focus-visible:border-ring group-data-[state=open]:border-ring',
-        props.readOnly && 'focus-visible:border-ring focus-visible:outline-none',
+        'group-focus-visible:border-primary',
+        props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
         presentation.containerClassName,
-        props.selected && 'border-primary ring-1 ring-ring',
+        props.selected && 'border-primary ring-1 ring-primary/40',
         props.className
       )}
       title={props.readOnly || shouldShowPathTooltip ? undefined : title}
@@ -731,10 +731,10 @@ export function FolderComposerToken(props: ComposerTokenProps) {
     <span
       className={cn(
         'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
-        'group-focus-visible:border-ring',
-        props.readOnly && 'focus-visible:border-ring focus-visible:outline-none',
+        'group-focus-visible:border-primary',
+        props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
         'border-border bg-background hover:bg-accent',
-        props.selected && 'border-primary ring-1 ring-ring',
+        props.selected && 'border-primary ring-1 ring-primary/40',
         props.className
       )}
       title={path ? undefined : title}

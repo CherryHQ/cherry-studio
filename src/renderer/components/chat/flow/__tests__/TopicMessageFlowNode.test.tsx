@@ -154,6 +154,13 @@ describe('TopicMessageFlowNode', () => {
     expect(screen.getByText(preview).closest(`[data-message-id="${messageId}"]`)).toHaveClass(border, background)
   })
 
+  it('does not add a container border when a nested control receives focus', () => {
+    renderNode()
+
+    expect(getNodeElement()).not.toHaveClass('has-[:focus-visible]:border-primary')
+    expect(getNodeElement()).not.toHaveClass('focus-within:border-primary')
+  })
+
   it('fetches the message preview only after hovering the node for 300ms', async () => {
     renderNode()
 

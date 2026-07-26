@@ -472,7 +472,7 @@ describe('ComposerToken', () => {
     )
 
     const token = getRenderedFileToken(container)
-    expect(token).toHaveClass('h-6', 'align-middle', 'border-primary', 'ring-1', 'ring-ring')
+    expect(token).toHaveClass('h-6', 'align-middle', 'border-primary', 'ring-1', 'ring-primary/40')
     expect(token).not.toHaveClass('align-baseline')
     expect(token).toHaveTextContent('avatar-preview.png')
 
@@ -722,7 +722,8 @@ describe('ComposerToken', () => {
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveClass('h-6', 'font-medium', 'text-xs', 'leading-[inherit]')
     expect(token).toHaveAttribute('data-file-token-variant', 'text')
-    expect(token).toHaveClass('group-focus-visible:border-ring', 'group-data-[state=open]:border-ring')
+    expect(token).toHaveClass('group-focus-visible:border-primary')
+    expect(token).not.toHaveClass('group-data-[state=open]:border-primary')
     const trigger = getFileTokenTrigger(container)
     expect(trigger).toHaveAttribute('role', 'button')
     expect(trigger).toHaveAttribute('tabindex', '0')
@@ -898,7 +899,7 @@ describe('ComposerToken', () => {
     const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} selected />)
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveClass('border-primary', 'ring-1', 'ring-ring')
+    expect(token).toHaveClass('border-primary', 'ring-1', 'ring-primary/40')
   })
 
   it('shows quoted content in a tooltip for quote tokens', () => {

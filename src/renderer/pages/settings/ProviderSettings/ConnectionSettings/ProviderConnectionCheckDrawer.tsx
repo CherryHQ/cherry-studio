@@ -186,7 +186,7 @@ export default function ProviderConnectionCheckDrawer({
           <button
             type="button"
             aria-label={`${t('message.api.connection.failed')}: ${connectionErrorText}. ${t('common.detail')}`}
-            className="group w-full cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-left text-[13px] transition-all duration-200 focus-visible:border-ring focus-visible:bg-accent/30 focus-visible:outline-none"
+            className="group w-full cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-left text-[13px] transition-all duration-200 focus-visible:border-primary focus-visible:bg-accent/30 focus-visible:outline-none"
             onClick={handleShowConnectionErrorDetail}>
             <div className="mb-1.5 flex items-center gap-2">
               <div className="flex shrink-0 items-center justify-center text-error-base">

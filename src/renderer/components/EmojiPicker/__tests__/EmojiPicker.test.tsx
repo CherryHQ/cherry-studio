@@ -246,7 +246,7 @@ describe('EmojiPicker', () => {
       '--epr-search-input-text-color': 'var(--foreground)',
       '--epr-search-input-placeholder-color': 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)',
       '--epr-search-border-color': 'var(--input)',
-      '--epr-search-border-color-active': 'var(--ring)',
+      '--epr-search-border-color-active': 'var(--primary)',
       '--epr-header-padding': 'var(--epr-horizontal-padding) var(--epr-horizontal-padding) 2px',
       '--epr-emoji-hover-color': 'var(--accent)',
       '--epr-emoji-variation-indicator-color': 'var(--border)',

@@ -11,7 +11,7 @@ describe('Input', () => {
     render(<Input aria-label="Name" />)
 
     const input = screen.getByRole('textbox', { name: 'Name' })
-    expect(input.className).toContain('focus-visible:border-ring')
+    expect(input.className).toContain('focus-visible:border-primary')
     expect(input.className).not.toMatch(/focus-visible:ring-(?!0)/)
     expect(input.className).not.toContain('focus-visible:outline-')
   })

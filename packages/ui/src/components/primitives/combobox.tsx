@@ -27,7 +27,7 @@ const comboboxTriggerVariants = cva(
   {
     variants: {
       state: {
-        default: 'border-border aria-expanded:border-primary',
+        default: 'border-border focus-visible:border-primary',
         error: 'border border-destructive!',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },

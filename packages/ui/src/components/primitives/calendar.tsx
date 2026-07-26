@@ -40,7 +40,7 @@ function Calendar({
         dropdown_root: cn(defaultClassNames.dropdown_root, 'relative'),
         dropdown: cn(
           defaultClassNames.dropdown,
-          'h-8 rounded-md border border-border bg-background px-2 text-sm outline-none transition-colors focus:border-ring'
+          'h-8 rounded-md border border-border bg-background px-2 text-sm outline-none transition-colors focus-visible:border-primary'
         ),
         nav: cn(defaultClassNames.nav, 'absolute inset-x-0 top-3 flex items-center justify-between px-3'),
         button_previous: cn(
