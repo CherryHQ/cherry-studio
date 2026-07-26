@@ -275,6 +275,8 @@ export interface MessageListState {
   loadOlderDelayMs: number
   loadingResetDelayMs: number
   listKey?: string
+  /** Monotonic counter incremented only after this renderer opens a local user turn. */
+  localSendGeneration?: number
   readonly?: boolean
   renderConfig: MessageRenderConfig
   menuConfig?: MessageMenuConfig

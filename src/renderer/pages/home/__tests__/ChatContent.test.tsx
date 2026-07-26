@@ -199,12 +199,14 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
       historyPartsByMessageId: Record<string, CherryMessagePart[]>
       liveMessageIds: readonly string[]
     }
+    localSendGeneration: number
     isInitialLoading?: boolean
   }) => ({
     state: {
       messages: params.messages,
       partsByMessageId: params.partsByMessageId,
       streamingLayers: params.streamingLayers,
+      localSendGeneration: params.localSendGeneration,
       isInitialLoading: params.isInitialLoading
     },
     actions: {},
@@ -343,6 +345,7 @@ describe('ChatContent', () => {
       )
     })
     expect(sendMessage).not.toHaveBeenCalled()
+    expect(mockMessageListValue.current.state.localSendGeneration).toBe(1)
   })
 
   it('uses a branch draft anchor for the next send and clears it after stream open', async () => {

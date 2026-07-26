@@ -24,6 +24,7 @@ type Props = {
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
+  localSendGeneration?: number
   optimisticAskUserQuestionInputsByToolCallId?: Record<string, unknown>
   isLoading: boolean
   /** Whether more older messages remain on the server (cursor pagination). */
@@ -44,6 +45,7 @@ const AgentSessionMessages = ({
   activeAgent,
   partsByMessageId,
   streamingLayers,
+  localSendGeneration,
   optimisticAskUserQuestionInputsByToolCallId = {},
   isLoading,
   hasOlder = false,
@@ -91,6 +93,7 @@ const AgentSessionMessages = ({
     messages,
     partsByMessageId,
     streamingLayers,
+    localSendGeneration,
     assistantProfile,
     assistantId: agentId,
     isLoading,

@@ -17,6 +17,7 @@ interface AgentChatMainProps {
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
+  localSendGeneration: number
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean
   hasOlder?: boolean
@@ -35,6 +36,7 @@ export default function AgentChatMain({
   activeAgent,
   partsByMessageId,
   streamingLayers,
+  localSendGeneration,
   optimisticAskUserQuestionInputsByToolCallId,
   isLoading,
   hasOlder,
@@ -57,6 +59,7 @@ export default function AgentChatMain({
           activeAgent={activeAgent}
           partsByMessageId={partsByMessageId}
           streamingLayers={streamingLayers}
+          localSendGeneration={localSendGeneration}
           optimisticAskUserQuestionInputsByToolCallId={optimisticAskUserQuestionInputsByToolCallId}
           isLoading={isLoading}
           hasOlder={hasOlder}

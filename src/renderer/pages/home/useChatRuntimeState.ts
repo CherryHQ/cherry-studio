@@ -391,6 +391,7 @@ export function useChatRuntimeState({
     shouldRenderHomeComposer,
     chatWriteActions,
     sendMessage,
+    localSendGeneration: turnController.localSendGeneration,
     composerContext,
     translationOverlay,
     setTranslationOverlay

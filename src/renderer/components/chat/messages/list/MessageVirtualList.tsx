@@ -91,8 +91,8 @@ export interface MessageVirtualListProps<T> {
   topPadding?: number
   /** Extra empty space after the newest message. */
   bottomPadding?: number
-  /** Latest user-message group key, used to recognize a newly appended send. */
-  latestUserMessageKey?: string
+  /** Monotonic generation from the local conversation turn controller. */
+  localSendGeneration?: number
   /** Stable item keys to retain while their live local UI state is active. */
   keepMountedKeys?: readonly string[]
   /** Whether to render the floating scroll-to-bottom affordance when the runtime is far from bottom. */
@@ -120,7 +120,7 @@ export function MessageVirtualList<T>({
   style,
   topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX,
   bottomPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
-  latestUserMessageKey,
+  localSendGeneration,
   keepMountedKeys,
   showScrollToBottomButton = false,
   scrollToBottomButtonBottomOffset = MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX,
@@ -138,7 +138,7 @@ export function MessageVirtualList<T>({
     topPadding,
     topicId,
     bottomPadding,
-    latestUserMessageKey,
+    localSendGeneration,
     keepMountedKeys
   })
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)

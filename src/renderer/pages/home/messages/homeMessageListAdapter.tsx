@@ -78,6 +78,7 @@ interface HomeMessageListParams {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
+  localSendGeneration?: number
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   loadOlder?: () => void
@@ -95,6 +96,7 @@ export function useHomeMessageListProviderValue({
   messages,
   partsByMessageId,
   streamingLayers,
+  localSendGeneration,
   isInitialLoading = false,
   isMessagesStale = false,
   loadOlder,
@@ -746,6 +748,7 @@ export function useHomeMessageListProviderValue({
       loadOlderDelayMs: 300,
       loadingResetDelayMs: 300,
       listKey: assistant?.id ?? topic.assistantId,
+      localSendGeneration,
       readonly: false,
       renderConfig,
       menuConfig,
@@ -770,6 +773,7 @@ export function useHomeMessageListProviderValue({
       isInitialLoading,
       isMessagesStale,
       leafCapabilities,
+      localSendGeneration,
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageItems,

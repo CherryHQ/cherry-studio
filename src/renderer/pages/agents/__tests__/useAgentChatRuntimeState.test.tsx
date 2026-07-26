@@ -42,6 +42,7 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   useConversationTurnController: () => ({
+    localSendGeneration: 7,
     send: mocks.sendTurn
   })
 }))
@@ -164,7 +165,7 @@ describe('useAgentChatRuntimeState', () => {
   })
 
   it('does not wire per-overlay finish refresh for agent sessions', () => {
-    renderHook(() =>
+    const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
         sessionMessagesEnabled: true,
@@ -173,6 +174,7 @@ describe('useAgentChatRuntimeState', () => {
     )
 
     expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
+    expect(result.current.localSendGeneration).toBe(7)
     expect(mocks.refresh).not.toHaveBeenCalled()
     expect(mocks.disposeOverlay).not.toHaveBeenCalled()
   })

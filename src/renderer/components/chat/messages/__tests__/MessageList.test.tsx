@@ -173,7 +173,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       handleRef,
       items,
       keepMountedKeys,
-      latestUserMessageKey,
+      localSendGeneration,
       onScrollContainerReady,
       renderItem,
       scrollToBottomButtonBottomOffset,
@@ -208,7 +208,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       return (
         <div
           data-keep-mounted-keys={(keepMountedKeys ?? []).join(',')}
-          data-latest-user-message-key={latestUserMessageKey ?? ''}
+          data-local-send-generation={localSendGeneration ?? ''}
           data-scroll-to-bottom-button-bottom-offset={scrollToBottomButtonBottomOffset ?? ''}
           data-scroll-to-bottom-button-enabled={String(Boolean(showScrollToBottomButton))}
           data-testid="virtual-list"
@@ -325,31 +325,25 @@ describe('MessageList', () => {
     expect(messageGroupRenderCounts.get('assistant-live')).toBe(5)
   })
 
-  it('publishes the latest user-message key without changing it for an assistant append', () => {
+  it('forwards the explicit local-send generation independently of message topology', () => {
     const user = createMessage('user-1', 'user')
     const assistant = createMessage('assistant-1', 'assistant')
-    const view = renderMessageList([user])
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-latest-user-message-key', 'useruser-1')
-
-    view.rerender(
-      <MessageListProvider value={createValue([user, assistant])}>
+    const view = render(
+      <MessageListProvider value={createValue([user], { localSendGeneration: 1 })}>
         <MessageList />
       </MessageListProvider>
     )
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-latest-user-message-key', 'useruser-1')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-local-send-generation', '1')
 
     view.rerender(
       <MessageListProvider
-        value={createValue([
-          user,
-          assistant,
-          createMessage('user-2', 'user'),
-          createMessage('assistant-2', 'assistant', 'pending')
-        ])}>
+        value={createValue([createMessage('older', 'assistant'), user, assistant, createMessage('user-2', 'user')], {
+          localSendGeneration: 2
+        })}>
         <MessageList />
       </MessageListProvider>
     )
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-latest-user-message-key', 'useruser-2')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-local-send-generation', '2')
   })
 
   it('keeps the latest pending assistant group mounted', () => {

@@ -72,8 +72,8 @@ export interface ChatVirtualizerRuntimeOptions<T> {
   topicId?: string
   /** Padding reserved below the last message; used to restore to the bottom. */
   bottomPadding: number
-  /** Latest user-message group key, used to recognize a newly appended send. */
-  latestUserMessageKey?: string
+  /** Monotonic generation from the local conversation turn controller. */
+  localSendGeneration?: number
   /** Stable item keys that must survive virtualization while they own live UI state. */
   keepMountedKeys?: readonly string[]
 }
@@ -172,7 +172,7 @@ export function useChatVirtualizerRuntime<T>({
   topPadding = 0,
   topicId,
   bottomPadding,
-  latestUserMessageKey,
+  localSendGeneration,
   keepMountedKeys = []
 }: ChatVirtualizerRuntimeOptions<T>): ChatVirtualizerRuntime<T> {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
@@ -459,12 +459,6 @@ export function useChatVirtualizerRuntime<T>({
     previousDataKeys.length > 0 &&
     dataKeys.length > previousDataKeys.length &&
     dataKeys.indexOf(previousDataKeys[0]) > 0
-  const latestUserMessageWasAppended =
-    latestUserMessageKey !== undefined &&
-    dataKeys.length > previousDataKeys.length &&
-    dataKeys.includes(latestUserMessageKey) &&
-    !previousDataKeys.includes(latestUserMessageKey) &&
-    previousDataKeys.every((key, index) => dataKeys[index] === key)
 
   useEffect(() => {
     previousDataKeysRef.current = dataKeys
@@ -822,19 +816,25 @@ export function useChatVirtualizerRuntime<T>({
     [atBottom, handBackToRuntime, hideScrollToBottomButton, smoothScroll]
   )
 
-  const didObserveMessageListRef = useRef(false)
+  const observedLocalSendGenerationRef = useRef(localSendGeneration)
   const observedTopicIdRef = useRef(topicId)
   useLayoutEffect(() => {
-    if (!didObserveMessageListRef.current || observedTopicIdRef.current !== topicId) {
-      didObserveMessageListRef.current = true
-      observedTopicIdRef.current = topicId
+    const previousGeneration = observedLocalSendGenerationRef.current
+    const topicChanged = observedTopicIdRef.current !== topicId
+    observedLocalSendGenerationRef.current = localSendGeneration
+    observedTopicIdRef.current = topicId
+    if (
+      topicChanged ||
+      localSendGeneration === undefined ||
+      localSendGeneration === previousGeneration ||
+      wasMoreThanOneViewportFromBottomRef.current
+    ) {
       return
     }
-    if (!latestUserMessageWasAppended || wasMoreThanOneViewportFromBottomRef.current) return
-    // The ref describes the viewport before this append. Reuse the same
+    // The ref describes the viewport before this local send. Reuse the same
     // one-viewport boundary as the visible "back to bottom" affordance.
     scrollToBottom('instant')
-  }, [latestUserMessageWasAppended, scrollToBottom, topicId])
+  }, [localSendGeneration, scrollToBottom, topicId])
 
   const scrollToTop = useCallback(
     (behavior: ScrollBehavior = 'instant') => {

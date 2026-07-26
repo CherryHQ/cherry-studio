@@ -103,6 +103,7 @@ export interface AgentChatRuntimeState {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  localSendGeneration: number
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
@@ -162,7 +163,7 @@ export function useAgentChatRuntimeState({
     }),
     []
   )
-  const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
+  const { localSendGeneration, send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
     scopeKey: sessionTopicId,
     historyAdapter,
     ensureConversation,
@@ -326,6 +327,7 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
+    localSendGeneration,
     isPending,
     stop,
     sendMessage,

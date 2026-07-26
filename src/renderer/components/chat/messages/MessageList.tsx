@@ -35,7 +35,7 @@ import {
   useMessageRenderConfig
 } from './MessageListProvider'
 import { defaultMessageRenderConfig } from './types'
-import { getLatestAssistantGroupKey, getMessageGroupKey } from './utils/messageGroupKey'
+import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils/stableGroupedMessages'
@@ -174,10 +174,6 @@ const MessageList = () => {
   const messageByIdRef = useRef(messageById)
   messageByIdRef.current = messageById
   const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
-  const latestUserMessageKey = useMemo(() => {
-    const latestUserMessage = messages.findLast((message) => message.role === 'user' && message.type !== 'clear')
-    return latestUserMessage ? getMessageGroupKey(latestUserMessage) : undefined
-  }, [messages])
   const streamingLayers = data.streamingLayers
   const liveMessageIds = streamingLayers?.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -584,7 +580,7 @@ const MessageList = () => {
             overscan={data.overscan}
             topPadding={topPadding}
             bottomPadding={bottomPadding}
-            latestUserMessageKey={latestUserMessageKey}
+            localSendGeneration={data.localSendGeneration}
             keepMountedKeys={keepMountedKeys}
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}

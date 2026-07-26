@@ -99,6 +99,7 @@ interface AgentMessageListParams {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
+  localSendGeneration?: number
   assistantProfile?: {
     name?: string
     avatar?: string
@@ -135,6 +136,7 @@ export function useAgentMessageListProviderValue({
   messages,
   partsByMessageId,
   streamingLayers,
+  localSendGeneration,
   assistantProfile,
   assistantId,
   isLoading,
@@ -366,6 +368,7 @@ export function useAgentMessageListProviderValue({
       loadOlderDelayMs: 0,
       loadingResetDelayMs: 600,
       listKey: topic.id,
+      localSendGeneration,
       readonly: true,
       renderConfig,
       menuConfig,
@@ -379,6 +382,7 @@ export function useAgentMessageListProviderValue({
       hasOlder,
       isLoading,
       leafCapabilities,
+      localSendGeneration,
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageNavigation,

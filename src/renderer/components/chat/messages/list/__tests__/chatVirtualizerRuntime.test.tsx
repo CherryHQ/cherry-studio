@@ -16,7 +16,7 @@ interface RuntimeProbeProps {
   hasMoreTop?: boolean
   handleRef?: Ref<MessageVirtualListHandle>
   keepMountedKeys?: readonly string[]
-  latestUserMessageKey?: string
+  localSendGeneration?: number
   onReachTop?: () => void
   onRuntime(runtime: ChatVirtualizerRuntime<string>): void
   topPadding?: number
@@ -31,7 +31,7 @@ function RuntimeProbe({
   hasMoreTop = false,
   handleRef,
   keepMountedKeys,
-  latestUserMessageKey,
+  localSendGeneration,
   onReachTop,
   onRuntime,
   topPadding
@@ -43,7 +43,7 @@ function RuntimeProbe({
     hasMoreTop,
     handleRef,
     keepMountedKeys,
-    latestUserMessageKey,
+    localSendGeneration,
     onReachTop,
     topPadding,
     topReachOverscanItems: 4,
@@ -58,7 +58,7 @@ function RuntimeDomProbe({
   handleRef,
   hasMoreTop = false,
   keepMountedKeys,
-  latestUserMessageKey,
+  localSendGeneration,
   nonce,
   onReachTop,
   onRuntime,
@@ -72,7 +72,7 @@ function RuntimeDomProbe({
     hasMoreTop,
     handleRef,
     keepMountedKeys,
-    latestUserMessageKey,
+    localSendGeneration,
     onReachTop,
     topPadding,
     topReachOverscanItems: 4,
@@ -587,7 +587,7 @@ describe('useChatVirtualizerRuntime', () => {
         <RuntimeDomProbe
           items={['message-a']}
           handleRef={handleRef}
-          latestUserMessageKey="message-a"
+          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
@@ -1138,7 +1138,7 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('returns to the live bottom on send when the prior position was within one viewport', () => {
+  it('returns to the live bottom when history is prepended in the same update as a local send', () => {
     const raf = installQueuedAnimationFrame()
 
     try {
@@ -1151,8 +1151,9 @@ describe('useChatVirtualizerRuntime', () => {
       let scrollHeight = 1200
       const view = render(
         <RuntimeDomProbe
-          items={['message-a']}
+          items={['message-a', 'message-b']}
           handleRef={handleRef}
+          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
@@ -1173,9 +1174,9 @@ describe('useChatVirtualizerRuntime', () => {
       scrollHeight = 1400
       view.rerender(
         <RuntimeDomProbe
-          items={['message-a', 'sent-user-message']}
+          items={['older-message', 'message-a', 'message-b', 'sent-user-message', 'pending-assistant']}
           handleRef={handleRef}
-          latestUserMessageKey="sent-user-message"
+          localSendGeneration={1}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
@@ -1202,7 +1203,7 @@ describe('useChatVirtualizerRuntime', () => {
         <RuntimeDomProbe
           items={['history-message']}
           handleRef={handleRef}
-          latestUserMessageKey="history-message"
+          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
@@ -1225,7 +1226,7 @@ describe('useChatVirtualizerRuntime', () => {
         <RuntimeDomProbe
           items={['history-message', 'sent-user-message']}
           handleRef={handleRef}
-          latestUserMessageKey="sent-user-message"
+          localSendGeneration={1}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
@@ -1249,7 +1250,7 @@ describe('useChatVirtualizerRuntime', () => {
       const view = render(
         <RuntimeDomProbe
           items={['history-message']}
-          latestUserMessageKey="history-message"
+          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
@@ -1272,7 +1273,7 @@ describe('useChatVirtualizerRuntime', () => {
       view.rerender(
         <RuntimeDomProbe
           items={['history-message', 'sent-user-message']}
-          latestUserMessageKey="sent-user-message"
+          localSendGeneration={1}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )

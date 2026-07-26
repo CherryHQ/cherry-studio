@@ -31,6 +31,7 @@ export function useConversationTurnController<TInput, TConversation>({
   refreshMetadata
 }: UseConversationTurnControllerOptions<TInput, TConversation>) {
   const [phase, setPhase] = useState<ConversationTurnPhase>('draft')
+  const [localSendGeneration, setLocalSendGeneration] = useState(0)
 
   useEffect(() => {
     setPhase('draft')
@@ -59,6 +60,7 @@ export function useConversationTurnController<TInput, TConversation>({
           return ack
         }
 
+        setLocalSendGeneration((generation) => generation + 1)
         const reservedMessages = ack.reservedMessages ?? []
         if (reservedMessages.length > 0) {
           await historyAdapter.seedReservedMessages(reservedMessages)
@@ -85,6 +87,7 @@ export function useConversationTurnController<TInput, TConversation>({
   return {
     phase,
     layout: phase === 'draft' ? ('draft' as const) : ('docked' as const),
+    localSendGeneration,
     send
   }
 }
