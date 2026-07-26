@@ -1443,6 +1443,57 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  // The SDK resumes the main agent on its own once background work completes; the woken response
+  // needs a turn to land in, but nothing may be sent to the CLI — the generation is already running.
+  describe('background wake turn', () => {
+    it('opens a receive-only headless turn and replays the buffered woken chunks', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.markTurnTerminal('session-1', 'success')
+      const entry = getEntry(service)
+      const send = vi.fn()
+      entry.connection = { send, close: vi.fn(), events: [], reconcile: vi.fn().mockResolvedValue('current') }
+      mocks.startRuntimeTurn.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-wake' })
+      // Chunks stream while the wake turn's stream is not open yet — buffered, not dropped.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: { type: 'text-delta', id: 'w1', delta: 'woke' }
+      })
+      expect(entry.rollBuffer).toHaveLength(1)
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
+      const wakeTurn = entry.currentTurn
+      expect(wakeTurn).toMatchObject({ admitted: true, headless: true })
+
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: wakeTurn.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: 'woke' }, done: false })
+      // Receive-only: the generation is the SDK's own, so nothing goes to the CLI.
+      expect(send).not.toHaveBeenCalled()
+
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('ignores a wake while a turn is live', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      mocks.startRuntimeTurn.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-wake' })
+
+      expect(entry.rolling).toBeFalsy()
+      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    })
+  })
+
   it('clears the runtime and closes the connection on closeSession', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)

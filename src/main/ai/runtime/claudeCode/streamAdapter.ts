@@ -123,6 +123,7 @@ export type ClaudeCodeStreamStatusEvent = Extract<
       | 'compaction-error'
       | 'api-retry'
       | 'background-task-event'
+      | 'background-wake'
   }
 >
 
@@ -381,13 +382,25 @@ export class ClaudeCodeStreamAdapter {
         logger.warn('Received a result message with no active turn; dropping turn-complete', {
           sessionId: this.sessionId
         })
-      } else {
+        return { type: 'continue' }
+      }
+      const parentToolUseId = 'parent_tool_use_id' in message ? message.parent_tool_use_id : undefined
+      const isContent = message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user'
+      if (!isContent || parentToolUseId != null) {
+        // A subagent's internal stream has no home outside its turn; only its lifecycle
+        // (task events) survives the boundary. Everything else here is protocol noise.
         logger.debug('Dropping message received with no active turn', {
           sessionId: this.sessionId,
-          type: message.type
+          type: message.type,
+          parentToolUseId
         })
+        return { type: 'continue' }
       }
-      return { type: 'continue' }
+      // Parentless content with no turn open is the SDK waking the main agent after background
+      // work completed — its response to the user. Tell the host first so it starts buffering,
+      // then open a turn so this and the following messages accumulate from a clean context.
+      this.statusSink.emit({ type: 'background-wake' })
+      this.beginTurn()
     }
 
     switch (message.type) {

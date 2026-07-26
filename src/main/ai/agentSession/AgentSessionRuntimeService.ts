@@ -1006,6 +1006,18 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'background-task-event':
         this.publishBackgroundTaskEvent(entry, event.data)
         break
+      case 'background-wake': {
+        // The SDK woke the main agent after background work completed; its response is already
+        // streaming. Reuse the roll buffer so those chunks wait for the wake turn's stream, exactly
+        // as post-steer chunks wait for A2. Ignore if a turn is live or a roll is in flight — then
+        // the content already has (or will have) a stream to land in.
+        const turnLive = entry.currentTurn !== undefined && entry.currentTurn.terminalStatus === undefined
+        if (turnLive || entry.rolling) break
+        entry.rolling = true
+        entry.rollBuffer = []
+        this.scheduleWakeTurn(entry)
+        break
+      }
       case 'turn-complete':
         this.clearApiRetry(entry)
         this.closeCurrentTurn(entry, 'success')
@@ -1347,6 +1359,100 @@ export class AgentSessionRuntimeService extends BaseService {
         .finally(() => {
           entry.startingNextTurn = false
         })
+    })
+  }
+
+  private scheduleWakeTurn(entry: AgentSessionRuntimeEntry): void {
+    if (entry.startingNextTurn) return
+    entry.startingNextTurn = true
+    queueMicrotask(() => {
+      void this.startWakeTurn(entry)
+        .catch((error) => {
+          logger.error('Failed to start background wake turn', { sessionId: entry.sessionId, error })
+        })
+        .finally(() => {
+          entry.startingNextTurn = false
+        })
+    })
+  }
+
+  /**
+   * Open a receive-only turn for a background wake: the SDK resumed the main agent on its own after
+   * background work completed, so there is no user message and nothing to send — the turn exists to
+   * carry the already-streaming response into the main transcript. Headless because nobody is
+   * necessarily present to answer an interactive tool.
+   */
+  private async startWakeTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
+    if (!this.isCurrentEntry(entry) || !entry.rolling) return
+    const modelId = entry.modelId
+    const wakeMessage = createSyntheticUserMessage(entry.sessionId)
+
+    const rootSpan = this.startRuntimeRootSpan(entry, modelId)
+    let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
+    try {
+      assistantMessage = agentSessionMessageService.saveMessage({
+        sessionId: entry.sessionId,
+        message: {
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [] },
+          modelId,
+          messageSnapshot: entry.messageSnapshot
+        }
+      })
+    } catch (error) {
+      rootSpan?.end()
+      entry.rolling = false
+      entry.rollBuffer = undefined
+      logger.error('Failed to save wake turn placeholder; dropping woken content', {
+        sessionId: entry.sessionId,
+        error
+      })
+      return
+    }
+
+    const assistantMessageId = assistantMessage.id
+    const turnId = crypto.randomUUID()
+    entry.currentTurn = {
+      turnId,
+      assistantMessageId,
+      userMessage: wakeMessage,
+      modelId,
+      reasoningEffort: 'default',
+      // Pre-admitted: the SDK started this generation itself, so `admitTurn` must NOT send anything.
+      admitted: true,
+      abortController: new AbortController(),
+      activeToolIds: new Set(),
+      headless: true
+    }
+
+    const messages = createRuntimeSeedMessages(wakeMessage, assistantMessageId)
+    if (rootSpan) {
+      applyTurnInputAttributes(rootSpan, {
+        modelId,
+        topicId: entry.topicId,
+        operation: 'invoke_agent',
+        messages
+      })
+    }
+    application.get('AiStreamManager').startRuntimeTurn({
+      topicId: entry.topicId,
+      modelId,
+      rootSpan,
+      request: {
+        chatId: entry.topicId,
+        trigger: 'submit-message',
+        messageId: assistantMessageId,
+        messages,
+        reasoningEffort: 'default',
+        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
+      },
+      abortController: entry.currentTurn.abortController,
+      listeners: [
+        this.createPersistenceListener(entry, wakeMessage),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId),
+        new TraceFlushListener(entry.topicId)
+      ]
     })
   }
 

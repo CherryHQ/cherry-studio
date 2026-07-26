@@ -917,17 +917,18 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(secondTurnParts.some((part) => part.type === 'text-delta' && part.delta === 'second')).toBe(true)
     })
 
-    it('drops turn content that arrives with no turn open, and says so', () => {
+    it('drops parented turn content that arrives with no turn open, and says so', () => {
       const { adapter, parts } = createAdapter({}, { openTurn: false })
 
-      adapter.handleMessage(
-        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'orphan' } })
-      )
+      adapter.handleMessage({
+        ...streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'orphan' } }),
+        parent_tool_use_id: 'task-9'
+      })
 
       expect(parts).toEqual([])
       expect(loggerMocks.debug).toHaveBeenCalledWith(
         'Dropping message received with no active turn',
-        expect.objectContaining({ type: 'stream_event' })
+        expect.objectContaining({ type: 'stream_event', parentToolUseId: 'task-9' })
       )
     })
 
@@ -1057,6 +1058,55 @@ describe('ClaudeCodeStreamAdapter', () => {
       // In-turn events stay parts so the transcript keeps the history.
       expect(statusEvents).toEqual([])
       expect(parts).toEqual([expect.objectContaining({ type: 'data-agent-task-event' })])
+    })
+
+    // The SDK wakes the main agent after background work completes: parentless content starts
+    // streaming with no turn open. The adapter opens one itself and tells the host first, so the
+    // host is already buffering when the chunks arrive.
+    it('self-arms on parentless content and reports the wake before any chunk', () => {
+      const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'woke up' } })
+      )
+
+      expect(statusEvents).toEqual([{ type: 'background-wake' }])
+      expect(parts.some((part) => part.type === 'text-delta' && part.delta === 'woke up')).toBe(true)
+      expect(adapter.isTurnActive).toBe(true)
+    })
+
+    it('completes a wake generation with a normal result instead of a dropped turn-complete', () => {
+      const { adapter } = createAdapter({}, { openTurn: false })
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'summary' } })
+      )
+      const result = adapter.handleMessage(successResult({ session_id: 'resume-wake' }))
+
+      expect(result).toMatchObject({ type: 'result', sessionId: 'resume-wake' })
+      expect(loggerMocks.warn).not.toHaveBeenCalledWith(
+        'Received a result message with no active turn; dropping turn-complete',
+        expect.anything()
+      )
+    })
+
+    it('does not wake for parented content, which stays dropped with its parent id', () => {
+      const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'task-1',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { content: [{ type: 'text', text: 'subagent internals' }] }
+      } as any)
+
+      expect(statusEvents).toEqual([])
+      expect(parts).toEqual([])
+      expect(loggerMocks.debug).toHaveBeenCalledWith(
+        'Dropping message received with no active turn',
+        expect.objectContaining({ parentToolUseId: 'task-1' })
+      )
     })
 
     it('holds init metadata until a turn opens, since it is turn content', () => {

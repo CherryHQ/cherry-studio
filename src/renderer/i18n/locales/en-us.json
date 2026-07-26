@@ -145,6 +145,10 @@
         "whoamiTip": "Tip: Send /whoami in WeChat to get a user's ID."
       }
     },
+    "composer": {
+      "background_running_one": "{{count}} background task running",
+      "background_running_other": "{{count}} background tasks running"
+    },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
       "error": {

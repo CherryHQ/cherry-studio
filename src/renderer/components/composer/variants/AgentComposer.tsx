@@ -31,6 +31,7 @@ import { openResourceEditDialog, ResourceEditDialogEventHost } from '@renderer/c
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
@@ -60,7 +61,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { OutputFor } from '@shared/ipc/types'
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Cable, Settings2, Terminal, ToolCase } from 'lucide-react'
+import { Cable, Loader2, Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -401,6 +402,38 @@ interface InnerProps {
   forceNarrowLayout?: boolean
   deferDynamicControls?: boolean
   resolvedWorkspaceWarning?: string | null
+}
+
+/**
+ * Background work keeps running after a turn ends, and the SDK will wake the agent with a follow-up
+ * response when it settles. Without this the moment between reads as a truncated answer — the
+ * indicator says the session is still pending on background work.
+ */
+function AgentComposerBackgroundTasks({ sessionId }: { sessionId: string }) {
+  const { t } = useTranslation()
+  const backgroundTasks = useAgentSessionBackgroundTasks(sessionId)
+  if (backgroundTasks.length === 0) return null
+
+  return (
+    <Tooltip
+      placement="top"
+      content={
+        <div className="space-y-0.5 text-xs">
+          {backgroundTasks.map((task) => (
+            <div key={task.task_id} className="max-w-60 truncate">
+              {task.description}
+            </div>
+          ))}
+        </div>
+      }>
+      <span
+        aria-label={t('agent.composer.background_running', { count: backgroundTasks.length })}
+        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-background-subtle px-2 py-0.5 text-[11px] text-muted-foreground">
+        <Loader2 size={11} className="animate-spin" />
+        {t('agent.composer.background_running', { count: backgroundTasks.length })}
+      </span>
+    </Tooltip>
+  )
 }
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
@@ -1226,7 +1259,10 @@ const AgentComposerInner = ({
   })
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
-    <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    <>
+      <AgentComposerBackgroundTasks sessionId={sessionId} />
+      <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    </>
   )
 
   return (

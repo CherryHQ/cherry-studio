@@ -145,6 +145,10 @@
         "whoamiTip": "提示：在微信中发送 /whoami 可获取用户 ID。"
       }
     },
+    "composer": {
+      "background_running_one": "{{count}} 个后台任务运行中",
+      "background_running_other": "{{count}} 个后台任务运行中"
+    },
     "delete": {
       "content": "删除该智能体将强制终止并删除该智能体下的所有会话。您确定吗？",
       "error": {

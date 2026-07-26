@@ -145,6 +145,10 @@
         "whoamiTip": "Совет: Отправьте /whoami в WeChat, чтобы получить ID пользователя."
       }
     },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
+    },
     "delete": {
       "content": "Удаление этого агента приведёт к принудительному завершению и удалению всех сессий, связанных с ним. Вы уверены?",
       "error": {

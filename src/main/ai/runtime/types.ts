@@ -72,6 +72,9 @@ export type AgentRuntimeEvent =
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
+  /** The SDK woke the main agent after background work completed: parentless content is streaming
+   *  with no open turn. The host opens a receive-only turn to carry it into the main transcript. */
+  | { type: 'background-wake' }
   | { type: 'error'; error: unknown }
 
 /**

@@ -145,6 +145,10 @@
         "whoamiTip": "Συμβουλή: Στείλτε /whoami στο WeChat για να λάβετε το αναγνωριστικό ενός χρήστη."
       }
     },
+    "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_other": "[to be translated]:{{count}} background tasks running"
+    },
     "delete": {
       "content": "Η διαγραφή αυτού του Agent θα τερματίσει βίαια και θα διαγράψει όλες τις συνεδρίες υπό αυτόν τον Agent. Είστε σίγουροι;",
       "error": {
