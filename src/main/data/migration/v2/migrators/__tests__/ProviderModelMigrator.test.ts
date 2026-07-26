@@ -10,6 +10,7 @@ import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -579,12 +580,16 @@ describe('ProviderModelMigrator', () => {
       const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
+      // The row persists only the user-owned override shape (no adapterFamily)...
       const [providerRow] = await dbh.db
         .select()
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, 'aihubmix'))
       const endpointConfigs = providerRow.endpointConfigs as Record<string, { adapterFamily?: string }>
-      expect(endpointConfigs['anthropic-messages'].adapterFamily).toBe('aihubmix')
+      expect(endpointConfigs['anthropic-messages']).toEqual({ baseUrl: 'https://aihubmix.com' })
+      // ...while the runtime read supplies the catalog family, not a generic fallback.
+      const runtime = providerService.getByProviderId('aihubmix')
+      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily).toBe('aihubmix')
     })
 
     it('backfills the anthropic adapterFamily for a custom relay with no catalog match', async () => {
@@ -613,12 +618,18 @@ describe('ProviderModelMigrator', () => {
       const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
+      // The row stores only the baseUrl; the runtime read infers the endpoint
+      // protocol family so the resolver routes to the anthropic adapter.
       const [providerRow] = await dbh.db
         .select()
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, '7c3dfc0b-985d-440b-b18b-e639fcf9218e'))
       const endpointConfigs = providerRow.endpointConfigs as Record<string, { adapterFamily?: string }>
-      expect(endpointConfigs['anthropic-messages'].adapterFamily).toBe('anthropic')
+      expect(endpointConfigs['anthropic-messages']).toEqual({
+        baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic'
+      })
+      const runtime = providerService.getByProviderId('7c3dfc0b-985d-440b-b18b-e639fcf9218e')
+      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily).toBe('anthropic')
     })
 
     it('enriches model rows with registry preset metadata when a preset is found', async () => {

@@ -29,7 +29,7 @@ import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ApiFeatures, EndpointConfig } from '@shared/data/types/provider'
+import type { ApiFeatures, EndpointConfig, EndpointConfigOverride } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -215,20 +215,18 @@ export class ProviderModelMigrator extends BaseMigrator {
         }
       }
     }
+    // Persist only the user-owned override shape for catalog-matched rows:
+    // baseUrl (legacy value wins over the preset default). Registry-owned
+    // fields (adapterFamily, modelsApiUrls) resolve at read time (#17096).
     const allEndpointKeys = new Set([
       ...Object.keys(presetEndpointConfigs ?? {}),
       ...Object.keys(userEndpointConfigs ?? {})
     ])
-    const mergedEndpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
+    const mergedEndpointConfigs: Partial<Record<EndpointType, EndpointConfigOverride>> = {}
     for (const k of allEndpointKeys) {
       const ep = k as EndpointType
-      const merged: EndpointConfig = {
-        ...presetEndpointConfigs?.[ep],
-        ...userEndpointConfigs?.[ep]
-      }
-      const presetFamily = presetEndpointConfigs?.[ep]?.adapterFamily
-      if (presetFamily) merged.adapterFamily = presetFamily
-      mergedEndpointConfigs[ep] = merged
+      const baseUrl = userEndpointConfigs?.[ep]?.baseUrl ?? presetEndpointConfigs?.[ep]?.baseUrl
+      mergedEndpointConfigs[ep] = baseUrl !== undefined ? { baseUrl } : {}
     }
 
     const presetApiFeatures = (preset.apiFeatures ?? null) as ApiFeatures | null

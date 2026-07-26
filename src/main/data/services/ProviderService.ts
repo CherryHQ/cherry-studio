@@ -28,16 +28,18 @@ import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
 import { providerLogoRef } from '@shared/data/types/file'
+import type { EndpointType } from '@shared/data/types/model'
 import type {
   ApiKeyEntry,
   AuthConfig,
   AuthType,
+  EndpointConfigOverride,
   Provider,
   ProviderSettings,
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
-import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS, EndpointConfigSchema } from '@shared/data/types/provider'
-import { and, asc, eq, sql, type SQLWrapper } from 'drizzle-orm'
+import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
@@ -98,14 +100,30 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
   })
 }
 
-function normalizeEndpointConfigs(
-  endpointConfigs: UserProviderRow['endpointConfigs']
-): UserProviderRow['endpointConfigs'] {
-  if (!endpointConfigs) return endpointConfigs
+/**
+ * Project write-DTO endpoint configs down to the persisted override shape.
+ * Registry-owned fields never reach the row: `adapterFamily` survives only for
+ * custom (preset-less) providers, where it is a legacy relay routing hint
+ * (new-api/gateway) that endpoint-type inference cannot reproduce. Everything
+ * else resolves from the registry at read time (#17096).
+ */
+function projectEndpointConfigOverrides(
+  configs: Partial<Record<EndpointType, EndpointConfigOverride>> | null | undefined,
+  presetProviderId: string | null
+): Partial<Record<EndpointType, EndpointConfigOverride>> | null {
+  if (!configs || Object.keys(configs).length === 0) return null
 
-  return Object.fromEntries(
-    Object.entries(endpointConfigs).map(([endpointType, config]) => [endpointType, EndpointConfigSchema.parse(config)])
-  )
+  const result: Partial<Record<EndpointType, EndpointConfigOverride>> = {}
+  for (const [key, config] of Object.entries(configs)) {
+    if (!config) continue
+    const override: EndpointConfigOverride = {}
+    if (config.baseUrl !== undefined) override.baseUrl = config.baseUrl
+    if (presetProviderId === null && config.adapterFamily !== undefined) override.adapterFamily = config.adapterFamily
+    // Keep empty entries: key presence marks a user-configured endpoint and
+    // feeds the read-time key union.
+    result[key as EndpointType] = override
+  }
+  return result
 }
 
 /**
@@ -159,7 +177,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     // registry-only fields such as `reasoningFormatType` are stripped first.
     endpointConfigs:
       providerRegistryService.mergeEndpointConfigs(
-        normalizeEndpointConfigs(row.endpointConfigs),
+        row.endpointConfigs,
         row.providerId,
         row.presetProviderId ?? undefined
       ) ?? undefined,
@@ -205,12 +223,6 @@ class ProviderService {
       conditions.push(eq(userProviderTable.isEnabled, query.enabled))
     }
 
-    if (query.endpointType !== undefined) {
-      // endpointConfigs is a JSON text column: { "anthropic-messages": {...}, "openai-chat": {...} }
-      // Check if the key exists and is not null
-      conditions.push(sql`json_extract(${userProviderTable.endpointConfigs}, ${'$.' + query.endpointType}) IS NOT NULL`)
-    }
-
     const rows =
       conditions.length > 0
         ? db
@@ -244,10 +256,7 @@ class ProviderService {
   create(dto: CreateProviderDto): Provider {
     assertManagedCherryAiProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
 
-    const endpointConfigs = getDataService('ProviderRegistryService').resolveAdapterFamilies(
-      dto.endpointConfigs,
-      dto.presetProviderId ?? null
-    )
+    const endpointConfigs = projectEndpointConfigOverrides(dto.endpointConfigs, dto.presetProviderId ?? null)
 
     const row = withSqliteErrors(
       () =>
@@ -323,15 +332,10 @@ class ProviderService {
       if (logoCols) {
         updates.logoKey = logoCols.logoKey
       }
-      // PATCH replaces endpointConfigs wholesale, and settings UIs (e.g. the
-      // "add endpoint" drawer) send new entries as `{ baseUrl }` only. Backfill
-      // adapterFamily here too — same enrichment as create — so an edit can't
-      // strip the routing signal and drop the provider back to openai-compatible.
+      // PATCH replaces endpointConfigs wholesale; only the user-owned override
+      // shape is persisted — registry-owned fields resolve at read time.
       if (dto.endpointConfigs !== undefined) {
-        updates.endpointConfigs = getDataService('ProviderRegistryService').resolveAdapterFamilies(
-          dto.endpointConfigs,
-          current.presetProviderId
-        )
+        updates.endpointConfigs = projectEndpointConfigOverrides(dto.endpointConfigs, current.presetProviderId)
       }
       if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
       if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig

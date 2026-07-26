@@ -52,6 +52,23 @@ function getSeedAuthConfig(providerId: string): AuthConfig | null {
   return null
 }
 
+/**
+ * Seed only the user-owned override shape: baseUrl per endpoint. Registry-owned
+ * fields (adapterFamily, modelsApiUrls) and the endpoint key set resolve from
+ * the registry at read time (#17096), so persisting them would freeze a
+ * snapshot that goes stale.
+ */
+function toSeedEndpointConfigs(endpointConfigs: ProtoProviderConfig['endpointConfigs']) {
+  const persisted = buildPersistedEndpointConfigs(endpointConfigs)
+  if (!persisted) return null
+
+  const result: Partial<Record<string, { baseUrl: string }>> = {}
+  for (const [endpointType, config] of Object.entries(persisted)) {
+    if (config?.baseUrl) result[endpointType] = { baseUrl: config.baseUrl }
+  }
+  return Object.keys(result).length > 0 ? result : null
+}
+
 function toDbRow(p: ProtoProviderConfig) {
   const apiFeatures = p.apiFeatures
     ? {
@@ -67,7 +84,7 @@ function toDbRow(p: ProtoProviderConfig) {
     providerId: p.id,
     presetProviderId: p.presetProviderId ?? p.id,
     name: p.name,
-    endpointConfigs: buildPersistedEndpointConfigs(p.endpointConfigs),
+    endpointConfigs: toSeedEndpointConfigs(p.endpointConfigs),
     defaultChatEndpoint: getSeedDefaultChatEndpoint(p.id, p.defaultChatEndpoint),
     authConfig: getSeedAuthConfig(p.id),
     apiFeatures

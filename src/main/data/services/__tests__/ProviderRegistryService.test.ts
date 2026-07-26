@@ -129,7 +129,7 @@ import {
 } from '@cherrystudio/provider-registry/node'
 
 // Must import after mocks are set up
-const { providerRegistryService } = await import('../ProviderRegistryService')
+const { mergePresetModel, providerRegistryService } = await import('../ProviderRegistryService')
 
 const mockReadModels = vi.mocked(readModelRegistry)
 const mockReadProviderModels = vi.mocked(readProviderModelRegistry)
@@ -266,6 +266,46 @@ describe('ProviderRegistryService', () => {
       expect(models[0].capabilities).toContain('function-call')
       expect(models[0].contextWindow).toBe(128_000)
       expect(models[0].maxOutputTokens).toBe(4096)
+    })
+
+    it('merges parameter support and provider pricing overrides into the runtime baseline', () => {
+      const model = mergePresetModel(
+        {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          parameterSupport: {
+            temperature: { supported: true },
+            topP: { supported: true },
+            topK: { supported: false },
+            frequencyPenalty: true,
+            presencePenalty: true,
+            maxTokens: true,
+            stopSequences: true,
+            systemMessage: true
+          },
+          pricing: {
+            input: { perMillionTokens: 5 },
+            output: { perMillionTokens: 15 }
+          }
+        } as any,
+        {
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          parameterSupport: { temperature: { supported: false } },
+          pricing: { output: { perMillionTokens: 12 } }
+        } as any,
+        'openai'
+      )
+
+      expect(model.parameterSupport).toMatchObject({
+        temperature: { supported: false },
+        topP: { supported: true },
+        maxTokens: true
+      })
+      expect(model.pricing).toMatchObject({
+        input: { perMillionTokens: 5 },
+        output: { perMillionTokens: 12 }
+      })
     })
 
     it('uses a persisted presetProviderId for lookup and catalog models while keeping runtime identities', async () => {

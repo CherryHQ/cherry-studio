@@ -41,7 +41,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
   return { RegistryLoader }
 })
 
-describe('ProviderService.update — adapterFamily backfill', () => {
+describe('ProviderService.update — endpoint config overrides', () => {
   const dbh = setupTestDatabase()
 
   it('strips legacy reasoningFormatType from persisted endpoint configs on read', async () => {
@@ -68,7 +68,7 @@ describe('ProviderService.update — adapterFamily backfill', () => {
     expect(endpointConfig).not.toHaveProperty('reasoningFormatType')
   })
 
-  it('backfills adapterFamily when a settings PATCH adds a { baseUrl }-only endpoint', async () => {
+  it('persists a { baseUrl }-only override when a settings PATCH adds an endpoint', async () => {
     // A correctly-created preset-derived instance (openai-chat tagged `cherryin`).
     providerService.create({
       providerId: 'cherryin-express',
@@ -80,8 +80,8 @@ describe('ProviderService.update — adapterFamily backfill', () => {
       }
     })
 
-    // The "add endpoint" drawer PATCHes the full set: the existing entry keeps its
-    // family, the new anthropic entry carries only baseUrl (mergeEndpointConfigs).
+    // The "add endpoint" drawer PATCHes the full set; the renderer may echo
+    // merged runtime snapshots, but only the override shape is persisted.
     providerService.update('cherryin-express', {
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
@@ -97,14 +97,19 @@ describe('ProviderService.update — adapterFamily backfill', () => {
       .from(userProviderTable)
       .where(eq(userProviderTable.providerId, 'cherryin-express'))
 
-    // The newly-added endpoint gets the preset family instead of the
-    // openai-compatible fallback the resolver would otherwise pick.
+    // Rows persist only the user-owned override shape — the echoed
+    // adapterFamily is stripped for preset-linked providers.
     expect(row.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]).toEqual({
-      baseUrl: 'https://express-ent-admin.cherryin.ai/v1',
-      adapterFamily: 'cherryin'
+      baseUrl: 'https://express-ent-admin.cherryin.ai/v1'
     })
-    // An already-explicit family survives the PATCH untouched.
-    expect(row.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.adapterFamily).toBe('cherryin')
+    expect(row.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).toEqual({
+      baseUrl: 'https://express-ent-admin.cherryin.ai'
+    })
+    // The runtime read supplies the preset family for the newly-added
+    // endpoint instead of the openai-compatible fallback.
+    const runtime = providerService.getByProviderId('cherryin-express')
+    expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily).toBe('cherryin')
+    expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.adapterFamily).toBe('cherryin')
   })
 
   it('defaults an undeclared endpoint to its endpoint-type family, not cherryin', async () => {
@@ -129,6 +134,12 @@ describe('ProviderService.update — adapterFamily backfill', () => {
       .select()
       .from(userProviderTable)
       .where(eq(userProviderTable.providerId, 'cherryin-express-2'))
-    expect(row.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.adapterFamily).toBe('openai')
+    expect(row.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]).toEqual({
+      baseUrl: 'https://express-ent-admin.cherryin.ai'
+    })
+    // openai-responses is NOT declared by the cherryin preset → the runtime
+    // read infers the endpoint-type default, not cherryin.
+    const runtime = providerService.getByProviderId('cherryin-express-2')
+    expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.adapterFamily).toBe('openai')
   })
 })

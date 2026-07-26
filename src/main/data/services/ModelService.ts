@@ -10,7 +10,7 @@
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
-import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
+import type { InsertUserModelRow, RegistryEnrichableField, UserModelRow } from '@data/db/schemas/userModel'
 import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
@@ -37,11 +37,13 @@ import type {
   Modality,
   Model,
   ModelCapability,
+  RuntimeModelPricing,
   RuntimeParameterSupport,
   RuntimeReasoning
 } from '@shared/data/types/model'
-import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { createUniqueModelId, CURRENCY, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -90,15 +92,9 @@ function assertManagedCherryAiDefaultModelMutationAllowed(
 /**
  * Resolve the effective capability set for a Model row at query-time.
  *
- * Anchored on the at-rest user-row capabilities so the user's explicit
- * capability edits — including removals — survive each read. The ONLY preset
- * capability unioned in is `image-generation`: the painting model filter must
- * pick a model up even when the provider's `/models` endpoint shipped it
- * untagged (e.g. cherryin returning `qwen/qwen-image-edit-2509(free)` with no
- * capability field). Other preset capabilities are NOT re-added at read time —
- * doing so would silently resurrect any capability the user removed. Registry
- * `override.capabilities` still applies (force replaces; add unions; remove
- * subtracts), matching `applyPresetAndOverride` add-time semantics.
+ * Custom rows remain row-owned, but can still receive the image-generation
+ * capability and metadata when the registry recognizes the model id. Preset-
+ * backed rows use the complete baseline merge below instead.
  */
 function resolveCapabilities(
   presetCapabilities: readonly ModelCapability[] | undefined,
@@ -155,6 +151,8 @@ export interface UserModelOverlay {
   maxInputTokens?: number | null
   maxOutputTokens?: number | null
   supportsStreaming?: boolean | null
+  parameterSupport?: RuntimeParameterSupport | null
+  pricing?: RuntimeModelPricing | null
   // Persisted reasoning rows may have optional fields the runtime type requires;
   // applyUserOverlay narrows it via cast on copy.
   reasoning?: Partial<RuntimeReasoning> | null
@@ -164,30 +162,29 @@ export interface UserModelOverlay {
  * Apply user-row values on top of a registry-derived baseline Model.
  *
  * Composed with `providerRegistryService.mergePresetModel` to produce the
- * final merged Model that gets persisted: the registry service handles
- * preset → override resolution, and this overlay handles user precedence.
- * Truthy/non-null user values win. Empty arrays and null are treated as
- * "not set" so the registry baseline shows through.
+ * final merged Model: the registry service handles preset → override
+ * resolution, and this overlay handles user precedence. `undefined` / `null`
+ * mean "not set"; explicit empty strings and arrays are preserved.
  */
 export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Model {
   const result: Model = { ...baseline }
 
-  if (overlay.capabilities && overlay.capabilities.length > 0) {
+  if (overlay.capabilities != null) {
     result.capabilities = [...overlay.capabilities]
   }
-  if (overlay.endpointTypes && overlay.endpointTypes.length > 0) {
+  if (overlay.endpointTypes != null) {
     result.endpointTypes = [...overlay.endpointTypes]
   }
-  if (overlay.inputModalities && overlay.inputModalities.length > 0) {
+  if (overlay.inputModalities != null) {
     result.inputModalities = [...overlay.inputModalities]
   }
-  if (overlay.outputModalities && overlay.outputModalities.length > 0) {
+  if (overlay.outputModalities != null) {
     result.outputModalities = [...overlay.outputModalities]
   }
-  if (overlay.name) {
+  if (overlay.name != null) {
     result.name = overlay.name
   }
-  if (overlay.description) {
+  if (overlay.description != null) {
     result.description = overlay.description
   }
   if (overlay.contextWindow != null) {
@@ -205,8 +202,14 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
   if (overlay.supportsStreaming != null) {
     result.supportsStreaming = overlay.supportsStreaming
   }
-  if (overlay.group) {
+  if (overlay.group != null) {
     result.group = overlay.group
+  }
+  if (overlay.parameterSupport != null) {
+    result.parameterSupport = overlay.parameterSupport
+  }
+  if (overlay.pricing != null) {
+    result.pricing = overlay.pricing
   }
 
   return result
@@ -323,11 +326,129 @@ function mergedModelToNewUserModel(
   }
 }
 
+function dtoToUserOverlay(dto: CreateModelDto | UpdateModelDto): UserModelOverlay {
+  return {
+    name: dto.name,
+    description: dto.description,
+    group: dto.group,
+    capabilities: dto.capabilities as ModelCapability[] | undefined,
+    inputModalities: dto.inputModalities as Modality[] | undefined,
+    outputModalities: dto.outputModalities as Modality[] | undefined,
+    endpointTypes: dto.endpointTypes as EndpointType[] | undefined,
+    contextWindow: dto.contextWindow,
+    maxInputTokens: dto.maxInputTokens,
+    maxOutputTokens: dto.maxOutputTokens,
+    supportsStreaming: dto.supportsStreaming,
+    parameterSupport: dto.parameterSupport as RuntimeParameterSupport | undefined,
+    pricing: dto.pricing
+  }
+}
+
+function dtoKeyToDbKey(key: keyof UpdateModelDto): string {
+  const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
+  return mapping && Array.isArray(mapping) ? mapping[1] : key
+}
+
+function getBaselineField(model: Model, field: RegistryEnrichableField): unknown {
+  if (field === 'parameters') return model.parameterSupport
+  return model[field as keyof Model]
+}
+
+function isEmptyPricingEcho(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const pricing = value as Partial<RuntimeModelPricing>
+  const isEmptyTier = (tier: RuntimeModelPricing['input'] | undefined) =>
+    tier != null && (tier.perMillionTokens === 0 || tier.perMillionTokens === null)
+  return (
+    isEmptyTier(pricing.input) &&
+    isEmptyTier(pricing.output) &&
+    !pricing.cacheRead &&
+    !pricing.cacheWrite &&
+    !pricing.perImage &&
+    !pricing.perMinute
+  )
+}
+
+function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeModelPricing {
+  const normalizeTier = (tier: RuntimeModelPricing['input']): RuntimeModelPricing['input'] => ({
+    perMillionTokens: tier.perMillionTokens,
+    currency: tier.currency ?? CURRENCY.USD
+  })
+
+  return {
+    input: normalizeTier(pricing.input),
+    output: normalizeTier(pricing.output),
+    ...(pricing.cacheRead ? { cacheRead: normalizeTier(pricing.cacheRead) } : {}),
+    ...(pricing.cacheWrite ? { cacheWrite: normalizeTier(pricing.cacheWrite) } : {}),
+    ...(pricing.perImage ? { perImage: pricing.perImage } : {}),
+    ...(pricing.perMinute ? { perMinute: pricing.perMinute } : {})
+  }
+}
+
+function matchesBaseline(value: unknown, baseline: unknown, field: RegistryEnrichableField): boolean {
+  if (field === 'pricing') {
+    if (baseline === undefined && isEmptyPricingEcho(value)) return true
+    if (value && baseline) {
+      return isEqual(
+        normalizePricingForComparison(value as RuntimeModelPricing),
+        normalizePricingForComparison(baseline as RuntimeModelPricing)
+      )
+    }
+  }
+  return isEqual(value, baseline)
+}
+
+function collectUserOverrides(
+  dto: CreateModelDto | UpdateModelDto,
+  baseline: Model | null,
+  existing: readonly RegistryEnrichableField[] = []
+): RegistryEnrichableField[] {
+  const overrides = new Set(existing)
+
+  for (const key of Object.keys(dto) as (keyof UpdateModelDto)[]) {
+    const field = dtoKeyToDbKey(key)
+    if (!isRegistryEnrichableField(field)) continue
+
+    const value = dto[key]
+    if (value === undefined) continue
+    if (baseline && matchesBaseline(value, getBaselineField(baseline, field), field)) {
+      overrides.delete(field)
+    } else {
+      overrides.add(field)
+    }
+  }
+
+  return [...overrides]
+}
+
+function applyTrackedUserOverrides(baseline: Model, row: UserModelRow): Model {
+  const fields = new Set(row.userOverrides ?? [])
+  const overlay: UserModelOverlay = {}
+
+  if (fields.has('name')) overlay.name = row.name
+  if (fields.has('description')) overlay.description = row.description
+  if (fields.has('group')) overlay.group = row.group
+  if (fields.has('capabilities')) overlay.capabilities = row.capabilities
+  if (fields.has('inputModalities')) overlay.inputModalities = row.inputModalities
+  if (fields.has('outputModalities')) overlay.outputModalities = row.outputModalities
+  if (fields.has('endpointTypes')) overlay.endpointTypes = row.endpointTypes
+  if (fields.has('contextWindow')) overlay.contextWindow = row.contextWindow
+  if (fields.has('maxInputTokens')) overlay.maxInputTokens = row.maxInputTokens
+  if (fields.has('maxOutputTokens')) overlay.maxOutputTokens = row.maxOutputTokens
+  if (fields.has('supportsStreaming')) overlay.supportsStreaming = row.supportsStreaming
+  if (fields.has('parameters')) {
+    overlay.parameterSupport = row.parameters as RuntimeParameterSupport | null
+  }
+  if (fields.has('pricing')) overlay.pricing = row.pricing
+
+  return applyUserOverlay(baseline, overlay)
+}
+
 /**
  * Convert database row to Model entity
  *
- * Since user_model stores fully resolved data (merged at add-time),
- * this is a direct field mapping with no runtime merge needed.
+ * The row is a compatibility snapshot. Preset-backed rows are subsequently
+ * resolved against the current registry and only tracked overrides survive.
  */
 function rowToRuntimeModel(row: UserModelRow): Model {
   const reasoning = row.reasoning ? ReasoningConfigSchema.parse(row.reasoning) : undefined
@@ -361,6 +482,21 @@ function rowToRuntimeModel(row: UserModelRow): Model {
 }
 
 class ModelService {
+  private getRegistryBaseline(
+    providerId: string,
+    presetModelId: string | null,
+    reasoningConfigCache?: Map<string, ReasoningProviderContext>
+  ): Model | null {
+    if (!presetModelId) return null
+    const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
+      providerId,
+      presetModelId,
+      reasoningConfigCache
+    )
+    if (!presetModel) return null
+    return mergePresetModel(presetModel, registryOverride, providerId, reasoningProfile.wire, reasoningProfile.support)
+  }
+
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
     const presetModel = registryData?.presetModel ?? null
     const dtoValues = dtoToNewUserModel(dto)
@@ -373,9 +509,13 @@ class ModelService {
         registryData?.reasoningProfile.wire,
         registryData?.reasoningProfile.support
       )
-      const merged = applyUserOverlay(baseline, { ...dtoValues, name: dto.name ?? null })
+      const merged = applyUserOverlay(baseline, dtoToUserOverlay(dto))
+      const userOverrides = collectUserOverrides(dto, baseline)
 
-      return mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
+      return {
+        ...mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged),
+        userOverrides: userOverrides.length > 0 ? userOverrides : null
+      }
     }
 
     // No preset: a custom model. When the id/capabilities say the model reasons,
@@ -389,6 +529,36 @@ class ModelService {
     }
 
     return { ...dtoValues, presetModelId: dto.presetModelId ?? null }
+  }
+
+  private buildUpdates(existing: UserModelRow, dto: UpdateModelDto): Partial<InsertUserModelRow> {
+    const updates: Partial<InsertUserModelRow> = {}
+    for (const entry of UPDATE_MODEL_FIELD_MAP) {
+      const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
+      if (dto[dtoKey] !== undefined) {
+        ;(updates as Record<string, unknown>)[dbKey] = dto[dtoKey]
+      }
+    }
+
+    const hasEnrichableField = (Object.keys(dto) as (keyof UpdateModelDto)[])
+      .map(dtoKeyToDbKey)
+      .some(isRegistryEnrichableField)
+    if (!hasEnrichableField) return updates
+
+    let baseline: Model | null = null
+    try {
+      baseline = this.getRegistryBaseline(existing.providerId, existing.presetModelId)
+    } catch (error) {
+      logger.warn('Registry baseline lookup failed; preserving model fields as user overrides', {
+        providerId: existing.providerId,
+        modelId: existing.modelId,
+        error
+      })
+    }
+
+    const userOverrides = collectUserOverrides(dto, baseline, existing.userOverrides ?? [])
+    updates.userOverrides = userOverrides.length > 0 ? userOverrides : null
+    return updates
   }
 
   private filterReconcileRemovals(providerId: string, toRemove: string[], db: DbType): ReconcileRemovalFilterResult {
@@ -503,34 +673,17 @@ class ModelService {
   }
 
   /**
-   * Registry enrichment shared by every row-serving path
-   * (`list`, `getByKey`, mutation results): recompute capabilities / imageGeneration and the
-   * reasoning descriptor (#16598) from the CURRENT registry. Capability
-   * enrichment honors `userOverrides`; reasoning is no longer user-editable
-   * and is always re-projected. Nothing is written back. Single-model consumers (the
-   * composer resolves the active model via `GET /models/:id`) must see the
-   * same view as the list — a stale stored descriptor otherwise starves
-   * them of registry updates.
+   * Registry resolution shared by every row-serving path. Preset-backed rows
+   * use the current registry as their baseline and apply only fields listed in
+   * `userOverrides`. Custom rows remain row-owned and keep the narrow metadata
+   * enrichment used for recognized image/reasoning models. Nothing is written
+   * back.
    */
   private enrichRowsFromRegistry(rows: UserModelRow[]): Model[] {
-    let models: Model[] = rows.map(rowToRuntimeModel)
-    const capabilityOverrideModelIds = new Set(
-      rows.filter((row) => row.userOverrides?.includes('capabilities')).map((row) => row.id)
-    )
-    // Enrich with `imageGeneration` AND `capabilities` from the registry preset.
-    // imageGeneration is preset-only metadata (not stored on user_model).
-    // capabilities are unioned in unless the user explicitly overrode them: if registry says a model is `image-generation`
-    // but the provider's /models endpoint didn't tag it (cherryin returning
-    // `qwen/qwen-image-edit-2509(free)` with no capability field), the painting
-    // filter still picks it up. `override.capabilities.force` replaces; `add`
-    // adds; `remove` subtracts — matches `applyPresetAndOverride` semantics at
-    // add-time, so re-fetching models stays idempotent with the at-rest row.
-    // Memoize the per-provider reasoning config so a list of N models in the
-    // same provider resolves it once instead of issuing N identical
-    // `getByProviderId` reads (the painting model picker lists one provider).
     const reasoningConfigCache = new Map<string, ReasoningProviderContext>()
-    models = models.map((model) => {
-      const presetId = model.presetModelId ?? model.apiModelId
+    return rows.map((row) => {
+      const model = rowToRuntimeModel(row)
+      const presetId = row.presetModelId ?? model.apiModelId
       if (!presetId) return model
       try {
         const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
@@ -539,29 +692,41 @@ class ModelService {
           reasoningConfigCache
         )
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
+        if (row.presetModelId && presetModel) {
+          const baseline = mergePresetModel(
+            presetModel,
+            registryOverride,
+            model.providerId,
+            reasoningProfile.wire,
+            reasoningProfile.support
+          )
+          const resolved = applyTrackedUserOverrides(baseline, row)
+          return {
+            ...resolved,
+            id: model.id,
+            providerId: model.providerId,
+            apiModelId: model.apiModelId,
+            presetModelId: row.presetModelId,
+            imageGeneration,
+            isEnabled: model.isEnabled,
+            isHidden: model.isHidden,
+            isDeprecated: model.isDeprecated,
+            notes: model.notes
+          }
+        }
+
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
         const ownedBy =
           registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(model.apiModelId ?? presetId)
         if (ownedBy) updates.ownedBy = ownedBy
-        if (!capabilityOverrideModelIds.has(model.id)) {
-          const capabilities = resolveCapabilities(
+        if (!row.userOverrides?.includes('capabilities')) {
+          updates.capabilities = resolveCapabilities(
             presetModel?.capabilities,
             registryOverride?.capabilities,
             model.capabilities
           )
-          const changed =
-            capabilities.length !== model.capabilities.length ||
-            capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
-          if (changed) updates.capabilities = capabilities
         }
-        // Reasoning re-enrichment (#16598): stored reasoning is frozen at
-        // creation, so recompute the descriptor from the CURRENT registry for
-        // preset-backed rows, and infer one for non-catalog rows that reason
-        // but have no descriptor (rows created before ingest-time inference).
-        // Read-time only — nothing is written back. Reasoning is no longer a
-        // user-overridable field, so legacy overrides are also re-projected
-        // through the current endpoint profile.
         const capabilities = updates.capabilities ?? model.capabilities
         let reasoning: RuntimeReasoning | undefined
         if (presetModel) {
@@ -594,8 +759,6 @@ class ModelService {
         return model
       }
     })
-
-    return models
   }
 
   /**
@@ -633,14 +796,10 @@ class ModelService {
     const ids = Array.from(new Set(uniqueIds.filter((id): id is string => typeof id === 'string' && id.length > 0)))
     if (ids.length === 0) return result
 
-    const rows = tx
-      .select({ id: userModelTable.id, name: userModelTable.name })
-      .from(userModelTable)
-      .where(inArray(userModelTable.id, ids))
-      .all()
+    const rows = tx.select().from(userModelTable).where(inArray(userModelTable.id, ids)).all()
 
-    for (const row of rows) {
-      if (row.name) result.set(row.id, row.name)
+    for (const model of this.enrichRowsFromRegistry(rows)) {
+      if (model.name) result.set(model.id, model.name)
     }
     return result
   }
@@ -737,7 +896,7 @@ class ModelService {
       })
     }
 
-    return rows.map(rowToRuntimeModel)
+    return this.enrichRowsFromRegistry(rows)
   }
 
   /**
@@ -760,24 +919,7 @@ class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    const updates: Partial<InsertUserModelRow> = {}
-    for (const entry of UPDATE_MODEL_FIELD_MAP) {
-      const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
-      if (dto[dtoKey] !== undefined) {
-        ;(updates as Record<string, unknown>)[dbKey] = dto[dtoKey]
-      }
-    }
-    // Track which registry-enrichable fields the user explicitly changed
-    // Map DTO keys to DB column names (e.g. parameterSupport → parameters)
-    const dtoToDbKey = (key: string): string => {
-      const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
-      return mapping && Array.isArray(mapping) ? mapping[1] : key
-    }
-    const changedEnrichableFields = Object.keys(dto).map(dtoToDbKey).filter(isRegistryEnrichableField)
-    if (changedEnrichableFields.length > 0) {
-      const existingOverrides = existing.userOverrides ?? []
-      updates.userOverrides = [...new Set([...existingOverrides, ...changedEnrichableFields])]
-    }
+    const updates = this.buildUpdates(existing, dto)
 
     if (Object.keys(updates).length === 0) {
       return this.enrichRowsFromRegistry([existing])[0]
@@ -815,11 +957,6 @@ class ModelService {
       assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, patch)
     }
 
-    const dtoToDbKey = (key: string): string => {
-      const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
-      return mapping && Array.isArray(mapping) ? mapping[1] : key
-    }
-
     const rows = db.transaction((tx) => {
       const results: UserModelRow[] = []
 
@@ -835,18 +972,7 @@ class ModelService {
           throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
         }
 
-        const updates: Partial<InsertUserModelRow> = {}
-        for (const entry of UPDATE_MODEL_FIELD_MAP) {
-          const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
-          if (patch[dtoKey] !== undefined) {
-            ;(updates as Record<string, unknown>)[dbKey] = patch[dtoKey]
-          }
-        }
-        const changedEnrichableFields = Object.keys(patch).map(dtoToDbKey).filter(isRegistryEnrichableField)
-        if (changedEnrichableFields.length > 0) {
-          const existingOverrides = existing.userOverrides ?? []
-          updates.userOverrides = [...new Set([...existingOverrides, ...changedEnrichableFields])]
-        }
+        const updates = this.buildUpdates(existing, patch)
 
         if (Object.keys(updates).length === 0) {
           results.push(existing)
@@ -968,7 +1094,7 @@ class ModelService {
       removed: actuallyDeleted
     })
 
-    return rows.map(rowToRuntimeModel)
+    return this.enrichRowsFromRegistry(rows)
   }
 
   /**
@@ -1070,9 +1196,9 @@ class ModelService {
   }
 
   /**
-   * Batch upsert models for a provider (used by RegistryService).
-   * Inserts new models, updates existing ones.
-   * Respects `userOverrides`: fields the user has explicitly modified are not overwritten.
+   * Batch upsert compatibility snapshots for registry synchronization callers.
+   * Read-time resolution remains authoritative; this method also avoids
+   * overwriting fields tracked in `userOverrides`.
    */
   batchUpsert(models: InsertUserModelRow[]): void {
     if (models.length === 0) return

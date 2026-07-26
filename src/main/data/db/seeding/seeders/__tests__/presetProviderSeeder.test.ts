@@ -99,6 +99,34 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
     expect(ids).not.toContain('cherryai')
   })
 
+  it('seeds only the baseUrl override shape, never registry-owned fields', async () => {
+    const { buildPersistedEndpointConfigs } = await import('@cherrystudio/provider-registry')
+    vi.mocked(buildPersistedEndpointConfigs).mockReturnValue({
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://api.openai.com/v1',
+        adapterFamily: 'openai-compatible',
+        modelsApiUrls: { default: 'https://api.openai.com/v1/models' }
+      },
+      // No baseUrl → nothing user-owned to seed for this endpoint.
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }
+    } as never)
+
+    try {
+      const seed = new PresetProviderSeeder()
+      seed.run(dbh.db)
+
+      const rows = await dbh.db.select().from(userProviderTable)
+      const openai = rows.find((r) => r.providerId === 'openai')
+      // adapterFamily/modelsApiUrls resolve from the registry at read time
+      // (#17096) — persisting them would freeze a snapshot that goes stale.
+      expect(openai?.endpointConfigs).toEqual({
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com/v1' }
+      })
+    } finally {
+      vi.mocked(buildPersistedEndpointConfigs).mockReturnValue(null as never)
+    }
+  })
+
   it('should not insert anything when all registry providers already exist', async () => {
     const [openaiKey, anthropicKey, azureKey, vertexKey, bedrockKey] = generateOrderKeySequence(5)
     await dbh.db.insert(userProviderTable).values([

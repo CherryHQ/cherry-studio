@@ -42,9 +42,15 @@ import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
-import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
+import type {
+  ImageGenerationSupport,
+  Model,
+  RuntimeModelPricing,
+  RuntimeParameterSupport,
+  RuntimeReasoning
+} from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
-import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
+import type { EndpointConfig, EndpointConfigOverride, Provider, ProviderWebsites } from '@shared/data/types/provider'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 
@@ -248,6 +254,7 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
     inputModalities: override.inputModalities,
     outputModalities: override.outputModalities,
     pricing: override.pricing as ProtoModelConfig['pricing'],
+    parameterSupport: override.parameterSupport as ProtoModelConfig['parameterSupport'],
     imageGeneration: override.imageGeneration
   }
 }
@@ -276,6 +283,7 @@ export function mergePresetModel(
     maxOutputTokens,
     maxInputTokens,
     pricing,
+    parameterSupport,
     replaceWith
   } = applyPresetAndOverride(presetModel, catalogOverride)
 
@@ -301,6 +309,7 @@ export function mergePresetModel(
     endpointTypes,
     supportsStreaming: true,
     reasoning,
+    parameterSupport: parameterSupport as RuntimeParameterSupport | undefined,
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
     isHidden: false,
@@ -327,31 +336,41 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
   let contextWindow = presetModel.contextWindow
   let maxOutputTokens = presetModel.maxOutputTokens
   let maxInputTokens = presetModel.maxInputTokens
+  const mergedPricing = presetModel.pricing
+    ? { ...presetModel.pricing, ...catalogOverride?.pricing }
+    : catalogOverride?.pricing
   let pricing: RuntimeModelPricing | undefined
+  const parameterSupport = presetModel.parameterSupport
+    ? { ...presetModel.parameterSupport, ...catalogOverride?.parameterSupport }
+    : catalogOverride?.parameterSupport
   let replaceWith: string | undefined
 
-  if (presetModel.pricing) {
+  if (mergedPricing?.input && mergedPricing.output) {
     pricing = {
       input: {
-        perMillionTokens: presetModel.pricing.input?.perMillionTokens ?? null,
-        currency: presetModel.pricing.input?.currency
+        perMillionTokens: mergedPricing.input.perMillionTokens ?? null,
+        currency: mergedPricing.input.currency
       },
       output: {
-        perMillionTokens: presetModel.pricing.output?.perMillionTokens ?? null,
-        currency: presetModel.pricing.output?.currency
+        perMillionTokens: mergedPricing.output.perMillionTokens ?? null,
+        currency: mergedPricing.output.currency
       },
-      cacheRead: presetModel.pricing.cacheRead
+      cacheRead: mergedPricing.cacheRead
         ? {
-            perMillionTokens: presetModel.pricing.cacheRead.perMillionTokens ?? null,
-            currency: presetModel.pricing.cacheRead.currency
+            perMillionTokens: mergedPricing.cacheRead.perMillionTokens ?? null,
+            currency: mergedPricing.cacheRead.currency
           }
         : undefined,
-      cacheWrite: presetModel.pricing.cacheWrite
+      cacheWrite: mergedPricing.cacheWrite
         ? {
-            perMillionTokens: presetModel.pricing.cacheWrite.perMillionTokens ?? null,
-            currency: presetModel.pricing.cacheWrite.currency
+            perMillionTokens: mergedPricing.cacheWrite.perMillionTokens ?? null,
+            currency: mergedPricing.cacheWrite.currency
           }
-        : undefined
+        : undefined,
+      perImage: mergedPricing.perImage
+        ? { price: mergedPricing.perImage.price, unit: mergedPricing.perImage.unit }
+        : undefined,
+      perMinute: mergedPricing.perMinute ? { price: mergedPricing.perMinute.price } : undefined
     }
   }
 
@@ -377,6 +396,7 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
     maxOutputTokens,
     maxInputTokens,
     pricing,
+    parameterSupport,
     replaceWith
   }
 }
@@ -512,30 +532,6 @@ class ProviderRegistryService {
     return fallbackId ? (this.findRegistryProvider(fallbackId) ?? null) : null
   }
 
-  resolveAdapterFamilies(
-    endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | null | undefined,
-    presetProviderId?: string | null
-  ): Partial<Record<EndpointType, EndpointConfig>> | null {
-    if (!endpointConfigs || Object.keys(endpointConfigs).length === 0) return null
-
-    const presetProvider = presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined
-    const presetConfigs = presetProvider
-      ? (buildPersistedEndpointConfigs(presetProvider.endpointConfigs) as Partial<
-          Record<EndpointType, EndpointConfig>
-        > | null)
-      : null
-
-    const result: Partial<Record<EndpointType, EndpointConfig>> = {}
-    for (const [key, config] of Object.entries(endpointConfigs)) {
-      if (!config) continue
-      const ep = key as EndpointType
-      result[ep] = config.adapterFamily
-        ? config
-        : { ...config, adapterFamily: presetConfigs?.[ep]?.adapterFamily ?? inferAdapterFamily(ep) }
-    }
-    return result
-  }
-
   /**
    * True when `providerId` is a canonical registry preset row (seeded from
    * providers.json), regardless of its `presetProviderId`. Used to keep
@@ -583,10 +579,12 @@ class ProviderRegistryService {
    *
    * Custom providers (no registry preset) keep their row configs, with
    * `adapterFamily` inferred from the endpoint type when absent — mirroring
-   * the write-path backfill.
+   * the historical write-path backfill. Outputs are rebuilt field by field,
+   * so legacy registry-only row fields (e.g. `reasoningFormatType`) never
+   * cross into runtime state.
    */
   mergeEndpointConfigs(
-    rowConfigs: Partial<Record<EndpointType, EndpointConfig>> | null | undefined,
+    rowConfigs: Partial<Record<EndpointType, EndpointConfigOverride>> | null | undefined,
     providerId: string,
     presetProviderId?: string
   ): Partial<Record<EndpointType, EndpointConfig>> | null {
@@ -600,20 +598,12 @@ class ProviderRegistryService {
           > | null)
         : null
 
-      if (!presetConfigs) {
-        if (!rowConfigs) return null
-        return Object.fromEntries(
-          Object.entries(rowConfigs).map(([key, config]) => {
-            const ep = key as EndpointType
-            return [ep, { ...config, adapterFamily: config?.adapterFamily ?? inferAdapterFamily(ep) }]
-          })
-        )
-      }
+      if (!rowConfigs && !presetConfigs) return null
 
-      const keys = new Set([...Object.keys(presetConfigs), ...Object.keys(rowConfigs ?? {})]) as Set<EndpointType>
+      const keys = new Set([...Object.keys(presetConfigs ?? {}), ...Object.keys(rowConfigs ?? {})]) as Set<EndpointType>
       const merged: Partial<Record<EndpointType, EndpointConfig>> = {}
       for (const ep of keys) {
-        const presetConfig = presetConfigs[ep]
+        const presetConfig = presetConfigs?.[ep]
         const rowConfig = rowConfigs?.[ep]
         if (!presetConfig && !rowConfig) continue
         const config: EndpointConfig = {
@@ -621,8 +611,7 @@ class ProviderRegistryService {
         }
         const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
         if (baseUrl !== undefined) config.baseUrl = baseUrl
-        const modelsApiUrls = presetConfig?.modelsApiUrls ?? rowConfig?.modelsApiUrls
-        if (modelsApiUrls !== undefined) config.modelsApiUrls = modelsApiUrls
+        if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
         merged[ep] = config
       }
       return Object.keys(merged).length > 0 ? merged : null

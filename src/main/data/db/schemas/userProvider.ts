@@ -15,7 +15,7 @@ import type {
   ApiFeatures,
   ApiKeyEntry,
   AuthConfig,
-  EndpointConfig,
+  EndpointConfigOverride,
   ProviderSettings
 } from '@shared/data/types/provider'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
@@ -44,8 +44,15 @@ export const userProviderTable = sqliteTable(
      */
     logoKey: text('logo_key'),
 
-    /** Per-endpoint-type connection configuration (baseUrl, modelsApiUrls, adapterFamily) */
-    endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<Partial<Record<EndpointType, EndpointConfig>>>(),
+    /**
+     * Per-endpoint-type USER overrides only (baseUrl; adapterFamily for
+     * custom rows). Registry-owned connection facts (adapterFamily,
+     * modelsApiUrls, the endpoint key set) resolve from the registry at read
+     * time — persisting them freezes a snapshot that goes stale (#17096).
+     */
+    endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<
+      Partial<Record<EndpointType, EndpointConfigOverride>>
+    >(),
 
     /** Default text generation endpoint (when supporting multiple) */
     defaultChatEndpoint: text().$type<EndpointType>(),

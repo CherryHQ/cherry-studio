@@ -54,8 +54,12 @@ POST /models [{ providerId: 'openai', modelId: 'gpt-4o' }]
     → resolve endpoint profile from registry data   // main-only; not persisted
     → returns { presetModel, registryOverride, reasoningProfile }
   → handler: modelService.create(items)
-    → mergeModelWithUser(userRow, override, preset, providerId, ...)
-    → INSERT into user_model with presetModelId = preset.id
+    → mergePresetModel(preset, override, ...)
+    → applyUserOverlay(baseline, explicit DTO fields)
+    → INSERT compatibility snapshot + userOverrides into user_model
+  → list/get/mutation response
+    → rebuild current registry baseline
+    → apply only fields named by userOverrides
 ```
 
 ### 3. Resolve SDK Model List
@@ -80,7 +84,7 @@ Three separate functions for three distinct use cases:
 | Function | Use Case | Layers |
 |----------|----------|--------|
 | `mergePresetModel` | Registry queries, resolveModels | preset → override |
-| `mergeModelWithUser` | ModelService.create with registry match | preset → override → user |
+| `applyUserOverlay` | Model create/read with explicit user deltas | merged registry baseline → user |
 | `createCustomModel` | No registry match | modelId only |
 
 Shared logic extracted to `applyPresetAndOverride` (preset + override merge) and `resolveReasoning` (reasoning config resolution).
@@ -88,15 +92,23 @@ Shared logic extracted to `applyPresetAndOverride` (preset + override merge) and
 ### Priority
 
 ```
-user_model (DB)  >  provider-models.json (override)  >  models.json (preset)
-   highest                  middle                         lowest
+userOverrides-selected fields  >  provider-models.json  >  models.json
+        highest                       middle                  lowest
 ```
 
-Null user fields fall through to preset/override values — they do not clobber.
+Stored snapshot fields not named by `userOverrides` are ignored on preset-backed
+reads. This lets catalog changes reach existing rows without a data migration.
+Explicit empty strings and arrays remain valid overrides.
 
 ### User Override Protection
 
-`ModelService.batchUpsert()` respects a `userOverrides` field on each `user_model` row. When a user manually edits a field (e.g., changes `name`), that field name is recorded in `userOverrides`. During enrichment, fields in `userOverrides` are skipped — the user's customization is preserved even when registry data updates.
+When a user changes a registry-enrichable field (for example `name`), the field
+is recorded in `userOverrides`. Read-time resolution starts from the current
+registry and applies only those fields from the row. Create/PATCH compare
+incoming values with the current registry baseline, so renderer echoes do not
+freeze catalog values; restoring a value to the baseline removes its override.
+`batchUpsert()` also avoids overwriting tracked fields, but it is not the source
+of runtime freshness.
 
 ## RegistryLoader
 
@@ -172,7 +184,8 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 
 | Column | Purpose |
 |--------|---------|
-| `providerId` + `modelId` | Composite PK |
+| `id` | Deterministic PK: `providerId::modelId` |
+| `providerId` + `modelId` | Unique model identity within a provider |
 | `presetModelId` | Links to models.json entry (null = custom model) |
 | `capabilities` | JSON array: function-call, reasoning, image-recognition, ... |
 | `inputModalities` / `outputModalities` | JSON array: text, image, audio, video |
@@ -180,8 +193,8 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `reasoning` | JSON: intrinsic controls/token limits plus materialized selectable efforts |
 | `pricing` | JSON: input/output/cacheRead/cacheWrite per million tokens |
 | `parameters` | JSON: parameter support config (temperature, topP, etc.) |
-| `userOverrides` | JSON array of field names user has manually edited |
-| `sortOrder` | Sort order in provider's model list |
+| `userOverrides` | JSON array of snapshot fields owned by the user |
+| `orderKey` | Fractional order key in the provider's model list |
 | `notes` | User notes about this model |
 
 ## Provider Configuration Merge

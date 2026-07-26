@@ -40,13 +40,13 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
   return { RegistryLoader }
 })
 
-describe('ProviderService.create — adapterFamily backfill', () => {
+describe('ProviderService.create — endpoint config overrides', () => {
   const dbh = setupTestDatabase()
 
-  it('fills missing adapterFamily from the preset for a preset-derived instance (custom CherryIN host)', async () => {
+  it('resolves adapterFamily from the preset for a preset-derived instance (custom CherryIN host)', async () => {
     // Mirrors the "add CherryIN instance" flow: user-entered baseUrls only, no
-    // adapterFamily. Without the backfill the gemini endpoint resolves to
-    // openai-compatible and image generation POSTs to /v1/images/generations.
+    // adapterFamily. Without read-time resolution the gemini endpoint resolves
+    // to openai-compatible and image generation POSTs to /v1/images/generations.
     const created = providerService.create({
       providerId: 'cherryin-express',
       presetProviderId: 'cherryin',
@@ -69,12 +69,15 @@ describe('ProviderService.create — adapterFamily backfill', () => {
     // Undeclared endpoint falls back to the endpoint-type default, not cherryin.
     expect(created.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.adapterFamily).toBe('openai')
 
-    // Persisted, not just returned.
+    // The row persists only the user-owned override shape — adapterFamily is
+    // registry-owned and supplied at read time, never frozen into the row.
     const [row] = await dbh.db
       .select()
       .from(userProviderTable)
       .where(eq(userProviderTable.providerId, 'cherryin-express'))
-    expect(row.endpointConfigs?.[ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]?.adapterFamily).toBe('cherryin')
+    expect(row.endpointConfigs?.[ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]).toEqual({
+      baseUrl: 'https://express-ent-admin.cherryin.ai/v1beta'
+    })
   })
 
   it('keeps an explicitly-set adapterFamily and defaults endpoints for a preset-less custom provider', async () => {

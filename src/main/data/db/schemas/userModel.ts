@@ -1,9 +1,9 @@
 /**
  * User Model table schema
  *
- * Stores all user models with fully resolved configurations.
- * Capabilities and settings are resolved once at add-time (from registry),
- * so no runtime merge is needed.
+ * Stores custom models and compatibility snapshots for preset-backed models.
+ * Preset-backed runtime models resolve from the current registry on every read;
+ * `userOverrides` identifies the snapshot fields that remain user-owned.
  *
  * - presetModelId: traceability marker (which preset this came from, if any)
  * - Single PK: id = "providerId::modelId" (deterministic UniqueModelId)
@@ -91,7 +91,7 @@ export const userModelTable = sqliteTable(
     /** UI grouping */
     group: text(),
 
-    /** Complete capability list (resolved at add time) */
+    /** Compatibility snapshot, or the exact user override when tracked */
     capabilities: text({ mode: 'json' })
       .$type<ModelCapability[]>()
       .notNull()
@@ -147,7 +147,7 @@ export const userModelTable = sqliteTable(
 
     /**
      * List of field names the user has explicitly modified.
-     * Registry enrichment skips these fields to preserve user customizations.
+     * Read-time registry resolution applies only these stored fields.
      */
     userOverrides: text({ mode: 'json' }).$type<RegistryEnrichableField[]>(),
 
