@@ -77,6 +77,12 @@ describe('SettingsPage', () => {
     expect(container.firstElementChild).toHaveStyle({ '--settings-group-background': 'transparent' })
   })
 
+  it('uses a subtle group background in dark mode', () => {
+    const { container } = render(<SettingsPage />)
+
+    expect(container.firstElementChild).toHaveClass('dark:[--settings-group-background:var(--background-subtle)]')
+  })
+
   it('places local models directly below the default model', () => {
     render(<SettingsPage />)
 

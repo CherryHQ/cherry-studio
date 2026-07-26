@@ -68,7 +68,14 @@ type MenuPresentationModeChangeOptions = {
   t: TFunction
 }
 
+type ThemePreviewOption = {
+  icon: typeof Sun
+  label: string
+  value: ThemeMode
+}
+
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
+const fontComboboxClassName = 'h-8 rounded-md border-border bg-transparent pl-3 pr-8 text-sm dark:bg-input/30'
 const logger = loggerService.withContext('AppearanceSettings')
 
 export async function confirmMenuPresentationModeChange({
@@ -135,38 +142,11 @@ const AppearanceSettings: FC = () => {
       ? resolvedLanguage
       : defaultLanguage
 
-  const themeOptions = useMemo(
-    () => [
-      {
-        value: ThemeMode.light,
-        label: (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Sun size={16} />
-            <span>{t('settings.theme.light')}</span>
-          </div>
-        )
-      },
-      {
-        value: ThemeMode.dark,
-        label: (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Moon size={16} />
-            <span>{t('settings.theme.dark')}</span>
-          </div>
-        )
-      },
-      {
-        value: ThemeMode.system,
-        label: (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Monitor size={16} />
-            <span>{t('settings.theme.system')}</span>
-          </div>
-        )
-      }
-    ],
-    [t]
-  )
+  const themeOptions: ThemePreviewOption[] = [
+    { value: ThemeMode.light, label: t('settings.theme.light'), icon: Sun },
+    { value: ThemeMode.dark, label: t('settings.theme.dark'), icon: Moon },
+    { value: ThemeMode.system, label: t('settings.theme.system'), icon: Monitor }
+  ]
 
   useEffect(() => {
     const loadSystemFonts = async () => {
@@ -339,6 +319,25 @@ const AppearanceSettings: FC = () => {
   return (
     <SettingsContentColumn theme={theme} innerClassName="[&>*+*]:mt-8">
       <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.theme.title')}</SettingTitle>
+        <SettingDivider />
+        <ThemePreviewSelector value={settedTheme} options={themeOptions} onChange={setTheme} />
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
+          <WideControlRow>
+            <ThemeColorPicker
+              value={userTheme.colorPrimary}
+              presets={THEME_COLOR_PRESETS}
+              onChange={handleColorPrimaryChange}
+              ariaLabel={t('settings.theme.color_primary')}
+              className="w-full justify-end"
+            />
+          </WideControlRow>
+        </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.common.sections.display_language')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -362,32 +361,6 @@ const AppearanceSettings: FC = () => {
               }))}
             />
           </SelectorRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
-          <SelectorRow>
-            <Selector<ThemeMode>
-              size={14}
-              style={{ width: '100%' }}
-              value={settedTheme}
-              onChange={setTheme}
-              options={themeOptions}
-            />
-          </SelectorRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
-          <WideControlRow>
-            <ThemeColorPicker
-              value={userTheme.colorPrimary}
-              presets={THEME_COLOR_PRESETS}
-              onChange={handleColorPrimaryChange}
-              ariaLabel={t('settings.theme.color_primary')}
-              className="w-full justify-end"
-            />
-          </WideControlRow>
         </SettingRow>
         {isLinux && (
           <>
@@ -444,7 +417,7 @@ const AppearanceSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
-          <SelectRow>
+          <SelectorRow className="gap-2">
             {userTheme.userFontFamily && (
               <Button onClick={() => handleUserFontChange('')} variant="ghost" size="icon">
                 <ResetIcon size="14" />
@@ -459,16 +432,17 @@ const AppearanceSettings: FC = () => {
                 onChange={handleUserFontComboboxChange}
                 renderOption={renderFontOption}
                 searchPlacement="trigger"
+                className={fontComboboxClassName}
                 triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
                 popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
               />
             </div>
-          </SelectRow>
+          </SelectorRow>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
-          <SelectRow>
+          <SelectorRow className="gap-2">
             {userTheme.userCodeFontFamily && (
               <Button onClick={() => handleUserCodeFontChange('')} variant="ghost" size="icon">
                 <ResetIcon size="14" />
@@ -483,11 +457,12 @@ const AppearanceSettings: FC = () => {
                 onChange={handleUserCodeFontComboboxChange}
                 renderOption={renderFontOption}
                 searchPlacement="trigger"
+                className={fontComboboxClassName}
                 triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
                 popoverClassName="max-h-[320px] w-(--radix-popover-trigger-width) overflow-y-auto"
               />
             </div>
-          </SelectRow>
+          </SelectorRow>
         </SettingRow>
       </SettingGroup>
 
@@ -565,6 +540,97 @@ const AppearanceSettings: FC = () => {
   )
 }
 
+const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
+  if (mode === ThemeMode.system) {
+    return (
+      <div className="flex h-18 overflow-hidden rounded-md border border-neutral-400">
+        <div className="flex w-1/2 bg-white">
+          <div className="w-1/3 border-neutral-200 border-r bg-neutral-100 p-1">
+            <div className="size-1.5 rounded-full bg-neutral-400" />
+          </div>
+          <div className="flex-1 p-1.5">
+            <div className="h-1.5 w-3/4 rounded-full bg-neutral-300" />
+            <div className="mt-1.5 h-1 w-full rounded-full bg-neutral-200" />
+            <div className="mt-1 h-1 w-2/3 rounded-full bg-neutral-200" />
+          </div>
+        </div>
+        <div className="flex w-1/2 bg-neutral-950">
+          <div className="w-1/3 border-neutral-700 border-r bg-neutral-900 p-1">
+            <div className="size-1.5 rounded-full bg-neutral-500" />
+          </div>
+          <div className="flex-1 p-1.5">
+            <div className="h-1.5 w-3/4 rounded-full bg-neutral-600" />
+            <div className="mt-1.5 h-1 w-full rounded-full bg-neutral-800" />
+            <div className="mt-1 h-1 w-2/3 rounded-full bg-neutral-800" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const isDarkPreview = mode === ThemeMode.dark
+
+  return (
+    <div
+      className={cn(
+        'flex h-18 overflow-hidden rounded-md border',
+        isDarkPreview ? 'border-neutral-700 bg-neutral-950' : 'border-neutral-300 bg-white'
+      )}>
+      <div
+        className={cn(
+          'w-1/4 border-r p-1.5',
+          isDarkPreview ? 'border-neutral-700 bg-neutral-900' : 'border-neutral-200 bg-neutral-100'
+        )}>
+        <div className={cn('size-1.5 rounded-full', isDarkPreview ? 'bg-neutral-500' : 'bg-neutral-400')} />
+        <div className={cn('mt-1.5 h-1 w-full rounded-full', isDarkPreview ? 'bg-neutral-700' : 'bg-neutral-300')} />
+        <div className={cn('mt-1 h-1 w-2/3 rounded-full', isDarkPreview ? 'bg-neutral-700' : 'bg-neutral-300')} />
+      </div>
+      <div className="flex-1 p-2">
+        <div className={cn('h-1.5 w-1/2 rounded-full', isDarkPreview ? 'bg-neutral-600' : 'bg-neutral-300')} />
+        <div className={cn('mt-2 h-1 w-full rounded-full', isDarkPreview ? 'bg-neutral-800' : 'bg-neutral-200')} />
+        <div className={cn('mt-1 h-1 w-3/4 rounded-full', isDarkPreview ? 'bg-neutral-800' : 'bg-neutral-200')} />
+      </div>
+    </div>
+  )
+}
+
+const ThemePreviewSelector = ({
+  value,
+  options,
+  onChange
+}: {
+  value: ThemeMode
+  options: ThemePreviewOption[]
+  onChange: (value: ThemeMode) => unknown
+}) => (
+  <div className="grid w-full grid-cols-3 gap-2">
+    {options.map((option) => {
+      const Icon = option.icon
+
+      return (
+        <button
+          key={option.value}
+          type="button"
+          aria-label={option.label}
+          aria-pressed={value === option.value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            'min-w-0 cursor-pointer rounded-lg border border-border bg-background-subtle p-1.5 text-foreground outline-none transition-colors',
+            'hover:border-border-strong hover:bg-accent',
+            'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+            'aria-pressed:border-primary aria-pressed:ring-2 aria-pressed:ring-primary/20'
+          )}>
+          <ThemePreview mode={option.value} />
+          <span className="mt-2 flex items-center justify-center gap-1.5 text-sm">
+            <Icon className="size-4" />
+            <span className="truncate">{option.label}</span>
+          </span>
+        </button>
+      )
+    })}
+  </div>
+)
+
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex w-full min-w-0 max-w-52.5 items-center justify-end', className)} {...props} />
 )
@@ -579,10 +645,6 @@ const WideControlRow = ({ className, ...props }: React.ComponentPropsWithoutRef<
 
 const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
   <span className={cn('mx-1.25 w-10 text-center', className)} {...props} />
-)
-
-const SelectRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-65 items-center justify-end gap-2', className)} {...props} />
 )
 
 export default AppearanceSettings
