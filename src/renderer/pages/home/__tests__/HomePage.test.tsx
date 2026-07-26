@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -84,7 +85,6 @@ const homeMocks = vi.hoisted(() => ({
   activeTopicOverride: undefined as Topic | undefined,
   activeTopicSource: 'query' as 'query' | 'pending' | 'none',
   assistantResourceListTopicsSource: undefined as unknown,
-  assistantTopicsSourceOptions: [] as Array<{ enabled?: boolean } | undefined>,
   createdAssistantTopicsSource: undefined as unknown,
   forceActiveTopicUndefined: false,
   homeTabsTopicsSource: undefined as unknown,
@@ -315,7 +315,6 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
           })
         }
       }, [options.enabled])
-      homeMocks.assistantTopicsSourceOptions.push(options)
       homeMocks.createdAssistantTopicsSource = source
       return source
     }
@@ -847,9 +846,11 @@ describe('HomePage', () => {
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
     homeMocks.topicsById.clear()
+    // HomePage writes its write-only persist keys (topic expansion, global-search
+    // recents) straight through cacheService, bypassing the hook mock below.
+    MockCacheUtils.resetMocks()
     homeMocks.activeTopicOptions = undefined
     homeMocks.assistantResourceListTopicsSource = undefined
-    homeMocks.assistantTopicsSourceOptions = []
     homeMocks.createdAssistantTopicsSource = undefined
     homeMocks.homeTabsTopicsSource = undefined
     homeMocks.topicPanelTopicsSource = undefined
@@ -968,8 +969,6 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    expect(homeMocks.assistantTopicsSourceOptions.length).toBeGreaterThan(0)
-    expect(homeMocks.assistantTopicsSourceOptions.every((options) => options?.enabled === true)).toBe(true)
     expect(homeMocks.assistantResourceListTopicsSource).toBe(homeMocks.createdAssistantTopicsSource)
     expect(homeMocks.topicPanelTopicsSource).toBe(homeMocks.createdAssistantTopicsSource)
   })
@@ -1072,16 +1071,6 @@ describe('HomePage', () => {
     expect(homeMocks.homeTabsTopicsSource).toBe(homeMocks.createdAssistantTopicsSource)
   })
 
-  it('disables the assistant topic source in message-only view', () => {
-    homeMocks.locationState = undefined
-    homeMocks.routeSearch = { topicId: 'topic-missing', view: 'message' }
-
-    render(<HomePage />)
-
-    expect(homeMocks.assistantTopicsSourceOptions.length).toBeGreaterThan(0)
-    expect(homeMocks.assistantTopicsSourceOptions.every((options) => options?.enabled === false)).toBe(true)
-  })
-
   it('switches to assistant grouping when changing topic position from the left sidebar', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
     homeMocks.preferenceValues.set('topic.tab.position', 'left')
@@ -1111,7 +1100,7 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move topics left' }))
 
     await waitFor(() => expect(homeMocks.preferenceValues.get('topic.tab.position')).toBe('left'))
-    expect(homeMocks.persistCacheValues.get('ui.topic.expansion.assistant')).toEqual([
+    expect(cacheService.getPersist('ui.topic.expansion.assistant')).toEqual([
       'topic:assistant:assistant-2',
       'topic:assistant:assistant-3',
       'topic:assistant:unknown'

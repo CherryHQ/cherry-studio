@@ -10,6 +10,9 @@ export interface BaseNavigatorSearchProps {
 }
 
 export interface BaseNavigatorContentProps {
+  isLoading: boolean
+  /** Whether any base exists before search filtering — distinguishes "truly empty" from "no search match". */
+  hasBases: boolean
   sections: KnowledgePageBaseGroupSection[]
   groups: Group[]
   groupById: ReadonlyMap<string, Group>

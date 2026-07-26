@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
@@ -63,7 +64,6 @@ const agentPageMocks = vi.hoisted(() => ({
   lastUsedWorkspaceId: null as string | null,
   resourcePaneOpen: null as boolean | null,
   agentResourceListSessionsSource: undefined as unknown,
-  agentSessionsSourceOptions: [] as Array<{ enabled?: boolean } | undefined>,
   agentSidePanelSessionsSource: undefined as unknown,
   activeSessionOptions: null as {
     activeSessionId: string | null
@@ -197,7 +197,6 @@ vi.mock('@renderer/hooks/resourceViewSources', () => ({
         return reusable
       })
     }
-    agentPageMocks.agentSessionsSourceOptions.push(options)
     agentPageMocks.createdAgentSessionsSource = source
     return source
   }
@@ -277,7 +276,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
         return [undefined, vi.fn()]
       }
 
-      const setCache = vi.fn((nextValue: string | boolean | string[] | null) => {
+      const setCache = vi.fn((nextValue: string | boolean | null) => {
         if (key === 'ui.agent.last_used_agent_id') {
           agentPageMocks.lastUsedAgentId = nextValue as string | null
           agentPageMocks.setLastUsedAgentId(nextValue)
@@ -829,7 +828,6 @@ describe('AgentPage', () => {
     agentPageMocks.latestSessionOverride = undefined
     agentPageMocks.loadLatestSessionOverride = undefined
     agentPageMocks.agentResourceListSessionsSource = undefined
-    agentPageMocks.agentSessionsSourceOptions = []
     agentPageMocks.agentSidePanelSessionsSource = undefined
     agentPageMocks.createdAgentSessionsSource = undefined
     agentPageMocks.rightPanelSessionsSource = undefined
@@ -986,7 +984,6 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    expect(agentPageMocks.agentSessionsSourceOptions).toEqual([{ enabled: true }])
     expect(agentPageMocks.agentResourceListSessionsSource).toBe(agentPageMocks.createdAgentSessionsSource)
     expect(agentPageMocks.rightPanelSessionsSource).toBe(agentPageMocks.createdAgentSessionsSource)
   })
@@ -1131,14 +1128,6 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
   })
 
-  it('disables the agent session source in message-only view', () => {
-    agentPageMocks.routeSearch = { sessionId: 'session-message', view: 'message' }
-
-    render(<AgentPage />)
-
-    expect(agentPageMocks.agentSessionsSourceOptions).toEqual([{ enabled: false }])
-  })
-
   it('switches to agent grouping when changing session position from the left sidebar', async () => {
     agentPageMocks.sessionDisplayMode = 'workdir'
     agentPageMocks.sessionPanePosition = 'left'
@@ -1170,7 +1159,10 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move sessions left' }))
 
     await waitFor(() => expect(agentPageMocks.sessionPanePosition).toBe('left'))
-    expect(agentPageMocks.sessionExpansionAgent).toEqual(['session:agent:agent-b', 'session:agent:agent-c'])
+    expect(cacheService.getPersist('ui.agent.session.expansion.agent')).toEqual([
+      'session:agent:agent-b',
+      'session:agent:agent-c'
+    ])
   })
 
   it('preserves saved session expansion when changing session position to the left sidebar', async () => {

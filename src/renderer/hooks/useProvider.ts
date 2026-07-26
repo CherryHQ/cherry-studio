@@ -37,13 +37,17 @@ function providerRefreshPaths(providerId: string): ConcreteApiPaths[] {
 }
 
 // ─── Layer 1: List + Create ────────────────────────────────────────────
-export function useProviders(query?: ListProvidersQuery, options?: { swrOptions?: SWRConfiguration }) {
+export function useProviders(
+  query?: ListProvidersQuery,
+  options?: { enabled?: boolean; swrOptions?: SWRConfiguration }
+) {
   const filtered = query ? (omitBy(query, isUndefined) as ListProvidersQuery) : undefined
   const hasQuery = filtered && Object.keys(filtered).length > 0
   const queryOptions =
-    hasQuery || options?.swrOptions
+    hasQuery || options?.enabled === false || options?.swrOptions
       ? {
           ...(hasQuery && { query: filtered }),
+          ...(options?.enabled === false && { enabled: false }),
           ...(options?.swrOptions && { swrOptions: options.swrOptions })
         }
       : undefined

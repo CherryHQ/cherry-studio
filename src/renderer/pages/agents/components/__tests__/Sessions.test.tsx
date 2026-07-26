@@ -366,6 +366,7 @@ const dataApiMocks = vi.hoisted(() => ({
 const topicStreamStatusMocks = vi.hoisted(() => ({
   useTopicStreamStatus: vi.fn(() => ({
     activeExecutions: [],
+    awaitingApprovalAnchors: [],
     isFulfilled: false,
     isPending: false,
     markSeen: vi.fn(),
@@ -381,12 +382,20 @@ const imageCaptureTargetsMock = vi.hoisted(() => ({
   targets: undefined as Array<{ requestId: number; target: AgentSessionEntity }> | undefined
 }))
 
-const createTopicStreamStatusMock = (overrides: { isFulfilled?: boolean; isPending?: boolean } = {}) => ({
+const createTopicStreamStatusMock = (
+  overrides: {
+    awaitingApprovalAnchors?: Array<{ executionId: string; anchorMessageId?: string }>
+    isFulfilled?: boolean
+    isPending?: boolean
+    status?: TopicStreamStatus
+  } = {}
+) => ({
   activeExecutions: [],
+  awaitingApprovalAnchors: overrides.awaitingApprovalAnchors ?? [],
   isFulfilled: overrides.isFulfilled ?? false,
   isPending: overrides.isPending ?? false,
   markSeen: vi.fn(),
-  status: undefined
+  status: overrides.status
 })
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
@@ -589,6 +598,8 @@ vi.mock('react-i18next', () => ({
         'agent.edit.title': 'Edit Agent',
         'agent.icon.type': 'Agent icon',
         'agent.session.auto_rename': 'Generate task name',
+        'agent.toolPermission.pending': 'Waiting for confirmation',
+        'agent.toolPermission.pendingBadge': 'Pending',
         'agent.session.edit.title': 'Edit task name',
         'agent.session.file_manager.file_explorer': 'File Explorer',
         'agent.session.file_manager.files': 'Files',
@@ -641,6 +652,9 @@ vi.mock('react-i18next', () => ({
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'error.model.not_exists': 'Model does not exist',
+        'message.tools.status.done': 'Done',
+        'message.tools.status.error': 'Error',
+        'message.tools.status.running': 'Running',
         'settings.agent.position.label': 'Session position',
         'settings.agent.position.left': 'Left',
         'settings.agent.position.right': 'Right',
@@ -2799,16 +2813,23 @@ describe('Sessions', () => {
     expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-b')
   })
 
-  it('keeps fulfilled session stream indicators static while pending indicators pulse', () => {
+  it('shows a green dot when fulfilled and a spinner while pending', () => {
+    // Only session-b carries a status; session-a is the selected row and a
+    // green completion dot is suppressed there (read-receipt).
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { isFulfilled: true } : { isPending: true })
+      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { isFulfilled: true } : {})
     )
 
     const { unmount } = render(<SessionsForTest />)
 
     const indicator = screen.getByTestId('agent-session-stream-indicator')
+    expect(indicator).toHaveAccessibleName('Done')
     expect(indicator.firstElementChild).toHaveClass('bg-success')
-    expect(indicator.firstElementChild).not.toHaveClass('animation-pulse')
+    expect(indicator.firstElementChild?.tagName).toBe('SPAN')
+    expect(indicator.firstElementChild).not.toHaveClass('animate-spin')
+    // The indicator is an absolute overlay that fades out on hover so the
+    // pin + delete actions take its resting spot (not swapped out of the DOM).
+    expect(indicator).toHaveClass('absolute', 'group-hover:opacity-0')
 
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
       createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { isPending: true } : {})
@@ -2817,7 +2838,142 @@ describe('Sessions', () => {
     unmount()
     render(<SessionsForTest />)
 
-    expect(screen.getByTestId('agent-session-stream-indicator').firstElementChild).toHaveClass('animation-pulse')
+    // Pending now renders a spinner (not the old pulsing amber dot).
+    const pendingIndicator = screen.getByTestId('agent-session-stream-indicator')
+    expect(pendingIndicator).toHaveAccessibleName('Running')
+    expect(pendingIndicator.firstElementChild).toHaveClass('animate-spin')
+  })
+
+  it('keeps running and error indicators on the selected session row but suppresses the completion dot', () => {
+    // session-a is the selected row in the default fixture.
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { isPending: true } : {})
+    )
+
+    let view = render(<SessionsForTest />)
+
+    const selectedRow = screen
+      .getAllByTestId('agent-session-row')
+      .find((row) => row.getAttribute('data-selected') === 'true')
+    expect(selectedRow).toBeDefined()
+    // Running is an ongoing state — the spinner stays on the selected row.
+    expect(
+      within(selectedRow as HTMLElement).getByTestId('agent-session-stream-indicator').firstElementChild
+    ).toHaveClass('animate-spin')
+
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { status: 'error' } : {})
+    )
+    view.unmount()
+    view = render(<SessionsForTest />)
+
+    const erroredSelectedRow = screen
+      .getAllByTestId('agent-session-row')
+      .find((row) => row.getAttribute('data-selected') === 'true')
+    const errorIndicator = within(erroredSelectedRow as HTMLElement).getByTestId('agent-session-stream-indicator')
+    expect(errorIndicator).toHaveAccessibleName('Error')
+    expect(errorIndicator.firstElementChild).toHaveClass('text-error')
+    expect(errorIndicator.firstElementChild?.tagName).toBe('svg')
+
+    // A completion dot on the same selected row IS suppressed (read-receipt).
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { isFulfilled: true } : {})
+    )
+    view.unmount()
+    render(<SessionsForTest />)
+
+    const reselectedRow = screen
+      .getAllByTestId('agent-session-row')
+      .find((row) => row.getAttribute('data-selected') === 'true')
+    expect(within(reselectedRow as HTMLElement).queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
+  })
+
+  it('shows an accessible error icon when the last turn errored', () => {
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'error' } : {})
+    )
+
+    render(<SessionsForTest />)
+
+    const indicator = screen.getByTestId('agent-session-stream-indicator')
+    expect(indicator).toHaveAccessibleName('Error')
+    expect(indicator.firstElementChild).toHaveClass('text-error')
+    expect(indicator.firstElementChild?.tagName).toBe('svg')
+    expect(indicator.firstElementChild).not.toHaveClass('animate-spin')
+  })
+
+  it('does not show a stream indicator for an aborted turn', () => {
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'aborted' } : {})
+    )
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
+  })
+
+  it('shows an awaiting-approval badge that yields to hover actions', () => {
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'awaiting-approval' } : {})
+    )
+
+    render(<SessionsForTest />)
+
+    const badges = screen.getAllByTestId('agent-session-awaiting-approval-badge')
+    expect(badges).toHaveLength(1)
+    expect(badges[0]).toHaveTextContent('Pending')
+    // Warning tint matches the composer's approval pill.
+    expect(badges[0]).toHaveClass('text-warning')
+    // The pill collapses while hover actions are visible (hover / focus-within /
+    // forced-active), like the stream dot swap.
+    expect(badges[0]).toHaveClass('group-hover:opacity-0')
+    expect(badges[0]).toHaveClass('group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0')
+    expect(badges[0]).toHaveClass('group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0')
+    // Terminal awaiting-approval (MCP): the turn is paused, not running — no
+    // overlay spinner, and the pill needs no overlay reservation margin.
+    expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
+    expect(badges[0]).not.toHaveClass('mr-7')
+  })
+
+  it('shows only the pill (no spinner) while a live stream pauses for approval', () => {
+    // claude-code runtime: stream stays 'streaming' during a permission pause;
+    // only the awaiting-approval anchors mark the pause.
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(
+        topicId === 'agent-session:session-b'
+          ? { status: 'streaming', isPending: true, awaitingApprovalAnchors: [{ executionId: 'exec-1' }] }
+          : {}
+      )
+    )
+
+    render(<SessionsForTest />)
+
+    const badges = screen.getAllByTestId('agent-session-awaiting-approval-badge')
+    expect(badges).toHaveLength(1)
+    // A turn paused on an approval is blocked, not running — the pill says "act"
+    // and a spinner would say "wait", so it is suppressed even though the
+    // underlying stream is still live.
+    expect(screen.queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
+    expect(badges[0].querySelector('.animate-spin')).toBeNull()
+  })
+
+  it('keeps the awaiting-approval badge on the selected session row', () => {
+    // session-a is the active session in the default fixture. Awaiting-approval
+    // is an ongoing state (unlike the completion dot), so it stays on the
+    // selected row too — it only yields to hover actions.
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { status: 'awaiting-approval' } : {})
+    )
+
+    render(<SessionsForTest />)
+
+    // Guard against a false negative: the row must be rendered and selected.
+    const selectedRow = screen
+      .getAllByTestId('agent-session-row')
+      .find((row) => row.getAttribute('data-selected') === 'true')
+    expect(selectedRow).toBeDefined()
+    const badge = within(selectedRow as HTMLElement).getByTestId('agent-session-awaiting-approval-badge')
+    expect(badge).toHaveTextContent('Pending')
   })
 
   it('renders display and sort submenus before the existing session list actions', async () => {
@@ -3589,5 +3745,17 @@ describe('Sessions', () => {
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
 
     expect(await screen.findByRole('menuitem', { name: 'Unpin Agent' })).toHaveAttribute('data-disabled')
+  })
+
+  it('offers a retry entry point when a background refresh fails behind a served list', () => {
+    setupSessions({ refreshError: new Error('refresh failed') })
+
+    render(<SessionsForTest />)
+
+    // The stale list stays on screen; the failure gets its own non-destructive strip.
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(sessionDataMocks.reload).toHaveBeenCalled()
   })
 })

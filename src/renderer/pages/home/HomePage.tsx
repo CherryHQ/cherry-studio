@@ -11,7 +11,7 @@ import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
   createRecentTopicEntryFromTopic,
-  upsertGlobalSearchRecentEntry
+  recordGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
 import {
   type GlobalSearchTopicMessageSelectionPayload,
@@ -91,7 +91,7 @@ const HomePage: FC = () => {
   // otherwise read the same pre-refresh topic list twice and stack duplicate blank topics.
   const isCreatingTopicRef = useRef(false)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
-  const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
+  const [topicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [rightPaneAssistantScopeId, setRightPaneAssistantScopeId] = useState<string | null | undefined>(undefined)
   const [isSelectedAssistantScopeEmpty, setIsSelectedAssistantScopeEmpty] = useState(false)
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
@@ -119,7 +119,7 @@ const HomePage: FC = () => {
     defaultOpen: !isWindowFrame && panePosition === 'right'
   })
   // Shared topic facts plus exact derived lookups for rails, restore, and empty-topic reuse.
-  const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
+  const assistantTopicsSource = useAssistantTopicsSource()
   const { stats: topicStats, loadLatestTopic, loadReusableTopic } = assistantTopicsSource
   // First-entry selection resumes the most-recently-active topic. A dedicated `lastActivityAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full topic history to paginate in nor
@@ -369,11 +369,7 @@ const HomePage: FC = () => {
     if (lastRecordedRecentTopicRef.current === signature) return
 
     lastRecordedRecentTopicRef.current = signature
-    const recentItems = cacheService.getPersist('ui.global_search.recent_items')
-    cacheService.setPersist(
-      'ui.global_search.recent_items',
-      upsertGlobalSearchRecentEntry(recentItems ?? [], createRecentTopicEntryFromTopic(activeTopic))
-    )
+    recordGlobalSearchRecentEntry(createRecentTopicEntryFromTopic(activeTopic))
   }, [activeTopic, isMessageOnlyView])
 
   const setResourceListOpen = useCallback(
@@ -814,7 +810,7 @@ const HomePage: FC = () => {
               .filter((groupId) => groupId !== activeAssistantGroupId)
           )
         )
-        setTopicExpansionAssistant(collapsedAssistantGroupIds)
+        cacheService.setPersist('ui.topic.expansion.assistant', collapsedAssistantGroupIds)
       }
       await setPanePosition(position)
       setTopicPaneOpen(position === 'right', { force: true })
@@ -824,7 +820,6 @@ const HomePage: FC = () => {
       setPanePosition,
       setResourceListOpen,
       setTopicDisplayMode,
-      setTopicExpansionAssistant,
       setTopicPaneOpen,
       topicExpansionAssistant,
       topicStats?.byAssistant,

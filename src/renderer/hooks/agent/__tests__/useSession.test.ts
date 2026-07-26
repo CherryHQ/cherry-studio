@@ -6,7 +6,8 @@ import {
   MockUseDataApiUtils,
   mockUseInfiniteQuery,
   mockUseInvalidateCache,
-  mockUseMutation
+  mockUseMutation,
+  mockUseQuery
 } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -197,6 +198,23 @@ describe('useSessions', () => {
 
     expect(result.current.sessions).toEqual([])
     expect(result.current.isLoading).toBe(false)
+  })
+
+  it('disables both session and pin queries when the source is disabled', () => {
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn() as never)
+
+    renderHook(() => useSessions(undefined, { enabled: false, pinned: false }))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/agent-sessions',
+      expect.objectContaining({
+        enabled: false
+      })
+    )
+    expect(mockUseQuery).toHaveBeenCalledWith('/pins', {
+      query: { entityType: 'session' },
+      enabled: false
+    })
   })
 
   it('flattens items from a single page', async () => {

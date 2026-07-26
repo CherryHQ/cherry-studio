@@ -859,6 +859,26 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.getByText('No tasks for the current filters.')).toBeInTheDocument()
   })
 
+  it('keeps the loading state until the shared full-session source commits', () => {
+    hookMocks.useAgents.mockReturnValue({ agents: [createAgent()], error: undefined, isLoading: false })
+    hookMocks.useSessions.mockReturnValue({
+      sessions: [],
+      pinIdBySessionId: new Map(),
+      error: undefined,
+      isLoading: false,
+      isLoadingAll: true,
+      isFullyLoaded: false,
+      deleteSession: hookMocks.deleteSession,
+      deleteSessions: hookMocks.deleteSessions,
+      togglePin: hookMocks.togglePin
+    })
+
+    render(<HistoryRecordsView mode="agent" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    expect(screen.getByText('Loading tasks')).toBeInTheDocument()
+    expect(screen.queryByText('No tasks')).not.toBeInTheDocument()
+  })
+
   it('unmounts the overlay immediately when closed', () => {
     hookMocks.useAgents.mockReturnValue({ agents: [createAgent()], error: undefined, isLoading: false })
     hookMocks.useSessions.mockReturnValue({

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "fc1792aa-0393-4f99-8ec9-426c8caea937",
+  "id": "89e1707b-580e-4d39-8c85-9bd812a65a5b",
   "prevId": "a77f1218-2bec-4fa7-8c19-9ad6e8d3cb30",
   "tables": {
     "agent": {
@@ -538,13 +538,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "last_activity_at": {
-          "name": "last_activity_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -561,24 +554,14 @@
         }
       },
       "indexes": {
-        "agent_session_created_at_id_idx": {
-          "name": "agent_session_created_at_id_idx",
-          "columns": ["\"created_at\" desc", "id"],
-          "isUnique": false
-        },
-        "agent_session_last_activity_at_id_idx": {
-          "name": "agent_session_last_activity_at_id_idx",
-          "columns": ["\"last_activity_at\" desc", "id"],
-          "isUnique": false
-        },
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": ["order_key"],
           "isUnique": false
         },
-        "agent_session_updated_at_id_idx": {
-          "name": "agent_session_updated_at_id_idx",
-          "columns": ["\"updated_at\" desc", "id"],
+        "agent_session_updated_at_idx": {
+          "name": "agent_session_updated_at_idx",
+          "columns": ["updated_at"],
           "isUnique": false
         }
       },
@@ -650,13 +633,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "terminal_at": {
-          "name": "terminal_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "model_id": {
@@ -1084,6 +1060,68 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "agent_knowledge_base": {
+      "name": "agent_knowledge_base",
+      "columns": {
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "knowledge_base_id": {
+          "name": "knowledge_base_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "agent_knowledge_base_agent_id_agent_id_fk": {
+          "name": "agent_knowledge_base_agent_id_agent_id_fk",
+          "tableFrom": "agent_knowledge_base",
+          "tableTo": "agent",
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_knowledge_base_knowledge_base_id_knowledge_base_id_fk": {
+          "name": "agent_knowledge_base_knowledge_base_id_knowledge_base_id_fk",
+          "tableFrom": "agent_knowledge_base",
+          "tableTo": "knowledge_base",
+          "columnsFrom": ["knowledge_base_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "agent_knowledge_base_agent_id_knowledge_base_id_pk": {
+          "columns": ["agent_id", "knowledge_base_id"],
+          "name": "agent_knowledge_base_agent_id_knowledge_base_id_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -2713,13 +2751,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "terminal_at": {
-          "name": "terminal_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "siblings_group_id": {
           "name": "siblings_group_id",
           "type": "integer",
@@ -3458,13 +3489,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "last_activity_at": {
-          "name": "last_activity_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -3488,19 +3512,9 @@
         }
       },
       "indexes": {
-        "topic_created_at_id_idx": {
-          "name": "topic_created_at_id_idx",
-          "columns": ["\"created_at\" desc", "id"],
-          "isUnique": false
-        },
-        "topic_last_activity_at_id_idx": {
-          "name": "topic_last_activity_at_id_idx",
-          "columns": ["\"last_activity_at\" desc", "id"],
-          "isUnique": false
-        },
-        "topic_updated_at_id_idx": {
-          "name": "topic_updated_at_id_idx",
-          "columns": ["\"updated_at\" desc", "id"],
+        "topic_updated_at_idx": {
+          "name": "topic_updated_at_idx",
+          "columns": ["updated_at"],
           "isUnique": false
         },
         "topic_order_key_idx": {
@@ -3511,11 +3525,6 @@
         "topic_assistant_id_idx": {
           "name": "topic_assistant_id_idx",
           "columns": ["assistant_id"],
-          "isUnique": false
-        },
-        "topic_assistant_id_created_at_id_idx": {
-          "name": "topic_assistant_id_created_at_id_idx",
-          "columns": ["assistant_id", "\"created_at\" desc", "id"],
           "isUnique": false
         }
       },
@@ -4046,58 +4055,9 @@
   },
   "internal": {
     "indexes": {
-      "agent_session_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "agent_session_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "agent_session_updated_at_id_idx": {
-        "columns": {
-          "\"updated_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
       "fe_external_path_lower_unique_idx": {
         "columns": {
           "lower(\"external_path\")": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_updated_at_id_idx": {
-        "columns": {
-          "\"updated_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_assistant_id_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
             "isExpression": true
           }
         }

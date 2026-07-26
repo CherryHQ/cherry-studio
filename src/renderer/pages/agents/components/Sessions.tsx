@@ -974,7 +974,6 @@ const Sessions = ({
       }),
     [agentById, displayMode, ordinarySessionGroupLabel, t, workdirDisplay]
   )
-
   const sessionSectionBy = useMemo(() => {
     if (displayMode === 'time') return undefined
 
@@ -2090,6 +2089,18 @@ const Sessions = ({
     },
     [agentById, assistantIconType, defaultModelId, displayMode]
   )
+  const isGroupHeaderIconVisible = useCallback(
+    (group: ResourceListGroup) => {
+      if (group.id === SESSION_PINNED_GROUP_ID) return false
+
+      if (displayMode === 'workdir') {
+        return group.id !== SESSION_NO_WORKDIR_GROUP_ID && group.id !== SESSION_SYSTEM_WORKSPACE_GROUP_ID
+      }
+
+      return displayMode === 'agent' && group.id !== SESSION_UNLINKED_AGENT_GROUP_ID && assistantIconType !== 'none'
+    },
+    [assistantIconType, displayMode]
+  )
 
   const getGroupHeaderClassName = useCallback(
     (group: ResourceListGroup) => {
@@ -2243,7 +2254,7 @@ const Sessions = ({
   const visibleGroupedSessions = filteredGroupedSessions
   const listStatus = listError
     ? 'error'
-    : listLoading
+    : listLoading && visibleGroupedSessions.length === 0
       ? 'loading'
       : sessionGroupSeeds.length === 0 && (sessionStats?.total ?? sessionItems.length) === 0
         ? 'empty'
@@ -2330,6 +2341,7 @@ const Sessions = ({
       getGroupHeaderClassName={getGroupHeaderClassName}
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}
       getGroupHeaderIcon={getGroupHeaderIcon}
+      isGroupHeaderIconVisible={isGroupHeaderIconVisible}
       getGroupHeaderTooltip={getGroupHeaderTooltip}
       groupHeaderClickBehavior={getSessionGroupHeaderClickBehavior}
       getGroupHeaderSelected={getSessionGroupHeaderSelected}

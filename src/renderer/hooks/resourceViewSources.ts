@@ -1,6 +1,6 @@
 import { dataApiService } from '@renderer/data/DataApiService'
 import type { AgentSessionWorkspaceScope } from '@shared/data/api/schemas/agentSessions'
-import { useCallback } from 'react'
+import { createContext, use, useCallback } from 'react'
 
 import { useAgentSessionStats } from './agent/useSession'
 import { useTopicStats } from './useTopic'
@@ -14,7 +14,7 @@ import { useTopicStats } from './useTopic'
  * Factual counts drive group visibility. Imperative lookups use scoped latest
  * for owner navigation and domain reads for placeholder reuse.
  */
-export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
+export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useTopicStats({ enabled })
   const loadLatestTopic = useCallback(async (assistantId?: string | null) => {
     const result =
@@ -40,8 +40,8 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
   }
 }
 
-/** Session counterpart to {@link useAssistantTopicsSource}. */
-export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
+/** Session counterpart to {@link useRawAssistantTopicsSource}. */
+export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useAgentSessionStats({ enabled })
   const loadSession = useCallback((sessionId: string) => dataApiService.get(`/agent-sessions/${sessionId}`), [])
   const loadLatestSession = useCallback(async (agentId?: string | null) => {
@@ -69,5 +69,20 @@ export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) 
   }
 }
 
-export type AssistantTopicsSource = ReturnType<typeof useAssistantTopicsSource>
-export type AgentSessionsSource = ReturnType<typeof useAgentSessionsSource>
+export type AssistantTopicsSource = ReturnType<typeof useRawAssistantTopicsSource>
+export type AgentSessionsSource = ReturnType<typeof useRawAgentSessionsSource>
+
+export const AssistantTopicsSourceContext = createContext<AssistantTopicsSource | null>(null)
+export const AgentSessionsSourceContext = createContext<AgentSessionsSource | null>(null)
+
+export function useAssistantTopicsSource(): AssistantTopicsSource {
+  const source = use(AssistantTopicsSourceContext)
+  if (!source) throw new Error('useAssistantTopicsSource must be used within ResourceViewSourceProvider')
+  return source
+}
+
+export function useAgentSessionsSource(): AgentSessionsSource {
+  const source = use(AgentSessionsSourceContext)
+  if (!source) throw new Error('useAgentSessionsSource must be used within ResourceViewSourceProvider')
+  return source
+}

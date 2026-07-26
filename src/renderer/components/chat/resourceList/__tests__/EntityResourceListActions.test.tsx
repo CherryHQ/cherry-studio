@@ -201,6 +201,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     items,
     onContextMenuAction,
     onReorder,
+    reorderEnabled = true,
     resourceMenuItems,
     selectedId
   }: {
@@ -210,6 +211,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     items: readonly ResourceEntityRailItem[]
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
     onReorder?: unknown
+    reorderEnabled?: boolean
     resourceMenuItems?: readonly { active?: boolean; id: string }[]
     selectedId?: string | null
   }) => {
@@ -222,7 +224,8 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
         data-testid="resource-entity-rail"
         data-active-resource-menu={String(hasActiveResourceMenuItem)}
         data-group-by-group={String(!!groupByGroup)}
-        data-reorder={onReorder ? 'enabled' : 'disabled'}
+        data-reorder={onReorder && reorderEnabled ? 'enabled' : 'disabled'}
+        data-sortable-container={onReorder ? 'enabled' : 'disabled'}
         data-selected-id={selectedId ?? ''}>
         {headerActions}
         {items.map((item) => {

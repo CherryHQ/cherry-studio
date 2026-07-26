@@ -1,4 +1,4 @@
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -57,7 +57,7 @@ describe('DirectoryWatcher error recovery', () => {
 
   it('falls back to polling instead of reporting a fatal error after a native Windows EPERM', async () => {
     const createDirectoryWatcher = await loadCreateDirectoryWatcher(true)
-    const watcher = createDirectoryWatcher('C:/Notes' as FilePath)
+    const watcher = createDirectoryWatcher('C:/Notes' as AbsoluteFilePath)
     const events: string[] = []
     watcher.onEvent((event) => events.push(event.kind))
 
@@ -73,7 +73,7 @@ describe('DirectoryWatcher error recovery', () => {
 
   it('reports EPERM as fatal on non-Windows platforms', async () => {
     const createDirectoryWatcher = await loadCreateDirectoryWatcher(false)
-    const watcher = createDirectoryWatcher('/notes' as FilePath)
+    const watcher = createDirectoryWatcher('/notes' as AbsoluteFilePath)
     const events: string[] = []
     watcher.onEvent((event) => events.push(event.kind))
 
@@ -88,7 +88,7 @@ describe('DirectoryWatcher error recovery', () => {
 
   it('reports a second EPERM as fatal after the Windows watcher has fallen back to polling', async () => {
     const createDirectoryWatcher = await loadCreateDirectoryWatcher(true)
-    const watcher = createDirectoryWatcher('C:/Notes' as FilePath)
+    const watcher = createDirectoryWatcher('C:/Notes' as AbsoluteFilePath)
     const events: string[] = []
     watcher.onEvent((event) => events.push(event.kind))
 

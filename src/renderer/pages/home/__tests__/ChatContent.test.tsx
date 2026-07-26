@@ -324,6 +324,9 @@ describe('ChatContent', () => {
 
     render(<ChatContent topic={topic} />)
 
+    // The composer is lazy-loaded; wait for it to mount and hand out onSend.
+    await waitFor(() => expect(capturedOnSend).toBeDefined())
+
     await act(async () => {
       await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
       await Promise.resolve()

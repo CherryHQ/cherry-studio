@@ -51,7 +51,12 @@ export {
   useResourceListView
 } from './ResourceList'
 export { remapResourceListCollapsedGroupIds } from './resourceListExpansion'
-export { RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS, RESOURCE_LIST_SELECTED_ROW_CLASS } from './resourceListLayout'
+export {
+  RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
+  RESOURCE_LIST_SELECTED_ROW_CLASS,
+  RESOURCE_LIST_TITLE_FADE_CLASS,
+  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS
+} from './resourceListLayout'
 export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
 export { TopicListOptionsMenu } from './TopicListOptionsMenu'
 export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'

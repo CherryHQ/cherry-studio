@@ -4,7 +4,7 @@ import type { FileTextLineEnding, UnsupportedFileTextReason } from '@renderer/ut
 import { decodeFileText, encodeFileText, UnsupportedFileTextError } from '@renderer/utils/fileTextSnapshot'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { FilePath, FileVersion } from '@shared/types/file'
+import type { AbsoluteFilePath, FileVersion } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { debounce } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -22,7 +22,7 @@ export const FILE_EDIT_MAX_SIZE_BYTES = 2 * 1024 * 1024
 
 export type { UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
 
-const keyOf = (path: FilePath) => `file-edit-session/${path}`
+const keyOf = (path: AbsoluteFilePath) => `file-edit-session/${path}`
 
 /** A disk snapshot decoded for editing — the SWR-cached value for a path. */
 interface FileEditSnapshot {
@@ -42,7 +42,7 @@ interface FileEditSnapshot {
  * `draft !== snapshot.content` ⇔ dirty.
  */
 interface FileEditModel {
-  readonly path: FilePath
+  readonly path: AbsoluteFilePath
   snapshot: FileEditSnapshot
   draft: string
   conflict: boolean
@@ -89,7 +89,7 @@ export interface FileEditSession {
   notifyExternalChange: (eventMtimeMs?: number) => void
 }
 
-async function readFile(path: FilePath): Promise<FileEditSnapshot> {
+async function readFile(path: AbsoluteFilePath): Promise<FileEditSnapshot> {
   const { content, version } = await ipcApi.request('file.read', {
     handle: createFilePathHandle(path),
     options: { encoding: 'binary' }
@@ -124,7 +124,7 @@ const isAmbiguousMtime = (mtime: number) => mtime % 1000 === 0
  * The hook holds one path's state, so call it at a level stable across the
  * consuming view's remounts.
  */
-export function useFileEditSession(path: FilePath | undefined): FileEditSession {
+export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEditSession {
   const { mutate } = useSWRConfig()
   const { data, error, isLoading } = useSWR<FileEditSnapshot, Error>(path ? keyOf(path) : null, () => readFile(path!), {
     revalidateOnFocus: false,

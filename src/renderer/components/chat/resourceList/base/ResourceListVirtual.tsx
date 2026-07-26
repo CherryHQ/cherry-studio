@@ -431,6 +431,10 @@ function getGroupHeaderIconVisible<T extends ResourceListItemBase>(
   group: ResourceListGroup,
   collapsed: boolean
 ) {
+  if (meta.isGroupHeaderIconVisible) {
+    return meta.isGroupHeaderIconVisible(group, { collapsed })
+  }
+
   return meta.getGroupHeaderIcon?.(group, { collapsed }) != null
 }
 

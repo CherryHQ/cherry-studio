@@ -20,6 +20,8 @@ type DispatchDecision = {
   updatedInput?: Record<string, unknown>
 }
 
+type DispatchedApproval = Pick<PendingApproval, 'sessionId' | 'toolCallId'>
+
 /**
  * Main-side dispatcher for tool-approval decisions. Holds each pending
  * `canUseTool` promise until the renderer's `Ai_ToolApproval_Respond` IPC
@@ -52,10 +54,10 @@ class ToolApprovalRegistry {
     this.pending.set(approvalId, stored)
   }
 
-  /** Returns `false` for unknown ids (already dispatched / session expired). */
-  dispatch(approvalId: string, decision: DispatchDecision): boolean {
+  /** Returns `undefined` for unknown ids (already dispatched / session expired). */
+  dispatch(approvalId: string, decision: DispatchDecision): DispatchedApproval | undefined {
     const entry = this.pending.get(approvalId)
-    if (!entry) return false
+    if (!entry) return undefined
     this.pending.delete(approvalId)
     this.detachAbort(entry)
 
@@ -64,7 +66,7 @@ class ToolApprovalRegistry {
         ? { behavior: 'allow', updatedInput: decision.updatedInput ?? entry.originalInput }
         : { behavior: 'deny', message: decision.reason ?? 'User denied permission for this tool' }
     )
-    return true
+    return { sessionId: entry.sessionId, toolCallId: entry.toolCallId }
   }
 
   abort(sessionId: string, reason = 'session-aborted'): number {

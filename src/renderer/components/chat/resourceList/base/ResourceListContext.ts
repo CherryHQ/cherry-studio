@@ -119,6 +119,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderContextMenu?: (group: ResourceListGroup) => readonly CommandContextMenuExtraItem[] | null | undefined
   getGroupHeaderLeadingAction?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   getGroupHeaderIcon?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
+  isGroupHeaderIconVisible?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => boolean
   getGroupHeaderClassName?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior

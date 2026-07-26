@@ -17,6 +17,7 @@ import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
+import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { ActiveExecution } from '@shared/ai/transport'
@@ -51,6 +52,7 @@ interface UseChatRuntimeStateParams {
   /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
   rootId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
+  assistant?: Assistant
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
@@ -101,6 +103,7 @@ export function useChatRuntimeState({
   activeNodeId,
   rootId,
   messagesCacheMutate,
+  assistant,
   onBranchLiveStateChange,
   clearBranchDraft,
   getBranchDraftAnchorId
@@ -362,7 +365,8 @@ export function useChatRuntimeState({
     stop,
     refresh,
     cache,
-    seedReservedMessages
+    seedReservedMessages,
+    assistant
   })
 
   const sendMessage = useCallback(

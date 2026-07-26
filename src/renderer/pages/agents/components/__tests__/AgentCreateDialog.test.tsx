@@ -12,7 +12,7 @@ const wizardValues = {
   modelId: 'p::m',
   description: 'desc',
   prompt: 'Agent instructions',
-  knowledgeBaseIds: [],
+  knowledgeBaseIds: ['kb-1'],
   skillIds: ['skill-a', 'skill-b']
 }
 
@@ -69,6 +69,7 @@ describe('AgentCreateDialog', () => {
           smallModel: 'p::m',
           description: 'desc',
           instructions: 'Agent instructions',
+          knowledgeBaseIds: ['kb-1'],
           skillIds: ['skill-a', 'skill-b'],
           configuration: { avatar: '🤖', permission_mode: 'bypassPermissions' }
         }
