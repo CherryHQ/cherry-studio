@@ -163,10 +163,10 @@ const CreateKnowledgeBaseDialogRoot = ({
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>
           <KnowledgeDialogBody>
             <KnowledgeDialogField>
-              <Label htmlFor="knowledge-create-name">{t('common.name')}</Label>
               <Input
                 id="knowledge-create-name"
                 value={values.name}
+                aria-label={t('common.name')}
                 aria-invalid={hasAttemptedSubmit && !values.name.trim()}
                 onChange={(event) => setValues((currentValues) => ({ ...currentValues, name: event.target.value }))}
               />
