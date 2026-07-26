@@ -1,38 +1,16 @@
 /**
- * Canonical param key → its structured request field (+ optional normalization).
- * After the `ai.generate_image` payload collapse, the renderer sends one canonical
- * `paramValues` bag; `splitParamValues` (in `imageOptions.ts`) uses this table to
- * partition it into the structured fields the AI SDK `imageParams` consume vs the
- * leftover vendor bag the WireProfile engine forwards, applying each `map` once.
- *
- * The table is **correlated**: for canonical key `K`, `option` must name a real field
- * of {@link NativeImageParams}, and `map` must accept `K`'s catalog value type and
- * return that field's type. Previously both were free (`option: string`,
- * `map: (v: unknown) => unknown`), so a typo like `option: 'sizes'` compiled and
- * silently deleted the param from BOTH the structured set and the vendor bag — a
- * disappearance the wire layer's dropped-params warning cannot see, because the value
- * never reaches the bag it inspects.
+ * Canonical param key → the AI SDK call option it becomes. `splitParamValues` uses this
+ * to partition `paramValues` into {@link NativeImageParams} vs the vendor bag.
  */
 import type { CanonicalParamKey, ParamValue } from '@cherrystudio/provider-registry'
 
-/**
- * A registry-declared `size`: either `WxH` pixels or a vendor shorthand
- * (`1K` / `2K` / `4K`) that only that vendor's own body understands. Six Seedream
- * models in `provider-models.json` declare the latter, three of them defaulting to
- * `2K`, so this is not hypothetical — see {@link asSdkImageSize}.
- */
+/** A registry-declared `size`: `WxH` pixels, or a vendor shorthand (`1K`/`2K`/`4K`)
+ *  that only that vendor's body understands. */
 export type ImageSizeToken = `${number}x${number}` | (string & {})
 
 /**
- * The genuine AI SDK `ImageModelV3CallOptions` image params (`@ai-sdk/provider`):
- * `n` / `size` / `seed` / `aspectRatio` (+ `files`/`mask`, handled separately via
- * `request.inputImages`/`mask`). EVERYTHING ELSE — negativePrompt, numInferenceSteps,
- * guidanceScale, quality, background, moderation, style, personGeneration, … — is NOT
- * a typed SDK option; the SDK's only channel for it is `providerOptions` (the vendor
- * body). Those flow through the vendor bag instead, never this table.
- *
- * This is the anchor of the split: the binding table is checked against it, and the
- * vendor bag is derived as its complement over the catalog.
+ * The four genuine `ImageModelV3CallOptions` image params. The anchor of the split:
+ * the binding table is checked against it, `VendorBag` is its complement.
  */
 export interface NativeImageParams {
   n?: number
@@ -44,11 +22,8 @@ export interface NativeImageParams {
 
 type NativeOptionName = keyof NativeImageParams
 
-/**
- * Per-key correlated binding shape. The inner mapped type is indexed by
- * `NativeOptionName` to produce a union of `{ option: O; map?: (…) => …[O] }`, which
- * is what ties `map`'s return type to the specific field `option` names.
- */
+/** Correlated per key: `option` must name a real native field, and `map` must take
+ *  K's catalog value and return that field's type. */
 type NativeBindingTable = {
   readonly [K in CanonicalParamKey]?: {
     readonly [O in NativeOptionName]: {
@@ -70,13 +45,7 @@ export function normalizeAspectRatio(value: string | undefined): string | undefi
   return /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(stripped) ? stripped : undefined
 }
 
-/**
- * `numImages → n` is the only rename; `aspectRatio` carries a `map` so the
- * normalization happens once here instead of scattered across `AiService` + the
- * emitters. `map` can be a bare function reference now that the table correlates its
- * parameter with the catalog value type — the old `typeof v === 'string'` guard was
- * only there because the signature said `unknown`.
- */
+/** `numImages → n` is the only rename; `aspectRatio` normalizes once here. */
 export const AI_SDK_NATIVE_BINDINGS = {
   numImages: { option: 'n' },
   size: { option: 'size' },
@@ -93,14 +62,8 @@ export function nativeBindingFor(key: CanonicalParamKey): NativeBindingTable[Can
 }
 
 /**
- * The one admitted widening in the image path.
- *
- * The AI SDK types its native `size` as `${number}x${number}`, but a registry `size`
- * is an {@link ImageSizeToken}: Seedream declares `1K`/`2K`/`4K` and its model reads
- * those verbatim off the body. We forward the token unchanged. Funnelled through a
- * named function so the lie is greppable, unit-testable, and cannot spread — it was
- * previously an inline `as` duplicated in `AiService` and the job handler, where it
- * read as a fact rather than a concession.
+ * The one admitted widening in the image path: the SDK types `size` as `WxH`, but
+ * Seedream's declared `1K`/`2K`/`4K` are forwarded verbatim. Named so it can't spread.
  */
 export function asSdkImageSize(size: ImageSizeToken): `${number}x${number}` {
   return size as `${number}x${number}`

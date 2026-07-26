@@ -2,6 +2,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { AppProviderId } from '../../../../types'
+import { asConcreteProviderId } from '../../../../types'
 import { splitParamValues } from '../../../../utils/imageOptions'
 import { resolveProviderOptionsKey } from '../../../endpoint'
 import { buildImageRequest, buildVendorProviderOptions } from '../buildImageRequest'
@@ -276,7 +277,12 @@ function compatEngine(
 ): Record<string, Record<string, unknown>> {
   const { vendorBag } = splitParamValues(paramValues)
   const registration = resolveWireRegistration('openai-compatible')
-  return buildVendorProviderOptions(concreteId, paramValues, registration, vendorBag)
+  return buildVendorProviderOptions(
+    resolveProviderOptionsKey('openai-compatible', asConcreteProviderId(concreteId)),
+    paramValues,
+    registration,
+    vendorBag
+  )
 }
 
 describe('resolveWireRegistration', () => {

@@ -42,9 +42,9 @@ function makeScope(overrides: {
       providerId: 'openai' as never,
       providerSettings: {} as never,
       modelId: 'm1',
-      concreteProviderId: 'openai',
-      presetProviderId: 'openai',
-      optionsKey: 'openai'
+      concreteProviderId: 'openai' as never,
+      presetProviderId: 'openai' as never,
+      optionsKey: 'openai' as never
     },
     endpointType: overrides.endpointType as never,
     aiSdkProviderId: (overrides.aiSdkProviderId ?? 'openai-compatible') as never,

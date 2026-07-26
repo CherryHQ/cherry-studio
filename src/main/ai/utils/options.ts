@@ -30,8 +30,8 @@ import type { JSONValue } from 'ai'
 import { merge } from 'es-toolkit/compat'
 
 import { resolveProviderOptionsKey } from '../provider/endpoint'
-import type { AppProviderId } from '../types'
 import type { ProviderCapabilities } from '../types'
+import { type AppProviderId, asConcreteProviderId, type ConcreteProviderId } from '../types'
 import { addAnthropicHeaders } from './anthropicHeaders'
 import { buildGeminiGenerateImageParams } from './image'
 import { encodeReasoningInvocation, type ResolvedReasoningInvocation } from './reasoningSerializers'
@@ -129,9 +129,14 @@ export function buildCapabilityProviderOptions(
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model, actualProvider)
   const resolvedReasoningOptions = capabilities.enableReasoning
-    ? encodeReasoningOptions(rawProviderId, context.endpointType, context.reasoning, actualProvider.id)
+    ? encodeReasoningOptions(
+        rawProviderId,
+        context.endpointType,
+        context.reasoning,
+        asConcreteProviderId(actualProvider.id)
+      )
     : {
-        providerId: resolveProviderOptionsKey(rawProviderId, actualProvider.id),
+        providerId: resolveProviderOptionsKey(rawProviderId, asConcreteProviderId(actualProvider.id)),
         options: {}
       }
   const reasoningOptions =
@@ -228,7 +233,7 @@ function encodeReasoningOptions(
   aiSdkProviderId: AppProviderId,
   endpointType: EndpointType | undefined,
   invocation: ResolvedReasoningInvocation,
-  actualProviderId?: string
+  actualProviderId?: ConcreteProviderId
 ): { providerId: string; options: Record<string, unknown> } {
   return {
     providerId: resolveProviderOptionsKey(aiSdkProviderId, actualProviderId, endpointType),
@@ -241,7 +246,7 @@ export function buildResolvedReasoningProviderOptions(context: {
   aiSdkProviderId: AppProviderId
   endpointType: EndpointType | undefined
   reasoning: ResolvedReasoningInvocation
-  actualProviderId?: string
+  actualProviderId?: ConcreteProviderId
 }): Record<string, Record<string, unknown>> {
   const encoded = encodeReasoningOptions(
     context.aiSdkProviderId,

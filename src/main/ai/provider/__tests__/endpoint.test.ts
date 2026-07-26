@@ -3,6 +3,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
 import { makeProvider } from '../../__tests__/fixtures'
+import { asConcreteProviderId } from '../../types'
 import {
   resolveAiSdkProviderId,
   resolveEffectiveEndpoint,
@@ -45,7 +46,7 @@ describe('resolveProviderOptionsKey', () => {
   )
 
   it('names the openai-compatible family after the concrete provider (the SDK model name)', () => {
-    expect(resolveProviderOptionsKey('openai-compatible', 'zhipu')).toBe('zhipu')
+    expect(resolveProviderOptionsKey('openai-compatible', asConcreteProviderId('zhipu'))).toBe('zhipu')
     // Without the concrete id there is nothing better than the generic family name.
     expect(resolveProviderOptionsKey('openai-compatible')).toBe('openai-compatible')
   })
@@ -69,7 +70,9 @@ describe('resolveProviderOptionsKey', () => {
     })
 
     it('leaves non-aggregator ids alone regardless of endpoint', () => {
-      expect(resolveProviderOptionsKey('openai-compatible', 'zhipu', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('zhipu')
+      expect(
+        resolveProviderOptionsKey('openai-compatible', asConcreteProviderId('zhipu'), ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+      ).toBe('zhipu')
     })
   })
 })

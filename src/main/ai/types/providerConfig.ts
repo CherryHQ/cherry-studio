@@ -18,26 +18,34 @@ export type ProviderConfig<T extends StringKeys<AppProviderSettingsMap> = String
   endpoint?: string
 }
 
-/**
- * A `ProviderConfig` with the provider's resolved identity attached — computed
- * once by `providerToAiSdkConfig` so consumers never re-derive it:
- * - `concreteProviderId`: the app-level provider id (`Provider.id`)
- * - `presetProviderId`: the preset this provider derives from, or its own id when
- *   it is not preset-derived. A user can duplicate or rename a built-in provider,
- *   which changes `Provider.id` but not what the provider *is* — so behaviour keyed
- *   on "which vendor is this" (the image transport registry) must key on this, while
- *   behaviour keyed on "what did we name this instance" (`optionsKey`, since
- *   `providerSettings.name` is the concrete id) must not.
- * - `optionsKey`: the `providerOptions` namespace the AI SDK model actually
- *   reads (see `resolveProviderOptionsKey`); differs from `providerId` for the
- *   vertex family (`'vertex'`) and the `openai-compatible` family (the concrete
- *   provider id, via `providerSettings.name`).
- */
+/** The `providerOptions` namespace an AI SDK model reads — a different key space from
+ *  the provider id. Produced only by `resolveProviderOptionsKey`. */
+export type ProviderOptionsKey = string & { readonly __providerOptionsKey: unique symbol }
+
+/** `Provider.id` — the user-editable instance name. */
+export type ConcreteProviderId = string & { readonly __concreteProviderId: unique symbol }
+
+/** The preset a provider derives from, else its own id — stable across a rename.
+ *  Vendor-keyed behaviour (the transport registry) uses this, not the concrete id. */
+export type PresetProviderId = string & { readonly __presetProviderId: unique symbol }
+
+/** Only ever apply to a real `Provider.id`. */
+export function asConcreteProviderId(providerId: string): ConcreteProviderId {
+  return providerId as ConcreteProviderId
+}
+
+/** `provider.presetProviderId ?? provider.id` — the vendor identity. See above. */
+export function asPresetProviderId(provider: { id: string; presetProviderId?: string }): PresetProviderId {
+  return (provider.presetProviderId ?? provider.id) as PresetProviderId
+}
+
+/** A `ProviderConfig` with the three resolved identities attached — computed once by
+ *  `providerToAiSdkConfig` so consumers never re-derive them. */
 export type ResolvedProviderConfig<T extends StringKeys<AppProviderSettingsMap> = StringKeys<AppProviderSettingsMap>> =
   ProviderConfig<T> & {
-    concreteProviderId: string
-    presetProviderId: string
-    optionsKey: string
+    concreteProviderId: ConcreteProviderId
+    presetProviderId: PresetProviderId
+    optionsKey: ProviderOptionsKey
   }
 
 /**

@@ -17,9 +17,9 @@ function makeScope(): RequestScope {
       providerId: 'p1' as never,
       providerSettings: {} as never,
       modelId: 'm1',
-      concreteProviderId: 'p1',
-      presetProviderId: 'p1',
-      optionsKey: 'p1'
+      concreteProviderId: 'p1' as never,
+      presetProviderId: 'p1' as never,
+      optionsKey: 'p1' as never
     },
     endpointType: undefined,
     aiSdkProviderId: 'openai-compatible' as never,

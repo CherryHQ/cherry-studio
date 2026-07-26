@@ -17,7 +17,14 @@ import type { Provider } from '@shared/data/types/provider'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import type { ToolApplyScope } from '../../../tools/adapters/aiSdk/types'
-import type { AiBaseRequest, AppProviderId, AppProviderSettingsMap } from '../../../types'
+import type {
+  AiBaseRequest,
+  AppProviderId,
+  AppProviderSettingsMap,
+  ConcreteProviderId,
+  PresetProviderId,
+  ProviderOptionsKey
+} from '../../../types'
 import type { ResolvedReasoningInvocation } from '../../../utils/reasoningSerializers'
 import type { ResolvedCapabilities } from './capabilities'
 
@@ -30,12 +37,12 @@ export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
   readonly providerSettings: AppProviderSettingsMap[T]
   readonly modelId: string
   /** The app-level provider id (`Provider.id`), carried from `providerToAiSdkConfig`. */
-  readonly concreteProviderId: string
+  readonly concreteProviderId: ConcreteProviderId
   /** The preset this provider derives from, else its own id — the "which vendor is
    *  this" key, stable across a user duplicating or renaming a built-in. */
-  readonly presetProviderId: string
+  readonly presetProviderId: PresetProviderId
   /** The `providerOptions` namespace the AI SDK model reads (`resolveProviderOptionsKey`). */
-  readonly optionsKey: string
+  readonly optionsKey: ProviderOptionsKey
 }
 
 export interface RequestScope extends ToolApplyScope {

@@ -1,8 +1,10 @@
-import { IMAGE_PARAM_CATALOG_KEYS, wireName } from '@cherrystudio/provider-registry'
+import { IMAGE_PARAM_CATALOG_KEYS, type ParamValues, wireName } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import type { CanonicalParamKey } from '@shared/data/types/model'
 import type { JSONValue } from 'ai'
 
+import type { ProviderOptionsKey } from '../../../types'
+import type { VendorBag } from '../../../utils/imageOptions'
 import type { WireProfile, WireRegistration } from './wireProfile'
 
 const logger = loggerService.withContext('imageWireEngine')
@@ -126,10 +128,11 @@ function passthroughExtras(vendorBag: Record<string, unknown>, profile: WireProf
  * `{ ...jsonBagFields(bag), ...diffusionBody }` spread did.
  */
 export function buildVendorProviderOptions(
-  providerId: string,
-  paramValues: Record<string, unknown>,
+  /** `sdkConfig.optionsKey` — branded so `sdkConfig.providerId` no longer compiles here. */
+  deliveryKey: ProviderOptionsKey,
+  paramValues: ParamValues,
   registration: WireRegistration,
-  vendorBag: Record<string, unknown> = {}
+  vendorBag: VendorBag = {}
 ): Record<string, Record<string, JSONValue>> {
   const mapped = buildImageRequest(paramValues, registration.profile)
   // passthrough forwards vendor-bag fields the profile does NOT map (cfg,
@@ -149,16 +152,16 @@ export function buildVendorProviderOptions(
     const dropped = Object.keys(extras)
     if (dropped.length > 0) {
       logger.warn('Vendor image params dropped: profile maps none of them and passthrough is off', {
-        providerOptionsKey: providerId,
+        providerOptionsKey: deliveryKey,
         dropped
       })
     }
   }
   const result: Record<string, Record<string, JSONValue>> = {}
-  // `providerId` is `sdkConfig.optionsKey` — the namespace the SDK image model reads
+  // `deliveryKey` is `sdkConfig.optionsKey` — the namespace the SDK image model reads
   // (`resolveProviderOptionsKey`), which already re-keys the ids whose SDK package
   // hardcodes its own name (google-vertex → vertex, doubao → bytedance, …).
-  if (Object.keys(body).length > 0) result[providerId] = body
+  if (Object.keys(body).length > 0) result[deliveryKey] = body
   // The `openai` mirror carries the CLEAN OpenAI image body (mapped fields only),
   // never the passthrough vendor bag: `@ai-sdk/openai` rejects unknown fields,
   // while the provider's own key (e.g. aihubmix, whose custom model reads the bag)

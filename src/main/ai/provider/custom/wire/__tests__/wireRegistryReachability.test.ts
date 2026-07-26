@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures/model'
 import { makeProvider } from '../../../../__tests__/fixtures/provider'
+import { asConcreteProviderId } from '../../../../types'
 import { resolveImageTransport } from '../../imageTransportRegistry'
 import { WIRE_REGISTRY } from '../wireProfile'
 
@@ -57,7 +58,7 @@ const PROBE_MODEL_ID = '__reachability-probe-model__'
 describe('WIRE_REGISTRY has no rows shadowed by an unconditional transport', () => {
   it('every registered provider can still reach the SDK delivery branch', () => {
     const shadowed = Object.keys(WIRE_REGISTRY).filter((providerId) =>
-      Boolean(resolveImageTransport(providerId, PROBE_MODEL_ID, PROBE_SETTINGS, providerId))
+      Boolean(resolveImageTransport(providerId, PROBE_MODEL_ID, PROBE_SETTINGS, asConcreteProviderId(providerId)))
     )
 
     expect(shadowed, 'these rows can never be read — the provider always takes a transport').toEqual([])
@@ -66,7 +67,7 @@ describe('WIRE_REGISTRY has no rows shadowed by an unconditional transport', () 
   it('the probe is meaningful — an unconditional transport provider is detectable', () => {
     // Guards the guard: if this stops resolving, the test above silently passes for
     // every provider and the invariant is no longer enforced.
-    expect(resolveImageTransport('ppio', PROBE_MODEL_ID, PROBE_SETTINGS, 'ppio')).not.toBeNull()
+    expect(resolveImageTransport('ppio', PROBE_MODEL_ID, PROBE_SETTINGS, asConcreteProviderId('ppio'))).not.toBeNull()
   })
 })
 

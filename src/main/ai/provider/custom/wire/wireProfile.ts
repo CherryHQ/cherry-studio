@@ -203,10 +203,7 @@ export const OPENAI_COMPAT_FALLBACK_REGISTRATION: WireRegistration = {
  * map fall back to {@link DEFAULT_DIFFUSION_REGISTRATION}. Grows one row per
  * migrated provider with bespoke delivery; the plain diffusion family needs no row.
  *
- * Keyed by {@link KnownAppProviderId}, not `string`: a row for an id no extension
- * registers is dead config that still reads as a live declaration, which is what
- * `wireRegistryReachability` had to catch at runtime. `Partial<Record<…>>` because the
- * map is deliberately incomplete — absence means "take the diffusion catch-all".
+ * Keyed by {@link KnownAppProviderId}: a row for an unregistered id is dead config.
  */
 export const WIRE_REGISTRY = {
   openrouter: { profile: OPENROUTER_WIRE_PROFILE },
@@ -267,8 +264,6 @@ export const DEFAULT_DIFFUSION_REGISTRATION: WireRegistration = {
  * ({@link OPENAI_COMPAT_FALLBACK_REGISTRATION}); it needs no branch here.
  */
 export function resolveWireRegistration(sdkProviderId: AppProviderId): WireRegistration {
-  // One lookup widening: the CALLER's id is open (`AppProviderId` admits any string for
-  // user-created providers), while the TABLE's keys are closed. Widening here keeps
-  // every row key checked without forcing the caller to prove membership.
+  // The caller's id is open, the table's keys are closed — widen for the lookup only.
   return (WIRE_REGISTRY as Partial<Record<string, WireRegistration>>)[sdkProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
 }

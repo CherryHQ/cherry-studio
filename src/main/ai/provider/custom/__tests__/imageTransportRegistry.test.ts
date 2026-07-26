@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
+import { asConcreteProviderId, asPresetProviderId } from '../../../types'
 import { resolveImageTransport } from '../imageTransportRegistry'
 
 describe('resolveImageTransport', () => {
@@ -47,29 +48,35 @@ describe('resolveImageTransport', () => {
 
   it('resolves tokenhub hy-image via the concrete id (its SDK id is the generic openai-compatible)', () => {
     const settings = { apiKey: 'k', baseURL: 'https://tokenhub.tencentmaas.com/v1' }
-    const transport = resolveImageTransport('openai-compatible', 'hy-image-v3.0', settings, 'tokenhub')
+    const transport = resolveImageTransport(
+      'openai-compatible',
+      'hy-image-v3.0',
+      settings,
+      asConcreteProviderId('tokenhub')
+    )
     expect(transport).not.toBeNull()
     expect(typeof transport?.poll).toBe('function')
     // non-Hunyuan tokenhub models stay on the in-SDK path
-    expect(resolveImageTransport('openai-compatible', 'deepseek-v4-pro', settings, 'tokenhub')).toBeNull()
+    expect(
+      resolveImageTransport('openai-compatible', 'deepseek-v4-pro', settings, asConcreteProviderId('tokenhub'))
+    ).toBeNull()
     // other openai-compatible providers are untouched by the concrete-id lookup
-    expect(resolveImageTransport('openai-compatible', 'cogview-4', settings, 'zhipu')).toBeNull()
+    expect(resolveImageTransport('openai-compatible', 'cogview-4', settings, asConcreteProviderId('zhipu'))).toBeNull()
   })
 
   it('resolves via the preset id, so a duplicated or renamed built-in keeps its transport', () => {
-    // Duplicating PPIO in Settings gives the copy a fresh `Provider.id` while
-    // `presetProviderId` still says `ppio`. Keyed only on the concrete id, the copy
-    // found no transport and fell through to the generic OpenAI-compatible image
-    // model — POSTing `/images/generations` to a vendor whose images are submit/poll.
-    expect(resolveImageTransport('openai-compatible', 'qwen-image-txt2img', {}, 'ppio-copy-2')).toBeNull()
-    expect(resolveImageTransport('openai-compatible', 'qwen-image-txt2img', {}, 'ppio-copy-2', 'ppio')).not.toBeNull()
+    const copy = asConcreteProviderId('ppio-copy-2')
+    expect(resolveImageTransport('openai-compatible', 'qwen-image-txt2img', {}, copy)).toBeNull()
+    expect(
+      resolveImageTransport('openai-compatible', 'qwen-image-txt2img', {}, copy, asPresetProviderId({ id: 'ppio' }))
+    ).not.toBeNull()
   })
 
   it('prefers the concrete id over the preset id', () => {
-    // A concrete-id row must win: tokenhub rides the openai-compatible SDK id, so a
-    // preset fallback that overrode it would mis-route the vendor-specific models.
     const settings = { apiKey: 'k', baseURL: 'https://tokenhub.tencentmaas.com/v1' }
-    expect(resolveImageTransport('openai-compatible', 'hy-image-v3.0', settings, 'tokenhub', 'ppio')).not.toBeNull()
-    expect(resolveImageTransport('openai-compatible', 'deepseek-v4-pro', settings, 'tokenhub', 'ppio')).toBeNull()
+    const tokenhub = asConcreteProviderId('tokenhub')
+    const ppioPreset = asPresetProviderId({ id: 'ppio' })
+    expect(resolveImageTransport('openai-compatible', 'hy-image-v3.0', settings, tokenhub, ppioPreset)).not.toBeNull()
+    expect(resolveImageTransport('openai-compatible', 'deepseek-v4-pro', settings, tokenhub, ppioPreset)).toBeNull()
   })
 })

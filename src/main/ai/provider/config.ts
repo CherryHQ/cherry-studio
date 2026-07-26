@@ -23,6 +23,7 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { isEmpty } from 'es-toolkit/compat'
 
 import type { ProviderConfig, ResolvedProviderConfig } from '../types'
+import { asConcreteProviderId, asPresetProviderId } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
@@ -204,13 +205,14 @@ export async function providerToAiSdkConfig(
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
 
-  // Attach the resolved identity once so consumers (chat providerOptions, the
-  // image WireProfile engine) never re-derive the namespace the SDK model reads.
+  // Attach the resolved identity once — also THE construction point for the two id
+  // brands, so everything downstream receives them already branded.
+  const concreteProviderId = asConcreteProviderId(provider.id)
   return {
     ...config,
-    concreteProviderId: provider.id,
-    presetProviderId: provider.presetProviderId ?? provider.id,
-    optionsKey: resolveProviderOptionsKey(config.providerId, provider.id)
+    concreteProviderId,
+    presetProviderId: asPresetProviderId(provider),
+    optionsKey: resolveProviderOptionsKey(config.providerId, concreteProviderId)
   }
 }
 
