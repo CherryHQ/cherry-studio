@@ -11,14 +11,14 @@ import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
-import OnboardingPage from './onboarding/OnboardingPage'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
 const logger = loggerService.withContext('MainApp')
+const OnboardingPage = lazy(() => import('./onboarding/OnboardingPage'))
 // Behavior leaf inside the providers: the shared window runtime plus the main-only
 // concerns, then the popup/toast hosts. It sits inside the providers but outside every
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
@@ -60,7 +60,9 @@ export function MainWindowContent(): React.ReactElement {
   if (providerSetupStatus === 'pending') {
     return (
       <>
-        <OnboardingPage />
+        <Suspense fallback={null}>
+          <OnboardingPage />
+        </Suspense>
         <MainWindowRuntime />
         <PopupHost />
         <ToastHost />

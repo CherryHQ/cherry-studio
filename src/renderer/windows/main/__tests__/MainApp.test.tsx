@@ -5,9 +5,12 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../onboarding/OnboardingPage', () => ({
-  default: () => <div data-testid="onboarding-page">onboarding</div>
-}))
+const onboardingModule = vi.hoisted(() => ({ evaluations: 0 }))
+
+vi.mock('../onboarding/OnboardingPage', () => {
+  onboardingModule.evaluations += 1
+  return { default: () => <div data-testid="onboarding-page">onboarding</div> }
+})
 
 vi.mock('../privacy/PrivacyPolicyUpdateGate', () => ({
   PrivacyPolicyUpdateGate: () => <div data-testid="privacy-policy-gate">privacy-policy-gate</div>
@@ -45,25 +48,30 @@ describe('MainWindowContent', () => {
     vi.clearAllMocks()
   })
 
-  it('renders onboarding before the user completes first-run setup', () => {
+  it('does not load onboarding after first-run setup is completed or skipped', () => {
+    for (const status of ['completed', 'skipped'] as const) {
+      MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', status)
+
+      const view = render(<MainWindowContent />)
+
+      expect(screen.getByTestId('tabs-provider')).toBeInTheDocument()
+      expect(screen.getByTestId('app-shell')).toBeInTheDocument()
+      expect(screen.queryByTestId('onboarding-page')).not.toBeInTheDocument()
+      expect(screen.getByTestId('privacy-policy-gate')).toBeInTheDocument()
+      expect(onboardingModule.evaluations).toBe(0)
+      view.unmount()
+    }
+  })
+
+  it('loads and renders onboarding before the user completes first-run setup', async () => {
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
 
     render(<MainWindowContent />)
 
-    expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
+    expect(await screen.findByTestId('onboarding-page')).toBeInTheDocument()
+    expect(onboardingModule.evaluations).toBe(1)
     expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
     expect(screen.queryByTestId('privacy-policy-gate')).not.toBeInTheDocument()
-  })
-
-  it.each(['completed', 'skipped'] as const)('renders the normal app shell when onboarding is %s', (status) => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', status)
-
-    render(<MainWindowContent />)
-
-    expect(screen.getByTestId('tabs-provider')).toBeInTheDocument()
-    expect(screen.getByTestId('app-shell')).toBeInTheDocument()
-    expect(screen.queryByTestId('onboarding-page')).not.toBeInTheDocument()
-    expect(screen.getByTestId('privacy-policy-gate')).toBeInTheDocument()
   })
 })
 
