@@ -15,9 +15,9 @@ DevTools investigations.
 
 ## Bind safely and choose a profile
 
-First complete the parent Skill's PID, workspace, CDP, and target checks. Never
-find or open a development instance through the macOS application name
-`Electron`.
+First read [Electron Instance Management](electron-instance.md) and complete
+its PID, workspace, CDP, and target checks. Never find or open a development
+instance through the macOS application name `Electron`.
 
 Connect Playwright to the recorded CDP port and exact main target:
 
