@@ -4,7 +4,11 @@ import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const notifyDataApiDataChange = vi.hoisted(() => vi.fn())
+
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange }))
 
 function fieldsOf(err: unknown): Record<string, string[]> {
   const details = (err as { details?: { fieldErrors?: Record<string, string[]> } }).details
@@ -20,6 +24,7 @@ describe('TemporaryChatService', () => {
   let service: TemporaryChatService
 
   beforeEach(() => {
+    notifyDataApiDataChange.mockClear()
     service = new TemporaryChatService()
   })
 
@@ -194,6 +199,9 @@ describe('TemporaryChatService', () => {
       expect(byId.get(m2.id)?.parentId).toBe(m1.id)
       expect(byId.get(m3.id)?.parentId).toBe(m2.id)
       expect(rows.every((r) => r.siblingsGroupId === 0)).toBe(true)
+      expect(notifyDataApiDataChange).toHaveBeenCalledWith([
+        { endpoint: '/topics', kind: 'membership', entityIds: [topic.id] }
+      ])
     })
 
     it('empty session: persists topic with activeNodeId=null', async () => {
@@ -218,6 +226,19 @@ describe('TemporaryChatService', () => {
       expect(dbTopic?.orderKey).toBeDefined()
       expect(dbTopic?.orderKey).not.toBe('')
       expect(dbTopic?.orderKey?.length).toBeGreaterThan(0)
+    })
+
+    it('does not publish topic membership when the transaction fails', () => {
+      const topic = service.createTopic({ name: 'retryable' })
+      const transaction = vi.spyOn(dbh.db, 'transaction').mockImplementationOnce(() => {
+        throw new Error('transaction failed')
+      })
+
+      expect(() => service.persist(topic.id)).toThrow('transaction failed')
+      expect(notifyDataApiDataChange).not.toHaveBeenCalled()
+      expect(service.hasTopic(topic.id)).toBe(true)
+
+      transaction.mockRestore()
     })
 
     // NOTE: The original "rollback on tx failure" test dropped the message

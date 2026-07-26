@@ -13,6 +13,7 @@
  */
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
@@ -230,6 +231,7 @@ export class TemporaryChatService {
       throw err
     }
 
+    notifyDataApiDataChange([{ endpoint: '/topics', kind: 'membership', entityIds: [topicId] }])
     logger.info('Persisted temporary topic', { topicId, messageCount: msgs.length })
     return { topicId, messageCount: msgs.length }
   }

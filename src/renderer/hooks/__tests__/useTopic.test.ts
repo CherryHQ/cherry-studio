@@ -1,11 +1,16 @@
 import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
-import { MockUseDataApiUtils, mockUseInvalidateCache, mockUseWriteCache } from '@test-mocks/renderer/useDataApi'
+import {
+  MockUseDataApiUtils,
+  mockUseInfiniteQuery,
+  mockUseInvalidateCache,
+  mockUseWriteCache
+} from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { useActiveTopic, useLatestTopic, useTopicMutations } from '../useTopic'
+import { useActiveTopic, useLatestTopic, useTopicMutations, useTopics } from '../useTopic'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 
@@ -17,6 +22,36 @@ vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { CHANGE_TOPIC: 'change-topic' },
   EventEmitter: { emit: vi.fn() }
 }))
+
+describe('useTopics', () => {
+  beforeEach(() => {
+    MockDataApiUtils.resetMocks()
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('refreshes the topic list when another window promotes a temporary topic', () => {
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh,
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+
+    renderHook(() => useTopics())
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/topics', kind: 'membership', entityIds: ['topic-a'] }])
+    })
+
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('useTopicMutations', () => {
   beforeEach(() => {
