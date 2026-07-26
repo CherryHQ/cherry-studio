@@ -385,6 +385,53 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
   })
 
+  // Regression: the right pane's tool-flow list used to build the provider without
+  // `workspacePath`, so workspace-relative tool output stayed relative. The metadata
+  // probe then rejected it, `ClickableFilePath` reported `open_file_error`, and the
+  // file never fell through to the artifact preview pane.
+  it('fails the directory probe closed when a relative path has no workspace root', async () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+
+    let value: MessageListProviderValue | undefined
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        assistantId: 'agent-1',
+        isLoading: false,
+        messageNavigation: 'anchor'
+        // no workspacePath — a session whose workspace has not resolved yet
+      })
+      return null
+    }
+    render(<Probe />)
+
+    // Resolves false instead of rejecting, and never reaches IPC: the caller
+    // routes the click to the preview pane, which reports its own state.
+    await expect(value?.actions.isDirectory?.('dist/report.md')).resolves.toBe(false)
+    expect(ipcApiRequest).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
+
+    // An absolute path still probes normally without a workspace root.
+    await expect(value?.actions.isDirectory?.('/Users/me/report.md')).resolves.toBe(false)
+    expect(ipcApiRequest).toHaveBeenCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/Users/me/report.md'
+    })
+
+    // Actions the user explicitly triggered must surface the failure instead of
+    // silently doing nothing, so the shared error toast still fires.
+    expect(() => value?.actions.openPath?.('dist/report.md')).toThrow(/absolute path/i)
+    expect(window.api.file.openPath).not.toHaveBeenCalled()
+  })
+
   it('injects Agent-session diagnosis persistence into the shared error UI', async () => {
     const topic = {
       id: 'agent-session:session-1',
