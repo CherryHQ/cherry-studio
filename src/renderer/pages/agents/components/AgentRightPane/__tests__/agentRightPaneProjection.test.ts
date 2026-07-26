@@ -298,6 +298,33 @@ describe('agent right pane projections', () => {
     ])
   })
 
+  // The completion can land as a part (wake turn) while the late-event cache still holds an earlier
+  // in-progress event; the cache applies last, so without the guard every projection rebuild —
+  // e.g. a renderer refresh — resurrected the settled row.
+  it('never resurrects a settled task from a stale late event', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'Fetch latest', taskType: 'local_bash' }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'notification', taskId: 'bg-1', status: 'completed', summary: 'done' }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {
+        'bg-1': { event: 'progress', taskId: 'bg-1', status: 'in_progress', description: 'Fetch latest' }
+      }
+    )
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'completed' })])
+  })
+
   // A background task's completion arrives after its turn closed, so it never becomes a part.
   // Without merging it the row would stay running for the rest of the session.
   it('settles a run task from lifecycle that arrived after its turn closed', () => {

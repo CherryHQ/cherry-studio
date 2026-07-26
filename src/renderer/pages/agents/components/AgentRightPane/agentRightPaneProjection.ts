@@ -389,17 +389,27 @@ function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | u
   return undefined
 }
 
+const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'error'])
+
 function applyAgentTaskEvent(runTaskMap: Map<string, AgentRunTask>, data: AgentTaskEventPartData): void {
   const existing = runTaskMap.get(data.taskId)
   // A completion's summary is prose, not a name — it must never become the row title.
   const title = data.title?.trim() || data.description?.trim() || existing?.title
   if (!title) return
 
+  // Events reach this map from two orderings (message parts, then the late-event cache), so a stale
+  // pre-completion event can apply after the completion did. A settled task never resurrects.
+  const incoming = data.status ?? existing?.status ?? 'pending'
+  const status =
+    existing && RUN_TASK_TERMINAL_STATUSES.has(existing.status) && !RUN_TASK_TERMINAL_STATUSES.has(incoming)
+      ? existing.status
+      : incoming
+
   runTaskMap.set(data.taskId, {
     id: data.taskId,
     title,
     activeText: data.activeText ?? data.description ?? existing?.activeText,
-    status: data.status ?? existing?.status ?? 'pending',
+    status,
     taskType: data.taskType ?? existing?.taskType,
     subagentType: data.subagentType ?? existing?.subagentType,
     workflowName: data.workflowName ?? existing?.workflowName,
