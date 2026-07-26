@@ -721,6 +721,41 @@ describe('deriveConnectionConfig', () => {
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
   })
 
+  it('fingerprints knowledge-base bindings as a set', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      knowledgeBaseIds: ['kb-b', 'kb-a'],
+      configuration: {}
+    })
+    const bound = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      knowledgeBaseIds: ['kb-a', 'kb-b'],
+      configuration: {}
+    })
+    const reordered = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      knowledgeBaseIds: ['kb-a'],
+      configuration: {}
+    })
+    const unbound = await deriveSignature()
+
+    expect(reordered.rebuildSignature).toBe(bound.rebuildSignature)
+    expect(unbound.rebuildSignature).not.toBe(bound.rebuildSignature)
+  })
+
   it('keeps permission mode live-only while disabled tools also require a rebuild', async () => {
     const base = await deriveSignature()
 

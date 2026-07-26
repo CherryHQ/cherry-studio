@@ -447,6 +447,51 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-created-at', '2026-01-01T00:00:00Z')
     })
 
+    it('lets the provider activeTurnStatus renderer replace the processing placeholder', () => {
+      const message = msg({ status: 'pending' })
+      const treeWith = (activeTurnStatus: MessageListProviderValue['state']['activeTurnStatus']) => (
+        <MessageListProvider
+          value={{
+            state: {
+              topic: { id: message.topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
+              messages: [message],
+              partsByMessageId: { [message.id]: [] },
+              messageNavigation: 'none',
+              estimateSize: 400,
+              overscan: 0,
+              loadOlderDelayMs: 0,
+              loadingResetDelayMs: 0,
+              renderConfig: defaultMessageRenderConfig,
+              activeTurnStatus,
+              getMessageActivityState: () => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false })
+            },
+            actions: {},
+            meta: { selectionLayer: false }
+          }}>
+          <PartsProvider value={{ [message.id]: [] }}>
+            <MessagePartsRenderer message={message} />
+          </PartsProvider>
+        </MessageListProvider>
+      )
+
+      // Not processing → renderer is not invoked at all.
+      const idle = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
+      expect(screen.queryByTestId('active-turn-status')).toBeNull()
+      expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+      idle.unmount()
+
+      // Active + renderer returns its own node → it replaces the placeholder.
+      activateTurn()
+      const replaced = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
+      expect(screen.getByTestId('active-turn-status')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+      replaced.unmount()
+
+      // Active + renderer falls back to the placeholder → the placeholder shows.
+      render(treeWith((placeholder) => <>{placeholder}</>))
+      expect(screen.getByTestId('mock-placeholder')).toBeInTheDocument()
+    })
+
     it('uses activity-specific placeholders for empty streaming content without creating process boundaries', () => {
       activateTurn('streaming')
       const reasoning = renderParts(
@@ -475,6 +520,24 @@ describe('MessagePartsRenderer', () => {
       expect(markdown[0]).toContain('hello world')
       expect(markdown[1]).toContain('```js')
       expect(markdown[1]).toContain('console.log(1)')
+    })
+
+    it('uses stronger light-mode ink for ordinary message text', () => {
+      renderParts([{ type: 'text', text: 'hello world' }] as unknown as CherryMessagePart[])
+
+      const wrapper = screen.getByTestId('mock-markdown').closest('.block-wrapper')
+
+      expect(wrapper).toHaveClass('text-black', 'dark:text-foreground')
+    })
+
+    it('does not apply the ordinary text color to data-code blocks', () => {
+      renderParts([
+        { type: 'data-code', data: { content: 'console.log(1)', language: 'js' } }
+      ] as unknown as CherryMessagePart[])
+
+      const wrapper = screen.getByTestId('mock-markdown').closest('.block-wrapper')
+
+      expect(wrapper).not.toHaveClass('text-black', 'dark:text-foreground')
     })
 
     it('renders single and grouped images while skipping image parts without a URL', () => {

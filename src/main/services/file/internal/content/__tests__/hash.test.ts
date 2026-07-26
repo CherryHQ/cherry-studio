@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,7 +35,7 @@ describe('internal/content/hash', () => {
       fileRefService,
       danglingCache: {
         check: vi.fn(),
-        onFsEvent: vi.fn((p: FilePath, state: 'present' | 'missing') => {
+        onFsEvent: vi.fn((p: AbsoluteFilePath, state: 'present' | 'missing') => {
           onFsEventCalls.push({ path: p, state })
         }),
         addEntry: vi.fn(),
@@ -138,7 +138,7 @@ describe('internal/content/hash', () => {
   })
 
   it('hashByPath bypasses entry resolution', async () => {
-    const file = path.join(tmp, 'direct.txt') as FilePath
+    const file = path.join(tmp, 'direct.txt') as AbsoluteFilePath
     await writeFile(file, 'direct')
     const result = await hashByPath(deps, file)
     expect(result).toMatch(/^[0-9a-f]+$/)

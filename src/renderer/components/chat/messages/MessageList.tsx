@@ -621,8 +621,8 @@ const MessageList = () => {
           {isLoadingMore && (
             <div
               className="pointer-events-none flex w-full justify-center py-2.5"
-              style={{ background: 'var(--color-background)' }}>
-              <LoadingIcon color="var(--color-foreground-secondary)" />
+              style={{ background: 'var(--background)' }}>
+              <LoadingIcon color="color-mix(in oklch, var(--foreground) 66.6667%, transparent)" />
             </div>
           )}
         </div>
@@ -686,6 +686,11 @@ const MessageList = () => {
       <MultiSelectActionPopup
         selectedMessageIds={selectedMessageIds}
         isMultiSelectMode={isMultiSelectMode}
+        deleteDisabledReason={
+          selectedMessageIds
+            .map((messageId) => actions.getMessageDeleteAvailability?.(messageId))
+            .find((availability) => availability?.enabled === false)?.reason
+        }
         onSave={
           actions.saveSelectedMessages ? () => void actions.saveSelectedMessages?.(selectedMessageIds) : undefined
         }

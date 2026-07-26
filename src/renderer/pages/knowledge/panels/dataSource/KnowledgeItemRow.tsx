@@ -209,7 +209,7 @@ const KnowledgeItemRow = ({
             'cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
           // Match the navigator base rows: hover highlight for any row, solid selected background
           // for the checked one.
-          selected ? 'bg-secondary' : 'hover:bg-accent'
+          selected ? 'bg-muted' : 'hover:bg-muted'
         )}>
         <div role="gridcell" className="flex items-center self-stretch" onClick={(event) => event.stopPropagation()}>
           {/* The label fills the whole cell so a click anywhere in the checkbox column toggles

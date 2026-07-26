@@ -138,6 +138,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
   const workspaceRootId = '__workspace_root__'
 
   return {
+    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
     isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
       Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
     useArtifactFileTreeModel: ({
@@ -437,7 +438,23 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
       { id: 'agent-2', model: 'provider:model-2' }
     ],
     isLoading: false
+  }),
+  useUpdateAgent: () => ({ updateModel: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/agent/useSession', () => ({
+  useUpdateSession: () => ({ updateSession: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (modelId?: string | null) => ({
+    model: modelId ? { id: modelId, name: 'Model 1' } : undefined,
+    isLoading: false
   })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
+  useAgentWorkspaceWarning: () => undefined
 }))
 
 const activeSessionMocks = vi.hoisted(() => ({
@@ -506,6 +523,8 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
+  buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
   buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
 }))
 
@@ -881,7 +900,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
   })
 
-  it('renders the missing-agent selection as a home composer without leasing a session', () => {
+  it('renders the missing-agent selection as a home composer without leasing a session', async () => {
     activeSessionMocks.result = {
       activeSessionId: null,
       session: undefined,
@@ -895,9 +914,10 @@ describe('AgentChat artifact pane', () => {
       onMissingAgentSelectionAgentChange
     })
 
+    // The home composer is lazy-loaded; wait for the chunk to resolve.
+    expect(await screen.findByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
-    expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'select missing agent' }))
 

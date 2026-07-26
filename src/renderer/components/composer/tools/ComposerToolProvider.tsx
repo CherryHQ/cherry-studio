@@ -144,23 +144,25 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   const selectableKnowledgeBases = initialState?.selectableKnowledgeBases ?? EMPTY_KNOWLEDGE_BASES
 
   // Composer launcher registry (stored in refs to avoid re-renders)
-  const launcherRegistryRef = useRef(new Map<string, ComposerToolLauncher[]>())
+  const launcherRegistryRef = useRef(new Map<string, { entries: ComposerToolLauncher[] }>())
   const [launcherVersion, setLauncherVersion] = useState(0)
   const launcherVersionRef = useRef(launcherVersion)
   launcherVersionRef.current = launcherVersion
 
   const getComposerToolLaunchers = useCallback(() => {
     const allEntries: ComposerToolLauncher[] = []
-    launcherRegistryRef.current.forEach((entries) => {
-      allEntries.push(...entries)
+    launcherRegistryRef.current.forEach((registration) => {
+      allEntries.push(...registration.entries)
     })
     return allEntries
   }, [])
 
   const registerLaunchers = useCallback((toolKey: string, entries: ComposerToolLauncher[]) => {
-    launcherRegistryRef.current.set(toolKey, entries)
+    const registration = { entries }
+    launcherRegistryRef.current.set(toolKey, registration)
     setLauncherVersion((version) => version + 1)
     return () => {
+      if (launcherRegistryRef.current.get(toolKey) !== registration) return
       launcherRegistryRef.current.delete(toolKey)
       setLauncherVersion((version) => version + 1)
     }

@@ -98,6 +98,8 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
+  /** Keeps the sortable container mounted while temporarily blocking reorder interactions. */
+  reorderEnabled?: boolean
   onSelect: (item: T) => void | Promise<void>
   onSelectedClick?: (item: T) => void | Promise<void>
   selectedClickId?: string | null
@@ -142,6 +144,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   resourceMenuItems,
   onContextMenuAction,
   onReorder,
+  reorderEnabled: reorderEnabledProp = true,
   onSelect,
   onSelectedClick,
   selectedClickId,
@@ -151,7 +154,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   items
 }: ResourceEntityRailProps<T, TActionContext>) {
   const { t } = useTranslation()
-  const reorderEnabled = !!onReorder
+  const hasReorderHandler = !!onReorder
+  const reorderEnabled = hasReorderHandler && reorderEnabledProp
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
@@ -360,7 +364,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         </ResourceList.Header>
         <ResourceList.Body<T>
           listRef={effectiveListRef}
-          draggable={reorderEnabled}
+          draggable={hasReorderHandler}
           ariaLabel={ariaLabel}
           virtualClassName="pt-1 pb-3"
           errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}

@@ -10,7 +10,7 @@ import RagConfigPanel from '../RagConfigPanel'
 const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
 const mockEnableEmbedding = vi.fn()
-// embedMany goes through ipcApi.request('ai.embed_many', …) now (Main IPC).
+// embedMany goes through ipcApi.request('ai.embedding.embed_many', …) now (Main IPC).
 const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }

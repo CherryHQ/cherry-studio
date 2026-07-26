@@ -2,10 +2,10 @@ import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as ReactModule from 'react'
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import type { ComponentProps, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { BaseNavigator } from '../navigator'
+import { BaseNavigator as BaseNavigatorComponent } from '../navigator'
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react') as typeof ReactModule
@@ -188,6 +188,12 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    PageHeader: ({ title, action }: { title: ReactNode; action?: ReactNode }) => (
+      <div>
+        <h2>{title}</h2>
+        {action}
+      </div>
+    ),
     Popover: ({
       children,
       open,
@@ -441,11 +447,13 @@ vi.mock('react-i18next', () => ({
           'common.cancel': '取消',
           'common.delete': '删除',
           'common.clear': '清除',
+          'common.loading': '加载中',
           'common.more': '更多',
           'knowledge.title': '知识库',
           'knowledge.add.title': '新建知识库',
           'knowledge.search': '搜索知识库',
           'knowledge.empty': '暂无知识库',
+          'common.no_results': '无结果',
           'knowledge.groups.add': '新建分组',
           'knowledge.groups.create_base_here': '在此分组新建',
           'knowledge.groups.default': '默认',
@@ -517,7 +525,67 @@ const getMenuButton = (name: string) => {
   return button
 }
 
+type TestBaseNavigatorProps = Omit<ComponentProps<typeof BaseNavigatorComponent>, 'isLoading'> & {
+  isLoading?: boolean
+}
+
+const BaseNavigator = ({ isLoading = false, ...props }: TestBaseNavigatorProps) => (
+  <BaseNavigatorComponent {...props} isLoading={isLoading} />
+)
+
 describe('BaseNavigator', () => {
+  const baseProps = {
+    groups: [] as Group[],
+    isLoading: false,
+    width: 280,
+    selectedBaseId: '',
+    onSelectBase: vi.fn(),
+    onCreateGroup: vi.fn(),
+    onCreateBase: vi.fn(),
+    onMoveBase: vi.fn(),
+    onRenameBase: vi.fn(),
+    onRenameGroup: vi.fn(),
+    onDeleteGroup: vi.fn(),
+    onDeleteBase: vi.fn(),
+    onResizeStart: vi.fn()
+  }
+
+  it('shows loading instead of the empty state before the base query settles', () => {
+    render(<BaseNavigator {...baseProps} bases={[]} isLoading />)
+
+    expect(screen.getByText('加载中')).toBeInTheDocument()
+    expect(screen.queryByText('暂无知识库')).toBeNull()
+  })
+
+  it('names the empty list state when no bases exist', () => {
+    render(<BaseNavigator {...baseProps} bases={[]} />)
+
+    // Truly empty names the list state; the search no-result hint is reserved
+    // for filtered-out searches over existing bases.
+    expect(screen.getByText('暂无知识库')).toBeInTheDocument()
+    expect(screen.queryByText('无结果')).toBeNull()
+  })
+
+  it('names the empty list state when bases are cleared but groups remain', () => {
+    // buildKnowledgeBaseGroupSections keeps the default group and all empty
+    // known groups when the search is empty, so sections is non-empty here —
+    // the global empty state must still win over a row of hollow group headers.
+    render(<BaseNavigator {...baseProps} bases={[]} groups={[createGroup({ id: 'group-1', name: 'Research' })]} />)
+
+    expect(screen.getByText('暂无知识库')).toBeInTheDocument()
+    expect(screen.queryByText('Research')).toBeNull()
+    expect(screen.queryByText('无结果')).toBeNull()
+  })
+
+  it('shows a no-results hint when the search filters out every base', () => {
+    render(<BaseNavigator {...baseProps} bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha' })]} />)
+
+    fireEvent.change(screen.getByPlaceholderText('搜索知识库...'), { target: { value: 'zzz' } })
+
+    expect(screen.getByText('无结果')).toBeInTheDocument()
+    expect(screen.queryByText('暂无知识库')).toBeNull()
+  })
+
   it('keeps stable horizontal layout around the knowledge base list', () => {
     const { container } = render(
       <BaseNavigator
@@ -1241,14 +1309,14 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Alpha/ }).parentElement).toHaveClass('bg-secondary')
+    expect(screen.getByRole('button', { name: /Alpha/ }).parentElement).toHaveClass('bg-muted', 'text-foreground')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta/ }))
 
     expect(onSelectBase).toHaveBeenCalledWith('base-2')
   })
 
-  it('creates a knowledge base directly from the search-row add button', () => {
+  it('creates a knowledge base from the compact page-header action', () => {
     const onCreateBase = vi.fn()
     const onCreateGroup = vi.fn()
 
@@ -1270,7 +1338,14 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+    const searchInput = screen.getByPlaceholderText('搜索知识库...')
+    const createButton = screen.getByRole('button', { name: '新建知识库' })
+
+    expect(screen.getByRole('heading', { name: '知识库' })).toBeInTheDocument()
+    expect(createButton).toHaveClass('size-6')
+    expect(createButton.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(createButton)
 
     expect(onCreateBase).toHaveBeenCalledTimes(1)
     // No initialGroupId — and in particular not the click's MouseEvent.

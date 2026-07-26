@@ -19,11 +19,11 @@ const mocks = vi.hoisted(() => ({
   toastWarning: vi.fn()
 }))
 
-// respondToolApproval now goes through ipcApi.request('ai.respond_tool_approval', …).
+// respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.respond_tool_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))

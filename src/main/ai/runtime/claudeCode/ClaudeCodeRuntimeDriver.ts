@@ -18,6 +18,7 @@ type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
 type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
@@ -36,9 +37,10 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { isVisionModel } from '@shared/utils/model'
 
 import type {
   AgentRuntimeConnectInput,
@@ -203,7 +205,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           key: request.key,
           options,
           initializeTimeoutMs: request.initializeTimeoutMs,
-          credentialsFingerprint: request.credentialsFingerprint
+          credentialsFingerprint: request.credentialsFingerprint,
+          knowledgeBaseIds: request.knowledgeBaseIds
         })
 
     this.query = warmQuery
@@ -242,7 +245,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.pendingInitMessage = undefined
     }
 
-    this.sdkInputQueue.push(await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder))
+    this.sdkInputQueue.push(
+      await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      })
+    )
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -374,7 +381,39 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             logger.warn('Received a result message with no active turn; dropping turn-complete', {
               sessionId: this.input.sessionId
             })
+          } else {
+            // Background agents and tasks can keep emitting after their turn's result (e.g.
+            // `task_notification`). No turn stream is open to carry them, so they are dropped —
+            // logged rather than vanishing silently, since there is no background-task surface yet.
+            logger.debug('Dropping message received with no active turn', {
+              sessionId: this.input.sessionId,
+              type: message.type,
+              subtype: 'subtype' in message ? message.subtype : undefined
+            })
           }
+          continue
+        }
+
+        // A failed API request is backing off before a retry. Surface it as ephemeral session status
+        // (the host writes it to shared cache) instead of letting the adapter drop it — the renderer
+        // shows "Retrying 7/10 in 36s". Never enters the persisted message stream.
+        //
+        // Deliberately gated on an active turn (below the no-adapter drop): retry status is turn-scoped
+        // (it renders in the active turn's message stream), and only a turn guarantees a clear boundary —
+        // the turn ends with a chunk / turn-complete / error, all of which clear it. A prewarm/turn-less
+        // connection's retry would have no message to attach to and no such boundary (init recovery only
+        // emits a resume-token), so it must not enter the retry state at all.
+        if (message.type === 'system' && message.subtype === 'api_retry') {
+          this.eventQueue.push({
+            type: 'api-retry',
+            retry: {
+              attempt: message.attempt,
+              maxRetries: message.max_retries,
+              retryDelayMs: message.retry_delay_ms,
+              errorStatus: message.error_status,
+              errorCategory: message.error
+            }
+          })
           continue
         }
 
@@ -549,12 +588,30 @@ function isCompactionSystemMessage(message: SDKRuntimeSystemMessage): message is
   return message.subtype === 'status' || message.subtype === 'compact_boundary'
 }
 
+/**
+ * Whether the turn's model accepts native image input. Unresolvable models keep the
+ * legacy always-native behavior instead of silently degrading images to OCR text.
+ */
+function resolveModelImageSupport(uniqueModelId: UniqueModelId): boolean {
+  try {
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    return isVisionModel(modelService.getByKey(providerId, modelId))
+  } catch (error) {
+    logger.warn('Failed to resolve model for image support; assuming vision-capable', {
+      uniqueModelId,
+      error
+    })
+    return true
+  }
+}
+
 async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
-  systemReminder = false
+  systemReminder = false,
+  { supportsImages = true }: { supportsImages?: boolean } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message)
+  let content = await materializeUserContent(message, supportsImages)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -586,15 +643,17 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
 }
 
 /**
- * Build SDK user content from a message entity. Supported image attachments
- * (png, jpeg, gif, webp) are materialized into native Anthropic image blocks;
- * first-party non-image files use the shared extracted-text routing. External
- * files and images that cannot be materialized fall back to local paths when available.
+ * Build SDK user content from a message entity. When the model supports vision,
+ * supported image attachments (png, jpeg, gif, webp) are materialized into native
+ * Anthropic image blocks; otherwise first-party images are OCR'd to text by the
+ * shared routing, like first-party non-image files. External files and images that
+ * cannot be materialized fall back to local paths when available.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
 async function materializeUserContent(
-  message: AgentSessionMessageEntity
+  message: AgentSessionMessageEntity,
+  supportsImages: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
   const firstPartyParts = parts.filter(
@@ -615,7 +674,7 @@ async function materializeUserContent(
     const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
     const [prepared] = await prepareChatMessages([userMessage], {
       attachments: collectFileAttachments([userMessage]),
-      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
       isToolCapable: false
     })
     routedParts = prepared.parts
@@ -635,7 +694,7 @@ async function materializeUserContent(
   ]) {
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
-    if (!canBeClaudeImage(part)) {
+    if (!supportsImages || !canBeClaudeImage(part)) {
       const target = originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
       target.push(originalPart)
       continue

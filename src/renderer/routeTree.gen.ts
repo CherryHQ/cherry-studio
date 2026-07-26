@@ -43,9 +43,11 @@ import { Route as AppFilePreviewRouteImport } from './routes/app/file-preview'
 import { Route as AppCodeRouteImport } from './routes/app/code'
 import { Route as AppChatRouteImport } from './routes/app/chat'
 import { Route as AppAgentsRouteImport } from './routes/app/agents'
+import { Route as SettingsScheduledTasksIndexRouteImport } from './routes/settings/scheduled-tasks.index'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp.index'
 import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings.index'
 import { Route as AppMiniAppIndexRouteImport } from './routes/app/mini-app.index'
+import { Route as SettingsScheduledTasksTaskIdRouteImport } from './routes/settings/scheduled-tasks.$taskId'
 import { Route as SettingsMcpServersRouteImport } from './routes/settings/mcp/servers'
 import { Route as SettingsMcpNpxSearchRouteImport } from './routes/settings/mcp/npx-search'
 import { Route as SettingsMcpMcpInstallRouteImport } from './routes/settings/mcp/mcp-install'
@@ -227,6 +229,12 @@ const AppAgentsRoute = AppAgentsRouteImport.update({
   path: '/agents',
   getParentRoute: () => AppRoute,
 } as any)
+const SettingsScheduledTasksIndexRoute =
+  SettingsScheduledTasksIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => SettingsScheduledTasksRoute,
+  } as any)
 const SettingsMcpIndexRoute = SettingsMcpIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -242,6 +250,12 @@ const AppMiniAppIndexRoute = AppMiniAppIndexRouteImport.update({
   path: '/mini-app/',
   getParentRoute: () => AppRoute,
 } as any)
+const SettingsScheduledTasksTaskIdRoute =
+  SettingsScheduledTasksTaskIdRouteImport.update({
+    id: '/$taskId',
+    path: '/$taskId',
+    getParentRoute: () => SettingsScheduledTasksRoute,
+  } as any)
 const SettingsMcpServersRoute = SettingsMcpServersRouteImport.update({
   id: '/servers',
   path: '/servers',
@@ -316,7 +330,7 @@ export interface FileRoutesByFullPath {
   '/settings/ocr': typeof SettingsOcrRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
-  '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
+  '/settings/scheduled-tasks': typeof SettingsScheduledTasksRouteWithChildren
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -332,9 +346,11 @@ export interface FileRoutesByFullPath {
   '/settings/mcp/mcp-install': typeof SettingsMcpMcpInstallRoute
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
+  '/settings/scheduled-tasks/$taskId': typeof SettingsScheduledTasksTaskIdRoute
   '/app/mini-app/': typeof AppMiniAppIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
+  '/settings/scheduled-tasks/': typeof SettingsScheduledTasksIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
 }
 export interface FileRoutesByTo {
@@ -362,7 +378,6 @@ export interface FileRoutesByTo {
   '/settings/ocr': typeof SettingsOcrRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
-  '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -378,9 +393,11 @@ export interface FileRoutesByTo {
   '/settings/mcp/mcp-install': typeof SettingsMcpMcpInstallRoute
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
+  '/settings/scheduled-tasks/$taskId': typeof SettingsScheduledTasksTaskIdRoute
   '/app/mini-app': typeof AppMiniAppIndexRoute
   '/app/paintings': typeof AppPaintingsIndexRoute
   '/settings/mcp': typeof SettingsMcpIndexRoute
+  '/settings/scheduled-tasks': typeof SettingsScheduledTasksIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
 }
 export interface FileRoutesById {
@@ -411,7 +428,7 @@ export interface FileRoutesById {
   '/settings/ocr': typeof SettingsOcrRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
-  '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
+  '/settings/scheduled-tasks': typeof SettingsScheduledTasksRouteWithChildren
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -427,9 +444,11 @@ export interface FileRoutesById {
   '/settings/mcp/mcp-install': typeof SettingsMcpMcpInstallRoute
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
+  '/settings/scheduled-tasks/$taskId': typeof SettingsScheduledTasksTaskIdRoute
   '/app/mini-app/': typeof AppMiniAppIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
+  '/settings/scheduled-tasks/': typeof SettingsScheduledTasksIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
 }
 export interface FileRouteTypes {
@@ -477,9 +496,11 @@ export interface FileRouteTypes {
     | '/settings/mcp/mcp-install'
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
+    | '/settings/scheduled-tasks/$taskId'
     | '/app/mini-app/'
     | '/app/paintings/'
     | '/settings/mcp/'
+    | '/settings/scheduled-tasks/'
     | '/settings/mcp/settings/$serverId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -507,7 +528,6 @@ export interface FileRouteTypes {
     | '/settings/ocr'
     | '/settings/provider'
     | '/settings/quick-assistant'
-    | '/settings/scheduled-tasks'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
     | '/settings/skills'
@@ -523,9 +543,11 @@ export interface FileRouteTypes {
     | '/settings/mcp/mcp-install'
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
+    | '/settings/scheduled-tasks/$taskId'
     | '/app/mini-app'
     | '/app/paintings'
     | '/settings/mcp'
+    | '/settings/scheduled-tasks'
     | '/settings/mcp/settings/$serverId'
   id:
     | '__root__'
@@ -571,9 +593,11 @@ export interface FileRouteTypes {
     | '/settings/mcp/mcp-install'
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
+    | '/settings/scheduled-tasks/$taskId'
     | '/app/mini-app/'
     | '/app/paintings/'
     | '/settings/mcp/'
+    | '/settings/scheduled-tasks/'
     | '/settings/mcp/settings/$serverId'
   fileRoutesById: FileRoutesById
 }
@@ -822,6 +846,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAgentsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/settings/scheduled-tasks/': {
+      id: '/settings/scheduled-tasks/'
+      path: '/'
+      fullPath: '/settings/scheduled-tasks/'
+      preLoaderRoute: typeof SettingsScheduledTasksIndexRouteImport
+      parentRoute: typeof SettingsScheduledTasksRoute
+    }
     '/settings/mcp/': {
       id: '/settings/mcp/'
       path: '/'
@@ -842,6 +873,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/mini-app/'
       preLoaderRoute: typeof AppMiniAppIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/settings/scheduled-tasks/$taskId': {
+      id: '/settings/scheduled-tasks/$taskId'
+      path: '/$taskId'
+      fullPath: '/settings/scheduled-tasks/$taskId'
+      preLoaderRoute: typeof SettingsScheduledTasksTaskIdRouteImport
+      parentRoute: typeof SettingsScheduledTasksRoute
     }
     '/settings/mcp/servers': {
       id: '/settings/mcp/servers'
@@ -969,6 +1007,22 @@ const SettingsMcpRouteWithChildren = SettingsMcpRoute._addFileChildren(
   SettingsMcpRouteChildren,
 )
 
+interface SettingsScheduledTasksRouteChildren {
+  SettingsScheduledTasksTaskIdRoute: typeof SettingsScheduledTasksTaskIdRoute
+  SettingsScheduledTasksIndexRoute: typeof SettingsScheduledTasksIndexRoute
+}
+
+const SettingsScheduledTasksRouteChildren: SettingsScheduledTasksRouteChildren =
+  {
+    SettingsScheduledTasksTaskIdRoute: SettingsScheduledTasksTaskIdRoute,
+    SettingsScheduledTasksIndexRoute: SettingsScheduledTasksIndexRoute,
+  }
+
+const SettingsScheduledTasksRouteWithChildren =
+  SettingsScheduledTasksRoute._addFileChildren(
+    SettingsScheduledTasksRouteChildren,
+  )
+
 interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsApiGatewayRoute: typeof SettingsApiGatewayRoute
@@ -985,7 +1039,7 @@ interface SettingsRouteChildren {
   SettingsOcrRoute: typeof SettingsOcrRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
-  SettingsScheduledTasksRoute: typeof SettingsScheduledTasksRoute
+  SettingsScheduledTasksRoute: typeof SettingsScheduledTasksRouteWithChildren
   SettingsSelectionAssistantRoute: typeof SettingsSelectionAssistantRoute
   SettingsShortcutRoute: typeof SettingsShortcutRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
@@ -1011,7 +1065,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsOcrRoute: SettingsOcrRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,
-  SettingsScheduledTasksRoute: SettingsScheduledTasksRoute,
+  SettingsScheduledTasksRoute: SettingsScheduledTasksRouteWithChildren,
   SettingsSelectionAssistantRoute: SettingsSelectionAssistantRoute,
   SettingsShortcutRoute: SettingsShortcutRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
