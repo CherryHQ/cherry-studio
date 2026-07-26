@@ -8,6 +8,9 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
+import { ScheduledTaskEntitySchema, TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
+import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
+import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { ImageGenerationModeSchema, ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -32,6 +35,32 @@ import { defineRoute } from '../define'
  * `output`, and these are built by trusted main, so a field mirror buys nothing
  * (see ipc-migration-guide.md).
  */
+
+/**
+ * Agent scheduled-task command DTOs. The task *command* surface lives here on
+ * IpcApi (`ai.agent.task.*` → AgentJobsService); the read surface stays on
+ * DataApi (`GET /agents/:agentId/tasks…`). Entity/read-model schemas remain in
+ * `@shared/data/api/schemas/agents` — only the command inputs are owned here.
+ */
+const agentTaskFormSchema = z.strictObject({
+  name: JobScheduleNameAtomSchema,
+  prompt: z.string().min(1),
+  trigger: TriggerSchema,
+  workspace: AgentSessionWorkspaceSourceSchema,
+  timeoutMinutes: TimeoutMinutesAtomSchema,
+  channelIds: z.array(z.string()).optional()
+})
+export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
+
+/** Edit-save patch: form fields only — pause/resume are separate commands, so no `enabled` here. */
+const agentTaskPatchSchema = agentTaskFormSchema.partial()
+export type AgentTaskPatch = z.infer<typeof agentTaskPatchSchema>
+
+/** Task identity carried by every by-id command; `agentId` doubles as the ownership guard input. */
+const agentTaskRefSchema = z.strictObject({
+  agentId: z.string().min(1),
+  taskId: z.string().min(1)
+})
 
 /** Clone-safe subset of `AiTransportOptions` (no signal). */
 const aiTransportOptionsSchema = z.object({
@@ -185,9 +214,34 @@ export const aiRequestSchemas = {
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
     output: z.object({ ok: z.boolean() })
   }),
-  'ai.run_agent_task': defineRoute({
+  // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──
+  // Mixed-effect mutations (schedule row + channel subscriptions + timer) belong on
+  // IpcApi, not DataApi — the Job DataApi is GET-only (api-design-guidelines.md).
+  'ai.agent.task.create': defineRoute({
+    input: agentTaskFormSchema.extend({ agentId: z.string().min(1) }),
+    // Commands return the authoritative committed read model so the caller
+    // never has to re-read through DataApi to learn what was persisted.
+    output: ScheduledTaskEntitySchema
+  }),
+  'ai.agent.task.update': defineRoute({
+    input: agentTaskRefSchema.extend({ patch: agentTaskPatchSchema }),
+    output: ScheduledTaskEntitySchema
+  }),
+  'ai.agent.task.pause': defineRoute({
+    input: agentTaskRefSchema,
+    output: ScheduledTaskEntitySchema
+  }),
+  'ai.agent.task.resume': defineRoute({
+    input: agentTaskRefSchema,
+    output: ScheduledTaskEntitySchema
+  }),
+  'ai.agent.task.delete': defineRoute({
+    input: agentTaskRefSchema,
+    output: z.void()
+  }),
+  'ai.agent.task.run': defineRoute({
     // No caller reads the trigger result, so the route is void (see ipc-migration-guide.md).
-    input: z.string().min(1),
+    input: agentTaskRefSchema,
     output: z.void()
   })
 }
