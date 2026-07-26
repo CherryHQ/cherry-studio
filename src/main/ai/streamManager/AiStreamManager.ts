@@ -659,10 +659,8 @@ export class AiStreamManager extends BaseService {
     const anchorMessageId = exec.anchorMessageId
     exec.buffer.push({ topicId, executionId: sourceModelId, anchorMessageId, chunk })
 
-    // Outputs large enough to be stripped on the way out stay retrievable here until the message
-    // lands in SQLite, which is the window `ai.get_tool_result` covers with its live-stream branch.
-    // Bounded like the chunk buffer, and tighter because each entry is large: dropping the oldest
-    // only costs a lookup that then waits for the persisted copy.
+    // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
+    // entry just falls through to the persisted copy.
     if (chunk.type === 'tool-output-available' && shouldDeferToolOutput(chunk.output)) {
       const deferredOutputs = (exec.deferredOutputs ??= new Map())
       deferredOutputs.set(chunk.toolCallId, chunk.output)
@@ -1068,11 +1066,7 @@ export class AiStreamManager extends BaseService {
     this.removeListener(req.topicId, `wc:${sender.id}:${req.topicId}`)
   }
 
-  /**
-   * Full output of a tool call whose payload was deferred at the boundary, if the stream that
-   * produced it is still active. Recorded as the chunk arrives, so this is a map lookup rather
-   * than a scan of a buffer whose size is the very thing deferral exists to contain.
-   */
+  /** Full output of a deferred tool call, while the stream that produced it is still active. */
   getDeferredToolOutput(topicId: string, toolCallId: string): { found: true; output: unknown } | { found: false } {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return { found: false }

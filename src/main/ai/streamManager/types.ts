@@ -109,8 +109,7 @@ export interface StreamExecution {
   droppedChunks: number
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
   finalMessage?: CherryUIMessage
-  /** Full tool outputs that were too large to send to the renderer, by toolCallId. Served to
-   *  `ai.get_tool_result` while the message has not been persisted yet. */
+  /** Tool outputs too large to send, by toolCallId. Serves `ai.get_tool_result` until persisted. */
   deferredOutputs?: Map<string, unknown>
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
    *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
@@ -160,11 +159,7 @@ export interface AiStreamManagerConfig {
   readonly backgroundMode: 'continue' | 'abort'
   /** Per-execution buffer cap; exceeding stops buffering, not streaming. */
   readonly maxBufferChunks: number
-  /**
-   * How many oversized tool outputs an execution keeps resolvable in memory. Unlike the chunk
-   * buffer these entries are individually large, so the cap is small; evicting one only means a
-   * lookup for it falls through to SQLite once the message is persisted.
-   */
+  /** Cap on retained oversized tool outputs. Small because each entry is large. */
   readonly maxDeferredOutputs: number
   /**
    * Idle bound while a tool is awaiting human approval. The normal idle timeout is far too short for

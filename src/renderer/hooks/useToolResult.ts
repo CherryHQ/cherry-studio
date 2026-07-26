@@ -3,11 +3,8 @@ import type { DeferredToolResultRef } from '@shared/ai/transport'
 import useSWRImmutable from 'swr/immutable'
 
 /**
- * Resolves a tool output that was too large to cross the process boundary. Main decides where it
- * actually lives (active stream or SQLite) — see `ai.get_tool_result`.
- *
- * SWR supplies the deduplication and cross-remount cache this needs: a virtualized message list
- * unmounts and remounts the same card as it scrolls, and several cards can ask at once.
+ * Resolves a tool output deferred at the process boundary. SWR supplies the dedup and
+ * cross-remount cache a virtualized message list needs.
  */
 export function useToolResult(ref: DeferredToolResultRef | undefined) {
   const { data, error, isLoading } = useSWRImmutable(
@@ -17,8 +14,7 @@ export function useToolResult(ref: DeferredToolResultRef | undefined) {
       if (!response.found) throw new Error(`Tool result is no longer available: ${ref!.toolCallId}`)
       return response.output
     },
-    // A miss is permanent — neither the active stream nor SQLite holds the output — so backing off
-    // and asking again only burns IPC round trips. Matches `useDataApi`'s default.
+    // A miss is permanent: neither the active stream nor SQLite holds the output.
     { shouldRetryOnError: false }
   )
 

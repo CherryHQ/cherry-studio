@@ -36,15 +36,8 @@ export function canRenderMessageTool(toolResponse: McpToolResponse | NormalToolR
 }
 
 /**
- * The single gate every tool card passes through, and therefore the place that guarantees the
- * invariant the cards rely on: **`toolResponse.response` is always the real value**. When the
- * output was deferred at the process boundary this fetches it first and shows the card as still
- * running meanwhile, rather than handing the cards a placeholder and asking each of them to know
- * that its own result might be fake.
- *
- * ponytail: fetches as soon as the card mounts. That is bounded because the message list is
- * virtualized and tool groups render collapsed, so mounting means the card is about to be shown.
- * If a screen ever holds dozens of oversized results at once, gate this on visibility instead.
+ * The single gate every tool card passes through, so it holds the invariant they rely on:
+ * `toolResponse.response` is always the real value, never a deferred placeholder.
  */
 export default function MessageTools({ toolResponse }: Props) {
   const deferredOutput = isDeferredToolOutput(toolResponse.response) ? toolResponse.response : undefined

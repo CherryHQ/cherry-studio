@@ -45,11 +45,7 @@ describe('outbound tool-output projection', () => {
     })
   })
 
-  /**
-   * The stored-part path and the live-chunk path must agree, or a tool card renders one way while
-   * streaming and another way after a reload. They previously each carried their own copy of the
-   * rule and had already diverged, so this is the assertion that keeps them on one policy.
-   */
+  // The two paths must agree, or a card renders one way while streaming and another after reload.
   it.each([
     ['small', small],
     ['large', large]
@@ -63,8 +59,7 @@ describe('outbound tool-output projection', () => {
     expect(fromPart).toEqual(fromChunk)
   })
 
-  // CJK is one UTF-16 code unit but three UTF-8 bytes, so measuring by `String.length` would let
-  // a payload roughly 3x over the threshold through inline.
+  // CJK is one UTF-16 code unit but three UTF-8 bytes.
   it('measures the serialized UTF-8 size, not code units', () => {
     const cjk = { content: '\u6d4b'.repeat(DEFER_TOOL_OUTPUT_BYTES / 2) }
     expect(JSON.stringify(cjk).length).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)

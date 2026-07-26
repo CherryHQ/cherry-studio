@@ -1,10 +1,6 @@
 /**
- * The one place a message's tool payloads are trimmed on their way to the renderer.
- *
- * Two shapes carry a tool result across the boundary — a stored/finalized `CherryMessagePart` and
- * a live `tool-output-available` chunk. They are projected by the two functions here, but both
- * route through the same {@link deferToolOutput} call, so the "defer or not" decision exists once.
- * Previously each path had its own copy and they had already drifted.
+ * Trims a message's tool payloads on their way to the renderer. The stored-part and live-chunk
+ * paths share one {@link deferToolOutput} call so the policy cannot drift between them.
  */
 
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -19,7 +15,6 @@ export function projectMessagePartForRenderer(
   topicId: string,
   messageId: string
 ): CherryMessagePart {
-  // `isToolUIPart` covers both `tool-${name}` and `dynamic-tool`; only `output-available` has output.
   if (!isToolUIPart(part) || part.state !== 'output-available') return part
 
   const output = deferToolOutput(part.output, { topicId, messageId, toolCallId: part.toolCallId })

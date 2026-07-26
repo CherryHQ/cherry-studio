@@ -53,13 +53,7 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
   return application.get('WindowManager').getWindow(senderId)?.webContents
 }
 
-/**
- * The persisted half of `ai.get_tool_result` — the inverse of `projectMessagePartForRenderer`, so
- * it matches on the same shape that projection replaces (`isToolUIPart` + `output-available`).
- *
- * Agent sessions and ordinary topics store their messages in different tables, which is the only
- * reason the topic kind is inspected here; the deferral policy is size-driven and identical.
- */
+/** The persisted half of `ai.get_tool_result` — matches the same shape projection replaces. */
 function findPersistedToolOutput(topicId: string, messageId: string, toolCallId: string): AiToolResultResponse {
   try {
     const parts = isAgentSessionTopic(topicId)
@@ -132,10 +126,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AiStreamManager').abort(topicId, 'user-requested')
   },
   'ai.get_tool_result': async ({ topicId, messageId, toolCallId }) => {
-    // A deferred output lives in exactly one of two places depending on how far the turn has got.
-    // Resolving that here — rather than letting the renderer try one source then the other — keeps
-    // "where is it stored" a main-process detail. The active stream is checked first: it is the
-    // fresher copy, and it is the only one that has the value before the message is persisted.
+    // Active stream first: it is the only source holding the value before the message persists.
     const live = application.get('AiStreamManager').getDeferredToolOutput(topicId, toolCallId)
     if (live.found) return live
     return findPersistedToolOutput(topicId, messageId, toolCallId)

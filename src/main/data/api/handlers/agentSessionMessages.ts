@@ -13,17 +13,11 @@ import {
 } from '@shared/data/api/schemas/agentSessionMessages'
 import type { HandlersFor } from '@shared/data/api/types'
 
-/**
- * Applied only when the caller asks for it via `?deferToolOutputs`. A read returns what is stored
- * by default, so a caller that writes back what it read cannot silently persist a trimmed copy;
- * render-only callers opt in and get the small payload.
- */
+/** Opt-in via `?deferToolOutputs`; a default read stays verbatim so read-modify-write is safe. */
 function projectMessageForRenderer(message: AgentSessionMessageEntity, sessionId: string): AgentSessionMessageEntity {
   if (message.role !== 'assistant' || !message.data.parts) return message
 
-  // Built inline rather than through `@main/ai/agentSession/topic`: `data/` must not depend on
-  // `ai/` (main-process-architecture §3). The format already has copies in that module and in
-  // `@renderer/utils/agentSession`; unifying all three into `@shared` is tracked separately.
+  // Inline because `data/` must not import from `ai/` (main-process-architecture §3).
   const topicId = `agent-session:${sessionId}`
   const parts = projectMessagePartsForRenderer(message.data.parts, topicId, message.id)
   if (parts === message.data.parts) return message
