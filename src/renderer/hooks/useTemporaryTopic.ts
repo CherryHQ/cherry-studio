@@ -44,6 +44,8 @@ export interface UseTemporaryTopicOptions {
    * from the default model preference.
    */
   assistantId?: string
+  /** Optional title seeded when the temporary topic is first created. */
+  initialName?: string
 }
 
 export interface UseTemporaryTopicResult {
@@ -58,7 +60,7 @@ export interface UseTemporaryTopicResult {
 }
 
 export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTemporaryTopicResult {
-  const { assistantId, enabled = assistantId !== undefined } = options
+  const { assistantId, enabled = assistantId !== undefined, initialName } = options
   const [topicId, setTopicId] = useState<string | null>(null)
   /** Bumped by `reset()` to force the effect to re-run and allocate a new topic. */
   const [epoch, setEpoch] = useState(0)
@@ -76,7 +78,14 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
     let cancelled = false
 
-    const body = assistantId ? { assistantId } : {}
+    const firstLine = initialName?.split(/\r?\n/, 1)[0]?.trim()
+    const name = firstLine
+      ? firstLine.slice(0, clampSurrogateBoundary(firstLine, TEMPORARY_TOPIC_NAME_MAX_LENGTH))
+      : undefined
+    const body = {
+      ...(assistantId ? { assistantId } : {}),
+      ...(name ? { name } : {})
+    }
 
     void dataApiService
       .post('/temporary/topics', { body })
@@ -106,7 +115,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
         })
       }
     }
-  }, [enabled, assistantId, epoch])
+  }, [enabled, assistantId, initialName, epoch])
 
   const reset = useCallback(() => {
     setEpoch((n) => n + 1)

@@ -134,4 +134,34 @@ describe('SelectionActionUserModal', () => {
       'overflow-hidden'
     )
   })
+
+  it('defaults legacy assistant actions to saving history and allows disabling it', () => {
+    const onOk = vi.fn()
+    render(
+      <SelectionActionUserModal
+        isModalOpen={true}
+        editingAction={{
+          id: 'user-action',
+          name: 'Custom action',
+          enabled: true,
+          isBuiltIn: false,
+          assistantId: 'assistant-chatgpt-import'
+        }}
+        onOk={onOk}
+        onCancel={vi.fn()}
+      />
+    )
+
+    const historySwitch = screen.getByRole('switch')
+    expect(historySwitch).toBeChecked()
+    fireEvent.click(historySwitch)
+    fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    expect(onOk).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assistantId: 'assistant-chatgpt-import',
+        saveToAssistantHistory: false
+      })
+    )
+  })
 })

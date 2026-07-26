@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
@@ -6,6 +8,7 @@ import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
+import type { SelectionActionInvocation } from '@shared/types/selection'
 import type { BrowserWindow } from 'electron'
 import { app, clipboard, screen, systemPreferences } from 'electron'
 import type {
@@ -1238,6 +1241,10 @@ export class SelectionService extends BaseService implements Activatable {
    */
   public processAction(actionItem: SelectionActionItem, isFullScreen: boolean = false): void {
     const wm = application.get('WindowManager')
+    const invocation: SelectionActionInvocation = {
+      ...actionItem,
+      invocationId: randomUUID()
+    }
 
     // open({ initData }) atomically stores the action payload and, for the
     // pool-recycle path, emits window.reused with the same payload so
@@ -1248,7 +1255,7 @@ export class SelectionService extends BaseService implements Activatable {
     // paints before the user notices. This mirrors the behavior of the
     // pre-WindowManager SelectionService: push data, then show immediately.
     const windowId = wm.open(WindowType.SelectionAction, {
-      initData: actionItem,
+      initData: invocation,
       options: {
         width: this.isRemeberWinSize ? this.lastActionWindowSize.width : this.ACTION_WINDOW_WIDTH,
         height: this.isRemeberWinSize ? this.lastActionWindowSize.height : this.ACTION_WINDOW_HEIGHT

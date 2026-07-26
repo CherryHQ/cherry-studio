@@ -1,7 +1,7 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { SelectionActionInvocation } from '@shared/types/selection'
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { PropsWithChildren } from 'react'
+import { type PropsWithChildren, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ActionWindow from '../ActionWindow'
@@ -15,8 +15,11 @@ const action = {
   id: 'test-action',
   name: 'Test action',
   icon: 'test-icon',
-  isBuiltIn: false
-} as SelectionActionItem
+  isBuiltIn: false,
+  invocationId: 'invocation-1'
+} as SelectionActionInvocation
+
+let generalMountSequence = 0
 
 vi.mock('@renderer/components/selection/SelectionActionIcon', () => ({
   default: ({ size }: { size: number }) => <span data-testid="action-icon" data-size={size} />
@@ -57,14 +60,32 @@ vi.mock('@renderer/utils/platform', () => ({
   }
 }))
 
-vi.mock('../components/ActionGeneral', () => ({ default: () => null }))
+vi.mock('../components/ActionGeneral', () => {
+  const MockActionGeneral = () => {
+    const [mountId] = useState(() => ++generalMountSequence)
+    return <div data-testid="general-action" data-mount-id={mountId} />
+  }
+  return { default: MockActionGeneral }
+})
 vi.mock('../components/ActionTranslate', () => ({ default: () => null }))
 
 describe('ActionWindow surface', () => {
   beforeEach(() => {
     opacityPreference.value = 100
     platform.isMac = false
+    action.invocationId = 'invocation-1'
+    generalMountSequence = 0
     HTMLElement.prototype.scrollTo = vi.fn()
+  })
+
+  it('remounts the AI action subtree for each pooled-window invocation', () => {
+    const { rerender } = render(<ActionWindow />)
+    expect(screen.getByTestId('general-action')).toHaveAttribute('data-mount-id', '1')
+
+    action.invocationId = 'invocation-2'
+    rerender(<ActionWindow />)
+
+    expect(screen.getByTestId('general-action')).toHaveAttribute('data-mount-id', '2')
   })
 
   it('uses an opaque popover surface at 100% window opacity', () => {

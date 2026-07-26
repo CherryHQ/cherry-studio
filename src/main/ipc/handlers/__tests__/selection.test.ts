@@ -1,3 +1,4 @@
+import { selectionRequestSchemas } from '@shared/ipc/schemas/selection'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
@@ -55,9 +56,32 @@ describe('selectionHandlers', () => {
   })
 
   it('process_action forwards the action item and fullscreen flag', async () => {
-    const actionItem = { id: 'a1', name: 'Translate', enabled: true, isBuiltIn: true }
+    const actionItem = {
+      id: 'a1',
+      name: 'Translate',
+      enabled: true,
+      isBuiltIn: true,
+      assistantId: 'assistant-1',
+      saveToAssistantHistory: false
+    }
     await selectionHandlers['selection.process_action']({ actionItem, isFullScreen: true }, ctx('w1'))
     expect(selectionService.processAction).toHaveBeenCalledWith(actionItem, true)
+  })
+
+  it('process_action accepts the optional assistant-history compatibility field', () => {
+    const result = selectionRequestSchemas['selection.process_action'].input.parse({
+      actionItem: {
+        id: 'a1',
+        name: 'Explain',
+        enabled: true,
+        isBuiltIn: false,
+        assistantId: 'assistant-1',
+        saveToAssistantHistory: true
+      }
+    })
+
+    expect(result.actionItem.saveToAssistantHistory).toBe(true)
+    expect(result.isFullScreen).toBe(false)
   })
 
   it('pin_action_window pins the caller window by its own id via WindowManager.behavior', async () => {

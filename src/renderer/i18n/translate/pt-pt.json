@@ -5562,6 +5562,10 @@
           "default": "Padrão",
           "label": "Escolher Assistente"
         },
+        "history": {
+          "description": "[to be translated]:Create a new conversation under this assistant after a successful response",
+          "label": "[to be translated]:Save to Assistant History"
+        },
         "icon": {
           "error": "Nome de ícone inválido, verifique a entrada",
           "label": "Ícone",

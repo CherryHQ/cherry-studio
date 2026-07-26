@@ -53,6 +53,7 @@ export type SelectionActionItem = {
   icon?: string
   prompt?: string
   assistantId?: string
+  saveToAssistantHistory?: boolean
   selectedText?: string
   searchEngine?: string
 }

@@ -9,9 +9,12 @@ const state = vi.hoisted(() => ({
   assistant: undefined as { id: string } | undefined,
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
-  temporaryTopicOptions: [] as Array<{ enabled?: boolean; assistantId?: string }>,
+  persist: vi.fn(),
+  streamStatus: undefined as 'done' | 'error' | 'aborted' | 'streaming' | undefined,
+  temporaryTopicOptions: [] as Array<{ enabled?: boolean; assistantId?: string; initialName?: string }>,
   useChatIds: [] as string[],
-  onError: undefined as ((error: Error) => void) | undefined
+  onError: undefined as ((error: Error) => void) | undefined,
+  toastError: vi.fn()
 }))
 
 import ActionGeneral from '../ActionGeneral'
@@ -43,14 +46,24 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
-  useTemporaryTopic: (options: { enabled?: boolean; assistantId?: string }) => {
+  useTemporaryTopic: (options: { enabled?: boolean; assistantId?: string; initialName?: string }) => {
     state.temporaryTopicOptions.push(options)
-    return options.enabled === false ? { topicId: null, ready: false } : { topicId: 'temp-topic', ready: true }
+    return options.enabled === false
+      ? { topicId: null, ready: false, persist: state.persist }
+      : { topicId: 'temp-topic', ready: true, persist: state.persist }
   }
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ activeExecutions: [], isPending: false })
+  useTopicStreamStatus: () => ({
+    status: state.streamStatus,
+    activeExecutions: [],
+    isPending: state.streamStatus === 'streaming'
+  })
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: state.toastError }
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
@@ -111,9 +124,12 @@ describe('ActionGeneral', () => {
     state.assistant = undefined
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
+    state.persist.mockReset().mockResolvedValue(undefined)
+    state.streamStatus = undefined
     state.temporaryTopicOptions = []
     state.useChatIds = []
     state.onError = undefined
+    state.toastError.mockClear()
   })
 
   // MUST run first in this file: if a future test ever renders a result, the
@@ -134,21 +150,95 @@ describe('ActionGeneral', () => {
     render(<ActionGeneral action={createAction({ assistantId: '' })} />)
 
     await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
-    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({
+      enabled: true,
+      assistantId: undefined,
+      initialName: 'hello'
+    })
   })
 
   it('waits for a configured assistant before leasing and sending', async () => {
     const action = createAction({ assistantId: 'assistant-1' })
     const { rerender } = render(<ActionGeneral action={action} />)
 
-    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: false, assistantId: undefined })
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({
+      enabled: false,
+      assistantId: undefined,
+      initialName: 'hello'
+    })
     expect(state.sendMessage).not.toHaveBeenCalled()
 
     state.assistant = { id: 'assistant-1' }
     rerender(<ActionGeneral action={{ ...action }} />)
 
     await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
-    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'assistant-1' })
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({
+      enabled: true,
+      assistantId: 'assistant-1',
+      initialName: 'hello'
+    })
+  })
+
+  it('persists once after a successful response for legacy assistant actions', async () => {
+    state.assistant = { id: 'assistant-1' }
+    const action = createAction({ assistantId: 'assistant-1' })
+    const { rerender } = render(<ActionGeneral action={action} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.sendMessage).toHaveBeenCalledWith({
+      text: 'selection.action.prompt.summary:en-UShello'
+    })
+    state.streamStatus = 'done'
+    rerender(<ActionGeneral action={{ ...action }} />)
+
+    await waitFor(() => expect(state.persist).toHaveBeenCalledTimes(1))
+
+    state.streamStatus = 'streaming'
+    rerender(<ActionGeneral action={{ ...action }} />)
+    state.streamStatus = 'done'
+    rerender(<ActionGeneral action={{ ...action }} />)
+    expect(state.persist).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['explicitly disabled', { assistantId: 'assistant-1', saveToAssistantHistory: false }, { id: 'assistant-1' }],
+    ['default model action', { assistantId: '' }, undefined]
+  ])('does not persist a successful response for %s', async (_label, overrides, assistant) => {
+    state.assistant = assistant
+    const action = createAction(overrides)
+    const { rerender } = render(<ActionGeneral action={action} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    state.streamStatus = 'done'
+    rerender(<ActionGeneral action={{ ...action }} />)
+
+    expect(state.persist).not.toHaveBeenCalled()
+  })
+
+  it.each(['error', 'aborted'] as const)('does not persist when the stream ends as %s', async (terminalStatus) => {
+    state.assistant = { id: 'assistant-1' }
+    const action = createAction({ assistantId: 'assistant-1' })
+    const { rerender } = render(<ActionGeneral action={action} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    state.streamStatus = terminalStatus
+    rerender(<ActionGeneral action={{ ...action }} />)
+
+    expect(state.persist).not.toHaveBeenCalled()
+  })
+
+  it('reports persistence failure without replacing the generated result', async () => {
+    state.assistant = { id: 'assistant-1' }
+    state.persist.mockRejectedValueOnce(new Error('write failed'))
+    const action = createAction({ assistantId: 'assistant-1' })
+    const { rerender } = render(<ActionGeneral action={action} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    state.streamStatus = 'done'
+    rerender(<ActionGeneral action={{ ...action }} />)
+
+    await waitFor(() => expect(state.toastError).toHaveBeenCalledWith('common.save_failed:'))
+    expect(screen.queryByText('write failed')).not.toBeInTheDocument()
   })
 
   it('localizes a known error and leaves space above it', () => {

@@ -5562,6 +5562,10 @@
           "default": "По умолчанию",
           "label": "Ассистент"
         },
+        "history": {
+          "description": "[to be translated]:Create a new conversation under this assistant after a successful response",
+          "label": "[to be translated]:Save to Assistant History"
+        },
         "icon": {
           "error": "Некорректное название",
           "label": "Иконка",

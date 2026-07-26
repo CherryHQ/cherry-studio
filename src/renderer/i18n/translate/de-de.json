@@ -5562,6 +5562,10 @@
           "default": "Standard",
           "label": "Assistent auswählen"
         },
+        "history": {
+          "description": "[to be translated]:Create a new conversation under this assistant after a successful response",
+          "label": "[to be translated]:Save to Assistant History"
+        },
         "icon": {
           "error": "Ungültiger Symbolname, bitte Eingabe prüfen",
           "label": "Symbol",

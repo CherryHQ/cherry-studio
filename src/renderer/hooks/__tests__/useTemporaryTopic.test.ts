@@ -16,6 +16,20 @@ describe('useTemporaryTopic', () => {
     })
   })
 
+  it('seeds a surrogate-safe title from the selected text first line when leasing', async () => {
+    const initialName = `${'字'.repeat(29)}😀more\nignored second line`
+    const { result } = renderHook(() => useTemporaryTopic({ enabled: true, assistantId: 'assistant-1', initialName }))
+
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    expect(dataApiService.post).toHaveBeenCalledWith('/temporary/topics', {
+      body: {
+        assistantId: 'assistant-1',
+        name: '字'.repeat(29)
+      }
+    })
+  })
+
   it('persists a seeded placeholder name as an automatic topic name', async () => {
     const { result } = renderHook(() => useTemporaryTopic({ enabled: true }))
 

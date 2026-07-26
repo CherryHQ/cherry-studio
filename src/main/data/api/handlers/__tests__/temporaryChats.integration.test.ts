@@ -12,6 +12,8 @@
 
 import { temporaryChatHandlers } from '@data/api/handlers/temporaryChats'
 import { messageTable } from '@data/db/schemas/message'
+import { topicTable } from '@data/db/schemas/topic'
+import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import type { PersistTemporaryChatResponse } from '@shared/data/api/schemas/temporaryChats'
 import type { Message, MessageData } from '@shared/data/types/message'
@@ -50,11 +52,13 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
   }
 
   it('persist promotes a temp chat into a persistent topic readable by messageService', async () => {
-    // 1. Create a temporary topic. We omit assistantId because FK enforcement
-    // is ON and the assistant table starts empty; the persist flow does not
-    // require an assistant FK to be set.
+    const assistant = assistantDataService.create({ name: 'Selection Assistant', modelId: null })
+
+    // 1. Create a temporary topic bound to the configured assistant.
     const topic = unwrap<Topic>(
-      await temporaryChatHandlers['/temporary/topics'].POST(req({ body: { name: 'Quick question' } }))
+      await temporaryChatHandlers['/temporary/topics'].POST(
+        req({ body: { name: 'Quick question', assistantId: assistant.id } })
+      )
     )
     expect(topic.activeNodeId).toBeUndefined()
     expect(topic.id).toMatch(/^[0-9a-f-]{36}$/)
@@ -92,6 +96,10 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
       await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(req({ params: { id: topic.id } }))
     )
     expect(persistResult).toEqual({ topicId: topic.id, messageCount: 4 })
+
+    const [persistedTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
+    expect(persistedTopic?.assistantId).toBe(assistant.id)
+    expect(persistedTopic?.name).toBe('Quick question')
 
     // 5. After persist, the in-memory store is cleared — temp handlers see 404.
     await expect(

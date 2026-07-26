@@ -5563,6 +5563,10 @@
           "default": "預設",
           "label": "選擇助手"
         },
+        "history": {
+          "description": "[to be translated]:Create a new conversation under this assistant after a successful response",
+          "label": "[to be translated]:Save to Assistant History"
+        },
         "icon": {
           "error": "無效的圖示名稱，請檢查輸入",
           "label": "圖示",

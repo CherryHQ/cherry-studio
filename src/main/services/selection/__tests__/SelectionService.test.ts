@@ -1,6 +1,8 @@
 // @application, electron, and @logger are globally mocked in tests/main.setup.ts.
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { WindowType } from '@main/core/window/types'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { SelectionService } = await import('../SelectionService')
@@ -98,5 +100,47 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
 
     expect(activate).not.toHaveBeenCalled()
     expect(svc.isActivated).toBe(false)
+  })
+})
+
+describe('SelectionService.processAction', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it('adds a fresh runtime invocation id to every pooled-window payload', () => {
+    const service = new SelectionService()
+    const windowManager = application.get('WindowManager')
+    const action: SelectionActionItem = {
+      id: 'summary',
+      name: 'Summary',
+      enabled: true,
+      isBuiltIn: true,
+      assistantId: 'assistant-1',
+      selectedText: 'hello'
+    }
+
+    service.processAction(action)
+    service.processAction(action)
+
+    const firstPayload = vi.mocked(windowManager.open).mock.calls[0][1]?.initData
+    const secondPayload = vi.mocked(windowManager.open).mock.calls[1][1]?.initData
+    expect(windowManager.open).toHaveBeenNthCalledWith(
+      1,
+      WindowType.SelectionAction,
+      expect.objectContaining({ initData: expect.objectContaining(action) })
+    )
+    expect(firstPayload).toEqual(expect.objectContaining({ invocationId: expect.any(String) }))
+    expect(secondPayload).toEqual(expect.objectContaining({ invocationId: expect.any(String) }))
+    expect((firstPayload as { invocationId: string }).invocationId).not.toBe(
+      (secondPayload as { invocationId: string }).invocationId
+    )
+    expect(action).not.toHaveProperty('invocationId')
   })
 })

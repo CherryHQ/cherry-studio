@@ -30,6 +30,7 @@ const selectionActionItemSchema: z.ZodType<SelectionActionItem> = z.object({
   icon: z.string().optional(),
   prompt: z.string().optional(),
   assistantId: z.string().optional(),
+  saveToAssistantHistory: z.boolean().optional(),
   selectedText: z.string().optional(),
   searchEngine: z.string().optional()
 })

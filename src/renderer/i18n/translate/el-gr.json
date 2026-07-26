@@ -5562,6 +5562,10 @@
           "default": "Προεπιλογή",
           "label": "Επιλέξτε βοηθό"
         },
+        "history": {
+          "description": "[to be translated]:Create a new conversation under this assistant after a successful response",
+          "label": "[to be translated]:Save to Assistant History"
+        },
         "icon": {
           "error": "Μη έγκυρο όνομα εικονιδίου, ελέγξτε την εισαγωγή",
           "label": "Εικονίδιο",

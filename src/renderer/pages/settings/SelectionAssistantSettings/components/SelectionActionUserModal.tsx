@@ -13,6 +13,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
   Textarea,
   Tooltip
 } from '@cherrystudio/ui'
@@ -94,7 +95,10 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
       isBuiltIn: editingAction?.isBuiltIn || false,
       icon: formData.icon,
       prompt: formData.prompt,
-      assistantId: formData.assistantId
+      assistantId: formData.assistantId,
+      ...(formData.assistantId && {
+        saveToAssistantHistory: formData.saveToAssistantHistory ?? true
+      })
     }
 
     onOk(actionItem)
@@ -106,6 +110,14 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }))
     }
+  }
+
+  const handleModelModeChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      assistantId: value === 'default' ? '' : (firstAssistantId ?? ''),
+      ...(value === 'assistant' && prev.saveToAssistantHistory === undefined && { saveToAssistantHistory: true })
+    }))
   }
 
   return (
@@ -191,9 +203,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               </div>
               <RadioGroup
                 value={formData.assistantId ? 'assistant' : 'default'}
-                onValueChange={(value) =>
-                  handleInputChange('assistantId', value === 'default' ? '' : (firstAssistantId ?? ''))
-                }
+                onValueChange={handleModelModeChange}
                 className="flex flex-row gap-4">
                 <label className="flex items-center gap-2 text-sm">
                   <RadioGroupItem value="default" />
@@ -241,6 +251,21 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   ))}
                 </SelectContent>
               </Select>
+              <div className="mt-4 flex items-center justify-between gap-4 rounded-md border border-border p-3">
+                <label htmlFor="save-to-assistant-history" className="min-w-0">
+                  <div className="font-medium text-foreground text-sm">
+                    {t('selection.settings.user_modal.history.label')}
+                  </div>
+                  <div className="mt-1 text-foreground-secondary text-xs">
+                    {t('selection.settings.user_modal.history.description')}
+                  </div>
+                </label>
+                <Switch
+                  id="save-to-assistant-history"
+                  checked={formData.saveToAssistantHistory ?? true}
+                  onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, saveToAssistantHistory: checked }))}
+                />
+              </div>
             </ModalSection>
           )}
           <ModalSection>

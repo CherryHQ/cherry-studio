@@ -8,13 +8,14 @@ import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
+import { toast } from '@renderer/services/toast'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { ChevronDown, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
@@ -45,10 +46,18 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const chosenAssistantId = chosenAssistant?.id
   const waitingForConfiguredAssistant = Boolean(action.assistantId) && !chosenAssistantId
 
-  // Temporary in-memory topic — never touches SQLite, released on unmount.
-  const { topicId: temporaryTopicId, ready } = useTemporaryTopic({
+  const shouldSaveToAssistantHistory = Boolean(chosenAssistantId) && (action.saveToAssistantHistory ?? true)
+  const persistedTopicRef = useRef<string | null>(null)
+
+  // The topic starts in memory and is promoted only after a successful response.
+  const {
+    topicId: temporaryTopicId,
+    ready,
+    persist
+  } = useTemporaryTopic({
     enabled: !waitingForConfiguredAssistant,
-    assistantId: chosenAssistantId
+    assistantId: chosenAssistantId,
+    initialName: action.selectedText
   })
 
   const promptContent = useMemo(() => {
@@ -96,7 +105,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   // Temp-topic: no pre-allocated DB row, so the reader keys overlay by the
   // start-chunk id; `liveAssistants` is the streamed snapshot list.
-  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const { status, activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
   const { liveAssistants } = useExecutionOverlay(
     temporaryTopicId ?? 'pending-temp',
     activeExecutions,
@@ -109,6 +118,24 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
       scrollToBottom?.()
     }
   }, [isPending, scrollToBottom])
+
+  useEffect(() => {
+    if (
+      status !== 'done' ||
+      !shouldSaveToAssistantHistory ||
+      !temporaryTopicId ||
+      persistedTopicRef.current === temporaryTopicId
+    ) {
+      return
+    }
+
+    persistedTopicRef.current = temporaryTopicId
+    void persist().catch((error) => {
+      persistedTopicRef.current = null
+      logger.error('Failed to persist selection assistant topic', error as Error)
+      toast.error(t('common.save_failed'))
+    })
+  }, [persist, shouldSaveToAssistantHistory, status, t, temporaryTopicId])
 
   const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => liveAssistants.at(-1), [liveAssistants])
 

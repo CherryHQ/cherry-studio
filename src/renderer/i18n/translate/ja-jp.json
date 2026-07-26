@@ -5562,6 +5562,10 @@
           "default": "デフォルト",
           "label": "アシスタント選択"
         },
+        "history": {
+          "description": "[to be translated]:Create a new conversation under this assistant after a successful response",
+          "label": "[to be translated]:Save to Assistant History"
+        },
         "icon": {
           "error": "無効なアイコン名です",
           "label": "アイコン",

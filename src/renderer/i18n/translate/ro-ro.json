@@ -5562,6 +5562,10 @@
           "default": "Implicit",
           "label": "Selectează asistentul"
         },
+        "history": {
+          "description": "[to be translated]:Create a new conversation under this assistant after a successful response",
+          "label": "[to be translated]:Save to Assistant History"
+        },
         "icon": {
           "error": "Nume pictogramă invalid, te rugăm să verifici intrarea",
           "label": "Pictogramă",

@@ -5563,6 +5563,10 @@
           "default": "Default",
           "label": "Select Assistant"
         },
+        "history": {
+          "description": "Create a new conversation under this assistant after a successful response",
+          "label": "Save to Assistant History"
+        },
         "icon": {
           "error": "Invalid icon name, please check your input",
           "label": "Icon",

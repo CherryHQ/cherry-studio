@@ -5,7 +5,7 @@ import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { SelectionActionInvocation } from '@shared/types/selection'
 import Droplet from 'lucide-react/dist/esm/icons/droplet'
 import Minus from 'lucide-react/dist/esm/icons/minus'
 import Pin from 'lucide-react/dist/esm/icons/pin'
@@ -20,13 +20,12 @@ import ActionTranslate from './components/ActionTranslate'
 /**
  * Outer shell. Pulls the current action payload via `useWindowInitData`, which
  * transparently handles both cold-start (pooled warmup / first mount) and
- * reuse (`window.reused` payload on pool recycle). No `key={resetKey}`
- * remount — `SelectionActionContent` stays mounted across recycles and
- * receives `action` as a prop. Per-action state is reset in a single
- * `useEffect([action])` inside the content component.
+ * reuse (`window.reused` payload on pool recycle). The window shell stays
+ * mounted, while the action-specific subtree is keyed by `invocationId` so
+ * every selection receives a fresh temporary conversation.
  */
 const ActionWindow: FC = () => {
-  const action = useWindowInitData<SelectionActionItem>()
+  const action = useWindowInitData<SelectionActionInvocation>()
   if (!action) return null
   return <SelectionActionContent action={action} />
 }
@@ -39,7 +38,7 @@ const ActionWindow: FC = () => {
  * slider, scroll) so old state doesn't bleed into the new session, even when
  * the next action happens to be the same type as the previous one.
  */
-const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action }) => {
+const SelectionActionContent: FC<{ action: SelectionActionInvocation }> = ({ action }) => {
   const { t } = useTranslation()
 
   const [isAutoClose] = usePreference('feature.selection.auto_close')
@@ -265,8 +264,12 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
         <div
           ref={contentElementRef}
           className="flex max-w-[1280px] flex-1 select-text flex-col overflow-auto p-4 text-sm [-webkit-app-region:no-drag]">
-          {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
-          {action.id != 'translate' && <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} />}
+          {action.id == 'translate' && (
+            <ActionTranslate key={action.invocationId} action={action} scrollToBottom={handleScrollToBottom} />
+          )}
+          {action.id != 'translate' && (
+            <ActionGeneral key={action.invocationId} action={action} scrollToBottom={handleScrollToBottom} />
+          )}
         </div>
       </div>
     </div>
