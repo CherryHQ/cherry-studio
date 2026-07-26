@@ -22,25 +22,17 @@ import { Edit2Icon, EyeIcon, EyeOffIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 
-const inputGroupVariants = cva(
-  [
-    'h-auto',
-    'rounded-md',
-    'has-[[data-slot=input-group-control]:focus-visible]:ring-ring/40',
-    'has-[[data-slot=input-group-control]:focus-visible]:border-[#3CD45A]'
-  ],
-  {
-    variants: {
-      disabled: {
-        false: null,
-        true: ['bg-background-subtle', 'border-border-hover', 'cursor-not-allowed']
-      }
-    },
-    defaultVariants: {
-      disabled: false
+const inputGroupVariants = cva(['h-auto', 'rounded-md'], {
+  variants: {
+    disabled: {
+      false: null,
+      true: ['bg-background-subtle', 'border-border-hover', 'cursor-not-allowed']
     }
+  },
+  defaultVariants: {
+    disabled: false
   }
-)
+})
 
 const inputVariants = cva(['p-0', 'h-fit', 'min-w-0'], {
   variants: {

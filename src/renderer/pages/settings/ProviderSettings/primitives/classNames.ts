@@ -14,10 +14,6 @@ export const providerSettingsTypography = {
  * Fixed `h-8` (32px) so all input groups in this page line up regardless of trailing-control height. */
 const providerSettingsInputGroupBase = 'h-8 rounded-lg border border-border-muted bg-muted/30 px-2.5 shadow-none'
 
-/** Softer focus ring than `@cherrystudio/ui` InputGroup default (`ring-[3px]`) — business-layer override only. */
-const providerSettingsInputGroupFocusOverride =
-  'has-[[data-slot=input-group-control]:focus-visible]:ring-[1px] has-[[data-slot=input-group-control]:focus-visible]:ring-ring/35'
-
 /** Connection and `ProviderSection`: 14px, deepest foreground, section-label line-height. */
 const sectionHeadingBase = 'm-0 text-sm text-foreground leading-[1.3]'
 
@@ -127,7 +123,7 @@ export const customHeaderDrawerClasses = {
   bodyScroll: 'flex flex-col gap-4',
   /** JSON mode — matches structured monospace block for custom headers. */
   headersJsonEditor:
-    'min-h-[120px] w-full resize-y rounded-xl border border-border-muted bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35 placeholder:text-muted-foreground/45',
+    'min-h-[120px] w-full resize-y rounded-xl border border-border-muted bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:border-ring placeholder:text-muted-foreground/45',
   /** Header rows stack; each row is `[name] [value] [delete]` on a single line. */
   headerList: 'flex flex-col gap-2',
   headerRow: 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] items-center gap-2',
@@ -147,10 +143,10 @@ export const drawerClasses = {
   field: 'space-y-1.5',
   fieldTitle: 'font-medium text-sm leading-5 text-foreground-secondary',
   input:
-    'h-8 min-h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm leading-5 text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/35',
+    'h-8 min-h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm leading-5 text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-ring',
   inputDisabled: 'bg-muted text-foreground-muted',
   selectTrigger:
-    'h-auto w-full rounded-md border-input bg-background px-3 py-2 text-sm leading-5 text-foreground shadow-none data-[placeholder]:text-foreground-muted aria-expanded:border-ring aria-expanded:ring-[2px] aria-expanded:ring-ring/35',
+    'h-auto w-full rounded-md border-input bg-background px-3 py-2 text-sm leading-5 text-foreground shadow-none data-[placeholder]:text-foreground-muted aria-expanded:border-ring',
   selectContent: 'rounded-lg border-[0.5px] border-border bg-popover text-popover-foreground shadow-lg',
   helpText: 'text-xs leading-tight text-foreground-muted',
   errorText: 'text-xs leading-tight text-destructive',
@@ -377,9 +373,9 @@ export const modelSyncClasses = {
   fetchWarning:
     'my-2 gap-2 rounded-lg [--model-sync-warning-accent:oklch(0.83_0.164_84)] border-[color:color-mix(in_srgb,var(--model-sync-warning-accent)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--warning-subtle)_52%,transparent)] px-2.5 py-2 text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
   fetchRowNew:
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border/60 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-border/40 data-[checked=true]:bg-background',
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border/60 hover:bg-accent/30 focus-visible:border-ring focus-visible:bg-accent/30 focus-visible:outline-none data-[checked=true]:border-border/40 data-[checked=true]:bg-background',
   fetchRowRemoved:
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-destructive/15 hover:bg-destructive/[0.03] focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-destructive/15 data-[checked=true]:bg-background',
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-destructive/15 hover:bg-destructive/[0.03] focus-visible:border-destructive/30 focus-visible:bg-destructive/[0.03] focus-visible:outline-none data-[checked=true]:border-destructive/15 data-[checked=true]:bg-background',
   fetchAvatar:
     'flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted font-medium text-xs leading-none text-foreground-muted',
   fetchRowId: 'truncate text-sm leading-tight text-foreground',
@@ -430,7 +426,7 @@ export const modelSyncClasses = {
   manageRowTitleLine: 'flex min-w-0 items-center gap-1.5',
   manageRowTitle: 'truncate text-sm leading-5 text-foreground select-text',
   manageRowDescriptionHelp:
-    'inline-flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground outline-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-[1px] focus-visible:ring-ring/35',
+    'inline-flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground outline-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:bg-accent/40 focus-visible:text-foreground',
   manageStaleBadge:
     'h-4 shrink-0 rounded-md bg-destructive/10 px-1.5 py-0 text-[10px] leading-4 text-destructive tabular-nums',
   manageRowAction: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground'
@@ -509,17 +505,9 @@ export const fieldClasses = {
   /** Reserves 24×24 next to `inputGroup` in `inputRow` when there is no trailing action (aligns with `iconButton`). */
   inputRowEndSlot: 'inline-flex h-6 w-6 shrink-0',
   /** In a `inputRow` next to a 24px icon button */
-  inputGroup: [
-    'flex min-h-0 min-w-0 flex-1 items-center',
-    providerSettingsInputGroupBase,
-    providerSettingsInputGroupFocusOverride
-  ].join(' '),
+  inputGroup: ['flex min-h-0 min-w-0 flex-1 items-center', providerSettingsInputGroupBase].join(' '),
   /** Full-width field (no side icon) */
-  inputGroupBlock: [
-    'flex w-full items-center',
-    providerSettingsInputGroupBase,
-    providerSettingsInputGroupFocusOverride
-  ].join(' '),
+  inputGroupBlock: ['flex w-full items-center', providerSettingsInputGroupBase].join(' '),
   /**
    * Matches connection row: body-md, full foreground, muted placeholder; flush in group.
    * Repeat `md:` so `InputGroupInput` defaults do not re-assert `md:text-sm` alone on the base layer.

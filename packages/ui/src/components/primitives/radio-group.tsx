@@ -7,7 +7,7 @@ const radioGroupItemVariants = cva(
   cn(
     'aspect-square shrink-0 rounded-full border border-input bg-transparent text-primary shadow-none transition-[color,border-color,box-shadow] outline-none',
     'data-[state=checked]:border-2 data-[state=checked]:border-primary',
-    'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+    'focus-visible:border-ring',
     'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
     'disabled:cursor-not-allowed disabled:opacity-50'
   ),

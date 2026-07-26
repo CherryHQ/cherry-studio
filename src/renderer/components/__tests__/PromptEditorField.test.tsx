@@ -111,7 +111,8 @@ describe('PromptEditorField', () => {
     const editorContainer = screen.getByTestId('editor-empty-area').parentElement
     expect(editorContainer).toHaveClass('bg-background')
     expect(editorContainer).toHaveClass('border-border', 'focus-within:border-border-hover')
-    expect(editorContainer).toHaveClass('focus-within:ring-2', 'focus-within:ring-ring/50')
+    expect(editorContainer).toHaveClass('focus-within:border-border-hover')
+    expect(editorContainer).not.toHaveClass('focus-within:ring-2', 'focus-within:ring-ring/50')
     expect(editorContainer).not.toHaveClass('bg-accent/15', 'focus-within:bg-accent/20')
     expect(editorContainer).not.toHaveClass('border-border/20', 'focus-within:border-border/40')
   })

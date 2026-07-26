@@ -84,7 +84,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
               aria-label={normalizedPreset}
               aria-pressed={selected}
               className={cn(
-                'relative flex h-6 w-6 items-center justify-center rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-3 focus-visible:ring-ring/50'
+                'relative flex h-6 w-6 items-center justify-center rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:[box-shadow:inset_0_0_0_2px_var(--ring)]'
               )}
               onClick={() => commitColor(normalizedPreset)}>
               <span
@@ -95,7 +95,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
           )
         })}
       </RowFlex>
-      <label className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none focus-within:ring-3 focus-within:ring-ring/50">
+      <label className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none focus-within:border-ring">
         <input
           type="color"
           value={normalizedValue}

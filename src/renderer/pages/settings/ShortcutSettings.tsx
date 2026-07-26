@@ -461,7 +461,7 @@ const ShortcutSettings: FC = () => {
             className={cn(
               'h-8 w-36 rounded-lg border-border/60 bg-background text-center text-sm',
               !pendingDisplay && 'text-muted-foreground',
-              hasConflict && 'border-red-500 focus-visible:ring-red-500/50'
+              hasConflict && 'border-red-500 focus-visible:border-red-500'
             )}
             onKeyDown={(event) => void handleKeyDown(event, record)}
             onBlur={(event) => {

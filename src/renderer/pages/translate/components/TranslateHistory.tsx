@@ -284,7 +284,7 @@ const HistoryRow: FC<{
           onSelect(item.id)
         }
       }}
-      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none">
       <IconButton
         size="sm"
         tone="star"
@@ -350,7 +350,7 @@ const HistoryDetail: FC<{
       <button
         type="button"
         onClick={onBack}
-        className="mb-3 flex items-center gap-1 rounded-md text-foreground-secondary text-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+        className="mb-3 flex items-center gap-1 rounded-md text-foreground-secondary text-sm transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none">
         <ChevronRight size={11} className="rotate-180" />
         <span>{t('translate.history.back')}</span>
       </button>
@@ -408,14 +408,14 @@ const HistoryDetail: FC<{
           <button
             type="button"
             onClick={() => onReuse(item)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none">
             <Repeat size={11} />
             <span>{t('translate.history.reuse')}</span>
           </button>
           <button
             type="button"
             onClick={() => void onCopy(item.targetText)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary py-1.5 text-primary-foreground text-sm transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary py-1.5 text-primary-foreground text-sm transition-colors hover:opacity-90 focus-visible:opacity-90 focus-visible:outline-none">
             <Copy size={11} />
             <span>{t('translate.history.copy_target')}</span>
           </button>

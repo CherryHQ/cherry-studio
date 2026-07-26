@@ -2213,7 +2213,7 @@ export default function ComposerSurface({
             tabIndex={0}
             onMouseDown={startEditorResize}
             onKeyDown={handleResizeKeyDown}
-            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:bg-primary/40 focus-visible:outline-none">
             <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
           </div>
           {!editingState ? (

@@ -302,7 +302,7 @@ const TranslatePromptField: FC = () => {
           <button
             type="button"
             onClick={onReset}
-            className="rounded-md text-foreground-muted text-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="rounded-md text-foreground-muted text-xs transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none">
             {t('common.reset')}
           </button>
         )

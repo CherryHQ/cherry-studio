@@ -11,7 +11,7 @@ export const MODEL_SELECTOR_ROW_ACTION_BUTTON_CLASS =
 export const MODEL_SELECTOR_ROW_PINNED_ACTION_BUTTON_CLASS = '-rotate-45 opacity-100'
 export const MODEL_SELECTOR_ROW_ACTIVE_ACTION_COLOR_CLASS = 'text-foreground!'
 export const MODEL_SELECTOR_ROW_CHECKBOX_CLASS =
-  'border-muted-foreground/40 hover:bg-muted/70 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground data-[state=checked]:text-background focus-visible:ring-muted-foreground/20'
+  'border-muted-foreground/40 hover:bg-muted/70 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground data-[state=checked]:text-background focus-visible:border-ring'
 
 type DataAttributes = {
   [key: `data-${string}`]: string | number | boolean | undefined

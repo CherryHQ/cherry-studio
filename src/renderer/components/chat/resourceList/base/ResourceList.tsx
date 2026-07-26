@@ -163,7 +163,7 @@ function HeaderItem({ actions, className, command, icon, label, ref, variant = '
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 [&_svg]:size-4 [&_svg]:shrink-0',
           icon ? 'px-1.5' : 'px-2.5',
           command ? 'w-full shrink' : 'flex-1',
           className
@@ -539,7 +539,7 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       className={cn(
         'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
         'hover:bg-accent hover:text-foreground',
-        'focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
+        'focus-visible:pointer-events-auto focus-visible:bg-sidebar-accent focus-visible:opacity-100 focus-visible:outline-none',
         'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100',
         className
       )}

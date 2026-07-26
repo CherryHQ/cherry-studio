@@ -341,7 +341,7 @@ export const ComposerToolbarShortcuts = ({
                   aria-label={t('chat.input.toolbar.drag_handle', { name: label ?? '' })}
                   // touch-none: let the PointerSensor own touch gestures so a scroll doesn't
                   // pointer-cancel the drag before the activation distance is met.
-                  className="flex size-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground/60 outline-none transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 active:cursor-grabbing data-[dragging=true]:cursor-grabbing data-[dragging=true]:text-foreground">
+                  className="flex size-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground/60 outline-none transition-colors duration-150 hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground active:cursor-grabbing data-[dragging=true]:cursor-grabbing data-[dragging=true]:text-foreground">
                   <GripVertical className="size-3.5" />
                 </button>
                 <span className={CUSTOMIZE_ROW_ICON_CLASS}>{candidate.icon}</span>

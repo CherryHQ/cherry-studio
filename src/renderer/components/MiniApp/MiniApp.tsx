@@ -182,7 +182,7 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
           className={cn(
             'flex cursor-pointer flex-col items-center justify-center overflow-hidden outline-none',
             isLaunchpad
-              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-ghost-hover focus-visible:[&_.mini-app-icon-frame]:border-border-active focus-visible:[&_.mini-app-icon-frame]:shadow-[0_0_0_1px_color-mix(in_srgb,var(--ring)_30%,transparent)]'
+              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-ghost-hover focus-visible:[&_.mini-app-icon-frame]:border-border-active focus-visible:[&_.mini-app-icon-frame]:bg-ghost-hover'
               : 'min-h-[85px]'
           )}
           onClick={handleClick}

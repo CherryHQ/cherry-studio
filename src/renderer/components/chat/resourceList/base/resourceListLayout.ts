@@ -5,7 +5,7 @@ export const RESOURCE_LIST_ROW_HEIGHT_CLASS = 'h-[38px]'
 export const RESOURCE_LIST_VISUAL_ROW_CLASS = 'h-8 rounded-lg'
 
 export const RESOURCE_LIST_INTERACTIVE_ROW_CLASS =
-  'hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring'
+  'hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-foreground'
 
 export const RESOURCE_LIST_TEXT_START_PADDING_CLASS = 'pl-9'
 

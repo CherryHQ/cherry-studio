@@ -722,12 +722,7 @@ describe('ComposerToken', () => {
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveClass('h-6', 'font-medium', 'text-xs', 'leading-[inherit]')
     expect(token).toHaveAttribute('data-file-token-variant', 'text')
-    expect(token).toHaveClass(
-      'group-focus-visible:ring-[3px]',
-      'group-focus-visible:ring-ring/50',
-      'group-data-[state=open]:ring-1',
-      'group-data-[state=open]:ring-ring/50'
-    )
+    expect(token).toHaveClass('group-focus-visible:border-ring', 'group-data-[state=open]:border-ring')
     const trigger = getFileTokenTrigger(container)
     expect(trigger).toHaveAttribute('role', 'button')
     expect(trigger).toHaveAttribute('tabindex', '0')

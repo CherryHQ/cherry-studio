@@ -744,7 +744,7 @@ export function CompactModelField({
                     }
                     setModelLabels({ ...modelLabels, [name]: null })
                   }}
-                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/40 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100">
+                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:text-foreground focus-visible:opacity-100 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100">
                   <X size={12} />
                 </Button>
               ) : null}
@@ -800,7 +800,7 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
                 <div key={variable.name} className="contents">
                   <button
                     type="button"
-                    className="rounded px-1 text-left text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                    className="rounded px-1 text-left text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                     aria-label={t('library.config.prompt.copy_variable', { variable: variable.name })}
                     onClick={() => copyVariable(variable.name)}>
                     {variable.name}
