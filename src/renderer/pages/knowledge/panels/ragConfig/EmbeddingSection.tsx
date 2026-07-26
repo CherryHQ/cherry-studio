@@ -24,6 +24,7 @@ const EmbeddingSection = ({
       <div>
         <RagFieldLabel label={t('knowledge.rag.embedding_model')} hint={t('knowledge.rag.hints.embedding_model')} />
         <div className="flex items-center gap-2">
+          {embeddingModelId === null ? <LocalEmbeddingDownloadButton onSelected={onLocalEmbeddingDownloaded} /> : null}
           <div className="min-w-0 flex-1">
             <KnowledgeModelSelect
               aria-label={t('knowledge.rag.embedding_model')}
@@ -33,7 +34,6 @@ const EmbeddingSection = ({
               onChange={onEmbeddingModelChange}
             />
           </div>
-          {embeddingModelId === null ? <LocalEmbeddingDownloadButton onSelected={onLocalEmbeddingDownloaded} /> : null}
         </div>
       </div>
     </div>

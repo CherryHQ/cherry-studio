@@ -338,14 +338,38 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.getAllByText('4').length).toBeGreaterThan(0)
   })
 
-  it('disables selection controls when the current view has no files', () => {
+  it('hides the contextual selection toolbar when nothing is selected', () => {
     mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
     mockFiles([])
     render(<FilesPage />)
 
-    expect(screen.getByRole('checkbox', { name: 'files.select_all_short' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'files.select_all_short' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'files.actions' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'files.actions' })).not.toBeInTheDocument()
+  })
+
+  it('uses an inset hairline divider aligned with the file-list divider', () => {
+    mockFiles([entry])
+    render(<FilesPage />)
+
+    expect(screen.getByRole('heading', { name: 'files.all' }).parentElement).toHaveClass(
+      'mb-0',
+      'relative',
+      'h-9',
+      'after:left-3',
+      'after:right-3',
+      'after:border-b'
+    )
+    expect(screen.getByRole('heading', { name: 'files.all' }).parentElement).toHaveClass('pb-1')
+  })
+
+  it('keeps the transparent column header outside the scrolling file rows', () => {
+    mockFiles([entry])
+    render(<FilesPage />)
+
+    const header = screen.getByRole('button', { name: 'files.name' }).closest<HTMLElement>('.h-10')
+    const scrollbar = screen.getByTestId('files-scrollbar')
+
+    expect(scrollbar).not.toContainElement(header)
+    expect(header).not.toHaveClass('sticky', 'bg-card', 'bg-background')
   })
 
   it('shows the unified empty state once the file list loads empty', () => {
@@ -355,6 +379,16 @@ describe('FilesPage keyboard rename', () => {
 
     expect(screen.getByText('files.empty.title')).toBeInTheDocument()
     expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
+  })
+
+  it('shows a single message when the current file filter has no matches', () => {
+    mockFiles([entry])
+    render(<FilesPage />)
+
+    fireEvent.click(screen.getByText('files.image'))
+
+    expect(screen.getByText('files.empty.no_match_title')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.no_match_description')).not.toBeInTheDocument()
   })
 
   it('shows loading feedback instead of an empty state while the file list is loading', () => {
@@ -484,6 +518,7 @@ describe('FilesPage file operations', () => {
       return Promise.resolve(input)
     })
     renderFilesPage()
+    const scrollbar = screen.getByTestId('files-scrollbar')
 
     fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
 
@@ -493,11 +528,15 @@ describe('FilesPage file operations', () => {
     })
     expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/report.md')
     expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'files.open' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('files-scrollbar')).toBe(scrollbar)
+    expect(screen.getByTestId('files-browser')).toHaveClass('invisible')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
 
     expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.getByTestId('files-scrollbar')).toBe(scrollbar)
+    expect(screen.getByTestId('files-browser')).not.toHaveClass('invisible')
+    expect(screen.getByText('report.md')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'files.open' })).toBeInTheDocument()
   })
 
@@ -667,7 +706,9 @@ describe('FilesPage file operations', () => {
     mockFileStats(statsForEntries([entry]))
     render(<FilesPage />)
 
-    expect(screen.getByText('files.upload')).toBeInTheDocument()
+    const uploadButton = screen.getByText('files.upload').closest('button')
+    expect(uploadButton).toHaveClass('h-7', 'rounded-md', '-translate-y-px')
+    expect(uploadButton?.querySelector('svg')).toHaveClass('translate-y-px')
 
     fireEvent.click(screen.getByText('files.image'))
 
@@ -705,6 +746,21 @@ describe('FilesPage file operations', () => {
     selectFileAt(0)
     selectFileAt(1)
 
+    expect(screen.getByRole('button', { name: 'files.actions' })).toBeInTheDocument()
+    expect(screen.getByText(/files.delete.label/)).toBeInTheDocument()
+  })
+
+  it('shows contextual actions for a single selected file', () => {
+    renderFilesPage()
+
+    selectFileAt(0)
+
+    const actionsButton = screen.getByRole('button', { name: 'files.actions' })
+    const pageHeader = screen.getByRole('heading', { name: 'files.all' }).parentElement
+
+    expect(actionsButton).toBeInTheDocument()
+    expect(pageHeader).toContainElement(actionsButton)
+    expect(actionsButton.closest('.h-7')).toHaveClass('shrink-0', 'items-center')
     expect(screen.getByText(/files.delete.label/)).toBeInTheDocument()
   })
 
