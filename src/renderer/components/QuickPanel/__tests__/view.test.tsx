@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import React, { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getQuickPanelHeights, QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE, QUICK_PANEL_SAFE_MARGIN } from '../heights'
+import { getQuickPanelHeights, QUICK_PANEL_SAFE_MARGIN } from '../heights'
 import { QuickPanelProvider } from '../QuickPanelProvider'
 import { QuickPanelView } from '../QuickPanelView'
 import type {
@@ -690,7 +690,8 @@ describe('QuickPanelView', () => {
     const dockTop = 40
     const availableHeight = panelBottom - dockTop - QUICK_PANEL_SAFE_MARGIN
     const footerHeight = 30
-    const chromeHeight = footerHeight + QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE
+    const bodyVerticalSpace = 11
+    const chromeHeight = footerHeight + bodyVerticalSpace
     const getRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rectFor(
       this: HTMLElement
     ) {
@@ -704,6 +705,17 @@ describe('QuickPanelView', () => {
         if (this.dataset.testid === 'quick-panel-footer') return footerHeight
         return 0
       })
+    const originalGetComputedStyle = window.getComputedStyle.bind(window)
+    const getComputedStyleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudoElement) => {
+      const style = originalGetComputedStyle(element, pseudoElement)
+      if ((element as HTMLElement).dataset.testid === 'quick-panel-body') {
+        style.paddingTop = '5px'
+        style.paddingBottom = '5px'
+        style.borderTopWidth = '0.5px'
+        style.borderBottomWidth = '0.5px'
+      }
+      return style
+    })
 
     try {
       render(
@@ -736,6 +748,7 @@ describe('QuickPanelView', () => {
     } finally {
       getRectSpy.mockRestore()
       clientHeightSpy.mockRestore()
+      getComputedStyleSpy.mockRestore()
     }
   })
 
@@ -744,7 +757,8 @@ describe('QuickPanelView', () => {
     const dockTop = 40
     const availableHeight = panelBottom - dockTop - QUICK_PANEL_SAFE_MARGIN
     const footerHeight = 30
-    const chromeHeight = footerHeight + QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE
+    const bodyVerticalSpace = 11
+    const chromeHeight = footerHeight + bodyVerticalSpace
     const captureDispatch = vi.fn()
     const getRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rectFor(
       this: HTMLElement
@@ -759,6 +773,17 @@ describe('QuickPanelView', () => {
         if (this.dataset.testid === 'quick-panel-footer') return footerHeight
         return 0
       })
+    const originalGetComputedStyle = window.getComputedStyle.bind(window)
+    const getComputedStyleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudoElement) => {
+      const style = originalGetComputedStyle(element, pseudoElement)
+      if ((element as HTMLElement).dataset.testid === 'quick-panel-body') {
+        style.paddingTop = '5px'
+        style.paddingBottom = '5px'
+        style.borderTopWidth = '0.5px'
+        style.borderBottomWidth = '0.5px'
+      }
+      return style
+    })
 
     const renderPanel = (fill: boolean) => (
       <div data-composer-dock-layer="" data-testid="quick-panel-dock" style={{ overflow: 'hidden' }}>
@@ -809,6 +834,7 @@ describe('QuickPanelView', () => {
     } finally {
       getRectSpy.mockRestore()
       clientHeightSpy.mockRestore()
+      getComputedStyleSpy.mockRestore()
     }
   })
 

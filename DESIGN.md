@@ -125,6 +125,11 @@ and consumer review before becoming a stable product variable.
 No dedicated public glass or overlay product role is exported today. `--color-*` is reserved for generated Tailwind mappings; a future shared runtime role would require an approved unprefixed semantic contract. Use the shared primitive defaults first:
 - Dialog overlay: use the shared `Dialog` overlay (`bg-black/50`) and customize only through `overlayClassName` when needed.
 - Floating panels: use `bg-popover`, `border-border`, and the appropriate shadow utility (`shadow-md` to `shadow-xl`) rather than a page-local glass token.
+- QuickPanel is a design-approved exception: its composer-attached surface may derive a component-local translucent
+  background from `--popover` while retaining `--popover-foreground`. It exposes
+  `data-slot="quick-panel-content"` so Custom CSS themes that change the popover pairing can override the
+  QuickPanel background and foreground together. Keep this treatment local to QuickPanel; it is not a reusable
+  glass token or a precedent for other floating panels.
 - If a reusable translucent surface is needed, add/export a real token first and document it here in the same change.
 
 ### Chart Colors

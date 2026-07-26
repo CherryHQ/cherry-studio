@@ -6,8 +6,8 @@ import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, u
 
 import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
 import {
+  getQuickPanelBodyVerticalSpace,
   getQuickPanelHeights,
-  QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE,
   QUICK_PANEL_ITEM_HEIGHT,
   QUICK_PANEL_SAFE_MARGIN
 } from './heights'
@@ -816,13 +816,16 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       setMeasuredChromeHeight(null)
       return
     }
-    if (!footerRef.current) return
+    if (!footerRef.current || !bodyRef.current) return
 
     const footerElement = footerRef.current
+    const bodyElement = bodyRef.current
     const updateFooterMetrics = () => {
       setFooterWidth(footerElement.clientWidth)
       const nextChromeHeight =
-        footerElement.clientHeight > 0 ? footerElement.clientHeight + QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE : null
+        footerElement.clientHeight > 0
+          ? footerElement.clientHeight + getQuickPanelBodyVerticalSpace(getComputedStyle(bodyElement))
+          : null
       setMeasuredChromeHeight((prev) => (prev === nextChromeHeight ? prev : nextChromeHeight))
     }
 
@@ -831,6 +834,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     const resizeObserver = new ResizeObserver(updateFooterMetrics)
     resizeObserver.observe(footerElement)
+    resizeObserver.observe(bodyElement)
 
     return () => resizeObserver.disconnect()
   }, [isPanelPresent, ctx.readOnly])
@@ -953,6 +957,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       data-testid="quick-panel">
       <div
         ref={bodyRef}
+        data-slot="quick-panel-content"
         data-testid="quick-panel-body"
         style={constrainBody ? { height: panelMaxHeight } : undefined}
         className={classNames(

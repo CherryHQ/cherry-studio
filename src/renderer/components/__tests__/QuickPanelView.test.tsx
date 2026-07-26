@@ -248,6 +248,7 @@ describe('QuickPanelView', () => {
       )
 
       const panelBody = screen.getByTestId('quick-panel-body')
+      expect(panelBody).toHaveAttribute('data-slot', 'quick-panel-content')
       expect(screen.getByTestId('quick-panel')).toHaveClass('motion-reduce:transition-none')
       expect(panelBody).toHaveClass(
         'overflow-hidden',
