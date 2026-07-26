@@ -155,6 +155,13 @@ describe('AgentJobsService', () => {
   // ---------------------------------------------------------------- create
 
   describe('createTask', () => {
+    it('stores an explicitly empty timeout as unlimited', () => {
+      const task = service.createTask(AGENT_ID, { ...form, timeoutMinutes: null })
+
+      expect(task.timeoutMinutes).toBe(0)
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ timeoutMinutes: 0 })
+    })
+
     it('persists the schedule + subscriptions in one transaction and arms the timer after commit', () => {
       seedChannel(CHANNEL_ID, AGENT_ID)
 
@@ -219,6 +226,15 @@ describe('AgentJobsService', () => {
   // ---------------------------------------------------------------- update
 
   describe('updateTask', () => {
+    it('updates an explicitly empty timeout to unlimited', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      const updated = service.updateTask(AGENT_ID, task.id, { timeoutMinutes: null })
+
+      expect(updated?.timeoutMinutes).toBe(0)
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ timeoutMinutes: 0 })
+    })
+
     it('rebuilds the job input template on a prompt change without touching the timer', () => {
       const task = service.createTask(AGENT_ID, form)
       const originalEntry = getIntervalEntry(task.id)

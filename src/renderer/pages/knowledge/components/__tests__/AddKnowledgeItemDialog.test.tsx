@@ -464,6 +464,7 @@ describe('AddKnowledgeItemDialog', () => {
       setPendingAddSource('url')
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
+      expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'sm')
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
       fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
         target: { value: 'https://example.com' }
