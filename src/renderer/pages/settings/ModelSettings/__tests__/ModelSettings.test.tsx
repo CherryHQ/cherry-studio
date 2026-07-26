@@ -23,7 +23,9 @@ vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
   Divider: () => <hr />,
   InfoTooltip: () => null,
+  Input: () => null,
   PageSidePanel: () => null,
+  Switch: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 

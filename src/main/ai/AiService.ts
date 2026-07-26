@@ -41,9 +41,14 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
-import { Agent, buildAgentParams, mergeUsage, ZERO_USAGE } from './runtime/aiSdk'
-import { buildFallbackModels } from './runtime/aiSdk/retry/buildFallbackModels'
-import { createRetryableWrap } from './runtime/aiSdk/retry/createRetryableWrap'
+import {
+  Agent,
+  buildAgentParams,
+  buildFallbackModels,
+  createRetryableWrap,
+  mergeUsage,
+  ZERO_USAGE
+} from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { WebContentsListener } from './streamManager'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
@@ -412,8 +417,18 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
     }
 
-    const { sdkConfig, tools, plugins, system, options, model, assistant, hookParts, nativeFileSupport, fileAttachments } =
-      await this.buildAgentParamsFor(request, signal, extraFeatures)
+    const {
+      sdkConfig,
+      tools,
+      plugins,
+      system,
+      options,
+      model,
+      assistant,
+      hookParts,
+      nativeFileSupport,
+      fileAttachments
+    } = await this.buildAgentParamsFor(request, signal, extraFeatures)
 
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file).
