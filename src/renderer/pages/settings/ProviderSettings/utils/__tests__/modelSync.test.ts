@@ -17,7 +17,7 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-// listModels goes through ipcApi.request('ai.list_models', …) now (Main IPC).
+// listModels goes through ipcApi.request('ai.provider.model.list', …) now (Main IPC).
 const { listModelsMock } = vi.hoisted(() => ({ listModelsMock: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => listModelsMock(input) }

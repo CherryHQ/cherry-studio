@@ -111,7 +111,7 @@ describe('WordFilePreview', () => {
       })
     )
     const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
-    expect(toolbar).toHaveClass('h-10')
+    expect(toolbar).toHaveClass('h-11', 'min-h-11')
     expect(toolbar).not.toHaveClass('bg-background')
     expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
     expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2')

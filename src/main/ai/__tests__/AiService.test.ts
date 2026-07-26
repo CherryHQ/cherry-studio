@@ -474,7 +474,7 @@ describe('AiService tool approval', () => {
   }
 
   /**
-   * The `ai.respond_tool_approval` flow lives in `AiService.respondToolApproval(payload, senderWc)`
+   * The `ai.tool.respond_approval` flow lives in `AiService.respondToolApproval(payload, senderWc)`
    * (the IpcApi handler in `handlers/ai.ts` resolves the WebContents from `ctx.senderId` and calls
    * it). Adapt to the old `(event, payload)` call shape so the cases below read unchanged.
    */
@@ -771,7 +771,7 @@ describe('AiService tool approval', () => {
   })
 
   // Payload validation (empty `approvalId`, missing `approved`) now lives in the IpcApi router's
-  // zod parse of `ai.respond_tool_approval`, not in `respondToolApproval` — so the invalid-payload
+  // zod parse of `ai.tool.respond_approval`, not in `respondToolApproval` — so the invalid-payload
   // case is no longer unit-tested here (a thin schema contract; see ipc-usage.md "Testing").
 
   it('routes rerank requests through ai-core rerank', async () => {

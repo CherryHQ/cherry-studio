@@ -7,8 +7,8 @@ import { aiRequestSchemas } from '../ai'
 // malformed id is rejected here instead of penetrating to `parseUniqueModelId` and
 // throwing deeper in the routing code.
 describe('ai IPC schemas — uniqueModelId validation', () => {
-  const genText = aiRequestSchemas['ai.generate_text'].input
-  const genImage = aiRequestSchemas['ai.generate_image'].input
+  const genText = aiRequestSchemas['ai.text.generate'].input
+  const genImage = aiRequestSchemas['ai.image.generate'].input
 
   it('accepts a well-formed providerId::modelId (shared aiBaseRequestShape)', () => {
     expect(genText.safeParse({ uniqueModelId: 'openai::gpt-4o', prompt: 'hi' }).success).toBe(true)
@@ -24,7 +24,7 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
     expect(genText.safeParse({ prompt: 'hi' }).success).toBe(true)
   })
 
-  it('validates the nested payload uniqueModelId for ai.generate_image', () => {
+  it('validates the nested payload uniqueModelId for ai.image.generate', () => {
     const input = (uniqueModelId: string) => ({
       requestId: 'r1',
       payload: { uniqueModelId, prompt: 'a fox', paramValues: {}, cleanupPolicy: 'delete_when_unreferenced' }

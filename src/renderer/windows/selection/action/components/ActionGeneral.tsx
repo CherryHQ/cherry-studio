@@ -81,6 +81,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
+  const [requestStartedAt, setRequestStartedAt] = useState('')
 
   const { sendMessage, stop: stopChat } = useChat<CherryUIMessage>({
     // Once the temporary topic id arrives, the chat reinitializes with it.
@@ -125,12 +126,13 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         ...latestAssistantUIMsg,
         metadata: {
           ...latestAssistantUIMsg.metadata,
+          createdAt: latestAssistantUIMsg.metadata?.createdAt ?? requestStartedAt,
           status: isPending ? 'pending' : 'success'
         }
       },
       { assistantId: chosenAssistantId, topicId: temporaryTopicId ?? '' }
     )
-  }, [chosenAssistantId, latestAssistantUIMsg, isPending, temporaryTopicId])
+  }, [chosenAssistantId, latestAssistantUIMsg, isPending, requestStartedAt, temporaryTopicId])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
@@ -144,6 +146,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     if (!ready || !temporaryTopicId || waitingForConfiguredAssistant) return
     logger.debug('Before process message', { assistantId: chosenAssistantId })
     setCompletionError(null)
+    setRequestStartedAt(new Date().toISOString())
     setIsPreparing(true)
     // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
     // No body fields are read by IpcChatTransport for this codepath.

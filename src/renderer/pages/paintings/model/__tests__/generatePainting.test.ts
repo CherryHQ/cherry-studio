@@ -10,7 +10,7 @@ vi.mock('../runPainting', () => ({
   runPainting: (generate: () => Promise<unknown>) => runPaintingMock(generate)
 }))
 
-// Image generation goes through ipcApi.request('ai.generate_image', { requestId, payload }).
+// Image generation goes through ipcApi.request('ai.image.generate', { requestId, payload }).
 const { ipcRequestMock } = vi.hoisted(() => ({ ipcRequestMock: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
 
@@ -41,14 +41,14 @@ describe('generatePainting', () => {
     runPaintingMock.mockClear()
     ipcRequestMock.mockReset()
     ipcRequestMock.mockImplementation(async (route: string) =>
-      route === 'ai.generate_image' ? { files: [] } : undefined
+      route === 'ai.image.generate' ? { files: [] } : undefined
     )
   })
 
   // The image payload now rides in the second arg as `{ requestId, payload }`.
   const imagePayload = (): Record<string, unknown> => {
-    const call = ipcRequestMock.mock.calls.find(([route]) => route === 'ai.generate_image')
-    if (!call) throw new Error('ai.generate_image was not requested')
+    const call = ipcRequestMock.mock.calls.find(([route]) => route === 'ai.image.generate')
+    if (!call) throw new Error('ai.image.generate was not requested')
     return (call[1] as { payload: Record<string, unknown> }).payload
   }
 
@@ -84,7 +84,7 @@ describe('generatePainting', () => {
     const controller = new AbortController()
     controller.abort()
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'ai.generate_image') throw new Error('cancelled by main')
+      if (route === 'ai.image.generate') throw new Error('cancelled by main')
       return undefined
     })
 
@@ -94,7 +94,7 @@ describe('generatePainting', () => {
   it('re-throws the original error when the request rejects without a user abort', async () => {
     const failure = new Error('provider exploded')
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'ai.generate_image') throw failure
+      if (route === 'ai.image.generate') throw failure
       return undefined
     })
 

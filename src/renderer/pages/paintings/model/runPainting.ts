@@ -10,7 +10,7 @@ import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
 const logger = loggerService.withContext('paintings/generation')
 
 /** Concise human message from the serialized provider/AI-SDK error the
- *  `ai.generate_image` route attaches to its IpcError `data`: prefer the
+ *  `ai.image.generate` route attaches to its IpcError `data`: prefer the
  *  provider message, else the HTTP status, else a response-body snippet. */
 function aiDetailMessage(detail: SerializedError): string {
   if (detail.message) return detail.message
@@ -68,7 +68,7 @@ export async function runPainting(
     return resolvePaintingFiles(result)
   } catch (error: unknown) {
     if (error instanceof Error && error.name !== 'AbortError') {
-      // `ai.generate_image` wraps a provider/SDK failure as an AI_REQUEST_FAILED
+      // `ai.image.generate` wraps a provider/SDK failure as an AI_REQUEST_FAILED
       // IpcError carrying the full serialized error (statusCode / responseBody) in
       // `data`. Recover it so the log AND the user-facing modal show the real cause
       // instead of collapsing to an empty `REMOTE_ERROR`.

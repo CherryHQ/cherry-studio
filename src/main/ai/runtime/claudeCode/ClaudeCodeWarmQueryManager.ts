@@ -116,7 +116,7 @@ export function createClaudeCodeWarmQuerySignature(
 export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly entries = new Map<string, WarmQueryEntry>()
 
-  // `ai.prewarm_agent_session` / `ai.close_agent_session_warm` (IpcApi, validated by the router)
+  // `ai.agent.session.prewarm` / `ai.agent.session.close_warm` (IpcApi, validated by the router)
   // delegate to the public methods below; this service registers no IPC of its own.
 
   async prewarmAgentSession(sessionId: string): Promise<void> {
