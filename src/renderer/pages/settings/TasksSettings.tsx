@@ -95,12 +95,12 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
 import {
   ArrowLeft,
+  ArrowRight,
   Bot,
   CalendarClock,
   ChevronDown,
   ChevronRight,
   CircleSlash,
-  ExternalLink,
   Folder,
   MoreHorizontal,
   PencilLine,
@@ -602,7 +602,7 @@ const TaskChannelSelector: FC<{
           <span className="flex min-w-0 items-center gap-2">
             <span
               aria-hidden="true"
-              className={`inline-block h-1.5 w-1.5 rounded-full ${option.isActive ? 'bg-green-500' : 'bg-gray-400'}`}
+              className={`inline-block h-1.5 w-1.5 rounded-full ${option.isActive ? 'bg-success' : 'bg-muted-foreground'}`}
             />
             <span className="truncate">{option.label}</span>
             <span className="sr-only">{t(option.isActive ? 'common.enabled' : 'common.disabled')}</span>
@@ -702,11 +702,11 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
                     size="icon-sm"
                     aria-label={t('agent.tasks.logs.viewSession')}
                     onClick={() => openConversation(record.sessionId!)}>
-                    <ExternalLink size={12} />
+                    <ArrowRight size={13} />
                   </Button>
                 </Tooltip>
               )}
-              <span className={isErrorStatus ? 'line-clamp-4 text-red-500' : 'line-clamp-4'}>{text}</span>
+              <span className={isErrorStatus ? 'line-clamp-4 text-destructive' : 'line-clamp-4'}>{text}</span>
             </RowFlex>
           )
         }

@@ -67,7 +67,7 @@ const McpPromptsSection = ({ prompts }: McpPromptsSectionProps) => {
                 <AccordionTrigger className="py-3">
                   <ColFlex className="min-w-0 items-start">
                     <Flex className="w-full min-w-0 items-center">
-                      <span className="truncate font-medium text-foreground text-sm">{prompt.name}</span>
+                      <span className="truncate text-foreground text-sm">{prompt.name}</span>
                     </Flex>
                     {prompt.description && (
                       <span className="mt-1 text-[13px] text-foreground-secondary leading-5">{prompt.description}</span>

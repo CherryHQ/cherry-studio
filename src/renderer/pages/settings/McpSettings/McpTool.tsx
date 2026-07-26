@@ -179,7 +179,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         return (
           <ColFlex className="gap-1">
             <Flex className="items-center gap-1">
-              <span className="truncate font-medium text-foreground text-sm" title={tool.name}>
+              <span className="truncate text-foreground text-sm" title={tool.name}>
                 {tool.name}
               </span>
               <InfoTooltip content={`ID: ${tool.id}`} />

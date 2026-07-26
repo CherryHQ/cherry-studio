@@ -86,7 +86,7 @@ export function ModelPurposeFields({
               )}>
               <RadioGroupItem id={optionId} value={option} className="mt-0.5" />
               <span>
-                <span className="block font-medium text-[13px] text-foreground">{t(label.label)}</span>
+                <span className="block text-[13px] text-foreground">{t(label.label)}</span>
                 <span className="mt-0.5 block text-foreground-muted text-xs">{t(label.description)}</span>
               </span>
             </label>
@@ -96,7 +96,7 @@ export function ModelPurposeFields({
 
       {purpose === 'chat' && chatEndpointTypes.length > 1 && (
         <div className="mt-1 flex flex-col gap-2">
-          <label htmlFor={`${uid}-chat-protocol`} className="font-medium text-[13px] text-foreground">
+          <label htmlFor={`${uid}-chat-protocol`} className="text-[13px] text-foreground">
             {t('settings.models.add.purpose.chat_protocol')}
           </label>
           <Select

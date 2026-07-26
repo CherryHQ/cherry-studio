@@ -107,7 +107,7 @@ const ApiGatewaySettings: FC = () => {
           </div>
           {apiGatewayRunning && (
             <Button variant="outline" onClick={openApiDocs}>
-              <ExternalLink size={14} />
+              <ExternalLink size={13} />
               {t('apiGateway.documentation.title')}
             </Button>
           )}
@@ -279,10 +279,7 @@ const StatusText = ({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<'div'> & { $running: boolean }) => (
-  <div
-    className={cn('m-0 font-semibold text-sm', $running ? 'text-success' : 'text-foreground', className)}
-    {...props}
-  />
+  <div className={cn('m-0 text-sm', $running ? 'text-success' : 'text-foreground', className)} {...props} />
 )
 
 const StatusSubtext = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

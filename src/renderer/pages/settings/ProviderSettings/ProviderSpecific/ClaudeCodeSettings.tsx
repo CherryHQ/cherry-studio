@@ -90,7 +90,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
         <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 p-3">
           <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
           <div className="min-w-0 flex-1">
-            <div className="font-medium text-foreground text-sm">{t('settings.provider.claude_code.logged_in')}</div>
+            <div className="text-foreground text-sm">{t('settings.provider.claude_code.logged_in')}</div>
             <div className="mt-1 text-foreground-muted text-xs">
               {t('settings.provider.claude_code.logged_in_detail')}
             </div>
@@ -105,9 +105,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
           <div className="flex gap-3">
             <CircleAlert className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-foreground text-sm">
-                {t('settings.provider.claude_code.description')}
-              </div>
+              <div className="text-foreground text-sm">{t('settings.provider.claude_code.description')}</div>
               <div className="mt-1 text-foreground-muted text-xs">
                 {t('settings.provider.claude_code.description_detail')}
               </div>

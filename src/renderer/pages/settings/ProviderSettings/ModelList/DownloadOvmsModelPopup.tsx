@@ -260,7 +260,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
       footer={footer}>
       <div className={drawerClasses.fieldList}>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_id.label')}</label>
+          <label className="text-[13px] text-foreground/85">{t('ovms.download.model_id.label')}</label>
           <Input
             className={drawerClasses.input}
             value={formValues.modelId}
@@ -287,7 +287,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           </div>
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_name.label')}</label>
+          <label className="text-[13px] text-foreground/85">{t('ovms.download.model_name.label')}</label>
           <Input
             className={drawerClasses.input}
             value={formValues.modelName}
@@ -299,7 +299,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           />
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_source')}</label>
+          <label className="text-[13px] text-foreground/85">{t('ovms.download.model_source')}</label>
           <Select
             value={formValues.modelSource}
             onValueChange={(value) => updateField('modelSource', value)}
@@ -315,7 +315,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           </Select>
         </div>
         <div className="space-y-2">
-          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_task')}</label>
+          <label className="text-[13px] text-foreground/85">{t('ovms.download.model_task')}</label>
           <Select
             value={formValues.task}
             onValueChange={(value) => updateField('task', value as OvmsDownloadTask)}

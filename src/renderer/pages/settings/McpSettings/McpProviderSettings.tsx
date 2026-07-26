@@ -7,7 +7,7 @@ import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
+import { Check, ExternalLink, Plus } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -114,9 +114,9 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   asChild
                   variant="ghost"
                   size="icon-sm"
-                  className="size-6 rounded-md text-muted-foreground shadow-none hover:text-blue-600 dark:hover:text-blue-400">
+                  className="size-6 rounded-md text-muted-foreground shadow-none hover:text-primary">
                   <a target="_blank" rel="noreferrer" href={provider.discoverUrl}>
-                    <SquareArrowOutUpRight size={13} />
+                    <ExternalLink size={13} />
                   </a>
                 </Button>
               )}
@@ -149,7 +149,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
             target="_blank"
             rel="noreferrer"
             href={provider.apiKeyUrl}
-            className="mt-3.5 inline-flex items-center font-medium text-blue-600 text-xs hover:underline">
+            className="mt-3.5 inline-flex items-center text-primary text-xs hover:underline">
             {t('settings.provider.get_api_key')}
           </a>
         )}
@@ -172,7 +172,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
               <ServerItem key={server.id}>
                 <div className="flex flex-1 flex-row items-center gap-3">
                   {server.logoUrl && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
                       <img src={server.logoUrl} alt={server.name} className="h-full w-full object-cover" />
                     </div>
                   )}
@@ -232,7 +232,7 @@ const SettingsPanel = ({ className, ...props }: React.ComponentPropsWithoutRef<'
 )
 
 const PanelTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('font-semibold text-foreground text-sm', className)} {...props} />
+  <div className={cn('text-foreground text-sm', className)} {...props} />
 )
 
 const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -250,7 +250,7 @@ const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 )
 
 const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-0.5 font-medium text-sm leading-5', className)} {...props} />
+  <div className={cn('mb-0.5 text-sm leading-5', className)} {...props} />
 )
 
 const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

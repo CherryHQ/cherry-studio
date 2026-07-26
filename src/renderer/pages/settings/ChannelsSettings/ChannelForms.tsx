@@ -67,7 +67,7 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-1">
-      <label className="font-medium text-xs">{t('agent.channels.security.permissionMode')}</label>
+      <label className="text-xs">{t('agent.channels.security.permissionMode')}</label>
       <Select
         value={channel.permissionMode ?? INHERIT_PERMISSION_MODE_VALUE}
         onValueChange={(value) =>
@@ -137,7 +137,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
       <div className="grid grid-cols-2 gap-3">
         {fields.map((field) => (
           <div key={field.key} className={field.span === 2 ? 'col-span-2' : ''}>
-            <label className="mb-1 block font-medium text-xs">{field.label}</label>
+            <label className="mb-1 block text-xs">{field.label}</label>
             {field.secret ? (
               <Input
                 type="password"
@@ -160,7 +160,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
         ))}
         {extraContent}
         <div className={chatIdsConfig.fullWidth ? 'col-span-2' : ''}>
-          <label className="mb-1 block font-medium text-xs">{chatIdsConfig.label}</label>
+          <label className="mb-1 block text-xs">{chatIdsConfig.label}</label>
           <Input
             value={chatIds}
             onChange={(e) => setChatIds(e.target.value)}
@@ -168,13 +168,11 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
             placeholder={chatIdsConfig.placeholder}
             className="h-8 text-sm"
           />
-          <span className="mt-1 block text-gray-400 text-xs">{chatIdsConfig.hint}</span>
+          <span className="mt-1 block text-foreground-muted text-xs">{chatIdsConfig.hint}</span>
           {!chatIds.trim() && idsKey === 'allowed_chat_ids' && (
-            <span className="mt-1 block text-orange-400 text-xs">{t('agent.channels.chatIdsAutoTrackHint')}</span>
+            <span className="mt-1 block text-warning text-xs">{t('agent.channels.chatIdsAutoTrackHint')}</span>
           )}
-          {chatIdsConfig.extraHint && (
-            <span className="mt-1 block text-blue-400 text-xs">{chatIdsConfig.extraHint}</span>
-          )}
+          {chatIdsConfig.extraHint && <span className="mt-1 block text-info text-xs">{chatIdsConfig.extraHint}</span>}
         </div>
       </div>
       <ChannelPermissionMode channel={channel} onConfigChange={onConfigChange} />
@@ -212,7 +210,7 @@ const FeishuDomainSelector: FC<ChannelFormProps> = ({ channel, onConfigChange })
   const cfg = channel.config
   return (
     <div>
-      <label className="mb-1 block font-medium text-xs">{t('agent.channels.feishu.domain')}</label>
+      <label className="mb-1 block text-xs">{t('agent.channels.feishu.domain')}</label>
       <Select
         value={(cfg.domain as FeishuDomain) ?? 'feishu'}
         onValueChange={(value) => onConfigChange({ config: { ...cfg, domain: value as FeishuDomain } })}>
@@ -257,20 +255,20 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
     <div className="flex flex-col gap-3">
       {!hasCredentials && (
         <div className="flex items-center gap-2">
-          {status === 'pending' && <span className="text-blue-400 text-xs">{t('agent.channels.feishu.qrHint')}</span>}
+          {status === 'pending' && <span className="text-info text-xs">{t('agent.channels.feishu.qrHint')}</span>}
           {status === 'expired' && (
             <>
-              <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-              <span className="text-red-500 text-xs">{t('agent.channels.feishu.qrExpired')}</span>
+              <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
+              <span className="text-destructive text-xs">{t('agent.channels.feishu.qrExpired')}</span>
             </>
           )}
-          {status === 'idle' && <span className="text-blue-400 text-xs">{t('agent.channels.feishu.loginHint')}</span>}
+          {status === 'idle' && <span className="text-info text-xs">{t('agent.channels.feishu.loginHint')}</span>}
         </div>
       )}
       {hasCredentials && (
         <div className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-          <span className="text-green-600 text-xs">{t('agent.channels.feishu.connected')}</span>
+          <span className="inline-block h-2 w-2 rounded-full bg-success" />
+          <span className="text-success text-xs">{t('agent.channels.feishu.connected')}</span>
         </div>
       )}
       <ChannelFieldsForm
@@ -427,23 +425,23 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
         <div className="flex items-center gap-2">
           {status === 'confirmed' && (
             <>
-              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-              <span className="text-green-600 text-xs">{t('agent.channels.wechat.connected')}</span>
+              <span className="inline-block h-2 w-2 rounded-full bg-success" />
+              <span className="text-success text-xs">{t('agent.channels.wechat.connected')}</span>
             </>
           )}
           {status === 'disconnected' && (
             <>
-              <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-              <span className="text-red-500 text-xs">{t('agent.channels.wechat.disconnected')}</span>
+              <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
+              <span className="text-destructive text-xs">{t('agent.channels.wechat.disconnected')}</span>
             </>
           )}
           {(status === 'idle' || status === 'pending') && (
-            <span className="text-blue-400 text-xs">{t('agent.channels.wechat.loginHint')}</span>
+            <span className="text-info text-xs">{t('agent.channels.wechat.loginHint')}</span>
           )}
         </div>
         {loginUserId && status === 'confirmed' && (
-          <span className="text-gray-400 text-xs">
-            User ID: <code className="select-all rounded bg-gray-100 px-1 dark:bg-gray-800">{loginUserId}</code>
+          <span className="text-foreground-muted text-xs">
+            User ID: <code className="select-all rounded bg-muted px-1">{loginUserId}</code>
           </span>
         )}
       </div>

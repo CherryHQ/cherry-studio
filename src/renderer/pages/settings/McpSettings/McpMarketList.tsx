@@ -138,7 +138,7 @@ const MarketLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img
 )
 
 const MarketName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('flex-1 truncate font-medium text-sm', className)} {...props} />
+  <span className={cn('flex-1 truncate text-sm', className)} {...props} />
 )
 
 const ExternalLinkIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

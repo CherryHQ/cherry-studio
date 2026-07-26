@@ -373,7 +373,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
           const inputId = `provider-request-config-endpoint-${type}`
           return (
             <div key={type} className="space-y-1.5">
-              <label className="font-medium text-muted-foreground/60 text-xs" htmlFor={inputId}>
+              <label className="text-muted-foreground/60 text-xs" htmlFor={inputId}>
                 {label}
               </label>
               <InputGroup className={fieldClasses.inputGroup}>
@@ -433,9 +433,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
         <div className="space-y-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="font-medium text-muted-foreground/60 text-xs">
-              {t('settings.provider.copilot.custom_headers')}
-            </span>
+            <span className="text-muted-foreground/60 text-xs">{t('settings.provider.copilot.custom_headers')}</span>
             <Tooltip content={toggleLabel}>
               <button
                 type="button"

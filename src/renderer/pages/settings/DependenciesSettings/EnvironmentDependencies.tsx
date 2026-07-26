@@ -61,7 +61,6 @@ import {
   Plus,
   RefreshCw,
   Settings2,
-  SquareArrowOutUpRight,
   Terminal,
   Trash2,
   TriangleAlert
@@ -348,8 +347,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             title={t('settings.dependencies.installSettings.title')}>
             <Settings2 className="size-3" />
           </Button>
-          <Button variant="outline" size="sm" className="ml-auto" onClick={() => setShowAddDialog(true)}>
-            <Plus className="size-3.5" />
+          <Button className="ml-auto" onClick={() => setShowAddDialog(true)}>
+            <Plus size={16} />
             {t('settings.dependencies.addTool')}
           </Button>
         </div>
@@ -547,7 +546,7 @@ const BinaryToolPresetCard: FC<{
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground text-sm leading-5">{tool.displayName}</span>
+              <span className="text-foreground text-sm leading-5">{tool.displayName}</span>
               {tool.displayName !== tool.name && (
                 <span className="text-muted-foreground/60 text-xs">({tool.name})</span>
               )}
@@ -626,7 +625,7 @@ const BinaryToolPresetCard: FC<{
             type="button"
             className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-foreground-muted transition-colors hover:text-foreground"
             onClick={() => void ipcApi.request('system.shell.open_website', tool.homepage!)}>
-            <SquareArrowOutUpRight className="size-3 shrink-0" />
+            <ExternalLink className="size-3 shrink-0" />
             <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>
         )}
@@ -651,7 +650,7 @@ const BinaryToolPresetCard: FC<{
           <Button
             variant="outline"
             size="sm"
-            className="h-7 w-full gap-1 font-medium text-xs"
+            className="h-7 w-full gap-1 text-xs"
             onClick={onInstall}
             disabled={busy}
             loading={installing}>
@@ -731,7 +730,7 @@ const CustomToolCard: FC<{
             <ToolIcon />
           </div>
           <div className="min-w-0">
-            <span className="font-semibold text-foreground text-sm leading-5">{tool.name}</span>
+            <span className="text-foreground text-sm leading-5">{tool.name}</span>
             <div className="mt-0.5 text-muted-foreground text-xs">{toolSpec}</div>
             {installed && (
               <div className="mt-0.5 flex flex-wrap items-center gap-1">
@@ -811,7 +810,7 @@ const CustomToolCard: FC<{
           <Button
             variant="outline"
             size="sm"
-            className="h-7 w-full gap-1 font-medium text-xs"
+            className="h-7 w-full gap-1 text-xs"
             onClick={onInstall}
             disabled={busy}
             loading={installing}>
@@ -960,7 +959,7 @@ function AddToolDialog({
           {selectedName && (
             <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
               <Terminal className="size-4 text-muted-foreground" />
-              <span className="font-medium text-sm">{selectedName}</span>
+              <span className="text-sm">{selectedName}</span>
               <span className="text-muted-foreground text-xs">{selectedTool}</span>
             </div>
           )}

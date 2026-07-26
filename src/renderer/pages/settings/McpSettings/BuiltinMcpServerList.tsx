@@ -6,7 +6,7 @@ import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { builtinMcpServers } from '@renderer/pages/settings/McpSettings/builtinMcpServers'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { Check, Plus } from 'lucide-react'
+import { Check, ExternalLink, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -86,7 +86,7 @@ const BuiltinMcpServerList: FC = () => {
               )}>
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 overflow-hidden">
-                  <span className="truncate font-semibold text-[14px] leading-5">{server.name}</span>
+                  <span className="truncate text-[14px] leading-5">{server.name}</span>
                   {server?.shouldConfig && (
                     <a
                       href="https://docs.cherry-ai.com/advanced-basic/mcp/buildin"
@@ -94,8 +94,9 @@ const BuiltinMcpServerList: FC = () => {
                       rel="noopener noreferrer">
                       <Badge
                         variant="outline"
-                        className="h-5 rounded-md border-destructive/25 bg-destructive/10 px-1.5 font-medium text-[11px] text-destructive leading-none">
+                        className="h-5 gap-1 rounded-md border-destructive/25 bg-destructive/10 px-1.5 text-[11px] text-destructive leading-none">
                         {t('settings.mcp.requiresConfig')}
+                        <ExternalLink size={10} />
                       </Badge>
                     </a>
                   )}
