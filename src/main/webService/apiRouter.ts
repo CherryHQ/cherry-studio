@@ -443,9 +443,10 @@ class WebUiStreamListener implements StreamListener {
       event: 'done',
       data: { conversationId: this.sessionId, messageId, status }
     })
+    // Include messageId so WebUI can seal the turn and ignore late text-delta appends.
     this.sseRelay.broadcast({
       event: 'sync',
-      data: { conversationId: this.sessionId, reason: 'stream-terminal' }
+      data: { conversationId: this.sessionId, reason: 'stream-terminal', messageId }
     })
   }
 }

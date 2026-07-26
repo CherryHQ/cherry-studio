@@ -25,6 +25,8 @@ import type {
   WebUiContextUsage,
   WebUiContextUsageResponse,
   WebUiConversationSummary,
+  WebUiCreateSessionBody,
+  WebUiCreateSessionWorkspace,
   WebUiCursorResponse,
   WebUiHealthResponse,
   WebUiMessagePart,
@@ -44,7 +46,8 @@ import type {
   WebUiToolCallState,
   WebUiWorkspaceFileEntry,
   WebUiWorkspaceFilesResponse,
-  WebUiWorkspaceTextPreview
+  WebUiWorkspaceTextPreview,
+  WebUiWorkspaceType
 } from './types/api'
 import {
   buildWebUiAgentStatus,
@@ -115,7 +118,11 @@ const projectRepositoryUrl = 'https://github.com/EasongChung/cherry-studio'
 /** First page + each older page size. Keep small so multi-turn chats (≈5 rounds) paginate early. */
 const messagePageSize = 10
 /** Session history sidebar: first page + each older page. */
-const conversationPageSize = 25
+const conversationPageSize = 50
+/** Stop auto-filling older sessions so the sidebar stays responsive. */
+const conversationLoadHardCap = 500
+const conversationGroupNoProjectId = 'group:no-project'
+const collapsedWorkdirGroupsStorageKey = 'cherry-webui.collapsed-workdir-groups'
 const maxAttachmentCount = 5
 const maxAttachmentBytes = 10 * 1024 * 1024
 const maxAttachmentsBytes = 25 * 1024 * 1024
@@ -266,6 +273,13 @@ const textPacks = {
     model: 'Model',
     newConversation: 'New conversation',
     conversationHistory: 'Conversation history',
+    noProject: 'No project',
+    createInWorkspace: 'Create in this folder',
+    createInNoProject: 'Create without a project folder',
+    createWorkspaceHint: 'Workspace',
+    createWorkspaceSystemHint: 'No project folder (system)',
+    expandGroup: 'Expand folder',
+    collapseGroup: 'Collapse folder',
     noAgents: 'No configured desktop Agents are available.',
     noContext: 'No context usage available',
     status: 'Status',
@@ -453,6 +467,13 @@ const textPacks = {
     model: '模型',
     newConversation: '新建会话',
     conversationHistory: '会话记录',
+    noProject: '无项目',
+    createInWorkspace: '在此目录新建',
+    createInNoProject: '新建无项目会话',
+    createWorkspaceHint: '工作目录',
+    createWorkspaceSystemHint: '无项目目录（系统）',
+    expandGroup: '展开目录',
+    collapseGroup: '折叠目录',
     noAgents: '暂无可用的桌面智能体。',
     noContext: '暂无上下文用量',
     status: '状态',
@@ -640,6 +661,13 @@ const textPacks = {
     model: '模型',
     newConversation: '新增會話',
     conversationHistory: '會話記錄',
+    noProject: '無專案',
+    createInWorkspace: '在此目錄新建',
+    createInNoProject: '新建無專案會話',
+    createWorkspaceHint: '工作目錄',
+    createWorkspaceSystemHint: '無專案目錄（系統）',
+    expandGroup: '展開目錄',
+    collapseGroup: '摺疊目錄',
     noAgents: '尚無可用的桌面智慧體。',
     noContext: '暫無上下文用量',
     status: '狀態',
@@ -831,6 +859,13 @@ const textPacks = {
     model: 'モデル',
     newConversation: '新しい会話',
     conversationHistory: '会話履歴',
+    noProject: 'プロジェクトなし',
+    createInWorkspace: 'このフォルダで新規作成',
+    createInNoProject: 'プロジェクトなしで新規作成',
+    createWorkspaceHint: '作業ディレクトリ',
+    createWorkspaceSystemHint: 'プロジェクトなし（システム）',
+    expandGroup: 'フォルダを展開',
+    collapseGroup: 'フォルダを折りたたむ',
     noAgents: '利用可能なデスクトップ Agent がありません。',
     noContext: 'コンテキスト使用量はありません',
     status: 'ステータス',
@@ -1025,6 +1060,13 @@ const textPacks = {
     model: 'Modell',
     newConversation: 'Neue Unterhaltung',
     conversationHistory: 'Unterhaltungsverlauf',
+    noProject: 'Kein Projekt',
+    createInWorkspace: 'In diesem Ordner erstellen',
+    createInNoProject: 'Ohne Projektordner erstellen',
+    createWorkspaceHint: 'Arbeitsverzeichnis',
+    createWorkspaceSystemHint: 'Kein Projektordner (System)',
+    expandGroup: 'Ordner erweitern',
+    collapseGroup: 'Ordner einklappen',
     noAgents: 'Keine konfigurierten Desktop-Agents verfügbar.',
     noContext: 'Keine Kontextnutzung verfügbar',
     status: 'Status',
@@ -1219,6 +1261,13 @@ const textPacks = {
     model: 'Modèle',
     newConversation: 'Nouvelle conversation',
     conversationHistory: 'Historique des conversations',
+    noProject: 'Sans projet',
+    createInWorkspace: 'Créer dans ce dossier',
+    createInNoProject: 'Créer sans dossier de projet',
+    createWorkspaceHint: 'Répertoire de travail',
+    createWorkspaceSystemHint: 'Sans projet (système)',
+    expandGroup: 'Développer le dossier',
+    collapseGroup: 'Réduire le dossier',
     noAgents: 'Aucun agent bureau configuré n’est disponible.',
     noContext: 'Aucune utilisation de contexte disponible',
     status: 'État',
@@ -1413,6 +1462,13 @@ const textPacks = {
     model: 'Modelo',
     newConversation: 'Nueva conversación',
     conversationHistory: 'Historial de conversaciones',
+    noProject: 'Sin proyecto',
+    createInWorkspace: 'Crear en esta carpeta',
+    createInNoProject: 'Crear sin carpeta de proyecto',
+    createWorkspaceHint: 'Directorio de trabajo',
+    createWorkspaceSystemHint: 'Sin proyecto (sistema)',
+    expandGroup: 'Expandir carpeta',
+    collapseGroup: 'Contraer carpeta',
     noAgents: 'No hay agentes de escritorio configurados disponibles.',
     noContext: 'No hay uso de contexto disponible',
     status: 'Estado',
@@ -1607,6 +1663,13 @@ const textPacks = {
     model: 'Модель',
     newConversation: 'Новая беседа',
     conversationHistory: 'История бесед',
+    noProject: 'Без проекта',
+    createInWorkspace: 'Создать в этой папке',
+    createInNoProject: 'Создать без папки проекта',
+    createWorkspaceHint: 'Рабочий каталог',
+    createWorkspaceSystemHint: 'Без проекта (система)',
+    expandGroup: 'Развернуть папку',
+    collapseGroup: 'Свернуть папку',
     noAgents: 'Нет доступных настроенных агентов рабочего стола.',
     noContext: 'Нет данных об использовании контекста',
     status: 'Статус',
@@ -1803,6 +1866,13 @@ const textPacks = {
     model: 'Μοντέλο',
     newConversation: 'Νέα συνομιλία',
     conversationHistory: 'Ιστορικό συνομιλιών',
+    noProject: 'Χωρίς έργο',
+    createInWorkspace: 'Δημιουργία σε αυτόν τον φάκελο',
+    createInNoProject: 'Δημιουργία χωρίς φάκελο έργου',
+    createWorkspaceHint: 'Κατάλογος εργασίας',
+    createWorkspaceSystemHint: 'Χωρίς έργο (σύστημα)',
+    expandGroup: 'Ανάπτυξη φακέλου',
+    collapseGroup: 'Σύμπτυξη φακέλου',
     noAgents: 'Δεν υπάρχουν διαθέσιμοι ρυθμισμένοι πράκτορες επιφάνειας εργασίας.',
     noContext: 'Δεν υπάρχει διαθέσιμη χρήση πλαισίου',
     status: 'Κατάσταση',
@@ -1999,6 +2069,13 @@ const textPacks = {
     model: 'Modelo',
     newConversation: 'Nova conversa',
     conversationHistory: 'Histórico de conversas',
+    noProject: 'Sem projeto',
+    createInWorkspace: 'Criar nesta pasta',
+    createInNoProject: 'Criar sem pasta de projeto',
+    createWorkspaceHint: 'Diretório de trabalho',
+    createWorkspaceSystemHint: 'Sem projeto (sistema)',
+    expandGroup: 'Expandir pasta',
+    collapseGroup: 'Recolher pasta',
     noAgents: 'Não existem agentes de ambiente de trabalho configurados disponíveis.',
     noContext: 'Nenhum uso de contexto disponível',
     status: 'Estado',
@@ -2195,6 +2272,13 @@ const textPacks = {
     model: 'Model',
     newConversation: 'Conversație nouă',
     conversationHistory: 'Istoricul conversațiilor',
+    noProject: 'Fără proiect',
+    createInWorkspace: 'Creează în acest folder',
+    createInNoProject: 'Creează fără folder de proiect',
+    createWorkspaceHint: 'Director de lucru',
+    createWorkspaceSystemHint: 'Fără proiect (sistem)',
+    expandGroup: 'Extinde folderul',
+    collapseGroup: 'Restrânge folderul',
     noAgents: 'Nu sunt disponibili agenți desktop configurați.',
     noContext: 'Nu există utilizare a contextului disponibilă',
     status: 'Stare',
@@ -2388,6 +2472,13 @@ const textPacks = {
     model: 'Mô hình',
     newConversation: 'Cuộc trò chuyện mới',
     conversationHistory: 'Lịch sử trò chuyện',
+    noProject: 'Không có dự án',
+    createInWorkspace: 'Tạo trong thư mục này',
+    createInNoProject: 'Tạo không có thư mục dự án',
+    createWorkspaceHint: 'Thư mục làm việc',
+    createWorkspaceSystemHint: 'Không có dự án (hệ thống)',
+    expandGroup: 'Mở rộng thư mục',
+    collapseGroup: 'Thu gọn thư mục',
     noAgents: 'Không có Agent máy tính đã cấu hình nào khả dụng.',
     noContext: 'Không có dữ liệu mức dùng ngữ cảnh',
     status: 'Trạng thái',
@@ -2509,14 +2600,189 @@ const isAbortError = (error: unknown) => {
   )
 }
 
-const toConversationSummary = (session: WebUiAgentSessionEntity): WebUiConversationSummary => ({
-  id: session.id,
-  agentId: session.agentId,
-  title: session.name || 'Untitled session',
-  updatedAt: session.updatedAt,
-  workspaceLabel: session.workspace?.name ?? session.workspace?.path,
-  ...(session.workspace?.path ? { workspacePath: session.workspace.path } : {})
-})
+const normalizeWorkdirPath = (path: string | null | undefined): string | null => {
+  const trimmed = path?.trim()
+  if (!trimmed) return null
+  return trimmed.replace(/[\\/]+$/, '') || trimmed
+}
+
+const getWorkdirPathBasename = (path: string): string => {
+  const segments = path.split(/[\\/]+/).filter(Boolean)
+  return segments.at(-1) ?? path
+}
+
+const getWorkdirPathParentBasename = (path: string): string | undefined => {
+  const segments = path.split(/[\\/]+/).filter(Boolean)
+  return segments.length >= 2 ? segments.at(-2) : undefined
+}
+
+const resolveConversationWorkspaceType = (
+  session: Pick<WebUiAgentSessionEntity, 'workspaceId' | 'workspace'>
+): WebUiWorkspaceType => {
+  if (session.workspace?.type === 'user' || session.workspace?.type === 'system') {
+    return session.workspace.type
+  }
+  return 'system'
+}
+
+const toConversationSummary = (session: WebUiAgentSessionEntity): WebUiConversationSummary => {
+  const workspaceType = resolveConversationWorkspaceType(session)
+  const workspaceId = session.workspaceId ?? session.workspace?.id
+  const workspacePath =
+    workspaceType === 'user' ? (normalizeWorkdirPath(session.workspace?.path) ?? undefined) : undefined
+  const workspaceLabel =
+    workspaceType === 'user' ? session.workspace?.name?.trim() || workspacePath || undefined : undefined
+
+  return {
+    id: session.id,
+    agentId: session.agentId,
+    title: session.name || 'Untitled session',
+    updatedAt: session.updatedAt,
+    workspaceType,
+    ...(workspaceId ? { workspaceId } : {}),
+    ...(workspaceLabel ? { workspaceLabel } : {}),
+    ...(workspacePath ? { workspacePath } : {})
+  }
+}
+
+type ConversationWorkdirGroupKind = 'user' | 'no-project'
+
+type ConversationWorkdirGroup = {
+  readonly id: string
+  readonly kind: ConversationWorkdirGroupKind
+  readonly label: string
+  readonly workspaceId?: string
+  readonly workspacePath?: string
+  readonly conversations: readonly WebUiConversationSummary[]
+}
+
+const conversationGroupKey = (conversation: WebUiConversationSummary): string => {
+  if (conversation.workspaceType === 'user' && conversation.workspaceId) {
+    return `group:workspace:${conversation.workspaceId}`
+  }
+  return conversationGroupNoProjectId
+}
+
+const buildConversationGroups = (
+  conversations: readonly WebUiConversationSummary[],
+  noProjectLabel: string
+): readonly ConversationWorkdirGroup[] => {
+  type MutableGroup = {
+    id: string
+    kind: ConversationWorkdirGroupKind
+    workspaceId?: string
+    workspacePath?: string
+    labelRaw?: string
+    conversations: WebUiConversationSummary[]
+  }
+
+  const groups = new Map<string, MutableGroup>()
+
+  for (const conversation of conversations) {
+    const id = conversationGroupKey(conversation)
+    let group = groups.get(id)
+    if (!group) {
+      if (id === conversationGroupNoProjectId) {
+        group = { id, kind: 'no-project', conversations: [] }
+      } else {
+        group = {
+          id,
+          kind: 'user',
+          workspaceId: conversation.workspaceId,
+          workspacePath: conversation.workspacePath,
+          labelRaw: conversation.workspaceLabel,
+          conversations: []
+        }
+      }
+      groups.set(id, group)
+    } else if (group.kind === 'user') {
+      if (!group.workspacePath && conversation.workspacePath) {
+        group.workspacePath = conversation.workspacePath
+      }
+      if (!group.labelRaw && conversation.workspaceLabel) {
+        group.labelRaw = conversation.workspaceLabel
+      }
+    }
+    group.conversations.push(conversation)
+  }
+
+  const basenameCounts = new Map<string, number>()
+  for (const group of groups.values()) {
+    if (group.kind !== 'user') continue
+    const source = group.workspacePath ?? group.labelRaw ?? group.workspaceId ?? group.id
+    const base = getWorkdirPathBasename(source)
+    basenameCounts.set(base, (basenameCounts.get(base) ?? 0) + 1)
+  }
+
+  const resolveUserLabel = (group: MutableGroup): string => {
+    const source = group.workspacePath ?? group.labelRaw ?? group.workspaceId ?? group.id
+    const base = getWorkdirPathBasename(source)
+    if ((basenameCounts.get(base) ?? 0) > 1) {
+      const parent = group.workspacePath ? getWorkdirPathParentBasename(group.workspacePath) : undefined
+      return parent ? `${parent}/${base}` : base
+    }
+    return group.labelRaw?.trim() || base
+  }
+
+  const userGroups = [...groups.values()]
+    .filter((group) => group.kind === 'user')
+    .sort((left, right) => {
+      const leftMs = Date.parse(left.conversations[0]?.updatedAt ?? '')
+      const rightMs = Date.parse(right.conversations[0]?.updatedAt ?? '')
+      return (Number.isFinite(rightMs) ? rightMs : 0) - (Number.isFinite(leftMs) ? leftMs : 0)
+    })
+    .map(
+      (group): ConversationWorkdirGroup => ({
+        id: group.id,
+        kind: 'user',
+        label: resolveUserLabel(group),
+        workspaceId: group.workspaceId,
+        workspacePath: group.workspacePath,
+        conversations: group.conversations
+      })
+    )
+
+  const noProject = groups.get(conversationGroupNoProjectId)
+  const result: ConversationWorkdirGroup[] = [...userGroups]
+  if (noProject) {
+    result.push({
+      id: noProject.id,
+      kind: 'no-project',
+      label: noProjectLabel,
+      conversations: noProject.conversations
+    })
+  }
+  return result
+}
+
+const loadCollapsedWorkdirGroups = (): Set<string> => {
+  try {
+    const raw = window.localStorage.getItem(collapsedWorkdirGroupsStorageKey)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(parsed.filter((item): item is string => typeof item === 'string' && item.length > 0))
+  } catch {
+    return new Set()
+  }
+}
+
+const persistCollapsedWorkdirGroups = (ids: ReadonlySet<string>) => {
+  try {
+    window.localStorage.setItem(collapsedWorkdirGroupsStorageKey, JSON.stringify([...ids]))
+  } catch {
+    // Ignore quota / private-mode failures.
+  }
+}
+
+const resolveWorkspaceSeedFromConversation = (
+  conversation: WebUiConversationSummary | undefined
+): WebUiCreateSessionWorkspace => {
+  if (conversation?.workspaceType === 'user' && conversation.workspaceId) {
+    return { type: 'user', workspaceId: conversation.workspaceId }
+  }
+  return { type: 'system' }
+}
 
 const terminalToolStates: ReadonlySet<WebUiToolCallState> = new Set([
   'output-available',
@@ -3011,6 +3277,10 @@ const App = defineComponent({
     const newConversationState = ref<'idle' | 'loading' | 'creating' | 'error'>('idle')
     const newConversationError = ref('')
     const selectedAgentId = ref('')
+    /** Snapshot at dialog open so switching selection mid-dialog does not change workspace. */
+    const pendingWorkspaceSeed = ref<WebUiCreateSessionWorkspace>({ type: 'system' })
+    const pendingWorkspaceHint = ref('')
+    const collapsedWorkdirGroupIds = ref<Set<string>>(loadCollapsedWorkdirGroups())
     const contextUsage = ref<WebUiContextUsage | null>(null)
     const statusPreviewOpen = ref(false)
     const statusPanelOpen = ref(false)
@@ -3084,9 +3354,12 @@ const App = defineComponent({
     })
     const pendingChunks = new Map<string, WebUiChunkPayload[]>()
     const pendingChunkRetries = new Map<string, number>()
+    /** Assistant turns that finished streaming — ignore late text/reasoning deltas (prevents duplicate body after long thinking). */
+    const sealedStreamMessageIds = new Set<string>()
     let healthTimer: number | undefined
     let contextUsageTimer: number | undefined
     let syncTimer: number | undefined
+    let streamRefreshTimer: number | undefined
     let chunkFrame: number | undefined
     let latestMessageRequest = 0
     let statusPreviewOpenTimer: number | undefined
@@ -3230,18 +3503,20 @@ const App = defineComponent({
       if (role === 'assistant') return selectedAgentName.value || role
       return role
     }
-    /** Resolve display model name for an assistant message (session snapshot → live agent). */
+    /**
+     * Model name for the assistant message header: always the turn snapshot
+     * (`message.modelId` at reply time). Do not fall back to the live agent model,
+     * so switching models later does not rewrite historical headers.
+     */
     const messageModelLabel = (message: WebUiMessageSnapshot) => {
       if (message.role !== 'assistant') return ''
-      if (message.modelId) {
-        const fromCatalog = models.value.find((model) => model.id === message.modelId)
-        if (fromCatalog?.name) return fromCatalog.name
-        const bareId = message.modelId.includes('::')
-          ? (message.modelId.split('::').pop() ?? message.modelId)
-          : message.modelId
-        return bareId
-      }
-      return selectedModel.value?.name ?? selectedAgent.value?.modelName ?? selectedAgent.value?.model ?? ''
+      if (!message.modelId) return ''
+      const fromCatalog = models.value.find((model) => model.id === message.modelId)
+      if (fromCatalog?.name) return fromCatalog.name
+      const bareId = message.modelId.includes('::')
+        ? (message.modelId.split('::').pop() ?? message.modelId)
+        : message.modelId
+      return bareId
     }
     const messageHeaderLabel = (message: WebUiMessageSnapshot) => {
       const author = messageAuthorName(message.role)
@@ -3259,6 +3534,8 @@ const App = defineComponent({
       const pack = textPacks[language.value as keyof typeof textPacks] ?? textPacks[fallbackLanguage]
       return pack[key] ?? textPacks[fallbackLanguage][key]
     }
+
+    const conversationGroups = computed(() => buildConversationGroups(conversations.value, text('noProject')))
 
     const localizedErrorMessage = (error: unknown) =>
       isAbortError(error) ? text('requestAborted') : toErrorMessage(error)
@@ -4912,6 +5189,12 @@ const App = defineComponent({
         }
         conversationLoadState.value = 'ready'
         conversationLoadMessage.value = conversations.value.length ? '' : text('noSessions')
+        // Open WebUI / after refresh: land on the newest session when nothing is selected.
+        // Guard the index access: noUncheckedIndexedAccess still types [0] as possibly undefined.
+        const latestConversation = conversations.value[0]
+        if (!selectedConversationId.value && latestConversation) {
+          selectConversation(latestConversation.id)
+        }
         // If the first page does not fill the sidebar, keep loading older pages.
         await nextTick()
         const nav = conversationNav.value
@@ -4929,6 +5212,10 @@ const App = defineComponent({
     const loadOlderConversations = async () => {
       const cursor = olderConversationsCursor.value
       if (!cursor || olderConversationsLoading.value) return
+      if (conversations.value.length >= conversationLoadHardCap) {
+        olderConversationsCursor.value = undefined
+        return
+      }
 
       olderConversationsLoading.value = true
       try {
@@ -4937,7 +5224,8 @@ const App = defineComponent({
           `/api/data/agent-sessions?${query.toString()}`
         )
         conversations.value = mergeConversations(conversations.value, page.items.map(toConversationSummary))
-        olderConversationsCursor.value = page.nextCursor
+        olderConversationsCursor.value =
+          conversations.value.length >= conversationLoadHardCap ? undefined : page.nextCursor
         await nextTick()
         const nav = conversationNav.value
         // Keep filling the sidebar while older pages remain (button + scroll still work).
@@ -5128,6 +5416,8 @@ const App = defineComponent({
       clearStatusPreviewTimers()
       closeConversationMenu()
       statusPreviewOpen.value = false
+      const target = conversations.value.find((conversation) => conversation.id === conversationId)
+      if (target) expandWorkdirGroup(conversationGroupKey(target))
       if (conversationId === selectedConversationId.value) {
         mobileSidebarOpen.value = false
         void loadConversationMessages(conversationId, 'refresh')
@@ -5136,6 +5426,21 @@ const App = defineComponent({
         if (statusPanelOpen.value && rightPanelTab.value === 'files') refreshWorkspaceFiles()
         return
       }
+
+      // Drop previous send/model errors when switching sessions.
+      submitError.value = ''
+
+      // Drop in-flight stream state from the previous session (avoids cross-chat delta apply / seals).
+      if (chunkFrame !== undefined) {
+        window.cancelAnimationFrame(chunkFrame)
+        chunkFrame = undefined
+      }
+      if (streamRefreshTimer !== undefined) {
+        window.clearTimeout(streamRefreshTimer)
+        streamRefreshTimer = undefined
+      }
+      clearPendingStreamChunks()
+      sealedStreamMessageIds.clear()
 
       resetWorkspaceFiles()
       selectedConversationId.value = conversationId
@@ -5305,14 +5610,61 @@ const App = defineComponent({
       window.addEventListener('pointercancel', onUp)
     }
 
-    const openNewConversation = async () => {
+    const workspaceSeedHint = (seed: WebUiCreateSessionWorkspace, group?: ConversationWorkdirGroup): string => {
+      if (seed.type === 'user') {
+        const label =
+          group?.label ||
+          conversations.value.find(
+            (conversation) => conversation.workspaceType === 'user' && conversation.workspaceId === seed.workspaceId
+          )?.workspaceLabel ||
+          conversations.value.find(
+            (conversation) => conversation.workspaceType === 'user' && conversation.workspaceId === seed.workspaceId
+          )?.workspacePath ||
+          seed.workspaceId
+        return `${text('createWorkspaceHint')}: ${label}`
+      }
+      return text('createWorkspaceSystemHint')
+    }
+
+    const isWorkdirGroupCollapsed = (groupId: string) => collapsedWorkdirGroupIds.value.has(groupId)
+
+    const toggleWorkdirGroupCollapsed = (groupId: string) => {
+      const next = new Set(collapsedWorkdirGroupIds.value)
+      if (next.has(groupId)) next.delete(groupId)
+      else next.add(groupId)
+      collapsedWorkdirGroupIds.value = next
+      persistCollapsedWorkdirGroups(next)
+    }
+
+    const expandWorkdirGroup = (groupId: string) => {
+      if (!collapsedWorkdirGroupIds.value.has(groupId)) return
+      const next = new Set(collapsedWorkdirGroupIds.value)
+      next.delete(groupId)
+      collapsedWorkdirGroupIds.value = next
+      persistCollapsedWorkdirGroups(next)
+    }
+
+    const openNewConversation = async (options?: {
+      workspaceSeed?: WebUiCreateSessionWorkspace
+      defaultAgentId?: string | null
+      workspaceHint?: string
+      group?: ConversationWorkdirGroup
+    }) => {
+      const seed = options?.workspaceSeed ?? resolveWorkspaceSeedFromConversation(selectedConversation.value)
+      const preferredAgentId = options?.defaultAgentId ?? selectedConversation.value?.agentId ?? undefined
+
+      pendingWorkspaceSeed.value = seed
+      pendingWorkspaceHint.value = options?.workspaceHint ?? workspaceSeedHint(seed, options?.group)
+      // Mobile drawer sits above the create dialog (z-index 30 > modal 20); always close it first.
+      mobileSidebarOpen.value = false
       newConversationOpen.value = true
       newConversationState.value = 'loading'
       newConversationError.value = ''
 
       try {
         await loadAgents()
-        selectedAgentId.value = agents.value[0]?.id ?? ''
+        const preferredStillAvailable = preferredAgentId && agents.value.some((agent) => agent.id === preferredAgentId)
+        selectedAgentId.value = preferredStillAvailable ? preferredAgentId : (agents.value[0]?.id ?? '')
         newConversationState.value = 'idle'
         if (!agents.value.length) newConversationError.value = text('noAgents')
       } catch (error) {
@@ -5323,18 +5675,42 @@ const App = defineComponent({
       }
     }
 
+    const openNewConversationInGroup = (group: ConversationWorkdirGroup, event?: Event) => {
+      event?.stopPropagation()
+      const seed: WebUiCreateSessionWorkspace =
+        group.kind === 'user' && group.workspaceId
+          ? { type: 'user', workspaceId: group.workspaceId }
+          : { type: 'system' }
+      const defaultAgentId = group.conversations.find((conversation) => conversation.agentId)?.agentId ?? null
+      void openNewConversation({
+        workspaceSeed: seed,
+        defaultAgentId,
+        workspaceHint: workspaceSeedHint(seed, group),
+        group
+      })
+    }
+
     const createConversation = async () => {
       if (!selectedAgentId.value || newConversationState.value === 'creating') return
 
       newConversationState.value = 'creating'
       newConversationError.value = ''
       try {
-        const session = await httpClient.postJson<WebUiAgentSessionEntity>('/api/data/agent-sessions', {
+        const body: WebUiCreateSessionBody = {
           agentId: selectedAgentId.value,
           name: '',
-          workspace: { type: 'system' }
-        })
+          workspace:
+            pendingWorkspaceSeed.value.type === 'user'
+              ? {
+                  type: 'user',
+                  workspaceId: pendingWorkspaceSeed.value.workspaceId
+                }
+              : { type: 'system' }
+        }
+        const session = await httpClient.postJson<WebUiAgentSessionEntity>('/api/data/agent-sessions', body)
         newConversationOpen.value = false
+        pendingWorkspaceSeed.value = { type: 'system' }
+        pendingWorkspaceHint.value = ''
         await loadConversations()
         selectConversation(session.id)
       } catch (error) {
@@ -5343,7 +5719,40 @@ const App = defineComponent({
       }
     }
 
-    const refreshFromDesktopSync = (reason?: string, conversationId?: string) => {
+    const clearPendingStreamChunks = (messageId?: string) => {
+      if (!messageId) {
+        pendingChunks.clear()
+        pendingChunkRetries.clear()
+        return
+      }
+      pendingChunks.delete(messageId)
+      pendingChunkRetries.delete(messageId)
+    }
+
+    const sealStreamMessage = (messageId?: string) => {
+      if (!messageId) return
+      sealedStreamMessageIds.add(messageId)
+      clearPendingStreamChunks(messageId)
+    }
+
+    const isTextLikeStreamChunk = (chunk: WebUiChunkPayload['chunk']) =>
+      chunk.type === 'text-delta' || chunk.type === 'reasoning-delta'
+
+    /** Single authoritative reload after stream end; merges done + stream-terminal. */
+    const refreshMessagesAfterStream = (conversationId: string, messageId?: string) => {
+      sealStreamMessage(messageId)
+      if (streamRefreshTimer !== undefined) window.clearTimeout(streamRefreshTimer)
+      streamRefreshTimer = window.setTimeout(() => {
+        streamRefreshTimer = undefined
+        if (selectedConversationId.value !== conversationId) return
+        void loadConversationMessages(conversationId, 'refresh')
+        refreshComposerInfo(conversationId)
+        refreshSlashCommands(conversationId)
+        if (statusPanelOpen.value && rightPanelTab.value === 'files') refreshWorkspaceFiles()
+      }, 120)
+    }
+
+    const refreshFromDesktopSync = (reason?: string, conversationId?: string, messageId?: string) => {
       if (syncTimer) window.clearTimeout(syncTimer)
       syncTimer = window.setTimeout(() => {
         syncTimer = undefined
@@ -5355,10 +5764,13 @@ const App = defineComponent({
         }
         const selectedId = selectedConversationId.value
         if (selectedId && (!conversationId || conversationId === selectedId)) {
-          if (reason === 'stream-terminal' || reason === 'message-submitted' || reason === 'message-deleted') {
+          if (reason === 'stream-terminal') {
+            // Share path with SSE `done` — do not double-append via a second blind refresh race.
+            refreshMessagesAfterStream(selectedId, messageId)
+          } else if (reason === 'message-submitted' || reason === 'message-deleted') {
             void loadConversationMessages(selectedId, 'refresh')
           }
-          refreshComposerInfo(selectedId)
+          if (reason !== 'stream-terminal') refreshComposerInfo(selectedId)
         }
       }, 180)
     }
@@ -5373,10 +5785,22 @@ const App = defineComponent({
       const message = nextMessages[messageIndex]
       if (!message) return false
       const chunk = payload.chunk
+      const streamSealed =
+        sealedStreamMessageIds.has(payload.messageId) ||
+        message.status === 'success' ||
+        message.status === 'error' ||
+        message.status === 'paused'
+
       if (chunk.type === 'text-delta' && chunk.delta) {
+        // Terminal or already-authoritative rows must not keep appending (duplicate body after long thinking).
+        if (streamSealed) return true
+        if (message.content.endsWith(chunk.delta)) return true
         nextMessages[messageIndex] = { ...message, content: `${message.content}${chunk.delta}` }
       } else if (chunk.type === 'reasoning-delta' && chunk.delta) {
-        nextMessages[messageIndex] = { ...message, reasoning: `${message.reasoning ?? ''}${chunk.delta}` }
+        if (streamSealed) return true
+        const previousReasoning = message.reasoning ?? ''
+        if (previousReasoning.endsWith(chunk.delta)) return true
+        nextMessages[messageIndex] = { ...message, reasoning: `${previousReasoning}${chunk.delta}` }
       } else if (chunk.type === 'data-agent-task-event' && isWebUiAgentTaskEventData(chunk.data)) {
         const statusEvent: WebUiAgentStatusEvent = {
           kind: 'task-event',
@@ -5474,6 +5898,9 @@ const App = defineComponent({
     }
 
     const queueStreamChunk = (payload: WebUiChunkPayload) => {
+      // Drop text/reasoning for sealed turns before they enter the queue (late SSE after done).
+      if (sealedStreamMessageIds.has(payload.messageId) && isTextLikeStreamChunk(payload.chunk)) return
+
       const chunks = pendingChunks.get(payload.messageId) ?? []
       chunks.push(payload)
       pendingChunks.set(payload.messageId, chunks)
@@ -5481,12 +5908,30 @@ const App = defineComponent({
 
       chunkFrame = window.requestAnimationFrame(() => {
         chunkFrame = undefined
+        // Follow stream only while the user stays near the bottom; scrolling up stops auto-follow.
+        // Send still one-shot pins via waitForUserBubbleThenScrollToEnd (does not force the whole run).
         const shouldFollow = !showScrollToBottom.value
+        /** Only non-text tool/status chunks may reload+retry; never re-append text-delta after refresh. */
         const retryChunks: WebUiChunkPayload[] = []
         for (const queued of pendingChunks.values()) {
           for (const chunk of queued) {
+            if (sealedStreamMessageIds.has(chunk.messageId) && isTextLikeStreamChunk(chunk.chunk)) {
+              pendingChunkRetries.delete(chunk.messageId)
+              continue
+            }
             if (applyStreamChunk(chunk)) {
               pendingChunkRetries.delete(chunk.messageId)
+              continue
+            }
+            // Message row not in memory yet.
+            if (isTextLikeStreamChunk(chunk.chunk)) {
+              // Blind re-append after refresh is the main duplicate-body bug after long thinking.
+              // Refresh once to materialize the row; discard text-like deltas (server snapshot wins).
+              const retries = pendingChunkRetries.get(chunk.messageId) ?? 0
+              if (retries < 1) {
+                pendingChunkRetries.set(chunk.messageId, retries + 1)
+                retryChunks.push(chunk)
+              }
               continue
             }
             const retries = pendingChunkRetries.get(chunk.messageId) ?? 0
@@ -5500,25 +5945,89 @@ const App = defineComponent({
         if (shouldFollow) scrollMessagesToEnd()
         if (retryChunks.length > 0 && selectedConversationId.value) {
           const conversationId = selectedConversationId.value
+          const textLikeRetries = retryChunks.filter((chunk) => isTextLikeStreamChunk(chunk.chunk))
+          const toolRetries = retryChunks.filter((chunk) => !isTextLikeStreamChunk(chunk.chunk))
           void loadConversationMessages(conversationId, 'refresh').finally(() => {
-            for (const chunk of retryChunks) queueStreamChunk(chunk)
+            // After refresh, never re-apply text/reasoning deltas (would duplicate persisted body).
+            for (const chunk of textLikeRetries) {
+              pendingChunkRetries.delete(chunk.messageId)
+            }
+            for (const chunk of toolRetries) queueStreamChunk(chunk)
           })
         }
       })
     }
 
+    const distanceFromMessageStackBottom = () => {
+      const stack = messageStack.value
+      if (!stack) return Number.POSITIVE_INFINITY
+      return stack.scrollHeight - stack.scrollTop - stack.clientHeight
+    }
+
+    const syncScrollToBottomFlag = () => {
+      const stack = messageStack.value
+      if (!stack) return
+      showScrollToBottom.value = distanceFromMessageStackBottom() > 96
+    }
+
     const scrollMessagesToEnd = (behavior: ScrollBehavior = 'auto') => {
       void nextTick(() => {
         const stack = messageStack.value
-        if (stack) stack.scrollTo({ top: stack.scrollHeight, behavior })
-        showScrollToBottom.value = false
+        if (!stack) return
+        stack.scrollTo({ top: stack.scrollHeight, behavior })
+        // Re-measure after layout; smooth/auto both can leave a residual gap when height is still growing.
+        window.requestAnimationFrame(() => {
+          const live = messageStack.value
+          if (!live) return
+          if (distanceFromMessageStackBottom() > 8) {
+            live.scrollTo({ top: live.scrollHeight, behavior: 'auto' })
+          }
+          syncScrollToBottomFlag()
+        })
+      })
+    }
+
+    /**
+     * Wait until a user bubble for this send is in the message list (and preferably painted),
+     * then pin to bottom. Avoids scrolling to the previous assistant bottom during the send→visible gap.
+     */
+    const waitForUserBubbleThenScrollToEnd = async (options: {
+      readonly conversationId: string
+      readonly previousLatestUserMessageId?: string
+      readonly timeoutMs?: number
+    }) => {
+      const timeoutMs = options.timeoutMs ?? 2500
+      const started = Date.now()
+      const hasNewUserBubble = () => {
+        if (selectedConversationId.value !== options.conversationId) return false
+        for (let index = messages.value.length - 1; index >= 0; index -= 1) {
+          const message = messages.value[index]
+          if (!message || message.role !== 'user') continue
+          if (!options.previousLatestUserMessageId) return true
+          return message.id !== options.previousLatestUserMessageId
+        }
+        return false
+      }
+
+      while (!hasNewUserBubble() && Date.now() - started < timeoutMs) {
+        await loadConversationMessages(options.conversationId, 'refresh')
+        if (hasNewUserBubble()) break
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 50))
+      }
+
+      // Prefer layout-stable pin over smooth (smooth often stops mid-way when height changes).
+      scrollMessagesToEnd('auto')
+      await nextTick()
+      window.requestAnimationFrame(() => {
+        scrollMessagesToEnd('auto')
+        window.requestAnimationFrame(() => scrollMessagesToEnd('auto'))
       })
     }
 
     const updateMessageScrollState = () => {
       const stack = messageStack.value
       if (!stack) return
-      showScrollToBottom.value = stack.scrollHeight - stack.scrollTop - stack.clientHeight > 96
+      showScrollToBottom.value = distanceFromMessageStackBottom() > 96
       // Auto-load older pages when the user scrolls near the top (keep manual button too).
       if (stack.scrollTop <= 72 && olderMessagesCursor.value && !olderMessagesLoading.value) {
         void loadOlderMessages()
@@ -5601,6 +6110,10 @@ const App = defineComponent({
 
       submitError.value = ''
       activeRunConversationId.value = conversationId
+      // New user turn: allow streaming again (previous seals must not block a new assistant message id,
+      // but clear stale pending text from the last turn to avoid cross-turn re-append).
+      clearPendingStreamChunks()
+      const previousLatestUserMessageId = [...messages.value].reverse().find((message) => message.role === 'user')?.id
       try {
         const sendAttachments = await buildSendAttachments()
         await httpClient.postJson(`/api/agent-sessions/${encodeURIComponent(conversationId)}/messages`, {
@@ -5610,8 +6123,12 @@ const App = defineComponent({
         })
         composerText.value = ''
         attachments.value = []
-        await loadConversationMessages(conversationId, 'refresh')
-        scrollMessagesToEnd('smooth')
+        // One-shot pin after the user bubble is visible. Stream follow after this is only while
+        // the viewport stays near the bottom; scrolling up stops auto-follow for this turn.
+        await waitForUserBubbleThenScrollToEnd({
+          conversationId,
+          previousLatestUserMessageId
+        })
         refreshSlashCommands(conversationId)
       } catch (error) {
         if (isAbortError(error)) {
@@ -5842,23 +6359,35 @@ const App = defineComponent({
       }
     }
 
-    const unsubscribeSync = sseClient.subscribe<{ conversationId?: string; reason?: string }>('sync', ({ data }) =>
-      refreshFromDesktopSync(data?.reason, data?.conversationId)
-    )
+    const unsubscribeSync = sseClient.subscribe<{
+      conversationId?: string
+      reason?: string
+      messageId?: string
+    }>('sync', ({ data }) => refreshFromDesktopSync(data?.reason, data?.conversationId, data?.messageId))
     const unsubscribeChunk = sseClient.subscribe<WebUiChunkPayload>('chunk', ({ data }) => {
       if (data && typeof data === 'object') queueStreamChunk(data)
     })
-    const unsubscribeDone = sseClient.subscribe<{ conversationId?: string }>('done', ({ data }) => {
+    const unsubscribeDone = sseClient.subscribe<{ conversationId?: string; messageId?: string }>('done', ({ data }) => {
       const conversationId = data?.conversationId
-      if (conversationId === activeRunConversationId.value) activeRunConversationId.value = undefined
+      if (conversationId === activeRunConversationId.value) {
+        activeRunConversationId.value = undefined
+      }
       if (conversationId && conversationId === selectedConversationId.value) {
-        void loadConversationMessages(conversationId, 'refresh')
-        refreshComposerInfo(conversationId)
-        refreshSlashCommands(conversationId)
-        if (statusPanelOpen.value && rightPanelTab.value === 'files') refreshWorkspaceFiles()
+        // Capture before refresh: only pin if the user was still near the bottom.
+        const wasNearBottom = !showScrollToBottom.value
+        refreshMessagesAfterStream(conversationId, data?.messageId)
+        // Final pin only when still following; do not yank users who scrolled up to read.
+        if (wasNearBottom) scrollMessagesToEnd('auto')
+      } else {
+        sealStreamMessage(data?.messageId)
       }
     })
-    const unsubscribeError = sseClient.subscribe<{ conversationId?: string; message?: string }>('error', ({ data }) => {
+    const unsubscribeError = sseClient.subscribe<{
+      conversationId?: string
+      message?: string
+      messageId?: string
+    }>('error', ({ data }) => {
+      sealStreamMessage(data?.messageId)
       if (data?.conversationId === activeRunConversationId.value) {
         const message = localizedSseErrorMessage(data.message)
         if (isAbortSseMessage(data.message)) {
@@ -5927,9 +6456,10 @@ const App = defineComponent({
       if (healthTimer) window.clearInterval(healthTimer)
       if (contextUsageTimer) window.clearInterval(contextUsageTimer)
       if (syncTimer) window.clearTimeout(syncTimer)
+      if (streamRefreshTimer !== undefined) window.clearTimeout(streamRefreshTimer)
       if (chunkFrame !== undefined) window.cancelAnimationFrame(chunkFrame)
-      pendingChunks.clear()
-      pendingChunkRetries.clear()
+      clearPendingStreamChunks()
+      sealedStreamMessageIds.clear()
       speechController.stop()
       unsubscribeSync()
       unsubscribeChunk()
@@ -6108,122 +6638,223 @@ const App = defineComponent({
                       onScroll: updateConversationScrollState
                     },
                     [
-                      ...conversations.value.map((conversation) =>
-                        h(
-                          'div',
-                          {
-                            key: conversation.id,
-                            class: [
-                              'conversation-item-wrap',
-                              { 'conversation-item-wrap-selected': conversation.id === selectedConversationId.value }
-                            ]
-                          },
-                          [
-                            editingConversationId.value === conversation.id
-                              ? h('div', { class: ['conversation-item', 'conversation-item-editing'] }, [
-                                  h('input', {
-                                    class: 'conversation-title-input',
-                                    value: editingConversationTitle.value,
-                                    autofocus: true,
-                                    onInput: (event: Event) => {
-                                      editingConversationTitle.value = (event.target as HTMLInputElement).value
-                                    },
-                                    onKeydown: (event: KeyboardEvent) => {
-                                      if (event.key === 'Enter') {
-                                        event.preventDefault()
-                                        void saveConversationTitle()
-                                      }
-                                      if (event.key === 'Escape') {
-                                        event.preventDefault()
-                                        closeEditConversation()
-                                      }
-                                    }
-                                  }),
-                                  h('span', { class: 'conversation-meta' }, [
-                                    `${conversationAgentName(conversation.agentId)} · `,
-                                    new Date(conversation.updatedAt).toLocaleString()
-                                  ])
-                                ])
-                              : h(
-                                  'button',
-                                  {
-                                    type: 'button',
-                                    class: [
-                                      'conversation-item',
-                                      { 'conversation-item-selected': conversation.id === selectedConversationId.value }
-                                    ],
-                                    'aria-current':
-                                      conversation.id === selectedConversationId.value ? 'page' : undefined,
-                                    onClick: () => selectConversation(conversation.id)
-                                  },
-                                  [
-                                    h('span', { class: 'conversation-title' }, conversation.title),
-                                    h('span', { class: 'conversation-meta' }, [
-                                      `${conversationAgentName(conversation.agentId)} · `,
-                                      new Date(conversation.updatedAt).toLocaleString()
-                                    ])
-                                  ]
-                                ),
-                            h('div', { class: 'conversation-actions' }, [
-                              h(
-                                'button',
+                      ...conversationGroups.value.flatMap((group) => {
+                        const collapsed = isWorkdirGroupCollapsed(group.id)
+                        const createLabel =
+                          group.kind === 'user' ? text('createInWorkspace') : text('createInNoProject')
+                        return [
+                          h(
+                            'div',
+                            {
+                              key: `header-${group.id}`,
+                              class: [
+                                'conversation-group',
                                 {
-                                  class: 'conversation-action-button',
-                                  type: 'button',
-                                  title: text('editTitle'),
-                                  'aria-label': text('editTitle'),
-                                  'aria-expanded': openConversationMenuId.value === conversation.id,
-                                  disabled: conversationActionState.value === 'deleting',
-                                  onClick: () => toggleConversationMenu(conversation.id)
+                                  'conversation-group-collapsed': collapsed,
+                                  'conversation-group-no-project': group.kind === 'no-project'
+                                }
+                              ]
+                            },
+                            [
+                              h(
+                                'div',
+                                {
+                                  class: 'conversation-group-header'
                                 },
-                                conversationActionState.value === 'generating' &&
-                                  conversationActionId.value === conversation.id
-                                  ? h('span', { class: 'mini-spinner', 'aria-hidden': 'true' })
-                                  : renderActionIcon('more')
+                                [
+                                  h(
+                                    'button',
+                                    {
+                                      type: 'button',
+                                      class: 'conversation-group-toggle',
+                                      title: collapsed ? text('expandGroup') : text('collapseGroup'),
+                                      'aria-label': collapsed ? text('expandGroup') : text('collapseGroup'),
+                                      'aria-expanded': !collapsed,
+                                      onClick: () => toggleWorkdirGroupCollapsed(group.id)
+                                    },
+                                    [
+                                      h(
+                                        'span',
+                                        {
+                                          class: [
+                                            'conversation-group-chevron',
+                                            { 'conversation-group-chevron-collapsed': collapsed }
+                                          ],
+                                          'aria-hidden': 'true'
+                                        },
+                                        '▾'
+                                      ),
+                                      h(
+                                        'span',
+                                        {
+                                          class: 'conversation-group-icon',
+                                          'aria-hidden': 'true'
+                                        },
+                                        group.kind === 'user' ? '📁' : '○'
+                                      ),
+                                      h('span', { class: 'conversation-group-label' }, group.label),
+                                      h(
+                                        'span',
+                                        { class: 'conversation-group-count' },
+                                        String(group.conversations.length)
+                                      )
+                                    ]
+                                  ),
+                                  h(
+                                    'button',
+                                    {
+                                      type: 'button',
+                                      class: 'conversation-group-create',
+                                      title: createLabel,
+                                      'aria-label': createLabel,
+                                      onClick: (event: Event) => openNewConversationInGroup(group, event)
+                                    },
+                                    '+'
+                                  )
+                                ]
                               ),
-                              openConversationMenuId.value === conversation.id
-                                ? h('div', { class: 'conversation-action-menu', role: 'menu' }, [
-                                    h(
-                                      'button',
-                                      {
-                                        class: 'conversation-action-menu-item',
-                                        type: 'button',
-                                        role: 'menuitem',
-                                        disabled: conversationActionState.value === 'deleting',
-                                        onClick: () => openEditConversation(conversation)
-                                      },
-                                      [renderActionIcon('edit'), h('span', text('editTitle'))]
-                                    ),
-                                    h(
-                                      'button',
-                                      {
-                                        class: 'conversation-action-menu-item',
-                                        type: 'button',
-                                        role: 'menuitem',
-                                        disabled:
-                                          conversationActionState.value === 'generating' &&
-                                          conversationActionId.value === conversation.id,
-                                        onClick: () => void generateConversationTitle(conversation.id)
-                                      },
-                                      [renderActionIcon('sparkles'), h('span', text('generateTopicName'))]
-                                    ),
-                                    h(
-                                      'button',
-                                      {
-                                        class: ['conversation-action-menu-item', 'conversation-action-menu-danger'],
-                                        type: 'button',
-                                        role: 'menuitem',
-                                        disabled: activeRunConversationId.value === conversation.id,
-                                        onClick: () => openDeleteConversation(conversation.id)
-                                      },
-                                      [renderActionIcon('trash'), h('span', text('deleteConversation'))]
+                              collapsed
+                                ? undefined
+                                : h(
+                                    'div',
+                                    { class: 'conversation-group-items' },
+                                    group.conversations.map((conversation) =>
+                                      h(
+                                        'div',
+                                        {
+                                          key: conversation.id,
+                                          class: [
+                                            'conversation-item-wrap',
+                                            {
+                                              'conversation-item-wrap-selected':
+                                                conversation.id === selectedConversationId.value
+                                            }
+                                          ]
+                                        },
+                                        [
+                                          editingConversationId.value === conversation.id
+                                            ? h('div', { class: ['conversation-item', 'conversation-item-editing'] }, [
+                                                h('input', {
+                                                  class: 'conversation-title-input',
+                                                  value: editingConversationTitle.value,
+                                                  autofocus: true,
+                                                  onInput: (event: Event) => {
+                                                    editingConversationTitle.value = (
+                                                      event.target as HTMLInputElement
+                                                    ).value
+                                                  },
+                                                  onKeydown: (event: KeyboardEvent) => {
+                                                    if (event.key === 'Enter') {
+                                                      event.preventDefault()
+                                                      void saveConversationTitle()
+                                                    }
+                                                    if (event.key === 'Escape') {
+                                                      event.preventDefault()
+                                                      closeEditConversation()
+                                                    }
+                                                  }
+                                                }),
+                                                h('span', { class: 'conversation-meta' }, [
+                                                  `${conversationAgentName(conversation.agentId)} · `,
+                                                  new Date(conversation.updatedAt).toLocaleString()
+                                                ])
+                                              ])
+                                            : h(
+                                                'button',
+                                                {
+                                                  type: 'button',
+                                                  class: [
+                                                    'conversation-item',
+                                                    {
+                                                      'conversation-item-selected':
+                                                        conversation.id === selectedConversationId.value
+                                                    }
+                                                  ],
+                                                  'aria-current':
+                                                    conversation.id === selectedConversationId.value
+                                                      ? 'page'
+                                                      : undefined,
+                                                  onClick: () => selectConversation(conversation.id)
+                                                },
+                                                [
+                                                  h('span', { class: 'conversation-title' }, conversation.title),
+                                                  h('span', { class: 'conversation-meta' }, [
+                                                    `${conversationAgentName(conversation.agentId)} · `,
+                                                    new Date(conversation.updatedAt).toLocaleString()
+                                                  ])
+                                                ]
+                                              ),
+                                          h('div', { class: 'conversation-actions' }, [
+                                            h(
+                                              'button',
+                                              {
+                                                class: 'conversation-action-button',
+                                                type: 'button',
+                                                title: text('editTitle'),
+                                                'aria-label': text('editTitle'),
+                                                'aria-expanded': openConversationMenuId.value === conversation.id,
+                                                disabled: conversationActionState.value === 'deleting',
+                                                onClick: () => toggleConversationMenu(conversation.id)
+                                              },
+                                              conversationActionState.value === 'generating' &&
+                                                conversationActionId.value === conversation.id
+                                                ? h('span', {
+                                                    class: 'mini-spinner',
+                                                    'aria-hidden': 'true'
+                                                  })
+                                                : renderActionIcon('more')
+                                            ),
+                                            openConversationMenuId.value === conversation.id
+                                              ? h('div', { class: 'conversation-action-menu', role: 'menu' }, [
+                                                  h(
+                                                    'button',
+                                                    {
+                                                      class: 'conversation-action-menu-item',
+                                                      type: 'button',
+                                                      role: 'menuitem',
+                                                      disabled: conversationActionState.value === 'deleting',
+                                                      onClick: () => openEditConversation(conversation)
+                                                    },
+                                                    [renderActionIcon('edit'), h('span', text('editTitle'))]
+                                                  ),
+                                                  h(
+                                                    'button',
+                                                    {
+                                                      class: 'conversation-action-menu-item',
+                                                      type: 'button',
+                                                      role: 'menuitem',
+                                                      disabled:
+                                                        conversationActionState.value === 'generating' &&
+                                                        conversationActionId.value === conversation.id,
+                                                      onClick: () => void generateConversationTitle(conversation.id)
+                                                    },
+                                                    [renderActionIcon('sparkles'), h('span', text('generateTopicName'))]
+                                                  ),
+                                                  h(
+                                                    'button',
+                                                    {
+                                                      class: [
+                                                        'conversation-action-menu-item',
+                                                        'conversation-action-menu-danger'
+                                                      ],
+                                                      type: 'button',
+                                                      role: 'menuitem',
+                                                      disabled: activeRunConversationId.value === conversation.id,
+                                                      onClick: () => openDeleteConversation(conversation.id)
+                                                    },
+                                                    [renderActionIcon('trash'), h('span', text('deleteConversation'))]
+                                                  )
+                                                ])
+                                              : undefined
+                                          ])
+                                        ]
+                                      )
                                     )
-                                  ])
-                                : undefined
-                            ])
-                          ]
-                        )
-                      ),
+                                  )
+                            ]
+                          )
+                        ]
+                      }),
                       olderConversationsCursor.value
                         ? h(
                             'button',
@@ -6266,11 +6897,35 @@ const App = defineComponent({
                     },
                     renderActionIcon('menu')
                   ),
-                  h('div', [
+                  h('div', { class: 'chat-header-titles' }, [
                     h('p', { class: 'eyebrow' }, [
-                      selectedConversation.value?.workspaceLabel ?? selectedAgentName.value ?? text('desktopSession'),
+                      h(
+                        'span',
+                        { class: 'chat-header-workspace' },
+                        selectedConversation.value?.workspaceLabel ?? selectedAgentName.value ?? text('desktopSession')
+                      ),
                       conversationLoadState.value === 'loading' || messageLoadState.value === 'loading'
-                        ? h('span', { class: 'header-loading-state' }, ` · ${text('loadingConversations')}`)
+                        ? h(
+                            'span',
+                            { class: 'header-loading-state' },
+                            ` · ${
+                              messageLoadState.value === 'loading'
+                                ? text('loadingMessages')
+                                : text('loadingConversations')
+                            }`
+                          )
+                        : undefined,
+                      // Composer/send/model errors surface beside the workspace label (not under the input).
+                      submitError.value
+                        ? h(
+                            'span',
+                            {
+                              class: 'chat-header-status-alert',
+                              role: 'alert',
+                              title: submitError.value
+                            },
+                            ` · ${submitError.value}`
+                          )
                         : undefined
                     ]),
                     h('h2', selectedConversation.value?.title ?? text('selectConversation'))
@@ -6799,8 +7454,7 @@ const App = defineComponent({
                         : undefined
                     ]
                   )
-                ]),
-                submitError.value ? h('p', { class: 'composer-error', role: 'alert' }, submitError.value) : undefined
+                ])
               ]),
               statusPanelOpen.value
                 ? h('button', {
@@ -7006,11 +7660,16 @@ const App = defineComponent({
                             'aria-label': text('close'),
                             onClick: () => {
                               newConversationOpen.value = false
+                              pendingWorkspaceSeed.value = { type: 'system' }
+                              pendingWorkspaceHint.value = ''
                             }
                           },
                           '×'
                         )
                       ]),
+                      pendingWorkspaceHint.value
+                        ? h('p', { class: 'create-workspace-hint' }, pendingWorkspaceHint.value)
+                        : undefined,
                       h('label', { class: 'field-label', for: 'agent-select' }, text('agent')),
                       h(
                         'select',
@@ -7041,6 +7700,8 @@ const App = defineComponent({
                             type: 'button',
                             onClick: () => {
                               newConversationOpen.value = false
+                              pendingWorkspaceSeed.value = { type: 'system' }
+                              pendingWorkspaceHint.value = ''
                             }
                           },
                           text('cancel')
@@ -7343,6 +8004,123 @@ style.textContent = `
     grid-template-rows: auto auto auto minmax(0, 1fr);
     overflow: hidden;
     border-right: 1px solid #e2e8f0;
+  }
+
+  .conversation-group {
+    display: grid;
+    gap: 2px;
+    margin-bottom: 8px;
+  }
+
+  .conversation-group-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 28px;
+    gap: 4px;
+    align-items: center;
+    min-height: 32px;
+  }
+
+  .conversation-group-toggle {
+    display: grid;
+    grid-template-columns: 14px 16px minmax(0, 1fr) auto;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+    min-height: 32px;
+    padding: 4px 6px;
+    color: #475569;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .conversation-group-toggle:hover,
+  .conversation-group-toggle:focus-visible {
+    color: #0f172a;
+    background: rgb(148 163 184 / 14%);
+    outline: 0;
+  }
+
+  .conversation-group-chevron {
+    display: inline-grid;
+    place-items: center;
+    width: 14px;
+    color: #94a3b8;
+    font-size: 10px;
+    line-height: 1;
+    transition: transform 0.12s ease;
+  }
+
+  .conversation-group-chevron-collapsed {
+    transform: rotate(-90deg);
+  }
+
+  .conversation-group-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 16px;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .conversation-group-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .conversation-group-count {
+    min-width: 1.25em;
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 500;
+    text-align: right;
+  }
+
+  .conversation-group-create {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    place-items: center;
+    color: #64748b;
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .conversation-group-create:hover,
+  .conversation-group-create:focus-visible {
+    color: #0f172a;
+    background: rgb(148 163 184 / 18%);
+    outline: 0;
+  }
+
+  .conversation-group-items {
+    display: grid;
+    gap: 2px;
+    padding-left: 4px;
+  }
+
+  .create-workspace-hint {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    color: #475569;
+    font-size: 12px;
+    line-height: 1.4;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
   }
 
   .status-panel {
@@ -7794,11 +8572,46 @@ style.textContent = `
     margin-bottom: 0;
   }
 
+  .chat-header-titles {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
   .chat-header > div:not(.mobile-chat-actions) {
     min-width: 0;
   }
 
-  .chat-header .eyebrow,
+  .chat-header .eyebrow {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    gap: 0 2px;
+    align-items: baseline;
+    overflow: hidden;
+  }
+
+  .chat-header-workspace {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chat-header-status-alert {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: #b42318;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :root[data-webui-theme='dark'] .chat-header-status-alert {
+    color: #fca5a5;
+  }
+
   .chat-header h2 {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -8797,7 +9610,6 @@ style.textContent = `
   }
 
   .message {
-    max-width: min(680px, 86%);
     padding: 14px 16px;
     line-height: 1.6;
     background: #ffffff;
@@ -8805,8 +9617,15 @@ style.textContent = `
     border-radius: 8px;
   }
 
+  /* Assistant ~desktop 800px reading column; user stays slightly narrower. */
+  .assistant-message {
+    align-self: flex-start;
+    max-width: min(800px, 100%);
+  }
+
   .user-message {
     align-self: flex-end;
+    max-width: min(640px, 88%);
     color: #ffffff;
     background: #2563eb;
     border-color: #2563eb;
@@ -8815,10 +9634,6 @@ style.textContent = `
   .user-message ::selection {
     color: #111827;
     background: #fef08a;
-  }
-
-  .assistant-message {
-    align-self: flex-start;
   }
 
   .message p {
@@ -9206,26 +10021,40 @@ style.textContent = `
   }
 
 
+  /*
+   * Desktop-aligned table chrome (src/renderer/assets/styles/markdown.css):
+   * - rounded 8px outer frame + border borders (last cell drops inner edge)
+   * - width 100% + display:table so sparse tables still fill the frame
+   *   (fixes right-edge gap from the old display:block / max-content path)
+   * - wrap cell text; no min-width / max-content so tables stay readable
+   */
   .markdown-content table {
+    display: table;
+    box-sizing: border-box;
     width: 100%;
     max-width: 100%;
     margin: 0.75em 0;
     overflow: hidden;
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
     border: 0.5px solid #d1d5db;
     border-radius: 8px;
-    font-size: 0.92em;
+    font-size: 0.9em;
   }
 
   .markdown-content th,
   .markdown-content td {
-    min-width: 88px;
-    padding: 0.5em 0.75em;
+    box-sizing: border-box;
+    padding: 0.5em;
     text-align: left;
     vertical-align: top;
     border-right: 0.5px solid #d1d5db;
     border-bottom: 0.5px solid #d1d5db;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+    hyphens: auto;
   }
 
   .markdown-content th:last-child,
@@ -9244,12 +10073,6 @@ style.textContent = `
 
   .markdown-content tr:hover {
     background: #f8fafc;
-  }
-
-  .markdown-content .table-wrapper,
-  .markdown-content table {
-    display: block;
-    overflow-x: auto;
   }
 
   .process-block {
@@ -10419,7 +11242,8 @@ style.textContent = `
 
   .modal-backdrop {
     position: fixed;
-    z-index: 20;
+    /* Above mobile conversation drawer (30) and its backdrop (29). */
+    z-index: 50;
     display: grid;
     inset: 0;
     place-items: center;
@@ -10966,6 +11790,10 @@ style.textContent = `
   :root[data-webui-theme='dark'] .conversation-action-button:focus-visible,
   :root[data-webui-theme='dark'] .conversation-action-menu-item:hover,
   :root[data-webui-theme='dark'] .conversation-action-menu-item:focus-visible,
+  :root[data-webui-theme='dark'] .conversation-group-toggle:hover,
+  :root[data-webui-theme='dark'] .conversation-group-toggle:focus-visible,
+  :root[data-webui-theme='dark'] .conversation-group-create:hover,
+  :root[data-webui-theme='dark'] .conversation-group-create:focus-visible,
   :root[data-webui-theme='dark'] .model-picker-option:hover,
   :root[data-webui-theme='dark'] .model-picker-option-selected,
   :root[data-webui-theme='dark'] .reasoning-picker-option:hover,
@@ -10976,6 +11804,22 @@ style.textContent = `
   :root[data-webui-theme='dark'] .slash-command-option:hover,
   :root[data-webui-theme='dark'] .theme-toggle-button:hover {
     background: #334155;
+  }
+
+  :root[data-webui-theme='dark'] .conversation-group-toggle,
+  :root[data-webui-theme='dark'] .conversation-group-create {
+    color: #cbd5e1;
+  }
+
+  :root[data-webui-theme='dark'] .conversation-group-count,
+  :root[data-webui-theme='dark'] .conversation-group-chevron {
+    color: #94a3b8;
+  }
+
+  :root[data-webui-theme='dark'] .create-workspace-hint {
+    color: #cbd5e1;
+    background: #1e293b;
+    border-color: #334155;
   }
 
   :root[data-webui-theme='dark'] .conversation-title,
@@ -11298,6 +12142,10 @@ style.textContent = `
 
   :root[data-webui-theme='light'] .conversation-item:hover,
   :root[data-webui-theme='light'] .conversation-item-selected,
+  :root[data-webui-theme='light'] .conversation-group-toggle:hover,
+  :root[data-webui-theme='light'] .conversation-group-toggle:focus-visible,
+  :root[data-webui-theme='light'] .conversation-group-create:hover,
+  :root[data-webui-theme='light'] .conversation-group-create:focus-visible,
   :root[data-webui-theme='light'] .model-picker-option:hover,
   :root[data-webui-theme='light'] .model-picker-option-selected,
   :root[data-webui-theme='light'] .reasoning-picker-option:hover,
@@ -11308,6 +12156,12 @@ style.textContent = `
   :root[data-webui-theme='light'] .slash-command-option:hover,
   :root[data-webui-theme='light'] .theme-toggle-button:hover {
     background: #eef2ff;
+  }
+
+  :root[data-webui-theme='light'] .create-workspace-hint {
+    color: #475569;
+    background: #f8fafc;
+    border-color: #e2e8f0;
   }
 
   :root[data-webui-theme='light'] .conversation-title,

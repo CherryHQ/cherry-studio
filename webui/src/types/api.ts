@@ -1,10 +1,14 @@
 export type WebUiRole = 'user' | 'assistant' | 'system' | 'tool'
 
+export type WebUiWorkspaceType = 'user' | 'system'
+
 export type WebUiConversationSummary = {
   readonly id: string
   readonly agentId: string | null
   readonly title: string
   readonly updatedAt: string
+  readonly workspaceId?: string
+  readonly workspaceType?: WebUiWorkspaceType
   readonly workspaceLabel?: string
   readonly workspacePath?: string
 }
@@ -239,10 +243,24 @@ export type WebUiAgentSessionEntity = {
   readonly name: string
   readonly agentId: string | null
   readonly updatedAt: string
+  readonly workspaceId?: string
   readonly workspace?: {
+    readonly id?: string
     readonly name?: string
     readonly path?: string
+    readonly type?: WebUiWorkspaceType
   }
+}
+
+/** Body for POST /api/data/agent-sessions — workspace must be system or user+id (never path). */
+export type WebUiCreateSessionWorkspace =
+  | { readonly type: 'system' }
+  | { readonly type: 'user'; readonly workspaceId: string }
+
+export type WebUiCreateSessionBody = {
+  readonly agentId: string
+  readonly name: string
+  readonly workspace: WebUiCreateSessionWorkspace
 }
 
 export type WebUiMessagePart = {
