@@ -543,7 +543,7 @@ const AppearanceSettings: FC = () => {
 const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
   if (mode === ThemeMode.system) {
     return (
-      <div className="flex h-18 overflow-hidden rounded-md border border-neutral-400">
+      <div className="flex h-[85px] overflow-hidden rounded-md border border-neutral-400">
         <div className="flex w-1/2 bg-white">
           <div className="w-1/3 border-neutral-200 border-r bg-neutral-100 p-1">
             <div className="size-1.5 rounded-full bg-neutral-400" />
@@ -573,7 +573,7 @@ const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
   return (
     <div
       className={cn(
-        'flex h-18 overflow-hidden rounded-md border',
+        'flex h-[85px] overflow-hidden rounded-md border',
         isDarkPreview ? 'border-neutral-700 bg-neutral-950' : 'border-neutral-300 bg-white'
       )}>
       <div
