@@ -30,6 +30,35 @@ How to approach any coding task in this repo.
 - **v1 residue is a standing exception:** during the v2 refactor you may delete (not just flag) v1 dead code in an area you're already editing — see [v2 Refactoring → Coexistence Mindset](#coexistence-mindset). Unrelated v1 code and *fixing* v1 remain out of scope.
 - Every changed line must trace directly to the user's request.
 
+#### Never Widen a Boundary to Make Code Work
+
+The most expensive defects in this repo were not wrong logic — they were checks that got
+switched off where two subsystems meet, so a broken request looked exactly like a
+working one (#17394: a whole family of UI controls that reached no vendor, CI green).
+Every instance was one of the four moves below. They are individually reasonable and
+collectively fatal, so treat each as **banned unless justified in a comment**:
+
+- **`a ?? b ?? c` over spellings of one value.** A probe chain means "I did not trace
+  the producer". Find the one spelling that arrives and read it once. The chain can
+  never fail loudly, so it is never corrected.
+- **`as T` / `Record<string, unknown>` / `?:` at a subsystem edge.** Widening silences
+  the compiler exactly where it was about to tell the truth. If a field is always
+  supplied, type it required; if a shape is known, derive it.
+- **Restating a vocabulary instead of deriving it.** Hand-listing keys that another
+  module owns *will* drift. `Pick<TheirType, 'a' | 'b'>` makes drift a compile error;
+  a hand-written interface makes it a silent runtime miss.
+- **Defaulting on absence** (`?? true`, silently dropping an unmapped field). A value
+  that never arrived then reads as a value the user chose. Log it, or fail.
+
+Before writing any of them, answer: **"who writes this field, and can I name the line?"**
+If not, it is suspect — that single question is what unmasked every one of these.
+
+**Tests do not protect against this.** A test written from the same mental model as the
+code agrees with the code's misconception — four separate tests in this repo pinned the
+bug as expected behaviour. So: build fixtures from the producer's real data, not
+hand-authored literals, and **never trust a test you have not seen fail** (break the
+code on purpose once, confirm it goes red, put it back).
+
 #### Goal-Driven Execution
 
 - Convert tasks into verifiable goals before coding:
