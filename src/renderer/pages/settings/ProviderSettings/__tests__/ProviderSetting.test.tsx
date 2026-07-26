@@ -92,7 +92,7 @@ describe('ProviderSetting', () => {
     expect(screen.getByTestId('provider-detail-shell')).not.toHaveClass('bg-card')
   })
 
-  it('aligns the provider header to the body without a divider and keeps its top spacing compact', () => {
+  it('centers the provider header vertically without changing its spacing from the body', () => {
     render(<ProviderSetting providerId="openai" />)
 
     const innerWrap = screen.getByText('provider-header-openai').parentElement as HTMLElement
@@ -101,9 +101,9 @@ describe('ProviderSetting', () => {
     expect(innerWrap.className).not.toMatch(/(^|\s)border-b(\s|$)/)
     expect(innerWrap.className).toMatch(/(^|\s)max-w-3xl(\s|$)/)
     expect(innerWrap.className).toMatch(/(^|\s)mx-auto(\s|$)/)
-    expect(innerWrap).toHaveClass('pb-1')
-    expect(innerWrap.parentElement).toHaveClass('pt-4')
-    expect(bodyScroller).toHaveClass('px-6', 'pt-3', 'pb-6')
+    expect(innerWrap).not.toHaveClass('pb-1')
+    expect(innerWrap.parentElement).toHaveClass('py-2.5')
+    expect(bodyScroller).toHaveClass('px-6', 'pt-1.5', 'pb-6')
   })
 
   it('keeps onboarding coordination at the page boundary', () => {

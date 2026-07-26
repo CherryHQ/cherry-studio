@@ -634,7 +634,10 @@ const McpSettings: React.FC = () => {
       label: t('settings.mcp.tabs.general'),
       children: (
         <Form {...form}>
-          <form onChange={() => setIsFormChanged(true)} className="w-full min-w-0 pb-6" id="mcp-settings-form">
+          <form
+            onChange={() => setIsFormChanged(true)}
+            className="w-full min-w-0 pb-6 [&_[data-slot=select-trigger]]:bg-background [&_input[data-slot=form-control]]:bg-background [&_textarea[data-slot=form-control]]:bg-background"
+            id="mcp-settings-form">
             <McpFormSection className="flex flex-col gap-4">
               <McpFormGrid>
                 <FormField

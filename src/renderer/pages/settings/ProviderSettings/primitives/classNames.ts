@@ -33,11 +33,11 @@ export const authConnectionClasses = {
  * Provider detail column (`ProviderSetting.tsx`) — padding + gap between Authentication + ModelList.
  */
 export const providerDetailColumnClasses = {
-  headerPad: 'shrink-0 px-6 pt-4',
-  scrollStrip: 'min-h-0 flex-1 overflow-x-hidden px-6 pt-3 pb-6',
+  headerPad: 'shrink-0 px-6 py-2.5',
+  scrollStrip: 'min-h-0 flex-1 overflow-x-hidden px-6 pt-1.5 pb-6',
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content. */
-  headerContentMaxWidth: 'mx-auto w-full max-w-3xl pb-1',
+  headerContentMaxWidth: 'mx-auto w-full max-w-3xl',
   sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-5'
 } as const
 
