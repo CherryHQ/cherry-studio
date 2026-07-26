@@ -126,7 +126,7 @@ export interface AiImageRequest extends AiBaseRequest {
   mode?: ImageGenerationMode
   /**
    * Canonical param bag — already a strict, coerced `ParamValues` (the
-   * `ai.generate_image` IPC validated it via the catalog `imageParamsSchema`).
+   * `ai.image.generate` IPC validated it via the catalog `imageParamsSchema`).
    * main derives the structured request fields + the vendor bag from it via
    * `splitParamValues`.
    */
@@ -201,8 +201,8 @@ export interface AiRerankResult {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
 export class AiService extends BaseService {
-  // Per-request AbortControllers for the `ai.generate_image` route, paired with the
-  // `ai.abort_image` route. Key is the renderer-generated requestId. Entries are
+  // Per-request AbortControllers for the `ai.image.generate` route, paired with the
+  // `ai.image.abort` route. Key is the renderer-generated requestId. Entries are
   // self-cleaning via `runImageRequest`'s `finally` block; abort on an unknown id is
   // a no-op.
   // TODO(abort-registry): collapse with MCP/stream/LAN registries once
@@ -233,7 +233,7 @@ export class AiService extends BaseService {
   }
 
   /**
-   * Apply a tool-approval decision (`ai.respond_tool_approval`). Input validation happens in the
+   * Apply a tool-approval decision (`ai.tool.respond_approval`). Input validation happens in the
    * IpcApi router; `senderWc` is the caller window's WebContents (the MCP continuation streams to
    * it), resolved by the handler from `ctx.senderId` — `undefined` when no managed window, in which
    * case the continuation can't be surfaced and we resolve `{ ok: false }`.
@@ -471,8 +471,8 @@ export class AiService extends BaseService {
 
   /**
    * Run an image request under an abort registry entry keyed by the renderer-supplied
-   * `requestId`, so `ai.abort_image` can cancel it. Self-cleaning via `finally`; the
-   * `ai.generate_image` handler delegates here (the registry is service state).
+   * `requestId`, so `ai.image.abort` can cancel it. Self-cleaning via `finally`; the
+   * `ai.image.generate` handler delegates here (the registry is service state).
    */
   async runImageRequest(requestId: string, payload: AiImageRequest): Promise<AiImageResult> {
     const controller = new AbortController()
@@ -503,7 +503,7 @@ export class AiService extends BaseService {
       : request.prompt
 
     // `request.paramValues` is already a strict, coerced `ParamValues` — the
-    // `ai.generate_image` IPC validated it via the catalog `imageParamsSchema` at
+    // `ai.image.generate` IPC validated it via the catalog `imageParamsSchema` at
     // the boundary (no main-side re-parse / cast). Split it into the structured
     // fields the AI SDK call consumes (n/size/seed/aspectRatio → imageParams
     // below) vs the leftover vendor bag (cfg, the diffusion/openai knobs, …) the
@@ -664,7 +664,7 @@ export class AiService extends BaseService {
       throw error
     }
 
-    // Reuse the existing IPC AbortController (ai.abort_image): when it fires,
+    // Reuse the existing IPC AbortController (ai.image.abort): when it fires,
     // cancel the job (which aborts the handler + remote task).
     const onAbort = () => void jobManager.cancel(handle.id, 'aborted by user').catch(() => {})
     if (signal?.aborted) onAbort()

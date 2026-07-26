@@ -34,7 +34,7 @@ Decision rule: SQLite data → DataApi; user setting → Preference; losable/sha
 | Main coordinator | `IpcApiService` (`request` dispatch + `broadcast`/`send`) |
 | Preload bridge | `window.api.ipcApi` (`{ request, on }`) |
 | Renderer facade | `ipcApi` (`ipcApi.request('window.set_minimum_size', x)`) + `useIpcOn` |
-| Route / event names | dot **snake_case** (`file.read_doc`, `window.resized`); payload fields stay camelCase |
+| Route / event names | dot **snake_case**, any depth ≥ 2 (`file.read_doc`, `ai.agent.task.create`); resource path first, verb last; payload fields stay camelCase |
 | Request schemas | `*RequestSchemas` → `ipcRequestSchemas` / `IpcRoute` |
 | Event contracts (pure types) | `*EventSchemas` → `IpcEventSchemas` / `IpcEventName` |
 | Router / handlers / error | `IpcRouter` / `ipcHandlers` / `IpcError` |

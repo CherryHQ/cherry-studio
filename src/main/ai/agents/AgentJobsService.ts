@@ -48,7 +48,7 @@ export class AgentJobsService extends BaseService {
         jobInputTemplate: {
           agentId,
           prompt: form.prompt,
-          timeoutMinutes: form.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES,
+          timeoutMinutes: form.timeoutMinutes === null ? 0 : (form.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES),
           workspace: form.workspace
         },
         catchUpPolicy: { kind: 'skip-missed' }
@@ -80,9 +80,10 @@ export class AgentJobsService extends BaseService {
     if (patch.trigger !== undefined && !triggersEqual(patch.trigger, existing.trigger)) {
       schedulePatch.trigger = patch.trigger
     }
+    const nextTimeoutMinutes = patch.timeoutMinutes === null ? 0 : (patch.timeoutMinutes ?? existing.timeoutMinutes)
     const templateChanged =
       (patch.prompt !== undefined && patch.prompt !== existing.prompt) ||
-      (patch.timeoutMinutes !== undefined && patch.timeoutMinutes !== existing.timeoutMinutes) ||
+      (patch.timeoutMinutes !== undefined && nextTimeoutMinutes !== existing.timeoutMinutes) ||
       patch.workspace !== undefined
     if (templateChanged) {
       // The armed callback re-reads the row before each fire, so a template
@@ -90,7 +91,7 @@ export class AgentJobsService extends BaseService {
       schedulePatch.jobInputTemplate = {
         agentId,
         prompt: patch.prompt ?? existing.prompt,
-        timeoutMinutes: patch.timeoutMinutes ?? existing.timeoutMinutes,
+        timeoutMinutes: nextTimeoutMinutes,
         workspace: patch.workspace ?? existing.workspace
       }
     }

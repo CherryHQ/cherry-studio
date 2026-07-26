@@ -296,6 +296,22 @@ export type AgentSchemas = {
     }
   }
 
+  /** List scheduled tasks across every agent (settings overview, paginated) */
+  '/agent-tasks': {
+    GET: {
+      query?: ListQuery
+      response: OffsetPaginationResponse<ScheduledTaskEntity>
+    }
+  }
+
+  /** Get a scheduled task without requiring its owning Agent in the route */
+  '/agent-tasks/:taskId': {
+    GET: {
+      params: { taskId: string }
+      response: ScheduledTaskEntity
+    }
+  }
+
   /** List tasks for an agent (mutations live on IpcApi `ai.agent.task.*`) */
   '/agents/:agentId/tasks': {
     GET: {
