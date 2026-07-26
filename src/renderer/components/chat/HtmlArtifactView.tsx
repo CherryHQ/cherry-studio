@@ -11,12 +11,13 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { htmlArtifactRequiresUserConsent } from '@renderer/utils/htmlArtifact'
-import { isMac } from '@renderer/utils/platform'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import type { ConsoleMessageEvent, WebviewTag } from 'electron'
-import { Code2, DownloadIcon, Eye, LinkIcon, Maximize2, Minimize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Code2, DownloadIcon, Eye, LinkIcon, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
+import { lazy, memo, type RefObject, Suspense, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const HtmlArtifactsPopup = lazy(() => import('@renderer/components/CodeBlockView/HtmlArtifactsPopup'))
 
 const logger = loggerService.withContext('HtmlArtifactView')
 
@@ -26,15 +27,6 @@ const MAX_ZOOM = 200
 const ZOOM_STEP = 10
 const INITIAL_PREVIEW_HEIGHT = 240
 const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
-const FULLSCREEN_ANCESTOR_STYLE_OVERRIDES = {
-  'backdrop-filter': 'none',
-  contain: 'none',
-  'content-visibility': 'visible',
-  filter: 'none',
-  perspective: 'none',
-  transform: 'none',
-  'will-change': 'auto'
-} as const
 
 interface HtmlArtifactViewProps {
   html: string
@@ -161,32 +153,6 @@ function getMaxPreviewHeight(viewport: HTMLElement): number {
   return Math.max(1, Math.floor(availableHeight * MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO))
 }
 
-function releaseFullscreenContainingBlocks(surface: HTMLElement): () => void {
-  const restorations: Array<() => void> = []
-  let ancestor = surface.parentElement
-
-  while (ancestor && ancestor !== document.body) {
-    const currentAncestor = ancestor
-    for (const [property, override] of Object.entries(FULLSCREEN_ANCESTOR_STYLE_OVERRIDES)) {
-      const value = currentAncestor.style.getPropertyValue(property)
-      const priority = currentAncestor.style.getPropertyPriority(property)
-      restorations.push(() => {
-        if (value) {
-          currentAncestor.style.setProperty(property, value, priority)
-        } else {
-          currentAncestor.style.removeProperty(property)
-        }
-      })
-      currentAncestor.style.setProperty(property, override, 'important')
-    }
-    ancestor = currentAncestor.parentElement
-  }
-
-  return () => {
-    restorations.reverse().forEach((restore) => restore())
-  }
-}
-
 const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
   html,
   title,
@@ -296,6 +262,40 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
   )
 })
 
+const StaticHtmlPopupPreview = memo(function StaticHtmlPopupPreview({
+  html,
+  title,
+  zoom,
+  iframeRef
+}: {
+  html: string
+  title: string
+  zoom: number
+  iframeRef: RefObject<HTMLIFrameElement | null>
+}) {
+  const zoomScale = zoom / 100
+
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      <div
+        className="origin-top-left"
+        style={{
+          width: `${100 / zoomScale}%`,
+          height: `${100 / zoomScale}%`,
+          transform: `scale(${zoomScale})`
+        }}>
+        <HtmlPreviewFrame
+          html={html}
+          title={title}
+          iframeRef={iframeRef}
+          sandbox="allow-same-origin"
+          csp={HTML_PREVIEW_RESTRICTED_CSP}
+        />
+      </div>
+    </div>
+  )
+})
+
 const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   html,
   title,
@@ -388,90 +388,6 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   )
 })
 
-const HtmlArtifactFullscreenToolbar = memo(function HtmlArtifactFullscreenToolbar({
-  visible,
-  titleId,
-  title,
-  zoom,
-  onZoomOut,
-  onResetZoom,
-  onZoomIn,
-  onClose
-}: {
-  visible: boolean
-  titleId: string
-  title: string
-  zoom: number
-  onZoomOut: () => void
-  onResetZoom: () => void
-  onZoomIn: () => void
-  onClose: () => void
-}) {
-  const { t } = useTranslation()
-
-  return (
-    <header
-      aria-hidden={!visible}
-      className={cn(
-        'relative items-center justify-between gap-4 border-border border-b bg-background px-2.5 [-webkit-app-region:drag]',
-        visible ? 'flex' : 'hidden'
-      )}>
-      <div className={cn('min-w-0 flex-1', isMac ? 'pl-20' : 'pl-3')}>
-        <h2 id={titleId} className="max-w-[45vw] truncate font-bold text-foreground text-sm">
-          {title}
-        </h2>
-      </div>
-      <div className="flex flex-1 items-center justify-end gap-0.5 pr-1 [-webkit-app-region:no-drag]">
-        <Tooltip content={t('preview.zoom_out')} delay={500}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t('preview.zoom_out')}
-            disabled={zoom <= MIN_ZOOM}
-            onClick={onZoomOut}>
-            <ZoomOut className="size-3.5" />
-          </Button>
-        </Tooltip>
-        <Tooltip content={t('preview.reset')} delay={500}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="min-w-10 px-1 text-muted-foreground text-xs tabular-nums"
-            aria-label={t('preview.reset')}
-            onClick={onResetZoom}>
-            {zoom}%
-          </Button>
-        </Tooltip>
-        <Tooltip content={t('preview.zoom_in')} delay={500}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t('preview.zoom_in')}
-            disabled={zoom >= MAX_ZOOM}
-            onClick={onZoomIn}>
-            <ZoomIn className="size-3.5" />
-          </Button>
-        </Tooltip>
-        <span className="mx-1 h-4 w-px bg-border-subtle" />
-        <Tooltip content={t('common.minimize')} delay={500}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            data-html-artifact-fullscreen-close
-            aria-label={t('common.minimize')}
-            onClick={onClose}>
-            <Minimize2 className="size-3.5" />
-          </Button>
-        </Tooltip>
-      </div>
-    </header>
-  )
-})
-
 const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
   title,
   description,
@@ -525,14 +441,12 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [previewHeight, setPreviewHeight] = useState(INITIAL_PREVIEW_HEIGHT)
   const [approvedInteractiveHtml, setApprovedInteractiveHtml] = useState<string | null>(null)
-  const [fullscreenHtml, setFullscreenHtml] = useState<string | null>(null)
-  const surfaceRef = useRef<HTMLDivElement>(null)
-  const fullscreenTitleId = useId()
+  const [popupHtml, setPopupHtml] = useState<string | null>(null)
   const hasContent = html.trim().length > 0
   const requiresUserConsent = useMemo(() => htmlArtifactRequiresUserConsent(html), [html])
   const isInteractivePreviewApproved = requiresUserConsent && approvedInteractiveHtml === html
   const isPreviewBlocked = requiresUserConsent && !isInteractivePreviewApproved
-  const isFullscreen = fullscreenHtml === html && !isPreviewBlocked
+  const isPopupOpen = popupHtml === html && !isPreviewBlocked
   const showCode = viewMode === 'code'
   const surfaceHeight = showCode ? Math.max(INITIAL_PREVIEW_HEIGHT, previewHeight) : previewHeight
   const toggleLabel = t(showCode ? 'html_artifacts.preview' : 'html_artifacts.code')
@@ -551,60 +465,8 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   const handleApproveInteractivePreview = () => {
     setApprovedInteractiveHtml(html)
     setViewMode('preview')
-    setFullscreenHtml(null)
+    setPopupHtml(null)
   }
-  useLayoutEffect(() => {
-    const surface = surfaceRef.current
-    if (!isFullscreen || !surface) return
-    return releaseFullscreenContainingBlocks(surface)
-  }, [isFullscreen])
-  useEffect(() => {
-    if (!isFullscreen) return
-
-    const body = document.body
-    const originalOverflow = body.style.overflow
-    const surface = surfaceRef.current
-    const previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const getFocusableElements = () =>
-      Array.from(
-        surface?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        ) ?? []
-      ).filter((element) => !element.closest('[aria-hidden="true"]'))
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setFullscreenHtml(null)
-        return
-      }
-      if (event.key !== 'Tab') return
-
-      const focusableElements = getFocusableElements()
-      if (focusableElements.length === 0) {
-        event.preventDefault()
-        return
-      }
-
-      const currentIndex = focusableElements.indexOf(document.activeElement as HTMLElement)
-      const nextIndex = event.shiftKey
-        ? currentIndex <= 0
-          ? focusableElements.length - 1
-          : currentIndex - 1
-        : currentIndex === focusableElements.length - 1
-          ? 0
-          : currentIndex + 1
-      event.preventDefault()
-      focusableElements[nextIndex]?.focus()
-    }
-
-    body.style.overflow = 'hidden'
-    window.addEventListener('keydown', handleKeyDown)
-    surface?.querySelector<HTMLElement>('[data-html-artifact-fullscreen-close]')?.focus()
-    return () => {
-      body.style.overflow = originalOverflow
-      window.removeEventListener('keydown', handleKeyDown)
-      previousActiveElement?.focus()
-    }
-  }, [isFullscreen])
   const handleOpenExternal = async () => {
     try {
       const tempPath = await window.api.file.createTempFile('artifacts-preview.html')
@@ -642,152 +504,143 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   }
 
   return (
-    <div
-      data-testid="html-artifact-view"
-      className="w-full"
-      style={isFullscreen ? { height: surfaceHeight } : undefined}>
-      <div
-        ref={surfaceRef}
-        data-testid={isFullscreen ? 'html-artifact-fullscreen' : 'html-artifact-surface'}
-        role={isFullscreen ? 'dialog' : undefined}
-        aria-modal={isFullscreen || undefined}
-        aria-labelledby={isFullscreen ? fullscreenTitleId : undefined}
-        className={cn(
-          isFullscreen
-            ? 'fixed inset-0 z-10000 grid h-screen w-screen grid-rows-[45px_minmax(0,1fr)] overflow-hidden bg-background'
-            : 'group relative w-full overflow-hidden'
-        )}
-        style={isFullscreen ? undefined : { height: surfaceHeight }}>
-        <HtmlArtifactFullscreenToolbar
-          visible={isFullscreen}
-          titleId={fullscreenTitleId}
-          title={title}
-          zoom={zoom}
-          onZoomOut={handleZoomOut}
-          onResetZoom={handleResetZoom}
-          onZoomIn={handleZoomIn}
-          onClose={() => setFullscreenHtml(null)}
-        />
-        <div className="relative h-full min-h-0 overflow-hidden bg-background">
-          <div className={cn('h-full min-h-0', showCode && 'hidden')} aria-hidden={showCode || undefined}>
-            {requiresUserConsent ? (
-              <InteractiveHtmlPreview
-                html={html}
-                title={title}
-                zoom={zoom}
-                onHeightChange={setPreviewHeight}
-                forwardBoundaryWheel={!isFullscreen}
-              />
-            ) : (
-              <AdaptiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
-            )}
-          </div>
-          {showCode && (
-            <div className="h-full min-h-0">
-              <CodeViewer value={html} language="html" height="100%" expanded={false} className="h-full" />
+    <div data-testid="html-artifact-view" className="w-full">
+      {!isPopupOpen ? (
+        <div
+          data-testid="html-artifact-surface"
+          className="group relative w-full overflow-hidden"
+          style={{ height: surfaceHeight }}>
+          <div className="relative h-full min-h-0 overflow-hidden bg-background">
+            <div className={cn('h-full min-h-0', showCode && 'hidden')} aria-hidden={showCode || undefined}>
+              {requiresUserConsent ? (
+                <InteractiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
+              ) : (
+                <AdaptiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
+              )}
             </div>
-          )}
-
-          <div
-            data-testid="html-artifact-controls"
-            aria-hidden={isFullscreen}
-            className={cn(
-              'pointer-events-none absolute top-1.5 right-1.5 z-10 items-center gap-0.5 rounded-md border border-border-subtle bg-popover p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none',
-              isFullscreen ? 'hidden' : 'flex'
-            )}>
-            {!showCode && (
-              <>
-                <Tooltip content={t('preview.zoom_out')} delay={500}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-6"
-                    aria-label={t('preview.zoom_out')}
-                    disabled={zoom <= MIN_ZOOM}
-                    onClick={handleZoomOut}>
-                    <ZoomOut className="size-3" />
-                  </Button>
-                </Tooltip>
-                <Tooltip content={t('preview.reset')} delay={500}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 min-h-6 min-w-9 px-1 text-muted-foreground text-xs tabular-nums"
-                    aria-label={t('preview.reset')}
-                    onClick={handleResetZoom}>
-                    {zoom}%
-                  </Button>
-                </Tooltip>
-                <Tooltip content={t('preview.zoom_in')} delay={500}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-6"
-                    aria-label={t('preview.zoom_in')}
-                    disabled={zoom >= MAX_ZOOM}
-                    onClick={handleZoomIn}>
-                    <ZoomIn className="size-3" />
-                  </Button>
-                </Tooltip>
-                <span className="h-3.5 w-px bg-border-subtle" />
-              </>
+            {showCode && (
+              <div className="h-full min-h-0">
+                <CodeViewer value={html} language="html" height="100%" expanded={false} className="h-full" />
+              </div>
             )}
-            <Tooltip content={t('chat.artifacts.button.openExternal')} delay={500}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="size-6"
-                aria-label={t('chat.artifacts.button.openExternal')}
-                disabled={!hasContent}
-                onClick={handleOpenExternal}>
-                <LinkIcon className="size-3" />
-              </Button>
-            </Tooltip>
-            <Tooltip content={t('code_block.download.label')} delay={500}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="size-6"
-                aria-label={t('code_block.download.label')}
-                disabled={!hasContent}
-                onClick={handleDownload}>
-                <DownloadIcon className="size-3" />
-              </Button>
-            </Tooltip>
-            {!showCode && (
-              <Tooltip content={t('common.maximize')} delay={500}>
+
+            <div
+              data-testid="html-artifact-controls"
+              className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md border border-border-subtle bg-popover p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
+              {!showCode && (
+                <>
+                  <Tooltip content={t('preview.zoom_out')} delay={500}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-6"
+                      aria-label={t('preview.zoom_out')}
+                      disabled={zoom <= MIN_ZOOM}
+                      onClick={handleZoomOut}>
+                      <ZoomOut className="size-3" />
+                    </Button>
+                  </Tooltip>
+                  <Tooltip content={t('preview.reset')} delay={500}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 min-h-6 min-w-9 px-1 text-muted-foreground text-xs tabular-nums"
+                      aria-label={t('preview.reset')}
+                      onClick={handleResetZoom}>
+                      {zoom}%
+                    </Button>
+                  </Tooltip>
+                  <Tooltip content={t('preview.zoom_in')} delay={500}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-6"
+                      aria-label={t('preview.zoom_in')}
+                      disabled={zoom >= MAX_ZOOM}
+                      onClick={handleZoomIn}>
+                      <ZoomIn className="size-3" />
+                    </Button>
+                  </Tooltip>
+                  <span className="h-3.5 w-px bg-border-subtle" />
+                </>
+              )}
+              <Tooltip content={t('chat.artifacts.button.openExternal')} delay={500}>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
                   className="size-6"
-                  aria-label={t('common.maximize')}
-                  onClick={() => setFullscreenHtml(html)}>
-                  <Maximize2 className="size-3" />
+                  aria-label={t('chat.artifacts.button.openExternal')}
+                  disabled={!hasContent}
+                  onClick={handleOpenExternal}>
+                  <LinkIcon className="size-3" />
                 </Button>
               </Tooltip>
-            )}
-            <span className="h-3.5 w-px bg-border-subtle" />
-            <Tooltip content={toggleLabel} delay={500}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="size-6"
-                aria-label={toggleLabel}
-                aria-pressed={showCode}
-                onClick={handleToggle}>
-                {showCode ? <Eye className="size-3" /> : <Code2 className="size-3" />}
-              </Button>
-            </Tooltip>
+              <Tooltip content={t('code_block.download.label')} delay={500}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-6"
+                  aria-label={t('code_block.download.label')}
+                  disabled={!hasContent}
+                  onClick={handleDownload}>
+                  <DownloadIcon className="size-3" />
+                </Button>
+              </Tooltip>
+              {!showCode && (
+                <Tooltip content={t('common.maximize')} delay={500}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-6"
+                    aria-label={t('common.maximize')}
+                    onClick={() => setPopupHtml(html)}>
+                    <Maximize2 className="size-3" />
+                  </Button>
+                </Tooltip>
+              )}
+              <span className="h-3.5 w-px bg-border-subtle" />
+              <Tooltip content={toggleLabel} delay={500}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-6"
+                  aria-label={toggleLabel}
+                  aria-pressed={showCode}
+                  onClick={handleToggle}>
+                  {showCode ? <Eye className="size-3" /> : <Code2 className="size-3" />}
+                </Button>
+              </Tooltip>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
+
+      {isPopupOpen ? (
+        <Suspense fallback={null}>
+          <HtmlArtifactsPopup
+            open={isPopupOpen}
+            title={title}
+            html={html}
+            editable={false}
+            canCapturePreview={!requiresUserConsent}
+            renderPreview={(iframeRef) =>
+              requiresUserConsent ? (
+                <InteractiveHtmlPreview html={html} title={title} zoom={zoom} forwardBoundaryWheel={false} />
+              ) : (
+                <StaticHtmlPopupPreview html={html} title={title} zoom={zoom} iframeRef={iframeRef} />
+              )
+            }
+            onClose={() => setPopupHtml(null)}
+          />
+        </Suspense>
+      ) : null}
     </div>
   )
 })

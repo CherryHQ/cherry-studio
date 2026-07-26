@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, Ref, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HtmlArtifactView } from '../HtmlArtifactView'
@@ -13,6 +13,25 @@ const mocks = vi.hoisted(() => ({
     ({ title, iframeRef }: { html: string; title: string; iframeRef?: Ref<HTMLIFrameElement> }) => (
       <iframe ref={iframeRef} data-testid="html-preview-frame" title={title} sandbox="" />
     )
+  ),
+  HtmlArtifactsPopup: vi.fn(
+    ({
+      open,
+      renderPreview,
+      onClose
+    }: {
+      open: boolean
+      renderPreview?: (iframeRef: RefObject<HTMLIFrameElement | null>) => ReactNode
+      onClose: () => void
+    }) =>
+      open ? (
+        <div data-testid="html-artifacts-popup">
+          {renderPreview?.({ current: null })}
+          <button type="button" data-testid="html-artifacts-popup-close" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      ) : null
   ),
   loggerError: vi.fn(),
   openPath: vi.fn(),
@@ -32,6 +51,7 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({ default: mocks.CodeViewer }))
+vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsPopup', () => ({ default: mocks.HtmlArtifactsPopup }))
 vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', () => ({
   HTML_PREVIEW_RESTRICTED_CSP: mocks.htmlPreviewRestrictedCsp,
   injectHtmlPreviewHeadElement: (html: string, element: string) => `${element}${html}`,
@@ -164,45 +184,49 @@ describe('HtmlArtifactView', () => {
     expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
   })
 
-  it('requires consent before fullscreen and preserves the interactive webview across display modes', () => {
+  it('opens approved interactive HTML in the existing artifacts popup', async () => {
     const html = '<script>document.body.textContent = "interactive"</script>'
 
     render(<HtmlArtifactView html={html} title="Preview" />)
 
     expect(screen.queryByRole('button', { name: 'common.maximize' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
-    const webview = screen.getByTestId('interactive-html-webview')
+    const inlineWebview = screen.getByTestId('interactive-html-webview')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
-    expect(screen.getByTestId('html-artifact-fullscreen')).toBeInTheDocument()
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
     expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
-    expect(screen.getByTestId('interactive-html-webview')).toBe(webview)
+    expect(screen.getByTestId('interactive-html-webview')).not.toBe(inlineWebview)
+    expect(mocks.HtmlArtifactsPopup).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        canCapturePreview: false,
+        editable: false,
+        html,
+        open: true,
+        title: 'Preview'
+      }),
+      undefined
+    )
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+    fireEvent.click(screen.getByTestId('html-artifacts-popup-close'))
 
-    expect(screen.queryByTestId('html-artifact-fullscreen')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('html-artifacts-popup')).not.toBeInTheDocument()
     expect(screen.getByTestId('html-artifact-surface')).toBeInTheDocument()
-    expect(screen.getByTestId('interactive-html-webview')).toBe(webview)
-
-    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.code' }))
-    expect(screen.getByTestId('interactive-html-webview')).toBe(webview)
-    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.preview' }))
-    expect(screen.getByTestId('interactive-html-webview')).toBe(webview)
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
   })
 
-  it('opens static HTML fullscreen in the restricted iframe', () => {
+  it('opens static HTML in the existing artifacts popup with a restricted iframe', async () => {
     const html = '<main><style>h1 { color: red; }</style><h1>Hello</h1></main>'
 
     render(<HtmlArtifactView html={html} title="Preview" />)
-    const iframe = screen.getByTestId('html-preview-frame')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
-    expect(screen.getByTestId('html-artifact-fullscreen')).toBeInTheDocument()
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
     expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
     expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
-    expect(screen.getByTestId('html-preview-frame')).toBe(iframe)
+    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
     expect(mocks.HtmlPreviewFrame).toHaveBeenLastCalledWith(
       expect.objectContaining({
         html,
@@ -211,31 +235,16 @@ describe('HtmlArtifactView', () => {
       }),
       undefined
     )
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
-
-    expect(screen.queryByTestId('html-artifact-fullscreen')).not.toBeInTheDocument()
-    expect(screen.getByTestId('html-artifact-surface')).toBeInTheDocument()
-    expect(screen.getByTestId('html-preview-frame')).toBe(iframe)
-  })
-
-  it('releases and restores virtual-list containing blocks around fullscreen', () => {
-    render(
-      <div data-testid="virtual-item" style={{ transform: 'translateY(120px)', willChange: 'transform' }}>
-        <HtmlArtifactView html="<main>Preview</main>" title="Preview" />
-      </div>
+    expect(mocks.HtmlArtifactsPopup).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        canCapturePreview: true,
+        editable: false,
+        html,
+        open: true,
+        title: 'Preview'
+      }),
+      undefined
     )
-    const virtualItem = screen.getByTestId('virtual-item')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
-
-    expect(virtualItem.style.transform).toBe('none')
-    expect(virtualItem.style.getPropertyPriority('transform')).toBe('important')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
-
-    expect(virtualItem.style.transform).toBe('translateY(120px)')
-    expect(virtualItem.style.willChange).toBe('transform')
   })
 
   it('installs the guest bridge before page scripts and accepts only trusted wheel events', () => {
