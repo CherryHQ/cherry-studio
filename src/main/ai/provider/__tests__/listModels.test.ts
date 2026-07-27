@@ -841,3 +841,25 @@ describe('listModels — jinaFetcher (strips jina-ai/ prefix)', () => {
     expect(models.map((m) => m.name)).toEqual(['Jina AI: Embeddings v2 Base ZH', 'jina-reranker-m0'])
   })
 })
+
+describe('listModels — openAICompatibleFetcher display names', () => {
+  it('forwards the upstream name and falls back to the model id when absent', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [{ id: 'named-model', name: 'Named Model' }, { id: 'unnamed-model' }]
+      }
+    })
+
+    const models = await listModels(
+      makeProvider({
+        id: 'custom-openai-compatible',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://example.com/v1' }
+        }
+      })
+    )
+
+    expect(models.map((model) => model.name)).toEqual(['Named Model', 'unnamed-model'])
+  })
+})

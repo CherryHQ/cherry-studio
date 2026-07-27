@@ -703,7 +703,12 @@ const openAICompatibleFetcher: ModelFetcher = {
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    return dedup(response.data, (m) => m.id).map((m) =>
+      toModel(m.id, provider, {
+        name: m.name || m.id,
+        ownedBy: m.owned_by
+      })
+    )
   }
 }
 

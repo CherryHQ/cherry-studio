@@ -322,7 +322,7 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
     ? [...presetModel.outputModalities]
     : undefined
   let endpointTypes: EndpointType[] | undefined = undefined
-  const name = presetModel.name ?? presetModel.id
+  const name = catalogOverride?.name ?? presetModel.name ?? presetModel.id
   const description = presetModel.description
   let contextWindow = presetModel.contextWindow
   let maxOutputTokens = presetModel.maxOutputTokens

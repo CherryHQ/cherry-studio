@@ -440,7 +440,7 @@ describe('ProviderRegistryService', () => {
       expect(models[0].name).toBe('GPT-4o')
     })
 
-    it('preserves the exact apiModelId identity for same-canonical variants (keeps canonical presetModelId)', async () => {
+    it('preserves provider display names and exact apiModelId identities for same-canonical variants', async () => {
       // A provider serving one canonical model under several apiModelIds (tokenhub's dated 原厂直供 variants).
       mockReadModels.mockReturnValue({
         version: '1.0',
@@ -472,9 +472,21 @@ describe('ProviderRegistryService', () => {
       } as ReturnType<typeof readProviderRegistry>)
 
       const [dated] = providerRegistryService.resolveModels('tokenhub', ['deepseek-v4-flash-202605'])
+      const catalog = providerRegistryService.listProviderRegistryModels({ providerId: 'tokenhub' })
+
+      expect(
+        catalog.map((model) => ({
+          apiModelId: model.apiModelId,
+          name: model.name
+        }))
+      ).toEqual([
+        { apiModelId: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+        { apiModelId: 'deepseek-v4-flash-202605', name: 'DeepSeek-V4-Flash 原厂直供' }
+      ])
       // unique id rebuilt from the apiModelId (NOT collapsed to the canonical tokenhub::deepseek-v4-flash)
       expect(dated.id).toBe(createUniqueModelId('tokenhub', 'deepseek-v4-flash-202605'))
       expect(dated.apiModelId).toBe('deepseek-v4-flash-202605')
+      expect(dated.name).toBe('DeepSeek-V4-Flash 原厂直供')
       expect(dated.presetModelId).toBe('deepseek-v4-flash') // canonical preset preserved for metadata
     })
 
