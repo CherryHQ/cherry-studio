@@ -32,6 +32,8 @@ export interface CherryAgentContext {
   workspaceSource: AgentSessionWorkspaceSource
   workspacePath: string
   sourceChannelId?: string
+  /** Built-in Assistant sessions have no shell and therefore omit CLI management. */
+  canManageCli?: boolean
   /**
    * Read the knowledge bases this agent is currently bound to. An empty list means
    * the agent has no knowledge access. The autonomy tools ignore this field.

@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
+import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -304,7 +305,8 @@ export class MainWindowService extends BaseService {
     })
 
     mainWindow.webContents.on('will-navigate', (event, url) => {
-      if (url.includes('localhost:517')) {
+      // In-app navigation (dev-server origin, or a packaged page under the app root).
+      if (isAppRendererUrl(url)) {
         return
       }
 

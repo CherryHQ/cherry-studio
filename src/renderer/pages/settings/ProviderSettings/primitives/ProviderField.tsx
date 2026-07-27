@@ -31,7 +31,7 @@ export default function ProviderField({
         isHorizontal && 'grid grid-cols-[7rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 space-y-0'
       )}>
       <div className={cn('flex items-center justify-between gap-3', isHorizontal && 'min-h-8 justify-start')}>
-        <div className={cn('font-semibold text-foreground-secondary text-sm leading-5', titleClassName)}>{title}</div>
+        <div className={cn('font-medium text-foreground-secondary text-sm leading-5', titleClassName)}>{title}</div>
         {action}
       </div>
       {children}

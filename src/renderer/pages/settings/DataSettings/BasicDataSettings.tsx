@@ -117,7 +117,7 @@ const BasicDataSettings: React.FC = () => {
     )
 
     const confirmed = await popup.confirm({
-      title: <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>,
+      title: <div style={{ fontSize: '18px', fontWeight: 600 }}>{t('settings.data.app_data.migration_title')}</div>,
       className: 'migration-modal',
       width: 'min(600px, 90vw)',
       style: { minHeight: '400px' },
