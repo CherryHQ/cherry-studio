@@ -4,6 +4,7 @@ import type { CherryMessagePart, ReasoningUIPart } from '@shared/data/types/mess
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isToolUIPart } from 'ai'
 
+import { isChannelAuthQrPart } from '../tools/channelConfigTool'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 
 export interface PartEntry {
@@ -143,13 +144,13 @@ function isVisibleReasoningPart(part: CherryMessagePart): boolean {
   return reasoningPart.state === 'streaming' || isReasoningMessagePart(part)
 }
 
-function isFoldableToolPart(part: CherryMessagePart): boolean {
+export function isProcessToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part) || isReportToolPart(part)) return false
-  return !isAskUserQuestionPart(part)
+  return !isAskUserQuestionPart(part) && !isChannelAuthQrPart(part)
 }
 
 function isVisibleProcessPart(part: CherryMessagePart): boolean {
-  return isVisibleReasoningPart(part) || isFoldableToolPart(part)
+  return isVisibleReasoningPart(part) || isProcessToolPart(part)
 }
 
 /**
@@ -278,7 +279,7 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
   if (lastAnswerPosition >= 0) {
     let lastRegularToolPosition = -1
     for (let position = lastAnswerPosition - 1; position >= 0; position--) {
-      if (isFoldableToolPart(contentEntries[position].part)) {
+      if (isProcessToolPart(contentEntries[position].part)) {
         lastRegularToolPosition = position
         break
       }
@@ -329,9 +330,10 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
   }
 
   const isDirectResult = (entry: PartEntry, position: number) =>
-    position >= resultStart &&
-    position < resultEnd &&
-    (isSubstantiveAnswerPart(entry.part) || isAssociatedResultPart(entry.part) || isHiddenPart(entry.part))
+    isChannelAuthQrPart(entry.part) ||
+    (position >= resultStart &&
+      position < resultEnd &&
+      (isSubstantiveAnswerPart(entry.part) || isAssociatedResultPart(entry.part) || isHiddenPart(entry.part)))
 
   return {
     historyEntries: contentEntries.filter((entry, position) => !isDirectResult(entry, position)),

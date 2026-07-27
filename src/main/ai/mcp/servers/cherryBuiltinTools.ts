@@ -229,7 +229,7 @@ export class CherryBuiltinToolsServer {
         return cli.call(name, request.params.arguments)
       }
       if (autonomy.handles(name)) {
-        return autonomy.call(name, (request.params.arguments ?? {}) as Record<string, string | undefined>)
+        return autonomy.call(name, request.params.arguments ?? {})
       }
       if (knowledge.handles(name)) {
         return knowledge.call(name, request.params.arguments)

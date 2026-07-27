@@ -1,13 +1,4 @@
-import {
-  Button,
-  ButtonGroup,
-  IndicatorLight,
-  Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, ButtonGroup, IndicatorLight, Input, Tooltip } from '@cherrystudio/ui'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import {
   SettingDivider,
@@ -201,37 +192,32 @@ const ApiGatewaySettings: FC = () => {
           <FieldDescription>{t('apiGateway.fields.apiKey.description')}</FieldDescription>
         </FieldText>
         <InlineInputGroup>
-          <InputGroup className="min-w-0 flex-1">
-            <InputGroupInput
-              className="font-mono text-xs"
-              type={apiKeyVisible ? 'text' : 'password'}
-              value={apiKey}
-              readOnly
-              placeholder={t('apiGateway.fields.apiKey.placeholder')}
-            />
-            <InputGroupAddon align="inline-end" className="pr-1.5">
-              <Tooltip
-                content={t(
-                  apiKeyVisible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key'
-                )}>
-                <button
-                  type="button"
-                  aria-label={t(
-                    apiKeyVisible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key'
-                  )}
-                  className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/70 transition-colors hover:text-foreground"
-                  onClick={() => setApiKeyVisible((visible) => !visible)}>
-                  {apiKeyVisible ? <EyeOff size={12} /> : <Eye size={12} />}
-                </button>
-              </Tooltip>
-            </InputGroupAddon>
-          </InputGroup>
+          <Input
+            className="font-mono text-xs"
+            type={apiKeyVisible ? 'text' : 'password'}
+            value={apiKey}
+            readOnly
+            placeholder={t('apiGateway.fields.apiKey.placeholder')}
+          />
           <ButtonGroup attached={false}>
             {!apiGatewayRunning && (
               <Button variant="outline" onClick={regenerateApiKey}>
                 {t('apiGateway.actions.regenerate')}
               </Button>
             )}
+            <Tooltip
+              title={t(apiKeyVisible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key')}>
+              <Button
+                size="icon-sm"
+                variant="outline"
+                aria-label={t(
+                  apiKeyVisible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key'
+                )}
+                onClick={() => setApiKeyVisible((visible) => !visible)}
+                disabled={!apiKey}>
+                {apiKeyVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+              </Button>
+            </Tooltip>
             <Tooltip title={t('apiGateway.fields.apiKey.copyTooltip')}>
               <Button size="icon-sm" variant="outline" onClick={copyApiKey} disabled={!apiKey}>
                 <Copy size={14} />
@@ -248,8 +234,7 @@ const ApiGatewaySettings: FC = () => {
         </FieldText>
         <Input
           className="w-105 font-mono text-xs"
-          type={apiKeyVisible ? 'text' : 'password'}
-          value={`Authorization: Bearer ${apiKey || 'your-api-key'}`}
+          value={`Authorization: Bearer ${apiKey ? (apiKeyVisible ? apiKey : '•'.repeat(Math.min(apiKey.length, 40))) : 'your-api-key'}`}
           readOnly
         />
       </SettingRow>
