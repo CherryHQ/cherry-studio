@@ -106,9 +106,22 @@ export function useMcpRegistryState(form: McpForm, onChanged?: () => void) {
   const [selectedRegistryType, setSelectedRegistryType] = useState('')
   const [customRegistryUrl, setCustomRegistryUrl] = useState('')
 
-  const handleCommandChange = useCallback((command: string) => {
-    setRegistry(registryForCommand(command))
-  }, [])
+  const handleCommandChange = useCallback(
+    (command: string) => {
+      const nextRegistry = registryForCommand(command)
+
+      if (registry !== nextRegistry) {
+        const registryUrl = form.getValues('registryUrl')
+        setSelectedRegistryType('')
+        setCustomRegistryUrl('')
+        form.setValue('registryUrl', '')
+        if (registryUrl) onChanged?.()
+      }
+
+      setRegistry(nextRegistry)
+    },
+    [form, onChanged, registry]
+  )
 
   const syncFromServer = useCallback((server: Pick<McpServer, 'command' | 'registryUrl'>) => {
     const current = server.command ? registryForCommand(server.command) : undefined

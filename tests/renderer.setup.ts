@@ -642,7 +642,16 @@ vi.mock('@cherrystudio/ui', () => {
         onChange: (event: React.ChangeEvent<HTMLInputElement>) => onCheckedChange?.(event.target.checked)
       }),
     RadioGroup: ({ children, value, onValueChange, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'radio-group', 'data-value': value }, children),
+      React.createElement(
+        'div',
+        {
+          ...props,
+          'data-testid': 'radio-group',
+          'data-value': value,
+          onChange: (event: React.ChangeEvent<HTMLInputElement>) => onValueChange?.(event.target.value)
+        },
+        children
+      ),
     RadioGroupItem: ({ value, ...props }) =>
       React.createElement('input', { ...props, type: 'radio', value, 'data-testid': 'radio-group-item' }),
     Slider: ({ value, defaultValue, onValueChange, onValueCommit, ...props }) =>

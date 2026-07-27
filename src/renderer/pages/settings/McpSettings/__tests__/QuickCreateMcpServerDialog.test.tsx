@@ -122,4 +122,27 @@ describe('QuickCreateMcpServerDialog', () => {
     expect(screen.getByLabelText('settings.mcp.command')).toHaveValue('')
     expect(screen.queryByText('settings.mcp.registry')).not.toBeInTheDocument()
   })
+
+  it('clears the selected registry when switching command families', async () => {
+    const { onCreate, user } = setup()
+
+    await user.type(screen.getByLabelText('settings.mcp.name'), 'python-server')
+    const commandInput = screen.getByLabelText('settings.mcp.command')
+    await user.type(commandInput, 'npx')
+    await user.click(screen.getByText('settings.mcp.addServer.advanced'))
+    await user.click(screen.getByRole('radio', { name: '淘宝 NPM Mirror' }))
+    expect(screen.getByTestId('radio-group')).toHaveAttribute('data-value', 'https://registry.npmmirror.com')
+
+    await user.clear(commandInput)
+    await user.type(commandInput, 'uvx')
+    await user.click(submit())
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1))
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'uvx',
+        registryUrl: ''
+      })
+    )
+  })
 })
