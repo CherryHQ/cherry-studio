@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -12,15 +21,19 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { noteTable } from '@data/db/schemas/note'
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import { ZipArchive } from 'archiver'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
+import StreamZip from 'node-stream-zip'
 import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { acknowledgeRestore } from '../acknowledgeRestore'
+import { ArchiveAdmissionError } from '../errors'
 import { exportArchive } from '../exportArchive'
 import { armPreparedRestore, prepareRestore } from '../prepareRestore'
 
@@ -150,6 +163,39 @@ async function exportFrom(preset: 'lite' | 'full', name: string): Promise<string
   const out = join(workDir, 'out', `${name}.cherrybackup`)
   activeUserData = sourceUserData
   await exportArchive({ outPath: out, preset })
+  return out
+}
+
+/**
+ * Rewrite one payload's declared live path and repack — the archive an attacker
+ * would hand the user. Nothing in the format stops them from editing the
+ * manifest, so admission is what has to.
+ */
+async function retargetFirstPayload(archivePath: string, livePath: string | null): Promise<string> {
+  const unpacked = join(workDir, 'tamper')
+  mkdirSync(unpacked, { recursive: true })
+  const zip = new StreamZip.async({ file: archivePath })
+  await zip.extract(null, unpacked)
+  await zip.close()
+
+  const manifestPath = join(unpacked, 'manifest.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    resourcePayloads: { livePath: string }[]
+  }
+  if (livePath !== null) manifest.resourcePayloads[0].livePath = livePath
+  writeFileSync(manifestPath, JSON.stringify(manifest))
+
+  const out = join(workDir, 'out', 'tampered.cherrybackup')
+  await new Promise<void>((resolve, reject) => {
+    const archive = new ZipArchive({ zlib: { level: 1 }, zip64: true })
+    const output = createWriteStream(out)
+    output.on('close', () => resolve())
+    output.on('error', reject)
+    archive.on('error', reject)
+    archive.pipe(output)
+    archive.directory(unpacked, false)
+    archive.finalize().catch(reject)
+  })
   return out
 }
 
@@ -330,6 +376,71 @@ describe('Full restore, same device with content already there', () => {
 
     // Acknowledgement is the point of no return, and the disclosure says so.
     expect(existsSync(join(targetUserData, notesUnit.aside))).toBe(false)
+  })
+})
+
+describe('what a restored archive may not switch on', () => {
+  it('brings an executable integration back configured but inert', async () => {
+    dbh.db
+      .insert(mcpServerTable)
+      .values({
+        id: 'mcp-1',
+        name: 'local tool',
+        type: 'stdio',
+        command: '/usr/bin/whatever',
+        dxtPath: join(sourceUserData, 'dxt', 'mcp-1'),
+        isActive: true,
+        isTrusted: true,
+        trustedAt: 1_700_000_000_000
+      })
+      .run()
+    const archive = await exportFrom('lite', 'lite-mcp')
+
+    await restoreOnTarget(archive)
+
+    const row = query<{ is_active: number; is_trusted: number | null; dxt_path: string | null; command: string }>(
+      liveDbPath(),
+      'SELECT is_active, is_trusted, dxt_path, command FROM mcp_server WHERE id = ?',
+      'mcp-1'
+    )
+    // An active stdio server is connected at startup with no user action, so
+    // activity is the one field an archive may never carry across.
+    expect(row?.is_active).toBe(0)
+    expect(row?.is_trusted).toBeNull()
+    // The producer's extraction directory would decide what actually runs.
+    expect(row?.dxt_path).toBeNull()
+    // Still re-activatable without retyping the configuration.
+    expect(row?.command).toBe('/usr/bin/whatever')
+  })
+
+  it('still admits an archive that was only unpacked and repacked', async () => {
+    seedSourceResources()
+    const archive = await exportFrom('full', 'full-repacked')
+    const repacked = await retargetFirstPayload(archive, null)
+
+    // The control for the case below: unpack/repack alone must not be what a
+    // rejection is measuring.
+    activeUserData = targetUserData
+    await expect(prepareRestore({ archivePath: repacked })).resolves.toMatchObject({ preset: 'full' })
+  })
+
+  it('refuses an archive whose manifest aims a payload outside userData', async () => {
+    seedSourceResources()
+    const archive = await exportFrom('full', 'full-tampered')
+    const tampered = await retargetFirstPayload(archive, '../../evil')
+
+    activeUserData = targetUserData
+    const error = await prepareRestore({ archivePath: tampered }).catch((e) => e)
+
+    // Rejected for the reason claimed, not because a repacked archive happens to
+    // be unreadable — a vacuous pass here would prove nothing.
+    expect(error).toBeInstanceOf(ArchiveAdmissionError)
+    expect((error as ArchiveAdmissionError).reason).toBe('manifest-invalid')
+    // Refused before anything was staged, so there is nothing to clean up and
+    // nothing to promote.
+    expect(readRestoreJournalV2().kind).toBe('none')
+    expect(existsSync(join(workDir, 'evil'))).toBe(false)
+    expect(query(liveDbPath(), 'SELECT key FROM app_state WHERE key = ?', TARGET_MARKER)).toBeDefined()
   })
 })
 
