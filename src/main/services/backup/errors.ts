@@ -1,7 +1,7 @@
 /**
- * Backup errors thrown by the export/producer pipeline (Phase 1b-i). Admission
- * (Phase 1b-ii) adds its own taxonomy in the same file when it lands. No merge /
- * domain / contributor error concepts are ported from #17206.
+ * Backup errors thrown by the export/producer pipeline (Phase 1b-i) and the
+ * archive admission pipeline (Phase 1b-ii). No merge / domain / contributor
+ * error concepts are ported from #17206.
  */
 
 /**
@@ -35,7 +35,7 @@ export class BackupCancelledError extends Error {
  * `ENOSPC`) so the caller surfaces a clear "disk full" rather than a raw errno.
  */
 export class DiskFullError extends Error {
-  constructor(message = 'disk became full mid-archive') {
+  constructor(message = 'disk became full during backup operation') {
     super(message)
     this.name = 'DiskFullError'
   }
@@ -145,4 +145,107 @@ export class CeilingExceededError extends Error {
     this.name = 'CeilingExceededError'
     this.kind = kind
   }
+}
+
+/**
+ * The single fail-closed rejection an untrusted `.cherrybackup` archive raises
+ * at admission (Phase 1b-ii, docs/references/backup/README.md §5.2). Admission
+ * is the trust boundary: every one of these fires BEFORE any restore journal or
+ * live DB/resource write can exist, so a rejected archive never reaches a
+ * mutating stage.
+ *
+ * A single discriminated error (rather than one class per check) keeps the
+ * boundary auditable — a reviewer reads {@link AdmissionRejectReason} to see the
+ * complete closed set of ways admission refuses an archive, and tests assert on
+ * the structural `reason` instead of brittle message text.
+ *
+ * MESSAGE HYGIENE: `detail` carries only structural facts (entry names, byte
+ * counts, limits, path segments) — NEVER file content or the parsed database,
+ * which is where an archive's plaintext credentials live (§5.1.1). The DB bytes
+ * are never interpolated into an error.
+ */
+export type AdmissionRejectReason =
+  /** The file is not a readable ZIP, or its central directory could not be enumerated. */
+  | 'zip-unreadable'
+  /** An entry name is not a portable relative subpath (backslash/absolute/drive/UNC/dot/empty/control/reserved/over-limit). */
+  | 'entry-name'
+  /** Two entries collide under the case/NFC namespace, duplicate, or alias a directory against a file. */
+  | 'entry-collision'
+  /** An entry's metadata marks it a symlink/special node or an encrypted entry — rejected before extraction. */
+  | 'entry-special'
+  /** An entry's declared byte metadata is not a finite, safe, non-negative integer, or a directory declares nonzero bytes. */
+  | 'entry-metadata'
+  /** Actual streamed bytes did not equal the entry's declared uncompressed size (forged central/local size). */
+  | 'entry-size-mismatch'
+  /** Too many archive entries. */
+  | 'ceiling-entries'
+  /** A single entry's declared uncompressed size exceeds the per-entry ceiling. */
+  | 'ceiling-entry-bytes'
+  /** The aggregate declared uncompressed size exceeds the total ceiling. */
+  | 'ceiling-total-bytes'
+  /** An entry's uncompressed:compressed ratio exceeds the zip-bomb ceiling (incl. zero-compressed). */
+  | 'ceiling-ratio'
+  /** `manifest.json` exceeds the pre-parse byte cap, or actually streamed past it. */
+  | 'ceiling-manifest-bytes'
+  /** The archive payload layout is illegal: missing/duplicate `manifest.json`/`backup.sqlite`, a misplaced or undeclared/uncovered/overlapping/type-mismatched payload. */
+  | 'layout'
+  /** `manifest.json` is not valid JSON or fails the strict ManifestV2 schema. */
+  | 'manifest-invalid'
+  /** A recomputed DB or resource-payload size/hash does not match the manifest — the archive does not carry what it advertises. */
+  | 'payload-mismatch'
+  /** A staged node is a symlink/special file, or a realpath escapes the owned staging root, after extraction. */
+  | 'staging-escape'
+  /** The staged database fails a SQLite `integrity_check` (corrupt / not a database). */
+  | 'db-corrupt'
+  /** The staged database's actual applied chain does not equal the manifest's declared chain. */
+  | 'chain-mismatch'
+  /** The staged chain is ahead of or forked from the app's bundled production chain — not migrate-forwardable. */
+  | 'chain-incompatible'
+  /** A filesystem I/O error while extracting an entry (mapped from a raw errno, content-free). */
+  | 'extraction-io'
+
+export class ArchiveAdmissionError extends Error {
+  readonly reason: AdmissionRejectReason
+  readonly detail: string
+  constructor(reason: AdmissionRejectReason, detail: string) {
+    super(`archive admission rejected (${reason}): ${detail}`)
+    this.name = 'ArchiveAdmissionError'
+    this.reason = reason
+    this.detail = detail
+  }
+}
+
+/**
+ * True for a code point that must never reach a log/terminal verbatim: C0
+ * controls + DEL, C1 controls, the Unicode line/paragraph separators, and the
+ * bidirectional-formatting controls (which can visually reorder a rendered
+ * name to disguise it). Everything else — including ordinary printable
+ * Unicode — is kept.
+ */
+function isUnsafeCodePoint(code: number): boolean {
+  if (code < 0x20 || code === 0x7f) return true // C0 + DEL
+  if (code >= 0x80 && code <= 0x9f) return true // C1
+  if (code === 0x2028 || code === 0x2029) return true // line / paragraph separator
+  if (code === 0x061c) return true // Arabic letter mark (bidi)
+  if (code === 0x200e || code === 0x200f) return true // LRM / RLM
+  if (code >= 0x202a && code <= 0x202e) return true // LRE/RLE/PDF/LRO/RLO
+  if (code >= 0x2066 && code <= 0x2069) return true // LRI/RLI/FSI/PDI
+  return false
+}
+
+/**
+ * Render an UNTRUSTED archive entry name for inclusion in an error detail:
+ * replace control / separator / bidi-formatting characters (so a crafted name
+ * cannot inject terminal/log escapes or visually reorder itself) and truncate
+ * (so a megabyte-long name cannot become a giant error string). Used everywhere a
+ * raw entry name reaches an {@link ArchiveAdmissionError} detail.
+ */
+export function renderUntrustedName(name: string): string {
+  let out = ''
+  for (const ch of name) {
+    const code = ch.codePointAt(0) ?? 0
+    out += isUnsafeCodePoint(code) ? '�' : ch
+    if (out.length >= 96) return `${out}…`
+  }
+  return out
 }
