@@ -4,6 +4,7 @@ import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
+import { useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerPinnedToolsProvider,
@@ -293,7 +294,7 @@ const renderChatHomeInputControls: ChatComposerControlsRenderer = (props) => ({
 type ChatComposerRootProps = ChatComposerProps & {
   renderControls: ChatComposerControlsRenderer
   forceNarrowLayout?: boolean
-  deferDynamicControls?: boolean
+  deferQuickPanel?: boolean
 }
 
 type ChatPlacementDockedProps = Omit<ChatComposerProps, 'onDraftAssistantChange'>
@@ -319,7 +320,7 @@ const ChatComposerRoot = ({
   onCreateEmptyTopic,
   renderControls,
   forceNarrowLayout = false,
-  deferDynamicControls = false
+  deferQuickPanel = false
 }: ChatComposerRootProps) => {
   const resolvedScopeKey = scopeKey ?? topic?.id
   const resolvedTopicId = topicId ?? topic?.id
@@ -373,7 +374,7 @@ const ChatComposerRoot = ({
             onCreateEmptyTopic={onCreateEmptyTopic}
             renderControls={renderControls}
             forceNarrowLayout={forceNarrowLayout}
-            deferDynamicControls={deferDynamicControls}
+            deferQuickPanel={deferQuickPanel}
           />
         ) : null}
       </ComposerToolRuntimeProvider>
@@ -387,7 +388,7 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
   actionsRef: React.RefObject<ProviderActionHandlers>
   renderControls: ChatComposerControlsRenderer
   forceNarrowLayout?: boolean
-  deferDynamicControls?: boolean
+  deferQuickPanel?: boolean
 }
 
 const ChatComposerInner = ({
@@ -409,7 +410,7 @@ const ChatComposerInner = ({
   onCreateEmptyTopic,
   renderControls,
   forceNarrowLayout = false,
-  deferDynamicControls = false
+  deferQuickPanel = false
 }: ChatComposerInnerProps) => {
   const streamScopeKey = topicId ?? scopeKey
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
@@ -449,6 +450,7 @@ const ChatComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
+  const composerOverridden = useActiveComposerOverride() !== null
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const { t } = useTranslation()
@@ -694,8 +696,8 @@ const ChatComposerInner = ({
     ]
   )
   useLayoutEffect(() => {
-    onConversationControlsChange?.(conversationControlsSnapshot)
-  }, [conversationControlsSnapshot, onConversationControlsChange])
+    onConversationControlsChange?.(composerOverridden ? null : conversationControlsSnapshot)
+  }, [composerOverridden, conversationControlsSnapshot, onConversationControlsChange])
   useLayoutEffect(() => {
     if (!onConversationControlsChange) return
     return () => onConversationControlsChange(null)
@@ -710,6 +712,12 @@ const ChatComposerInner = ({
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
+  const isModelUnavailable =
+    !missingAssistantMessage &&
+    !runtimeModelPending &&
+    !runtimeModel &&
+    !selectedModelForMissingAssistantDefault &&
+    !selectedModelForUnlinkedHome
 
   useEffect(() => {
     if (isPending) setIsSending(false)
@@ -1245,6 +1253,7 @@ const ChatComposerInner = ({
       unifiedPanelControl?: ComposerUnifiedPanelControl
     }) => (
       <ComposerToolbarShortcuts
+        scope={TopicType.Chat}
         pinnedIds={pinnedToolIds}
         onPinnedIdsChange={setPinnedToolIds}
         onResetPinnedIds={resetPinnedToolIds}
@@ -1252,12 +1261,14 @@ const ChatComposerInner = ({
         customTools={toolbarCustomTools}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
+        isModelUnavailable={isModelUnavailable}
         inputAdapter={inputAdapter}
         unifiedPanelControl={unifiedPanelControl}
       />
     ),
     [
       customizeToolbarOpen,
+      isModelUnavailable,
       pinnedToolIds,
       pinnedToolsAtDefault,
       resetPinnedToolIds,
@@ -1393,7 +1404,7 @@ const ChatComposerInner = ({
           rootPanelLeadingItems={rootPanelLeadingItems}
           rootPanelAdditionalItems={rootPanelCustomizeItems}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-          deferDynamicControls={deferDynamicControls}
+          deferQuickPanel={deferQuickPanel}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>
@@ -1430,7 +1441,7 @@ export const ChatPlacementComposer = (props: ChatPlacementComposerProps) => {
         {...composerProps}
         useMentionedModelSelector
         forceNarrowLayout
-        deferDynamicControls
+        deferQuickPanel
         renderControls={composerProps.externalContextControls ? renderChatHomeInputControls : renderChatHomeControls}
       />
     )
@@ -1440,7 +1451,7 @@ export const ChatPlacementComposer = (props: ChatPlacementComposerProps) => {
     <ChatComposerRoot
       {...composerProps}
       useMentionedModelSelector
-      deferDynamicControls
+      deferQuickPanel
       renderControls={composerProps.externalContextControls ? renderChatInputControls : renderChatToolbarControls}
     />
   )

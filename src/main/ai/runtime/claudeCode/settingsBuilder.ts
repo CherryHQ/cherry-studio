@@ -86,7 +86,13 @@ const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
   'You are Cherry Assistant, the built-in helper for Cherry Studio. Help users understand and troubleshoot Cherry Studio.'
 const require_ = createRequire(import.meta.url)
 const promptBuilder = new PromptBuilder()
-const HEADLESS_INTERACTIVE_TOOLS = ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'] as const
+const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
+const HEADLESS_INTERACTIVE_TOOLS = [
+  ASK_USER_QUESTION_TOOL_NAME,
+  'EnterPlanMode',
+  'ExitPlanMode',
+  'EnterWorktree'
+] as const
 const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
 const OUT_OF_TURN_APPROVAL_DENIAL =
@@ -743,9 +749,9 @@ async function buildToolPermissions(
     }
 
     // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce per-turn
-    // headless interactive-tool denial at fire time. Mirrored by `headlessInteractiveToolHook` so the
-    // denial also holds under bypassPermissions/acceptEdits, where the SDK skips `canUseTool`; this
-    // branch stays so an interactive follow-up on a warm connection can still reach the approval path.
+    // headless interactive-tool denial at fire time. Mirrored by `interactiveToolPermissionHook` so
+    // the denial also holds under bypassPermissions/acceptEdits, where the SDK skips `canUseTool`;
+    // this branch stays so an interactive follow-up on a warm connection can reach the approval path.
     if (
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) &&
       application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
@@ -762,7 +768,10 @@ async function buildToolPermissions(
     }
 
     const access = snapshot.resolve(toolName, input)
-    if (access?.approval === 'auto') {
+    // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
+    // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
+    // bypassPermissions marks every ordinary tool as auto-approved.
+    if (toolName !== ASK_USER_QUESTION_TOOL_NAME && access?.approval === 'auto') {
       return { behavior: 'allow', updatedInput: input }
     }
 
@@ -821,7 +830,7 @@ async function buildToolPermissions(
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
-        permissionDecisionReason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\` (ephemeral).`
+        permissionDecisionReason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install project dependencies in the current workspace (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\`; for persistent CLIs use \`cli_search\` then \`cli_install\`.`
       }
     }
   }
@@ -833,26 +842,38 @@ async function buildToolPermissions(
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
+
     const rewritten = await rtkRewrite(command)
     if (!rewritten) return {}
     logger.info('rtk rewrote Bash command', { original: command, rewritten })
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
-  // Headless interactive-tool denial, enforced as a PreToolUse hook so it fires under every permission
-  // mode — the `canUseTool` branch above is skipped for auto-approved paths (bypassPermissions /
-  // acceptEdits), which a migrated autonomy agent may run in. Resolves headless state by session id at
-  // fire-time so a warm connection reused across interactive and headless turns is judged per-turn.
-  const headlessInteractiveToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+  // Interactive-tool policy, enforced as a PreToolUse hook so it fires under every permission mode.
+  // Headless turns deny tools that need a responder. Interactive AskUserQuestion calls explicitly ask
+  // so bypassPermissions cannot skip `canUseTool` and execute without a user-authored answer.
+  // Resolve headless state by session id at fire-time so warm connections are judged per turn.
+  const interactiveToolPermissionHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number])) return {}
-    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+
+    if (application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: HEADLESS_INTERACTIVE_TOOL_DENIAL
+        }
+      }
+    }
+
+    if (toolName !== ASK_USER_QUESTION_TOOL_NAME) return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        permissionDecision: 'deny',
-        permissionDecisionReason: HEADLESS_INTERACTIVE_TOOL_DENIAL
+        permissionDecision: 'ask',
+        permissionDecisionReason: 'AskUserQuestion requires a live user response.'
       }
     }
   }
@@ -967,7 +988,7 @@ async function buildToolPermissions(
       PreToolUse: [
         {
           hooks: [
-            headlessInteractiveToolHook,
+            interactiveToolPermissionHook,
             headlessConfigMutationHook,
             disabledToolHook,
             workspacePathHook,
@@ -1004,12 +1025,18 @@ async function buildToolPermissions(
 async function buildRuntimeContext(): Promise<string> {
   const [bunPath, uvPath, rgPath] = await Promise.all([getBinaryPath('bun'), getBinaryPath('uv'), getBinaryPath('rg')])
   return [
+    '## Managed CLI Installation',
+    'Call `cli_list` before assuming a reusable CLI is unavailable, and `cli_search` to look up its executable and mise recipe.',
+    'Install reusable CLIs only with `cli_install`. If the registry misses, read trusted public documentation and pass its exact executable plus mise recipe (for example `npm:package`, `pipx:package`, or `github:owner/repo`); never guess the executable.',
+    'Do not run remote `curl`/`wget` install scripts for reusable CLIs. Those commands remain available for APIs, data, documentation, and project files.',
+    '',
     '## Available Runtimes',
     'bun and uv are bundled and always on PATH. Use them to pull libraries and write throwaway scripts to verify logic — prefer them over node/npm/npx/pip, which are not guaranteed to be installed.',
     `- JavaScript / TypeScript — run with \`bun <file>\`, add deps with \`bun install <pkg>\`, run a package with \`bun x <tool>\` (bun: ${bunPath})`,
     `- Python — run with \`uv run python <file>\`, add deps inline with \`uv run --with <pkg> python <file>\` (ephemeral, no venv needed), run a tool with \`uvx <tool>\` (uv: ${uvPath})`,
     `- Search — \`rg\` for fast file/content search (ripgrep: ${rgPath})`,
-    'Install dependencies INTO the project (cwd) only. Global installs (`-g`/`--global`, `uv tool install`, `pip install --user`) are blocked to keep tasks isolated — use `bun x` / `uvx` for one-off tools.'
+    'Install dependencies INTO the project (cwd) only. Global installs (`-g`/`--global`, `uv tool install`, `pip install --user`) and direct mise mutations are blocked to keep tasks isolated — use `bun x` / `uvx` for one-off tools.',
+    'CLIs that need login, configuration, or reuse must be installed persistently, not run with `bun x` / `uvx`.'
   ].join('\n')
 }
 
@@ -1133,6 +1160,7 @@ export function buildMcpServers(
       workspaceSource,
       workspacePath: session.workspace.path,
       sourceChannelId,
+      canManageCli: agent.configuration?.builtin_role !== 'assistant',
       getKnowledgeBaseIds: () => agentService.getAgent(agent.id)?.knowledgeBaseIds ?? []
     }).mcpServer
   }

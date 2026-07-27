@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   files: [] as FileMetadata[],
   agentLookupId: undefined as string | null | undefined,
   modelLookupId: undefined as UniqueModelId | null | undefined,
+  modelResult: undefined as Model | undefined,
+  modelLoading: false,
   sendMessage: vi.fn(),
   stop: vi.fn(),
   isDirectory: vi.fn(),
@@ -410,7 +412,7 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
 vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: (id: UniqueModelId | null) => {
     mocks.modelLookupId = id
-    return { model }
+    return { model: mocks.modelResult, isLoading: mocks.modelLoading }
   }
 }))
 
@@ -657,6 +659,8 @@ describe('AgentComposer', () => {
     mocks.files = []
     mocks.agentLookupId = undefined
     mocks.modelLookupId = undefined
+    mocks.modelResult = model
+    mocks.modelLoading = false
     mocks.sendMessage.mockReset()
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
@@ -776,7 +780,29 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
-    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
+    expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
+  })
+
+  it('blocks the send button with a model-required prompt when the agent has no configured model', async () => {
+    mocks.modelResult = undefined
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
   it('uses page-resolved context without subscribing to agent and model data again', () => {
@@ -837,7 +863,7 @@ describe('AgentComposer', () => {
 
     await notifyComposerBottomToolbarWidth(420)
 
-    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
+    expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
     expect(document.querySelector('.lucide-bot')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-sparkles')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')
