@@ -104,6 +104,15 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     ).run(id, sourceId, fileEntryId, now, now)
   }
 
+  /** Insert a minimal job_schedule row. type is the AGENTS rowScope column. */
+  const insertJobSchedule = (db: Database.Database, id: string, type: string, name = id): void => {
+    const now = Date.now()
+    db.prepare(
+      `INSERT INTO job_schedule (id, type, name, trigger, job_input_template, catch_up_policy, metadata, created_at, updated_at)
+       VALUES (?, ?, ?, '{}', '{}', '{}', '{}', ?, ?)`
+    ).run(id, type, name, now, now)
+  }
+
   const countRows = (table: string): number =>
     (dbh.sqlite.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get() as { c: number }).c
 
@@ -743,6 +752,60 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     const ids = (dbh.sqlite.prepare(`SELECT id FROM file_entry`).all() as { id: string }[]).map((r) => r.id)
     expect(ids).toContain('fe-local')
     expect(ids).not.toContain('fe-backup')
+  })
+
+  it('rewrites member file_entry_id to the canonical local id when file_entry dedupes (P2)', async () => {
+    // P2: backup file_entry 'fe-backup' collides with local 'fe-local' on lower(external_path)
+    // → root SKIPs, targetMap.file_entry[fe-backup]=fe-local. The backup chat_message_file_ref
+    // still references fe-backup; without the member-FK rewrite it would dangle and
+    // repairDanglingRefs would prune it (attachment loss). After P2 the member FK is
+    // rewritten to the canonical local id and foreign_key_check stays clean.
+    insertFileEntry(dbh.sqlite, 'fe-local', '/tmp/dup')
+    seedBackup(
+      (db) => {
+        insertFileEntry(db, 'fe-backup', '/tmp/DUP') // lower() collides → dedup to fe-local
+        insertTopic(db, 'tpc-p2')
+        insertMessage(db, 'msg-p2', 'tpc-p2', 'root', null)
+        insertChatMessageFileRef(db, 'fr-p2', 'msg-p2', 'fe-backup') // references the backup id
+      },
+      { foreignKeys: false }
+    )
+
+    const result = await runMerge({
+      backupDbPath: backupPath,
+      domains: ['FILE_STORAGE', 'TOPICS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    expect(result).toMatchObject({ degradedToSkips: [] })
+    const row = dbh.sqlite
+      .prepare(`SELECT file_entry_id FROM chat_message_file_ref WHERE id = 'fr-p2'`)
+      .get() as { file_entry_id: string }
+    expect(row.file_entry_id).toBe('fe-local')
+    expect(dbh.sqlite.pragma('foreign_key_check')).toHaveLength(0)
+  })
+
+  it('applies contributor rowScopes at the restore boundary (P1: job_schedule type filter)', async () => {
+    // P1: AGENTS owns job_schedule WHERE type='agent.task' (contributor rowScope). A
+    // hand-crafted/legacy archive may carry other job_schedule types (runtime state);
+    // restore must NOT import them — JobScheduleService.listEnabled() would otherwise arm
+    // out-of-scope schedules. Symmetric with export's applyRowScopes; reuses the registry.
+    seedBackup((db) => {
+      insertJobSchedule(db, 'js-keep', 'agent.task')
+      insertJobSchedule(db, 'js-other', 'file-processing.background')
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    const ids = (dbh.sqlite.prepare(`SELECT id FROM job_schedule`).all() as { id: string }[]).map((r) => r.id)
+    expect(ids).toContain('js-keep')
+    expect(ids).not.toContain('js-other') // non-agent.task filtered by rowScope at restore
   })
 
   it('traverses nested include members via their parent member ids (chat_message_file_ref)', async () => {

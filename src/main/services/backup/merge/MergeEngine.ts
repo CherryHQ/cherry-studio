@@ -21,7 +21,7 @@
 
 import type { AggregateBoundary, FieldMergePolicy, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import type { DbTableName } from '@main/data/db/backup/dbSchemaRefs'
-import { DB_FTS_VIRTUAL_TABLES, DB_UNIQUE_KEYS } from '@main/data/db/backup/dbSchemaRefs'
+import { DB_FOREIGN_KEYS, DB_FTS_VIRTUAL_TABLES, DB_UNIQUE_KEYS } from '@main/data/db/backup/dbSchemaRefs'
 import type { BackupDomain } from '@main/data/db/backup/domains'
 import type { DbType } from '@main/data/db/types'
 import type { EntityType } from '@shared/data/types/entityType'
@@ -377,7 +377,24 @@ export class MergeEngine {
         const conflictDefault = agg.conflictDefault ?? (naturalKey ? 'FIELD_MERGE' : 'SKIP')
         // TODO(Stage3): stream via prepare().iterate() instead of .all() to avoid OOM on
         // unbounded roots (TOPICS chat history / translate_history) — spec MAJOR 2.
-        const backupRoots = backupDb.prepare(`SELECT * FROM ${quoteIdent(agg.root)}`).all() as Record<string, unknown>[]
+        //
+        // P1: apply contributor rowScopes at the restore boundary (symmetric with export's
+        // applyRowScopes). A shared table (job_schedule) is partitioned across domains by
+        // rowScope; backup rows OUTSIDE the owned partition (e.g. non-agent.task
+        // job_schedule) are runtime state this restore must not import — otherwise a
+        // hand-crafted/legacy archive could inject rows JobScheduleService.listEnabled()
+        // would later arm. Reuse the registry's rowScopes so future shared tables are
+        // covered automatically.
+        const rootScope = this.registry
+          .getSchema(domain)
+          .rowScopes?.find((rs) => rs.table === agg.root && rs.filter.op === 'eq')
+        const backupRoots = rootScope
+          ? (backupDb
+              .prepare(
+                `SELECT * FROM ${quoteIdent(agg.root)} WHERE ${quoteIdent(physicalColumn(rootScope.filter.column))} = ?`
+              )
+              .all(rootScope.filter.value) as Record<string, unknown>[])
+          : (backupDb.prepare(`SELECT * FROM ${quoteIdent(agg.root)}`).all() as Record<string, unknown>[])
         // pin is polymorphic (no FK) — skip rows whose entityType maps to a domain
         // outside this restore (e.g. lite archive with knowledge pins but KNOWLEDGE stripped).
         const pinEntityMap =
@@ -825,7 +842,13 @@ export class MergeEngine {
       const rule = uniqueRules.find((r) => r.table === member.table)
       const memberPolicies = allFieldPolicies.filter((p) => p.table === member.table)
 
-      for (const memberRow of memberRows) {
+      for (let memberRow of memberRows) {
+        // P2: rewrite member FKs to canonical IDs (e.g. fileEntryId fe-backup → fe-local)
+        // BEFORE any insert/field-merge. A root whose identity was deduped (file_entry by
+        // lower(external_path)) carries backupPk→localPk in targetMap, but its member
+        // tables still reference the backup PK — without rewriting those FKs dangle and
+        // repairDanglingRefs prunes the member rows (attachment/logo loss).
+        memberRow = this.rewriteMemberFks(member.table, memberRow, identityMap)
         let localPk: readonly (string | number)[] | undefined
         if (rule) {
           const values: (string | number)[] = []
@@ -1059,6 +1082,41 @@ export class MergeEngine {
         reason: `imported ${table}.${column} attachment blob not staged (fileEntryId missing from stagedFileEntryIds — DB-only restore discloses all)`
       })
     }
+  }
+
+  /**
+   * Rewrite member FK columns to canonical IDs from the identity map (P2 / B1 partial).
+   * A root whose identity was deduped (e.g. file_entry by lower(external_path)) carries
+   * backupPk → localPk in targetMap, but its member tables (chat_message_file_ref /
+   * painting_file_ref / provider_logo_file_ref / mini_app_logo_file_ref) still reference
+   * the backup PK — without rewriting, those FKs dangle and repairDanglingRefs prunes the
+   * member rows (attachment/logo loss). Generic over DB_FOREIGN_KEYS + targetMap, so any
+   * future dedup root is covered. Single-column FKs only; composite-FK identity
+   * propagation is B1's full scope. Returns the same reference when nothing needs
+   * rewriting; otherwise a shallow copy so the backup query result stays intact.
+   */
+  private rewriteMemberFks(
+    table: DbTableName,
+    row: Record<string, unknown>,
+    identityMap: IdentityMap
+  ): Record<string, unknown> {
+    const fks = DB_FOREIGN_KEYS[table]
+    if (!fks || fks.length === 0) return row
+    let rewritten = row
+    for (const fk of fks) {
+      const map = identityMap.targetMap.get(fk.targetTable as DbTableName)
+      if (!map || map.size === 0) continue
+      if (fk.columns.length !== 1) continue
+      const physCol = physicalColumn(fk.columns[0])
+      const backupVal = rewritten[physCol]
+      if (backupVal === null || backupVal === undefined) continue
+      const canonical = map.get(String(backupVal))
+      if (canonical !== undefined && canonical !== String(backupVal)) {
+        if (rewritten === row) rewritten = { ...row }
+        rewritten[physCol] = canonical
+      }
+    }
+    return rewritten
   }
 
   /**
