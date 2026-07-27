@@ -1,6 +1,6 @@
-import type { ProviderApiKeySelection } from '@main/data/services/ProviderService'
+import type { AiUsageCredentialReceipt } from '@data/services/aiUsageRecord'
 
-export type ServingAuthMethod = 'oauth' | 'external-cli' | 'iam-aws' | 'api-key-aws' | 'iam-gcp' | 'iam-azure'
+export type ServingAuthMethod = Extract<AiUsageCredentialReceipt, { attribution: 'auth' }>['method']
 
 /**
  * Non-secret receipt for the credential path selected by provider configuration.
@@ -9,4 +9,4 @@ export type ServingAuthMethod = 'oauth' | 'external-cli' | 'iam-aws' | 'api-key-
  * authentication is declared by the config builder that installs it. Unknown is
  * used whenever the request owner cannot prove which credential served.
  */
-export type ServingCredentialReceipt = ProviderApiKeySelection | { attribution: 'auth'; method: ServingAuthMethod }
+export type ServingCredentialReceipt = AiUsageCredentialReceipt

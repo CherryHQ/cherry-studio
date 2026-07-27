@@ -6,6 +6,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type { AgentSessionUsageCapture } from '@data/services/aiUsageRecord'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
@@ -33,6 +34,7 @@ export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   connectionConfig: ConnectionConfig
   settings: ClaudeCodeSettings
   sdkModelId: string
+  usageCapture: AgentSessionUsageCapture
 }
 
 interface RuntimeModelRef {
@@ -58,6 +60,8 @@ interface ClaudeCodeRouteFacts {
 
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
   apiKey?: string
+  customHeaders?: Record<string, string>
+  usageCapture: AgentSessionUsageCapture
 }
 
 interface ConnectionMaterializationFacts {
@@ -286,7 +290,15 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const pinSubModelsToPrimary = uniqueModelId !== agent.model
   const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
   const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
-  const route = await resolveClaudeCodeRuntimeRoute(provider, model, modelId, baseUrl, planModel, smallModel)
+  const route = await resolveClaudeCodeRuntimeRoute(
+    session.id,
+    provider,
+    model,
+    modelId,
+    baseUrl,
+    planModel,
+    smallModel
+  )
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const settings = mergeRuntimeSettings(
@@ -331,7 +343,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     credentialsFingerprint: route.credentialsFingerprint,
     knowledgeBaseIds: [...(agent.knowledgeBaseIds ?? [])].sort(),
     settings,
-    sdkModelId
+    sdkModelId,
+    usageCapture: route.usageCapture
   }
 }
 
@@ -372,9 +385,9 @@ function resolveClaudeCodeThinkingOptions(
 /**
  * Pure (read-only) half of the route resolution: branch decision, model-id slots, baseUrl and the
  * credentials fingerprint — everything the staleness signature needs. MUST stay side-effect free:
- * no `getRotatedApiKey` (advances rotation), no gateway `ensureValidApiKey` (persists a key on
+ * no `resolveApiKey` (advances rotation), no gateway `ensureValidApiKey` (persists a key on
  * first use) or `start()` (boots the HTTP server). Credential *values* are materialized by
- * {@link resolveClaudeCodeRuntimeRoute} on the connect path only.
+ * {@link resolveClaudeCodeRuntimeRoute} only when a query (warm or live) is materialized.
  */
 function deriveRouteFacts(
   primaryProvider: Provider,
@@ -471,6 +484,7 @@ function deriveRouteFacts(
 
 /** Effectful half: materializes the credentials for the branch {@link deriveRouteFacts} picked. */
 async function resolveClaudeCodeRuntimeRoute(
+  sessionId: string,
   primaryProvider: Provider,
   primaryModel: Model,
   primaryModelId: string,
@@ -482,22 +496,35 @@ async function resolveClaudeCodeRuntimeRoute(
 
   switch (facts.branch) {
     case 'external-cli':
-      return facts
+      return {
+        ...facts,
+        usageCapture: {
+          owner: 'agent-message',
+          credentialReceipt: { attribution: 'auth', method: 'external-cli' }
+        }
+      }
     case 'gateway': {
-      const gateway = await resolveApiGatewayRuntime()
+      const gateway = await resolveApiGatewayRuntime(sessionId)
       return {
         ...facts,
         baseUrl: gateway.baseUrl,
         apiKey: gateway.apiKey,
+        customHeaders: gateway.usageHeaders,
+        usageCapture: { owner: 'provider-requests' },
         credentialsFingerprint: fingerprintCredentials([gateway.apiKey])
       }
     }
     case 'direct': {
-      const providerApiKey = providerService.getRotatedApiKey(primaryProvider.id)
-      const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+      const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id)
+      const runtimeApiKey =
+        resolvedApiKey.value || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
       return {
         ...facts,
         apiKey: runtimeApiKey,
+        usageCapture: {
+          owner: 'agent-message',
+          credentialReceipt: resolvedApiKey.apiKeySelection
+        },
         credentialsFingerprint: facts.credentialsFingerprint
       }
     }
@@ -555,7 +582,9 @@ function supportsAnthropicMessages(provider: Provider): boolean {
   )
 }
 
-async function resolveApiGatewayRuntime(): Promise<{ baseUrl: string; apiKey: string }> {
+async function resolveApiGatewayRuntime(
+  sessionId: string
+): Promise<{ baseUrl: string; apiKey: string; usageHeaders: Record<string, string> }> {
   const apiGatewayService = application.get('ApiGatewayService')
   const apiKey = await apiGatewayService.ensureValidApiKey()
   if (!apiGatewayService.isRunning()) {
@@ -564,7 +593,11 @@ async function resolveApiGatewayRuntime(): Promise<{ baseUrl: string; apiKey: st
   const config = apiGatewayService.getCurrentConfig()
   const host = config.host || '127.0.0.1'
   const port = config.port || 23333
-  return { baseUrl: `http://${host}:${port}`, apiKey }
+  return {
+    baseUrl: `http://${host}:${port}`,
+    apiKey,
+    usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId)
+  }
 }
 
 function toGatewayModelId(ref: RuntimeModelRef): string {
@@ -588,7 +621,14 @@ function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRun
       ANTHROPIC_DEFAULT_SONNET_MODEL: route.modelIds.sonnet,
       ANTHROPIC_DEFAULT_HAIKU_MODEL: route.modelIds.haiku,
       ...(route.apiKey ? { ANTHROPIC_API_KEY: route.apiKey, ANTHROPIC_AUTH_TOKEN: route.apiKey } : {}),
-      ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {})
+      ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {}),
+      ...(route.customHeaders
+        ? {
+            ANTHROPIC_CUSTOM_HEADERS: Object.entries(route.customHeaders)
+              .map(([name, value]) => `${name}: ${value}`)
+              .join('\n')
+          }
+        : {})
     }
   }
 }
@@ -603,6 +643,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
     credentialsFingerprint: request.credentialsFingerprint,
+    usageCapture: request.usageCapture,
     knowledgeBaseIds: request.knowledgeBaseIds
   }
 }

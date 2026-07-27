@@ -9,18 +9,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * lookup, and adapter factories are stubbed; the real listener/stream glue runs.
  */
 
-const { mockStreamPrompt, mockAbort, mockGetProvider, mockListModels, captured } = vi.hoisted(() => ({
-  mockStreamPrompt: vi.fn(),
-  mockAbort: vi.fn(),
-  mockGetProvider: vi.fn(),
-  mockListModels: vi.fn(),
-  captured: { listener: undefined as StreamListener | undefined }
-}))
+const { mockStreamPrompt, mockAbort, mockGetProvider, mockListModels, mockResolveAgentSessionUsage, captured } =
+  vi.hoisted(() => ({
+    mockStreamPrompt: vi.fn(),
+    mockAbort: vi.fn(),
+    mockGetProvider: vi.fn(),
+    mockListModels: vi.fn(),
+    mockResolveAgentSessionUsage: vi.fn(),
+    captured: { listener: undefined as StreamListener | undefined }
+  }))
 
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) =>
-      name === 'AiStreamManager' ? { streamPrompt: mockStreamPrompt, abort: mockAbort } : undefined
+      name === 'AiStreamManager'
+        ? { streamPrompt: mockStreamPrompt, abort: mockAbort }
+        : name === 'ApiGatewayService'
+          ? { resolveAgentSessionUsage: mockResolveAgentSessionUsage }
+          : undefined
     )
   }
 }))
@@ -79,6 +85,7 @@ beforeEach(() => {
   mockStreamPrompt.mockImplementation((opts: { listener: StreamListener }) => {
     captured.listener = opts.listener
   })
+  mockResolveAgentSessionUsage.mockReturnValue(undefined)
 })
 
 async function readAll(stream: ReadableStream<Uint8Array> | null): Promise<string> {
@@ -110,6 +117,27 @@ function commit(listener: StreamListener): void {
 }
 
 describe('processMessage (streaming)', () => {
+  it('passes validated internal agent-session correlation to provider-call usage capture', async () => {
+    mockResolveAgentSessionUsage.mockReturnValue('session-1')
+    const requestHeaders = new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    const response = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ usageContext: { agentSessionId: 'session-1' } })
+    )
+
+    commit(captured.listener!)
+    await captured.listener!.onDone({} as any)
+    await response
+  })
+
   it('buffers protocol scaffolding until a semantic chunk, then flushes frames + done marker', async () => {
     const { response, listener } = await startStreaming()
 

@@ -61,8 +61,8 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
   } as Message
 }
 
-async function seedAssistantTopic() {
-  await application
+function seedAssistantTopic() {
+  application
     .get('DbService')
     .getDb()
     .insert(assistantTable)
@@ -74,7 +74,8 @@ async function seedAssistantTopic() {
       settings: DEFAULT_ASSISTANT_SETTINGS,
       orderKey: generateOrderKeyBetween(null, null)
     })
-  await application
+    .run()
+  application
     .get('DbService')
     .getDb()
     .insert(topicTable)
@@ -84,10 +85,11 @@ async function seedAssistantTopic() {
       activeNodeId: null,
       orderKey: generateOrderKeyBetween(null, null)
     })
+    .run()
 }
 
-async function seedAgentSession() {
-  await application
+function seedAgentSession() {
+  application
     .get('DbService')
     .getDb()
     .insert(agentTable)
@@ -100,7 +102,8 @@ async function seedAgentSession() {
       configuration: { avatar: '🧠' },
       orderKey: generateOrderKeyBetween(null, null)
     })
-  await application
+    .run()
+  application
     .get('DbService')
     .getDb()
     .insert(agentWorkspaceTable)
@@ -111,7 +114,8 @@ async function seedAgentSession() {
       type: 'user',
       orderKey: generateOrderKeyBetween(null, null)
     })
-  await application
+    .run()
+  application
     .get('DbService')
     .getDb()
     .insert(agentSessionTable)
@@ -122,9 +126,10 @@ async function seedAgentSession() {
       workspaceId: 'workspace-1',
       orderKey: generateOrderKeyBetween(null, null)
     })
+    .run()
 }
 
-async function seedProvider(
+function seedProvider(
   apiKeys: Array<{ id: string; key: string; label?: string; isEnabled: boolean }>,
   opts?: {
     providerId?: string
@@ -133,7 +138,7 @@ async function seedProvider(
     reportsActualCost?: boolean
   }
 ) {
-  await application
+  application
     .get('DbService')
     .getDb()
     .insert(userProviderTable)
@@ -146,6 +151,7 @@ async function seedProvider(
       ...(opts?.authConfig ? { authConfig: opts.authConfig as never } : {}),
       ...(opts?.reportsActualCost !== undefined ? { apiFeatures: { reportsActualCost: opts.reportsActualCost } } : {})
     })
+    .run()
 }
 
 function localDateKey(value: number): string {
@@ -172,12 +178,12 @@ describe('AiUsageRecordService', () => {
 
   describe('recordFromMessage', () => {
     it('records token usage and cost, deriving providerId from modelId', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'Main', isEnabled: true }])
-      await seedAssistantTopic()
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'Main', isEnabled: true }])
+      seedAssistantTopic()
 
       await aiUsageRecordService.recordFromMessage(makeMessage())
 
-      const rows = await dbh.db.select().from(aiUsageRecordTable)
+      const rows = dbh.db.select().from(aiUsageRecordTable).all()
       expect(rows).toHaveLength(1)
       expect(rows[0]).toMatchObject({
         requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -205,14 +211,14 @@ describe('AiUsageRecordService', () => {
     })
 
     it('upserts by requestId — re-persists replace with cumulative totals', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
 
       await aiUsageRecordService.recordFromMessage(makeMessage({ stats: { inputTokens: 10, outputTokens: 5 } }))
       await aiUsageRecordService.recordFromMessage(
         makeMessage({ stats: { inputTokens: 40, outputTokens: 20, totalTokens: 60 } })
       )
 
-      const rows = await dbh.db.select().from(aiUsageRecordTable)
+      const rows = dbh.db.select().from(aiUsageRecordTable).all()
       expect(rows).toHaveLength(1)
       expect(rows[0]).toMatchObject({ inputTokens: 40, outputTokens: 20, totalTokens: 60 })
     })
@@ -223,19 +229,19 @@ describe('AiUsageRecordService', () => {
       ['no stats', makeMessage({ stats: null })],
       ['no modelId', makeMessage({ modelId: null })]
     ])('skips messages with %s', async (_name, message) => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
 
       await aiUsageRecordService.recordFromMessage(message)
 
-      expect(await dbh.db.select().from(aiUsageRecordTable)).toHaveLength(0)
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
     })
 
     it('does not infer a serving key from current provider state', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'Main', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'Main', isEnabled: true }])
       await aiUsageRecordService.recordFromMessage(makeMessage({ stats: { inputTokens: 10, outputTokens: 5 } }))
       await aiUsageRecordService.recordFromMessage(makeMessage({ stats: { inputTokens: 40, outputTokens: 20 } }))
 
-      const rows = await dbh.db.select().from(aiUsageRecordTable)
+      const rows = dbh.db.select().from(aiUsageRecordTable).all()
       expect(rows).toHaveLength(1)
       expect(rows[0]).toMatchObject({
         inputTokens: 40,
@@ -250,10 +256,10 @@ describe('AiUsageRecordService', () => {
       // First persist with no provider → unknown.
       await aiUsageRecordService.recordFromMessage(makeMessage({ stats: { inputTokens: 10 } }))
       // Provider appears (e.g. attribution was unresolvable mid-restart).
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'Main', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'Main', isEnabled: true }])
       await aiUsageRecordService.recordFromMessage(makeMessage({ stats: { inputTokens: 20 } }))
 
-      const rows = await dbh.db.select().from(aiUsageRecordTable)
+      const rows = dbh.db.select().from(aiUsageRecordTable).all()
       expect(rows).toHaveLength(1)
       expect(rows[0]).toMatchObject({
         inputTokens: 20,
@@ -275,12 +281,12 @@ describe('AiUsageRecordService', () => {
         })
       ).resolves.toBeUndefined()
 
-      expect(await dbh.db.select().from(aiUsageRecordTable)).toHaveLength(0)
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
       expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
     })
 
     it('publishes all usage read-model changes after a successful write', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
 
       await aiUsageRecordService.recordRequest({
         requestId: 'req-notify',
@@ -289,7 +295,7 @@ describe('AiUsageRecordService', () => {
         stats: { inputTokens: 1 }
       })
 
-      expect(await dbh.db.select().from(aiUsageRecordTable)).toHaveLength(1)
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(1)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledOnce()
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/ai-usage-records', kind: 'membership' },
@@ -300,21 +306,24 @@ describe('AiUsageRecordService', () => {
     })
 
     it('enriches cost from model pricing when the caller stats carry none', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
-      await dbh.db.insert(userModelTable).values({
-        id: 'openai::gpt-4o',
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        presetModelId: 'gpt-4o',
-        name: 'gpt-4o',
-        isEnabled: true,
-        isHidden: false,
-        orderKey: 'a0',
-        pricing: {
-          input: { perMillionTokens: 3, currency: 'USD' },
-          output: { perMillionTokens: 15, currency: 'USD' }
-        }
-      })
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'openai::gpt-4o',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          presetModelId: 'gpt-4o',
+          name: 'gpt-4o',
+          isEnabled: true,
+          isHidden: false,
+          orderKey: 'a0',
+          pricing: {
+            input: { perMillionTokens: 3, currency: 'USD' },
+            output: { perMillionTokens: 15, currency: 'USD' }
+          }
+        })
+        .run()
 
       await aiUsageRecordService.recordRequest({
         requestId: 'req-stateless',
@@ -323,7 +332,7 @@ describe('AiUsageRecordService', () => {
         modality: 'language'
       })
 
-      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      const row = dbh.db.select().from(aiUsageRecordTable).get()
       expect(row).toMatchObject({
         requestId: 'req-stateless',
         topicId: null,
@@ -336,7 +345,7 @@ describe('AiUsageRecordService', () => {
     })
 
     it('persists a provider-reported charge when every token counter is explicitly zero', async () => {
-      await seedProvider([], { providerId: 'openrouter', reportsActualCost: true })
+      seedProvider([], { providerId: 'openrouter', reportsActualCost: true })
 
       await aiUsageRecordService.recordRequest({
         requestId: 'req-provider-cost-only',
@@ -346,7 +355,7 @@ describe('AiUsageRecordService', () => {
         providerCostUsd: 0.125
       })
 
-      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      const row = dbh.db.select().from(aiUsageRecordTable).get()
       expect(row).toMatchObject({
         requestId: 'req-provider-cost-only',
         inputTokens: 0,
@@ -366,12 +375,12 @@ describe('AiUsageRecordService', () => {
         stats: { inputTokens: 12, outputTokens: 8 }
       })
 
-      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      const row = dbh.db.select().from(aiUsageRecordTable).get()
       expect(row).toMatchObject({ inputTokens: 12, outputTokens: 8, totalTokens: 20 })
     })
 
     it('uses the selection-point key snapshot even when the rotation pointer has moved', async () => {
-      await seedProvider([
+      seedProvider([
         { id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'A', isEnabled: true },
         { id: 'key-b', key: 'sk-bbbbbbbbbbbbbbbbbbbbbbbbbbbb', label: 'B', isEnabled: true }
       ])
@@ -395,7 +404,7 @@ describe('AiUsageRecordService', () => {
         stats: { inputTokens: 20 }
       })
 
-      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      const row = dbh.db.select().from(aiUsageRecordTable).get()
       expect(row).toMatchObject({
         requestId: 'req-key-race',
         inputTokens: 20,
@@ -407,7 +416,7 @@ describe('AiUsageRecordService', () => {
     })
 
     it('keeps runtime repair usage authoritative when message persistence lands later', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
 
       await aiUsageRecordService.recordRequest({
         requestId: 'msg-runtime-repair',
@@ -430,7 +439,7 @@ describe('AiUsageRecordService', () => {
         })
       )
 
-      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      const row = dbh.db.select().from(aiUsageRecordTable).get()
       expect(row).toMatchObject({
         captureSource: 'runtime',
         inputTokens: 60,
@@ -443,18 +452,21 @@ describe('AiUsageRecordService', () => {
     })
 
     it('records embedding requests and enriches cost from the input rate', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
-      await dbh.db.insert(userModelTable).values({
-        id: 'openai::text-embedding-3-small',
-        providerId: 'openai',
-        modelId: 'text-embedding-3-small',
-        presetModelId: 'text-embedding-3-small',
-        name: 'text-embedding-3-small',
-        isEnabled: true,
-        isHidden: false,
-        orderKey: 'a0',
-        pricing: { input: { perMillionTokens: 0.02, currency: 'USD' }, output: { perMillionTokens: null } }
-      })
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'openai::text-embedding-3-small',
+          providerId: 'openai',
+          modelId: 'text-embedding-3-small',
+          presetModelId: 'text-embedding-3-small',
+          name: 'text-embedding-3-small',
+          isEnabled: true,
+          isHidden: false,
+          orderKey: 'a0',
+          pricing: { input: { perMillionTokens: 0.02, currency: 'USD' }, output: { perMillionTokens: null } }
+        })
+        .run()
 
       await aiUsageRecordService.recordRequest({
         requestId: 'req-embed',
@@ -463,7 +475,7 @@ describe('AiUsageRecordService', () => {
         stats: { inputTokens: 1_000_000, totalTokens: 1_000_000 }
       })
 
-      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      const row = dbh.db.select().from(aiUsageRecordTable).get()
       expect(row).toMatchObject({
         requestId: 'req-embed',
         modality: 'embedding',
@@ -474,7 +486,7 @@ describe('AiUsageRecordService', () => {
     })
 
     it('records image requests with imageCount and pre-computed per-image cost', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
 
       await aiUsageRecordService.recordRequest({
         requestId: 'req-image',
@@ -492,7 +504,7 @@ describe('AiUsageRecordService', () => {
         stats: {}
       })
 
-      const rows = await dbh.db.select().from(aiUsageRecordTable)
+      const rows = dbh.db.select().from(aiUsageRecordTable).all()
       expect(rows).toHaveLength(2)
       const priced = rows.find((r) => r.requestId === 'req-image')
       expect(priced).toMatchObject({ modality: 'image', imageCount: 3, cost: 0.12, totalTokens: null })
@@ -501,7 +513,7 @@ describe('AiUsageRecordService', () => {
     })
 
     it('never regresses topicId to null when funnel and persistence hook converge', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
 
       // Persistence hook lands first (with topic context)…
       await aiUsageRecordService.recordFromMessage(makeMessage({ id: 'msg-conv', topicId: 'topic-1' } as never))
@@ -513,12 +525,12 @@ describe('AiUsageRecordService', () => {
         modality: 'language'
       })
 
-      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      const row = dbh.db.select().from(aiUsageRecordTable).get()
       expect(row).toMatchObject({ requestId: 'msg-conv', topicId: 'topic-1' })
     })
 
     it('never erases cost and timings when a tokens-only re-record lands second', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
 
       // Persistence hook lands first with the full metric set…
       await aiUsageRecordService.recordFromMessage(makeMessage({ id: 'msg-metrics' } as never))
@@ -531,7 +543,7 @@ describe('AiUsageRecordService', () => {
         modality: 'language'
       })
 
-      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      const row = dbh.db.select().from(aiUsageRecordTable).get()
       expect(row).toMatchObject({
         requestId: 'msg-metrics',
         // Tokens are last-write-wins…
@@ -552,7 +564,7 @@ describe('AiUsageRecordService', () => {
     })
 
     it('never downgrades a provider-reported cost to a locally computed one', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
 
       const providerBreakdown = { input: 0.3, output: 0.6 }
       const providerPricingSnapshot = {
@@ -598,7 +610,7 @@ describe('AiUsageRecordService', () => {
         } as never)
       )
 
-      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      const row = dbh.db.select().from(aiUsageRecordTable).get()
       expect(row).toMatchObject({
         // Tokens stay last-write-wins…
         inputTokens: 100,
@@ -613,7 +625,7 @@ describe('AiUsageRecordService', () => {
     })
 
     it('does not backfill a missing provider pricing snapshot from a later computed write', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
 
       await aiUsageRecordService.recordRequest({
         requestId: 'msg-provider-cost-without-snapshot',
@@ -647,7 +659,7 @@ describe('AiUsageRecordService', () => {
         } as never)
       )
 
-      const rows = await dbh.db.select().from(aiUsageRecordTable)
+      const rows = dbh.db.select().from(aiUsageRecordTable).all()
       expect(rows).toHaveLength(1)
       expect(rows[0]).toMatchObject({
         cost: 0.9,
@@ -658,8 +670,8 @@ describe('AiUsageRecordService', () => {
     })
 
     it('records agent source by agent id, not session id', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
-      await seedAgentSession()
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      seedAgentSession()
 
       await aiUsageRecordService.recordRequest({
         requestId: 'agent-message-1',
@@ -669,7 +681,7 @@ describe('AiUsageRecordService', () => {
         modality: 'language'
       })
 
-      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      const row = dbh.db.select().from(aiUsageRecordTable).get()
       expect(row).toMatchObject({
         requestId: 'agent-message-1',
         sourceType: 'agent',
@@ -680,8 +692,8 @@ describe('AiUsageRecordService', () => {
     })
 
     it('uses the immutable message author snapshot instead of current assistant state', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
-      await seedAssistantTopic()
+      seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      seedAssistantTopic()
 
       await aiUsageRecordService.recordFromMessage(
         makeMessage({
@@ -694,7 +706,7 @@ describe('AiUsageRecordService', () => {
         })
       )
 
-      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      const row = dbh.db.select().from(aiUsageRecordTable).get()
       expect(row).toMatchObject({
         sourceType: 'assistant',
         sourceId: 'assistant-original',
@@ -706,7 +718,7 @@ describe('AiUsageRecordService', () => {
 
   describe('resolveKeyAttribution', () => {
     it('returns unknown without a request-owned receipt even when a key is configured', async () => {
-      await seedProvider([
+      seedProvider([
         { id: 'key-a', key: 'sk-test-1234567890abcdefgh', label: 'Main', isEnabled: true },
         { id: 'key-b', key: 'sk-disabled', label: 'Off', isEnabled: false }
       ])
@@ -718,7 +730,7 @@ describe('AiUsageRecordService', () => {
     })
 
     it('uses the request-owned key receipt without exposing the secret', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-test-1234567890abcdefgh', label: 'Main', isEnabled: true }])
+      seedProvider([{ id: 'key-a', key: 'sk-test-1234567890abcdefgh', label: 'Main', isEnabled: true }])
 
       const result = aiUsageRecordService.resolveKeyAttribution('openai', {
         attribution: 'explicit',
@@ -737,7 +749,7 @@ describe('AiUsageRecordService', () => {
     })
 
     it('uses the request-owned provider-auth receipt', async () => {
-      await seedProvider([], { providerId: 'bedrock', authConfig: { type: 'iam-aws', region: 'us-east-1' } })
+      seedProvider([], { providerId: 'bedrock', authConfig: { type: 'iam-aws', region: 'us-east-1' } })
 
       expect(
         aiUsageRecordService.resolveKeyAttribution('bedrock', {
@@ -781,11 +793,14 @@ describe('AiUsageRecordService', () => {
         costCurrency: 'USD',
         costSource: 'computed'
       } as const
-      await dbh.db.insert(aiUsageRecordTable).values([
-        { ...base, requestId: 'm1', providerId: 'openai', apiKeyId: 'key-a', createdAt: 1000, updatedAt: 1000 },
-        { ...base, requestId: 'm2', providerId: 'openai', apiKeyId: 'key-b', createdAt: 2000, updatedAt: 2000 },
-        { ...base, requestId: 'm3', providerId: 'anthropic', apiKeyId: 'key-c', createdAt: 3000, updatedAt: 3000 }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          { ...base, requestId: 'm1', providerId: 'openai', apiKeyId: 'key-a', createdAt: 1000, updatedAt: 1000 },
+          { ...base, requestId: 'm2', providerId: 'openai', apiKeyId: 'key-b', createdAt: 2000, updatedAt: 2000 },
+          { ...base, requestId: 'm3', providerId: 'anthropic', apiKeyId: 'key-c', createdAt: 3000, updatedAt: 3000 }
+        ])
+        .run()
 
       const byTime = aiUsageRecordService.list({ limit: 50, from: 1500, to: 2500 })
       expect(byTime.items.map((i) => i.requestId)).toEqual(['m2'])
@@ -810,41 +825,44 @@ describe('AiUsageRecordService', () => {
         costCurrency: 'USD',
         costSource: 'computed'
       } as const
-      await dbh.db.insert(aiUsageRecordTable).values([
-        {
-          ...base,
-          requestId: 'slow',
-          outputTokens: 10,
-          totalTokens: 20,
-          cost: 0.5,
-          timeFirstTokenMs: 900,
-          timeCompletionMs: 1900,
-          createdAt: 1000,
-          updatedAt: 1000
-        },
-        {
-          ...base,
-          requestId: 'fast',
-          outputTokens: 100,
-          totalTokens: 200,
-          cost: 0.2,
-          timeFirstTokenMs: 100,
-          timeCompletionMs: 1100,
-          createdAt: 2000,
-          updatedAt: 2000
-        },
-        {
-          ...base,
-          requestId: 'expensive',
-          outputTokens: 30,
-          totalTokens: 60,
-          cost: 2,
-          timeFirstTokenMs: 300,
-          timeCompletionMs: 900,
-          createdAt: 3000,
-          updatedAt: 3000
-        }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          {
+            ...base,
+            requestId: 'slow',
+            outputTokens: 10,
+            totalTokens: 20,
+            cost: 0.5,
+            timeFirstTokenMs: 900,
+            timeCompletionMs: 1900,
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            ...base,
+            requestId: 'fast',
+            outputTokens: 100,
+            totalTokens: 200,
+            cost: 0.2,
+            timeFirstTokenMs: 100,
+            timeCompletionMs: 1100,
+            createdAt: 2000,
+            updatedAt: 2000
+          },
+          {
+            ...base,
+            requestId: 'expensive',
+            outputTokens: 30,
+            totalTokens: 60,
+            cost: 2,
+            timeFirstTokenMs: 300,
+            timeCompletionMs: 900,
+            createdAt: 3000,
+            updatedAt: 3000
+          }
+        ])
+        .run()
 
       expect(aiUsageRecordService.list({ limit: 3, sortBy: 'totalTokens' })).toMatchObject({
         items: [{ requestId: 'fast' }, { requestId: 'expensive' }, { requestId: 'slow' }]
@@ -895,17 +913,20 @@ describe('AiUsageRecordService', () => {
         modality: 'language',
         apiKeyAttribution: 'unknown'
       } as const
-      await dbh.db.insert(aiUsageRecordTable).values([
-        {
-          ...base,
-          requestId: 'metered',
-          totalTokens: 1,
-          createdAt: 1000,
-          updatedAt: 1000
-        },
-        { ...base, requestId: 'free-old', createdAt: 2000, updatedAt: 2000 },
-        { ...base, requestId: 'free-new', createdAt: 3000, updatedAt: 3000 }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          {
+            ...base,
+            requestId: 'metered',
+            totalTokens: 1,
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          { ...base, requestId: 'free-old', createdAt: 2000, updatedAt: 2000 },
+          { ...base, requestId: 'free-new', createdAt: 3000, updatedAt: 3000 }
+        ])
+        .run()
 
       const first = aiUsageRecordService.list({ limit: 1, sortBy: 'totalTokens' })
       const second = aiUsageRecordService.list({
@@ -932,26 +953,29 @@ describe('AiUsageRecordService', () => {
         apiKeyAttribution: 'unknown',
         costSource: 'computed'
       } as const
-      await dbh.db.insert(aiUsageRecordTable).values([
-        {
-          ...base,
-          requestId: 'usd',
-          providerId: 'openai',
-          cost: 1,
-          costCurrency: 'USD',
-          createdAt: 1000,
-          updatedAt: 1000
-        },
-        {
-          ...base,
-          requestId: 'cny',
-          providerId: 'openai',
-          cost: 100,
-          costCurrency: 'CNY',
-          createdAt: 2000,
-          updatedAt: 2000
-        }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          {
+            ...base,
+            requestId: 'usd',
+            providerId: 'openai',
+            cost: 1,
+            costCurrency: 'USD',
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            ...base,
+            requestId: 'cny',
+            providerId: 'openai',
+            cost: 100,
+            costCurrency: 'CNY',
+            createdAt: 2000,
+            updatedAt: 2000
+          }
+        ])
+        .run()
 
       expect(aiUsageRecordService.list({ limit: 10, sortBy: 'cost', costCurrency: 'USD' })).toMatchObject({
         items: [{ requestId: 'usd' }],
@@ -1065,60 +1089,63 @@ describe('AiUsageRecordService', () => {
         apiKeyAttribution: 'explicit',
         costSource: 'computed'
       } as const
-      await dbh.db.insert(aiUsageRecordTable).values([
-        {
-          ...base,
-          requestId: 'm1',
-          apiKeyId: 'key-a',
-          apiKeyLabel: 'Main',
-          inputTokens: 100,
-          outputTokens: 50,
-          totalTokens: 150,
-          cost: 0.5,
-          costCurrency: 'USD',
-          createdAt: 1000,
-          updatedAt: 1000
-        },
-        {
-          ...base,
-          requestId: 'm2',
-          apiKeyId: 'key-a',
-          apiKeyLabel: 'Main',
-          inputTokens: 200,
-          outputTokens: 100,
-          totalTokens: 300,
-          cost: 1.5,
-          costCurrency: 'USD',
-          createdAt: 2000,
-          updatedAt: 2000
-        },
-        {
-          ...base,
-          requestId: 'm3',
-          apiKeyId: 'key-a',
-          apiKeyLabel: 'Main',
-          inputTokens: 10,
-          outputTokens: 5,
-          totalTokens: 15,
-          cost: 7,
-          costCurrency: 'CNY',
-          createdAt: 3000,
-          updatedAt: 3000
-        },
-        {
-          ...base,
-          requestId: 'm4',
-          apiKeyId: 'key-b',
-          apiKeyLabel: 'Backup',
-          inputTokens: 1,
-          outputTokens: 1,
-          totalTokens: 2,
-          cost: 0.1,
-          costCurrency: 'USD',
-          createdAt: 4000,
-          updatedAt: 4000
-        }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          {
+            ...base,
+            requestId: 'm1',
+            apiKeyId: 'key-a',
+            apiKeyLabel: 'Main',
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150,
+            cost: 0.5,
+            costCurrency: 'USD',
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            ...base,
+            requestId: 'm2',
+            apiKeyId: 'key-a',
+            apiKeyLabel: 'Main',
+            inputTokens: 200,
+            outputTokens: 100,
+            totalTokens: 300,
+            cost: 1.5,
+            costCurrency: 'USD',
+            createdAt: 2000,
+            updatedAt: 2000
+          },
+          {
+            ...base,
+            requestId: 'm3',
+            apiKeyId: 'key-a',
+            apiKeyLabel: 'Main',
+            inputTokens: 10,
+            outputTokens: 5,
+            totalTokens: 15,
+            cost: 7,
+            costCurrency: 'CNY',
+            createdAt: 3000,
+            updatedAt: 3000
+          },
+          {
+            ...base,
+            requestId: 'm4',
+            apiKeyId: 'key-b',
+            apiKeyLabel: 'Backup',
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2,
+            cost: 0.1,
+            costCurrency: 'USD',
+            createdAt: 4000,
+            updatedAt: 4000
+          }
+        ])
+        .run()
 
       const { buckets } = aiUsageRecordService.stats({
         ...DEFAULT_AGGREGATE_QUERY,
@@ -1151,24 +1178,27 @@ describe('AiUsageRecordService', () => {
         costCurrency: 'USD',
         costSource: 'computed'
       } as const
-      await dbh.db.insert(aiUsageRecordTable).values([
-        {
-          ...base,
-          requestId: 'm-explicit',
-          apiKeyAttribution: 'explicit',
-          cost: 1,
-          createdAt: 1000,
-          updatedAt: 1000
-        },
-        {
-          ...base,
-          requestId: 'm-matched',
-          apiKeyAttribution: 'matched',
-          cost: 2,
-          createdAt: 2000,
-          updatedAt: 2000
-        }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          {
+            ...base,
+            requestId: 'm-explicit',
+            apiKeyAttribution: 'explicit',
+            cost: 1,
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            ...base,
+            requestId: 'm-matched',
+            apiKeyAttribution: 'matched',
+            cost: 2,
+            createdAt: 2000,
+            updatedAt: 2000
+          }
+        ])
+        .run()
 
       const { buckets } = aiUsageRecordService.stats({ ...DEFAULT_AGGREGATE_QUERY, groupBy: 'apiKey' })
 
@@ -1187,34 +1217,37 @@ describe('AiUsageRecordService', () => {
         modelId: 'openai::gpt-4o',
         modality: 'language'
       } as const
-      await dbh.db.insert(aiUsageRecordTable).values([
-        {
-          ...base,
-          requestId: 'provider-auth',
-          apiKeyAttribution: 'auth',
-          authMethod: 'oauth',
-          totalTokens: 20,
-          createdAt: 1000,
-          updatedAt: 1000
-        },
-        {
-          ...base,
-          requestId: 'unattributed',
-          apiKeyAttribution: 'unknown',
-          totalTokens: 10,
-          createdAt: 2000,
-          updatedAt: 2000
-        },
-        {
-          ...base,
-          requestId: 'provider-auth-external',
-          apiKeyAttribution: 'auth',
-          authMethod: 'external-cli',
-          totalTokens: 5,
-          createdAt: 3000,
-          updatedAt: 3000
-        }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          {
+            ...base,
+            requestId: 'provider-auth',
+            apiKeyAttribution: 'auth',
+            authMethod: 'oauth',
+            totalTokens: 20,
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            ...base,
+            requestId: 'unattributed',
+            apiKeyAttribution: 'unknown',
+            totalTokens: 10,
+            createdAt: 2000,
+            updatedAt: 2000
+          },
+          {
+            ...base,
+            requestId: 'provider-auth-external',
+            apiKeyAttribution: 'auth',
+            authMethod: 'external-cli',
+            totalTokens: 5,
+            createdAt: 3000,
+            updatedAt: 3000
+          }
+        ])
+        .run()
 
       const { buckets } = aiUsageRecordService.stats({
         ...DEFAULT_AGGREGATE_QUERY,
@@ -1242,21 +1275,24 @@ describe('AiUsageRecordService', () => {
     })
 
     it('keeps the stored provider-name snapshot stable when the live provider differs', async () => {
-      await seedProvider([], { providerId: 'custom-provider' })
-      await dbh.db.insert(aiUsageRecordTable).values({
-        requestId: 'snapshotless-row',
-        providerId: 'custom-provider',
-        providerName: 'custom-provider',
-        modelId: 'custom-provider::model-a',
-        modality: 'language',
-        apiKeyAttribution: 'unknown',
-        totalTokens: 12,
-        cost: 0.1,
-        costCurrency: 'USD',
-        costSource: 'computed',
-        createdAt: 1000,
-        updatedAt: 1000
-      })
+      seedProvider([], { providerId: 'custom-provider' })
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values({
+          requestId: 'snapshotless-row',
+          providerId: 'custom-provider',
+          providerName: 'custom-provider',
+          modelId: 'custom-provider::model-a',
+          modality: 'language',
+          apiKeyAttribution: 'unknown',
+          totalTokens: 12,
+          cost: 0.1,
+          costCurrency: 'USD',
+          costSource: 'computed',
+          createdAt: 1000,
+          updatedAt: 1000
+        })
+        .run()
 
       const stats = aiUsageRecordService.stats({ ...DEFAULT_AGGREGATE_QUERY, groupBy: 'provider' })
       expect(stats.buckets[0]).toMatchObject({
@@ -1272,32 +1308,35 @@ describe('AiUsageRecordService', () => {
     })
 
     it('aggregates by provider with a time window', async () => {
-      await dbh.db.insert(aiUsageRecordTable).values([
-        {
-          requestId: 'm1',
-          providerId: 'openai',
-          modelId: 'openai::gpt-4o',
-          modality: 'language',
-          apiKeyAttribution: 'unknown',
-          cost: 1,
-          costCurrency: 'USD',
-          costSource: 'computed',
-          createdAt: 1000,
-          updatedAt: 1000
-        },
-        {
-          requestId: 'm2',
-          providerId: 'openai',
-          modelId: 'openai::gpt-4o',
-          modality: 'language',
-          apiKeyAttribution: 'unknown',
-          cost: 2,
-          costCurrency: 'USD',
-          costSource: 'computed',
-          createdAt: 5000,
-          updatedAt: 5000
-        }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          {
+            requestId: 'm1',
+            providerId: 'openai',
+            modelId: 'openai::gpt-4o',
+            modality: 'language',
+            apiKeyAttribution: 'unknown',
+            cost: 1,
+            costCurrency: 'USD',
+            costSource: 'computed',
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            requestId: 'm2',
+            providerId: 'openai',
+            modelId: 'openai::gpt-4o',
+            modality: 'language',
+            apiKeyAttribution: 'unknown',
+            cost: 2,
+            costCurrency: 'USD',
+            costSource: 'computed',
+            createdAt: 5000,
+            updatedAt: 5000
+          }
+        ])
+        .run()
 
       const { buckets } = aiUsageRecordService.stats({
         ...DEFAULT_AGGREGATE_QUERY,
@@ -1311,68 +1350,71 @@ describe('AiUsageRecordService', () => {
     })
 
     it('aggregates by assistant and agent source', async () => {
-      await dbh.db.insert(aiUsageRecordTable).values([
-        {
-          requestId: 'assistant-row-1',
-          providerId: 'openai',
-          modelId: 'openai::gpt-4o',
-          modality: 'language',
-          sourceType: 'assistant',
-          sourceId: 'assistant-1',
-          sourceName: 'Assistant One',
-          sourceIcon: '✨',
-          apiKeyAttribution: 'unknown',
-          noCacheTokens: 50,
-          cacheReadTokens: 25,
-          cacheWriteTokens: 25,
-          totalTokens: 100,
-          cost: 1,
-          costCurrency: 'USD',
-          costSource: 'computed',
-          createdAt: 1000,
-          updatedAt: 1000
-        },
-        {
-          requestId: 'assistant-row-2',
-          providerId: 'openai',
-          modelId: 'openai::gpt-4o',
-          modality: 'language',
-          sourceType: 'assistant',
-          sourceId: 'assistant-1',
-          sourceName: 'Assistant One',
-          sourceIcon: '✨',
-          apiKeyAttribution: 'unknown',
-          noCacheTokens: 10,
-          cacheReadTokens: 5,
-          cacheWriteTokens: 5,
-          totalTokens: 20,
-          cost: 0.5,
-          costCurrency: 'USD',
-          costSource: 'computed',
-          createdAt: 2000,
-          updatedAt: 2000
-        },
-        {
-          requestId: 'agent-row',
-          providerId: 'openai',
-          modelId: 'openai::gpt-4o',
-          modality: 'language',
-          sourceType: 'agent',
-          sourceId: 'agent-1',
-          sourceName: 'Agent One',
-          sourceIcon: '🧠',
-          apiKeyAttribution: 'unknown',
-          noCacheTokens: 100,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
-          totalTokens: 100,
-          cost: 0.25,
-          costCurrency: 'USD',
-          costSource: 'computed',
-          createdAt: 3000,
-          updatedAt: 3000
-        }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          {
+            requestId: 'assistant-row-1',
+            providerId: 'openai',
+            modelId: 'openai::gpt-4o',
+            modality: 'language',
+            sourceType: 'assistant',
+            sourceId: 'assistant-1',
+            sourceName: 'Assistant One',
+            sourceIcon: '✨',
+            apiKeyAttribution: 'unknown',
+            noCacheTokens: 50,
+            cacheReadTokens: 25,
+            cacheWriteTokens: 25,
+            totalTokens: 100,
+            cost: 1,
+            costCurrency: 'USD',
+            costSource: 'computed',
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            requestId: 'assistant-row-2',
+            providerId: 'openai',
+            modelId: 'openai::gpt-4o',
+            modality: 'language',
+            sourceType: 'assistant',
+            sourceId: 'assistant-1',
+            sourceName: 'Assistant One',
+            sourceIcon: '✨',
+            apiKeyAttribution: 'unknown',
+            noCacheTokens: 10,
+            cacheReadTokens: 5,
+            cacheWriteTokens: 5,
+            totalTokens: 20,
+            cost: 0.5,
+            costCurrency: 'USD',
+            costSource: 'computed',
+            createdAt: 2000,
+            updatedAt: 2000
+          },
+          {
+            requestId: 'agent-row',
+            providerId: 'openai',
+            modelId: 'openai::gpt-4o',
+            modality: 'language',
+            sourceType: 'agent',
+            sourceId: 'agent-1',
+            sourceName: 'Agent One',
+            sourceIcon: '🧠',
+            apiKeyAttribution: 'unknown',
+            noCacheTokens: 100,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            totalTokens: 100,
+            cost: 0.25,
+            costCurrency: 'USD',
+            costSource: 'computed',
+            createdAt: 3000,
+            updatedAt: 3000
+          }
+        ])
+        .run()
 
       const { buckets } = aiUsageRecordService.stats({
         ...DEFAULT_AGGREGATE_QUERY,
@@ -1411,32 +1453,35 @@ describe('AiUsageRecordService', () => {
         modality: 'language',
         apiKeyAttribution: 'unknown'
       } as const
-      await dbh.db.insert(aiUsageRecordTable).values([
-        {
-          ...base,
-          requestId: 'largest',
-          providerId: 'largest',
-          totalTokens: 30,
-          createdAt: 1000,
-          updatedAt: 1000
-        },
-        {
-          ...base,
-          requestId: 'middle',
-          providerId: 'middle',
-          totalTokens: 20,
-          createdAt: 2000,
-          updatedAt: 2000
-        },
-        {
-          ...base,
-          requestId: 'smallest',
-          providerId: 'smallest',
-          totalTokens: 10,
-          createdAt: 3000,
-          updatedAt: 3000
-        }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          {
+            ...base,
+            requestId: 'largest',
+            providerId: 'largest',
+            totalTokens: 30,
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            ...base,
+            requestId: 'middle',
+            providerId: 'middle',
+            totalTokens: 20,
+            createdAt: 2000,
+            updatedAt: 2000
+          },
+          {
+            ...base,
+            requestId: 'smallest',
+            providerId: 'smallest',
+            totalTokens: 10,
+            createdAt: 3000,
+            updatedAt: 3000
+          }
+        ])
+        .run()
 
       const result = aiUsageRecordService.stats({
         ...DEFAULT_AGGREGATE_QUERY,
@@ -1466,10 +1511,13 @@ describe('AiUsageRecordService', () => {
       const first = new Date(2026, 0, 2, 1).getTime()
       const second = new Date(2026, 0, 2, 23).getTime()
 
-      await dbh.db.insert(aiUsageRecordTable).values([
-        { ...usdBase, requestId: 'm1', totalTokens: 100, cost: 0.25, createdAt: first, updatedAt: first },
-        { ...usdBase, requestId: 'm2', totalTokens: 50, cost: 0.75, createdAt: second, updatedAt: second }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          { ...usdBase, requestId: 'm1', totalTokens: 100, cost: 0.25, createdAt: first, updatedAt: first },
+          { ...usdBase, requestId: 'm2', totalTokens: 50, cost: 0.75, createdAt: second, updatedAt: second }
+        ])
+        .run()
 
       const { buckets } = aiUsageRecordService.timeline({
         ...DEFAULT_AGGREGATE_QUERY,
@@ -1494,21 +1542,24 @@ describe('AiUsageRecordService', () => {
     it('keeps one usage bucket while returning currency-specific cost totals', async () => {
       const at = new Date(2026, 0, 2, 9).getTime()
 
-      await dbh.db.insert(aiUsageRecordTable).values([
-        { ...usdBase, requestId: 'usd-1', totalTokens: 100, cost: 0.5, createdAt: at, updatedAt: at },
-        { ...usdBase, requestId: 'usd-2', totalTokens: 20, cost: 0.25, createdAt: at, updatedAt: at },
-        {
-          ...base,
-          requestId: 'cny-1',
-          totalTokens: 40,
-          cost: 3,
-          costCurrency: 'CNY',
-          costSource: 'computed',
-          createdAt: at,
-          updatedAt: at
-        },
-        { ...base, requestId: 'free-1', totalTokens: 7, cost: null, createdAt: at, updatedAt: at }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          { ...usdBase, requestId: 'usd-1', totalTokens: 100, cost: 0.5, createdAt: at, updatedAt: at },
+          { ...usdBase, requestId: 'usd-2', totalTokens: 20, cost: 0.25, createdAt: at, updatedAt: at },
+          {
+            ...base,
+            requestId: 'cny-1',
+            totalTokens: 40,
+            cost: 3,
+            costCurrency: 'CNY',
+            costSource: 'computed',
+            createdAt: at,
+            updatedAt: at
+          },
+          { ...base, requestId: 'free-1', totalTokens: 7, cost: null, createdAt: at, updatedAt: at }
+        ])
+        .run()
 
       const result = aiUsageRecordService.timeline({
         ...DEFAULT_AGGREGATE_QUERY,
@@ -1541,23 +1592,26 @@ describe('AiUsageRecordService', () => {
 
     it('retains a zero-cost currency bucket so free usage is distinguishable from unpriced usage', async () => {
       const at = new Date(2026, 0, 2, 9).getTime()
-      await dbh.db.insert(aiUsageRecordTable).values([
-        {
-          ...usdBase,
-          requestId: 'free-priced',
-          totalTokens: 10,
-          cost: 0,
-          createdAt: at,
-          updatedAt: at
-        },
-        {
-          ...base,
-          requestId: 'unpriced',
-          totalTokens: 5,
-          createdAt: at,
-          updatedAt: at
-        }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          {
+            ...usdBase,
+            requestId: 'free-priced',
+            totalTokens: 10,
+            cost: 0,
+            createdAt: at,
+            updatedAt: at
+          },
+          {
+            ...base,
+            requestId: 'unpriced',
+            totalTokens: 5,
+            createdAt: at,
+            updatedAt: at
+          }
+        ])
+        .run()
 
       const result = aiUsageRecordService.timeline({
         ...DEFAULT_AGGREGATE_QUERY,
@@ -1574,10 +1628,13 @@ describe('AiUsageRecordService', () => {
       const day1 = new Date(2026, 0, 1, 12).getTime()
       const day3 = new Date(2026, 0, 3, 12).getTime()
 
-      await dbh.db.insert(aiUsageRecordTable).values([
-        { ...usdBase, requestId: 'm3', totalTokens: 30, cost: 0.3, createdAt: day3, updatedAt: day3 },
-        { ...usdBase, requestId: 'm1', totalTokens: 10, cost: 0.1, createdAt: day1, updatedAt: day1 }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          { ...usdBase, requestId: 'm3', totalTokens: 30, cost: 0.3, createdAt: day3, updatedAt: day3 },
+          { ...usdBase, requestId: 'm1', totalTokens: 10, cost: 0.1, createdAt: day1, updatedAt: day1 }
+        ])
+        .run()
 
       const { buckets } = aiUsageRecordService.timeline(DEFAULT_AGGREGATE_QUERY)
 
@@ -1589,19 +1646,22 @@ describe('AiUsageRecordService', () => {
       const at = new Date(2026, 0, 2, 9).getTime()
       const next = new Date(2026, 0, 3, 9).getTime()
 
-      await dbh.db.insert(aiUsageRecordTable).values([
-        { ...base, requestId: 'a1', totalTokens: 10, createdAt: at, updatedAt: at },
-        { ...base, requestId: 'a2', totalTokens: 20, createdAt: at, updatedAt: at },
-        {
-          ...base,
-          requestId: 'b1',
-          modelId: 'openai::gpt-4o-mini',
-          totalTokens: 5,
-          createdAt: at,
-          updatedAt: at
-        },
-        { ...base, requestId: 'a3', totalTokens: 7, createdAt: next, updatedAt: next }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          { ...base, requestId: 'a1', totalTokens: 10, createdAt: at, updatedAt: at },
+          { ...base, requestId: 'a2', totalTokens: 20, createdAt: at, updatedAt: at },
+          {
+            ...base,
+            requestId: 'b1',
+            modelId: 'openai::gpt-4o-mini',
+            totalTokens: 5,
+            createdAt: at,
+            updatedAt: at
+          },
+          { ...base, requestId: 'a3', totalTokens: 7, createdAt: next, updatedAt: next }
+        ])
+        .run()
 
       const { buckets } = aiUsageRecordService.timeline({
         ...DEFAULT_AGGREGATE_QUERY,
@@ -1620,24 +1680,27 @@ describe('AiUsageRecordService', () => {
 
     it('bounds grouped timeline cardinality and emits the remainder as other', async () => {
       const at = new Date(2026, 0, 2, 9).getTime()
-      await dbh.db.insert(aiUsageRecordTable).values([
-        {
-          ...base,
-          requestId: 'largest',
-          providerId: 'largest',
-          totalTokens: 30,
-          createdAt: at,
-          updatedAt: at
-        },
-        {
-          ...base,
-          requestId: 'smallest',
-          providerId: 'smallest',
-          totalTokens: 10,
-          createdAt: at,
-          updatedAt: at
-        }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          {
+            ...base,
+            requestId: 'largest',
+            providerId: 'largest',
+            totalTokens: 30,
+            createdAt: at,
+            updatedAt: at
+          },
+          {
+            ...base,
+            requestId: 'smallest',
+            providerId: 'smallest',
+            totalTokens: 10,
+            createdAt: at,
+            updatedAt: at
+          }
+        ])
+        .run()
 
       const { buckets } = aiUsageRecordService.timeline({
         ...DEFAULT_AGGREGATE_QUERY,
@@ -1657,9 +1720,10 @@ describe('AiUsageRecordService', () => {
     it('leaves group identity empty when no groupBy is given', async () => {
       const at = new Date(2026, 0, 2, 9).getTime()
 
-      await dbh.db
+      dbh.db
         .insert(aiUsageRecordTable)
         .values([{ ...base, requestId: 'a1', totalTokens: 10, createdAt: at, updatedAt: at }])
+        .run()
 
       const [bucket] = aiUsageRecordService.timeline(DEFAULT_AGGREGATE_QUERY).buckets
 
@@ -1675,13 +1739,16 @@ describe('AiUsageRecordService', () => {
       const to = new Date(2026, 0, 2, 23, 59, 59, 999).getTime()
       const after = new Date(2026, 0, 3, 12).getTime()
 
-      await dbh.db.insert(aiUsageRecordTable).values([
-        { ...usdBase, requestId: 'm-before', totalTokens: 10, cost: 0.1, createdAt: before, updatedAt: before },
-        { ...usdBase, requestId: 'm-from', totalTokens: 20, cost: 0.2, createdAt: from, updatedAt: from },
-        { ...usdBase, requestId: 'm-inside', totalTokens: 30, cost: 0.3, createdAt: inside, updatedAt: inside },
-        { ...usdBase, requestId: 'm-to', totalTokens: 40, cost: 0.4, createdAt: to, updatedAt: to },
-        { ...usdBase, requestId: 'm-after', totalTokens: 50, cost: 0.5, createdAt: after, updatedAt: after }
-      ])
+      dbh.db
+        .insert(aiUsageRecordTable)
+        .values([
+          { ...usdBase, requestId: 'm-before', totalTokens: 10, cost: 0.1, createdAt: before, updatedAt: before },
+          { ...usdBase, requestId: 'm-from', totalTokens: 20, cost: 0.2, createdAt: from, updatedAt: from },
+          { ...usdBase, requestId: 'm-inside', totalTokens: 30, cost: 0.3, createdAt: inside, updatedAt: inside },
+          { ...usdBase, requestId: 'm-to', totalTokens: 40, cost: 0.4, createdAt: to, updatedAt: to },
+          { ...usdBase, requestId: 'm-after', totalTokens: 50, cost: 0.5, createdAt: after, updatedAt: after }
+        ])
+        .run()
 
       const { buckets } = aiUsageRecordService.timeline({
         ...DEFAULT_AGGREGATE_QUERY,

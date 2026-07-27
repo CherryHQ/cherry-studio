@@ -28,7 +28,7 @@ import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/da
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
-import { aiUsageRecordService } from './aiUsageRecord'
+import { type AgentSessionUsageCapture, aiUsageRecordService } from './aiUsageRecord'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -61,6 +61,14 @@ type ListSessionMessagesOptions = {
   cursor?: string
   limit?: number
   messageId?: string
+}
+
+type SaveAgentSessionMessageParams = {
+  sessionId: string
+  runtimeResumeToken?: string
+  message: CreateAgentSessionMessageDto
+  /** Route-owned capture policy; omitted by non-runtime callers. */
+  usageCapture?: AgentSessionUsageCapture
 }
 
 export class AgentSessionMessageService {
@@ -433,7 +441,7 @@ export class AgentSessionMessageService {
 
   private saveMessageTx(
     db: DbOrTx,
-    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
+    params: SaveAgentSessionMessageParams,
     timestampMs = Date.now()
   ): AgentSessionMessageEntity {
     const saved = this.upsertMessage(db, params, timestampMs)
@@ -441,16 +449,13 @@ export class AgentSessionMessageService {
     return saved
   }
 
-  saveMessage(
-    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
-    db?: DbOrTx
-  ): AgentSessionMessageEntity {
+  saveMessage(params: SaveAgentSessionMessageParams, db?: DbOrTx): AgentSessionMessageEntity {
     const timestampMs = Date.now()
     // Caller-managed tx: skip the usage-record hook — we can't observe its commit,
     // and recording from a transaction that may roll back would ghost-write.
     if (db) return this.saveMessageTx(db, params, timestampMs)
     const saved = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
-    this.recordAiUsageRecord(saved)
+    this.recordAiUsageRecord(saved, params.usageCapture)
     return saved
   }
 
@@ -471,14 +476,15 @@ export class AgentSessionMessageService {
   }
 
   /**
-   * An agent-session assistant message landing token stats is a usage event.
-   * Agent sessions bypass the AiService request collector (their
-   * runtime never constructs an aiSdk Agent) and the `message`-table hook
-   * (separate table), so this is their only capture point. Post-commit and
-   * fire-and-forget: best-effort, never disrupts session persistence.
+   * Agent usage has one route-owned capture point. Direct and external-CLI
+   * routes record the final assistant message with the connection's credential
+   * receipt. Gateway routes already record each provider call, so their
+   * cumulative final message is suppressed here. Post-commit and fire-and-forget:
+   * best-effort, never disrupts session persistence.
    */
-  private recordAiUsageRecord(saved: AgentSessionMessageEntity): void {
-    if (saved.role !== 'assistant' || !saved.stats || !saved.modelId) return
+  private recordAiUsageRecord(saved: AgentSessionMessageEntity, usageCapture?: AgentSessionUsageCapture): void {
+    if (usageCapture?.owner === 'provider-requests') return
+    if (saved.role !== 'assistant' || !saved.stats) return
     void aiUsageRecordService
       .recordFromMessage({
         id: saved.id,
@@ -486,7 +492,8 @@ export class AgentSessionMessageService {
         role: saved.role,
         modelId: saved.modelId,
         messageSnapshot: saved.messageSnapshot,
-        stats: saved.stats
+        stats: saved.stats,
+        credentialReceipt: usageCapture?.credentialReceipt
       })
       .catch((err) => {
         logger.warn('AI usage record failed', { id: saved.id, err })

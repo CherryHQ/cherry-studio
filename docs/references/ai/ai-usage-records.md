@@ -48,10 +48,12 @@ Provider key selection
        nested tool-input repair --+--> request-scoped usage collector
                                    +--> terminal best-effort record
 
+       direct agent session ---------> final message + connection receipt
+       gateway agent session --------> per-provider-call records
        embedding --------------------> direct best-effort record
        image result -----------------> record output count before file persistence
 
-Message / agent-session persistence --> upsert the same request when possible
+Message / direct agent persistence ---> upsert the same request when possible
 V2 migration ------------------------> project historical message stats
 
                                  ai_usage_record
@@ -133,6 +135,21 @@ misrepresented as the configured rotation key. The raw credential remains
 inside provider configuration. The receipt and assistant/source snapshot travel
 with the request into the usage event, making concurrent multi-key requests
 deterministic without storing a secret.
+
+Agent sessions assign one capture owner when their runtime route is materialized:
+
+- direct and external-CLI routes carry the connection's receipt into the final
+  assistant-message event;
+- API Gateway routes keep the individual provider-call events and suppress the
+  cumulative final-message event, avoiding double counting;
+- if a prewarmed Claude process is consumed, its stored receipt replaces the
+  separately materialized connection receipt because the warm process owns the
+  credential that actually serves the request.
+
+Cherry-launched gateway subprocesses send a process-local proof and session id
+to the in-process gateway. The gateway validates the proof before attaching the
+agent source to provider-call records; arbitrary gateway clients cannot claim an
+agent session by supplying only an id.
 
 Writers that do not own request construction cannot infer a credential from
 current provider state; a missing receipt is `unknown`. Attribution is explicit:

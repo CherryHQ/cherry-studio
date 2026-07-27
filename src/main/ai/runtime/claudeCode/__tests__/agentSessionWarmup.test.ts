@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getProviderByProviderId: vi.fn(),
   getModelByKey: vi.fn(),
-  getRotatedApiKey: vi.fn(),
+  resolveApiKey: vi.fn(),
   getApiKeys: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   resolveEffectiveEndpoint: vi.fn(),
@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   apiGatewayIsRunning: vi.fn(),
   apiGatewayStart: vi.fn(),
   apiGatewayGetCurrentConfig: vi.fn(),
+  apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
   resolveReasoningProfile: vi.fn()
 }))
 
@@ -33,7 +34,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     getByProviderId: mocks.getProviderByProviderId,
-    getRotatedApiKey: mocks.getRotatedApiKey,
+    resolveApiKey: mocks.resolveApiKey,
     getApiKeys: mocks.getApiKeys
   }
 }))
@@ -66,7 +67,8 @@ vi.mock('@application', () => ({
           ensureValidApiKey: mocks.apiGatewayEnsureKey,
           isRunning: mocks.apiGatewayIsRunning,
           start: mocks.apiGatewayStart,
-          getCurrentConfig: mocks.apiGatewayGetCurrentConfig
+          getCurrentConfig: mocks.apiGatewayGetCurrentConfig,
+          getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders
         }
       }
       if (name === 'PreferenceService') {
@@ -107,7 +109,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet' })
     mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://api.example.com' })
-    mocks.getRotatedApiKey.mockReturnValue('api-key')
+    mocks.resolveApiKey.mockReturnValue({
+      value: 'api-key',
+      apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
+    })
     mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
     mocks.buildSkillWhitelist.mockResolvedValue([])
     mocks.findChannelBySessionId.mockReturnValue(null)
@@ -117,6 +122,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.apiGatewayIsRunning.mockReturnValue(true)
     mocks.apiGatewayStart.mockResolvedValue(undefined)
     mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333, apiKey: 'gateway-key' })
+    mocks.apiGatewayGetAgentSessionUsageHeaders.mockReturnValue({
+      'x-cherry-agent-session-id': 'session-1',
+      'x-cherry-internal-usage-token': 'internal-token'
+    })
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
     mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
@@ -331,7 +340,15 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       { key: 'key-a', isEnabled: true },
       { key: 'key-b', isEnabled: true }
     ])
-    mocks.getRotatedApiKey.mockReturnValueOnce('key-a').mockReturnValueOnce('key-b')
+    mocks.resolveApiKey
+      .mockReturnValueOnce({
+        value: 'key-a',
+        apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'key-****-a' }
+      })
+      .mockReturnValueOnce({
+        value: 'key-b',
+        apiKeySelection: { attribution: 'explicit', id: 'key-b', masked: 'key-****-b' }
+      })
 
     const first = await buildClaudeCodeQueryRequestForAgentSession('session-1')
     const second = await buildClaudeCodeQueryRequestForAgentSession('session-1')
@@ -361,6 +378,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-sonnet',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet'
+    })
+    expect(request?.usageCapture).toEqual({
+      owner: 'agent-message',
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
     })
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
@@ -414,7 +435,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://localhost:11434' } }
     })
     mocks.getModelByKey.mockReturnValue({ id: 'qwen3:14b', apiModelId: 'qwen3:14b' })
-    mocks.getRotatedApiKey.mockReturnValue('')
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
@@ -480,6 +501,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api'
     })
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'x-cherry-agent-session-id: session-1\nx-cherry-internal-usage-token: internal-token'
+    )
+    expect(request?.usageCapture).toEqual({ owner: 'provider-requests' })
   })
 
   it('pins cross-provider plan/small models onto the primary for an external-cli (claude-code) agent instead of routing through the gateway', async () => {
@@ -522,6 +547,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
+    expect(request?.usageCapture).toEqual({
+      owner: 'agent-message',
+      credentialReceipt: { attribution: 'auth', method: 'external-cli' }
+    })
   })
 
   it('routes Gemini provider models through the local API gateway', async () => {
@@ -600,7 +629,7 @@ describe('deriveConnectionConfig', () => {
     const result = await deriveConnectionConfig('session-1')
 
     expect(result.ok).toBe(true)
-    expect(mocks.getRotatedApiKey).not.toHaveBeenCalled()
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
     // mkdir / builtin-agent provisioning / shared snapshot update all live inside

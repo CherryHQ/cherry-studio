@@ -32,58 +32,77 @@ describe('AiUsageRecordMigrator', () => {
     return { db: dbh.db } as unknown as MigrationContext
   }
 
-  beforeEach(async () => {
-    await dbh.db.insert(userProviderTable).values({
-      providerId: 'openai',
-      name: 'OpenAI',
-      apiKeys: [historicalApiKey],
-      orderKey: 'a0',
-      isEnabled: true
-    })
-    await dbh.db.insert(userModelTable).values({
-      id: 'openai::gpt-4o',
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      presetModelId: 'gpt-4o',
-      name: 'gpt-4o',
-      isEnabled: true,
-      isHidden: false,
-      orderKey: 'a0'
-    })
-    await dbh.db.insert(assistantTable).values({
-      id: 'assistant-usage',
-      name: 'Usage Assistant',
-      prompt: '',
-      emoji: '🌟',
-      settings: DEFAULT_ASSISTANT_SETTINGS,
-      orderKey: 'a0'
-    })
-    await dbh.db
+  beforeEach(() => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'openai',
+        name: 'OpenAI',
+        apiKeys: [historicalApiKey],
+        orderKey: 'a0',
+        isEnabled: true
+      })
+      .run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        presetModelId: 'gpt-4o',
+        name: 'gpt-4o',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db
+      .insert(assistantTable)
+      .values({
+        id: 'assistant-usage',
+        name: 'Usage Assistant',
+        prompt: '',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db
       .insert(topicTable)
       .values({ id: 'topic-usage', assistantId: 'assistant-usage', activeNodeId: null, orderKey: 'a0' })
-    await dbh.db.insert(agentTable).values({
-      id: 'agent-usage',
-      type: 'claude_code',
-      name: 'Usage Agent',
-      instructions: '',
-      model: null,
-      configuration: { avatar: '🧠' },
-      orderKey: 'a0'
-    })
-    await dbh.db.insert(agentWorkspaceTable).values({
-      id: 'workspace-usage',
-      name: 'Usage Workspace',
-      path: '/tmp/usage-workspace',
-      type: 'user',
-      orderKey: 'a0'
-    })
-    await dbh.db.insert(agentSessionTable).values({
-      id: 'agent-session-usage',
-      agentId: 'agent-usage',
-      name: 'Usage Session',
-      workspaceId: 'workspace-usage',
-      orderKey: 'a0'
-    })
+      .run()
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: 'agent-usage',
+        type: 'claude_code',
+        name: 'Usage Agent',
+        instructions: '',
+        model: null,
+        configuration: { avatar: '🧠' },
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({
+        id: 'workspace-usage',
+        name: 'Usage Workspace',
+        path: '/tmp/usage-workspace',
+        type: 'user',
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: 'agent-session-usage',
+        agentId: 'agent-usage',
+        name: 'Usage Session',
+        workspaceId: 'workspace-usage',
+        orderKey: 'a0'
+      })
+      .run()
   })
 
   it('is registered after chat migration and before later history migrators', () => {
@@ -110,7 +129,7 @@ describe('AiUsageRecordMigrator', () => {
       createdAt: 1000 + index,
       updatedAt: 1000 + index
     }))
-    await dbh.db.insert(messageTable).values(withRoot('topic-usage', messages))
+    dbh.db.insert(messageTable).values(withRoot('topic-usage', messages)).run()
 
     const progress: number[] = []
     const migrator = new AiUsageRecordMigrator()
@@ -118,48 +137,54 @@ describe('AiUsageRecordMigrator', () => {
 
     expect(await migrator.prepare(ctxOf())).toMatchObject({ success: true, itemCount: 501 })
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 501 })
-    expect(await dbh.db.select().from(aiUsageRecordTable)).toHaveLength(501)
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(501)
     expect(progress.some((value) => value > 0 && value < 100)).toBe(true)
     expect(progress.at(-1)).toBe(100)
   })
 
   it('projects usage records from migrated chat and agent session messages', async () => {
-    await dbh.db.insert(messageTable).values(
-      withRoot('topic-usage', [
-        {
-          id: 'chat-message-usage',
-          topicId: 'topic-usage',
-          parentId: null,
-          role: 'assistant',
-          data: { parts: [] },
-          status: 'success',
-          modelId: 'openai::gpt-4o',
-          stats: {
-            inputTokens: 10,
-            outputTokens: 5,
-            totalTokens: 15,
-            inputTokenDetails: { noCacheTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 2 },
-            outputTokenDetails: { reasoningTokens: 4 },
-            cost: 0.01,
-            costCurrency: 'USD',
-            costSource: 'provider'
-          },
-          createdAt: 1000,
-          updatedAt: 1000
-        }
-      ])
-    )
-    await dbh.db.insert(agentSessionMessageTable).values({
-      id: 'agent-message-usage',
-      sessionId: 'agent-session-usage',
-      role: 'assistant',
-      data: { parts: [] },
-      status: 'success',
-      modelId: 'openai::gpt-4o',
-      stats: { inputTokens: 3, outputTokens: 4, totalTokens: 7, cost: 0.02 },
-      createdAt: 2000,
-      updatedAt: 2000
-    })
+    dbh.db
+      .insert(messageTable)
+      .values(
+        withRoot('topic-usage', [
+          {
+            id: 'chat-message-usage',
+            topicId: 'topic-usage',
+            parentId: null,
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            modelId: 'openai::gpt-4o',
+            stats: {
+              inputTokens: 10,
+              outputTokens: 5,
+              totalTokens: 15,
+              inputTokenDetails: { noCacheTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 2 },
+              outputTokenDetails: { reasoningTokens: 4 },
+              cost: 0.01,
+              costCurrency: 'USD',
+              costSource: 'provider'
+            },
+            createdAt: 1000,
+            updatedAt: 1000
+          }
+        ])
+      )
+      .run()
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: 'agent-message-usage',
+        sessionId: 'agent-session-usage',
+        role: 'assistant',
+        data: { parts: [] },
+        status: 'success',
+        modelId: 'openai::gpt-4o',
+        stats: { inputTokens: 3, outputTokens: 4, totalTokens: 7, cost: 0.02 },
+        createdAt: 2000,
+        updatedAt: 2000
+      })
+      .run()
 
     const migrator = new AiUsageRecordMigrator()
     expect(await migrator.prepare(ctxOf())).toMatchObject({ success: true, itemCount: 2 })
@@ -169,7 +194,7 @@ describe('AiUsageRecordMigrator', () => {
       stats: { sourceCount: 2, targetCount: 2, skippedCount: 0 }
     })
 
-    const rows = await dbh.db.select().from(aiUsageRecordTable)
+    const rows = dbh.db.select().from(aiUsageRecordTable).all()
     expect(rows).toHaveLength(2)
     expect(rows.find((row) => row.requestId === 'chat-message-usage')).toMatchObject({
       topicId: 'topic-usage',
@@ -220,96 +245,105 @@ describe('AiUsageRecordMigrator', () => {
     // target converge on the existing records instead of duplicating usage —
     // and the rerun reports 0 processed because nothing new was written.
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 0 })
-    const rowsAfterRerun = await dbh.db.select().from(aiUsageRecordTable)
+    const rowsAfterRerun = dbh.db.select().from(aiUsageRecordTable).all()
     expect(rowsAfterRerun).toHaveLength(2)
     expect(rowsAfterRerun.map((row) => row.requestId).sort()).toEqual(['agent-message-usage', 'chat-message-usage'])
   })
 
   it('does not infer a serving key for historical usage', async () => {
-    await dbh.db.insert(userProviderTable).values([
-      {
-        providerId: 'multi-key',
-        name: 'Multi Key',
-        apiKeys: [
-          { id: 'key-a', key: 'sk-multi-key-a-0000000000000000', label: 'A', isEnabled: true },
-          { id: 'key-b', key: 'sk-multi-key-b-0000000000000000', label: 'B', isEnabled: true }
-        ],
-        orderKey: 'a1',
-        isEnabled: true
-      },
-      {
-        providerId: 'disabled-key',
-        name: 'Disabled Key',
-        apiKeys: [{ id: 'key-off', key: 'sk-disabled-key-0000000000000000', label: 'Off', isEnabled: false }],
-        orderKey: 'a2',
-        isEnabled: true
-      }
-    ])
-    await dbh.db.insert(userModelTable).values([
-      {
-        id: 'multi-key::m1',
-        providerId: 'multi-key',
-        modelId: 'm1',
-        name: 'm1',
-        isEnabled: true,
-        isHidden: false,
-        orderKey: 'a0'
-      },
-      {
-        id: 'disabled-key::m1',
-        providerId: 'disabled-key',
-        modelId: 'm1',
-        name: 'm1',
-        isEnabled: true,
-        isHidden: false,
-        orderKey: 'a0'
-      }
-    ])
-    await dbh.db.insert(messageTable).values(
-      withRoot('topic-usage', [
+    dbh.db
+      .insert(userProviderTable)
+      .values([
         {
-          id: 'multi-key-message',
-          topicId: 'topic-usage',
-          parentId: null,
-          role: 'assistant',
-          data: { parts: [] },
-          status: 'success',
-          modelId: 'multi-key::m1',
-          stats: { totalTokens: 5 },
-          createdAt: 1000,
-          updatedAt: 1000
+          providerId: 'multi-key',
+          name: 'Multi Key',
+          apiKeys: [
+            { id: 'key-a', key: 'sk-multi-key-a-0000000000000000', label: 'A', isEnabled: true },
+            { id: 'key-b', key: 'sk-multi-key-b-0000000000000000', label: 'B', isEnabled: true }
+          ],
+          orderKey: 'a1',
+          isEnabled: true
         },
         {
-          id: 'disabled-key-message',
-          topicId: 'topic-usage',
-          parentId: null,
-          role: 'assistant',
-          data: { parts: [] },
-          status: 'success',
-          modelId: 'disabled-key::m1',
-          stats: { totalTokens: 6 },
-          createdAt: 2000,
-          updatedAt: 2000
-        },
-        {
-          id: 'single-key-message',
-          topicId: 'topic-usage',
-          parentId: null,
-          role: 'assistant',
-          data: { parts: [] },
-          status: 'success',
-          modelId: 'openai::gpt-4o',
-          stats: { totalTokens: 7 },
-          createdAt: 3000,
-          updatedAt: 3000
+          providerId: 'disabled-key',
+          name: 'Disabled Key',
+          apiKeys: [{ id: 'key-off', key: 'sk-disabled-key-0000000000000000', label: 'Off', isEnabled: false }],
+          orderKey: 'a2',
+          isEnabled: true
         }
       ])
-    )
+      .run()
+    dbh.db
+      .insert(userModelTable)
+      .values([
+        {
+          id: 'multi-key::m1',
+          providerId: 'multi-key',
+          modelId: 'm1',
+          name: 'm1',
+          isEnabled: true,
+          isHidden: false,
+          orderKey: 'a0'
+        },
+        {
+          id: 'disabled-key::m1',
+          providerId: 'disabled-key',
+          modelId: 'm1',
+          name: 'm1',
+          isEnabled: true,
+          isHidden: false,
+          orderKey: 'a0'
+        }
+      ])
+      .run()
+    dbh.db
+      .insert(messageTable)
+      .values(
+        withRoot('topic-usage', [
+          {
+            id: 'multi-key-message',
+            topicId: 'topic-usage',
+            parentId: null,
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            modelId: 'multi-key::m1',
+            stats: { totalTokens: 5 },
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            id: 'disabled-key-message',
+            topicId: 'topic-usage',
+            parentId: null,
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            modelId: 'disabled-key::m1',
+            stats: { totalTokens: 6 },
+            createdAt: 2000,
+            updatedAt: 2000
+          },
+          {
+            id: 'single-key-message',
+            topicId: 'topic-usage',
+            parentId: null,
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            modelId: 'openai::gpt-4o',
+            stats: { totalTokens: 7 },
+            createdAt: 3000,
+            updatedAt: 3000
+          }
+        ])
+      )
+      .run()
 
     const migrator = new AiUsageRecordMigrator()
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 3 })
 
-    const rows = await dbh.db.select().from(aiUsageRecordTable)
+    const rows = dbh.db.select().from(aiUsageRecordTable).all()
     expect(rows.find((row) => row.requestId === 'multi-key-message')).toMatchObject({
       apiKeyAttribution: 'unknown',
       apiKeyId: null,
@@ -331,44 +365,50 @@ describe('AiUsageRecordMigrator', () => {
   })
 
   it('skips stats without usage signal and invalid model ids', async () => {
-    await dbh.db.insert(userModelTable).values({
-      id: 'not-a-unique-model-id',
-      providerId: 'openai',
-      modelId: 'not-a-unique-model-id',
-      presetModelId: 'not-a-unique-model-id',
-      name: 'Invalid model id',
-      isEnabled: true,
-      isHidden: false,
-      orderKey: 'a1'
-    })
-    await dbh.db.insert(messageTable).values(
-      withRoot('topic-usage', [
-        {
-          id: 'timing-only',
-          topicId: 'topic-usage',
-          parentId: null,
-          role: 'assistant',
-          data: { parts: [] },
-          status: 'success',
-          modelId: 'openai::gpt-4o',
-          stats: { timeCompletionMs: 10 },
-          createdAt: 1000,
-          updatedAt: 1000
-        },
-        {
-          id: 'invalid-model',
-          topicId: 'topic-usage',
-          parentId: null,
-          role: 'assistant',
-          data: { parts: [] },
-          status: 'success',
-          modelId: 'not-a-unique-model-id',
-          stats: { totalTokens: 3 },
-          createdAt: 2000,
-          updatedAt: 2000
-        }
-      ])
-    )
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'not-a-unique-model-id',
+        providerId: 'openai',
+        modelId: 'not-a-unique-model-id',
+        presetModelId: 'not-a-unique-model-id',
+        name: 'Invalid model id',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a1'
+      })
+      .run()
+    dbh.db
+      .insert(messageTable)
+      .values(
+        withRoot('topic-usage', [
+          {
+            id: 'timing-only',
+            topicId: 'topic-usage',
+            parentId: null,
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            modelId: 'openai::gpt-4o',
+            stats: { timeCompletionMs: 10 },
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            id: 'invalid-model',
+            topicId: 'topic-usage',
+            parentId: null,
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            modelId: 'not-a-unique-model-id',
+            stats: { totalTokens: 3 },
+            createdAt: 2000,
+            updatedAt: 2000
+          }
+        ])
+      )
+      .run()
 
     const migrator = new AiUsageRecordMigrator()
     expect(await migrator.prepare(ctxOf())).toMatchObject({ success: true, itemCount: 2 })
@@ -378,12 +418,12 @@ describe('AiUsageRecordMigrator', () => {
       stats: { sourceCount: 2, targetCount: 0, skippedCount: 2 }
     })
     expect(
-      await dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, 'timing-only'))
+      dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, 'timing-only')).all()
     ).toEqual([])
   })
 
   it('computes missing historical cost during migration when model pricing exists', async () => {
-    await dbh.db
+    dbh.db
       .update(userModelTable)
       .set({
         pricing: {
@@ -392,34 +432,39 @@ describe('AiUsageRecordMigrator', () => {
         }
       })
       .where(eq(userModelTable.id, 'openai::gpt-4o'))
-    await dbh.db.insert(messageTable).values(
-      withRoot('topic-usage', [
-        {
-          id: 'chat-message-computed-usage',
-          topicId: 'topic-usage',
-          parentId: null,
-          role: 'assistant',
-          data: { parts: [] },
-          status: 'success',
-          modelId: 'openai::gpt-4o',
-          stats: {
-            inputTokens: 1_000_000,
-            outputTokens: 1_000_000,
-            totalTokens: 2_000_000
-          },
-          createdAt: 1000,
-          updatedAt: 1000
-        }
-      ])
-    )
+      .run()
+    dbh.db
+      .insert(messageTable)
+      .values(
+        withRoot('topic-usage', [
+          {
+            id: 'chat-message-computed-usage',
+            topicId: 'topic-usage',
+            parentId: null,
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            modelId: 'openai::gpt-4o',
+            stats: {
+              inputTokens: 1_000_000,
+              outputTokens: 1_000_000,
+              totalTokens: 2_000_000
+            },
+            createdAt: 1000,
+            updatedAt: 1000
+          }
+        ])
+      )
+      .run()
 
     const migrator = new AiUsageRecordMigrator()
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 1 })
 
-    const [row] = await dbh.db
+    const row = dbh.db
       .select()
       .from(aiUsageRecordTable)
       .where(eq(aiUsageRecordTable.requestId, 'chat-message-computed-usage'))
+      .get()
     expect(row).toMatchObject({
       cost: 18,
       costCurrency: 'USD',
@@ -430,34 +475,38 @@ describe('AiUsageRecordMigrator', () => {
   })
 
   it('keeps migrated usage cost null when model pricing is unavailable', async () => {
-    await dbh.db.insert(messageTable).values(
-      withRoot('topic-usage', [
-        {
-          id: 'chat-message-unpriced-usage',
-          topicId: 'topic-usage',
-          parentId: null,
-          role: 'assistant',
-          data: { parts: [] },
-          status: 'success',
-          modelId: 'openai::gpt-4o',
-          stats: {
-            inputTokens: 1_000_000,
-            outputTokens: 1_000_000,
-            totalTokens: 2_000_000
-          },
-          createdAt: 1000,
-          updatedAt: 1000
-        }
-      ])
-    )
+    dbh.db
+      .insert(messageTable)
+      .values(
+        withRoot('topic-usage', [
+          {
+            id: 'chat-message-unpriced-usage',
+            topicId: 'topic-usage',
+            parentId: null,
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            modelId: 'openai::gpt-4o',
+            stats: {
+              inputTokens: 1_000_000,
+              outputTokens: 1_000_000,
+              totalTokens: 2_000_000
+            },
+            createdAt: 1000,
+            updatedAt: 1000
+          }
+        ])
+      )
+      .run()
 
     const migrator = new AiUsageRecordMigrator()
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 1 })
 
-    const [row] = await dbh.db
+    const row = dbh.db
       .select()
       .from(aiUsageRecordTable)
       .where(eq(aiUsageRecordTable.requestId, 'chat-message-unpriced-usage'))
+      .get()
     expect(row).toMatchObject({
       inputTokens: 1_000_000,
       outputTokens: 1_000_000,
@@ -468,47 +517,53 @@ describe('AiUsageRecordMigrator', () => {
   })
 
   it('retries a failed batch row by row and skips only the malformed row', async () => {
-    await dbh.db.insert(messageTable).values(
-      withRoot('topic-usage', [
-        {
-          id: 'chat-message-batch-good',
-          topicId: 'topic-usage',
-          parentId: null,
-          role: 'assistant',
-          data: { parts: [] },
-          status: 'success',
-          modelId: 'openai::gpt-4o',
-          stats: { totalTokens: 9 },
-          createdAt: 1000,
-          updatedAt: 1000
-        },
-        {
-          id: 'chat-message-batch-malformed',
-          topicId: 'topic-usage',
-          parentId: null,
-          role: 'assistant',
-          data: { parts: [] },
-          status: 'success',
-          modelId: 'openai::gpt-4o',
-          // An object where an integer column is expected: the driver rejects the
-          // bulk bind, forcing the migrator to isolate this row on retry.
-          stats: { inputTokens: { broken: true } } as never,
-          createdAt: 2000,
-          updatedAt: 2000
-        }
-      ])
-    )
-    await dbh.db.insert(agentSessionMessageTable).values({
-      id: 'agent-message-batch-good',
-      sessionId: 'agent-session-usage',
-      role: 'assistant',
-      data: { parts: [] },
-      status: 'success',
-      modelId: 'openai::gpt-4o',
-      stats: { totalTokens: 4 },
-      createdAt: 3000,
-      updatedAt: 3000
-    })
+    dbh.db
+      .insert(messageTable)
+      .values(
+        withRoot('topic-usage', [
+          {
+            id: 'chat-message-batch-good',
+            topicId: 'topic-usage',
+            parentId: null,
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            modelId: 'openai::gpt-4o',
+            stats: { totalTokens: 9 },
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            id: 'chat-message-batch-malformed',
+            topicId: 'topic-usage',
+            parentId: null,
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            modelId: 'openai::gpt-4o',
+            // An object where an integer column is expected: the driver rejects the
+            // bulk bind, forcing the migrator to isolate this row on retry.
+            stats: { inputTokens: { broken: true } } as never,
+            createdAt: 2000,
+            updatedAt: 2000
+          }
+        ])
+      )
+      .run()
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: 'agent-message-batch-good',
+        sessionId: 'agent-session-usage',
+        role: 'assistant',
+        data: { parts: [] },
+        status: 'success',
+        modelId: 'openai::gpt-4o',
+        stats: { totalTokens: 4 },
+        createdAt: 3000,
+        updatedAt: 3000
+      })
+      .run()
 
     const migrator = new AiUsageRecordMigrator()
     const result = await migrator.execute(ctxOf())
@@ -519,42 +574,46 @@ describe('AiUsageRecordMigrator', () => {
       stats: { sourceCount: 3, targetCount: 2, skippedCount: 1 }
     })
 
-    const rows = await dbh.db.select().from(aiUsageRecordTable)
+    const rows = dbh.db.select().from(aiUsageRecordTable).all()
     expect(rows.map((row) => row.requestId).sort()).toEqual(['agent-message-batch-good', 'chat-message-batch-good'])
   })
 
   it('uses agent message model snapshots when modelId cannot be resolved to user_model', async () => {
-    await dbh.db.insert(agentSessionMessageTable).values({
-      id: 'agent-message-snapshot-usage',
-      sessionId: 'agent-session-usage',
-      role: 'assistant',
-      data: { parts: [] },
-      status: 'success',
-      modelId: null,
-      messageSnapshot: {
-        id: 'agent-at-request-time',
-        name: 'Original Agent',
-        emoji: '🕰️',
-        model: {
-          id: 'anthropic/claude-sonnet-4.5',
-          name: 'Claude Sonnet 4.5',
-          provider: 'cherryin',
-          group: 'anthropic'
-        }
-      },
-      stats: { inputTokens: 5, outputTokens: 8 },
-      createdAt: 3000,
-      updatedAt: 3000
-    })
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: 'agent-message-snapshot-usage',
+        sessionId: 'agent-session-usage',
+        role: 'assistant',
+        data: { parts: [] },
+        status: 'success',
+        modelId: null,
+        messageSnapshot: {
+          id: 'agent-at-request-time',
+          name: 'Original Agent',
+          emoji: '🕰️',
+          model: {
+            id: 'anthropic/claude-sonnet-4.5',
+            name: 'Claude Sonnet 4.5',
+            provider: 'cherryin',
+            group: 'anthropic'
+          }
+        },
+        stats: { inputTokens: 5, outputTokens: 8 },
+        createdAt: 3000,
+        updatedAt: 3000
+      })
+      .run()
 
     const migrator = new AiUsageRecordMigrator()
     expect(await migrator.prepare(ctxOf())).toMatchObject({ success: true, itemCount: 1 })
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 1 })
 
-    const [row] = await dbh.db
+    const row = dbh.db
       .select()
       .from(aiUsageRecordTable)
       .where(eq(aiUsageRecordTable.requestId, 'agent-message-snapshot-usage'))
+      .get()
     expect(row).toMatchObject({
       topicId: null,
       providerId: 'cherryin',
@@ -629,10 +688,12 @@ describe('AiUsageRecordMigrator', () => {
 
     // Producer-side assertion: the model no longer resolves to a user_model row,
     // so modelId is null, but the author's messageSnapshot still carries it.
-    const [producedRow] = await dbh.db
+    const producedRow = dbh.db
       .select()
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.sessionId, 'agent-session-usage'))
+      .get()
+    if (!producedRow) throw new Error('Expected the legacy agent-session message to be imported')
     expect(producedRow.modelId).toBeNull()
     expect(producedRow.messageSnapshot).toMatchObject({
       model: { id: 'vanished-model', provider: 'vanished-provider' }
@@ -643,7 +704,7 @@ describe('AiUsageRecordMigrator', () => {
     const migrator = new AiUsageRecordMigrator()
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 1 })
 
-    const [row] = await dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, producedRow.id))
+    const row = dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, producedRow.id)).get()
     expect(row).toMatchObject({
       sourceType: 'agent',
       sourceId: 'agent-usage',

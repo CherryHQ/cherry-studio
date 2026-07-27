@@ -62,7 +62,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
     const second = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
 
-    expect(consumed).toBe(warm)
+    expect(consumed?.warmQuery).toBe(warm)
     expect(second).toBeUndefined()
     expect(startupMock).toHaveBeenCalledWith({
       options: { model: 'sonnet', resume: 'sdk-1' },
@@ -84,7 +84,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'opus', resume: 'sdk-1' } as any })
 
     expect(stale.close).toHaveBeenCalledOnce()
-    expect(consumed).toBe(current)
+    expect(consumed?.warmQuery).toBe(current)
   })
 
   it('uses the same signature with or without abortController', () => {
@@ -162,8 +162,41 @@ describe('ClaudeCodeWarmQueryManager', () => {
       credentialsFingerprint: 'set-1'
     })
 
-    expect(consumed).toBe(warm)
+    expect(consumed?.warmQuery).toBe(warm)
     expect(warm.close).not.toHaveBeenCalled()
+  })
+
+  it('returns the receipt captured by the warm process instead of the separately rotated consume request', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any,
+      credentialsFingerprint: 'set-1',
+      usageCapture: {
+        owner: 'agent-message',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' }
+      }
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-b' } } as any,
+      credentialsFingerprint: 'set-1',
+      usageCapture: {
+        owner: 'agent-message',
+        credentialReceipt: { attribution: 'explicit', id: 'key-b', masked: 'key-***' }
+      }
+    })
+
+    expect(consumed).toMatchObject({
+      warmQuery: warm,
+      usageCapture: {
+        owner: 'agent-message',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a' }
+      }
+    })
   })
 
   it('discards a warm query when the enabled key set changed between park and consume', async () => {
@@ -235,7 +268,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
 
     expect(buildWarmRequestMock).toHaveBeenCalledWith('session-1')
-    expect(consumed).toBe(warm)
+    expect(consumed?.warmQuery).toBe(warm)
   })
 
   it('does not prewarm agent sessions while Claude Code trace mode is enabled', async () => {

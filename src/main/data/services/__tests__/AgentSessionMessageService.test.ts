@@ -6,6 +6,7 @@ import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { aiUsageRecordService } from '@data/services/aiUsageRecord'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -816,23 +817,46 @@ describe('AgentSessionMessageService', () => {
 
   describe('saveMessage — AI usage record hook', () => {
     const USAGE_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d301'
+    const USAGE_AGENT_ID = 'agent-usage'
 
-    async function seedModel() {
-      await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic', orderKey: 'p0' })
-      await dbh.db.insert(userModelTable).values({
-        id: 'anthropic::claude-sonnet',
-        providerId: 'anthropic',
-        modelId: 'claude-sonnet',
-        presetModelId: 'claude-sonnet',
-        name: 'claude-sonnet',
-        isEnabled: true,
-        isHidden: false,
-        orderKey: 'm0'
-      })
+    beforeEach(() => {
+      dbh.db
+        .insert(agentTable)
+        .values({
+          id: USAGE_AGENT_ID,
+          type: 'claude_code',
+          name: 'Usage Agent',
+          instructions: '',
+          model: null,
+          orderKey: 'a0'
+        })
+        .run()
+      dbh.db
+        .update(agentSessionTable)
+        .set({ agentId: USAGE_AGENT_ID })
+        .where(eq(agentSessionTable.id, SESSION_ID))
+        .run()
+    })
+
+    function seedModel() {
+      dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic', orderKey: 'p0' }).run()
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'anthropic::claude-sonnet',
+          providerId: 'anthropic',
+          modelId: 'claude-sonnet',
+          presetModelId: 'claude-sonnet',
+          name: 'claude-sonnet',
+          isEnabled: true,
+          isHidden: false,
+          orderKey: 'm0'
+        })
+        .run()
     }
 
     it('records assistant session messages with stats as AI usage records', async () => {
-      await seedModel()
+      seedModel()
 
       agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
@@ -847,8 +871,8 @@ describe('AgentSessionMessageService', () => {
       })
 
       // The hook is fire-and-forget — wait for the async write to settle.
-      await vi.waitFor(async () => {
-        const rows = await dbh.db.select().from(aiUsageRecordTable)
+      await vi.waitFor(() => {
+        const rows = dbh.db.select().from(aiUsageRecordTable).all()
         expect(rows).toHaveLength(1)
         expect(rows[0]).toMatchObject({
           requestId: USAGE_MESSAGE_ID,
@@ -860,8 +884,138 @@ describe('AgentSessionMessageService', () => {
       })
     })
 
+    it('persists the direct route credential receipt selected by the runtime owner', async () => {
+      seedModel()
+
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        usageCapture: {
+          owner: 'agent-message',
+          credentialReceipt: {
+            attribution: 'explicit',
+            id: 'key-primary',
+            label: 'Primary',
+            masked: 'sk-a****aaaa'
+          }
+        },
+        message: {
+          id: USAGE_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          modelId: 'anthropic::claude-sonnet',
+          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        }
+      })
+
+      expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+        requestId: USAGE_MESSAGE_ID,
+        apiKeyAttribution: 'explicit',
+        apiKeyId: 'key-primary',
+        apiKeyLabel: 'Primary',
+        apiKeyMasked: 'sk-a****aaaa'
+      })
+    })
+
+    it('keeps gateway provider-call totals and suppresses the cumulative agent-message duplicate', async () => {
+      seedModel()
+
+      await aiUsageRecordService.recordRequest({
+        requestId: 'gateway-provider-call',
+        agentSessionId: SESSION_ID,
+        modelId: 'anthropic::claude-sonnet',
+        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        modality: 'language',
+        credentialReceipt: {
+          attribution: 'explicit',
+          id: 'key-primary',
+          label: 'Primary',
+          masked: 'sk-a****aaaa'
+        }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        usageCapture: { owner: 'provider-requests' },
+        message: {
+          id: USAGE_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          modelId: 'anthropic::claude-sonnet',
+          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        }
+      })
+
+      const rows = dbh.db.select().from(aiUsageRecordTable).all()
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        requestId: 'gateway-provider-call',
+        totalTokens: 15,
+        apiKeyId: 'key-primary',
+        sourceType: 'agent',
+        sourceId: USAGE_AGENT_ID
+      })
+    })
+
+    it('records usage from the immutable model snapshot after the model row is deleted', async () => {
+      seedModel()
+      const messageSnapshot = {
+        id: 'agent-at-request-time',
+        name: 'Agent at request time',
+        model: {
+          id: 'claude-sonnet',
+          name: 'Claude Sonnet',
+          provider: 'anthropic'
+        }
+      }
+
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: USAGE_MESSAGE_ID,
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [] },
+          modelId: 'anthropic::claude-sonnet',
+          messageSnapshot
+        }
+      })
+      dbh.db.delete(userModelTable).where(eq(userModelTable.id, 'anthropic::claude-sonnet')).run()
+      expect(
+        dbh.db
+          .select({ modelId: agentSessionMessageTable.modelId })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.id, USAGE_MESSAGE_ID))
+          .get()
+      ).toEqual({ modelId: null })
+
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        usageCapture: {
+          owner: 'agent-message',
+          credentialReceipt: { attribution: 'unknown' }
+        },
+        message: {
+          id: USAGE_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        }
+      })
+
+      expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+        requestId: USAGE_MESSAGE_ID,
+        providerId: 'anthropic',
+        modelId: 'anthropic::claude-sonnet',
+        sourceType: 'agent',
+        sourceId: 'agent-at-request-time',
+        totalTokens: 15
+      })
+    })
+
     it('does not record user messages or stats-less assistant messages', async () => {
-      await seedModel()
+      seedModel()
 
       agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
@@ -885,7 +1039,7 @@ describe('AgentSessionMessageService', () => {
       })
 
       await new Promise((resolve) => setTimeout(resolve, 20))
-      expect(await dbh.db.select().from(aiUsageRecordTable)).toHaveLength(0)
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
     })
   })
 })

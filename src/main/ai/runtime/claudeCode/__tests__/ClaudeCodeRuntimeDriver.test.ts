@@ -198,6 +198,47 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
   })
 
+  it('uses the serving receipt retained by a consumed warm process', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const warmQuery = { query: vi.fn(() => query), close: vi.fn() }
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100,
+      usageCapture: {
+        owner: 'agent-message',
+        credentialReceipt: { attribution: 'explicit', id: 'consume-key', masked: 'con-***' }
+      }
+    })
+    mocks.consumeWarmQuery.mockResolvedValue({
+      warmQuery,
+      usageCapture: {
+        owner: 'agent-message',
+        credentialReceipt: { attribution: 'explicit', id: 'warm-key', masked: 'war-***' }
+      }
+    })
+
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+
+    expect(connection.usageCapture).toMatchObject({
+      owner: 'agent-message',
+      credentialReceipt: { attribution: 'explicit', id: 'warm-key' }
+    })
+    expect(warmQuery.query).toHaveBeenCalledOnce()
+    await connection.close()
+  })
+
   it('connects with an opaque resume token and sends user input into the SDK queue', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

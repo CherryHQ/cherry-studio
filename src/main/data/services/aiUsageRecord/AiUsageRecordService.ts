@@ -21,7 +21,7 @@ import type {
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { AiUsageRecordSourceType } from '@shared/data/types/aiUsageRecord'
 import type { Message } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { sql } from 'drizzle-orm'
 
 import { enrichStatsWithCost } from '../utils/costEnrichment'
@@ -52,6 +52,7 @@ export interface AiUsageRecordMessageInput {
   modelId?: Message['modelId']
   messageSnapshot?: Message['messageSnapshot']
   stats?: Message['stats']
+  credentialReceipt?: UsageCredentialReceipt
 }
 
 function hasUsageSignal(stats: NonNullable<Message['stats']>): boolean {
@@ -127,17 +128,39 @@ function sourceFromMessageSnapshot(message: AiUsageRecordMessageInput): SourceSn
   }
 }
 
+function modelIdFromMessage(message: AiUsageRecordMessageInput): UniqueModelId | undefined {
+  if (isUniqueModelId(message.modelId)) return message.modelId
+
+  const snapshot = message.messageSnapshot?.model
+  if (!snapshot?.id || !snapshot.provider) return undefined
+  if (isUniqueModelId(snapshot.id)) return snapshot.id
+
+  try {
+    return createUniqueModelId(snapshot.provider, snapshot.id)
+  } catch (err) {
+    logger.warn('recordFromMessage: invalid model snapshot, skipping', {
+      providerId: snapshot.provider,
+      modelId: snapshot.id,
+      err
+    })
+    return undefined
+  }
+}
+
 export class AiUsageRecordService {
   async recordFromMessage(message: AiUsageRecordMessageInput): Promise<void> {
-    if (message.role !== 'assistant' || !message.stats || !message.modelId) return
+    if (message.role !== 'assistant' || !message.stats) return
+    const modelId = modelIdFromMessage(message)
+    if (!modelId) return
     this.recordBestEffort(
       {
         requestId: message.id,
         topicId: message.topicId,
         agentSessionId: message.agentSessionId,
         source: sourceFromMessageSnapshot(message),
-        modelId: message.modelId,
+        modelId,
         stats: message.stats,
+        credentialReceipt: message.credentialReceipt,
         modality: 'language'
       },
       'persistence'

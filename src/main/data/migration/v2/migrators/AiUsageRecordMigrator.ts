@@ -423,7 +423,7 @@ export class AiUsageRecordMigrator extends BaseMigrator {
   }
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
-    const [{ count: targetCount }] = await ctx.db.select({ count: sql<number>`count(*)` }).from(aiUsageRecordTable)
+    const targetCount = ctx.db.select({ count: sql<number>`count(*)` }).from(aiUsageRecordTable).get()?.count ?? 0
     const expectedCount = this.sourceCount - this.skippedCount
 
     return {

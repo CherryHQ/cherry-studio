@@ -23,7 +23,7 @@ import { type UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
-import type { AiStreamRequest, CallOverrides } from '../types'
+import type { AiStreamRequest, CallOverrides, InProcessUsageContext } from '../types'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
@@ -46,6 +46,7 @@ import type {
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
+type ManagedAiStreamRequest = AiStreamRequest & { usageContext?: InProcessUsageContext }
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
 // router against `aiRequestSchemas` (src/shared/ipc/schemas/ai.ts) before reaching the
@@ -80,7 +81,7 @@ function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error',
 /** A single model's request inside a `send()` call. */
 export interface SendModelSpec {
   modelId: UniqueModelId
-  request: AiStreamRequest
+  request: ManagedAiStreamRequest
   rootSpan?: Span
   abortController?: AbortController
 }
@@ -106,7 +107,7 @@ export interface SendResult {
 export interface StartRuntimeTurnInput {
   topicId: string
   modelId: UniqueModelId
-  request: AiStreamRequest
+  request: ManagedAiStreamRequest
   listeners: StreamListener[]
   rootSpan?: Span
   abortController?: AbortController
@@ -425,19 +426,22 @@ export class AiStreamManager extends BaseService {
     reasoningEffort?: ReasoningEffortOption
     /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
     idleTimeoutMs?: number
+    /** In-process agent correlation for gateway-owned provider-request records. */
+    usageContext?: InProcessUsageContext
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
         ? input.messages
         : [{ id: 'prompt-user', role: 'user', parts: [{ type: 'text', text: input.prompt ?? '' }] }]
 
-    const request: AiStreamRequest = {
+    const request: ManagedAiStreamRequest = {
       chatId: input.streamId,
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
       messages,
       callOverrides: input.callOverrides,
       reasoningEffort: input.reasoningEffort,
+      ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
     }
     return this.send({
@@ -1092,7 +1096,7 @@ export class AiStreamManager extends BaseService {
   private createAndLaunchExecution(
     topicId: string,
     modelId: UniqueModelId,
-    request: AiStreamRequest,
+    request: ManagedAiStreamRequest,
     siblingsGroupId?: number,
     rootSpan?: Span,
     abortController?: AbortController
@@ -1130,7 +1134,7 @@ export class AiStreamManager extends BaseService {
   private async runExecutionLoop(
     topicId: string,
     modelId: UniqueModelId,
-    request: AiStreamRequest,
+    request: ManagedAiStreamRequest,
     exec: StreamExecution
   ): Promise<void> {
     const aiService = application.get('AiService')

@@ -12,6 +12,7 @@ import type {
 import { eq } from 'drizzle-orm'
 
 import { providerService } from '../ProviderService'
+import type { AiUsageCredentialReceipt } from './types'
 
 const logger = loggerService.withContext('DataApi:AiUsageRecordSnapshots')
 
@@ -31,15 +32,7 @@ export interface KeyAttribution {
   authMethod?: AiUsageRecordAuthMethod
 }
 
-export type UsageCredentialReceipt =
-  | {
-      attribution: 'explicit' | 'matched'
-      id: string
-      label?: string
-      masked: string
-    }
-  | { attribution: 'auth'; method: AiUsageRecordAuthMethod }
-  | { attribution: 'unknown' }
+export type UsageCredentialReceipt = AiUsageCredentialReceipt
 
 function getAgentAvatar(configuration: unknown): string | undefined {
   if (!configuration || typeof configuration !== 'object' || Array.isArray(configuration)) return undefined

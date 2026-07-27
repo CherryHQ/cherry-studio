@@ -19,9 +19,9 @@ import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { customFetch } from '../../utils/customFetch'
 
-// providerToAiSdkConfig resolves the serving API key and (for Vertex/Bedrock) the
-// auth config off the direct-import ProviderService singleton. Mock both at the
-// module boundary so the dispatch builders run without touching the DB.
+// Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
+// provider auth config from the direct-import ProviderService singleton. Mock
+// both at the module boundary so dispatch runs without touching the DB.
 const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
   resolveApiKeyMock: vi.fn(),
   getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
@@ -117,6 +117,8 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     const resolved = await resolveProviderAiSdkConfig(provider, model)
 
     expect(resolved.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
+    expect((resolved.config.providerSettings as Record<string, unknown>).apiKey).toBeUndefined()
+    expect(resolveApiKeyMock).not.toHaveBeenCalled()
   })
 
   it('does not infer external CLI auth from registry metadata outside its runtime owner', async () => {
@@ -399,8 +401,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.region).toBe('us-east-1')
       expect(settings.accessKeyId).toBe('AKIA')
       expect(settings.secretAccessKey).toBe('secret')
+      expect(settings.apiKey).toBeUndefined()
       // getAuthConfig is consulted for bedrock credentials.
       expect(getAuthConfigMock).toHaveBeenCalledWith('bedrock')
+      expect(resolveApiKeyMock).not.toHaveBeenCalled()
     })
 
     it('passes baseURL=undefined (not "") when no host is configured, so the SDK derives the host (upstream #14425)', async () => {
@@ -712,9 +716,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       expect(config.providerId).toBe(LOCAL_EMBEDDING_PROVIDER_ID)
       // The local builder returns empty providerSettings: no baseURL/apiKey leak from the
-      // openai-compatible builder (the rotated key is fetched but deliberately discarded).
+      // openai-compatible builder, and no unused provider key is selected.
       expect(settings.baseURL).toBeUndefined()
       expect(settings.apiKey).toBeUndefined()
+      expect(resolveApiKeyMock).not.toHaveBeenCalled()
       // Still defaulted to the proxy-aware fetch by the shared tail of providerToAiSdkConfig.
       expect(settings.fetch).toBe(customFetch)
     })

@@ -1,6 +1,7 @@
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
+import type { AgentSessionUsageCapture } from '@data/services/aiUsageRecord'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
@@ -12,6 +13,7 @@ const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 type WarmQueryEntry = {
   signature: string
   promise: Promise<WarmQuery | undefined>
+  usageCapture?: AgentSessionUsageCapture
   idleTimer?: ReturnType<typeof setTimeout>
 }
 
@@ -21,13 +23,20 @@ export interface WarmQueryRequest {
   initializeTimeoutMs?: number
   /**
    * Rotation-insensitive identity of the credentials the options were built with (e.g. a hash of the
-   * provider's enabled key SET). The raw rotated key is stripped from the signature — `getRotatedApiKey`
-   * advances per build, so prewarm/consume would otherwise never match on multi-key providers — while
-   * this fingerprint keeps the signature sensitive to the key set actually changing.
+   * provider's enabled key SET). The selected key is stripped from the signature because prewarm and
+   * consume materialize separately; this fingerprint still invalidates the warm process when the set
+   * changes.
    */
   credentialsFingerprint?: string
+  /** Capture policy for the credentials and route that actually started this warm process. */
+  usageCapture?: AgentSessionUsageCapture
   /** Agent knowledge bindings baked into cherry-tools at startup. */
   knowledgeBaseIds?: readonly string[]
+}
+
+export interface ConsumedWarmQuery {
+  warmQuery: WarmQuery
+  usageCapture?: AgentSessionUsageCapture
 }
 
 export function stripWarmQueryOptions(options: Options): Options {
@@ -176,12 +185,12 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       }
     )
 
-    const entry: WarmQueryEntry = { signature, promise }
+    const entry: WarmQueryEntry = { signature, promise, usageCapture: request.usageCapture }
     this.entries.set(request.key, entry)
     this.refreshIdleTimer(request.key, entry)
   }
 
-  async consume(request: WarmQueryRequest): Promise<WarmQuery | undefined> {
+  async consume(request: WarmQueryRequest): Promise<ConsumedWarmQuery | undefined> {
     const warmOptions = stripWarmQueryOptions(request.options)
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
@@ -201,7 +210,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
     const warmQuery = await entry.promise
     if (!warmQuery) return undefined
-    return warmQuery
+    return { warmQuery, usageCapture: entry.usageCapture }
   }
 
   close(key: string): void {

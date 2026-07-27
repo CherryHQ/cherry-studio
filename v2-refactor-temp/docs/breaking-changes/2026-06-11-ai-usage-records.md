@@ -38,6 +38,11 @@ Credential attribution shows its confidence:
 - Normal language, embedding, and image provider config builders return the SDK
   configuration together with a non-secret credential receipt, which request
   construction carries with assistant/source snapshots into the usage event.
+- Agent sessions choose one capture owner per runtime route. Direct and
+  external-CLI routes record the final message with the serving connection's
+  receipt; gateway routes retain per-provider-call records and suppress the
+  cumulative final-message record. Consumed warm processes retain the receipt
+  selected when that process actually started.
 - Persistence-only writers without a request-owned receipt use `unknown`; they
   never infer a serving key from current rotation state.
 - Nested AI tool-input repair usage is merged into its parent language request.

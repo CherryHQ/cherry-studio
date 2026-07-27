@@ -5,6 +5,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type { AgentSessionUsageCapture } from '@data/services/aiUsageRecord'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -138,6 +139,8 @@ type AgentSessionRuntimeEntry = {
   status: AgentSessionRuntimeStatus
   pendingTurns: PendingAgentSessionTurn[]
   connection?: AgentRuntimeConnection
+  /** Capture owner/receipt of the installed connection; retained through terminal persistence. */
+  usageCapture?: AgentSessionUsageCapture
   connectionLoop?: Promise<void>
   /** In-flight {@link ensureConnection} promise — shared by concurrent callers so only one connect runs. */
   connecting?: Promise<boolean>
@@ -890,6 +893,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.connection = connection
+    entry.usageCapture = connection.usageCapture
     this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
@@ -1485,6 +1489,7 @@ export class AgentSessionRuntimeService extends BaseService {
         assistantMessageId,
         modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
+        usageCapture: () => entry.usageCapture,
         afterPersist: async (finalMessage) => {
           await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
         }

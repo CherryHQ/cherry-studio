@@ -18,6 +18,7 @@ type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
 type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import type { AgentSessionUsageCapture } from '@data/services/aiUsageRecord'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
@@ -160,6 +161,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
+  private _usageCapture?: AgentSessionUsageCapture
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
@@ -167,6 +169,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private steerBoundaryPending?: AgentRuntimeUserInput[]
 
   readonly events = this.eventQueue
+  get usageCapture(): AgentSessionUsageCapture | undefined {
+    return this._usageCapture
+  }
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
@@ -199,18 +204,23 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         : {}),
       abortController: this.abortController
     }
-    const warmQuery = traceEnv
+    const consumedWarmQuery = traceEnv
       ? undefined
       : await application.get('ClaudeCodeWarmQueryManager').consume({
           key: request.key,
           options,
           initializeTimeoutMs: request.initializeTimeoutMs,
           credentialsFingerprint: request.credentialsFingerprint,
+          usageCapture: request.usageCapture,
           knowledgeBaseIds: request.knowledgeBaseIds
         })
 
-    this.query = warmQuery
-      ? warmQuery.query(this.sdkInputQueue)
+    // A matching warm process may have selected a different rotated key when
+    // it was started. Its receipt, not the freshly materialized request's,
+    // describes the credential that will actually serve this connection.
+    this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
+    this.query = consumedWarmQuery
+      ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
     this.approvalEmitter = request.settings.approvalEmitter

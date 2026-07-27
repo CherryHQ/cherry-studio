@@ -47,7 +47,8 @@ export function createBillingRecorder(
   model: Model,
   requestMessageId?: string,
   credentialReceipt?: ServingCredentialReceipt,
-  source?: SourceSnapshot
+  source?: SourceSnapshot,
+  agentSessionId?: string
 ): BillingRecorder {
   let total: LanguageModelUsage = ZERO_USAGE
   let providerCostUsd: number | undefined
@@ -73,6 +74,7 @@ export function createBillingRecorder(
         modelId: model.id,
         credentialReceipt,
         source,
+        ...(agentSessionId ? { agentSessionId } : {}),
         stats: usageToStats(total),
         providerCostUsd,
         modality: 'language'

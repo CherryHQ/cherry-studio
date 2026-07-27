@@ -61,6 +61,28 @@ beforeEach(() => {
 })
 
 describe('ApiGatewayService reconcile', () => {
+  it('accepts agent usage context only with its process-local proof', () => {
+    const service = new ApiGatewayService()
+    const usageHeaders = service.getAgentSessionUsageHeaders('session-1')
+
+    expect(service.resolveAgentSessionUsage(new Headers(usageHeaders))).toBe('session-1')
+    expect(
+      service.resolveAgentSessionUsage(
+        new Headers({
+          ...usageHeaders,
+          'x-cherry-internal-usage-token': 'wrong-proof'
+        })
+      )
+    ).toBeUndefined()
+    expect(
+      service.resolveAgentSessionUsage(
+        new Headers({
+          'x-cherry-agent-session-id': 'session-1'
+        })
+      )
+    ).toBeUndefined()
+  })
+
   it('honors an opposing toggle that lands during an in-flight activation (no dropped toggle)', async () => {
     const service = new ApiGatewayService()
     await service._doInit() // Ready; desiredEnabled=false; reconcile is a no-op.

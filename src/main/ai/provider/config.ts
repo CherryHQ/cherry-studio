@@ -45,10 +45,14 @@ interface BuilderContext {
   actualProvider: Provider
   model: Model
   baseConfig: BaseConfig
-  apiKeySelection: ResolvedProviderApiKey['apiKeySelection']
+  apiKeyOverride?: string
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
+}
+
+type ApiKeyBuilderContext = BuilderContext & {
+  apiKeySelection: ResolvedProviderApiKey['apiKeySelection']
 }
 
 interface ProviderToAiSdkConfigOptions {
@@ -110,11 +114,23 @@ type ConfigBuilderEntry = {
   build: (ctx: BuilderContext) => ResolvedProviderConfigBuild | Promise<ResolvedProviderConfigBuild>
 }
 
+function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
+  const resolved = providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
+  return {
+    ...ctx,
+    baseConfig: { ...ctx.baseConfig, apiKey: resolved.value },
+    apiKeySelection: resolved.apiKeySelection
+  }
+}
+
 function withSelectedApiKey(build: ProviderConfigBuilder): ConfigBuilderEntry['build'] {
-  return async (ctx) => ({
-    config: await build(ctx),
-    credentialReceipt: ctx.apiKeySelection
-  })
+  return async (ctx) => {
+    const selected = selectApiKey(ctx)
+    return {
+      config: await build(selected),
+      credentialReceipt: selected.apiKeySelection
+    }
+  }
 }
 
 function withProviderAuth(method: ServingAuthMethod, build: ProviderConfigBuilder): ConfigBuilderEntry['build'] {
@@ -152,13 +168,15 @@ export async function resolveProviderAiSdkConfig(
 
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
-  const resolvedApiKey: ResolvedProviderApiKey = providerService.resolveApiKey(provider.id, options?.apiKeyOverride)
 
   const ctx: BuilderContext = {
     actualProvider: provider,
     model,
-    baseConfig: { baseURL, apiKey: resolvedApiKey.value },
-    apiKeySelection: resolvedApiKey.apiKeySelection,
+    // Credential selection is intentionally deferred until a key-backed builder
+    // wins dispatch. OAuth/IAM/no-credential routes must not advance rotation
+    // for a key they never serve with.
+    baseConfig: { baseURL, apiKey: '' },
+    apiKeyOverride: options?.apiKeyOverride,
     endpointType,
     endpoint,
     aiSdkProviderId
@@ -459,7 +477,6 @@ function buildBedrockConfig(ctx: BuilderContext): ResolvedProviderConfigBuild {
       config: {
         ...base,
         providerSettings: {
-          ...ctx.baseConfig,
           baseURL,
           region,
           ...(authConfig.accessKeyId && { accessKeyId: authConfig.accessKeyId }),
@@ -471,9 +488,10 @@ function buildBedrockConfig(ctx: BuilderContext): ResolvedProviderConfigBuild {
   }
 
   // API-key fallback. Region undefined so the SDK picks its own default, not a hardcode.
+  const selected = selectApiKey(ctx)
   return {
-    config: { ...base, providerSettings: { ...ctx.baseConfig, baseURL } },
-    credentialReceipt: ctx.apiKeySelection
+    config: { ...base, providerSettings: { ...selected.baseConfig, baseURL } },
+    credentialReceipt: selected.apiKeySelection
   }
 }
 
@@ -532,7 +550,6 @@ function buildVertexConfig(
     providerId: isAnthropic ? 'google-vertex-anthropic' : 'google-vertex',
     endpoint: ctx.endpoint,
     providerSettings: {
-      ...ctx.baseConfig,
       baseURL,
       project,
       location,

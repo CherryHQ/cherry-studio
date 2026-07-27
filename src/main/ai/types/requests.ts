@@ -17,6 +17,11 @@ export interface AiTransportOptions {
   maxRetries?: number
 }
 
+/** In-process-only usage correlation; never accepted on renderer IPC schemas. */
+export interface InProcessUsageContext {
+  agentSessionId: string
+}
+
 /**
  * First-class per-request overrides for callers that have no assistant to derive
  * settings from (the API gateway). Merged at highest precedence inside

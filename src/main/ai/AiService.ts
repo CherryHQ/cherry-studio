@@ -53,6 +53,7 @@ import type {
   AiStreamRequest,
   AiTransportOptions,
   AppProviderSettingsMap,
+  InProcessUsageContext,
   ListModelsRequest
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
@@ -111,6 +112,7 @@ export interface AiRequestOptions extends AiTransportOptions {
 /** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
 export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
+  usageContext?: InProcessUsageContext
 }
 
 /** Non-streaming text generation request — pure transport data. */
@@ -419,7 +421,8 @@ export class AiService extends BaseService {
       model,
       request.messageId,
       credentialReceipt,
-      sourceSnapshotForAssistant(assistant)
+      sourceSnapshotForAssistant(assistant),
+      request.usageContext?.agentSessionId
     )
     repairUsageSink.current = billing.recordUsage
 
