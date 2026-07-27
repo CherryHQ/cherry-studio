@@ -16,7 +16,7 @@ Anyone who used v1's backup expecting it to add missing data to the current prof
 
 ## What the user should do
 
-Export a fresh backup before restoring an old one if anything since then is worth keeping. Choose Full when moving to another device or when knowledge bases and attachments must come along; Lite is enough when the same device already holds the files. After a restore completes, the app keeps the previous database and every replaced file on disk until "Keep restored data" is confirmed, so a restore that went wrong can still be reported before that point. Re-enable the integrations that were switched off, and store `.cherrybackup` files somewhere private.
+Export a fresh backup before restoring an old one if anything since then is worth keeping. Choose Full when moving to another device or when knowledge bases and attachments must come along; Lite is enough when the same device already holds the files. After a restore completes, the app keeps the previous database and every replaced file on disk until "Keep restored data" is confirmed, so a restore that went wrong can still be reported before that point — the app says so with a notice at startup until it is confirmed, because until then that space is not reclaimed and routine file cleanup stays paused. A long export or a large archive being checked can be stopped with the same button that started it. Re-enable the integrations that were switched off, and store `.cherrybackup` files somewhere private.
 
 ## Notes for release manager
 
