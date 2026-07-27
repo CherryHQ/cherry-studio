@@ -31,6 +31,6 @@ describe('BACKUP_CEILINGS', () => {
   })
 
   it('freezes the pre-parse manifest byte cap that bounds unbounded manifest arrays', () => {
-    expect(BACKUP_CEILINGS.maxManifestBytes).toBe(1 * 1024 ** 2)
+    expect(BACKUP_CEILINGS.maxManifestBytes).toBe(32 * 1024 ** 2)
   })
 })

@@ -193,7 +193,12 @@ describe('publishArchive — manifest contract', () => {
   it('enforces the maxManifestBytes pre-parse cap (serialized once)', async () => {
     const huge = liteManifest()
     huge.degradations = [{ kind: 'k', reason: 'x'.repeat(1_200_000) }]
-    await expect(publishArchive({ outPath, manifest: huge, dbCopyPath })).rejects.toBeInstanceOf(CeilingExceededError)
+    // Narrowed cap rather than a >32 MiB fixture string: the real ceiling now
+    // has to fit a profile-sized inventory (see `manifestBudget.test.ts`), and
+    // allocating tens of MiB per run to prove one comparison is pure waste.
+    await expect(
+      publishArchiveWithCeilings({ outPath, manifest: huge, dbCopyPath }, { ...BASE_CEILINGS, maxManifestBytes: 1024 })
+    ).rejects.toBeInstanceOf(CeilingExceededError)
     expect(existsSync(outPath)).toBe(false)
   })
 })

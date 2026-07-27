@@ -284,6 +284,14 @@ Bounded ceilings are frozen in the format contract and shared by preflight and a
 per-entry and total uncompressed bytes, compression ratio, and staging disk headroom.
 
 - Large-file/directory staging checks cancellation incrementally.
+- **The manifest byte cap must cover the resource-install ceiling.** `manifest.json` carries
+  the requirement inventory and (for Full) the payload inventory, so its size scales with the
+  profile, and the pre-parse cap is the only bound on those arrays. The two ceilings are
+  therefore not independent: at the frozen 50,000 resource-install entries a manifest measures
+  ~14 MiB of payloads plus ~5 MiB of requirements. A cap below that makes an archive at the
+  install ceiling **unproducible and unadmissible** — the ceilings would contradict each
+  other. `maxManifestBytes` is 32 MiB for exactly this reason, and a test builds a manifest at
+  the install ceiling to prove the two constants still agree.
 - Resource-install `fsync`s affected parent directories in **bounded batches** before the
   global step marker — not once per entry — so preboot install time is bounded by affected
   directories, not entry count. A ceiling fixture proves this bound; a recorded,
