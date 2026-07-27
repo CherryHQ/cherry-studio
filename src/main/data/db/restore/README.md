@@ -9,7 +9,9 @@ The backup pipeline imports backup rows into a detached `work.sqlite` (a `VACUUM
 
 | File | Exports | Role |
 |---|---|---|
-| `restoreJournal.ts` | `RestoreJournal(Schema)`, `PROMOTION_STEP_ORDER`, `readRestoreJournal` / `writeRestoreJournal` / `removeRestoreJournal`, `hasPendingRestore` | Crash-safe journal contract (sidecar `restore-journal.json`, `feature.backup.restore.file`; MUST stay in the DB's directory — journal dir-fsyncs are what make a commit-step marker imply the DB rename is durable) |
+| `restoreJournal.ts` | `RestoreJournal(Schema)`, `PROMOTION_STEP_ORDER`, `readRestoreJournal` / `writeRestoreJournal` | Crash-safe journal contract, v1 (sidecar `restore-journal.json`, `feature.backup.restore.file`; MUST stay in the DB's directory — journal dir-fsyncs are what make a commit-step marker imply the DB rename is durable) |
+| `restoreJournalV2.ts` | `RestoreJournalV2(Schema)`, `PROMOTION_STEP_ORDER_V2`, `DB_COMMIT_STEP`, `parseRestoreJournalV2`, `readRestoreJournalV2` / `writeRestoreJournalV2` | Same contract for Backup v2 (`prepared`/`armed` split, unified `resource-install`, no fingerprint) over the same sidecar path — see [backup §6](../../../../../docs/references/backup/README.md#6-journal-v2--promotion) |
+| `restoreGuard.ts` | `hasPendingRestore` | The cross-version answer to "is a restore holding storage" (orphan sweep's stand-aside signal): non-terminal v2 states **plus** a completed-but-unacknowledged one, falling back to v1 |
 | `checkpoint.ts` | `checkpointTruncateAssert` | Asserted `wal_checkpoint(TRUNCATE)` — shared by both fingerprint sides |
 | `hashDbFile.ts` | `hashDbFile` | Streaming sha256 of the DB main file — shared by both fingerprint sides |
 | `snapshot.ts` | `snapshotTo` | `VACUUM INTO` snapshot (produces the merge base `work.sqlite`) |
@@ -29,7 +31,7 @@ staged ──gate passed──▶ promoting ──▶ completed (work promoted, 
 - `staged` — written by the backup staging pipeline after offline merge + verification.
 - `promoting` — set by the preboot gate; `step` is the write-ahead marker (see `PROMOTION_STEP_ORDER`; ordering comparisons MUST use `indexOf` on that table, never string comparison).
 - Markers are recovery hints, not ground truth: around the commit boundary the gate decides from filesystem reality (`work` / `live` / `aside` existence) — a landed commit rename with a lagging or unwritable marker resumes forward, an interrupted revert (cleared aside) finishes the revert.
-- Terminal states (`completed` / `failed` / `expired`) remain durable through the stranded-DB safety check, then the preboot gate logs and removes them before database boot continues.
+- Terminal states (`completed` / `failed` / `expired`) are kept for post-boot reporting.
 
 ## Ownership
 
@@ -38,7 +40,7 @@ staged ──gate passed──▶ promoting ──▶ completed (work promoted, 
 | `restore-journal.json` read/write primitives | this module |
 | Journal state transitions during promotion | promotion gate (`src/main/core/preboot/backupRestoreGate.ts`) |
 | `restore-staging/` tree content (`feature.backup.restore.staging`) | BackupService |
-| Terminal-journal deletion (after the stranded-DB check) | Preboot gate shell |
+| Terminal-journal deletion (after reporting) | BackupService |
 | Quarantined corrupt journals (`restore-journal.json.corrupt-<epoch>`) GC | BackupService (kept for forensics, alongside terminal journals) |
 | Undo-aside retention/GC | BackupService |
 
