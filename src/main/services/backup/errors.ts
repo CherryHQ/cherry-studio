@@ -148,6 +148,40 @@ export class CeilingExceededError extends Error {
 }
 
 /**
+ * The step at which sealing a detached SQLite artifact failed
+ * ({@link @main/services/backup/dbSeal}).
+ */
+export type DbSealStep =
+  /** SQLite `integrity_check` could not run, or did not return `ok`. */
+  | 'integrity'
+  /** `wal_checkpoint(TRUNCATE)` did not fold the whole log into the main file. */
+  | 'checkpoint'
+  /** The artifact could not be taken out of WAL mode. */
+  | 'journal-mode'
+  /** A `-wal`/`-shm` sidecar still existed after sealing, so committed rows would sit outside the hashed file. */
+  | 'sidecar'
+
+/**
+ * Thrown when a detached backup database cannot be proven sound and
+ * single-file. Both the archive producer/consumer and portable materialization
+ * seal through the same primitives, so a caller that needs its own error
+ * taxonomy (admission maps this to `db-corrupt`) translates it at its boundary.
+ *
+ * MESSAGE HYGIENE: `detail` carries pragma results and step labels only — never
+ * database content, which is where plaintext credentials live (§5.1.1).
+ */
+export class DbSealError extends Error {
+  readonly step: DbSealStep
+  readonly detail: string
+  constructor(step: DbSealStep, detail: string) {
+    super(`database seal failed (${step}): ${detail}`)
+    this.name = 'DbSealError'
+    this.step = step
+    this.detail = detail
+  }
+}
+
+/**
  * The single fail-closed rejection an untrusted `.cherrybackup` archive raises
  * at admission (Phase 1b-ii, docs/references/backup/README.md §5.2). Admission
  * is the trust boundary: every one of these fires BEFORE any restore journal or

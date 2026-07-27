@@ -175,19 +175,23 @@ describe('sanitizeAgentAutomation', () => {
     expect(result.patch.configuration.avatar).toBe('keep.png')
   })
 
+  // The automation flags are opt-OUT, so an unsalvageable root must still be
+  // written with them explicitly disabled. Returning a bare `{}` would leave the
+  // heartbeat ARMED (runAgentTask.ts:89 skips only on an explicit `false`).
   it.each([
     ['a string', 'nope'],
     ['an array', ['nope']],
-    ['a number', 7]
-  ])('resets to an empty configuration when the root is %s', (_label, raw) => {
+    ['a number', 7],
+    ['a symbol (unparseable stored JSON)', Symbol('malformed')]
+  ])('disarms automation when the root is %s', (_label, raw) => {
     const result = sanitizeAgentAutomation(raw)
-    expect(result.patch.configuration).toEqual({})
+    expect(result.patch.configuration).toEqual({ heartbeat_enabled: false, scheduler_enabled: false })
     expect(result.malformedFields).toEqual(['<root>'])
   })
 
-  it('treats an absent configuration as unset rather than malformed', () => {
+  it('disarms automation for an absent configuration without reporting it malformed', () => {
     const result = sanitizeAgentAutomation(null)
-    expect(result.patch.configuration).toEqual({})
+    expect(result.patch.configuration).toEqual({ heartbeat_enabled: false, scheduler_enabled: false })
     expect(result.malformedFields).toEqual([])
   })
 })
