@@ -132,10 +132,12 @@ vi.mock('../../tools/MessageTools', () => {
     default: ({ toolResponse }: any) => {
       mockMessageToolsRender(toolResponse)
       const answers = toolResponse?.arguments?.answers ?? toolResponse?.response?.answers
-      const isUnansweredAskUserQuestion =
-        toolResponse?.tool?.name === 'AskUserQuestion' && Object.keys(answers ?? {}).length === 0
+      const isTransientUnansweredAskUserQuestion =
+        toolResponse?.tool?.name === 'AskUserQuestion' &&
+        ['pending', 'invoking', 'streaming'].includes(toolResponse?.status) &&
+        Object.keys(answers ?? {}).length === 0
 
-      return canRender(toolResponse) && !isUnansweredAskUserQuestion ? (
+      return canRender(toolResponse) && !isTransientUnansweredAskUserQuestion ? (
         <div
           data-testid="mock-message-tools"
           data-status={toolResponse?.status}
@@ -1501,7 +1503,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(3)
     })
 
-    it('hides a standalone unanswered AskUserQuestion in a terminal snapshot', () => {
+    it('settles a standalone awaiting AskUser tool in a terminal snapshot', () => {
       renderParts([
         {
           ...toolPart('ask', 'approval-requested', 'AskUserQuestion'),
@@ -1512,7 +1514,7 @@ describe('MessagePartsRenderer', () => {
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
       expandCollapsedChildToolGroups()
 
-      expect(screen.queryByTestId('mock-message-tools')).not.toBeInTheDocument()
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'cancelled')
     })
 
     it('shows completed summaries for tools and pure reasoning groups', () => {

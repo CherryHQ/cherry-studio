@@ -101,8 +101,12 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   const isFirstQuestion = currentIndex === 0
   const isLastQuestion = currentIndex === totalQuestions - 1
   const answeredCount = Object.keys(answers).length
+  // The composer owns unanswered live questions; terminal snapshots remain valid history records.
+  const isTransientWithoutAnswer =
+    answeredCount === 0 &&
+    (toolResponse.status === 'pending' || toolResponse.status === 'invoking' || toolResponse.status === 'streaming')
 
-  if (!currentQuestion || answeredCount === 0) return null
+  if (!currentQuestion || isTransientWithoutAnswer) return null
 
   const content = (
     <div className="flex flex-col gap-3">
