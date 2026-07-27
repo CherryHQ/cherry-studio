@@ -10,7 +10,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
-import { getBinaryIsolatedHomeEnv, getBinarySearchDirs, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryIsolatedHomeEnv, getBinaryShimsDir, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -436,7 +436,7 @@ export class BinaryManager extends BaseService {
       if (isRuntimeDependency(spec)) names.add(name)
     }
     const bundled = this.probeBundled()
-    const shimsDir = getBinarySearchDirs()[0]
+    const shimsDir = getBinaryShimsDir()
 
     // The exact-application fact is independent of runnable availability. When the
     // backend cannot answer, every name is `unknown` with the reason — never a
@@ -604,7 +604,7 @@ export class BinaryManager extends BaseService {
     }
 
     const names = new Set([...definitions.keys(), ...bundledNames, ...Object.keys(operations)])
-    const shimsDir = getBinarySearchDirs()[0]
+    const shimsDir = getBinaryShimsDir()
     const shimNames = new Set<string>()
     try {
       for (const entry of await fsp.readdir(shimsDir, { withFileTypes: true })) {

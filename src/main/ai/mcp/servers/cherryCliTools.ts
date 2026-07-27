@@ -42,7 +42,7 @@ const CLI_TOOLS: readonly Tool[] = [
   {
     name: CLI_LIST_TOOL_NAME,
     description:
-      'List the current Cherry-managed CLI inventory. Call this before assuming a command is unavailable; the result is read live from bundled binaries, mise installs, custom definitions, and Code CLI presets.',
+      'List the current Cherry-managed CLI inventory. This does not inspect the user’s system PATH: a command reported as unavailable may still exist there, so check with `command -v <name>` before installing another copy. The result is read live from bundled binaries, mise installs, custom definitions, and Code CLI presets.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false }
   },
   {
@@ -96,7 +96,7 @@ export class CherryCliTools {
         }
 
         const installed = (await binaryManager.getToolInventory()).find((entry) => entry.name === definition.name)
-        return toJsonResult({ tool: installed })
+        return toJsonResult({ tool: installed }, installed?.status !== 'ready')
       }
       return toJsonResult({ error: `Unknown tool: ${toolName}` }, true)
     } catch (error) {

@@ -42,6 +42,7 @@ describe('CherryCliTools', () => {
   it('advertises the thin list/search/install surface', () => {
     const tools = new CherryCliTools().tools()
     expect(tools.map((tool) => tool.name)).toEqual([CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, CLI_INSTALL_TOOL_NAME])
+    expect(tools.find((tool) => tool.name === CLI_LIST_TOOL_NAME)?.description).toContain('command -v <name>')
     expect(tools.find((tool) => tool.name === CLI_SEARCH_TOOL_NAME)?.inputSchema.required).toEqual(['query'])
     expect(tools.find((tool) => tool.name === CLI_INSTALL_TOOL_NAME)?.inputSchema.required).toEqual(['name', 'tool'])
   })
@@ -98,6 +99,22 @@ describe('CherryCliTools', () => {
     expect(binaryManager.addCustomTool).toHaveBeenCalledWith({
       name: 'acme',
       tool: 'ubi:acme/cli'
+    })
+  })
+
+  it('returns a tool error when the final inventory status is not ready', async () => {
+    binaryManager.getToolInventory
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ name: 'acme', recipe: 'ubi:acme/cli', status: 'failed' }])
+
+    const result = await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+      name: 'acme',
+      tool: 'ubi:acme/cli'
+    })
+
+    expect(result.isError).toBe(true)
+    expect(json(result)).toEqual({
+      tool: { name: 'acme', recipe: 'ubi:acme/cli', status: 'failed' }
     })
   })
 
