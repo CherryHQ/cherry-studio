@@ -125,6 +125,37 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
+  it('restores the composer-selected knowledge bases when regenerating a response', async () => {
+    const knowledgeBaseIds = ['kb-selected-this-turn']
+    const submitted = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        userMessageParts: [{ type: 'text', text: 'search my selected knowledge base' }],
+        knowledgeBaseIds
+      },
+      { hasLiveStream: false }
+    )
+    const userMessageId = submitted.userMessageId!
+
+    expect(messageService.getById(userMessageId).data.knowledgeBaseIds).toEqual(knowledgeBaseIds)
+
+    const regenerated = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: userMessageId,
+        knowledgeBaseIds: []
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(regenerated.models[0].request.knowledgeBaseIds).toEqual(knowledgeBaseIds)
+  })
+
   it('steer-continuation: opens an assistant turn under the steer user row with a reminder-wrapped prompt', async () => {
     // u1 → a1 → u2, where u2 is the steer the user sent mid-turn (child of the assistant row).
     await dbh.db.insert(messageTable).values({

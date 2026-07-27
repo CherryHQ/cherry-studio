@@ -172,7 +172,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const userMessage = messageService.create(req.topicId, {
         role: 'user',
         parentId: req.parentAnchorId,
-        data: { parts: req.userMessageParts },
+        data: { parts: req.userMessageParts, knowledgeBaseIds: req.knowledgeBaseIds },
         status: 'success',
         // User rows carry only `modelId` (read by steer-continuation); the author snapshot
         // lives on the assistant reply, which is what the header renders.
@@ -220,7 +220,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             dto: {
               role: 'user' as const,
               parentId: req.parentAnchorId,
-              data: { parts: req.userMessageParts },
+              data: { parts: req.userMessageParts, knowledgeBaseIds: req.knowledgeBaseIds },
               status: 'success' as const,
               modelId: defaultModelId
             }
@@ -289,6 +289,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
       const history = this.buildHistory(userMessage.id)
+      const knowledgeBaseIds =
+        req.trigger === 'regenerate-message'
+          ? (userMessage.data.knowledgeBaseIds ?? req.knowledgeBaseIds)
+          : req.knowledgeBaseIds
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
         request: this.buildStreamRequest(
@@ -297,7 +301,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           model.id,
           history,
           placeholder.id,
-          req.knowledgeBaseIds,
+          knowledgeBaseIds,
           req.trigger === 'submit-message' ? req.reasoningEffort : undefined
         ),
         rootSpan
