@@ -49,7 +49,7 @@ export interface AiUsageRecordMessageInput {
   topicId?: string | null
   agentSessionId?: string | null
   role: Message['role']
-  modelId: Message['modelId']
+  modelId?: Message['modelId']
   messageSnapshot?: Message['messageSnapshot']
   stats: Message['stats']
 }
