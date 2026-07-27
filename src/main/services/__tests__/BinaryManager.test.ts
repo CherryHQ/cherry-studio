@@ -26,7 +26,8 @@ const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, 
     chmod: vi.fn(async () => {}),
     writeFile: vi.fn(async () => {}),
     rename: vi.fn(async () => {}),
-    access: vi.fn(async () => {})
+    access: vi.fn(async () => {}),
+    realpath: vi.fn(async (candidate: string) => candidate)
   },
   mockPreferenceService: {
     get: vi.fn(),
@@ -154,6 +155,7 @@ describe('BinaryManager', () => {
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
     mockFsp.access.mockReset().mockResolvedValue(undefined)
+    mockFsp.realpath.mockReset().mockImplementation(async (candidate: string) => candidate)
     vi.mocked(findCommandInShellEnv).mockReset().mockResolvedValue(null)
     vi.mocked(refreshShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     manifestRef.value = []
@@ -527,6 +529,47 @@ describe('BinaryManager', () => {
         name: 'fd',
         availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd', version: '10.0.0' },
         application: { status: 'applied', version: '10.0.0' }
+      })
+    })
+
+    it('stays applied when mise which resolves through its latest-version symlink', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'github:larksuite/cli': [
+                {
+                  version: '1.0.77',
+                  active: true,
+                  install_path: '/opt/mise/installs/github-larksuite-cli/1.0.77'
+                }
+              ]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') {
+          return { stdout: '/opt/mise/installs/github-larksuite-cli/latest/lark-cli\n', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      mockFsp.realpath.mockImplementation(async (candidate: string) =>
+        candidate.replace('/github-larksuite-cli/latest/', '/github-larksuite-cli/1.0.77/')
+      )
+
+      const snapshots = await service.getToolSnapshots(['lark-cli'])
+
+      expect(snapshots['lark-cli']).toEqual({
+        name: 'lark-cli',
+        availability: {
+          source: 'mise',
+          path: '/mock/feature.binary.data/shims/lark-cli',
+          version: '1.0.77'
+        },
+        application: { status: 'applied', version: '1.0.77' }
       })
     })
 
@@ -2850,6 +2893,76 @@ describe('BinaryManager', () => {
 
       // Memoized in-flight promise → a single build and a single region lookup.
       expect(regionService.isInChina).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('Agent CLI inventory', () => {
+    it('aggregates bundled, fixed, custom, and runtime tools without exposing paths', async () => {
+      manifestRef.value = [{ name: 'acme', tool: 'npm:acme', requestedVersion: '1.2.3' }]
+      const service = new BinaryManager()
+      vi.spyOn(service, 'getToolSnapshots').mockResolvedValue({
+        bun: {
+          name: 'bun',
+          availability: { source: 'bundled', path: '/mock/cherry/bin/bun', version: '1.3.0' },
+          application: { status: 'absent' }
+        },
+        fd: {
+          name: 'fd',
+          availability: { source: 'none' },
+          application: { status: 'absent' }
+        },
+        acme: {
+          name: 'acme',
+          definition: manifestRef.value[0],
+          availability: { source: 'mise', path: '/secret/shims/acme', version: '1.2.3' },
+          application: { status: 'applied', version: '1.2.3' }
+        },
+        node: {
+          name: 'node',
+          availability: { source: 'mise', path: '/secret/shims/node', version: '22.1.0' },
+          application: { status: 'applied', version: '22.1.0' }
+        }
+      })
+
+      const inventory = await service.getToolInventory()
+
+      expect(inventory).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'bun', origin: 'bundled', status: 'ready' }),
+          expect.objectContaining({ name: 'fd', origin: 'dependency', status: 'not_installed' }),
+          expect.objectContaining({
+            name: 'acme',
+            origin: 'custom',
+            status: 'ready',
+            recipe: 'npm:acme',
+            requestedVersion: '1.2.3'
+          }),
+          expect.objectContaining({ name: 'node', origin: 'runtime', status: 'ready' })
+        ])
+      )
+      expect(JSON.stringify(inventory)).not.toContain('/secret/')
+    })
+
+    it('shares one inventory build, caches it, and actively invalidates on mutation', async () => {
+      const service = new BinaryManager()
+      let resolveSnapshots!: (value: Record<string, never>) => void
+      const snapshots = vi
+        .spyOn(service, 'getToolSnapshots')
+        .mockImplementationOnce(() => new Promise((resolve) => (resolveSnapshots = resolve)))
+        .mockResolvedValue({})
+
+      const first = service.getToolInventory()
+      const concurrent = service.getToolInventory()
+      expect(snapshots).toHaveBeenCalledTimes(1)
+      resolveSnapshots({})
+      await expect(Promise.all([first, concurrent])).resolves.toEqual([[], []])
+
+      await service.getToolInventory()
+      expect(snapshots).toHaveBeenCalledTimes(1)
+
+      ;(service as any).bumpMutationRevision()
+      await service.getToolInventory()
+      expect(snapshots).toHaveBeenCalledTimes(2)
     })
   })
 

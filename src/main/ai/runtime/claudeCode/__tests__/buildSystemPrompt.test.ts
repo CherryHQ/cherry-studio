@@ -17,6 +17,7 @@ const {
   mockRealpath,
   mockGetPath,
   mockApplicationGet,
+  mockGetToolInventory,
   mockLoadBuiltinAgentDefinition,
   mockGetAppLanguage
 } = vi.hoisted(() => ({
@@ -25,6 +26,7 @@ const {
   mockRealpath: vi.fn(),
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
   mockApplicationGet: vi.fn(),
+  mockGetToolInventory: vi.fn(),
   mockLoadBuiltinAgentDefinition: vi.fn(),
   mockGetAppLanguage: vi.fn(() => 'en-US')
 }))
@@ -87,7 +89,10 @@ const WORKSPACE_MARKER = '## Current Workspace'
 
 beforeEach(() => {
   vi.unstubAllGlobals()
-  mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
+  mockGetToolInventory.mockResolvedValue([])
+  mockApplicationGet.mockImplementation((name: string) =>
+    name === 'BinaryManager' ? { getToolInventory: mockGetToolInventory } : { get: vi.fn(() => undefined) }
+  )
   mockFindBySessionId.mockReturnValue(null)
   mockLoadBuiltinAgentDefinition.mockReset()
   mockGetAppLanguage.mockReturnValue('en-US')
@@ -183,6 +188,38 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
   it('steers the agent to bun/uv without user instructions', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
     expect(result as string).toContain(RUNTIME_MARKER)
+  })
+
+  it('shows at most 20 ready CLIs and points to cli_list for the live inventory', async () => {
+    mockGetToolInventory.mockResolvedValue(
+      Array.from({ length: 22 }, (_, index) => ({
+        name: `tool-${String(index).padStart(2, '0')}`,
+        origin: 'custom',
+        status: 'ready',
+        availabilitySource: 'mise'
+      }))
+    )
+
+    const result = (await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')) as string
+
+    expect(result).toContain('tool-00')
+    expect(result).toContain('tool-19')
+    expect(result).not.toContain('tool-20')
+    expect(result).toContain('Use `cli_list` for the current complete inventory')
+  })
+
+  it('continues after the one-second CLI inventory startup budget', async () => {
+    vi.useFakeTimers()
+    try {
+      mockGetToolInventory.mockReturnValue(new Promise(() => undefined))
+      const prompt = buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
+
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await expect(prompt).resolves.toContain('inventory unavailable')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not inject the runtime block for the Cherry Assistant (it carries its own environment)', async () => {

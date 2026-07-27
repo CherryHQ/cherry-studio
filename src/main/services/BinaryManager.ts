@@ -82,6 +82,7 @@ const MISE_COMMAND_TIMEOUT_MS = 120_000
 const MISE_INSTALL_TIMEOUT_MS = 15 * 60_000
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
+const INVENTORY_CACHE_TTL_MS = 30 * 1000
 
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
 // so lookups stay off the boot path and run with a small concurrency bound.
@@ -151,6 +152,21 @@ const BUNDLED_TOOLS: Array<{ name: string; binaries: string[]; versionFile: stri
   { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
 ]
 
+export type ManagedCliOrigin = 'bundled' | 'dependency' | 'code-cli' | 'custom' | 'runtime'
+export type ManagedCliStatus = 'ready' | 'not_installed' | 'installing' | 'removing' | 'failed' | 'unknown'
+
+export type ManagedCliInventoryEntry = {
+  name: string
+  origin: ManagedCliOrigin
+  status: ManagedCliStatus
+  availabilitySource: BinaryAvailability['source']
+  recipe?: string
+  requestedVersion?: string
+  installedVersion?: string
+  managedState?: BinaryApplication['status']
+  detail?: string
+}
+
 /** A code-owned fixed tool definition. Structural — never a persisted custom entry. */
 type FixedToolDefinition = { name: string; tool: string }
 
@@ -171,6 +187,7 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
     { name: preset.executable, tool: preset.miseTool }
   ])
 ])
+const CODE_CLI_NAMES = new Set(CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable))
 
 // Re-exported for main-process callers and tests.
 export { validateBinaryToolDefinition }
@@ -213,6 +230,11 @@ export class BinaryManager extends BaseService {
   // definition-fingerprint race guard, which only saw definition changes and was
   // blind to backend-only installs and removals.
   private mutationRevision = 0
+  private inventoryRevision = 0
+  private inventoryCache:
+    | { revision: number; expiresAt: number; entries: readonly ManagedCliInventoryEntry[] }
+    | undefined
+  private inventoryPromise: { revision: number; promise: Promise<readonly ManagedCliInventoryEntry[]> } | undefined
 
   // Set the first time onAllReady fires (once per instance). Distinguishes an
   // initial-bootstrap onInit (before onAllReady) from a post-restart onInit
@@ -541,6 +563,103 @@ export class BinaryManager extends BaseService {
     return snapshots
   }
 
+  /**
+   * Return the complete Agent-facing CLI inventory without exposing executable
+   * paths. The short cache avoids repeating one full mise/system probe for every
+   * prompt and cli_list call; operation and backend mutations invalidate it
+   * synchronously, and concurrent readers share one build.
+   */
+  public getToolInventory(options: { force?: boolean } = {}): Promise<readonly ManagedCliInventoryEntry[]> {
+    const revision = this.inventoryRevision
+    if (!options.force && this.inventoryCache?.revision === revision && this.inventoryCache.expiresAt > Date.now()) {
+      return Promise.resolve(this.inventoryCache.entries)
+    }
+    if (this.inventoryPromise?.revision === revision) return this.inventoryPromise.promise
+
+    const promise = this.buildToolInventory().then((entries) => {
+      if (this.inventoryRevision === revision) {
+        this.inventoryCache = { revision, expiresAt: Date.now() + INVENTORY_CACHE_TTL_MS, entries }
+      }
+      return entries
+    })
+    this.inventoryPromise = { revision, promise }
+    void promise
+      .finally(() => {
+        if (this.inventoryPromise?.promise === promise) this.inventoryPromise = undefined
+      })
+      .catch(() => undefined)
+    return promise
+  }
+
+  private async buildToolInventory(): Promise<readonly ManagedCliInventoryEntry[]> {
+    const customDefinitions = this.getCustomDefinitions().filter((definition) => !FIXED_CATALOG.has(definition.name))
+    const bundledNames = new Set(BUNDLED_TOOLS.filter((tool) => !tool.internal).flatMap((tool) => tool.binaries))
+    const requestedNames = new Set([
+      ...FIXED_CATALOG.keys(),
+      ...customDefinitions.map((definition) => definition.name),
+      ...bundledNames
+    ])
+    const snapshots = await this.getToolSnapshots([...requestedNames])
+    const customByName = new Map(customDefinitions.map((definition) => [definition.name, definition]))
+
+    const entries = Object.values(snapshots).map((snapshot): ManagedCliInventoryEntry => {
+      const fixed = FIXED_CATALOG.get(snapshot.name)
+      const custom = customByName.get(snapshot.name)
+      const applicationStatus = snapshot.application?.status
+      const operation = snapshot.operation
+      const status: ManagedCliStatus =
+        operation?.status === 'installing'
+          ? 'installing'
+          : operation?.status === 'removing'
+            ? 'removing'
+            : operation?.status === 'failed'
+              ? 'failed'
+              : snapshot.availability.source !== 'none'
+                ? 'ready'
+                : applicationStatus === 'unknown'
+                  ? 'unknown'
+                  : applicationStatus === 'broken' || applicationStatus === 'conflict'
+                    ? 'failed'
+                    : 'not_installed'
+      const detail =
+        operation?.status === 'failed'
+          ? operation.error
+          : applicationStatus === 'unknown'
+            ? snapshot.application?.status === 'unknown'
+              ? snapshot.application.reason
+              : undefined
+            : applicationStatus === 'broken' || applicationStatus === 'conflict'
+              ? applicationStatus
+              : undefined
+
+      return {
+        name: snapshot.name,
+        origin: bundledNames.has(snapshot.name)
+          ? 'bundled'
+          : fixed
+            ? CODE_CLI_NAMES.has(snapshot.name)
+              ? 'code-cli'
+              : 'dependency'
+            : custom
+              ? 'custom'
+              : 'runtime',
+        status,
+        availabilitySource: snapshot.availability.source,
+        ...(fixed?.tool || custom?.tool ? { recipe: fixed?.tool ?? custom?.tool } : {}),
+        ...(custom?.requestedVersion ? { requestedVersion: custom.requestedVersion } : {}),
+        ...('version' in snapshot.availability && snapshot.availability.version
+          ? { installedVersion: snapshot.availability.version }
+          : snapshot.application && 'version' in snapshot.application && snapshot.application.version
+            ? { installedVersion: snapshot.application.version }
+            : {}),
+        ...(applicationStatus ? { managedState: applicationStatus } : {}),
+        ...(detail ? { detail } : {})
+      }
+    })
+
+    return entries.sort((left, right) => left.name.localeCompare(right.name))
+  }
+
   private async extractBundledBinaries(): Promise<void> {
     const platformKey = `${process.platform}-${process.arch}`
     const bundledDir = path.join(application.getPath('app.root.resources.binaries'), platformKey)
@@ -791,8 +910,13 @@ export class BinaryManager extends BaseService {
       const { stdout } = await this.runMise(['which', toolName])
       const resolved = stdout.trim().split(/\r?\n/)[0]
       if (!resolved) return null
-      await fsp.access(resolved, isWin ? fs.constants.F_OK : fs.constants.X_OK)
-      return resolved
+      // mise commonly returns an alias path such as `installs/<tool>/latest/bin`.
+      // Compare and expose the canonical target: otherwise a valid `latest` symlink
+      // looks outside the active entry's versioned install_path and is misclassified
+      // as a foreign/conflicting binary.
+      const canonical = await fsp.realpath(resolved)
+      await fsp.access(canonical, isWin ? fs.constants.F_OK : fs.constants.X_OK)
+      return canonical
     } catch {
       return null
     }
@@ -883,6 +1007,7 @@ export class BinaryManager extends BaseService {
    */
   private bumpMutationRevision() {
     this.mutationRevision++
+    this.invalidateInventory()
     try {
       application.get('CacheService').deleteShared('feature.binary.latest_versions')
     } catch (err) {
@@ -936,7 +1061,13 @@ export class BinaryManager extends BaseService {
       delete operations[name]
     }
     cacheService.set(BINARY_OPERATIONS_CACHE_KEY, operations)
+    this.invalidateInventory()
     this.broadcastAvailabilityChanged()
+  }
+
+  private invalidateInventory() {
+    this.inventoryRevision++
+    this.inventoryCache = undefined
   }
 
   /** Resolve the code-owned fixed definition for a name, if the app ships one. */

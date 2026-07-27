@@ -2,11 +2,15 @@ import path from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
+const { packaged } = vi.hoisted(() => ({ packaged: { value: false } }))
+
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
     getPath: vi.fn((key: string) => `/mock/${key}`),
-    isPackaged: false
+    get isPackaged() {
+      return packaged.value
+    }
   }
 }))
 
@@ -29,6 +33,32 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data']).toBe(miseRoot)
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+
+  it('resolves shell parser WASM from node_modules in development and extraResources when packaged', () => {
+    packaged.value = false
+    const development = buildPathRegistry()
+    expect(development['feature.agents.shell_parser.runtime_file']).toBe(
+      '/mock/app/node_modules/web-tree-sitter/web-tree-sitter.wasm'
+    )
+    expect(development['feature.agents.shell_parser.bash_grammar_file']).toBe(
+      '/mock/app/node_modules/tree-sitter-bash/tree-sitter-bash.wasm'
+    )
+
+    Object.defineProperty(process, 'resourcesPath', { configurable: true, value: '/mock/resources' })
+    try {
+      packaged.value = true
+      const packagedRegistry = buildPathRegistry()
+      expect(packagedRegistry['feature.agents.shell_parser.runtime_file']).toBe(
+        '/mock/resources/tree-sitter/web-tree-sitter.wasm'
+      )
+      expect(packagedRegistry['feature.agents.shell_parser.bash_grammar_file']).toBe(
+        '/mock/resources/tree-sitter/tree-sitter-bash.wasm'
+      )
+    } finally {
+      packaged.value = false
+      Reflect.deleteProperty(process, 'resourcesPath')
+    }
   })
 })
 
@@ -182,6 +212,11 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns false for app.database.migrations (packaged read-only path)', () => {
       expect(shouldAutoEnsure('app.database.migrations')).toBe(false)
+    })
+
+    it('returns false for the read-only shell parser WASM files', () => {
+      expect(shouldAutoEnsure('feature.agents.shell_parser.runtime_file')).toBe(false)
+      expect(shouldAutoEnsure('feature.agents.shell_parser.bash_grammar_file')).toBe(false)
     })
   })
 

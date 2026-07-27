@@ -38,6 +38,7 @@ import {
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
+import { readyCliSummary } from '@main/ai/mcp/servers/cherryCliTools'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
@@ -77,6 +78,7 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
+import { rewritePackageRunnerCommands } from './bashCommandRewrite'
 import { detectGlobalInstall } from './dependencyGuard'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
@@ -821,22 +823,45 @@ async function buildToolPermissions(
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
-        permissionDecisionReason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\` (ephemeral).`
+        permissionDecisionReason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install project dependencies in the current workspace (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\`; for persistent CLIs use \`cli_search\` then \`cli_install\`.`
       }
     }
   }
 
-  const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+  // Perform every safe Bash rewrite in one hook so Claude receives at most one updatedInput:
+  // syntax-aware npx/pipx run → bundled bun x/uvx first, then the existing rtk optimization.
+  const bashRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (toolName !== 'Bash') return {}
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
-    const rewritten = await rtkRewrite(command)
-    if (!rewritten) return {}
-    logger.info('rtk rewrote Bash command', { original: command, rewritten })
-    return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
+
+    const runnerResult = await rewritePackageRunnerCommands(command)
+    if (runnerResult.kind === 'denied') {
+      logger.info('Blocked package runner command that could not be safely rewritten', {
+        sessionId: session.id,
+        reason: runnerResult.reason
+      })
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: runnerResult.reason
+        }
+      }
+    }
+
+    const afterRunnerRewrite = runnerResult.kind === 'rewritten' ? runnerResult.command : command
+    const afterRtk = (await rtkRewrite(afterRunnerRewrite)) || afterRunnerRewrite
+    if (afterRtk === command) return {}
+    logger.info('Rewrote Bash command', {
+      original: command,
+      rewritten: afterRtk,
+      packageRunnerCommands: runnerResult.kind === 'rewritten' ? runnerResult.count : 0
+    })
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: afterRtk } } }
   }
 
   // Headless interactive-tool denial, enforced as a PreToolUse hook so it fires under every permission
@@ -972,7 +997,7 @@ async function buildToolPermissions(
             disabledToolHook,
             workspacePathHook,
             dependencyIsolationHook,
-            rtkRewriteHook,
+            bashRewriteHook,
             steerHook
           ]
         }
@@ -1001,15 +1026,48 @@ async function buildToolPermissions(
  * stable (fixed install location), so this block is safe inside the warm-query
  * system-prompt signature.
  */
+async function getPromptCliInventory(): Promise<string[]> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    const inventory = application
+      .get('BinaryManager')
+      .getToolInventory()
+      .then(
+        (entries) => readyCliSummary(entries),
+        (error) => Promise.reject(error)
+      )
+    const timedOut = new Promise<readonly never[]>((resolve) => {
+      timeout = setTimeout(() => resolve([]), 1000)
+      timeout.unref?.()
+    })
+    return [...(await Promise.race([inventory, timedOut]))]
+  } catch (error) {
+    logger.warn('Failed to read CLI inventory for system prompt', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+    return []
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
+}
+
 async function buildRuntimeContext(): Promise<string> {
-  const [bunPath, uvPath, rgPath] = await Promise.all([getBinaryPath('bun'), getBinaryPath('uv'), getBinaryPath('rg')])
+  const [bunPath, uvPath, rgPath, cliInventory] = await Promise.all([
+    getBinaryPath('bun'),
+    getBinaryPath('uv'),
+    getBinaryPath('rg'),
+    getPromptCliInventory()
+  ])
   return [
     '## Available Runtimes',
     'bun and uv are bundled and always on PATH. Use them to pull libraries and write throwaway scripts to verify logic — prefer them over node/npm/npx/pip, which are not guaranteed to be installed.',
     `- JavaScript / TypeScript — run with \`bun <file>\`, add deps with \`bun install <pkg>\`, run a package with \`bun x <tool>\` (bun: ${bunPath})`,
     `- Python — run with \`uv run python <file>\`, add deps inline with \`uv run --with <pkg> python <file>\` (ephemeral, no venv needed), run a tool with \`uvx <tool>\` (uv: ${uvPath})`,
     `- Search — \`rg\` for fast file/content search (ripgrep: ${rgPath})`,
-    'Install dependencies INTO the project (cwd) only. Global installs (`-g`/`--global`, `uv tool install`, `pip install --user`) are blocked to keep tasks isolated — use `bun x` / `uvx` for one-off tools.'
+    'Install dependencies INTO the project (cwd) only. Global installs (`-g`/`--global`, `uv tool install`, `pip install --user`) and direct mise mutations are blocked to keep tasks isolated — use `bun x` / `uvx` for one-off tools.',
+    `Ready CLIs (startup snapshot, at most 20): ${cliInventory.length > 0 ? cliInventory.join(', ') : 'inventory unavailable'}.`,
+    'Use `cli_list` for the current complete inventory. Use `cli_search` and then `cli_install` for persistent CLI installation managed by Cherry Studio.',
+    'A bare `cli_search` query checks Cherry’s managed catalog and the mise registry. If it returns `needs_source`, read a trusted installation guide, select its ecosystem with the `source` field, and retry using the exact package/module/repository identifier plus the real `executable`; never invent `npm:`/`pipx:` recipe prefixes. CLIs that need login, configuration, or reuse must be installed persistently, not run with `bun x` / `uvx`.'
   ].join('\n')
 }
 
@@ -1128,13 +1186,16 @@ export function buildMcpServers(
   mcpList['cherry-tools'] = {
     type: 'sdk',
     name: 'cherry-tools',
-    instance: new CherryBuiltinToolsServer({
-      agentId: agent.id,
-      workspaceSource,
-      workspacePath: session.workspace.path,
-      sourceChannelId,
-      getKnowledgeBaseIds: () => agentService.getAgent(agent.id)?.knowledgeBaseIds ?? []
-    }).mcpServer
+    instance: new CherryBuiltinToolsServer(
+      {
+        agentId: agent.id,
+        workspaceSource,
+        workspacePath: session.workspace.path,
+        sourceChannelId,
+        getKnowledgeBaseIds: () => agentService.getAgent(agent.id)?.knowledgeBaseIds ?? []
+      },
+      { includeCliTools: agent.configuration?.builtin_role !== 'assistant' }
+    ).mcpServer
   }
 
   // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the agent prompt and the

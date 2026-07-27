@@ -30,6 +30,9 @@ const mocks = vi.hoisted(() => ({
   resolveRequire: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
+  rewritePackageRunnerCommands: vi.fn(),
+  rtkRewrite: vi.fn(),
+  getToolInventory: vi.fn(),
   platform: { isMac: false },
   isWin: false
 }))
@@ -159,7 +162,11 @@ vi.mock('@main/utils/commandResolver', () => ({
 }))
 
 vi.mock('@main/utils/rtk', () => ({
-  rtkRewrite: vi.fn()
+  rtkRewrite: mocks.rtkRewrite
+}))
+
+vi.mock('../bashCommandRewrite', () => ({
+  rewritePackageRunnerCommands: mocks.rewritePackageRunnerCommands
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
@@ -218,6 +225,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         // headless gates are asserted by tests that override this.
         return { isCurrentTurnHeadless: () => false, hasLiveTurnStream: () => true }
       }
+      if (name === 'BinaryManager') return { getToolInventory: mocks.getToolInventory }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
@@ -227,6 +235,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.getAppLanguage.mockReturnValue('en-US')
+    mocks.rewritePackageRunnerCommands.mockResolvedValue({ kind: 'unchanged' })
+    mocks.rtkRewrite.mockResolvedValue(null)
+    mocks.getToolInventory.mockResolvedValue([])
     mocks.isWin = false
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkills.mockResolvedValue([])
@@ -800,6 +811,28 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
+
+    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
+    const handlers = cherryServer.server._requestHandlers
+    const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toContain('cli_list')
+  })
+
+  it('exposes CLI management tools to a normal Agent session', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
+    const handlers = cherryServer.server._requestHandlers
+    const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+
+    expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
+      expect.arrayContaining(['cli_list', 'cli_search', 'cli_install'])
+    )
   })
 
   it('uses one captured channel snapshot for Assistant MCP, approval, and prompt policy', async () => {
@@ -869,7 +902,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // headlessInteractiveToolHook + headlessConfigMutationHook + disabledToolHook + workspacePathHook + dependencyIsolationHook + rtkRewriteHook + steerHook
+    // headlessInteractiveToolHook + headlessConfigMutationHook + disabledToolHook + workspacePathHook + dependencyIsolationHook + bashRewriteHook + steerHook
     expect(preToolUse).toHaveLength(7)
 
     const steerHook = preToolUse![6] as unknown as (input: {
@@ -893,6 +926,62 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(output.hookSpecificOutput?.additionalContext).toContain('change direction now')
     expect(settings.steerHolder!.pending).toHaveLength(0) // drained in place
     expect(onInjected).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns one updatedInput after the AST npx rewrite and rtk rewrite run in sequence', async () => {
+    mocks.rewritePackageRunnerCommands.mockResolvedValue({
+      kind: 'rewritten',
+      command: 'bun x eslint .',
+      count: 1
+    })
+    mocks.rtkRewrite.mockResolvedValue('rtk eslint .')
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const bashRewriteHook = settings.hooks?.PreToolUse?.[0]?.hooks?.[5]
+
+    const output = await bashRewriteHook?.(
+      { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npx eslint .' } } as never,
+      'tool-use-1',
+      {} as never
+    )
+
+    expect(mocks.rewritePackageRunnerCommands).toHaveBeenCalledWith('npx eslint .')
+    expect(mocks.rtkRewrite).toHaveBeenCalledWith('bun x eslint .')
+    expect(output).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        updatedInput: { command: 'rtk eslint .' }
+      }
+    })
+  })
+
+  it('denies an unsafe npx form before rtk sees it', async () => {
+    mocks.rewritePackageRunnerCommands.mockResolvedValue({
+      kind: 'denied',
+      reason: 'unsupported npx runner option: --call; use `bun x` explicitly'
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const bashRewriteHook = settings.hooks?.PreToolUse?.[0]?.hooks?.[5]
+
+    const output = await bashRewriteHook?.(
+      { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npx --call "echo hi"' } } as never,
+      'tool-use-1',
+      {} as never
+    )
+
+    expect(output).toMatchObject({
+      hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: expect.stringContaining('bun x') }
+    })
+    expect(mocks.rtkRewrite).not.toHaveBeenCalled()
   })
 
   it('keeps an empty-text steer pending when the PreToolUse hook cannot inject it', async () => {
