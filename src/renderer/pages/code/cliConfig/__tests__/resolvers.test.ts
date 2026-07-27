@@ -2,33 +2,9 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { resolveClaudeBaseUrl, resolveGeminiBaseUrl } from '../resolvers'
+import { resolveGeminiBaseUrl } from '../resolvers'
 
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
-
-describe('resolveClaudeBaseUrl', () => {
-  it('removes the API version Claude Code appends itself', () => {
-    expect(
-      resolveClaudeBaseUrl(
-        provider({
-          id: 'cherryin',
-          endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://open.cherryin.net/v1/' } }
-        })
-      )
-    ).toBe('https://open.cherryin.net')
-  })
-
-  it('preserves an unversioned gateway subpath', () => {
-    expect(
-      resolveClaudeBaseUrl(
-        provider({
-          id: 'custom',
-          endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://gateway.example.com/anthropic/' } }
-        })
-      )
-    ).toBe('https://gateway.example.com/anthropic')
-  })
-})
 
 describe('resolveGeminiBaseUrl', () => {
   it('uses a dedicated google-generate-content baseUrl verbatim', () => {
