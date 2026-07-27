@@ -17,6 +17,8 @@ const assistantState = vi.hoisted(() => ({
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
+  type PopoverContextValue = { open: boolean; onOpenChange: (open: boolean) => void }
+  const PopoverContext = React.createContext<PopoverContextValue>({ open: false, onOpenChange: () => {} })
   const passthrough =
     (tag: string) =>
     ({ children, ...props }: React.HTMLAttributes<HTMLElement>) =>
@@ -29,13 +31,28 @@ vi.mock('@cherrystudio/ui', async () => {
     CommandEmpty: passthrough('div'),
     CommandGroup: passthrough('div'),
     CommandInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => React.createElement('input', props),
-    CommandItem: passthrough('div'),
+    CommandItem: ({
+      children,
+      onSelect
+    }: React.PropsWithChildren<{ keywords?: string[]; onSelect?: () => void; value?: string }>) =>
+      React.createElement('button', { onClick: onSelect, type: 'button' }, children),
     CommandList: passthrough('div'),
     Divider: passthrough('hr'),
     InfoTooltip: () => null,
-    Popover: ({ children }: React.PropsWithChildren) => React.createElement('div', null, children),
-    PopoverContent: ({ children }: React.PropsWithChildren) => React.createElement('div', null, children),
-    PopoverTrigger: ({ children }: React.PropsWithChildren) => React.createElement('div', null, children),
+    Popover: ({
+      children,
+      open,
+      onOpenChange
+    }: React.PropsWithChildren<{ open: boolean; onOpenChange: (open: boolean) => void }>) =>
+      React.createElement(PopoverContext.Provider, { value: { open, onOpenChange } }, children),
+    PopoverContent: ({ children }: React.PropsWithChildren) => {
+      const { open } = React.use(PopoverContext)
+      return open ? React.createElement('div', { 'data-testid': 'assistant-popover' }, children) : null
+    },
+    PopoverTrigger: ({ children }: React.PropsWithChildren) => {
+      const { open, onOpenChange } = React.use(PopoverContext)
+      return React.createElement('div', { onClick: () => onOpenChange(!open) }, children)
+    },
     RowFlex: passthrough('div'),
     SegmentedControl: ({
       options,
@@ -148,5 +165,20 @@ describe('QuickAssistantSettings', () => {
 
     expect(screen.getByRole('radio', { name: 'settings.models.use_assistant' })).toHaveAttribute('aria-checked', 'true')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.assistant_id')).toBe('assistant-1')
+  })
+
+  it('updates the selected assistant and closes the selector', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', 'assistant-1')
+    render(<QuickAssistantSettings />)
+
+    fireEvent.click(screen.getByRole('button', { expanded: false }))
+    expect(screen.getByTestId('assistant-popover')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assistant 2' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.assistant_id')).toBe('assistant-2')
+    })
+    expect(screen.queryByTestId('assistant-popover')).not.toBeInTheDocument()
   })
 })
