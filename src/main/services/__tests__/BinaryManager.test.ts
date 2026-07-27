@@ -2911,5 +2911,42 @@ describe('BinaryManager', () => {
 
       expect(mockFsp.copyFile).toHaveBeenCalled()
     })
+
+    it('restores mise-shim.exe on Windows when mise.exe and its version marker already exist', async () => {
+      platformMock.isWin = true
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+      const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+      Object.defineProperties(process, {
+        platform: { value: 'win32' },
+        arch: { value: 'x64' }
+      })
+
+      try {
+        const service = new BinaryManager()
+
+        mockFs.readFileSync.mockImplementation((p: string) => {
+          if (p.includes('.mise-version')) return '2026.7.14'
+          throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+        })
+        mockFs.existsSync.mockImplementation((...args: unknown[]) => {
+          const p = String(args[0])
+          if (p.includes('app.root.resources.binaries/win32-x64/mise')) return true
+          return p.endsWith('cherry.bin/mise.exe')
+        })
+
+        await (service as any).extractBundledBinaries()
+
+        expect(mockFsp.copyFile).toHaveBeenCalledWith(
+          expect.stringContaining('app.root.resources.binaries/win32-x64/mise.exe'),
+          expect.stringContaining('cherry.bin/mise.exe.tmp-')
+        )
+        expect(mockFsp.copyFile).toHaveBeenCalledWith(
+          expect.stringContaining('app.root.resources.binaries/win32-x64/mise-shim.exe'),
+          expect.stringContaining('cherry.bin/mise-shim.exe.tmp-')
+        )
+      } finally {
+        Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
+      }
+    })
   })
 })
