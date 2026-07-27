@@ -14,7 +14,7 @@ import {
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
+import { SettingGroup, SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import {
   getAllShortcutDefaultPreferences,
   type ShortcutSettingsGroup,
@@ -601,67 +601,69 @@ const ShortcutSettings: FC = () => {
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 overflow-hidden">
         <Scrollbar className={settingsContentScrollClassName}>
           <SettingsContentBody>
-            <div className={cn(settingsContentHeaderClassName, 'mb-3 flex items-center justify-between gap-2')}>
-              <h1 className={settingsContentHeaderTitleClassName}>
-                {activeGroup === 'all'
-                  ? t('settings.shortcuts.title')
-                  : groupOptions.find((item) => item.key === activeGroup)?.label}
-              </h1>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2.5 text-xs shadow-none"
-                  onClick={() => void handleToggleVisibleShortcuts(true)}>
-                  {t('settings.shortcuts.all_enable')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2.5 text-xs shadow-none"
-                  onClick={() => void handleToggleVisibleShortcuts(false)}>
-                  {t('settings.shortcuts.all_disable')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 gap-1.5 px-2.5 text-destructive text-xs shadow-none hover:text-destructive"
-                  onClick={handleResetAllShortcuts}>
-                  <Undo2 size={13} />
-                  {t('settings.shortcuts.reset')}
-                </Button>
+            <SettingGroup theme={theme}>
+              <div className={cn(settingsContentHeaderClassName, 'mb-3 flex items-center justify-between gap-2')}>
+                <h1 className={settingsContentHeaderTitleClassName}>
+                  {activeGroup === 'all'
+                    ? t('settings.shortcuts.title')
+                    : groupOptions.find((item) => item.key === activeGroup)?.label}
+                </h1>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2.5 text-xs shadow-none"
+                    onClick={() => void handleToggleVisibleShortcuts(true)}>
+                    {t('settings.shortcuts.all_enable')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2.5 text-xs shadow-none"
+                    onClick={() => void handleToggleVisibleShortcuts(false)}>
+                    {t('settings.shortcuts.all_disable')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1.5 px-2.5 text-destructive text-xs shadow-none hover:text-destructive"
+                    onClick={handleResetAllShortcuts}>
+                    <Undo2 size={13} />
+                    {t('settings.shortcuts.reset')}
+                  </Button>
+                </div>
               </div>
-            </div>
 
-            <div className="mb-3 flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
-                <Input
-                  className="h-9 w-full rounded-lg border-border/60 bg-background pr-3 pl-9"
-                  placeholder={t('settings.shortcuts.search_placeholder')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+              <div className="mb-3 flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
+                  <Input
+                    className="h-9 w-full rounded-lg border-border/60 bg-background pr-3 pl-9"
+                    placeholder={t('settings.shortcuts.search_placeholder')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <ShortcutGroupFilterMenu
+                  groups={groupOptions}
+                  activeGroup={activeGroup}
+                  onSelect={(group) => {
+                    setActiveGroup(group)
+                    setSearchQuery('')
+                  }}
                 />
               </div>
-              <ShortcutGroupFilterMenu
-                groups={groupOptions}
-                activeGroup={activeGroup}
-                onSelect={(group) => {
-                  setActiveGroup(group)
-                  setSearchQuery('')
-                }}
-              />
-            </div>
 
-            {visibleShortcuts.length > 0 ? (
-              <div>
-                {visibleShortcuts.map((record, index) =>
-                  renderShortcutRow(record, index === visibleShortcuts.length - 1)
-                )}
-              </div>
-            ) : (
-              <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
-            )}
+              {visibleShortcuts.length > 0 ? (
+                <div>
+                  {visibleShortcuts.map((record, index) =>
+                    renderShortcutRow(record, index === visibleShortcuts.length - 1)
+                  )}
+                </div>
+              ) : (
+                <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
+              )}
+            </SettingGroup>
           </SettingsContentBody>
         </Scrollbar>
       </div>
