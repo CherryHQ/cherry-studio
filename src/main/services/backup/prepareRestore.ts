@@ -36,6 +36,7 @@ import { currentBackupPlatform } from './platform'
 import { type ManagedRootRebaseTable, prepareManagedRootRebase } from './portability/managedPathRebase'
 import { materializePortableDatabase } from './portability/materializeDatabase'
 import { collectResourceRequirements } from './resources/collectRequirements'
+import { measureResourceCoverage, type ResourceCoverage } from './resources/coverage'
 
 const logger = loggerService.withContext('backupPrepareRestore')
 
@@ -45,20 +46,6 @@ export interface PrepareRestoreInputs {
   /** Untrusted `.cherrybackup` chosen by the user. */
   readonly archivePath: string
   readonly signal?: AbortSignal
-}
-
-/**
- * Existence coverage of the restored database's resource references on THIS
- * device (§2). Deliberately counts only — it makes no content-equality claim,
- * and it never hashes a target file.
- */
-export interface ResourceCoverage {
-  /** The declared path exists with the declared type. */
-  readonly available: number
-  /** Absent, or present with the wrong type (a file where a directory belongs). */
-  readonly missing: number
-  /** External user paths the archive can never own, so no claim is possible (§4). */
-  readonly unverifiable: number
 }
 
 export interface RestorePreview {
@@ -108,36 +95,6 @@ function buildRebaseTable(producer: {
   return prepared.table
 }
 
-/**
- * Count how many declared resources this device already has.
- *
- * `lstat` rather than `stat`: a symlink standing where a managed resource
- * belongs is not that resource, and following it would report content Cherry
- * does not own as available. A wrong-typed entry counts as missing for the same
- * reason — the restored database cannot use it.
- */
-function measureCoverage(userDataPath: string, stagedDbPath: string): ResourceCoverage {
-  const inventory = collectResourceRequirements({ dbPath: stagedDbPath })
-  let available = 0
-  let missing = 0
-
-  for (const requirement of inventory.requirements) {
-    let stats: fs.Stats
-    try {
-      stats = fs.lstatSync(path.resolve(userDataPath, requirement.livePath))
-    } catch {
-      missing++
-      continue
-    }
-    const matches = requirement.resourceType === 'file' ? stats.isFile() : stats.isDirectory()
-    if (matches) available++
-    else missing++
-  }
-
-  const unverifiable = Object.values(inventory.unverifiableByKind).reduce((sum, count) => sum + count, 0)
-  return { available, missing, unverifiable }
-}
-
 export async function prepareLiteRestore(inputs: PrepareRestoreInputs): Promise<RestorePreview> {
   const { archivePath, signal } = inputs
   const stagingRoot = application.getPath('feature.backup.restore.staging')
@@ -163,7 +120,10 @@ export async function prepareLiteRestore(inputs: PrepareRestoreInputs): Promise<
     })
 
     const userDataPath = application.getPath('app.userdata')
-    const coverage = measureCoverage(userDataPath, admitted.db.path)
+    const { coverage } = measureResourceCoverage({
+      inventory: collectResourceRequirements({ dbPath: admitted.db.path }),
+      userDataPath
+    })
 
     // Move the sealed database out of admission's temporary tree and into the
     // deterministic slot the journal names. Same volume, so this is a rename.
