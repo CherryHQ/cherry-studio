@@ -14,7 +14,8 @@ const topicStreamStatusMock = vi.hoisted(() => ({
 }))
 
 const activeAgentMock = vi.hoisted(() => ({
-  value: { id: 'agent-1', model: 'provider:model-1' } as any
+  value: { id: 'agent-1', model: 'provider:model-1' } as any,
+  isLoading: false
 }))
 const activeModelMock = vi.hoisted(() => ({
   value: { id: 'provider:model-1', name: 'Model 1' } as any,
@@ -134,8 +135,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({
-    agent: activeAgentMock.value,
-    isLoading: false
+    agent: activeAgentMock.isLoading ? undefined : activeAgentMock.value,
+    isLoading: activeAgentMock.isLoading
   }),
   useAgents: () => ({
     agents: [{ id: 'agent-1' }],
@@ -302,6 +303,7 @@ describe('AgentChat settings panel', () => {
     partsByMessageIdMock.value = {}
     topicStreamStatusMock.isPending = false
     activeAgentMock.value = { id: 'agent-1', model: 'provider:model-1' }
+    activeAgentMock.isLoading = false
     activeModelMock.value = { id: 'provider:model-1', name: 'Model 1' }
     activeModelMock.isLoading = false
     agentRightPanePropsMock.last = undefined
@@ -395,14 +397,28 @@ describe('AgentChat settings panel', () => {
     expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
   })
 
-  it('resolves the page-owned model before mounting the dynamic composer', () => {
+  it('mounts the composer while the page-owned model is resolving', () => {
     activeModelMock.isLoading = true
 
     const { container } = renderAgentChat()
 
     expect(screen.getByTestId('agent-conversation-controls')).toBeInTheDocument()
-    expect(container.querySelector('[data-conversation-composer-loading]')).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-composer')).not.toHaveAttribute('data-resolved-model-id')
+    expect(agentComposerPropsMock.last?.sendDisabled).toBe(true)
+    expect(container.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
+  })
+
+  it('mounts the composer while the page-owned agent is resolving', () => {
+    activeAgentMock.isLoading = true
+
+    const { container } = renderAgentChat()
+
+    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-composer')).not.toHaveAttribute('data-resolved-agent-id')
+    expect(agentComposerPropsMock.last?.agentId).toBe('agent-1')
+    expect(agentComposerPropsMock.last?.sendDisabled).toBe(true)
+    expect(container.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
   })
 
   it('keeps the composer mounted during later model changes', () => {
