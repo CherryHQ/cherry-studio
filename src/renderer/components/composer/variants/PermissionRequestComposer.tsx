@@ -4,6 +4,7 @@ import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@rendere
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/ArgsTable'
 import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/chat/messages/tools/shared/ToolDisclosure'
+import { TOOL_HEADER_UI } from '@renderer/components/chat/messages/tools/ToolHeader'
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -204,6 +205,9 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   const { t } = useTranslation()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const subtitle = getPermissionRequestSubtitle(request)
+  const toolName = request.toolResponse.tool.name
+  const toolHeader = TOOL_HEADER_UI[toolName]
+  const toolTitle = toolHeader?.labelKey ? t(toolHeader.labelKey) : toolName
 
   const respond = useCallback(
     async (input: MessageToolApprovalInput, action: 'approve' | 'deny') => {
@@ -255,8 +259,10 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
         <div className="flex items-center justify-between gap-3 px-1">
           <div className="min-w-0 flex-1">
             <h2 className="line-clamp-1 flex min-w-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
-              <Wrench className="size-4 shrink-0 text-muted-foreground" />
-              <span className="truncate">{t('agent.toolPermission.confirmation')}</span>
+              <span className="inline-flex shrink-0 text-muted-foreground [&_svg]:size-4">
+                {toolHeader?.icon ?? <Wrench />}
+              </span>
+              <span className="truncate">{toolTitle}</span>
             </h2>
             {subtitle ? (
               <div className="mt-0.5 line-clamp-1 text-muted-foreground text-xs leading-4">{subtitle}</div>

@@ -21,6 +21,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
         'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
+        'message.tools.labels.bash': 'Run task',
         'message.tools.labels.mcpServerTool': 'MCP Server Tool',
         'message.tools.labels.tool': 'Tool',
         'message.tools.sections.input': 'Input'
@@ -92,7 +93,7 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    expect(screen.getByText('Allow tool call?')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'CustomTool' })).toBeInTheDocument()
     expect(screen.getByText('Allow CustomTool to run focused tests?')).toBeInTheDocument()
     expect(screen.queryByText('Tool input preview')).not.toBeInTheDocument()
 
@@ -144,7 +145,7 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    expect(screen.getByText('lookup_docs')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'lookup_docs' })).toBeInTheDocument()
     expect(screen.getByText('Search project documentation.')).toBeInTheDocument()
     expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
     expect(screen.getByTestId('permission-mcp-args-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
@@ -194,11 +195,37 @@ describe('PermissionRequestComposer', () => {
     expect(screen.queryByTestId('permission-builtin-body-scroll')).not.toBeInTheDocument()
   })
 
-  it('hides the request title when it only repeats the tool name', () => {
+  it('uses the tool icon and readable title for the approval header', () => {
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({
+          title: 'Bash',
+          toolResponse: {
+            id: 'bash-call-1',
+            toolCallId: 'bash-call-1',
+            status: 'pending',
+            arguments: { command: 'pnpm test' },
+            tool: {
+              id: 'Bash',
+              name: 'Bash',
+              type: 'builtin'
+            }
+          }
+        })}
+        onRespond={vi.fn()}
+      />
+    )
+
+    const heading = screen.getByRole('heading', { name: 'Run task' })
+    expect(heading.querySelector('.lucide-terminal')).toBeInTheDocument()
+    expect(screen.queryByText('Allow tool call?')).not.toBeInTheDocument()
+  })
+
+  it('hides the request subtitle when it only repeats the tool name', () => {
     render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 
-    expect(screen.getByText('Allow tool call?')).toBeInTheDocument()
-    expect(screen.getAllByText('CustomTool')).toHaveLength(1)
+    const heading = screen.getByRole('heading', { name: 'CustomTool' })
+    expect(heading.parentElement?.children).toHaveLength(1)
   })
 
   it('disables actions while a response is submitting', async () => {
