@@ -42,6 +42,10 @@ Projection rules:
 - Provider fields equal to the final-v1 baseline become null/absent. API
   features are compared per key, so one changed feature does not freeze
   baseline-equal sibling flags. Different values remain row-owned deltas.
+- Preset-linked custom provider IDs use the final-v1 custom-provider API
+  feature baseline rather than the linked system preset baseline. This
+  preserves explicit post-v1-migration feature choices while dropping untouched
+  custom defaults.
 - A preset model is resolved with the effective provider's
   provider-model override. If the override has no global `models.json` entry,
   the migrator synthesizes the same provider-exclusive preset used at runtime.

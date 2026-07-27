@@ -31,6 +31,7 @@ import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { ApiFeatures } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
@@ -53,6 +54,12 @@ const logger = loggerService.withContext('ProviderModelMigrator')
 
 const BATCH_SIZE = 100
 const RETIRED_PROVIDER_IDS = new Set(['cephalon', 'tokenflux'])
+/** Defaults materialized for non-system providers by final-v1 migrations 127, 129, and 132. */
+const V1_CUSTOM_PROVIDER_API_FEATURES_BASELINE = {
+  arrayContent: true,
+  streamOptions: true,
+  developerRole: false
+} satisfies ApiFeatures
 
 const PROVIDER_MODEL_MIGRATION_ERROR_IDS = {
   prepare: 'provider_model_prepare_failed',
@@ -253,11 +260,13 @@ export class ProviderModelMigrator extends BaseMigrator {
    *
    * Ownership is compared with the pinned final-v1 defaults, never with the
    * current registry: comparing with today's registry cannot distinguish a
-   * historical default from a user edit. Custom providers remain row-owned.
-   * If the pinned baseline lacks a provider, preserve its mapped values
-   * conservatively and log the gap rather than silently discarding legacy data.
+   * historical default from a user edit. Unlinked custom providers remain
+   * row-owned; preset-linked custom providers use the final-v1 custom API
+   * feature defaults. If the pinned baseline lacks a provider, preserve its
+   * mapped values conservatively and log the gap rather than silently
+   * discarding legacy data.
    */
-  private projectProviderDeltaRow(row: NewUserProviderInput): NewUserProviderInput {
+  private projectProviderDeltaRow(row: NewUserProviderInput, legacy: LegacyProvider): NewUserProviderInput {
     const preset = this.resolveEffectivePresetProvider(row)
     if (!preset) return row
 
@@ -270,6 +279,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       })
     }
     const v1Row = v1Provider ? transformProvider(v1Provider, {}) : null
+    const apiFeaturesBaseline = legacy.isSystem === true ? v1Row?.apiFeatures : V1_CUSTOM_PROVIDER_API_FEATURES_BASELINE
 
     const endpointConfigs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
     for (const [key, config] of Object.entries(row.endpointConfigs ?? {})) {
@@ -287,7 +297,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       endpointConfigs: Object.keys(endpointConfigs).length > 0 ? endpointConfigs : null,
       defaultChatEndpoint:
         v1Row && row.defaultChatEndpoint === v1Row.defaultChatEndpoint ? null : row.defaultChatEndpoint,
-      apiFeatures: v1Row ? diffApiFeatures(row.apiFeatures, v1Row.apiFeatures ?? {}) : row.apiFeatures
+      apiFeatures: apiFeaturesBaseline ? diffApiFeatures(row.apiFeatures, apiFeaturesBaseline) : row.apiFeatures
     }
   }
 
@@ -488,7 +498,7 @@ export class ProviderModelMigrator extends BaseMigrator {
     try {
       const providerRowsWithoutOrderKey: NewUserProviderInput[] = []
       for (const provider of this.providers) {
-        const row = this.projectProviderDeltaRow(transformProvider(provider, this.settings))
+        const row = this.projectProviderDeltaRow(transformProvider(provider, this.settings), provider)
         // v1 stored custom provider logos in Dexie settings under `image://provider-{id}`:
         // either a base64 data URL (an uploaded logo, or a small built-in logo vite inlined)
         // or a built-in-logo asset value from ProviderLogoPicker (`PROVIDER_LOGO_MAP[pickedId]`

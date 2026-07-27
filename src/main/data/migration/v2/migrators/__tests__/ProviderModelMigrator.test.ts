@@ -400,6 +400,7 @@ describe('ProviderModelMigrator', () => {
               name: 'OpenAI',
               type: 'openai-response',
               enabled: true,
+              isSystem: true,
               apiHost: 'https://my-proxy.com/v1',
               isNotSupportArrayContent: false,
               isNotSupportDeveloperRole: false,
@@ -455,6 +456,7 @@ describe('ProviderModelMigrator', () => {
               name: 'OpenAI',
               type: 'openai-response',
               enabled: true,
+              isSystem: true,
               apiHost: 'https://api.openai.com',
               isNotSupportArrayContent: true,
               isNotSupportDeveloperRole: false,
@@ -476,6 +478,57 @@ describe('ProviderModelMigrator', () => {
 
       expect(providerRow.apiFeatures).toEqual({ arrayContent: false })
     })
+
+    it.each([
+      {
+        scenario: 'untouched',
+        isSupportDeveloperRole: false,
+        expectedApiFeatures: null
+      },
+      {
+        scenario: 'user-enabled Developer Role',
+        isSupportDeveloperRole: true,
+        expectedApiFeatures: { developerRole: true }
+      }
+    ])(
+      'projects $scenario post-132 custom Azure API features against the custom-provider baseline',
+      async ({ isSupportDeveloperRole, expectedApiFeatures }) => {
+        registryFixtures.providers = [{ id: 'azure-openai', name: 'Azure OpenAI', endpointConfigs: {} }]
+        const providerId = '0196f996-34fc-7e3f-96d0-10b7f55fd6c8'
+        const migrationContext = createContext(dbh.db, {
+          llm: {
+            providers: [
+              {
+                id: providerId,
+                name: 'My Azure',
+                type: 'azure-openai',
+                enabled: true,
+                isSystem: false,
+                apiHost: 'https://example.openai.azure.com',
+                apiOptions: {
+                  isNotSupportArrayContent: false,
+                  isNotSupportDeveloperRole: true,
+                  isNotSupportStreamOptions: false,
+                  isSupportDeveloperRole
+                },
+                models: []
+              }
+            ]
+          }
+        })
+        await migrator.prepare(migrationContext)
+
+        const result = await migrator.execute(migrationContext)
+
+        expect(result.success).toBe(true)
+        const [providerRow] = await dbh.db
+          .select()
+          .from(userProviderTable)
+          .where(eq(userProviderTable.providerId, providerId))
+        expect(providerRow.presetProviderId).toBe('azure-openai')
+        expect(providerRow.apiFeatures).toEqual(expectedApiFeatures)
+      }
+    )
 
     it('leaves custom provider rows untouched when registry has no matching preset', async () => {
       registryFixtures.providers = [{ id: 'openai', name: 'OpenAI', endpointConfigs: {} }]
