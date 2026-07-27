@@ -9,7 +9,7 @@
 import { application } from '@application'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
-import { userProviderTable } from '@data/db/schemas/userProvider'
+import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
@@ -111,8 +111,9 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
 function projectEndpointConfigOverrides(
   configs: Partial<Record<EndpointType, EndpointConfigOverride>> | null | undefined,
   providerId: string,
-  presetProviderId: string | null
-): Partial<Record<EndpointType, EndpointConfigOverride>> | null {
+  presetProviderId: string | null,
+  storedConfigs?: Partial<Record<EndpointType, StoredEndpointConfigOverride>> | null
+): Partial<Record<EndpointType, StoredEndpointConfigOverride>> | null {
   if (!configs || Object.keys(configs).length === 0) return null
 
   // Registry baseline for delta reduction. Renderer PATCHes echo the merged
@@ -124,14 +125,16 @@ function projectEndpointConfigOverrides(
     presetProviderId
   ).endpointConfigs
 
-  const result: Partial<Record<EndpointType, EndpointConfigOverride>> = {}
+  const result: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
   for (const [key, config] of Object.entries(configs)) {
     if (!config) continue
     const ep = key as EndpointType
     const presetConfig = presetConfigs?.[ep]
-    const override: EndpointConfigOverride = {}
+    const override: StoredEndpointConfigOverride = {}
     if (config.baseUrl !== undefined && config.baseUrl !== presetConfig?.baseUrl) override.baseUrl = config.baseUrl
-    if (presetProviderId === null && config.adapterFamily !== undefined) override.adapterFamily = config.adapterFamily
+    if (presetProviderId === null && storedConfigs?.[ep]?.adapterFamily !== undefined) {
+      override.adapterFamily = storedConfigs[ep].adapterFamily
+    }
     // Drop entries fully covered by the registry; keep empty entries for
     // endpoints the registry doesn't declare — key presence marks a
     // user-configured endpoint and feeds the read-time key union.
@@ -334,6 +337,7 @@ class ProviderService {
         .select({
           providerSettings: userProviderTable.providerSettings,
           apiFeatures: userProviderTable.apiFeatures,
+          endpointConfigs: userProviderTable.endpointConfigs,
           isEnabled: userProviderTable.isEnabled,
           presetProviderId: userProviderTable.presetProviderId
         })
@@ -360,7 +364,8 @@ class ProviderService {
         updates.endpointConfigs = projectEndpointConfigOverrides(
           dto.endpointConfigs,
           providerId,
-          current.presetProviderId
+          current.presetProviderId,
+          current.endpointConfigs
         )
       }
       if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig

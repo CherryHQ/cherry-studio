@@ -10,17 +10,11 @@ import {
   type ModelCapability
 } from '@cherrystudio/provider-registry'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
-import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
+import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
-import type {
-  ApiFeatures,
-  ApiKeyEntry,
-  AuthConfig,
-  EndpointConfigOverride,
-  ProviderSettings
-} from '@shared/data/types/provider'
+import type { ApiFeatures, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('ProviderModelMappings')
@@ -83,7 +77,7 @@ const PROVIDER_TYPES_WITHOUT_DEFAULT_ENDPOINT = new Set(['aws-bedrock'])
  * the registry catalog can't supply (no `legacy.id` match in providers.json).
  * Lets the runtime resolver trust `adapterFamily` as the sole routing signal
  * instead of re-deriving from heuristics. Catalog-matched system providers get
- * their (more specific) adapterFamily from `enrichProviderRow`.
+ * their (more specific) adapterFamily from `projectProviderDeltaRow`.
  */
 const LEGACY_TYPE_TO_ADAPTER_FAMILY: Partial<Record<LegacyProvider['type'], string>> = {
   openai: 'openai-compatible',
@@ -207,7 +201,7 @@ function buildEndpointConfigs(
   legacy: LegacyProvider,
   endpointType: EndpointType | undefined
 ): InsertUserProviderRow['endpointConfigs'] {
-  const configs: Partial<Record<EndpointType, EndpointConfigOverride>> = {}
+  const configs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
 
   if (legacy.apiHost && endpointType !== undefined) {
     configs[endpointType] = { ...configs[endpointType], baseUrl: legacy.apiHost }
@@ -225,7 +219,7 @@ function buildEndpointConfigs(
   // the endpoint speaks anthropic — the endpoint protocol must win there.
   // Everything else is left absent; the read-time merge infers it. Catalog-
   // matched system providers get stripped to baseUrl-only in
-  // `enrichProviderRow` regardless.
+  // `projectProviderDeltaRow` regardless.
   const legacyTypeFamily = LEGACY_TYPE_TO_ADAPTER_FAMILY[legacy.type]
   if (legacyTypeFamily) {
     for (const key of Object.keys(configs) as EndpointType[]) {
@@ -442,15 +436,13 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
 }
 
 export function transformModel(legacy: LegacyModel, providerId: string): Omit<InsertUserModelRow, 'orderKey'> {
-  const hasCustomizedCapabilities =
-    legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
   const endpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
 
   return {
     id: createUniqueModelId(providerId, legacy.id),
     providerId,
     modelId: legacy.id,
-    // Leave presetModelId null here. enrichModelRow looks up the registry and
+    // Leave presetModelId null here. projectModelDeltaRow looks up the registry and
     // sets presetModelId only when a real preset matches; setting it here
     // unconditionally would mark fully-custom v1 models as preset overrides
     // (symmetric to the v1 default-name bug fixed in db3e1f76).
@@ -469,8 +461,7 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     parameters: null,
     pricing: mapPricing(legacy.pricing),
     isEnabled: true,
-    isHidden: false,
-    userOverrides: hasCustomizedCapabilities ? ['capabilities'] : null
+    isHidden: false
   }
 }
 

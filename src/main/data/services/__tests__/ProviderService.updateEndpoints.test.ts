@@ -80,13 +80,11 @@ describe('ProviderService.update — endpoint config overrides', () => {
       }
     })
 
-    // The "add endpoint" drawer PATCHes the full set; the renderer may echo
-    // merged runtime snapshots, but only the override shape is persisted.
+    // The "add endpoint" drawer PATCHes the public baseUrl-only shape.
     providerService.update('cherryin-express', {
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-          baseUrl: 'https://express-ent-admin.cherryin.ai',
-          adapterFamily: 'cherryin'
+          baseUrl: 'https://express-ent-admin.cherryin.ai'
         },
         [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://express-ent-admin.cherryin.ai/v1' }
       }
@@ -110,6 +108,37 @@ describe('ProviderService.update — endpoint config overrides', () => {
     const runtime = providerService.getByProviderId('cherryin-express')
     expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily).toBe('cherryin')
     expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.adapterFamily).toBe('cherryin')
+  })
+
+  it('preserves a main-only legacy adapterFamily when a custom provider baseUrl is updated', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'custom-newapi-relay',
+      name: 'Custom NewAPI Relay',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://old-relay.example.com',
+          adapterFamily: 'newapi'
+        }
+      },
+      orderKey: 'a0'
+    })
+
+    providerService.update('custom-newapi-relay', {
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-relay.example.com' }
+      }
+    })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, 'custom-newapi-relay'))
+    expect(row.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).toEqual({
+      baseUrl: 'https://new-relay.example.com',
+      adapterFamily: 'newapi'
+    })
+    const runtime = providerService.getByProviderId('custom-newapi-relay')
+    expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.adapterFamily).toBe('newapi')
   })
 
   it('defaults an undeclared endpoint to its endpoint-type family, not cherryin', async () => {

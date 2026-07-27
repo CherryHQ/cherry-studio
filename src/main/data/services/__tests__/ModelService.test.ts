@@ -249,7 +249,7 @@ describe('ModelService.update', () => {
     })
   })
 
-  it('adds enrichable field to userOverrides when changed', async () => {
+  it('stores a changed preset field directly in its sparse column', async () => {
     await seedExistingModel()
 
     modelService.update('openai', 'gpt-4o', { name: 'Updated Name' })
@@ -259,15 +259,12 @@ describe('ModelService.update', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
-    expect(row.userOverrides).toContain('name')
+    expect(row.name).toBe('Updated Name')
   })
 
   it('removes an override when a PATCH echoes the current registry baseline', async () => {
     await seedExistingModel()
-    await dbh.db
-      .update(userModelTable)
-      .set({ name: 'My GPT-4o', userOverrides: ['name'] })
-      .where(eq(userModelTable.id, 'openai::gpt-4o'))
+    await dbh.db.update(userModelTable).set({ name: 'My GPT-4o' }).where(eq(userModelTable.id, 'openai::gpt-4o'))
 
     lookupModelMock.mockReturnValue({
       presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
@@ -278,7 +275,6 @@ describe('ModelService.update', () => {
     modelService.update('openai', 'gpt-4o', { name: 'GPT-4o' })
 
     const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
-    expect(row.userOverrides ?? []).not.toContain('name')
     expect(row.name).toBeNull()
 
     lookupModelMock.mockReturnValue({
@@ -306,8 +302,6 @@ describe('ModelService.update', () => {
     })
 
     const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
-    expect(row.userOverrides ?? []).not.toContain('name')
-    expect(row.userOverrides ?? []).not.toContain('pricing')
     expect(row.name).toBeNull()
     expect(row.pricing).toBeNull()
   })
@@ -336,12 +330,11 @@ describe('ModelService.update', () => {
     })
 
     const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
-    expect(row.userOverrides).toContain('name')
-    expect(row.userOverrides ?? []).not.toContain('pricing')
+    expect(row.name).toBe('My GPT-4o')
     expect(row.pricing).toBeNull()
   })
 
-  it('records model group edits as user overrides', async () => {
+  it('stores model group edits in the sparse group column', async () => {
     await seedExistingModel()
 
     modelService.update('openai', 'gpt-4o', { group: 'My Models' })
@@ -352,10 +345,9 @@ describe('ModelService.update', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
     expect(row.group).toBe('My Models')
-    expect(row.userOverrides).toContain('group')
   })
 
-  it('does not add non-enrichable fields to userOverrides', async () => {
+  it('updates status fields without changing preset delta columns', async () => {
     await seedExistingModel()
 
     modelService.update('openai', 'gpt-4o', { isEnabled: false })
@@ -365,10 +357,11 @@ describe('ModelService.update', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
-    expect(row.userOverrides ?? []).toEqual([])
+    expect(row.name).toBe('GPT-4o')
+    expect(row.isEnabled).toBe(false)
   })
 
-  it('updates isDeprecated without touching enrichable overrides', async () => {
+  it('updates isDeprecated without touching sparse deltas', async () => {
     await seedExistingModel()
 
     modelService.update('openai', 'gpt-4o', { isDeprecated: true })
@@ -379,10 +372,10 @@ describe('ModelService.update', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
     expect(row.isDeprecated).toBe(true)
-    expect(row.userOverrides ?? []).toEqual([])
+    expect(row.name).toBe('GPT-4o')
   })
 
-  it('preserves existing userOverrides when adding new ones', async () => {
+  it('preserves existing sparse deltas when adding another one', async () => {
     await seedExistingModel()
 
     modelService.update('openai', 'gpt-4o', { name: 'Name V2' })
@@ -393,11 +386,11 @@ describe('ModelService.update', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
-    expect(row.userOverrides).toContain('name')
-    expect(row.userOverrides).toContain('description')
+    expect(row.name).toBe('Name V2')
+    expect(row.description).toBe('A description')
   })
 
-  it('maps parameterSupport DTO key to parameters in userOverrides', async () => {
+  it('maps parameterSupport DTO key to the sparse parameters column', async () => {
     await seedExistingModel()
 
     const params = { temperature: { supported: true } } as any
@@ -408,7 +401,7 @@ describe('ModelService.update', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
-    expect(row.userOverrides).toContain('parameters')
+    expect(row.parameters).toEqual(params)
   })
 
   it('returns existing model unchanged when DTO is empty', async () => {
@@ -509,7 +502,6 @@ describe('ModelService.create', () => {
     expect(row.contextWindow).toBeNull()
     expect(row.maxOutputTokens).toBeNull()
     expect(row.supportsStreaming).toBeNull()
-    expect(row.userOverrides).toBeNull()
   })
 
   it('uses DTO maxInputTokens over registry values during merge', async () => {
@@ -549,7 +541,6 @@ describe('ModelService.create', () => {
     expect(row.name).toBeNull()
     expect(row.capabilities).toBeNull()
     expect(row.supportsStreaming).toBeNull()
-    expect(row.userOverrides).toEqual(['maxInputTokens', 'maxOutputTokens'])
   })
 
   it('does not freeze baseline-equal fields sent by the create flow', async () => {
@@ -580,7 +571,6 @@ describe('ModelService.create', () => {
     expect(row.name).toBeNull()
     expect(row.capabilities).toBeNull()
     expect(row.supportsStreaming).toBeNull()
-    expect(row.userOverrides).toBeNull()
   })
 
   it('logs custom model creation when dto presetModelId is present without a registry match', async () => {
@@ -745,8 +735,7 @@ describe('ModelService.create', () => {
       name: null,
       capabilities: null,
       contextWindow: null,
-      supportsStreaming: null,
-      userOverrides: null
+      supportsStreaming: null
     })
     expect(customRow).toMatchObject({
       providerId: 'custom',
@@ -917,8 +906,8 @@ describe('ModelService.list', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // ModelService.list — current registry baseline plus explicit user deltas
 //
-// Preset-backed rows resolve from the current registry on every read. Only
-// fields named by `userOverrides` come from the stored delta.
+// Preset-backed rows resolve from the current registry on every read. Every
+// non-null sparse config column is a stored delta.
 // Registry-only metadata such as `imageGeneration` is attached at read time.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1016,21 +1005,18 @@ describe('ModelService.list — registry enrichment', () => {
     await dbh.db.insert(userModelTable).values(
       modelRow('openai', 'gpt-4o', {
         presetModelId: 'gpt-4o',
-        name: 'Stale name',
-        description: 'Stale description',
-        capabilities: [],
-        inputModalities: ['text'],
-        outputModalities: ['text'],
-        endpointTypes: ['openai-chat-completions'],
-        contextWindow: 1,
-        maxInputTokens: 2,
-        maxOutputTokens: 3,
-        supportsStreaming: false,
-        parameters: { maxTokens: false },
-        pricing: {
-          input: { perMillionTokens: 1 },
-          output: { perMillionTokens: 2 }
-        },
+        name: null,
+        description: null,
+        capabilities: null,
+        inputModalities: null,
+        outputModalities: null,
+        endpointTypes: null,
+        contextWindow: null,
+        maxInputTokens: null,
+        maxOutputTokens: null,
+        supportsStreaming: null,
+        parameters: null,
+        pricing: null,
         isEnabled: false,
         isHidden: true,
         isDeprecated: true,
@@ -1116,8 +1102,7 @@ describe('ModelService.list — registry enrichment', () => {
         name: '',
         group: '',
         capabilities: [],
-        supportsStreaming: false,
-        userOverrides: ['name', 'group', 'capabilities', 'supportsStreaming']
+        supportsStreaming: false
       })
     )
     lookupModelMock.mockReturnValue({
@@ -1145,7 +1130,7 @@ describe('ModelService.list — registry enrichment', () => {
         presetModelId: 'qwen-image-edit-2509',
         name: 'Qwen Image Edit',
         // Provider's /models endpoint shipped it untagged.
-        capabilities: []
+        capabilities: null
       })
     )
 
@@ -1176,8 +1161,7 @@ describe('ModelService.list — registry enrichment', () => {
       modelRow('cherryin', 'qwen-image-edit-2509', {
         presetModelId: 'qwen-image-edit-2509',
         name: 'Qwen Image Edit',
-        capabilities: [],
-        userOverrides: ['capabilities']
+        capabilities: []
       })
     )
 
@@ -1214,8 +1198,7 @@ describe('ModelService.list — registry enrichment', () => {
         presetModelId: 'claude-3',
         name: 'Claude 3',
         // User explicitly dropped `reasoning`; only function-call remains.
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
-        userOverrides: ['capabilities']
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
       })
     )
 
@@ -1382,10 +1365,8 @@ describe('ModelService — reasoning descriptor enrichment', () => {
         presetModelId: 'claude-opus-4-6',
         name: 'Claude Opus 4.6',
         capabilities: [MODEL_CAPABILITY.REASONING],
-        reasoning: userReasoning as any,
-        // Historical rows may contain this now-invalid marker. Preset reasoning
-        // is registry-owned and must ignore it without requiring a cleanup.
-        userOverrides: ['reasoning'] as never
+        // Preset reasoning is registry-owned, so a stale stored value is ignored.
+        reasoning: userReasoning as any
       })
     )
 
@@ -1982,7 +1963,7 @@ describe('ModelService.bulkDelete', () => {
 describe('ModelService.bulkUpdate', () => {
   const dbh = setupTestDatabase()
 
-  it('records model group edits as user overrides', async () => {
+  it('stores model group edits in the sparse group column', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o'))
 
@@ -1993,16 +1974,14 @@ describe('ModelService.bulkUpdate', () => {
       .from(userModelTable)
       .where(eq(userModelTable.id, createUniqueModelId('openai', 'gpt-4o')))
     expect(row.group).toBe('My Models')
-    expect(row.userOverrides).toContain('group')
   })
 
-  it('removes a baseline-equal field from userOverrides', async () => {
+  it('clears a sparse field when the PATCH equals the registry baseline', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(
       modelRow('openai', 'gpt-4o', {
         presetModelId: 'gpt-4o',
-        name: 'My GPT-4o',
-        userOverrides: ['name']
+        name: 'My GPT-4o'
       })
     )
     lookupModelMock.mockReturnValue({
@@ -2014,7 +1993,6 @@ describe('ModelService.bulkUpdate', () => {
     modelService.bulkUpdate([{ providerId: 'openai', modelId: 'gpt-4o', patch: { name: 'GPT-4o' } }])
 
     const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
-    expect(row.userOverrides ?? []).not.toContain('name')
     expect(row.name).toBeNull()
   })
 

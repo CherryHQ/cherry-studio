@@ -81,8 +81,7 @@ function createCherryAiDefaultModelRow(): CherryAiDefaultModelRow {
     isEnabled: true,
     isHidden: false,
     isDeprecated: false,
-    notes: null,
-    userOverrides: null
+    notes: null
   }
 }
 

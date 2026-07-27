@@ -39,6 +39,7 @@ import {
   REASONING_FORMAT_PROFILES
 } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
@@ -53,7 +54,6 @@ import { createUniqueModelId, CURRENCY } from '@shared/data/types/model'
 import type {
   ApiFeatures,
   EndpointConfig,
-  EndpointConfigOverride,
   Provider,
   ProviderWebsites,
   RuntimeApiFeatures
@@ -685,7 +685,7 @@ class ProviderRegistryService {
    * cross into runtime state.
    */
   mergeEndpointConfigs(
-    rowConfigs: Partial<Record<EndpointType, EndpointConfigOverride>> | null | undefined,
+    rowConfigs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> | null | undefined,
     providerId: string,
     presetProviderId?: string | null
   ): Partial<Record<EndpointType, EndpointConfig>> | null {

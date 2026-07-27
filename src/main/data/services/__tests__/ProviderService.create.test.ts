@@ -82,20 +82,19 @@ describe('ProviderService.create — endpoint config overrides', () => {
     expect(row.defaultChatEndpoint).toBeNull()
   })
 
-  it('keeps an explicitly-set adapterFamily and defaults endpoints for a preset-less custom provider', async () => {
+  it('defaults endpoint families for a preset-less custom provider', async () => {
     const created = providerService.create({
       providerId: 'custom-relay',
       name: 'Custom Relay',
       defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
       endpointConfigs: {
         [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example.com' },
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com', adapterFamily: 'newapi' }
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' }
       }
     })
 
-    // No preset → endpoint-type default for the untagged endpoint…
+    // No preset → endpoint-type defaults for both public baseUrl-only writes.
     expect(created.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily).toBe('anthropic')
-    // …and an explicit value is never overwritten.
-    expect(created.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.adapterFamily).toBe('newapi')
+    expect(created.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.adapterFamily).toBe('openai-compatible')
   })
 })

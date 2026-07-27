@@ -241,18 +241,14 @@ export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
 
 /**
  * The row-persisted subset of {@link EndpointConfigSchema} — only fields the
- * user explicitly owns. Registry-owned fields (`modelsApiUrls`, and
- * `adapterFamily` for preset-linked providers) resolve from the registry at
- * read time; persisting them would freeze a snapshot that goes stale (#17096).
- * `adapterFamily` is accepted only as a custom-provider escape hatch — legacy
- * relay providers (new-api/gateway) carry a routing hint no endpoint-type
- * inference can reproduce.
+ * user explicitly owns. Registry-owned fields (`modelsApiUrls`,
+ * `adapterFamily`) resolve from the registry at read time; persisting them
+ * through the renderer write contract would freeze a snapshot that goes stale
+ * (#17096).
  */
 export const EndpointConfigOverrideSchema = z.object({
   /** User-owned base URL override for this endpoint type's API */
-  baseUrl: z.string().optional(),
-  /** Custom-provider-only routing hint; stripped on write for preset-linked rows */
-  adapterFamily: z.string().optional()
+  baseUrl: z.string().optional()
 })
 
 export type EndpointConfigOverride = z.infer<typeof EndpointConfigOverrideSchema>

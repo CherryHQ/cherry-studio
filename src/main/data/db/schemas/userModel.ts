@@ -3,7 +3,7 @@
  *
  * Stores complete custom models and user-owned deltas for preset-backed models.
  * Preset-backed runtime models resolve from the current registry on every read;
- * `userOverrides` identifies which nullable config columns contain a delta.
+ * each non-null config column is the corresponding user-owned delta.
  *
  * - presetModelId: traceability marker (which preset this came from, if any)
  * - Single PK: id = "providerId::modelId" (deterministic UniqueModelId)
@@ -24,42 +24,6 @@ import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sq
 
 import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex } from './_columnHelpers'
 import { userProviderTable } from './userProvider'
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Registry Enrichable Fields
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Fields that can be auto-populated by registry enrichment.
- * Used by `userOverrides` to track which fields the user has explicitly modified,
- * so that registry updates don't overwrite user customizations.
- *
- * The `isRegistryEnrichableField` guard ensures runtime safety.
- */
-export const REGISTRY_ENRICHABLE_FIELDS = [
-  'name',
-  'description',
-  'group',
-  'capabilities',
-  'inputModalities',
-  'outputModalities',
-  'endpointTypes',
-  'contextWindow',
-  'maxInputTokens',
-  'maxOutputTokens',
-  'supportsStreaming',
-  'parameters',
-  'pricing'
-] as const
-
-export type RegistryEnrichableField = (typeof REGISTRY_ENRICHABLE_FIELDS)[number]
-
-const REGISTRY_ENRICHABLE_SET: ReadonlySet<string> = new Set(REGISTRY_ENRICHABLE_FIELDS)
-
-/** Check if a field name is a registry-enrichable field */
-export function isRegistryEnrichableField(field: string): field is RegistryEnrichableField {
-  return REGISTRY_ENRICHABLE_SET.has(field)
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Table Definition
@@ -138,12 +102,6 @@ export const userModelTable = sqliteTable(
 
     /** User notes */
     notes: text(),
-
-    /**
-     * List of field names the user has explicitly modified.
-     * Read-time registry resolution applies only these stored fields.
-     */
-    userOverrides: text({ mode: 'json' }).$type<RegistryEnrichableField[]>(),
 
     ...createUpdateTimestamps
   },

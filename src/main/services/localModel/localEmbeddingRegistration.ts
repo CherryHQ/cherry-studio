@@ -74,8 +74,7 @@ function createLocalEmbeddingModelRow(): LocalEmbeddingModelRow {
     // UI is the *provider*, via isProviderSettingsListVisibleProvider.
     isHidden: true,
     isDeprecated: false,
-    notes: null,
-    userOverrides: null
+    notes: null
   }
 }
 

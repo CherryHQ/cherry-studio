@@ -9,38 +9,31 @@
  */
 
 import { application } from '@application'
-import type { EndpointType } from '@cherrystudio/provider-registry'
-import { buildPersistedEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
+import type { EndpointType, ProtoModelConfig, ProtoProviderConfig } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
-import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
+import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
-import {
-  buildApiFeaturesBaseline,
-  diffApiFeatures,
-  matchesModelPricingBaseline,
-  mergePresetModel,
-  providerRegistryService
-} from '@data/services/ProviderRegistryService'
+import { matchesModelPricingBaseline, synthesizePresetFromOverride } from '@data/services/ProviderRegistryService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
-import type { Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
+import type { Model as LegacyModel, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ApiFeatures, EndpointConfig, EndpointConfigOverride } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
+import v1ProviderModelBaselineJson from './mappings/v1-provider-model-baseline.json'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
 import {
   type EntityImageRef,
@@ -64,6 +57,32 @@ const PROVIDER_MODEL_MIGRATION_ERROR_IDS = {
 } as const
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
+
+interface V1ModelBaseline {
+  id: string
+  name?: string
+  description?: string
+  group?: string
+  capabilities?: LegacyModel['capabilities']
+  endpoint_type?: LegacyModel['endpoint_type']
+  supported_endpoint_types?: LegacyModel['supported_endpoint_types']
+  supported_text_delta?: boolean
+  pricing?: LegacyModel['pricing']
+}
+
+interface V1ProviderBaseline {
+  type: LegacyProvider['type']
+  apiHost?: string
+  anthropicApiHost?: string
+  models: Record<string, V1ModelBaseline>
+}
+
+interface V1ProviderModelBaseline {
+  sourceRevision: string
+  providers: Record<string, V1ProviderBaseline>
+}
+
+const V1_PROVIDER_MODEL_BASELINE = v1ProviderModelBaselineJson as V1ProviderModelBaseline
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
@@ -188,124 +207,137 @@ export class ProviderModelMigrator extends BaseMigrator {
     return this.loader
   }
 
-  /**
-   * Project a legacy-mapped provider row for a catalog-matched (system)
-   * provider down to its DELTA against the registry baseline. Registry-owned
-   * connection config resolves at read time (#17096), so migrated rows store
-   * only genuine v1 user customization: a baseUrl differing from the current
-   * registry default, apiFeatures keys differing from the registry baseline,
-   * and a legacy defaultChatEndpoint differing from the registry default.
-   * Custom (no-catalog) providers pass through untouched.
-   */
-  private enrichProviderRow(row: NewUserProviderInput, legacy: LegacyProvider): NewUserProviderInput {
-    const preset = this.getLoader()
-      .loadProviders()
-      .find((p) => p.id === legacy.id)
-    if (!preset) return row
+  private resolveEffectivePresetProvider(row: NewUserProviderInput): ProtoProviderConfig | null {
+    if (row.presetProviderId === null) return null
 
-    const presetEndpointConfigs = buildPersistedEndpointConfigs(preset.endpointConfigs) as Partial<
-      Record<EndpointType, EndpointConfig>
-    > | null
-    let userEndpointConfigs = row.endpointConfigs ?? null
-    // together's v1 default baseUrl is stale — normalize it to the current
-    // registry default so the delta projection below drops it (registry wins).
-    const togetherChatEndpoint = userEndpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    const togetherPresetBaseUrl = presetEndpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl
-    const normalizedTogetherBaseUrl = togetherChatEndpoint?.baseUrl?.replace(/\/+$/, '').replace(/\/v1$/, '')
-    if (legacy.id === 'together' && normalizedTogetherBaseUrl === 'https://api.together.xyz' && togetherPresetBaseUrl) {
-      userEndpointConfigs = {
-        ...userEndpointConfigs,
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-          ...togetherChatEndpoint,
-          baseUrl: togetherPresetBaseUrl
-        }
-      }
-    }
-    const deltaEndpointConfigs: Partial<Record<EndpointType, EndpointConfigOverride>> = {}
-    for (const [k, config] of Object.entries(userEndpointConfigs ?? {})) {
-      const ep = k as EndpointType
-      const presetConfig = presetEndpointConfigs?.[ep]
-      const baseUrl = config?.baseUrl
-      if (baseUrl !== undefined && baseUrl !== presetConfig?.baseUrl) {
-        deltaEndpointConfigs[ep] = { baseUrl }
-      } else if (!presetConfig) {
-        // Key presence marks a legacy-configured endpoint the registry
-        // doesn't declare — keep it for the read-time key union.
-        deltaEndpointConfigs[ep] = {}
-      }
-    }
+    const providers = this.getLoader().loadProviders()
+    return (
+      providers.find((provider) => provider.id === row.providerId) ??
+      providers.find((provider) => provider.id === row.presetProviderId) ??
+      null
+    )
+  }
 
-    const presetApiFeatures = (preset.apiFeatures ?? null) as ApiFeatures | null
+  private getV1ProviderBaseline(providerId: string): LegacyProvider | null {
+    const baseline = V1_PROVIDER_MODEL_BASELINE.providers[providerId]
+    if (!baseline) return null
 
     return {
-      ...row,
-      endpointConfigs: Object.keys(deltaEndpointConfigs).length > 0 ? deltaEndpointConfigs : null,
-      defaultChatEndpoint: row.defaultChatEndpoint === preset.defaultChatEndpoint ? null : row.defaultChatEndpoint,
-      apiFeatures: diffApiFeatures(row.apiFeatures, buildApiFeaturesBaseline(presetApiFeatures))
+      id: providerId,
+      type: baseline.type,
+      name: providerId,
+      apiKey: '',
+      apiHost: baseline.apiHost ?? '',
+      anthropicApiHost: baseline.anthropicApiHost,
+      models: Object.values(baseline.models).map((model) => ({
+        ...model,
+        provider: providerId,
+        name: model.name ?? model.id,
+        group: model.group ?? ''
+      }))
     }
   }
 
   /**
-   * Enrich a legacy-mapped model row with registry preset data.
+   * Project a legacy provider snapshot into a sparse row delta.
    *
-   * Registry-matched rows store only genuine v1 deltas. All unowned config
-   * columns remain null so future registry changes flow through at read time.
+   * Ownership is compared with the pinned final-v1 defaults, never with the
+   * current registry: comparing with today's registry cannot distinguish a
+   * historical default from a user edit. Custom providers remain row-owned.
+   * If the pinned baseline lacks a provider, preserve its mapped values
+   * conservatively and log the gap rather than silently discarding legacy data.
    */
-  private enrichModelRow(
-    row: Omit<InsertUserModelRow, 'orderKey'>,
-    providerRow: InsertUserProviderRow
-  ): Omit<InsertUserModelRow, 'orderKey'> {
-    const loader = this.getLoader()
-    const presetModel = loader.findModel(row.modelId)
-    if (!presetModel) return row
+  private projectProviderDeltaRow(row: NewUserProviderInput): NewUserProviderInput {
+    const preset = this.resolveEffectivePresetProvider(row)
+    if (!preset) return row
 
-    const registryOverride = loader.findOverride(row.providerId, row.modelId)
-    const defaultChatEndpoint = providerRow.defaultChatEndpoint ?? undefined
-    const reasoningProfile = providerRegistryService.resolveRegistryModelProfile(
-      row.providerId,
-      presetModel,
-      registryOverride,
-      defaultChatEndpoint
-    )
-
-    const baseline = mergePresetModel(
-      presetModel,
-      registryOverride,
-      row.providerId,
-      reasoningProfile.wire,
-      reasoningProfile.support
-    )
-
-    const userOverrides = new Set(row.userOverrides ?? [])
-    if (row.name !== row.modelId && row.name !== baseline.name) userOverrides.add('name')
-    if (row.description != null && row.description !== baseline.description) userOverrides.add('description')
-    if (row.group != null && row.group !== baseline.group) userOverrides.add('group')
-    if (row.endpointTypes != null && !isEqual(row.endpointTypes, baseline.endpointTypes)) {
-      userOverrides.add('endpointTypes')
+    const v1Provider = this.getV1ProviderBaseline(preset.id)
+    if (!v1Provider) {
+      logger.warn('Final-v1 provider baseline missing; preserving mapped provider values', {
+        providerId: row.providerId,
+        presetProviderId: preset.id,
+        baselineRevision: V1_PROVIDER_MODEL_BASELINE.sourceRevision
+      })
     }
-    if (row.supportsStreaming !== baseline.supportsStreaming) userOverrides.add('supportsStreaming')
-    if (row.pricing != null && !matchesModelPricingBaseline(row.pricing, baseline.pricing)) {
-      userOverrides.add('pricing')
+    const v1Row = v1Provider ? transformProvider(v1Provider, {}) : null
+
+    const endpointConfigs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
+    for (const [key, config] of Object.entries(row.endpointConfigs ?? {})) {
+      const endpointType = key as EndpointType
+      const v1Config = v1Row?.endpointConfigs?.[endpointType]
+      if (config?.baseUrl !== undefined && config.baseUrl !== v1Config?.baseUrl) {
+        endpointConfigs[endpointType] = { baseUrl: config.baseUrl }
+      } else if (!v1Config) {
+        endpointConfigs[endpointType] = {}
+      }
     }
 
     return {
       ...row,
+      endpointConfigs: Object.keys(endpointConfigs).length > 0 ? endpointConfigs : null,
+      defaultChatEndpoint:
+        v1Row && row.defaultChatEndpoint === v1Row.defaultChatEndpoint ? null : row.defaultChatEndpoint,
+      apiFeatures: v1Row && isEqual(row.apiFeatures, v1Row.apiFeatures) ? null : row.apiFeatures
+    }
+  }
+
+  /**
+   * Project a legacy model snapshot into sparse preset deltas.
+   *
+   * Registry matching follows the runtime path: resolve the effective preset
+   * provider, use its provider-model override, and synthesize provider-exclusive
+   * models when no global model entry exists. User ownership is then compared
+   * with the pinned final-v1 provider/model snapshot. For a model absent from
+   * that snapshot, only `capabilities[].isUserSelected` is provable provenance;
+   * all other fields inherit the current registry.
+   */
+  private projectModelDeltaRow(
+    row: Omit<InsertUserModelRow, 'orderKey'>,
+    providerRow: InsertUserProviderRow,
+    legacy: LegacyModel
+  ): Omit<InsertUserModelRow, 'orderKey'> {
+    const presetProvider = this.resolveEffectivePresetProvider(providerRow)
+    if (!presetProvider) return row
+
+    const loader = this.getLoader()
+    const registryOverride = loader.findOverride(presetProvider.id, row.modelId)
+    const presetModel: ProtoModelConfig | null =
+      loader.findModel(registryOverride?.modelId ?? row.modelId) ??
+      (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
+    if (!presetModel) return row
+
+    const v1Model = V1_PROVIDER_MODEL_BASELINE.providers[presetProvider.id]?.models[row.modelId]
+    const v1Row = v1Model
+      ? transformModel(
+          {
+            ...v1Model,
+            provider: row.providerId,
+            name: v1Model.name ?? v1Model.id,
+            group: v1Model.group ?? ''
+          },
+          row.providerId
+        )
+      : null
+    const hasExplicitCapabilitySelection =
+      legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
+
+    return {
+      ...row,
       presetModelId: presetModel.id,
-      name: userOverrides.has('name') ? row.name : null,
-      description: userOverrides.has('description') ? row.description : null,
-      group: userOverrides.has('group') ? row.group : null,
-      capabilities: userOverrides.has('capabilities') ? row.capabilities : null,
+      name: v1Row && row.name !== v1Row.name ? row.name : null,
+      description: v1Row && row.description !== v1Row.description ? row.description : null,
+      group: v1Row && row.group !== v1Row.group ? row.group : null,
+      capabilities: hasExplicitCapabilitySelection ? row.capabilities : null,
       inputModalities: null,
       outputModalities: null,
-      endpointTypes: userOverrides.has('endpointTypes') ? row.endpointTypes : null,
+      endpointTypes: v1Row && !isEqual(row.endpointTypes, v1Row.endpointTypes) ? row.endpointTypes : null,
       contextWindow: null,
       maxInputTokens: null,
       maxOutputTokens: null,
-      supportsStreaming: userOverrides.has('supportsStreaming') ? row.supportsStreaming : null,
+      supportsStreaming: v1Row && row.supportsStreaming !== v1Row.supportsStreaming ? row.supportsStreaming : null,
       reasoning: null,
       parameters: null,
-      pricing: userOverrides.has('pricing') ? row.pricing : null,
-      userOverrides: userOverrides.size > 0 ? [...userOverrides] : null
+      pricing: v1Row && !matchesModelPricingBaseline(row.pricing, v1Row.pricing ?? undefined) ? row.pricing : null
     }
   }
 
@@ -446,7 +478,7 @@ export class ProviderModelMigrator extends BaseMigrator {
     try {
       const providerRowsWithoutOrderKey: NewUserProviderInput[] = []
       for (const provider of this.providers) {
-        const row = this.enrichProviderRow(transformProvider(provider, this.settings), provider)
+        const row = this.projectProviderDeltaRow(transformProvider(provider, this.settings))
         // v1 stored custom provider logos in Dexie settings under `image://provider-{id}`:
         // either a base64 data URL (an uploaded logo, or a small built-in logo vite inlined)
         // or a built-in-logo asset value from ProviderLogoPicker (`PROVIDER_LOGO_MAP[pickedId]`
@@ -507,7 +539,7 @@ export class ProviderModelMigrator extends BaseMigrator {
           // cleaned list directly here.
           const modelRows = assignOrderKeysByScope(
             (provider.models ?? []).map((model) =>
-              this.enrichModelRow(transformModel(model, provider.id), providerRow)
+              this.projectModelDeltaRow(transformModel(model, provider.id), providerRow, model)
             ),
             (model) => model.providerId
           )

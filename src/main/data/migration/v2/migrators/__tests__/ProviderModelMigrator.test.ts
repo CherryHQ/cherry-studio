@@ -372,7 +372,7 @@ describe('ProviderModelMigrator', () => {
       expect(assistant?.modelId).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     })
 
-    it('projects system provider rows to their delta against the registry baseline', async () => {
+    it('projects system provider rows against the pinned final-v1 baseline', async () => {
       registryFixtures.providers = [
         {
           id: 'openai',
@@ -398,7 +398,7 @@ describe('ProviderModelMigrator', () => {
             {
               id: 'openai',
               name: 'OpenAI',
-              type: 'openai',
+              type: 'openai-response',
               enabled: true,
               apiHost: 'https://my-proxy.com/v1',
               models: []
@@ -417,17 +417,19 @@ describe('ProviderModelMigrator', () => {
         .where(eq(userProviderTable.providerId, 'openai'))
       const endpointConfigs = providerRow.endpointConfigs as Record<string, { baseUrl?: string }>
 
-      // Only the genuine v1 customization persists: a baseUrl differing from
-      // the registry default. Registry-only facts stay out of the row and
-      // resolve at read time (#17096).
-      expect(endpointConfigs).toEqual({ 'openai-chat-completions': { baseUrl: 'https://my-proxy.com/v1' } })
-      // Registry-equal values are not frozen into the row...
+      // The current registry happens to use the same /v1 suffix, but ownership
+      // is decided against the pinned final-v1 snapshot instead. That snapshot
+      // used https://api.openai.com, so the legacy proxy remains user-owned.
+      expect(endpointConfigs).toEqual({ 'openai-responses': { baseUrl: 'https://my-proxy.com/v1' } })
+      // Final-v1-equal values are not frozen into the row...
       expect(providerRow.apiFeatures).toBeNull()
       expect(providerRow.defaultChatEndpoint).toBeNull()
-      // ...but the runtime read supplies them from the registry.
+      // ...and the runtime read supplies current catalog facts.
       const runtime = providerService.getByProviderId('openai')
-      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('https://my-proxy.com/v1')
-      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl).toBe('https://api.openai.com/v1')
+      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe(
+        'https://api.openai.com/v1'
+      )
+      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl).toBe('https://my-proxy.com/v1')
       expect(runtime.apiFeatures.serviceTier).toBe(false)
       expect(runtime.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
@@ -644,6 +646,7 @@ describe('ProviderModelMigrator', () => {
     })
 
     it('stores no registry-owned model fields when a preset is found', async () => {
+      registryFixtures.providers = [{ id: 'openai', name: 'OpenAI', endpointConfigs: {} }]
       registryFixtures.models.set('gpt-4o', {
         id: 'gpt-4o',
         name: 'GPT-4o',
@@ -675,10 +678,97 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.contextWindow).toBeNull()
       expect(modelRow.maxOutputTokens).toBeNull()
       expect(modelRow.supportsStreaming).toBeNull()
-      expect(modelRow.userOverrides).toBeNull()
     })
 
-    it('drops the synthetic v1 0/0 pricing echo when the registry has no pricing', async () => {
+    it('resolves a custom provider id through presetProviderId before projecting its models', async () => {
+      registryFixtures.providers = [{ id: 'azure-openai', name: 'Azure OpenAI', endpointConfigs: {} }]
+      registryFixtures.models.set('gpt-4o', {
+        id: 'gpt-4o',
+        name: 'GPT-4o'
+      })
+      const providerId = '0196f996-34fc-7e3f-96d0-10b7f55fd6c8'
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: providerId,
+              name: 'My Azure',
+              type: 'azure-openai',
+              enabled: true,
+              apiHost: 'https://example.openai.azure.com',
+              models: [{ id: 'gpt-4o', name: ' GPT-4o', group: 'GPT 4o' }]
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [providerRow] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+      expect(providerRow.presetProviderId).toBe('azure-openai')
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, `${providerId}::gpt-4o`))
+      expect(modelRow).toMatchObject({
+        presetModelId: 'gpt-4o',
+        name: null,
+        group: null,
+        capabilities: null,
+        supportsStreaming: null
+      })
+    })
+
+    it('recognizes provider-exclusive models carried only by provider-model overrides', async () => {
+      registryFixtures.providers = [{ id: 'dashscope', name: 'Bailian', endpointConfigs: {} }]
+      registryFixtures.overrides.set('dashscope::qwen-mt-image', {
+        providerId: 'dashscope',
+        modelId: 'qwen-mt-image',
+        name: 'Qwen MT Image',
+        ownedBy: 'alibaba',
+        capabilities: { force: [MODEL_CAPABILITY.IMAGE_GENERATION] },
+        inputModalities: ['image'],
+        outputModalities: ['image']
+      })
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: 'dashscope',
+              name: 'Bailian',
+              type: 'openai',
+              enabled: true,
+              apiHost: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+              models: [{ id: 'qwen-mt-image', name: 'Qwen MT Image' }]
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'dashscope::qwen-mt-image'))
+      expect(modelRow).toMatchObject({
+        presetModelId: 'qwen-mt-image',
+        name: null,
+        capabilities: null,
+        inputModalities: null,
+        outputModalities: null
+      })
+    })
+
+    it('drops unprovable fields and the synthetic v1 0/0 pricing echo when the final-v1 model is absent', async () => {
+      registryFixtures.providers = [{ id: 'openai', name: 'OpenAI', endpointConfigs: {} }]
       registryFixtures.models.set('gpt-4o', {
         id: 'gpt-4o',
         name: 'GPT-4o'
@@ -712,12 +802,12 @@ describe('ProviderModelMigrator', () => {
 
       expect(result.success).toBe(true)
       const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
-      expect(modelRow.userOverrides).toEqual(['group'])
-      expect(modelRow.group).toBe('Favorites')
+      expect(modelRow.group).toBeNull()
       expect(modelRow.pricing).toBeNull()
     })
 
-    it('marks only genuine legacy model deltas as user overrides', async () => {
+    it('stores genuine legacy model deltas directly in sparse columns', async () => {
+      registryFixtures.providers = [{ id: 'aihubmix', name: 'AiHubMix', endpointConfigs: {} }]
       registryFixtures.models.set('gpt-4o', {
         id: 'gpt-4o',
         name: 'GPT-4o',
@@ -734,15 +824,14 @@ describe('ProviderModelMigrator', () => {
         llm: {
           providers: [
             {
-              id: 'openai',
-              name: 'OpenAI',
+              id: 'aihubmix',
+              name: 'AiHubMix',
               type: 'openai',
               enabled: true,
               models: [
                 {
                   id: 'gpt-4o',
                   name: 'My GPT-4o',
-                  description: 'Registry description',
                   group: 'My Models',
                   supported_endpoint_types: ['openai-response'],
                   supported_text_delta: false,
@@ -761,8 +850,7 @@ describe('ProviderModelMigrator', () => {
       const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
-      const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
-      expect(modelRow.userOverrides).toEqual(['name', 'group', 'endpointTypes', 'supportsStreaming', 'pricing'])
+      const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'aihubmix::gpt-4o'))
       expect(modelRow).toMatchObject({
         name: 'My GPT-4o',
         description: null,
@@ -800,6 +888,7 @@ describe('ProviderModelMigrator', () => {
     })
 
     it('preserves an explicit rerank disable for matching model ids and registry presets', async () => {
+      registryFixtures.providers = [{ id: 'voyageai', name: 'Voyage AI', endpointConfigs: {} }]
       registryFixtures.models.set('rerank-2', {
         id: 'rerank-2',
         name: 'Rerank 2',
@@ -819,7 +908,6 @@ describe('ProviderModelMigrator', () => {
       expect(result.success).toBe(true)
       const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'voyageai::rerank-2'))
       expect(modelRow.capabilities).toEqual([])
-      expect(modelRow.userOverrides).toEqual(['capabilities'])
     })
 
     it('normalizes Jina rerank endpoint metadata for opaque NewAPI model ids', async () => {
@@ -871,7 +959,6 @@ describe('ProviderModelMigrator', () => {
         .where(eq(userModelTable.id, 'new-api::opaque-model-id'))
       expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK])
       expect(modelRow.capabilities).toEqual([])
-      expect(modelRow.userOverrides).toEqual(['capabilities'])
     })
 
     it('does not infer rerank from a secondary Jina endpoint', async () => {

@@ -69,10 +69,10 @@ POST /models [{ providerId: 'openai', modelId: 'gpt-4o' }]
   → handler: modelService.create(items)
     → mergePresetModel(preset, override, ...)
     → compare explicit DTO fields with the registry baseline
-    → INSERT only differing fields + userOverrides into user_model
+    → INSERT only differing nullable columns into user_model
   → list/get/mutation response
     → rebuild current registry baseline
-    → apply only fields named by userOverrides
+    → apply every non-null sparse column
 ```
 
 ### 3. Resolve SDK Model List
@@ -105,33 +105,34 @@ Shared logic extracted to `applyPresetAndOverride` (preset + override merge) and
 ### Priority
 
 ```
-userOverrides-selected fields  >  provider-models.json  >  models.json
-        highest                       middle                  lowest
+non-null sparse columns  >  provider-models.json  >  models.json
+        highest                  middle                  lowest
 ```
 
-Preset-backed rows store only fields named by `userOverrides`; every other
-registry-enrichable column is null. Custom rows store their complete config.
-This lets catalog changes reach existing rows without a data migration.
-Explicit empty strings and arrays remain valid overrides.
+For preset-backed rows, each nullable model-config column is its own ownership
+marker: null inherits the registry, while any non-null value is a user delta.
+Custom rows store their complete config. This lets catalog changes reach
+existing rows without a data migration. Explicit empty strings and arrays
+remain valid overrides.
 
 ### User Override Protection
 
-When a user changes a registry-enrichable field (for example `name`), the field
-is recorded in `userOverrides`. Read-time resolution starts from the current
-registry and applies only those fields from the row. Create/PATCH compare
+When a user changes a registry-enrichable field (for example `name`), the value
+is stored directly in that nullable column. Read-time resolution starts from
+the current registry and applies every non-null column. Create/PATCH compare
 incoming values with the current registry baseline, so renderer echoes do not
-freeze catalog values; restoring a value to the baseline removes its override.
+freeze catalog values; restoring a value to the baseline clears the column.
 
 **Adding a model field later:**
 
 - *Registry-owned (not user-editable):* add it to the registry schema, runtime
   `Model`, and `mergePresetModel`. Do not add a `user_model` column or
-  `userOverrides` entry. Existing preset rows receive it on their next read
-  with zero schema migration or data backfill.
+  persisted delta. Existing preset rows receive it on their next read with zero
+  schema migration or data backfill.
 - *User-editable preset field:* give it a nullable delta column, include it in
-  the create/PATCH overlay mapping, and add it to `REGISTRY_ENRICHABLE_FIELDS`.
-  A schema migration adds the column, but existing rows need no data backfill:
-  a missing marker means inherit the current registry value.
+  the create/PATCH overlay mapping and the preset-delta field set. A schema
+  migration adds the column, but existing rows need no data backfill: null
+  means inherit the current registry value.
 - *Custom-model field:* custom rows own complete configuration. A newly
   required custom field needs either a runtime default or a custom-row
   backfill; this is the intentional exception to the preset inheritance rule.
@@ -225,7 +226,6 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `reasoning` | Custom-model intrinsic controls/token limits; preset rows resolve it from the registry |
 | `pricing` | Complete custom config or nullable preset delta |
 | `parameters` | Complete custom config or nullable preset delta |
-| `userOverrides` | JSON array naming the populated preset-delta columns |
 | `orderKey` | Fractional order key in the provider's model list |
 | `notes` | User notes about this model |
 

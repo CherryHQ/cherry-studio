@@ -10,8 +10,8 @@
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
-import type { InsertUserModelRow, RegistryEnrichableField, UserModelRow } from '@data/db/schemas/userModel'
-import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/userModel'
+import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
+import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
@@ -52,6 +52,30 @@ const SQLITE_INARRAY_CHUNK = 500
 
 /** Reason string for DataApiError when deleting a model currently set as a user default */
 const MODEL_IN_USE_AS_DEFAULT_REASON = 'model is in use as the default model'
+
+const PRESET_DELTA_FIELDS = [
+  'name',
+  'description',
+  'group',
+  'capabilities',
+  'inputModalities',
+  'outputModalities',
+  'endpointTypes',
+  'contextWindow',
+  'maxInputTokens',
+  'maxOutputTokens',
+  'supportsStreaming',
+  'parameters',
+  'pricing'
+] as const
+
+type PresetDeltaField = (typeof PRESET_DELTA_FIELDS)[number]
+
+const PRESET_DELTA_FIELD_SET: ReadonlySet<string> = new Set(PRESET_DELTA_FIELDS)
+
+function isPresetDeltaField(field: string): field is PresetDeltaField {
+  return PRESET_DELTA_FIELD_SET.has(field)
+}
 
 /** Resolve the set of UniqueModelIds currently set as user defaults (chat / quick-assistant / translate). */
 function getUserDefaultModelIds(): Set<string> {
@@ -301,47 +325,41 @@ function dtoKeyToDbKey(key: keyof UpdateModelDto): string {
   return mapping && Array.isArray(mapping) ? mapping[1] : key
 }
 
-function getBaselineField(model: Model, field: RegistryEnrichableField): unknown {
+function getBaselineField(model: Model, field: PresetDeltaField): unknown {
   if (field === 'parameters') return model.parameterSupport
   return model[field as keyof Model]
 }
 
-function matchesBaseline(value: unknown, baseline: unknown, field: RegistryEnrichableField): boolean {
+function matchesBaseline(value: unknown, baseline: unknown, field: PresetDeltaField): boolean {
   if (field === 'pricing') {
     return matchesModelPricingBaseline(value, baseline)
   }
   return isEqual(value, baseline)
 }
 
-function collectUserOverrides(
-  dto: CreateModelDto | UpdateModelDto,
-  baseline: Model | null,
-  existing: readonly RegistryEnrichableField[] = []
-): RegistryEnrichableField[] {
-  const overrides = new Set(existing)
+function collectPresetDeltaFields(dto: CreateModelDto | UpdateModelDto, baseline: Model | null): PresetDeltaField[] {
+  const deltaFields = new Set<PresetDeltaField>()
 
   for (const key of Object.keys(dto) as (keyof UpdateModelDto)[]) {
     const field = dtoKeyToDbKey(key)
-    if (!isRegistryEnrichableField(field)) continue
+    if (!isPresetDeltaField(field)) continue
 
     const value = dto[key]
     if (value === undefined) continue
-    if (baseline && matchesBaseline(value, getBaselineField(baseline, field), field)) {
-      overrides.delete(field)
-    } else {
-      overrides.add(field)
+    if (!baseline || !matchesBaseline(value, getBaselineField(baseline, field), field)) {
+      deltaFields.add(field)
     }
   }
 
-  return [...overrides]
+  return [...deltaFields]
 }
 
 function presetDeltaToNewUserModel(
   dto: CreateModelDto,
   presetModelId: string,
-  userOverrides: readonly RegistryEnrichableField[]
+  deltaFields: readonly PresetDeltaField[]
 ): NewUserModelInput {
-  const fields = new Set(userOverrides)
+  const fields = new Set(deltaFields)
   return {
     id: createUniqueModelId(dto.providerId, dto.modelId),
     providerId: dto.providerId,
@@ -362,36 +380,44 @@ function presetDeltaToNewUserModel(
     parameters: fields.has('parameters') ? (dto.parameterSupport ?? null) : null,
     pricing: fields.has('pricing') ? (dto.pricing ?? null) : null,
     isEnabled: true,
-    isHidden: false,
-    userOverrides: userOverrides.length > 0 ? [...userOverrides] : null
+    isHidden: false
   }
 }
 
-function applyTrackedUserOverrides(baseline: Model, row: UserModelRow): Model {
-  const fields = new Set(row.userOverrides ?? [])
-  const overlay: UserModelOverlay = {}
-
-  if (fields.has('name')) overlay.name = row.name
-  if (fields.has('description')) overlay.description = row.description
-  if (fields.has('group')) overlay.group = row.group
-  if (fields.has('capabilities')) overlay.capabilities = row.capabilities
-  if (fields.has('inputModalities')) overlay.inputModalities = row.inputModalities
-  if (fields.has('outputModalities')) overlay.outputModalities = row.outputModalities
-  if (fields.has('endpointTypes')) overlay.endpointTypes = row.endpointTypes
-  if (fields.has('contextWindow')) overlay.contextWindow = row.contextWindow
-  if (fields.has('maxInputTokens')) overlay.maxInputTokens = row.maxInputTokens
-  if (fields.has('maxOutputTokens')) overlay.maxOutputTokens = row.maxOutputTokens
-  if (fields.has('supportsStreaming')) overlay.supportsStreaming = row.supportsStreaming
-  if (fields.has('parameters')) {
-    overlay.parameterSupport = row.parameters as RuntimeParameterSupport | null
-  }
-  if (fields.has('pricing')) overlay.pricing = row.pricing
-
-  return applyUserOverlay(baseline, overlay)
+function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
+  return applyUserOverlay(baseline, {
+    name: row.name,
+    description: row.description,
+    group: row.group,
+    capabilities: row.capabilities,
+    inputModalities: row.inputModalities,
+    outputModalities: row.outputModalities,
+    endpointTypes: row.endpointTypes,
+    contextWindow: row.contextWindow,
+    maxInputTokens: row.maxInputTokens,
+    maxOutputTokens: row.maxOutputTokens,
+    supportsStreaming: row.supportsStreaming,
+    parameterSupport: row.parameters as RuntimeParameterSupport | null,
+    pricing: row.pricing
+  })
 }
 
 /** Convert a complete custom-model row to a runtime entity. */
+type CompleteCustomModelRow = UserModelRow & {
+  presetModelId: null
+  name: string
+  capabilities: ModelCapability[]
+  supportsStreaming: boolean
+}
+
+function assertCompleteCustomModelRow(row: UserModelRow): asserts row is CompleteCustomModelRow {
+  if (row.presetModelId !== null || row.name === null || row.capabilities === null || row.supportsStreaming === null) {
+    throw new Error(`Custom model row '${row.id}' violates user_model_custom_config_check`)
+  }
+}
+
 function customRowToRuntimeModel(row: UserModelRow): Model {
+  assertCompleteCustomModelRow(row)
   const reasoning = row.reasoning ? ReasoningConfigSchema.parse(row.reasoning) : undefined
 
   return {
@@ -399,17 +425,17 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     providerId: row.providerId,
     apiModelId: row.modelId,
     presetModelId: row.presetModelId,
-    name: row.name ?? row.modelId,
+    name: row.name,
     description: row.description ?? undefined,
     group: row.group ?? undefined,
-    capabilities: row.capabilities ?? [],
+    capabilities: row.capabilities,
     inputModalities: row.inputModalities ?? undefined,
     outputModalities: row.outputModalities ?? undefined,
     contextWindow: row.contextWindow ?? undefined,
     maxInputTokens: row.maxInputTokens ?? undefined,
     maxOutputTokens: row.maxOutputTokens ?? undefined,
     endpointTypes: row.endpointTypes ?? undefined,
-    supportsStreaming: row.supportsStreaming ?? true,
+    supportsStreaming: row.supportsStreaming,
     // Strip legacy fields (notably `type`) and materialize the runtime-only
     // selection list until registry enrichment projects the active profile.
     reasoning: reasoning ? { ...reasoning, selectableEfforts: reasoning.selectableEfforts ?? [] } : undefined,
@@ -438,7 +464,7 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
 
 function createPresetFallback(row: UserModelRow, profile?: ResolvedReasoningProfile['wire']): Model {
   const baseline = createCustomModel(row.providerId, row.modelId, profile)
-  return applyStoredModelState(applyTrackedUserOverrides(baseline, row), row)
+  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
 }
 
 class ModelService {
@@ -469,8 +495,8 @@ class ModelService {
         registryData?.reasoningProfile.wire,
         registryData?.reasoningProfile.support
       )
-      const userOverrides = collectUserOverrides(dto, baseline)
-      return presetDeltaToNewUserModel(dto, presetModel.id, userOverrides)
+      const deltaFields = collectPresetDeltaFields(dto, baseline)
+      return presetDeltaToNewUserModel(dto, presetModel.id, deltaFields)
     }
 
     // No preset: a custom model. When the id/capabilities say the model reasons,
@@ -488,12 +514,12 @@ class ModelService {
 
   private buildUpdates(existing: UserModelRow, dto: UpdateModelDto): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
-    const hasEnrichableField = (Object.keys(dto) as (keyof UpdateModelDto)[])
+    const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
       .map(dtoKeyToDbKey)
-      .some(isRegistryEnrichableField)
+      .some(isPresetDeltaField)
 
     let baseline: Model | null = null
-    if (existing.presetModelId && hasEnrichableField) {
+    if (existing.presetModelId && hasPresetDeltaField) {
       try {
         baseline = this.getRegistryBaseline(existing.providerId, existing.presetModelId)
       } catch (error) {
@@ -505,31 +531,21 @@ class ModelService {
       }
     }
 
-    const userOverrides = new Set(existing.userOverrides ?? [])
     for (const entry of UPDATE_MODEL_FIELD_MAP) {
       const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
       const value = dto[dtoKey]
       if (value === undefined) continue
 
-      if (existing.presetModelId && isRegistryEnrichableField(String(dbKey))) {
-        const field = String(dbKey) as RegistryEnrichableField
+      if (existing.presetModelId && isPresetDeltaField(String(dbKey))) {
+        const field = String(dbKey) as PresetDeltaField
         if (baseline && matchesBaseline(value, getBaselineField(baseline, field), field)) {
           ;(updates as Record<string, unknown>)[dbKey] = null
-          userOverrides.delete(field)
         } else {
           ;(updates as Record<string, unknown>)[dbKey] = value
-          userOverrides.add(field)
         }
       } else {
         ;(updates as Record<string, unknown>)[dbKey] = value
-        if (isRegistryEnrichableField(String(dbKey))) {
-          userOverrides.add(String(dbKey) as RegistryEnrichableField)
-        }
       }
-    }
-
-    if (hasEnrichableField) {
-      updates.userOverrides = userOverrides.size > 0 ? [...userOverrides] : null
     }
     return updates
   }
@@ -647,8 +663,8 @@ class ModelService {
 
   /**
    * Registry resolution shared by every row-serving path. Preset-backed rows
-   * use the current registry as their baseline and apply only fields listed in
-   * `userOverrides`. Custom rows remain row-owned and keep the narrow metadata
+   * use the current registry as their baseline and apply every non-null sparse
+   * config column. Custom rows remain row-owned and keep the narrow metadata
    * enrichment used for recognized image/reasoning models. Nothing is written
    * back.
    */
@@ -673,7 +689,7 @@ class ModelService {
             reasoningProfile.wire,
             reasoningProfile.support
           )
-          const resolved = applyTrackedUserOverrides(baseline, row)
+          const resolved = applyStoredPresetDeltas(baseline, row)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
           return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
         } catch (error) {
@@ -701,7 +717,7 @@ class ModelService {
         if (imageGeneration) updates.imageGeneration = imageGeneration
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
-        if (!row.userOverrides?.includes('capabilities')) {
+        if (row.capabilities === null) {
           updates.capabilities = resolveCapabilities(
             presetModel?.capabilities,
             registryOverride?.capabilities,
@@ -933,7 +949,7 @@ class ModelService {
    * Update many models atomically in a single transaction.
    *
    * Per-item semantics — field mapping via {@link UPDATE_MODEL_FIELD_MAP},
-   * `userOverrides` tracking, and the empty-patch short-circuit — exactly
+   * sparse-delta reduction, and the empty-patch short-circuit — exactly
    * mirror the row-level {@link ModelService.update} path; only the I/O shape
    * differs. Any not-found rolls the whole batch back so callers don't have
    * to reason about partial failure.
