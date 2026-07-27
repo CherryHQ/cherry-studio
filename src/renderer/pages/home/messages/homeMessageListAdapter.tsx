@@ -3,15 +3,10 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
-import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
-import { useMessageExportActions } from '@renderer/components/chat/messages/hooks/useMessageExportActions'
-import { useMessageHeaderCapabilities } from '@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities'
-import { useMessageLeafCapabilities } from '@renderer/components/chat/messages/hooks/useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
-import { useMessageMenuConfig } from '@renderer/components/chat/messages/hooks/useMessageMenuConfig'
-import { useMessageSelectionController } from '@renderer/components/chat/messages/hooks/useMessageSelectionController'
-import { useMessageUiStateCache } from '@renderer/components/chat/messages/hooks/useMessageUiStateCache'
+import {
+  useMessageListAdapterCapabilities,
+  useMessageListAdapterInteractionCapabilities
+} from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
   pickMessageLeafActions,
@@ -117,13 +112,21 @@ export function useHomeMessageListProviderValue({
   const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
-  const getMessageActivityState = useMessageActivityState(topicId, partsByMessageId)
-  const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
-  const menuConfig = useMessageMenuConfig()
-  const exportActions = useMessageExportActions({ topicName: topic.name })
-  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
-  const headerCapabilities = useMessageHeaderCapabilities()
-  const messageUiStateCache = useMessageUiStateCache()
+  const {
+    exportActions,
+    getMessageActivityState,
+    headerCapabilities,
+    leafCapabilities,
+    menuConfig,
+    messageUiStateCache,
+    renderConfig,
+    updateRenderConfig
+  } = useMessageListAdapterCapabilities({
+    topicId,
+    topicName: topic.name,
+    partsByMessageId,
+    streamingLayers
+  })
   const { editingMessageId, startEditing } = useMessageEditing()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const resolvedAssistantId = assistant?.id ?? assistantId
@@ -475,7 +478,6 @@ export function useHomeMessageListProviderValue({
 
     await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
   }, [])
-  const errorActions = useMessageErrorActions({ persistDiagnosis })
 
   const createTranslationUpdater = useCallback(
     async (
@@ -738,13 +740,14 @@ export function useHomeMessageListProviderValue({
     [regenerateMessageUsingModel, t]
   )
 
-  const selectionController = useMessageSelectionController({
+  const { errorActions, selectionController } = useMessageListAdapterInteractionCapabilities({
     topicId: topic.id,
     messages: messageItems,
     partsByMessageId,
     deleteMessage,
     saveTextFile: exportActions.saveTextFile,
-    copyRichContent: leafCapabilities.copyRichContent
+    copyRichContent: leafCapabilities.copyRichContent,
+    persistDiagnosis
   })
 
   const state = useMemo<MessageListState>(

@@ -1,15 +1,17 @@
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
+  createResourcePaneCapability,
+  defineRightPanelComposition,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
   ResourcePaneProvider,
-  RightPanel,
   type RightPanelCapability,
   type RightPanelComponentProps,
   RightPanelProvider,
   RightPanelShortcut,
   RightPanelViewport,
+  TRACE_PANE_TAB,
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
@@ -94,7 +96,7 @@ const TopicRightPaneViewportContext = createContext<TopicRightPaneViewportCallba
 
 function useTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const store = use(TopicBranchLiveStateStoreContext)
-  if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane>')
+  if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane.Scope>')
   return store
 }
 
@@ -114,10 +116,6 @@ function useTopicBranchLiveState(topicId: string): TopicMessageFlowLiveState | n
   const getSnapshot = useCallback(() => store.getSnapshot(topicId), [store, topicId])
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-}
-
-function TopicResourceRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
-  return scope.resourcePane?.node ?? null
 }
 
 function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
@@ -153,16 +151,18 @@ function TopicTraceRightPanel({ scope }: RightPanelComponentProps<TopicRightPane
 }
 
 /** Stable capability declarations; catalog order is the fallback order. */
+const TOPIC_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<TopicRightPanelScope>()
+const TOPIC_TRACE_PANE_CAPABILITY = {
+  component: TopicTraceRightPanel,
+  resolve: (scope: TopicRightPanelScope) => ({
+    id: TRACE_PANE_TAB,
+    instanceKey: `trace:${scope.topicId ?? 'unavailable'}:${scope.traceId ?? ''}`,
+    title: scope.traceTitle,
+    readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
+  })
+} satisfies RightPanelCapability<TopicRightPanelScope>
 const TOPIC_RIGHT_PANEL_CAPABILITIES = [
-  {
-    component: TopicResourceRightPanel,
-    resolve: (scope) => ({
-      id: RESOURCE_PANE_TAB,
-      instanceKey: RESOURCE_PANE_TAB,
-      title: scope.resourcePane?.label ?? '',
-      readiness: scope.resourcePane ? 'ready' : 'unavailable'
-    })
-  },
+  TOPIC_RESOURCE_PANE_CAPABILITY,
   {
     component: TopicBranchRightPanel,
     resolve: (scope) => ({
@@ -173,15 +173,7 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       canMaximize: true
     })
   },
-  {
-    component: TopicTraceRightPanel,
-    resolve: (scope) => ({
-      id: 'trace',
-      instanceKey: `trace:${scope.topicId ?? 'unavailable'}:${scope.traceId ?? ''}`,
-      title: scope.traceTitle,
-      readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
-    })
-  }
+  TOPIC_TRACE_PANE_CAPABILITY
 ] satisfies readonly RightPanelCapability<TopicRightPanelScope>[]
 
 function TopicRightPaneProvider({
@@ -251,9 +243,7 @@ function TopicRightPaneViewport({
 
   return (
     <TopicRightPaneViewportContext value={callbacks}>
-      <RightPanelViewport>
-        <RightPanel />
-      </RightPanelViewport>
+      <RightPanelViewport />
     </TopicRightPaneViewportContext>
   )
 }
@@ -264,12 +254,13 @@ function TopicRightPaneShortcuts() {
   return (
     <>
       <RightPanelShortcut tab="branch" label={t('chat.message.flow.title')} icon={<GitBranch className="size-3.5" />} />
-      <RightPanelShortcut tab="trace" label={t('trace.label')} icon={<Activity className="size-3.5" />} />
+      <RightPanelShortcut tab={TRACE_PANE_TAB} label={t('trace.label')} icon={<Activity className="size-3.5" />} />
     </>
   )
 }
 
-export const TopicRightPane = Object.assign(TopicRightPaneProvider, {
+export const TopicRightPane = defineRightPanelComposition({
+  Scope: TopicRightPaneProvider,
   Viewport: TopicRightPaneViewport,
   Shortcuts: TopicRightPaneShortcuts
 })

@@ -1,7 +1,7 @@
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { createContext, type ReactNode, use, useEffect, useRef } from 'react'
 
-import { useRightPanelActions } from './RightPanel'
+import { type RightPanelCapability, type RightPanelComponentProps, useRightPanelActions } from './RightPanel'
 
 // ── Resource-list-as-right-pane wiring ──────────────────────────────────────
 // In classic-layout mode the topic/session list moves into the
@@ -15,6 +15,30 @@ export type ResourcePaneConfig = {
   node: ReactNode
   /** Tab label + toggle tooltip source — pages supply the product word ("topic" / "session"). */
   label: string
+}
+
+interface ResourcePaneCapabilityScope {
+  resourcePane: ResourcePaneConfig | null
+}
+
+export function createResourcePaneCapability<TScope extends ResourcePaneCapabilityScope>({
+  instanceKey = RESOURCE_PANE_TAB
+}: {
+  instanceKey?: string
+} = {}): RightPanelCapability<TScope> {
+  function ResourcePaneRightPanel({ scope }: RightPanelComponentProps<TScope>) {
+    return scope.resourcePane?.node ?? null
+  }
+
+  return {
+    component: ResourcePaneRightPanel,
+    resolve: (scope) => ({
+      id: RESOURCE_PANE_TAB,
+      instanceKey,
+      title: scope.resourcePane?.label ?? '',
+      readiness: scope.resourcePane ? 'ready' : 'unavailable'
+    })
+  }
 }
 
 const ResourcePaneContext = createContext<ResourcePaneConfig | null>(null)

@@ -45,6 +45,18 @@ export interface RightPanelCapability<TScope> {
   resolve: (scope: TScope) => RightPanelInstance | null
 }
 
+export interface RightPanelComposition<TScopeProps, TViewportProps, TShortcutsProps> {
+  Scope: ComponentType<TScopeProps>
+  Viewport: ComponentType<TViewportProps>
+  Shortcuts: ComponentType<TShortcutsProps>
+}
+
+export function defineRightPanelComposition<TScopeProps, TViewportProps, TShortcutsProps>(
+  composition: RightPanelComposition<TScopeProps, TViewportProps, TShortcutsProps>
+): RightPanelComposition<TScopeProps, TViewportProps, TShortcutsProps> {
+  return composition
+}
+
 interface ResolvedRightPanelEntry<TScope = unknown> extends RightPanelInstance {
   component: ComponentType<RightPanelComponentProps<TScope>>
 }
@@ -538,7 +550,7 @@ function RightPanelKeyboardShortcut() {
   return null
 }
 
-export function RightPanelViewport({ children }: { children: ReactNode }) {
+export function RightPanelViewport({ children = <RightPanel /> }: { children?: ReactNode }) {
   const state = useRightPanelState()
   const actions = useRightPanelControllerActions()
 

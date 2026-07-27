@@ -5,7 +5,6 @@ import { loggerService } from '@logger'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { AgentResourceList } from '@renderer/components/chat/resourceList/AgentResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import type { PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import {
   createRecentSessionEntryFromSession,
@@ -36,7 +35,7 @@ import {
   type ConversationCenterResourceDefinition,
   useConversationCenterSurface
 } from '@renderer/hooks/useConversationCenterSurface'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
@@ -165,10 +164,8 @@ async function findReusableEmptySessions(
 
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const [detachedSidebarOpen, setDetachedSidebarOpen] = useState(false)
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [panePosition, setPanePosition] = usePreference('agent.session.position')
-  const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const currentTab = useCurrentTab()
@@ -185,9 +182,21 @@ const AgentPage = () => {
   // most-recently-active, sessions on its first page).
   const { latestSession, isLoading: isLatestSessionLoading } = useLatestSession({ enabled: !isMessageOnlyView })
   const isLatestSessionReady = isMessageOnlyView || !isLatestSessionLoading
-  const isWindowFrame = useWindowFrame().mode === 'window'
-  const requestedSidebarOpen = isWindowFrame ? detachedSidebarOpen : showSidebar
-  const effectiveShowSidebar = !isMessageOnlyView && requestedSidebarOpen && !autoCollapsedResourceList
+  const {
+    isWindowFrame,
+    shellPaneOpen,
+    paneManualToggle,
+    setShellPaneOpen,
+    markManualPaneToggle,
+    toggleShellPane,
+    handlePaneAutoCollapseChange
+  } = useConversationShellPaneState({
+    isMessageOnlyView,
+    persistedPaneOpen: showSidebar,
+    setPersistedPaneOpen: setShowSidebar
+  })
+  const sessionListPosition: TopicTabPosition =
+    !isWindowFrame && isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
   const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
     isMessageOnlyView ? routeSessionId : null
   )
@@ -352,41 +361,8 @@ const AgentPage = () => {
     instanceKey: tabInstanceSessionId ?? null
   })
 
-  const setResourceListOpen = useCallback(
-    (open: boolean) => {
-      setAutoCollapsedResourceList(false)
-      if (isWindowFrame) {
-        setDetachedSidebarOpen(open)
-        return
-      }
-      void setShowSidebar(open)
-    },
-    [isWindowFrame, setShowSidebar]
-  )
-  const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
-    setAutoCollapsedResourceList(collapsed)
-  }, [])
-  const [paneManualToggle, setPaneManualToggle] = useState<PaneManualToggleSignal | undefined>()
-  const markManualPaneToggle = useCallback(
-    (open: boolean) => {
-      setPaneManualToggle((previous) => ({ seq: (previous?.seq ?? 0) + 1, open }))
-      setResourceListOpen(open)
-    },
-    [setResourceListOpen]
-  )
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
-  const toggleResourceListOpen = useCallback(() => {
-    markManualPaneToggle(!effectiveShowSidebar)
-  }, [effectiveShowSidebar, markManualPaneToggle])
-  useCommandHandler(
-    'app.sidebar.toggle',
-    () => {
-      if (isMessageOnlyView) return
-
-      toggleResourceListOpen()
-    },
-    { enabled: isActiveTab }
-  )
+  useCommandHandler('app.sidebar.toggle', toggleShellPane, { enabled: isActiveTab })
 
   useEffect(() => {
     if (isMessageOnlyView) return
@@ -693,7 +669,7 @@ const AgentPage = () => {
     (sessionId: string | null, messageId?: string) => {
       const transition = () => {
         closeSurface()
-        setResourceListOpen(true)
+        setShellPaneOpen(true)
         // Locate (history / global search) should reveal the target in the right session pane. In modern layout
         // this setter is a no-op; classic layout feeds the explicit open intent into the stable AgentChat shell.
         setSessionPaneOpen(true)
@@ -735,7 +711,7 @@ const AgentPage = () => {
       createDefaultEmptySession,
       requestFileNavigation,
       selectSession,
-      setResourceListOpen,
+      setShellPaneOpen,
       setSessionPaneOpen,
       visibleSession
     ]
@@ -918,8 +894,6 @@ const AgentPage = () => {
 
   // Classic layout = entity rail + right session panel; modern layout = the single sidebar (AgentSidePanel).
   const activeResourceAgentId = visibleSession?.agentId ?? null
-  const sessionListPosition: TopicTabPosition =
-    !isWindowFrame && isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
   const sessionResourcePaneCount: ResourcePaneCountButtonProps | undefined =
     isClassicSessionLayout && sessionListPosition === 'right' && activeResourceAgentId
       ? {
@@ -944,18 +918,17 @@ const AgentPage = () => {
       }
       await setPanePosition(position)
       setSessionPaneOpen(position === 'right', { force: true })
-      setResourceListOpen(true)
+      setShellPaneOpen(true)
     },
     [
       agentSessions,
       setPanePosition,
-      setResourceListOpen,
+      setShellPaneOpen,
       setSessionDisplayMode,
       setSessionPaneOpen,
       visibleSession?.agentId
     ]
   )
-  const shellPanePosition: TopicTabPosition = 'left'
   const pane =
     isClassicSessionLayout && sessionListPosition === 'right' ? (
       <AgentResourceList
@@ -1030,8 +1003,8 @@ const AgentPage = () => {
                 toolbarLeading={
                   !isMessageOnlyView && !isWindowFrame ? (
                     <ConversationSidebarToggleButton
-                      sidebarOpen={effectiveShowSidebar}
-                      onSidebarToggle={toggleResourceListOpen}
+                      sidebarOpen={shellPaneOpen}
+                      onSidebarToggle={toggleShellPane}
                       tooltipPlacement="bottom"
                     />
                   ) : undefined
@@ -1040,7 +1013,7 @@ const AgentPage = () => {
             )
           }
         : null,
-    [activeResourceKind, effectiveShowSidebar, isMessageOnlyView, isWindowFrame, toggleResourceListOpen]
+    [activeResourceKind, isMessageOnlyView, isWindowFrame, shellPaneOpen, toggleShellPane]
   )
   const historyRecordsCenter = historyRecordsActive
     ? {
@@ -1055,8 +1028,8 @@ const AgentPage = () => {
             toolbarLeading={
               !isMessageOnlyView && !isWindowFrame ? (
                 <ConversationSidebarToggleButton
-                  sidebarOpen={effectiveShowSidebar}
-                  onSidebarToggle={toggleResourceListOpen}
+                  sidebarOpen={shellPaneOpen}
+                  onSidebarToggle={toggleShellPane}
                   tooltipPlacement="bottom"
                 />
               ) : undefined
@@ -1078,16 +1051,16 @@ const AgentPage = () => {
           pane={pane}
           lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
           lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
-          paneOpen={effectiveShowSidebar}
-          panePosition={shellPanePosition}
+          paneOpen={shellPaneOpen}
+          panePosition="left"
           onPaneCollapse={() => markManualPaneToggle(false)}
-          onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+          onPaneAutoCollapseChange={handlePaneAutoCollapseChange}
           onFileNavigationRequestChange={handleFileNavigationRequestChange}
           requestFileNavigation={requestFileNavigation}
           paneManualToggle={paneManualToggle}
           showResourceListControls={!isMessageOnlyView}
-          sidebarOpen={effectiveShowSidebar}
-          onSidebarToggle={toggleResourceListOpen}
+          sidebarOpen={shellPaneOpen}
+          onSidebarToggle={toggleShellPane}
           missingAgentSelection={!isMessageOnlyView && missingAgentSelection && !visibleSession}
           onCreateEmptySession={isMessageOnlyView ? undefined : createAndActivateEmptySession}
           onMissingAgentSelectionAgentChange={isMessageOnlyView ? undefined : handleMissingAgentSelectionAgentChange}

@@ -8,6 +8,13 @@ import { ChatAppShell, type PaneManualToggleSignal } from './ChatAppShell'
 import { ConversationTopBarPortalProvider } from './ConversationTopBarPortal'
 import type { ChatPanePosition } from './paneLayout'
 
+export type ConversationCenterSlot = {
+  className?: string
+  content: ReactNode
+  id?: string
+  ref?: Ref<HTMLDivElement>
+}
+
 export interface ConversationShellProps {
   id?: string
   className?: string

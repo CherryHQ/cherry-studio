@@ -9,11 +9,12 @@ import {
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import {
+  createResourcePaneCapability,
+  defineRightPanelComposition,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
   ResourcePaneProvider,
-  RightPanel,
   type RightPanelCapability,
   type RightPanelComponentProps,
   RightPanelHeaderControls,
@@ -21,6 +22,7 @@ import {
   type RightPanelReadiness,
   RightPanelShortcut,
   RightPanelViewport,
+  TRACE_PANE_TAB,
   useRightPanelActions,
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
@@ -575,10 +577,6 @@ function AgentRightPaneStateProvider({
   )
 }
 
-function AgentResourceRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
-  return scope.resourcePane?.node ?? null
-}
-
 function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const state = useAgentRightPaneFileState()
   const actions = useAgentRightPaneActions()
@@ -857,16 +855,20 @@ function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelRead
 }
 
 /** Stable capability registry; runtime messages are intentionally absent. */
+const AGENT_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<AgentRightPanelScope>({
+  instanceKey: 'agent-resources'
+})
+const AGENT_TRACE_PANE_CAPABILITY = {
+  component: AgentTraceRightPanel,
+  resolve: (scope: AgentRightPanelScope) => ({
+    id: TRACE_PANE_TAB,
+    instanceKey: `session:${scope.meta.sessionId ?? ''}:trace:${scope.meta.traceId ?? ''}`,
+    title: scope.traceTitle,
+    readiness: resolveAgentTraceReadiness(scope)
+  })
+} satisfies RightPanelCapability<AgentRightPanelScope>
 const AGENT_RIGHT_PANEL_CAPABILITIES = [
-  {
-    component: AgentResourceRightPanel,
-    resolve: (scope) => ({
-      id: RESOURCE_PANE_TAB,
-      instanceKey: 'agent-resources',
-      title: scope.resourcePane?.label,
-      readiness: scope.resourcePane ? 'ready' : 'unavailable'
-    })
-  },
+  AGENT_RESOURCE_PANE_CAPABILITY,
   {
     component: AgentRightPaneFilesPanel,
     resolve: (scope) => ({
@@ -887,15 +889,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       readiness: scope.meta.conversationState
     })
   },
-  {
-    component: AgentTraceRightPanel,
-    resolve: (scope) => ({
-      id: 'trace',
-      instanceKey: `session:${scope.meta.sessionId ?? ''}:trace:${scope.meta.traceId ?? ''}`,
-      title: scope.traceTitle,
-      readiness: resolveAgentTraceReadiness(scope)
-    })
-  },
+  AGENT_TRACE_PANE_CAPABILITY,
   {
     component: AgentFlowRightPanel,
     resolve: (scope) => {
@@ -912,11 +906,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
 ] satisfies readonly RightPanelCapability<AgentRightPanelScope>[]
 
 const AgentRightPaneViewport = memo(function AgentRightPaneViewport() {
-  return (
-    <RightPanelViewport>
-      <RightPanel />
-    </RightPanelViewport>
-  )
+  return <RightPanelViewport />
 })
 
 function SubagentStatusIcon({ status }: { status: AgentSubagent['status'] }) {
@@ -1104,15 +1094,15 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
         icon={<FolderOpen className="size-3.5" />}
       />
       <AgentRightPaneStatusShortcut />
-      <RightPanelShortcut tab="trace" label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />
+      <RightPanelShortcut tab={TRACE_PANE_TAB} label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />
     </>
   )
 })
 
-export const AgentRightPane = {
+export const AgentRightPane = defineRightPanelComposition({
   Scope: AgentRightPaneStateProvider,
   Viewport: AgentRightPaneViewport,
   Shortcuts: AgentRightPaneShortcuts
-}
+})
 
 export type { AgentToolFlowOpenInput }
