@@ -35,17 +35,17 @@
 
 import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
 
-import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, UrlString } from './common'
+import type {
+  AbsoluteFilePath,
+  Base64String,
+  DirectoryListOptions,
+  FileVersion,
+  PhysicalFileMetadata,
+  UrlString
+} from './common'
 import type { OrphanReport } from './sweep'
 
-export type { DirectoryListOptions, FilePath } from './common'
-
-// ─── Version ───
-
-export interface FileVersion {
-  mtime: number
-  size: number
-}
+export type { AbsoluteFilePath, DirectoryListOptions, FileVersion } from './common'
 
 export interface ReadResult<T> {
   content: T
@@ -86,7 +86,7 @@ export type CreateInternalEntryIpcParams =
   | {
       /** Copy the file at `path` into Cherry storage. `name` / `ext` derived from basename+extname. */
       source: 'path'
-      path: FilePath
+      path: AbsoluteFilePath
     }
   | {
       /** Download the URL into Cherry storage. `name` / `ext` derived from URL tail, Content-Disposition, and Content-Type. */
@@ -118,46 +118,31 @@ export type CreateInternalEntryIpcParams =
  * `getMetadata`. External entries cannot be trashed, so no "restore" branch
  * is possible.
  *
- * ## Canonicalization stays on the main side (by design)
+ * ## Canonicalization
  *
- * `externalPath` is intentionally typed as raw `FilePath` rather than
- * `CanonicalExternalPath`. The asymmetry is deliberate:
+ * `externalPath` is typed as `AbsoluteFilePath` at this IPC boundary — shape-validated
+ * only (absolute form, no null bytes; see `AbsoluteFilePathSchema`), NOT canonicalized.
+ * Canonicalization into the stored `CanonicalFilePath` form (byte-faithful
+ * lexical cleanup: resolve segments, strip trailing separator, drive-letter
+ * upcase — NOT Unicode-normalized) happens inside `ensureExternalEntry`, via
+ * `canonicalizeFilePath()` (`@shared/utils/file/canonicalize`) — not at IPC
+ * parse time.
  *
- * - **Renderer has no canonicalize use case.** It never compares paths
- *   for dedup (the DB-level `UNIQUE(externalPath)` index does that
- *   after `ensureExternalEntry`), never derives a canonical projection,
- *   and never uses paths as join keys. Every path the renderer holds
- *   either flows back to main (for an IPC call) or feeds a system API
- *   that itself accepts arbitrary user paths.
- * - **Canonicalization implementation is main-only.**
- *   `canonicalizeExternalPath` (`src/main/services/file/utils/pathResolver.ts`)
- *   depends on main-only modules (realpath / NFC / case-fold). Asking the
- *   renderer to canonicalize would either duplicate that logic or
- *   require an extra IPC hop per call — no upside for either choice.
- * - **The brand is already protected by a project rule, not by JSDoc.**
- *   `fileEntry.ts` makes the construction discipline explicit: only the
- *   `canonicalizeExternalPath` factory may produce `CanonicalExternalPath`;
- *   production code MUST NEVER `as`-cast into the brand. Code that
- *   bypasses the gate violates the rule, not just an inline comment —
- *   PR review catches it the same way it catches any other rule break.
+ * The two gates are not the same set, so passing this boundary does NOT
+ * guarantee the entry can be created: a UNC `externalPath` is a valid
+ * `AbsoluteFilePath` and is accepted here, then rejected by
+ * `canonicalizeFilePath()` inside `ensureExternalEntry`. UNC files can be read
+ * and copied into internal entries; they cannot become external ones.
  *
- * **Why not extend the brand to the IPC boundary** (e.g. a `RawExternalPath`
- * brand on the param): the renderer would have to `as`-cast `string →
- * RawExternalPath` at the call site, which is itself a violation of the
- * same "no production `as`-cast into brands" rule. The proposal therefore
- * trades one boundary's discipline for another's, without adding actual
- * enforcement; meanwhile dev / test ergonomics get worse at every call
- * site. The four current main consumers (FileManager.ensureExternalEntry,
- * FileManager.rename, `internal/entry/rename.ts`, `internal/entry/create.ts`)
- * already canonicalize before any DB lookup, and Phase 2 consumers join
- * that pattern via code review at the same sites.
- *
- * Skipping canonicalization silently misses entries on case-insensitive
- * filesystems and after symlink resolution — which is why the gate exists
- * at all.
+ * What stays main-only is the **disambiguation** step beyond canonicalization:
+ * `ensureExternalEntry` additionally runs `fs.realpath` to resolve
+ * case-insensitive-filesystem collisions (see `internal/entry/create.ts`),
+ * which depends on main-only FS APIs. Skipping that disambiguation silently
+ * misses entries on case-insensitive filesystems and after symlink
+ * resolution — which is why it stays a main-side concern.
  */
 export type EnsureExternalEntryIpcParams = {
-  externalPath: FilePath
+  externalPath: AbsoluteFilePath
 }
 
 /** Params for resolving the absolute filesystem path of a single FileEntry. */
@@ -227,9 +212,9 @@ export interface BatchCreateResult {
  * underlying IPC channel is registered. Renderer code calling a method whose
  * channel is not yet registered will type-check but fail at runtime.
  *
- * | Files page IpcApi — wired | Legacy preload — still wired | Type-only / future |
+ * | IpcApi — wired | Legacy preload — still wired | Type-only / future |
  * |---|---|---|
- * | `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, path-handle `getMetadata`, `runSweep` | everything else |
+ * | binary `read`, `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, path-handle `getMetadata`, `runSweep` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -297,7 +282,9 @@ export interface FileIpcApi {
    *   `name` / `ext` are projections of `externalPath` and `size` is not
    *   stored for external; live values come from `getMetadata`).
    * - No existing entry → insert a new row after a one-shot `fs.stat` that
-   *   verifies the path exists and seeds DanglingCache.
+   *   seeds DanglingCache. The stat is a best-effort presence probe, not an
+   *   existence gate: `ENOENT`/`ENOTDIR` create a *dangling* entry (absent
+   *   file, allowed by design); only a genuine FS fault (e.g. `EACCES`) throws.
    *
    * Idempotent by design — callers holding an `externalPath` can invoke this
    * freely without pre-checking. The global unique index
@@ -325,7 +312,8 @@ export interface FileIpcApi {
 
   // ─── C. Read / Metadata (accepts FileHandle) ───
   //
-  // Section status: all `@phase 2`.
+  // Section status: the binary `read` option and selected metadata operations
+  // are wired through IpcApi; the remaining shapes are still `@phase 2`.
 
   /**
    * Read content as text
@@ -339,7 +327,7 @@ export interface FileIpcApi {
   read(handle: FileHandle, options: { encoding: 'base64' }): Promise<ReadResult<string>>
   /**
    * Read content as binary
-   * @phase 2 — not yet wired
+   * @phase 2 — wired as IpcApi route `file.read`.
    */
   read(handle: FileHandle, options: { encoding: 'binary' }): Promise<ReadResult<Uint8Array>>
 
@@ -415,7 +403,9 @@ export interface FileIpcApi {
    * truncates to whole seconds — see `FileVersion` JSDoc for the full
    * fallback contract.
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — the generic FileHandle API is not yet wired. ArtifactPane uses
+   * the narrower path-only IpcApi route `file.write_if_unchanged`, whose OCC
+   * input is `FileVersion` only.
    */
   writeIfUnchanged(
     handle: FileHandle,
@@ -542,7 +532,7 @@ export interface FileIpcApi {
    * List contents of an arbitrary directory.
    * @phase 2 — not yet wired
    */
-  listDirectory(dirPath: FilePath, options?: DirectoryListOptions): Promise<string[]>
+  listDirectory(dirPath: AbsoluteFilePath, options?: DirectoryListOptions): Promise<string[]>
 
   // ─── J. Entry Enrichment (FileEntryId only; FS / main-side compute) ───
   //
@@ -552,7 +542,7 @@ export interface FileIpcApi {
   //
   // For the `file://` URL that used to be served via `includeUrl`, callers
   // now compose it in-process via the shared `toSafeFileUrl(path, ext)` helper
-  // in `@shared/utils/file/url` — a pure formatting layer over the `FilePath`
+  // in `@shared/utils/file/url` — a pure formatting layer over the `AbsoluteFilePath`
   // returned by `getPhysicalPath`, so it needs no IPC of its own.
   //
   // Each method has a single-item and a batch form. Prefer the batch form when
@@ -613,11 +603,11 @@ export interface FileIpcApi {
    *   through File IPC so version / dangling / FS invariants stay consistent.
    *
    * Enforced **by convention** (code review gate); the type system cannot
-   * prevent a renderer from misusing a `FilePath` string.
+   * prevent a renderer from misusing an `AbsoluteFilePath` string.
    *
    * @phase 2 — wired in Batch 0 (`IpcChannel.File_GetPhysicalPath` → `FileManager.registerIpcHandlers`)
    */
-  getPhysicalPath(params: { id: FileEntryId }): Promise<FilePath>
+  getPhysicalPath(params: { id: FileEntryId }): Promise<AbsoluteFilePath>
 
   /**
    * Batch form of `getPhysicalPath`. Each requested id appears in the result
@@ -625,7 +615,7 @@ export interface FileIpcApi {
    *
    * @phase 2 — wired for Files page as IpcApi route `file.batch_get_physical_paths`.
    */
-  batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, FilePath>>
+  batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, AbsoluteFilePath>>
 
   // ─── K. Orphan Sweep ───
   //

@@ -2,23 +2,66 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import {
+  CHERRY_PRODUCT_COLOR_TOKENS,
+  COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
+  COMPATIBILITY_STATUS_COLOR_TOKENS,
+  SHADCN_COLOR_TOKENS
+} from './theme-contract'
+
+export {
+  CHERRY_PRODUCT_COLOR_TOKENS,
+  CHERRY_PRODUCT_SURFACE_PAIRS,
+  CHERRY_PRODUCT_VARIABLE_TOKENS,
+  COMPATIBILITY_COLOR_TOKENS,
+  COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
+  COMPATIBILITY_STATUS_COLOR_TOKENS,
+  RUNTIME_THEME_INPUT_TOKENS,
+  SHADCN_COLOR_TOKENS,
+  SHADCN_SURFACE_PAIRS,
+  SHADCN_VARIABLE_TOKENS
+} from './theme-contract'
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const STYLES_DIR = path.resolve(__dirname, '../src/styles')
 const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
 
-const RUNTIME_THEME_INPUT_LINES = [
-  '--cs-theme-primary: var(--cs-primary);',
-  '--cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);'
+const RADIUS_LINES = [
+  '--radius-4xs: var(--cs-radius-4xs);',
+  '--radius-3xs: var(--cs-radius-3xs);',
+  '--radius-2xs: var(--cs-radius-2xs);',
+  '--radius-xs: var(--cs-radius-xs);',
+  '--radius-sm: calc(var(--radius) * 0.6);',
+  '--radius-md: calc(var(--radius) * 0.8);',
+  '--radius-lg: var(--radius);',
+  '--radius-xl: calc(var(--radius) * 1.4);',
+  '--radius-2xl: calc(var(--radius) * 1.8);',
+  '--radius-3xl: calc(var(--radius) * 2.2);',
+  '--radius-4xl: calc(var(--radius) * 2.6);',
+  '--radius-full: var(--cs-radius-round);',
+  '--radius-round: var(--cs-radius-round);'
 ]
 
-const PRIMARY_SEMANTIC_LINES = [
-  '--color-primary: var(--cs-theme-primary);',
-  '--color-primary-hover: var(--cs-primary-hover);',
-  '--color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);',
-  '--color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);',
-  '--color-ring: var(--cs-theme-ring);'
+const SPACING_COMMENT_LINES = [
+  '/* Keep spacing opt-in for now to avoid overriding Tailwind container names. */',
+  '/* --spacing-5xs: var(--cs-size-5xs);',
+  '--spacing-4xs: var(--cs-size-4xs);',
+  '--spacing-3xs: var(--cs-size-3xs);',
+  '--spacing-2xs: var(--cs-size-2xs);',
+  '--spacing-xs: var(--cs-size-xs);',
+  '--spacing-sm: var(--cs-size-sm);',
+  '--spacing-md: var(--cs-size-md);',
+  '--spacing-lg: var(--cs-size-lg);',
+  '--spacing-xl: var(--cs-size-xl);',
+  '--spacing-2xl: var(--cs-size-2xl);',
+  '--spacing-3xl: var(--cs-size-3xl);',
+  '--spacing-4xl: var(--cs-size-4xl);',
+  '--spacing-5xl: var(--cs-size-5xl);',
+  '--spacing-6xl: var(--cs-size-6xl);',
+  '--spacing-7xl: var(--cs-size-7xl);',
+  '--spacing-8xl: var(--cs-size-8xl); */'
 ]
 
 const ANIMATION_LINES = [
@@ -51,9 +94,6 @@ const ANIMATION_LINES = [
 
 export interface ThemeContractInputs {
   primitiveColors: string[]
-  semanticColors: string[]
-  statusColors: string[]
-  radiusTokens: string[]
   typographyTokens: string[]
 }
 
@@ -65,8 +105,12 @@ export function extractTokenNames(source: string): string[] {
   return dedupe([...source.matchAll(/^\s*--cs-([a-z0-9-]+)\s*:/gm)].map((match) => match[1]))
 }
 
-function toPrefixedMappings(tokenNames: string[], targetPrefix: string, sourcePrefix = '--cs-'): string[] {
+function toPrefixedMappings(tokenNames: readonly string[], targetPrefix: string, sourcePrefix = '--cs-'): string[] {
   return tokenNames.map((tokenName) => `--${targetPrefix}${tokenName}: var(${sourcePrefix}${tokenName});`)
+}
+
+function toColorMappings(tokenNames: readonly string[], sourcePrefix = '--'): string[] {
+  return tokenNames.map((tokenName) => `--color-${tokenName}: var(${sourcePrefix}${tokenName});`)
 }
 
 function toDirectMappings(tokenNames: string[], sourcePrefix = '--cs-'): string[] {
@@ -80,19 +124,20 @@ function buildSection(title: string, lines: string[]): string {
 }
 
 export function buildThemeContractCss(inputs: ThemeContractInputs): string {
-  const semanticContractTokens = inputs.semanticColors.filter(
-    (token) => !['primary', 'primary-hover', 'ring'].includes(token)
-  )
-
   const sections = [
-    buildSection('Primitive Colors', toPrefixedMappings(inputs.primitiveColors, 'color-')),
-    buildSection('Runtime Theme Inputs', RUNTIME_THEME_INPUT_LINES),
-    buildSection('Semantic Colors', [
-      ...PRIMARY_SEMANTIC_LINES,
-      ...toPrefixedMappings(semanticContractTokens, 'color-')
-    ]),
-    buildSection('Status Colors', toPrefixedMappings(inputs.statusColors, 'color-')),
-    buildSection('Radius', toDirectMappings(inputs.radiusTokens)),
+    buildSection('Compatibility: Primitive Colors', toPrefixedMappings(inputs.primitiveColors, 'color-')),
+    buildSection('Canonical Shadcn Colors', toColorMappings(SHADCN_COLOR_TOKENS)),
+    buildSection('Cherry Studio Product Colors', toColorMappings(CHERRY_PRODUCT_COLOR_TOKENS)),
+    buildSection(
+      'Compatibility: Existing Semantic Colors',
+      toPrefixedMappings(COMPATIBILITY_SEMANTIC_COLOR_TOKENS, 'color-')
+    ),
+    buildSection(
+      'Compatibility: Existing Status Colors',
+      toPrefixedMappings(COMPATIBILITY_STATUS_COLOR_TOKENS, 'color-')
+    ),
+    buildSection('Spacing', SPACING_COMMENT_LINES),
+    buildSection('Radius', RADIUS_LINES),
     buildSection('Typography', toDirectMappings(inputs.typographyTokens)),
     buildSection('Animation', ANIMATION_LINES)
   ]
@@ -102,12 +147,14 @@ export function buildThemeContractCss(inputs: ThemeContractInputs): string {
  *
  * ⚠️ DO NOT EDIT DIRECTLY!
  * This file is generated by \`pnpm theme:build\`.
- * Update \`src/styles/tokens/*\` to change the design source.
+ * Update \`src/styles/tokens/*\`, \`src/styles/theme-input.css\`,
+ * \`src/styles/shadcn.css\`, \`src/styles/product.css\`, or the generator
+ * contract to change the source.
  */
 
-@import './tokens.css';
+@import './contract.css';
 
-@theme {
+@theme inline {
 ${sections.join('\n\n')}
 }
 
@@ -125,20 +172,13 @@ ${sections.join('\n\n')}
 
 export async function loadThemeContractInputs(stylesDir = STYLES_DIR): Promise<ThemeContractInputs> {
   const tokensDir = path.join(stylesDir, 'tokens')
-  const [primitiveColorsSource, semanticColorsSource, statusColorsSource, radiusSource, typographySource] =
-    await Promise.all([
-      fs.readFile(path.join(tokensDir, 'colors/primitive.css'), 'utf8'),
-      fs.readFile(path.join(tokensDir, 'colors/semantic.css'), 'utf8'),
-      fs.readFile(path.join(tokensDir, 'colors/status.css'), 'utf8'),
-      fs.readFile(path.join(tokensDir, 'radius.css'), 'utf8'),
-      fs.readFile(path.join(tokensDir, 'typography.css'), 'utf8')
-    ])
+  const [primitiveColorsSource, typographySource] = await Promise.all([
+    fs.readFile(path.join(tokensDir, 'colors/primitive.css'), 'utf8'),
+    fs.readFile(path.join(tokensDir, 'typography.css'), 'utf8')
+  ])
 
   return {
     primitiveColors: extractTokenNames(primitiveColorsSource),
-    semanticColors: extractTokenNames(semanticColorsSource),
-    statusColors: extractTokenNames(statusColorsSource),
-    radiusTokens: extractTokenNames(radiusSource),
     typographyTokens: extractTokenNames(typographySource)
   }
 }

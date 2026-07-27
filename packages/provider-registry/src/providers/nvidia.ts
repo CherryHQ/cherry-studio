@@ -1,6 +1,7 @@
 import type { ReasoningSupport } from '../schemas/model'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { openaiCompatible } from './types'
+import { EFFORT, modeWire } from './wires'
 
 const toggleSupport: ReasoningSupport = { controls: [{ kind: 'toggle' }] }
 const enabledByDefaultToggleSupport: ReasoningSupport = { controls: [{ kind: 'toggle', default: true }] }
@@ -43,41 +44,21 @@ const seedOssSupport: ReasoningSupport = {
   thinkingTokenLimits: { min: 0, max: 16_384 }
 }
 
-const enableThinkingWire: ReasoningWireProfile = {
-  off: {
-    operations: [{ target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: false } }]
-  },
-  auto: {
-    operations: [{ target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: true } }]
-  }
-}
+const enableThinkingWire: ReasoningWireProfile = modeWire('chat_template_kwargs.enable_thinking', {
+  off: false,
+  auto: true
+})
 
-const thinkingWire: ReasoningWireProfile = {
-  off: {
-    operations: [{ target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: false } }]
-  },
-  auto: {
-    operations: [{ target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: true } }]
-  }
-}
+const thinkingWire: ReasoningWireProfile = modeWire('chat_template_kwargs.thinking', { off: false, auto: true })
 
-const minimaxM3Wire: ReasoningWireProfile = {
-  off: {
-    operations: [{ target: 'chat_template_kwargs.thinking_mode', value: { source: 'literal', value: 'disabled' } }]
-  },
-  auto: {
-    operations: [{ target: 'chat_template_kwargs.thinking_mode', value: { source: 'literal', value: 'adaptive' } }]
-  }
-}
+const minimaxM3Wire: ReasoningWireProfile = modeWire('chat_template_kwargs.thinking_mode', {
+  off: 'disabled',
+  auto: 'adaptive'
+})
 
-const effortWire: ReasoningWireProfile = {
-  effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
-}
+const effortWire: ReasoningWireProfile = modeWire('reasoning_effort', { effort: EFFORT })
 
-const effortWithOffWire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'reasoning_effort', value: { source: 'literal', value: 'none' } }] },
-  effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
-}
+const effortWithOffWire: ReasoningWireProfile = modeWire('reasoning_effort', { off: 'none', effort: EFFORT })
 
 const nemotronOmniWire: ReasoningWireProfile = {
   effort: {

@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, PageHeader } from '@cherrystudio/ui'
 import {
   buildKnowledgeBaseGroupSections,
   DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY
@@ -18,6 +18,7 @@ import BaseNavigatorSearch from './BaseNavigatorSearch'
 interface BaseNavigatorProps {
   bases: KnowledgeBaseListItem[]
   groups: Group[]
+  isLoading: boolean
   width: number
   selectedBaseId: string
   onSelectBase: (baseId: string) => void
@@ -34,6 +35,7 @@ interface BaseNavigatorProps {
 const BaseNavigator = ({
   bases,
   groups,
+  isLoading,
   width,
   selectedBaseId,
   onSelectBase,
@@ -71,23 +73,23 @@ const BaseNavigator = ({
 
   return (
     <div style={{ width }} className="relative h-full min-h-0 shrink-0">
-      <aside className="flex size-full min-h-0 flex-col border-border-muted border-r">
-        <div className="flex shrink-0 items-center gap-2 p-3">
-          <div className="min-w-0 flex-1">
-            <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} />
-          </div>
+      <aside className="flex size-full min-h-0 flex-col border-border border-r-[0.5px]">
+        <PageHeader title={t('knowledge.title')} />
+        <div className="flex shrink-0 flex-col gap-2 px-2.5 pb-2">
           <Button
             type="button"
             variant="outline"
-            size="icon-sm"
-            className="size-8 shrink-0 rounded-[10px]"
-            aria-label={t('common.add')}
+            className="h-8 w-full justify-start rounded-[10px]"
             onClick={() => onCreateBase()}>
             <Plus className="size-3.5" />
+            {t('knowledge.add.title')}
           </Button>
+          <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} />
         </div>
 
         <BaseNavigatorContent
+          isLoading={isLoading}
+          hasBases={bases.length > 0}
           sections={knowledgeBaseGroupSections}
           groups={groups}
           groupById={groupById}

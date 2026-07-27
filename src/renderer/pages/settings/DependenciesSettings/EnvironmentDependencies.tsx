@@ -546,7 +546,8 @@ const BinaryToolPresetCard: FC<{
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-hover"
+      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div
@@ -731,7 +732,8 @@ const CustomToolCard: FC<{
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-hover"
+      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div

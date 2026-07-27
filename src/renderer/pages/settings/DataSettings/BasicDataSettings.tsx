@@ -10,7 +10,6 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { reset } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
@@ -24,6 +23,9 @@ import { useTranslation } from 'react-i18next'
 import BackupPopup from './BackupPopup'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
 import RestorePopup from './RestorePopup'
+
+const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
@@ -124,8 +126,8 @@ const BasicDataSettings: React.FC = () => {
           <PathsContent />
           <CopyDataContent />
           <MigrationNotice>
-            <p style={{ color: 'var(--color-warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
-            <p style={{ color: 'var(--color-foreground-muted)', marginTop: '8px' }}>
+            <p style={{ color: 'var(--warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
+            <p style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR, marginTop: '8px' }}>
               {targetNotEmpty
                 ? t('settings.data.app_data.switch_existing_notice')
                 : t('settings.data.app_data.copy_time_notice')}
@@ -191,6 +193,26 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
+  const handleDataReset = async () => {
+    const confirmed = await popup.confirm({
+      title: t('settings.data.data_reset.confirm_title'),
+      content: t('settings.data.data_reset.confirm_content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      okButtonProps: {
+        danger: true
+      }
+    })
+    if (!confirmed) return
+
+    try {
+      await ipcApi.request('app.data_reset.request')
+    } catch (error) {
+      toast.error(t('settings.data.data_reset.error'))
+    }
+  }
+
   const onSkipBackupFilesChange = (value: boolean) => {
     void setSkipBackupFile(value)
   }
@@ -231,7 +253,7 @@ const BasicDataSettings: React.FC = () => {
           <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
           <PathRow>
             <PathText
-              style={{ color: 'var(--color-foreground-muted)' }}
+              style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR }}
               onClick={() => handleOpenPath(appInfo?.appDataPath)}>
               {appInfo?.appDataPath}
             </PathText>
@@ -250,7 +272,7 @@ const BasicDataSettings: React.FC = () => {
           <SettingRowTitle>{t('settings.data.app_logs.label')}</SettingRowTitle>
           <PathRow>
             <PathText
-              style={{ color: 'var(--color-foreground-muted)' }}
+              style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR }}
               onClick={() => handleOpenPath(appInfo?.logsPath)}>
               {appInfo?.logsPath}
             </PathText>
@@ -275,10 +297,10 @@ const BasicDataSettings: React.FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.data.data_reset.title')}</SettingRowTitle>
           <RowFlex className="gap-1.25">
-            <Button onClick={reset} variant="destructive">
-              {t('settings.general.reset.title')}
+            <Button onClick={handleDataReset} variant="destructive">
+              {t('settings.data.data_reset.button')}
             </Button>
           </RowFlex>
         </SettingRow>

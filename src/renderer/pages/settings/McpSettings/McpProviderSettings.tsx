@@ -2,7 +2,7 @@ import { Button, Input } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { SettingGroup, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -149,8 +149,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
             target="_blank"
             rel="noreferrer"
             href={provider.apiKeyUrl}
-            className="mt-3.5 inline-flex items-center font-medium text-xs hover:underline"
-            style={{ color: 'var(--color-blue-600)' }}>
+            className="mt-3.5 inline-flex items-center font-medium text-blue-600 text-xs hover:underline">
             {t('settings.provider.get_api_key')}
           </a>
         )}
@@ -229,7 +228,7 @@ const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'s
 )
 
 const SettingsPanel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-4', className)} {...props} />
+  <SettingGroup className={className} {...props} />
 )
 
 const PanelTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

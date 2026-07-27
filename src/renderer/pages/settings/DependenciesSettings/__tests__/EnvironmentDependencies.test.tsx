@@ -184,6 +184,14 @@ describe('EnvironmentDependencies', () => {
     usePreferenceMock.mockImplementation(() => [installSettingsRef.value, setInstallSettingsMock])
   })
 
+  it('uses the settings group surface for dependency cards', async () => {
+    render(<EnvironmentDependencies />)
+
+    expect((await screen.findAllByRole('listitem'))[0]).toHaveStyle({
+      backgroundColor: 'var(--settings-group-background, var(--card))'
+    })
+  })
+
   it('serializes whole-setting auto-saves without losing earlier field changes', async () => {
     render(<EnvironmentDependencies />)
     fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))

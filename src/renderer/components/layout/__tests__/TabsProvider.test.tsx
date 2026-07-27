@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { TAB_LIMITS } from '@renderer/services/TabLruManager'
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -56,6 +57,14 @@ const PINNED_CODE_TAB: Tab = {
 let pinnedTabsValue: Tab[] = [PINNED_FILES_TAB]
 const setPinnedTabsMock = vi.fn()
 
+// Restore-session keys (normal tabs + active id). Default to empty (fresh launch); individual
+// restore tests set them before render. Kept separate from the pinned tuple so the mock returns the
+// right value per key — a key-agnostic mock would feed the restore logic the pinned array.
+let normalTabsValue: Tab[] = []
+const setNormalTabsMock = vi.fn()
+let activeTabIdValue = ''
+const setActiveTabIdMock = vi.fn()
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
@@ -67,7 +76,11 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => [pinnedTabsValue, setPinnedTabsMock]
+  usePersistCache: (key: string) => {
+    if (key === 'ui.tab.normal_tabs') return [normalTabsValue, setNormalTabsMock]
+    if (key === 'ui.tab.active_tab_id') return [activeTabIdValue, setActiveTabIdMock]
+    return [pinnedTabsValue, setPinnedTabsMock]
+  }
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -124,6 +137,20 @@ function TabIds() {
   return <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
 }
 
+// Surfaces restored-session state: active tab id, each tab's awake/dormant state, and the id list.
+function SessionInspector() {
+  const { tabs, activeTabId } = useTabsContext()
+  return (
+    <div>
+      <div data-testid="active">{activeTabId}</div>
+      <div data-testid="session-tabs">
+        {tabs.map((tab) => `${tab.id}:${tab.isDormant ? 'dormant' : 'awake'}`).join(',')}
+      </div>
+      <div data-testid="session-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+    </div>
+  )
+}
+
 function BatchCloseControls() {
   const { activeTabId, addTab, closeTabs, setActiveTab, tabs, updateTab } = useTabsContext()
 
@@ -151,6 +178,9 @@ function BatchCloseControls() {
       <button type="button" onClick={() => setActiveTab('home')}>
         Activate Home
       </button>
+      <button type="button" onClick={() => setActiveTab('d')}>
+        Activate D
+      </button>
       <button type="button" onClick={() => closeTabs(['b', 'c'])}>
         Close B and C
       </button>
@@ -162,6 +192,9 @@ function BatchCloseControls() {
       </button>
       <button type="button" onClick={() => closeTabs(['b', 'c'], 'c')}>
         Close B and C keeping C
+      </button>
+      <button type="button" onClick={() => closeTabs(['d'])}>
+        Close D
       </button>
       <button type="button" onClick={() => closeTabs(['home', 'b', 'c', 'd'], 'files')}>
         Close all normals to Files
@@ -254,6 +287,8 @@ function PinnedTabMaterializer() {
 beforeEach(() => {
   currentLanguage = 'en'
   pinnedTabsValue = [PINNED_FILES_TAB]
+  normalTabsValue = []
+  activeTabIdValue = ''
 })
 
 afterEach(() => {
@@ -332,6 +367,33 @@ describe('TabsProvider', () => {
     await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalled())
   })
 
+  it('removes a menu-closed pinned tab from the persistent pinned list', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <CloseTabOnMount tabId="files" />
+      </TabsProvider>
+    )
+
+    // The mocked pinned cache never re-renders, so assert on the persisted write:
+    // the pinned list must drop the tab, or it resurrects on restart.
+    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalled())
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+
+    // Mount also fires a one-time pinned-session hydration write, so the close's
+    // functional updater isn't necessarily the last call — find it explicitly.
+    const updater = setPinnedTabsMock.mock.calls.map((call) => call[0]).find((arg) => typeof arg === 'function')
+    expect(typeof updater).toBe('function')
+    expect(updater([PINNED_FILES_TAB])).toEqual([])
+  })
+
   it('drops legacy assistant-library pinned tabs when restoring the main tab list', async () => {
     pinnedTabsValue = [LEGACY_LIBRARY_PINNED_TAB, PINNED_FILES_TAB]
 
@@ -350,7 +412,7 @@ describe('TabsProvider', () => {
     )
 
     expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home')
-    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalledWith([PINNED_FILES_TAB]))
+    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalledWith([{ ...PINNED_FILES_TAB, isDormant: true }]))
   })
 
   // Reviewer B7: OpenClaw's sidebar entry + /app/openclaw route were removed (folded into Code), so a
@@ -376,8 +438,8 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/code,/app/files,/app/chat')
     await waitFor(() =>
       expect(setPinnedTabsMock).toHaveBeenCalledWith([
-        { ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code' },
-        PINNED_FILES_TAB
+        { ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code', isDormant: true },
+        { ...PINNED_FILES_TAB, isDormant: true }
       ])
     )
   })
@@ -406,7 +468,8 @@ describe('TabsProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close B and C' }))
 
     await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,d'))
-    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+    // Chrome-style: the surviving right neighbor takes over the active slot.
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('d')
   })
 
   it('activates the designated survivor instead of the nearest neighbor when the active tab is batch-closed', async () => {
@@ -472,6 +535,33 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('dormant-ids')).toHaveTextContent(/^$/)
   })
 
+  it('wakes the active tab when it is unexpectedly dormant', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Activate C' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hibernate C' }))
+    await waitFor(() => expect(screen.getByTestId('dormant-ids')).toHaveTextContent('c'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate C' }))
+    await waitFor(() => expect(screen.getByTestId('dormant-ids')).toHaveTextContent(/^$/))
+  })
+
   it('falls back to the nearest neighbor when the designated survivor is itself closed', async () => {
     render(
       <TabsProvider
@@ -493,12 +583,38 @@ describe('TabsProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Activate C' }))
     await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
 
-    // activateId 'c' is inside the closing set, so it cannot survive — the
-    // nearest-neighbor rule applies (b closes too, so home wins).
+    // activateId 'c' is inside the closing set, so it cannot survive. The
+    // Chrome-style fallback selects the right neighbor that slides into place.
     fireEvent.click(screen.getByRole('button', { name: 'Close B and C keeping C' }))
 
     await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,d'))
-    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('d')
+  })
+
+  it('falls back to the left neighbor when the active tab is last in the strip', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c,d'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate D' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('d'))
+    fireEvent.click(screen.getByRole('button', { name: 'Close D' }))
+
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c'))
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c')
   })
 
   it('wakes a dormant pinned survivor through the pinned store', async () => {
@@ -599,6 +715,117 @@ describe('TabsProvider', () => {
     const ids = (screen.getByTestId('tab-ids').textContent ?? '').split(',')
     expect(ids).toHaveLength(2)
     expect(new Set(ids).size).toBe(2)
+  })
+})
+
+describe('TabsProvider session restore', () => {
+  it('restores the persisted session and keeps only the active tab awake', async () => {
+    const tabA: Tab = { id: 'a', type: 'route', url: '/app/chat', title: '', lastAccessTime: 1, isDormant: false }
+    const tabB: Tab = { id: 'b', type: 'route', url: '/app/agents', title: '', lastAccessTime: 2, isDormant: false }
+    normalTabsValue = [tabA, tabB]
+    activeTabIdValue = 'b'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('b'))
+    const dump = screen.getByTestId('session-tabs').textContent ?? ''
+    expect(dump).toContain('a:dormant')
+    expect(dump).toContain('b:awake')
+    expect(dump.split(',').filter((tab) => tab.endsWith(':awake'))).toHaveLength(1)
+  })
+
+  it('keeps the resolved active tab awake when the persisted active id is stale', async () => {
+    // Active id points at a tab that no longer exists in either the pinned or normal set. The
+    // resolved active tab (first normal tab) must still be awake, or AppShell renders no TabRouter.
+    const tabA: Tab = { id: 'a', type: 'route', url: '/app/chat', title: '', lastAccessTime: 1, isDormant: false }
+    const tabB: Tab = { id: 'b', type: 'route', url: '/app/agents', title: '', lastAccessTime: 2, isDormant: false }
+    normalTabsValue = [tabA, tabB]
+    activeTabIdValue = 'ghost'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('a'))
+    expect(screen.getByTestId('session-tabs').textContent ?? '').toContain('a:awake')
+  })
+
+  it('honors a pinned active tab when no unpinned tabs were open', async () => {
+    // Last session had zero normal tabs but the active tab was the pinned "files" tab — restore must
+    // reselect it (the default tab stays present but dormant) instead of falling back to default.
+    pinnedTabsValue = [{ ...PINNED_FILES_TAB, isDormant: true }]
+    normalTabsValue = []
+    activeTabIdValue = 'files'
+
+    render(
+      <TabsProvider>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('files'))
+    const dump = screen.getByTestId('session-tabs').textContent ?? ''
+    expect(dump).toContain('files:awake')
+    expect(dump).toContain('home:dormant')
+  })
+
+  it('does not restore a persisted session in a detached sub-window', async () => {
+    const tabA: Tab = { id: 'a', type: 'route', url: '/app/chat', title: '', lastAccessTime: 1, isDormant: false }
+    normalTabsValue = [tabA]
+    activeTabIdValue = 'a'
+
+    const freshTab: Tab = {
+      id: 'fresh',
+      type: 'route',
+      url: '/app/chat',
+      title: '',
+      lastAccessTime: 0,
+      isDormant: false
+    }
+    render(
+      <TabsProvider initialDefaultTab={freshTab} includePinnedTabs={false}>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('fresh'))
+    const ids = (screen.getByTestId('session-ids').textContent ?? '').split(',')
+    expect(ids).not.toContain('a')
+  })
+
+  it('preserves dormant tabs beyond the active-tab LRU hard cap', async () => {
+    const overflow = TAB_LIMITS.hardCap + 5
+    const many: Tab[] = Array.from({ length: overflow }, (_, i) => ({
+      id: `n${i}`,
+      type: 'route',
+      url: '/app/chat',
+      title: '',
+      lastAccessTime: i,
+      isDormant: false
+    }))
+    normalTabsValue = many
+    activeTabIdValue = 'n0'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('n0'))
+    const ids = (screen.getByTestId('session-ids').textContent ?? '').split(',').filter((id) => id.startsWith('n'))
+    expect(ids).toHaveLength(overflow)
+    expect(ids).toContain('n0')
+    expect(ids).toContain('n1')
+    expect(ids).toContain(`n${overflow - 1}`)
+    const dump = screen.getByTestId('session-tabs').textContent ?? ''
+    expect(dump.split(',').filter((tab) => tab.endsWith(':awake'))).toEqual(['n0:awake'])
   })
 })
 

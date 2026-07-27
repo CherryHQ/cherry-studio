@@ -10,7 +10,7 @@ import { formatFileSize } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
-import { Boxes, Braces, FileText, Folder, TextQuote, ToolCase, X } from 'lucide-react'
+import { Boxes, Braces, FileText, Folder, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
 import {
   type ComponentType,
   type FocusEvent as ReactFocusEvent,
@@ -35,7 +35,7 @@ const TOKEN_POPOVER_CLOSE_DELAY_MS = 160
 const TOKEN_TOOLTIP_DELAY_MS = 300
 type TokenPopoverOpenReason = 'keyboard' | 'pointer'
 const tokenPreviewHeaderClassName =
-  'flex h-20 items-center justify-center border-border-subtle border-b bg-[repeating-linear-gradient(135deg,var(--color-border-subtle)_0,var(--color-border-subtle)_1px,transparent_1px,transparent_8px)] bg-muted'
+  'flex h-20 items-center justify-center border-border-subtle border-b bg-[repeating-linear-gradient(135deg,var(--border-subtle)_0,var(--border-subtle)_1px,transparent_1px,transparent_8px)] bg-muted'
 const pastedTextPreviewCache = new Map<string, Promise<string>>()
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
@@ -43,6 +43,7 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   file: <FileText className={tokenIconClassName} />,
   folder: <Folder className={tokenIconClassName} />,
   knowledge: <Boxes className={tokenIconClassName} />,
+  reference: <MessagesSquare className={tokenIconClassName} />,
   quote: <TextQuote className={tokenIconClassName} />,
   promptVariable: <Braces className={tokenIconClassName} />
 }
@@ -779,6 +780,13 @@ export function KnowledgeComposerToken(props: ComposerTokenProps) {
   })
 }
 
+export function ReferenceComposerToken(props: ComposerTokenProps) {
+  return renderActiveComposerTokenElement({
+    ...props,
+    icon: tokenIconByKind.reference
+  })
+}
+
 export function QuoteComposerToken(props: ComposerTokenProps) {
   const quoteTooltipContent = getQuoteTooltipContent(props.token.description, props.token.promptText)
   const tokenElement = renderActiveComposerTokenElement({ ...props, icon: tokenIconByKind.quote })
@@ -808,6 +816,7 @@ export const composerInputTokenComponentByKind = {
   file: FileComposerToken,
   folder: FolderComposerToken,
   knowledge: KnowledgeComposerToken,
+  reference: ReferenceComposerToken,
   quote: QuoteComposerToken,
   promptVariable: PromptVariableComposerToken
 } satisfies Record<ChatInputTokenKind, ComponentType<ComposerTokenProps>>

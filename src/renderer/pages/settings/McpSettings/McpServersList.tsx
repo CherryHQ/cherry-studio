@@ -143,7 +143,7 @@ const McpServersList: FC = () => {
   }, [])
 
   return (
-    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 py-4 pt-3">
+    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden p-6">
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
         <div className="mb-3 flex w-full flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
@@ -162,7 +162,7 @@ const McpServersList: FC = () => {
                     className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-accent">
                     <Filter
                       size={14}
-                      color={filter === 'all' ? 'var(--color-foreground-secondary)' : undefined}
+                      color={filter === 'all' ? 'var(--muted-foreground)' : undefined}
                       className={filter === 'all' ? undefined : 'text-primary'}
                     />
                   </button>

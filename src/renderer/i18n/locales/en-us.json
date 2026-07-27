@@ -199,7 +199,7 @@
       "type": "Agent Icon"
     },
     "input": {
-      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands."
+      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands, @ for files and sessions."
     },
     "list": {
       "error": {
@@ -217,6 +217,24 @@
       "code": "Code",
       "code_unavailable": "Source view not available for binary files",
       "default_app": "Default app",
+      "edit": {
+        "conflict": {
+          "description": "This file changed on disk after editing started. Reloading will discard the current draft and load the latest file.",
+          "keep_draft": "Keep draft",
+          "reload": "Reload file",
+          "title": "File changed on disk"
+        },
+        "discard": "Discard changes",
+        "leave": {
+          "description": "If you continue, your unsaved changes to this file will be lost.",
+          "discard_and_continue": "Discard and continue",
+          "title": "Discard unsaved changes?"
+        },
+        "refresh_failed": "Unable to reload the latest file content.",
+        "save_failed": "Unable to save this file. Automatic saving is paused until you retry or discard the changes.",
+        "unsaved": "Unsaved",
+        "unsupported": "This file can be previewed but not safely edited here. Editing supports UTF-8 text files with consistent LF or CRLF line endings."
+      },
       "empty": {
         "description": "Start chatting with the agent; generated code and live previews will appear here.",
         "title": "Ready"
@@ -359,6 +377,11 @@
         "helper": "Pre-approved tools run without manual approval. Unselected tools require approval before use.",
         "label": "Pre-approved tools",
         "placeholder": "Select pre-approved tools"
+      },
+      "api_retry": {
+        "reason": "Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "Retrying {{attempt}}/{{max}} in {{seconds}}s"
       },
       "auto_rename": "Generate task name",
       "create": {
@@ -660,6 +683,7 @@
         "deleteFailed": "Failed to delete task",
         "loadFailed": "Failed to load tasks",
         "runFailed": "Failed to run task",
+        "triggerInvalid": "Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Failed to update task"
       },
       "frequency": {
@@ -702,6 +726,38 @@
       "run": "Run",
       "runTriggered": "Task triggered",
       "save": "Save",
+      "schedule": {
+        "custom": "Custom schedule",
+        "daily": "Daily",
+        "hour": "Hour",
+        "hourly": "Hourly",
+        "interval": "Custom interval",
+        "intervalMinutes": "Interval",
+        "invalid": "Enter a valid execution frequency.",
+        "minute": "Minute",
+        "once": "One time",
+        "runAt": "Run at",
+        "summary": {
+          "daily": "Daily at {{time}}",
+          "hourly": "At the start of every hour",
+          "interval": "Every {{count}} minutes",
+          "weekdays": "Weekdays at {{time}}",
+          "weekly": "Every {{weekday}} at {{time}}"
+        },
+        "time": "Time",
+        "weekday": "Day of week",
+        "weekdays": {
+          "friday": "Friday",
+          "monday": "Monday",
+          "saturday": "Saturday",
+          "sunday": "Sunday",
+          "thursday": "Thursday",
+          "tuesday": "Tuesday",
+          "wednesday": "Wednesday"
+        },
+        "weekdaysOnly": "Weekdays",
+        "weekly": "Weekly"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Interval",
@@ -850,7 +906,8 @@
       "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
-      "pending": "Waiting for approval",
+      "pending": "Waiting for confirmation",
+      "pendingBadge": "Pending",
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
       "suggestion": {
@@ -1405,8 +1462,26 @@
       "paste_text_file": "Paste into input",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
-      "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions.",
+      "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions, @ to reference topics.",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "reference_panel": {
+        "load_failed": "Failed to load the referenced conversation",
+        "no_room": "Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "No sessions match your search",
+            "label": "No Sessions Found"
+          },
+          "title": "Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "No topics match your search",
+            "label": "No Topics Found"
+          },
+          "title": "Topics"
+        }
+      },
       "resize_height": "Resize input height",
       "resource_panel": {
         "categories": {
@@ -1424,7 +1499,7 @@
           "description": "No files, agents, or skills available",
           "label": "No Items Found"
         },
-        "title": "Resources"
+        "title": "Files & Sessions"
       },
       "restore": "Restore",
       "send": "Send",
@@ -2256,6 +2331,7 @@
     "provider": "Provider",
     "reasoning_content": "Deep reasoning",
     "refresh": "Refresh",
+    "refresh_failed": "Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Regenerate",
     "remove_image": "Remove image",
     "rename": "Rename",
@@ -2326,6 +2402,7 @@
     "image-generation": "Image Generation (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
+    "openai-embeddings": "Embeddings (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2380,6 +2457,8 @@
       "payload": "Request content too large, please reduce file or text size",
       "proxy": "Proxy or SSL certificate error, check proxy and network settings",
       "quota": "Account quota exhausted, please recharge or switch provider",
+      "rate_limit": "Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
+      "region": "Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
       "server": "Server error, please retry later",
       "stream": "Response interrupted, check network stability or retry",
       "unknown": "An error occurred",
@@ -2391,6 +2470,7 @@
     "http": {
       "400": "Request failed. Please check if the request parameters are correct. If you have changed the model settings, please reset them to the default settings",
       "401": "Authentication failed. Please check if your API key is correct",
+      "402": "Payment required. Your account balance or quota is exhausted - top up on the provider's website or switch to another provider",
       "403": "Access denied. Please check if your account is verified, or contact the service provider for more information",
       "404": "Model not found or request path is incorrect",
       "429": "Too many requests. Please try again later",
@@ -2566,7 +2646,8 @@
     "edit": "Edit",
     "empty": {
       "no_match_description": "No files match the current filters",
-      "no_match_title": "No matching files found"
+      "no_match_title": "No matching files found",
+      "title": "No files yet"
     },
     "empty_trash": "Empty trash",
     "error": {
@@ -2963,9 +3044,8 @@
     "dimensions_size_placeholder": "Leave empty to not pass dimensions",
     "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge base embedding model is required",
-    "empty": "No knowledge bases",
-    "empty_action": "Create Knowledge Base",
-    "empty_description": "You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
+    "empty": "No knowledge bases yet",
+    "empty_description": "Build up your knowledge with AI",
     "error": {
       "directory_not_migrated": "Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
@@ -3739,6 +3819,8 @@
         "title": "Delete Confirmation"
       },
       "failed": "Delete Failed",
+      "first_turn_not_supported": "The first user message cannot be deleted.",
+      "root_unavailable": "Messages are still loading and cannot be deleted yet.",
       "success": "Delete Successful"
     },
     "dialog": {
@@ -3882,18 +3964,6 @@
     "regenerate": {
       "confirm": "Regenerating will replace current message"
     },
-    "reset": {
-      "confirm": {
-        "content": "Are you sure you want to clear all data?"
-      },
-      "double": {
-        "confirm": {
-          "content": "All data will be lost, do you want to continue?",
-          "title": "DATA LOST !!!"
-        }
-      },
-      "success": "Data reset successful"
-    },
     "restore": {
       "failed": "Restore failed",
       "success": "Restored successfully"
@@ -3938,20 +4008,20 @@
       "aborted": "Tool call aborted",
       "activity": {
         "analyze": "Analyze",
-        "analyzing": "Analyzing",
+        "analyzing": "Taking a closer look",
         "archive": "archive",
-        "assistantTask": "task",
+        "assistantTask": "assistant task",
         "availableFeatures": "available features",
         "availableResources": "available resources",
         "branch": "project version",
         "build": "Build",
-        "building": "Building",
+        "building": "Putting it together",
         "calendar": "calendar",
         "check": "Check",
-        "checking": "Checking",
-        "codeFiles": "program files",
-        "codeHostInfo": "online project information",
-        "configFiles": "project docs and settings",
+        "checking": "Going through each one",
+        "codeFiles": "code files",
+        "codeHostInfo": "remote repo info",
+        "configFiles": "project docs and config",
         "copy": "Copy",
         "copying": "Copying",
         "create": "Create",
@@ -3959,74 +4029,74 @@
         "currentFolder": "current folder",
         "data": "data",
         "delete": "Delete",
-        "deleting": "Deleting",
+        "deleting": "Carefully clearing out",
         "documentFiles": "document files",
         "download": "Download",
         "downloading": "Downloading",
         "email": "email",
         "environmentInfo": "environment information",
-        "executeCommand": "Run task",
-        "executingCommand": "Running task",
+        "executeCommand": "Run",
+        "executingCommand": "Running it",
         "extensionFailed": "Extension failed",
         "extract": "Extract",
-        "extracting": "Extracting",
+        "extracting": "Unpacking",
         "file": "file",
         "fileList": "file list",
         "folder": "folder",
         "handle": "Handle",
-        "handling": "Handling",
+        "handling": "Working on it",
         "imageFiles": "image files",
         "install": "Install",
         "installing": "Installing",
         "matchingFiles": "matching files",
         "modify": "Modify",
-        "modifying": "Modifying",
+        "modifying": "Fine-tuning",
         "move": "Move",
-        "moving": "Moving",
+        "moving": "Moving it over",
         "open": "Open",
-        "opening": "Opening",
+        "opening": "Opening it up",
         "plan": "execution plan",
         "projectChanges": "project changes",
         "projectChecks": "project checks",
-        "projectDependencies": "project requirements",
+        "projectDependencies": "project dependencies",
         "projectFiles": "project files",
-        "projectRootFiles": "top-level project files",
+        "projectRootFiles": "project root files",
         "projectTask": "project task",
         "relatedContent": "related content",
         "repository": "project content",
         "search": "Find",
-        "searching": "Finding",
+        "searching": "Searching around",
         "send": "Send",
         "sending": "Sending",
         "start": "Start",
-        "starting": "Starting",
+        "starting": "Starting up",
         "switch": "Switch",
-        "switching": "Switching",
+        "switching": "Switching over",
         "sync": "Sync",
-        "syncing": "Syncing",
+        "syncing": "Syncing up",
         "taskId": "Task {{id}}",
         "taskList": "task list",
         "translationFiles": "language files",
         "upload": "Upload",
         "uploading": "Uploading",
         "usedExtension": "Used an extension",
-        "usingExtension": "Using an extension",
+        "usingExtension": "Bringing in an extension",
         "view": "View",
-        "viewing": "Viewing",
+        "viewing": "Looking it over",
         "webPage": "web page",
         "webSearch": "web content",
         "workspace": "work area",
-        "write": "Save",
-        "writing": "Saving"
+        "write": "Write",
+        "writing": "Writing it out"
       },
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
       "collapse": "Collapse",
-      "completed": "Completed",
+      "completed": "All wrapped up",
       "error": "Error occurred",
       "groupHeader": "{{count}} tool calls",
-      "invoking": "Invoking",
+      "invoking": "Getting started",
       "labels": {
         "bash": "Run task",
         "edit": "Edit",
@@ -4061,10 +4131,10 @@
           "minutes": "{{minutes}}m {{seconds}}s",
           "seconds": "{{seconds}}s"
         },
-        "generating": "Writing response",
+        "generating": "Writing up a reply",
         "preparing": "Preparing response",
-        "thinking": "Thinking",
-        "usingTools": "Working on the task"
+        "thinking": "Let me think this through",
+        "usingTools": "Making progress"
       },
       "preview": "Preview",
       "processed": "Processed",
@@ -4092,7 +4162,7 @@
         "success": "Success"
       },
       "streaming": "Streaming",
-      "thinkingHeader": "Thinking",
+      "thinkingHeader": "Thinking it through",
       "truncated": "Output truncated (original: {{size}})",
       "units": {
         "done_one": "{{count}} Done",
@@ -4278,10 +4348,13 @@
       "embedding": "Embedding",
       "free": "Free",
       "function_calling": "Tool",
+      "image": "Image",
       "reasoning": "Reasoning",
       "rerank": "Reranker",
       "select": "Model Types",
+      "speech": "Speech",
       "text": "Text",
+      "transcription": "Transcription",
       "video": "Video",
       "vision": "Vision",
       "websearch": "WebSearch"
@@ -4310,6 +4383,12 @@
     },
     "characters": "Characters",
     "collapse": "Collapse",
+    "conflict": {
+      "description": "This note was changed outside the editor. Reload to load the latest version (your unsaved edits will be discarded), or keep editing.",
+      "keep_draft": "Keep editing",
+      "reload": "Reload",
+      "title": "Note changed on disk"
+    },
     "content_placeholder": "Please enter the note content...",
     "copyContent": "Copy Content",
     "create_folder_failed": "Failed to create folder",
@@ -4331,7 +4410,13 @@
     "export_to_pdf_failed": "Failed to export to PDF",
     "export_to_pdf_success": "Exported to PDF",
     "export_to_word_failed": "Failed to export to Word",
+    "file_removed_draft": "This note was removed from disk. Your unsaved draft is still available in the editor.",
     "folder": "folder",
+    "leave": {
+      "description": "Leaving this note will discard your unsaved edits. Do you want to continue?",
+      "discard_and_continue": "Discard and continue",
+      "title": "Discard unsaved note edits?"
+    },
     "load_failed": "Failed to load note",
     "load_failed_description": "The file could not be read. Editing is disabled to protect the note content.",
     "metadata_sync_failed": "File updated, but note state sync failed. Please retry the operation.",
@@ -4354,6 +4439,9 @@
     "save": "Save to Notes",
     "save_blocked_load_failed": "Save blocked because the note failed to load",
     "save_failed": "Failed to save note",
+    "save_failure": {
+      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused."
+    },
     "search": {
       "both": "Name+Content",
       "content": "Content",
@@ -4658,6 +4746,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "Add image",
     "aspect_ratio": "Aspect Ratio",
     "aspect_ratios": {
       "landscape": "Landscape",
@@ -4810,6 +4899,8 @@
     "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
     "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
     "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
+    "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Please enter a prompt",
     "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
     "quality": "Quality",
@@ -5717,6 +5808,13 @@
       "data": {
         "title": "Data Directory"
       },
+      "data_reset": {
+        "button": "Reset",
+        "confirm_content": "This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",
+        "confirm_title": "Reset App Data",
+        "error": "Failed to start data reset",
+        "title": "Data Reset"
+      },
       "divider": {
         "basic": "Basic Data",
         "cloud_storage": "Cloud Backup",
@@ -6353,8 +6451,8 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Get from cherrycss.com",
           "label": "Custom CSS",
+          "migration_notice": "This stylesheet was migrated from v1 and is currently disabled. Adapt it for v2, then remove the first line to enable it.",
           "placeholder": "/* Put custom CSS here */"
         }
       },
@@ -6450,10 +6548,6 @@
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
       "label": "General Settings",
-      "reset": {
-        "button": "Reset",
-        "title": "Data Reset"
-      },
       "restore": {
         "button": "Restore"
       },
@@ -6882,6 +6976,9 @@
       "add": {
         "add_model": "Add Model",
         "batch_add_models": "Batch Add Models",
+        "capabilities": {
+          "label": "Model Capabilities"
+        },
         "context_window": {
           "label": "Context window",
           "placeholder": "e.g. 128000"
@@ -6897,6 +6994,9 @@
           "label": "Group Name",
           "placeholder": "e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
+        },
+        "input_modalities": {
+          "label": "Input Modalities"
         },
         "max_input_tokens": {
           "label": "Max input tokens",
@@ -6919,6 +7019,26 @@
           "label": "Model Name",
           "placeholder": "e.g. GPT-5.5",
           "tooltip": "Optional e.g. GPT-4"
+        },
+        "model_type": {
+          "label": "Model Type"
+        },
+        "purpose": {
+          "chat": {
+            "description": "Use the provider's text API",
+            "label": "Chat"
+          },
+          "chat_protocol": "Chat protocol",
+          "description": "Choose how this model is used",
+          "image_edit": {
+            "description": "Accept an input image and return an edited image",
+            "label": "Image editing"
+          },
+          "image_generation": {
+            "description": "Generate images from a prompt",
+            "label": "Image generation"
+          },
+          "label": "Model purpose"
         },
         "supported_text_delta": {
           "label": "Support incremental text output",
@@ -7295,8 +7415,9 @@
       },
       "balance": "Balance",
       "base_url": {
+        "invalid": "Enter a valid HTTP or HTTPS URL",
         "label": "Base URL",
-        "placeholder": "https://api.example.com",
+        "placeholder": "Base URL: https://example.com",
         "required": "Please enter the Base URL"
       },
       "basic_auth": {
@@ -7388,6 +7509,23 @@
         "toggle_headers_editor_list": "Switch to header list"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "Default",
+          "label": "Endpoint settings",
+          "more": "More options",
+          "more_configured": "{{count}} configured",
+          "set_default_chat": "Set as default",
+          "text_endpoint_required": "Configure at least one text endpoint",
+          "url_help": "Enter the API root URL to preview the final request path"
+        },
+        "preset_instance": {
+          "description": "For Coding Plan services, multiple accounts, or project isolation; configure each Base URL and API key independently",
+          "empty": "No matching Provider presets",
+          "placeholder": "Create from a Provider preset…",
+          "search_placeholder": "Search Provider presets",
+          "title": "Start from a preset (optional)"
+        },
+        "request_preview": "Request path: {{path}}",
         "title": "Add Custom Provider"
       },
       "delete": {
@@ -7427,13 +7565,23 @@
         "sign_in_success": "Signed in to Grok CLI",
         "signing_in": "Waiting for browser…"
       },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "Used for /images/edits; leave blank to use the default chat endpoint Base URL",
+          "label": "Image Edit Base URL"
+        },
+        "image_generation_base_url": {
+          "help": "Used for /images/generations; leave blank to use the default chat endpoint Base URL",
+          "label": "Image Generation Base URL"
+        }
+      },
       "logo_upload_failed": "Failed to process the selected image",
       "misc": "Other",
       "more_endpoints": {
         "add": "Add Endpoint",
-        "anthropic": "Anthropic Messages",
-        "gemini": "Google Gemini",
-        "openai_chat": "OpenAI Chat Completions",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "openai_chat": "OpenAI",
         "openai_responses": "OpenAI Responses",
         "toggle": "More Endpoints"
       },
@@ -7575,12 +7723,39 @@
       "titlePlaceholder": "Please enter phrase title"
     },
     "scheduledTasks": {
+      "agentCreate": "Create with Agent",
+      "allAgents": "All Agents",
+      "allStatuses": "All statuses",
+      "clearFilters": "Clear filters",
+      "createDescription": "Set what the Agent should do and when it should run.",
+      "createTitle": "New scheduled task",
       "description": "Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "editDescription": "Update what the Agent should do and when it should run.",
+      "editTitle": "Edit scheduled task",
+      "filterAgent": "Filter by Agent",
+      "filterStatus": "Filter by status",
+      "manualCreate": "Create manually",
+      "newTask": "New",
       "noAgents": "No agents found. Create an agent first to add scheduled tasks.",
       "noAgentsTip": "Tip: You can also ask your agent to create scheduled tasks via chat.",
-      "noTasks": "No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "noAgentsTitle": "No Agents",
+      "noMatches": "Try a different search or filter.",
+      "noMatchesTitle": "No matching tasks",
+      "noTasks": "Create a task and let an Agent run it on schedule.",
+      "noTasksTitle": "No scheduled tasks",
+      "notFoundDescription": "This task may have been deleted, or the link is invalid.",
+      "notFoundTitle": "Task not found",
+      "paginationLabel": "Scheduled tasks pagination",
+      "paginationStatus": "Page {{page}} of {{pageCount}} · {{total}} tasks",
+      "search": "Search scheduled tasks",
+      "searchPlaceholder": "Search tasks or Agents",
       "selectTask": "Select a task to view details",
-      "title": "Scheduled Tasks"
+      "title": "Scheduled Tasks",
+      "validation": {
+        "agent": "Select an Agent.",
+        "name": "Enter a task name.",
+        "prompt": "Enter a task prompt."
+      }
     },
     "shortcuts": {
       "action": "Action",

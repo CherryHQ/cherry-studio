@@ -35,8 +35,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-// An image file without a preview URL renders the decorative placeholder
-// gradient, which is the surface under test here.
+// An image file without a preview URL renders the neutral placeholder surface.
 const imageFile: FileItem = {
   id: 'image-1',
   name: 'photo.png',
@@ -79,7 +78,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('FileGrid placeholder gradients', () => {
+describe('FileGrid layout', () => {
   it('virtualizes responsive grid rows instead of mounting every file', async () => {
     const files = Array.from({ length: 12 }, (_, index) => ({
       ...imageFile,
@@ -91,14 +90,14 @@ describe('FileGrid placeholder gradients', () => {
 
     await waitFor(() => {
       expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(
-        expect.objectContaining({ count: 4, overscan: 4 })
+        expect.objectContaining({ count: 6, overscan: 4 })
       )
     })
     const options = virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0]
     expect(options?.getItemKey?.(0)).toBe('image-0')
     expect(screen.getByText('photo-0.png')).toBeInTheDocument()
-    expect(screen.getByText('photo-2.png')).toBeInTheDocument()
-    expect(screen.queryByText('photo-3.png')).not.toBeInTheDocument()
+    expect(screen.getByText('photo-1.png')).toBeInTheDocument()
+    expect(screen.queryByText('photo-2.png')).not.toBeInTheDocument()
   })
 
   it('notifies the parent when responsive columns reduce the virtual content height', async () => {
@@ -114,34 +113,21 @@ describe('FileGrid placeholder gradients', () => {
 
     await waitFor(() => {
       expect(virtualizerMocks.useVirtualizer.mock.calls.some(([options]) => options.count === 12)).toBe(true)
-      expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 4 }))
+      expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 6 }))
       expect(onLayoutChange.mock.calls.length).toBeGreaterThanOrEqual(2)
     })
   })
 
-  it('paints image placeholders with design-token gradients and no raw hex', () => {
+  it('uses a calm neutral placeholder instead of decorative file-type colors', () => {
     const { container } = render(<FileGrid {...fileGridProps([imageFile])} />)
 
-    const gradientTarget = container.querySelector<HTMLElement>('[style*="background-image"]')
+    const placeholder = container.querySelector<HTMLElement>('.aspect-square')
+    const icon = placeholder?.querySelector('svg')
+    const card = screen.getByText(imageFile.name).closest('.group')
 
-    expect(gradientTarget).not.toBeNull()
-    const backgroundImage = gradientTarget?.style.backgroundImage ?? ''
-    expect(backgroundImage).toContain('var(--color-')
-    expect(backgroundImage).not.toMatch(/#[0-9a-fA-F]{3,6}/)
-  })
-
-  it('assigns a stable gradient per file name', () => {
-    const first = render(<FileGrid {...fileGridProps([imageFile])} />)
-    const firstGradient =
-      first.container.querySelector<HTMLElement>('[style*="background-image"]')?.style.backgroundImage
-    cleanup()
-
-    const second = render(<FileGrid {...fileGridProps([imageFile])} />)
-    const secondGradient =
-      second.container.querySelector<HTMLElement>('[style*="background-image"]')?.style.backgroundImage
-
-    expect(firstGradient).toBeTruthy()
-    expect(secondGradient).toBe(firstGradient)
+    expect(placeholder).toHaveClass('bg-muted', 'border-border-subtle')
+    expect(icon).toHaveClass('text-muted-foreground')
+    expect(card).toHaveClass('border-border-subtle', 'bg-card', 'hover:border-border-strong', 'hover:bg-accent')
   })
 })
 
@@ -154,6 +140,7 @@ describe('FileGrid image preview', () => {
 
     const thumbnail = screen.getByAltText('photo.png')
     expect(thumbnail).toHaveAttribute('src', 'safe-file:///tmp/photo.png')
+    expect(thumbnail).toHaveClass('object-contain')
 
     fireEvent.click(thumbnail)
     expect(props.onOpen).toHaveBeenCalledWith(imageWithPreview)

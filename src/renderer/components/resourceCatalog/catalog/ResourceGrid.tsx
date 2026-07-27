@@ -31,13 +31,13 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderSearch,
+  Import,
   Library,
   Pencil,
   Plus,
   Search,
   Tag,
-  Trash2,
-  Upload
+  Trash2
 } from 'lucide-react'
 import type { FC, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -136,7 +136,7 @@ function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddAct
         </Button>
       ) : null}
       <Button variant="outline" size="sm" onClick={onImport} className="shrink-0">
-        <Upload size={12} />
+        <Import size={12} />
         <span>{t('assistants.presets.import.action')}</span>
       </Button>
     </>
@@ -173,7 +173,7 @@ function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal }:
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem onSelect={onImportLocal} className="gap-2">
-          <Upload size={13} />
+          <Import size={13} />
           <span>{t('library.skill_add.local_import')}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -494,7 +494,7 @@ export const ResourceGrid: FC<Props> = ({
         ref={scrollRef}
         className="flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
         {isLoading ? (
-          <ResourceGridLoadingState columnCount={columnCount} />
+          <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
         ) : resources.length === 0 ? (
           <EmptyState
             preset={search ? 'no-result' : 'no-resource'}
@@ -519,7 +519,7 @@ export const ResourceGrid: FC<Props> = ({
   )
 }
 
-function ResourceGridLoadingState({ columnCount }: { columnCount: number }) {
+function ResourceGridLoadingState({ columnCount, resourceType }: { columnCount: number; resourceType: ResourceType }) {
   const count = Math.max(columnCount, 1) * 4
 
   return (
@@ -528,7 +528,12 @@ function ResourceGridLoadingState({ columnCount }: { columnCount: number }) {
       data-testid="resource-grid-loading"
       style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}>
       {Array.from({ length: count }, (_, index) => (
-        <div key={index} className="rounded-lg border border-border-subtle bg-card p-3.5">
+        <div
+          key={index}
+          className="rounded-lg border border-border-subtle bg-card p-3.5"
+          style={
+            resourceType === 'skill' ? { backgroundColor: 'var(--settings-group-background, var(--card))' } : undefined
+          }>
           <div className="flex items-center gap-3">
             <Skeleton className="size-10 rounded-lg" />
             <div className="min-w-0 flex-1 space-y-2">

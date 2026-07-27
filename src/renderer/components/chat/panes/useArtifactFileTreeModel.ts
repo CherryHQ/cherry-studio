@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { joinPath } from '@renderer/utils/path'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type {
   CreateTreeIpcResult,
   DirectoryTreeOptions,
@@ -22,6 +22,9 @@ const ARTIFACT_FILE_SEARCH_DEBOUNCE_MS = 200
 const ARTIFACT_FILE_SEARCH_MAX_ENTRIES = 200
 const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
   maxDepth: ARTIFACT_TREE_INITIAL_MAX_DEPTH
+}
+export const ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
+  watchMissingRoot: true
 }
 
 const stripWorkspaceRootId = (ids: ReadonlySet<string>): ReadonlySet<string> => {
@@ -209,8 +212,11 @@ interface WorkspaceFileTreeResult {
   refresh: () => void
 }
 
-const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult => {
-  const { root, version, isLoading, error } = useDirectoryTree(path, WORKSPACE_TREE_OPTIONS)
+const useWorkspaceFileTree = (path: string | undefined, watchMissingRoot: boolean): WorkspaceFileTreeResult => {
+  const { root, version, isLoading, error } = useDirectoryTree(
+    path,
+    watchMissingRoot ? ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS : WORKSPACE_TREE_OPTIONS
+  )
 
   const tree = useMemo(() => {
     void version
@@ -248,7 +254,7 @@ function useArtifactFileSearch(workspacePath: string | undefined, searchKeyword:
     const timeout = setTimeout(() => {
       void (async () => {
         try {
-          const entries = await window.api.file.listDirectoryEntries(workspacePath as FilePath, {
+          const entries = await window.api.file.listDirectoryEntries(AbsoluteFilePathSchema.parse(workspacePath), {
             recursive: true,
             maxDepth: 0,
             includeHidden: false,
@@ -374,7 +380,7 @@ function useLazyArtifactFileTree({
         try {
           // One round trip that classifies each entry — avoids an `isDirectory`
           // IPC call per entry (was N+1 round trips per expanded folder).
-          const entries = await window.api.file.listDirectoryEntries(dirPath as FilePath, {
+          const entries = await window.api.file.listDirectoryEntries(AbsoluteFilePathSchema.parse(dirPath), {
             recursive: false,
             includeHidden: false,
             includeFiles: true,
@@ -540,6 +546,8 @@ export function isSelectableFileNode(
 
 export interface UseArtifactFileTreeModelParams {
   workspacePath?: string
+  /** Keep an empty watched tree while an app-owned workspace is created lazily. */
+  watchMissingRoot?: boolean
   /** Gates "create only while visible" — the tree is built only when open. */
   treeOpen: boolean
   /** Caller-owned expanded folder ids (synthetic workspace root managed internally). */
@@ -573,6 +581,7 @@ export interface ArtifactFileTreeModel {
  */
 export function useArtifactFileTreeModel({
   workspacePath,
+  watchMissingRoot = false,
   treeOpen,
   expandedIds,
   searchKeyword,
@@ -580,7 +589,10 @@ export function useArtifactFileTreeModel({
   selectedFile,
   onExpandedIdsChange
 }: UseArtifactFileTreeModelParams): ArtifactFileTreeModel {
-  const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(treeOpen ? workspacePath : undefined)
+  const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(
+    treeOpen ? workspacePath : undefined,
+    watchMissingRoot
+  )
   const {
     displayTree,
     isLoading: isLazyLoading,
