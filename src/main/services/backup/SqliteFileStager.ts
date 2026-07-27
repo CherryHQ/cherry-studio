@@ -95,14 +95,17 @@ export interface StageNotesResult {
 }
 
 /**
- * Result of staging skill dirs: which {folderName, contentHash} were copied.
- * Deliberately NO `missing` field — a skill dir absent on disk is a DEGRADATION
- * (the agent_global_skill row stays), not a DB-row prune. Exposing it as `missing`
- * would risk routing it into pruneMissingRows like file/knowledge; instead an
- * absent dir simply omits the descriptor from `skills`.
+ * Result of staging skill dirs: which {folderName, contentHash} were copied and which
+ * sources were absent on disk. `missing` is a DEGRADATION channel, NOT a prune list —
+ * the agent_global_skill row stays (the dir may be gone because the user moved it, not
+ * because the registration is invalid), so callers must record it in
+ * `manifest.degraded` and never route it into pruneMissingRows like file/knowledge.
+ * Without it, a full backup silently ships a registered Skill whose non-re-downloadable
+ * content the archive never carried.
  */
 export interface StageSkillDirsResult {
   readonly skills: readonly { readonly folderName: string; readonly contentHash: string }[]
+  readonly missing: readonly { readonly folderName: string; readonly contentHash: string }[]
 }
 
 /**
@@ -278,50 +281,58 @@ export class SqliteFileStager implements FileStager {
    * cp-r + stat classification, but a skill dir is an ordinary file tree (NO WAL
    * caveat) and a missing dir is a DEGRADATION, not a prune: the agent_global_skill
    * row stays (the dir may be absent because the user moved it, not because the
-   * registration is invalid). Successfully staged descriptors are returned; an
-   * absent dir simply omits that descriptor (no `missing` list, no row pruning).
-   * EACCES/EIO/EPERM on a PRESENT source aborts — never silently drop a non-
-   * re-downloadable skill the DB references.
+   * registration is invalid). Successfully staged descriptors land in `skills`;
+   * absent ones land in `missing` so the caller can record the degradation instead
+   * of shipping a silently incomplete archive. EACCES/EIO/EPERM on a PRESENT source
+   * aborts — never silently drop a non-re-downloadable skill the DB references.
    */
   async stageSkillDirs(
     skills: ReadonlyArray<{ readonly folderName: string; readonly contentHash: string }>,
     destDir: string
   ): Promise<StageSkillDirsResult> {
-    if (skills.length === 0) return { skills: [] }
+    if (skills.length === 0) return { skills: [], missing: [] }
     await mkdir(destDir, { recursive: true })
 
     const staged: { folderName: string; contentHash: string }[] = []
+    const missing: { folderName: string; contentHash: string }[] = []
     for (const { folderName, contentHash } of skills) {
       const src = join(this.skillsRoot, folderName)
       let dirStat
       try {
         dirStat = await stat(src)
       } catch (e) {
-        // Absent skill dir (ENOENT/ENOTDIR) = degradation, not fatal: omit the
-        // descriptor (the row stays). EACCES/EIO/EPERM on a present dir aborts —
+        // Absent skill dir (ENOENT/ENOTDIR) = degradation, not fatal: report it as
+        // missing (the row stays). EACCES/EIO/EPERM on a present dir aborts —
         // never silently drop a non-re-downloadable skill the DB references.
-        if (isMissingPath(e)) continue
+        if (isMissingPath(e)) {
+          missing.push({ folderName, contentHash })
+          continue
+        }
         throw e
       }
-      if (!dirStat.isDirectory()) continue
+      if (!dirStat.isDirectory()) {
+        missing.push({ folderName, contentHash })
+        continue
+      }
       const dest = join(destDir, folderName)
       try {
         await cp(src, dest, { recursive: true })
       } catch (e) {
-        // Source gone mid-copy (ENOENT, or EACCES/EPERM + confirmed gone) → omit
-        // descriptor + best-effort remove partial dest. Other errors abort.
+        // Source gone mid-copy (ENOENT, or EACCES/EPERM + confirmed gone) → report
+        // missing + best-effort remove partial dest. Other errors abort.
         const sourceMissing =
           isErrnoCode(e, 'ENOENT') ||
           ((isErrnoCode(e, 'EACCES') || isErrnoCode(e, 'EPERM')) && (await isSourceGone(src)))
         if (sourceMissing) {
           await rm(dest, { recursive: true, force: true }).catch(() => {})
+          missing.push({ folderName, contentHash })
           continue
         }
         throw e
       }
       staged.push({ folderName, contentHash })
     }
-    return { skills: staged }
+    return { skills: staged, missing }
   }
 
   /**

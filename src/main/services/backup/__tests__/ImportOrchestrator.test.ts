@@ -96,7 +96,7 @@ describe('ImportOrchestrator spine', () => {
     // a dummy ArchiveContext. Dummy manifest has no preset → planResources early-returns empty.
     admitArchive: async (): Promise<ArchiveContext> => ({
       backupDbPath: join(stagingRoot, 'dummy-backup.sqlite'),
-      manifest: {} as BackupManifest,
+      manifest: { degraded: { resources: [] } } as unknown as BackupManifest,
       domains: [],
       includeFiles: false,
       resourceMetadata: { fileIds: [], knowledgeBases: [], notePaths: [] }
@@ -135,7 +135,7 @@ describe('ImportOrchestrator spine', () => {
     // sibling temp dir, so assert the exact path.relative the producer computes.
     expect(read.journal.db.promote).toBe(join('restore-staging', 'rst-001', 'work.sqlite'))
     expect(read.journal.db.aside).toBe(relative(tmpDir, `${liveDbPath}.aside-rst-001`))
-    expect(read.journal.summary).toEqual({ toRestore: [], toSkip: [] })
+    expect(read.journal.summary).toEqual({ toRestore: [], toSkip: [], degradations: [] })
     // work.sqlite sealed — no -wal/-shm sidecars (gate renames only the main file)
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite'))).toBe(true)
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite-wal'))).toBe(false)
@@ -168,6 +168,53 @@ describe('ImportOrchestrator spine', () => {
       expect.anything(),
       expect.objectContaining({ resourcePlan: plan })
     )
+  })
+
+  it('persists merge + export degradations in journal.summary and returns the same object', async () => {
+    // Degradations describe loss the restore ALREADY accepted; the confirmation UI only runs
+    // after the relaunch, so a log line is not enough — they must survive in the journal.
+    const orch = new ImportOrchestrator(
+      makeDeps({
+        admitArchive: async (): Promise<ArchiveContext> => ({
+          backupDbPath: join(stagingRoot, 'dummy-backup.sqlite'),
+          manifest: {
+            degraded: {
+              resources: [
+                { kind: 'skill-dir-missing', folderName: 'gone-skill', contentHash: 'h1' },
+                { kind: 'skill-dir-missing', folderName: 'gone-skill-2', contentHash: 'h2' }
+              ]
+            }
+          } as unknown as BackupManifest,
+          domains: [],
+          includeFiles: false,
+          resourceMetadata: { fileIds: [], knowledgeBases: [], notePaths: [] }
+        }),
+        mergeBackupIntoWork: async () => ({
+          degradedToSkips: [
+            { kind: 'row_pruned', table: 'chat_message_file_ref', count: 2, reason: 'target missing' },
+            { kind: 'attachment_unavailable', table: 'message', count: 5, reason: 'blob not staged' }
+          ]
+        })
+      })
+    )
+
+    const result = await orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: 'rst-degr' })
+
+    const expected = [
+      { kind: 'row_pruned', scope: 'chat_message_file_ref', count: 2, detail: 'target missing' },
+      { kind: 'attachment_unavailable', scope: 'message', count: 5, detail: 'blob not staged' },
+      // Export-side omissions fold into one line per cause, with the folder names in `detail`.
+      {
+        kind: 'resource_content_missing',
+        scope: 'agent_global_skill',
+        count: 2,
+        detail: 'skill-dir-missing: gone-skill, gone-skill-2'
+      }
+    ]
+    expect(result.summary.degradations).toEqual(expected)
+    const read = readRestoreJournal()
+    if (read.kind !== 'ok') throw new Error('expected a staged journal')
+    expect(read.journal.summary?.degradations).toEqual(expected)
   })
 
   it('aborts without a journal when a writer touches live during staging (2nd fingerprint mismatch)', async () => {

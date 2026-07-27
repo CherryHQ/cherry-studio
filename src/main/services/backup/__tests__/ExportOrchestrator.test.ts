@@ -833,4 +833,56 @@ describe('ExportOrchestrator notes body ↔ collect 1:1 (fs-catch)', () => {
       await rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('records a full-preset skill dir missing on disk in manifest.degraded (not a silent omission)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-export-skill-missing-'))
+    try {
+      const fixture = join(dir, 'fixture.db')
+      await makeFixtureDb(fixture)
+      const skillsRoot = join(dir, 'skills-root')
+      await mkdir(join(skillsRoot, 'present-skill'), { recursive: true })
+      await writeFile(join(skillsRoot, 'present-skill', 'SKILL.md'), 'x')
+      const registry = {
+        topoSort: (domains: readonly string[]) => [...domains],
+        // Only SKILLS collects — otherwise every domain would re-emit the same descriptors.
+        getOperations: (d: string) =>
+          d === 'SKILLS'
+            ? {
+                collectFileResources: async () => [
+                  { kind: 'skill-dir' as const, folderName: 'present-skill', contentHash: 'h1' },
+                  { kind: 'skill-dir' as const, folderName: 'gone-skill', contentHash: 'h2' }
+                ]
+              }
+            : undefined,
+        getSchema: () => ({ tables: [], rowScopes: undefined })
+      } as unknown as ReadonlyBackupRegistry
+
+      const orch = new ExportOrchestrator({
+        dbService: { createSnapshot: (destPath) => copyFileSync(fixture, destPath) },
+        registry,
+        tempDir: dir,
+        knowledgeRoot: join(dir, 'kb-root'),
+        skillsRoot,
+        notesRoot: () => undefined,
+        stripper: { strip: async () => [] }
+      })
+
+      const { manifest } = await orch.exportBackup({
+        preset: 'full',
+        outputPath: join(dir, 'out.cherrybackup'),
+        restoreId: 'rsk',
+        producerAppVersion: '1.0.0',
+        schemaMigrationId: '0001_x.sql'
+      })
+
+      // The agent_global_skill row still ships (never pruned on disk absence), so the
+      // omission MUST be disclosed — otherwise restore registers a contentless Skill.
+      expect(manifest.skills.folders).toEqual([{ folderName: 'present-skill', contentHash: 'h1' }])
+      expect(manifest.degraded.resources).toEqual([
+        { kind: 'skill-dir-missing', folderName: 'gone-skill', contentHash: 'h2' }
+      ])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
 })

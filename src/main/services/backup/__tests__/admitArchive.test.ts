@@ -373,7 +373,13 @@ describe('admitArchive', () => {
     snapshotDbhTo(dbCopy)
     const archivePath = join(tmpDir, 'skills.cherrybackup')
     await packCustomArchive(archivePath, [
-      { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
+      {
+        content: JSON.stringify({
+          ...MANIFEST,
+          skills: { folders: [{ folderName: 'zipSkill', contentHash: 'h1' }] }
+        }),
+        name: 'manifest.json'
+      },
       { file: dbCopy, name: 'backup.sqlite' },
       { content: 'skill-body', name: 'skills/zipSkill/SKILL.md' }
     ])
@@ -382,6 +388,52 @@ describe('admitArchive', () => {
     await admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)
 
     expect(existsSync(join(workDir, 'skills/zipSkill/SKILL.md'))).toBe(true)
+  })
+
+  // Undeclared payload under a recognized prefix is never restored (planResources only walks
+  // the manifest) but WOULD consume the whole staging budget — reject it before extraction.
+  describe.each([
+    { prefix: 'files', entry: 'files/pad-0', declares: 'files.ids' },
+    { prefix: 'knowledge', entry: 'knowledge/padBase/blob.bin', declares: 'knowledge.bases' },
+    { prefix: 'notes', entry: 'notes/pad.md', declares: 'notes.paths' },
+    { prefix: 'skills', entry: 'skills/padSkill/SKILL.md', declares: 'skills.folders' }
+  ])('undeclared $prefix/ entry', ({ prefix, entry, declares }) => {
+    it(`rejects an entry absent from manifest ${declares} and writes nothing`, async () => {
+      const dbCopy = join(tmpDir, 'backup.sqlite')
+      snapshotDbhTo(dbCopy)
+      const archivePath = join(tmpDir, `undeclared-${prefix}.cherrybackup`)
+      await packCustomArchive(archivePath, [
+        { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
+        { file: dbCopy, name: 'backup.sqlite' },
+        { content: 'x'.repeat(1024), name: entry }
+      ])
+      const workDir = join(tmpDir, 'work')
+
+      await expect(admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)).rejects.toThrow(BackupArchiveCorruptError)
+      // Failure cleanup removed the staging tree — no undeclared byte survives.
+      expect(existsSync(workDir)).toBe(false)
+    })
+  })
+
+  it('rejects a files/ entry whose id is declared only as a knowledge base (cross-prefix)', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'cross-prefix.cherrybackup')
+    await packCustomArchive(archivePath, [
+      {
+        content: JSON.stringify({
+          ...MANIFEST,
+          includeKnowledgeFiles: true,
+          knowledge: { bases: ['baseA'] }
+        }),
+        name: 'manifest.json'
+      },
+      { file: dbCopy, name: 'backup.sqlite' },
+      { content: 'pad', name: 'files/baseA' }
+    ])
+    const workDir = join(tmpDir, 'work')
+
+    await expect(admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)).rejects.toThrow(BackupArchiveCorruptError)
   })
 
   it('succeeds from a nonexistent staging dir (admission self-creates workDir)', async () => {

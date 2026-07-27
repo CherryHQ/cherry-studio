@@ -66,8 +66,9 @@ export interface BackupManifest {
   /**
    * Staged skill directories (full preset only — zip/local, non-re-downloadable;
    * TBD-1 (iii): lite omits these and lists them in `degraded`). Each entry is a
-   * successfully staged `{folderName, contentHash}`; a missing skill dir is simply
-   * omitted (the agent_global_skill row stays — never pruned on disk absence).
+   * successfully staged `{folderName, contentHash}`; a skill dir absent on disk is
+   * omitted here (the agent_global_skill row stays — never pruned on disk absence)
+   * and recorded in `degraded` as `skill-dir-missing`.
    */
   readonly skills: {
     readonly folders: readonly { readonly folderName: string; readonly contentHash: string }[]
@@ -79,10 +80,11 @@ export interface BackupManifest {
    */
   readonly notes: { readonly paths: readonly string[] }
   /**
-   * Resources the export intentionally omitted under a preset limitation (TBD-1
-   * (iii): zip/local skill-dir content under lite). Observable — never silently
-   * lost; restore surfaces these so the user knows the lite archive is incomplete
-   * for those skills (their schema row still restores).
+   * Resources the export shipped without file content — omitted under a preset
+   * limitation (TBD-1 (iii): zip/local skill-dir content under lite) or absent on
+   * disk at stage time. Observable — never silently lost; restore carries these
+   * into its durable summary so the user knows the archive is incomplete for
+   * those skills (their schema row still restores).
    */
   readonly degraded: { readonly resources: readonly ExportResourceDegradation[] }
 }
@@ -125,7 +127,7 @@ const manifestSchema = z.object({
     .object({
       resources: z.array(
         z.object({
-          kind: z.literal('skill-dir-omitted-lite'),
+          kind: z.enum(['skill-dir-omitted-lite', 'skill-dir-missing']),
           folderName: z.string(),
           contentHash: z.string()
         })

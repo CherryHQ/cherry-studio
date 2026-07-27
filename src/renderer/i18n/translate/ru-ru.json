@@ -378,6 +378,11 @@
         "label": "Предварительно одобренные инструменты",
         "placeholder": "Выберите предварительно одобренные инструменты"
       },
+      "api_retry": {
+        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
+      },
       "auto_rename": "Сгенерировать название задачи",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Не удалось удалить задачу",
         "loadFailed": "Не удалось загрузить задачи",
         "runFailed": "Не удалось выполнить задачу",
+        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Не удалось обновить задачу"
       },
       "frequency": {
@@ -3782,6 +3788,8 @@
         "title": "Подтверждение удаления"
       },
       "failed": "Ошибка удаления",
+      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
+      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
       "success": "Удаление успешно"
     },
     "dialog": {
@@ -5801,6 +5809,16 @@
             "selected": "[to be translated]:Selected archive:",
             "skip_only": "[to be translated]:Only the skip (SKIP) merge strategy is supported. Overwrite and rename are not available yet.",
             "summary": {
+              "degraded": "[to be translated]:Data affected by this restore",
+              "degraded_kind": {
+                "association_dropped": "[to be translated]:Some associations will be dropped because one side is unavailable.",
+                "attachment_unavailable": "[to be translated]:Some message attachments are not included in this archive.",
+                "field_conflict": "[to be translated]:Some fields conflicted and will keep the local value.",
+                "ref_cleared": "[to be translated]:Some links could not be preserved and will be cleared.",
+                "resource_content_missing": "[to be translated]:Some items will restore without their file content.",
+                "row_pruned": "[to be translated]:Some rows will be dropped because a required reference is missing.",
+                "rows_skipped": "[to be translated]:Some rows from the backup will not be imported."
+              },
               "kind": {
                 "file": "[to be translated]:Files",
                 "knowledge": "[to be translated]:Knowledge bases",

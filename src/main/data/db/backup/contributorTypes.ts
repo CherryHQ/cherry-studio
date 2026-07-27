@@ -210,14 +210,21 @@ export type ResourceDescriptor =
   | { readonly kind: 'agent-workspace-dir'; readonly sessionId: string }
 
 /**
- * A resource the export intentionally omitted (with observability) under a preset
- * limitation. TBD-1 (iii): lite preset omits zip/local skill-dir file content (the
- * skill DB row still ships as schema) but records each omission here so it is
- * visible in the manifest + logs, never silently lost. The orchestrator accumulates
- * these via FileResourceContext.recordDegraded and writes them to manifest.degraded.
+ * A resource the export shipped without its file content, recorded so the omission is
+ * visible in the manifest + logs + restore summary rather than silently lost. In both
+ * cases the skill DB row still ships as schema, so restore registers a Skill whose
+ * content the archive never carried.
+ *
+ * - `skill-dir-omitted-lite` (TBD-1 (iii)): the lite preset deliberately omits zip/local
+ *   skill-dir content. Recorded by the contributor via FileResourceContext.recordDegraded.
+ * - `skill-dir-missing`: a full export found the skill dir absent / not a directory on
+ *   disk. Recorded by the orchestrator from the stager's `missing` list — a locally broken
+ *   skill must not fail the whole backup, but it must not look complete either.
+ *
+ * The orchestrator accumulates both into manifest.degraded.
  */
 export type ExportResourceDegradation = {
-  readonly kind: 'skill-dir-omitted-lite'
+  readonly kind: 'skill-dir-omitted-lite' | 'skill-dir-missing'
   readonly folderName: string
   readonly contentHash: string
 }

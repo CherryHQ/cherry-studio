@@ -99,7 +99,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     vi.clearAllMocks()
     readRestoreJournalMock.mockReturnValue({ kind: 'none' })
     clearRestoreJournalMock.mockImplementation(() => {})
-    importBackup.mockResolvedValue({ plan: { toRestore: [], skips: [] } })
+    importBackup.mockResolvedValue({ summary: { toRestore: [], toSkip: [], degradations: [] } })
     admitArchiveMock.mockReset()
     getRegistry.mockReturnValue({ domains: [] })
     jobManagerPause.mockReturnValue({ dispose: vi.fn() })
@@ -309,7 +309,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       importBackup.mockImplementation(async () => {
         await runQuiesceViaImportBackupMock()
         afterQuiesce()
-        return { plan: { toRestore: [], skips: [] } }
+        return { summary: { toRestore: [], toSkip: [], degradations: [] } }
       })
     })
 
@@ -357,7 +357,11 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       // backup.restore_summary integration contract: the renderer confirm dialog owns
       // the restart via backup.restore_relaunch — the spine must broadcast and keep waiting.
       expect(relaunchMock).not.toHaveBeenCalled()
-      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', { toRestore: [], toSkip: [] })
+      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
+        toRestore: [],
+        toSkip: [],
+        degradations: []
+      })
       // Quiesce survives the resolved request: the write window stays closed from
       // seal until the user-confirmed relaunch exits the process.
       expect(isBackupInProgress()).toBe(true)
@@ -402,26 +406,22 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       setBackupInProgress(false)
     })
 
-    it('broadcasts a NON-empty plan: toSkip maps from plan.skips (not toRestore)', async () => {
+    it('broadcasts the orchestrator summary verbatim (never re-derived)', async () => {
       drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
-      // Once: keep the describe's quiesce drive, but return a NON-empty plan so a
-      // toSkip↔toRestore swap would fail (empty fixtures cannot catch that).
+      // Once: keep the describe's quiesce drive, but return a NON-empty summary so a
+      // toSkip↔toRestore swap or a dropped degradations field would fail here.
+      const summary = {
+        toRestore: [{ kind: 'file', count: 2 }],
+        toSkip: [{ id: 'f1', kind: 'file', reasonCode: 'target_exists' }],
+        degradations: [{ kind: 'row_pruned', scope: 'chat_message_file_ref', count: 3, detail: 'target missing' }]
+      }
       importBackup.mockImplementationOnce(async () => {
         await runQuiesceViaImportBackupMock()
-        return {
-          plan: {
-            toRestore: [{ kind: 'file', count: 2 }],
-            skips: [{ id: 'f1', kind: 'file', reasonCode: 'target_exists' }],
-            resources: []
-          }
-        }
+        return { summary }
       })
       const service = new BackupService()
       await service.startRestore({ archivePath: '/x.cherrybackup' })
-      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
-        toRestore: [{ kind: 'file', count: 2 }],
-        toSkip: [{ id: 'f1', kind: 'file', reasonCode: 'target_exists' }]
-      })
+      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', summary)
       expect(relaunchMock).not.toHaveBeenCalled()
       expect(isBackupInProgress()).toBe(true)
       setBackupInProgress(false)
@@ -482,7 +482,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
         expect(deps.planResources).toBeDefined()
         expect(deps.planRoots).toBeDefined()
         await deps.admitArchive('/x.cherrybackup', '/work', '/mig')
-        return { plan: { toRestore: [], skips: [] } }
+        return { summary: { toRestore: [], toSkip: [], degradations: [] } }
       })
       const service = new BackupService()
 
@@ -491,7 +491,11 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       })
       // Sealed success broadcasts the summary and waits for the renderer's backup.restore_relaunch.
       expect(relaunchMock).not.toHaveBeenCalled()
-      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', { toRestore: [], toSkip: [] })
+      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
+        toRestore: [],
+        toSkip: [],
+        degradations: []
+      })
     })
 
     it('admits preset=lite through admitArchive', async () => {
@@ -507,7 +511,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
           admitArchive: (a: string, b: string, c: string) => Promise<unknown>
         }
         await deps.admitArchive('/x.cherrybackup', '/work', '/mig')
-        return { plan: { toRestore: [], skips: [] } }
+        return { summary: { toRestore: [], toSkip: [], degradations: [] } }
       })
       const service = new BackupService()
 
@@ -516,7 +520,11 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       })
       // Sealed success broadcasts the summary and waits for the renderer's backup.restore_relaunch.
       expect(relaunchMock).not.toHaveBeenCalled()
-      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', { toRestore: [], toSkip: [] })
+      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
+        toRestore: [],
+        toSkip: [],
+        degradations: []
+      })
     })
   })
 

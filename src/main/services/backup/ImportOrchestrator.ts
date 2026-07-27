@@ -23,12 +23,13 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { applyMigrations } from '@main/data/db/applyMigrations'
+import type { ExportResourceDegradation } from '@main/data/db/backup/contributorTypes'
 import type { DbService } from '@main/data/db/DbService'
 import { type AppliedMigration, readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import type { DbType } from '@main/data/db/types'
-import type { RestoreResultSummary } from '@shared/types/backup'
+import type { RestoreDegradation, RestoreResultSummary } from '@shared/types/backup'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
@@ -75,8 +76,11 @@ export interface ImportBackupResult {
   readonly restoreId: string
   /** Absolute path the staged journal was written to (for diagnostics; the gate reads it via the path key). */
   readonly journalPath: string
-  /** Immediate broadcast payload; the same values are persisted in journal.summary. */
-  readonly plan: Pick<ResourcePlan, 'skips' | 'toRestore'>
+  /**
+   * Immediate broadcast payload — the SAME object persisted as journal.summary, so a
+   * renderer reload cannot see a summary that differs from the durable one.
+   */
+  readonly summary: RestoreResultSummary
 }
 
 /**
@@ -111,6 +115,28 @@ export interface ImportOrchestratorDeps {
   readonly planRoots: PlanRoots
   /** Absolute path to the restore journal file (feature.backup.restore.file). */
   readonly journalPath: string
+}
+
+/**
+ * Fold the export-side `manifest.degraded` records into the restore degradation contract.
+ * These skills restore as a registered DB row whose file content the archive never carried
+ * (omitted under lite, or absent on disk at export time) — the user only learns that here.
+ * Aggregated per reason so the summary stays one line per cause, with the folder names in
+ * `detail` (bounded: the manifest itself is capped at 1 MiB by admission).
+ */
+function summarizeManifestDegradations(records: readonly ExportResourceDegradation[]): RestoreDegradation[] {
+  const byKind = new Map<ExportResourceDegradation['kind'], string[]>()
+  for (const r of records) {
+    const bucket = byKind.get(r.kind)
+    if (bucket) bucket.push(r.folderName)
+    else byKind.set(r.kind, [r.folderName])
+  }
+  return [...byKind].map(([kind, folderNames]) => ({
+    kind: 'resource_content_missing' as const,
+    scope: 'agent_global_skill',
+    count: folderNames.length,
+    detail: `${kind}: ${folderNames.join(', ')}`
+  }))
 }
 
 /** RestoreId must be a safe basename — it becomes a directory under the staging root. */
@@ -224,12 +250,22 @@ export class ImportOrchestrator {
         includeFiles: presetIncludesFiles(archiveContext.manifest.preset)
       }
       const result = await this.deps.mergeBackupIntoWork(workSqlite, workDb, ctx)
-      if (result.degradedToSkips.length > 0) {
-        // Merge degradations: dangling-ref repair (SET NULL / prune) and/or soft-ref
-        // disclosures (e.g. message attachment blob not staged). Logged for diagnostics;
-        // cross-restart UI disclosure is a follow-up (B3).
-        logger.info('merge completed with disclosed degradations', {
-          degradations: result.degradedToSkips.map((s) => `${s.table} (${s.count}): ${s.reason}`)
+      // Merge degradations (dangling-ref repair, junction / polymorphic drops, field
+      // conflicts, attachment disclosure) plus the export-side content omissions the
+      // manifest recorded. These describe loss the restore ALREADY accepted, so they must
+      // outlive this process in the journal — the confirmation UI runs after the relaunch.
+      const degradations: readonly RestoreDegradation[] = [
+        ...result.degradedToSkips.map((s) => ({
+          kind: s.kind,
+          scope: s.table,
+          count: s.count,
+          detail: s.reason
+        })),
+        ...summarizeManifestDegradations(archiveContext.manifest.degraded.resources)
+      ]
+      if (degradations.length > 0) {
+        logger.info('restore completed with disclosed degradations', {
+          degradations: degradations.map((d) => `${d.scope} [${d.kind}] (${d.count}): ${d.detail ?? ''}`)
         })
       }
       this.assertNotCancelled(options)
@@ -266,7 +302,8 @@ export class ImportOrchestrator {
 
       const summary: RestoreResultSummary = {
         toRestore: plan.toRestore,
-        toSkip: plan.skips
+        toSkip: plan.skips,
+        degradations
       }
       const journal: RestoreJournal = {
         version: 1,
@@ -305,11 +342,7 @@ export class ImportOrchestrator {
       }
       committed = true
 
-      return {
-        restoreId: options.restoreId,
-        journalPath: this.deps.journalPath,
-        plan: { skips: plan.skips, toRestore: plan.toRestore }
-      }
+      return { restoreId: options.restoreId, journalPath: this.deps.journalPath, summary }
     } finally {
       // Fail-closed cleanup: if the journal was NOT committed, tear down this restore's
       // staging subtree so no half-built work.sqlite lingers. The startup GC (plan (h))

@@ -5841,6 +5841,16 @@
             "selected": "已选择的备份：",
             "skip_only": "当前仅支持跳过（SKIP）合并策略，覆盖与重命名尚未支持。",
             "summary": {
+              "degraded": "本次恢复受影响的数据",
+              "degraded_kind": {
+                "association_dropped": "部分关联的一端不可用，该关联将被丢弃。",
+                "attachment_unavailable": "部分消息附件未包含在此备份文件中。",
+                "field_conflict": "部分字段存在冲突，将保留本地值。",
+                "ref_cleared": "部分关联无法保留，将被清空。",
+                "resource_content_missing": "部分项目将在缺少文件内容的情况下恢复。",
+                "row_pruned": "部分数据缺少必需的关联对象，将被丢弃。",
+                "rows_skipped": "备份中的部分数据不会被导入。"
+              },
               "kind": {
                 "file": "文件",
                 "knowledge": "知识库",

@@ -5,7 +5,12 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { RestoreResultSummary, RestoreSkipReasonCode, RestoreStatus } from '@shared/types/backup'
+import type {
+  RestoreDegradationKind,
+  RestoreResultSummary,
+  RestoreSkipReasonCode,
+  RestoreStatus
+} from '@shared/types/backup'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,6 +22,16 @@ const restoreSkipReasonI18nKeys = {
   notes_root_unavailable: 'settings.data.backup.v2.restore.summary.skip_reason.notes_root_unavailable',
   outside_user_data: 'settings.data.backup.v2.restore.summary.skip_reason.outside_user_data'
 } as const satisfies Record<RestoreSkipReasonCode, string>
+
+const restoreDegradationI18nKeys = {
+  ref_cleared: 'settings.data.backup.v2.restore.summary.degraded_kind.ref_cleared',
+  row_pruned: 'settings.data.backup.v2.restore.summary.degraded_kind.row_pruned',
+  rows_skipped: 'settings.data.backup.v2.restore.summary.degraded_kind.rows_skipped',
+  association_dropped: 'settings.data.backup.v2.restore.summary.degraded_kind.association_dropped',
+  field_conflict: 'settings.data.backup.v2.restore.summary.degraded_kind.field_conflict',
+  attachment_unavailable: 'settings.data.backup.v2.restore.summary.degraded_kind.attachment_unavailable',
+  resource_content_missing: 'settings.data.backup.v2.restore.summary.degraded_kind.resource_content_missing'
+} as const satisfies Record<RestoreDegradationKind, string>
 
 type Props = PopupInjectedProps<Record<string, never>>
 
@@ -282,6 +297,21 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                           {item.id}
                           <div className="text-foreground-secondary text-xs">
                             {t(restoreSkipReasonI18nKeys[item.reasonCode])}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {summary.degradations.length > 0 && (
+                  <div>
+                    <div className="font-medium">{t('settings.data.backup.v2.restore.summary.degraded')}</div>
+                    <ul className="mt-1 flex max-h-40 flex-col gap-1 overflow-y-auto">
+                      {summary.degradations.map((item) => (
+                        <li key={`${item.kind}:${item.scope}:${item.detail ?? ''}`} className="break-all">
+                          <span className="text-foreground-secondary">[{item.scope}]</span> {item.count}
+                          <div className="text-foreground-secondary text-xs">
+                            {t(restoreDegradationI18nKeys[item.kind])}
                           </div>
                         </li>
                       ))}

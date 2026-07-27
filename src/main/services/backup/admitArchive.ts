@@ -178,6 +178,12 @@ export async function admitArchiveWithLimits(
     // Full-preset cross-field invariants (domains / include* / unique ids) — no-op for lite.
     assertFullManifestInvariants(manifest)
 
+    // --- Bind payload to the validated manifest BEFORE any resource byte is written ---
+    // Without this, a manifest declaring zero resources still lets every `files/`,
+    // `knowledge/`, `notes/`, `skills/` entry consume the staging budget even though
+    // planResources only ever restores manifest-declared resources.
+    assertRecognizedEntriesDeclared(plan.recognizedFiles, manifest)
+
     // --- Unpack recognized entries (ignore unknown; zip-slip already ran on ALL entries) ---
     await unpackRecognized(zip, workDir, plan.recognizedFiles, limits, budget)
 
@@ -484,6 +490,65 @@ function isRecognized(name: string): boolean {
   // (a previous startsWith('backup.sqlite') prefix check let such siblings through).
   if (RECOGNIZED_TOP_LEVEL.has(name)) return true
   return RECOGNIZED_DIR_PREFIXES.some((p) => name.startsWith(p))
+}
+
+/**
+ * Reject every recognized resource entry the validated manifest does not declare.
+ *
+ * `isRecognized` alone only proves an entry sits under a resource prefix — it says nothing
+ * about the archive claiming that resource. Since `planResources` iterates the manifest,
+ * undeclared payload would be extracted, never restored, and still bill the full staging
+ * budget (8 GiB per entry / 32 GiB cumulative), so a manifest declaring no resources could
+ * still fill the target disk with `files/pad-*`. Runs AFTER the manifest gate and BEFORE
+ * bulk extraction so no undeclared byte is ever written.
+ *
+ * This is a DECLARATION check, not a shape check: `files/<id>`, `knowledge/<baseId>/…` and
+ * `skills/<folderName>/…` only need their first segment declared, and `notes/<relPath>` must
+ * match a declared relPath exactly (note paths are themselves multi-segment). Whether a
+ * declared resource unpacked as the right kind of node stays planning's job — its
+ * assertStagingFile / assertStagingDir report that divergence precisely. Entry names are
+ * always POSIX (both the archiver and the collected note relPaths normalize separators).
+ *
+ * @internal
+ */
+export function assertRecognizedEntriesDeclared(
+  entries: readonly Pick<StreamZip.ZipEntry, 'name'>[],
+  manifest: BackupManifest
+): void {
+  const declared = {
+    files: new Set(manifest.files.ids),
+    notes: new Set(manifest.notes.paths),
+    knowledge: new Set(manifest.knowledge.bases),
+    skills: new Set(manifest.skills.folders.map((f) => f.folderName))
+  }
+  for (const { name } of entries) {
+    if (RECOGNIZED_TOP_LEVEL.has(name)) continue
+    if (isDeclaredResourceEntry(name, declared)) continue
+    throw new BackupArchiveCorruptError(`entry '${safeEntryName(name)}' is not declared by the manifest`)
+  }
+}
+
+function isDeclaredResourceEntry(
+  name: string,
+  declared: {
+    files: ReadonlySet<string>
+    notes: ReadonlySet<string>
+    knowledge: ReadonlySet<string>
+    skills: ReadonlySet<string>
+  }
+): boolean {
+  if (name.startsWith('files/')) return hasDeclaredRoot(name.slice('files/'.length), declared.files)
+  if (name.startsWith('notes/')) return declared.notes.has(name.slice('notes/'.length))
+  if (name.startsWith('knowledge/')) return hasDeclaredRoot(name.slice('knowledge/'.length), declared.knowledge)
+  if (name.startsWith('skills/')) return hasDeclaredRoot(name.slice('skills/'.length), declared.skills)
+  return false
+}
+
+/** The entry's first path segment must name a declared resource (see the shape caveat above). */
+function hasDeclaredRoot(rest: string, declaredRoots: ReadonlySet<string>): boolean {
+  const slash = rest.indexOf('/')
+  const root = slash === -1 ? rest : rest.slice(0, slash)
+  return root.length > 0 && declaredRoots.has(root)
 }
 
 /**

@@ -85,6 +85,50 @@ export interface RestoreSkippedResource {
 }
 
 /**
+ * Lossy outcomes a restore accepts rather than aborting on. Stable codes so the
+ * renderer can i18n them; the engine's English detail stays diagnostic-only.
+ *
+ * - `ref_cleared`: a dangling FK was set NULL (the row survives, the link does not)
+ * - `row_pruned`: a row was deleted because a required reference target was missing
+ * - `rows_skipped`: backup rows were never imported (e.g. a nested member whose parent
+ *   was not imported)
+ * - `association_dropped`: a junction / polymorphic association row was dropped because
+ *   an endpoint is unavailable in the merged DB
+ * - `field_conflict`: a column merge kept the local value on an irreconcilable conflict
+ *   (e.g. a discriminated-union `type` mismatch), so the backup value is not applied
+ * - `attachment_unavailable`: an imported message references an attachment blob this
+ *   archive did not carry
+ * - `resource_content_missing`: the export shipped a resource's DB row without its file
+ *   content (manifest `degraded`)
+ */
+export const RestoreDegradationKindSchema = z.enum([
+  'ref_cleared',
+  'row_pruned',
+  'rows_skipped',
+  'association_dropped',
+  'field_conflict',
+  'attachment_unavailable',
+  'resource_content_missing'
+])
+
+export type RestoreDegradationKind = z.infer<typeof RestoreDegradationKindSchema>
+
+/**
+ * One structured degradation record. Every lossy restore phase (merge repair, junction /
+ * polymorphic drops, field conflicts, attachment disclosure, export-side content
+ * omissions) produces these so nothing is disclosed by log line only.
+ */
+export interface RestoreDegradation {
+  readonly kind: RestoreDegradationKind
+  /** DB table the loss applies to — scopes the UI line; not user-facing on its own. */
+  readonly scope: string
+  /** Affected row count (aggregated per scope+kind+detail). */
+  readonly count: number
+  /** Raw engine detail (English, diagnostic). The UI renders from `kind`. */
+  readonly detail?: string
+}
+
+/**
  * Restore result summary shown in the relaunch-confirm dialog BEFORE promotion
  * applies. Promotion hasn't run yet at this point (preboot may expire the whole
  * batch via assertNoAddConflicts), so UI copy MUST use future tense
@@ -93,11 +137,15 @@ export interface RestoreSkippedResource {
  * Main→renderer event payload (TCB source → pure type, not zod-parsed).
  * `toRestore` is pre-computed by planning (not reverse-derived from resources,
  * which can't separate knowledge vs skill — both are `dir-add`). `toSkip` mirrors
- * plan.skips 1:1 with stable reason codes for renderer i18n.
+ * plan.skips 1:1 with stable reason codes for renderer i18n. `degradations` carries
+ * the lossy merge/export outcomes — the DB is already merged when this is written, so
+ * unlike toRestore/toSkip these describe what the restore ALREADY gave up, and they
+ * must survive the relaunch in the journal (a log line does not).
  */
 export interface RestoreResultSummary {
   readonly toRestore: ReadonlyArray<{ readonly kind: ResourceClass; readonly count: number }>
   readonly toSkip: ReadonlyArray<RestoreSkippedResource>
+  readonly degradations: ReadonlyArray<RestoreDegradation>
 }
 
 const ResourceClassSchema: z.ZodType<ResourceClass> = z.enum(['file', 'knowledge', 'skill', 'note'])
@@ -137,6 +185,13 @@ const RestoreSkippedResourceSchema = z.union([
     }))
 ])
 
+const RestoreDegradationSchema = z.strictObject({
+  kind: RestoreDegradationKindSchema,
+  scope: z.string().min(1),
+  count: z.number().int().nonnegative(),
+  detail: z.string().optional()
+})
+
 /** Journal/status schema; legacy English reasons normalize to stable codes. */
 export const RestoreResultSummarySchema: z.ZodType<RestoreResultSummary> = z.strictObject({
   toRestore: z.array(
@@ -145,7 +200,9 @@ export const RestoreResultSummarySchema: z.ZodType<RestoreResultSummary> = z.str
       count: z.number().int().nonnegative()
     })
   ),
-  toSkip: z.array(RestoreSkippedResourceSchema)
+  toSkip: z.array(RestoreSkippedResourceSchema),
+  // Additive: a journal staged by a build without degradations still parses.
+  degradations: z.array(RestoreDegradationSchema).default([])
 })
 
 /**

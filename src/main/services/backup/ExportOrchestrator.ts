@@ -347,6 +347,14 @@ export class ExportOrchestrator {
         skillsDir = join(stagingRoot, 'skills')
         const r = await fileStager.stageSkillDirs(skillDirs, skillsDir)
         skillsStaged = r.skills
+        // A skill dir absent on disk keeps its agent_global_skill row (never pruned on
+        // disk absence), so restore would register a Skill whose non-re-downloadable
+        // content the archive never carried. Record the degradation instead of shipping
+        // a silently incomplete archive — a locally broken skill must not fail the backup.
+        for (const m of r.missing) {
+          degradedResources.push({ kind: 'skill-dir-missing', folderName: m.folderName, contentHash: m.contentHash })
+          logger.warn('backup: skill content missing on disk', { preset: options.preset, folderName: m.folderName })
+        }
       }
       if (notesRelPaths.size > 0) {
         // notesRelPaths is only populated on full + PREFERENCES collect, which
@@ -395,7 +403,10 @@ export class ExportOrchestrator {
       await this.vacuumFinal(backupDbPath)
 
       // staged ids = collected − missing (per-file manifest for restore cross-check).
-      const stagedFileIds = [...fileIds].filter((id) => !filesMissing.includes(id))
+      // Set membership, not Array.includes: both sides can hold the whole file library,
+      // and a linear scan per id makes this O(n²) right before archive assembly.
+      const filesMissingSet = new Set(filesMissing)
+      const stagedFileIds = [...fileIds].filter((id) => !filesMissingSet.has(id))
 
       // 5. build manifest reflecting what was actually staged.
       manifest = {

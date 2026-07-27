@@ -584,7 +584,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     }
     expect(row.model_id).toBeNull() // link dropped, row survives
     expect(result.degradedToSkips).toEqual([
-      { table: 'message', count: 1, reason: expect.stringContaining('SET NULL') }
+      { kind: 'ref_cleared', table: 'message', count: 1, reason: expect.stringContaining('SET NULL') }
     ])
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([]) // repair left the graph clean
   })
@@ -608,7 +608,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     // The message itself survives — only the required-target row was pruned.
     expect(dbh.sqlite.prepare(`SELECT id FROM message WHERE id = 'msg-prune'`).get()).toBeDefined()
     expect(result.degradedToSkips).toEqual([
-      { table: 'chat_message_file_ref', count: 1, reason: expect.stringContaining('pruned') }
+      { kind: 'row_pruned', table: 'chat_message_file_ref', count: 1, reason: expect.stringContaining('pruned') }
     ])
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
   })
@@ -772,6 +772,72 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
       .get() as { source_id: string; file_entry_id: string }
     expect(row.source_id).toBe('msg-nest')
     expect(row.file_entry_id).toBe('fe-local')
+  })
+
+  it('resolves nested members past SQLITE_MAX_VARIABLE_NUMBER anchor ids', async () => {
+    // A Topic with more messages than the bundled SQLITE_MAX_VARIABLE_NUMBER (32766) makes
+    // chat_message_file_ref's anchor list exceed the bind-variable limit; an unchunked
+    // IN (?, ...) fails at prepare() with "too many SQL variables" even with zero file_refs.
+    // Row count is bounded by the archive's rows, not by its byte limits — so this must hold.
+    const ANCHORS = 32_800
+    insertFileEntry(dbh.sqlite, 'fe-bulk', '/tmp/bulk')
+    seedBackup(
+      (db) => {
+        insertTopic(db, 'tpc-bulk')
+        for (let i = 0; i < ANCHORS; i++) {
+          insertMessage(db, `msg-bulk-${i}`, 'tpc-bulk', i === 0 ? 'root' : 'user', i === 0 ? null : 'msg-bulk-0')
+        }
+        insertChatMessageFileRef(db, 'fr-bulk', `msg-bulk-${ANCHORS - 1}`, 'fe-bulk')
+      },
+      { foreignKeys: false }
+    )
+
+    const result = await runMerge(topCtx())
+
+    expect(result).toMatchObject({ degradedToSkips: [] })
+    expect(countRows('message')).toBe(ANCHORS)
+    // The file_ref hangs off the LAST message — proving every chunk was queried, not just the first.
+    expect(dbh.sqlite.prepare(`SELECT source_id FROM chat_message_file_ref WHERE id = 'fr-bulk'`).get()).toEqual({
+      source_id: `msg-bulk-${ANCHORS - 1}`
+    })
+  }, 60_000)
+
+  it('does not disclose attachments of pre-existing local messages this restore never touched', async () => {
+    // stagedFileEntryIds describes THIS archive only. A local message's attachment blob is
+    // valid on disk regardless — scanning the whole message table would misreport it as
+    // "not staged" on every restore.
+    insertTopic(dbh.sqlite, 'tpc-local')
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO message (id, parent_id, topic_id, role, data, searchable_text, status, siblings_group_id, created_at, updated_at)
+         VALUES ('msg-local', NULL, 'tpc-local', 'root', ?, '', 'success', 0, ?, ?)`
+      )
+      .run(JSON.stringify({ parts: [{ type: 'file', fileEntryId: 'fe-local-only' }] }), Date.now(), Date.now())
+    seedBackup((db) => {
+      insertTopic(db, 'tpc-imported')
+      insertMessage(db, 'msg-imported', 'tpc-imported', 'root', null)
+    })
+
+    const result = (await runMerge(topCtx())) as { degradedToSkips: { kind: string }[] }
+
+    expect(result.degradedToSkips.filter((d) => d.kind === 'attachment_unavailable')).toEqual([])
+  })
+
+  it('discloses attachments of messages this restore imported when the blob was not staged', async () => {
+    seedBackup((db) => {
+      insertTopic(db, 'tpc-att')
+      const now = Date.now()
+      db.prepare(
+        `INSERT INTO message (id, parent_id, topic_id, role, data, searchable_text, status, siblings_group_id, created_at, updated_at)
+         VALUES ('msg-att', NULL, 'tpc-att', 'root', ?, '', 'success', 0, ?, ?)`
+      ).run(JSON.stringify({ parts: [{ type: 'file', fileEntryId: 'fe-unstaged' }] }), now, now)
+    })
+
+    const result = (await runMerge(topCtx())) as { degradedToSkips: { kind: string; table: string; count: number }[] }
+
+    expect(result.degradedToSkips).toContainEqual(
+      expect.objectContaining({ kind: 'attachment_unavailable', table: 'message', count: 1 })
+    )
   })
 
   it('honors an explicit SKIP override on a natural-key domain instead of throwing', async () => {

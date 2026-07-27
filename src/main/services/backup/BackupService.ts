@@ -461,7 +461,7 @@ export class BackupService extends BaseService {
           notes: () => this.resolveNotesRoot()
         }
       })
-      const { plan } = await importOrch.importBackup({
+      const { summary } = await importOrch.importBackup({
         archivePath,
         restoreId,
         signal: abortController.signal
@@ -479,7 +479,9 @@ export class BackupService extends BaseService {
       // above, not by activeOperation.
       sealed = true
       this.activeOperation = null
-      this.broadcastRestoreSummary({ toRestore: plan.toRestore, toSkip: plan.skips })
+      // The orchestrator's summary IS journal.summary — broadcast it verbatim so the live
+      // payload and the post-relaunch journal read can never disagree.
+      this.broadcastRestoreSummary(summary)
       return { restoreId }
     } catch (e) {
       throw this.toIpcError(e)

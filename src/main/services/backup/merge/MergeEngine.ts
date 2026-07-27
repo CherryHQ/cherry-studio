@@ -25,6 +25,7 @@ import { DB_FTS_VIRTUAL_TABLES, DB_UNIQUE_KEYS } from '@main/data/db/backup/dbSc
 import type { BackupDomain } from '@main/data/db/backup/domains'
 import type { DbType } from '@main/data/db/types'
 import type { EntityType } from '@shared/data/types/entityType'
+import type { RestoreDegradationKind } from '@shared/types/backup'
 import Database from 'better-sqlite3'
 
 import { assertFtsIntegrity, rebuildFts } from './ftsCentral'
@@ -72,6 +73,14 @@ const FTS_DERIVED_PHYSICAL_COLUMNS = new Set(['fts_rowid', 'searchable_text'])
 
 /** Record-separator for degradedToSkips aggregation keys (must not appear in table names). */
 const DEGRADE_KEY_SEP = '\x1e'
+
+/**
+ * Max bound variables per anchor-id `IN (...)` lookup. Stays far below the bundled
+ * SQLite `SQLITE_MAX_VARIABLE_NUMBER` (32766) so a large aggregate — e.g. a Topic with
+ * more messages than the limit, whose nested `chat_message_file_ref` member anchors on
+ * every message id — cannot fail at prepare() with "too many SQL variables".
+ */
+const ANCHOR_ID_CHUNK = 500
 
 /**
  * Parse a SQLite cell that may already be a JS value (drizzle) or a JSON text string
@@ -307,7 +316,7 @@ export class MergeEngine {
         // Global junction phase — import pure junction tables after all root/member writes,
         // resolving each endpoint via the role-aware identityMap (R8) and cascade-pruning rows
         // whose source was not imported or whose target is unavailable (§5.2).
-        this.importAllJunctionRows(workSqlite, ctx.domains, backupDb, identityMap)
+        this.importAllJunctionRows(workSqlite, ctx.domains, backupDb, identityMap, degradedToSkips)
         // Polymorphic association phase (A1) — entity_tag (1 owning FK + soft polymorphic
         // entityId). Runs AFTER junctions so tag + entity-root identityMap.targetMap entries
         // are populated; BEFORE repair so rewritten rows are not misread as dangling.
@@ -319,9 +328,10 @@ export class MergeEngine {
         // nullable FK → SET NULL, NOT NULL FK → prune the row, both disclosed). The base was
         // asserted FK-clean pre-merge, so every repair touches merge-inserted rows only.
         this.repairDanglingRefs(workSqlite, degradedToSkips)
-        // Soft-ref disclosure: message.data fileEntryId blobs not in stagedFileEntryIds
-        // (DB-only restore → empty set → every attachment disclosed).
-        this.discloseFileIdSoftRefs(workSqlite, ctx, degradedToSkips)
+        // Soft-ref disclosure: message.data fileEntryId blobs not in stagedFileEntryIds,
+        // over the messages this restore imported (DB-only restore → empty staged set →
+        // every imported attachment disclosed).
+        this.discloseFileIdSoftRefs(workSqlite, ctx, identityMap, degradedToSkips)
         // FTS rebuild backstop — whole-index resync after the bulk import (single-row triggers
         // can't backstop it; skipped rows / fts_rowid collisions leave stale indexes otherwise).
         rebuildFts(workSqlite)
@@ -788,17 +798,28 @@ export class MergeEngine {
           // Dedupe: orphan count is global to the backup nested table.
           const already = degradedToSkips.some((d) => d.table === member.table && d.reason === reason)
           if (!already && skipped.c > 0) {
-            degradedToSkips.push({ table: member.table, count: skipped.c, reason })
+            degradedToSkips.push({ kind: 'rows_skipped', table: member.table, count: skipped.c, reason })
           }
         }
         continue
       }
-      const placeholders = [...anchorIds].map(() => '?').join(',')
-      const memberRows = backupDb
-        .prepare(
-          `SELECT * FROM ${quoteIdent(member.table)} WHERE ${quoteIdent(physicalColumn(member.viaColumn))} IN (${placeholders})`
+      // Chunk the anchor IN(...) list: a Topic with tens of thousands of messages would
+      // otherwise bind more variables than SQLITE_MAX_VARIABLE_NUMBER (32766 in the
+      // bundled build) and fail at prepare() with "too many SQL variables". Row count is
+      // bounded by the archive's row count, not by its byte limits.
+      const anchorList = [...anchorIds]
+      const memberRows: Record<string, unknown>[] = []
+      for (let i = 0; i < anchorList.length; i += ANCHOR_ID_CHUNK) {
+        const batch = anchorList.slice(i, i + ANCHOR_ID_CHUNK)
+        const placeholders = batch.map(() => '?').join(',')
+        memberRows.push(
+          ...(backupDb
+            .prepare(
+              `SELECT * FROM ${quoteIdent(member.table)} WHERE ${quoteIdent(physicalColumn(member.viaColumn))} IN (${placeholders})`
+            )
+            .all(...batch) as Record<string, unknown>[])
         )
-        .all(...anchorIds) as Record<string, unknown>[]
+      }
       const memberPkCols = this.registry.getPrimaryKey(member.table).columns
       const memberPkColPhys = physicalColumn(memberPkCols[0])
       const rule = uniqueRules.find((r) => r.table === member.table)
@@ -919,6 +940,7 @@ export class MergeEngine {
         const { value: merged, typeConflict } = deepMergeJson(localVal, backupVal)
         if (typeConflict) {
           degradedToSkips.push({
+            kind: 'field_conflict',
             table,
             count: 1,
             reason: `deep-merge type conflict kept local ('${typeConflict.localType}' vs backup '${typeConflict.backupType}')`
@@ -946,20 +968,34 @@ export class MergeEngine {
   /**
    * Disclose message.data soft refs whose fileEntryId blob was not staged.
    * DB-only restore passes empty stagedFileEntryIds → every attachment disclosed.
+   *
+   * Scoped to the messages THIS restore imported (identityMap.sourceMap): `stagedFileEntryIds`
+   * describes only this archive, so an attachment on an untouched local message would be
+   * counted "not staged" even though its local blob is perfectly valid. Per-id lookups also
+   * keep a large local history out of memory — only imported rows are read + JSON-parsed.
    */
   private discloseFileIdSoftRefs(
     workSqlite: Database.Database,
     ctx: MergeContext,
+    identityMap: IdentityMap,
     degradedToSkips: DegradedSkip[]
   ): void {
+    const importedMessageIds = identityMap.sourceMap.get('message')
+    if (!importedMessageIds || importedMessageIds.size === 0) return
     const hasMessage =
       workSqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='message'").get() !== undefined
     if (!hasMessage) return
     const staged = ctx.stagedFileEntryIds
     let missing = 0
-    const rows = workSqlite.prepare(`SELECT data FROM ${quoteIdent('message')}`).all() as { data: string | null }[]
-    for (const row of rows) {
-      if (!row.data) continue
+    const pkPhys = physicalColumn(this.registry.getPrimaryKey('message').columns[0])
+    const selectData = this.prepareCached(
+      workSqlite,
+      `sel:message:softref:${pkPhys}`,
+      `SELECT data FROM ${quoteIdent('message')} WHERE ${quoteIdent(pkPhys)} = ?`
+    )
+    for (const workMessageId of new Set(importedMessageIds.values())) {
+      const row = selectData.get(workMessageId) as { data: string | null } | undefined
+      if (!row?.data) continue
       let parsed: unknown
       try {
         parsed = typeof row.data === 'string' ? JSON.parse(row.data) : row.data
@@ -989,10 +1025,11 @@ export class MergeEngine {
     }
     if (missing > 0) {
       degradedToSkips.push({
+        kind: 'attachment_unavailable',
         table: 'message',
         count: missing,
         reason:
-          'message attachment blob not staged (fileEntryId missing from stagedFileEntryIds — DB-only restore discloses all)'
+          'imported message attachment blob not staged (fileEntryId missing from stagedFileEntryIds — DB-only restore discloses all)'
       })
     }
   }
@@ -1047,9 +1084,17 @@ export class MergeEngine {
     workSqlite: Database.Database,
     selectedDomains: readonly BackupDomain[],
     backupDb: Database.Database,
-    identityMap: IdentityMap
+    identityMap: IdentityMap,
+    degradedToSkips: DegradedSkip[]
   ): void {
     const descriptors = deriveJunctionDescriptors(this.registry, selectedDomains)
+    // Cascade-pruned junction rows are association loss like the polymorphic phase's —
+    // aggregate + disclose them instead of dropping silently.
+    const counts = new Map<string, number>()
+    const bump = (table: DbTableName, reason: string): void => {
+      const key = `${table}${DEGRADE_KEY_SEP}${reason}`
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
     for (const desc of descriptors) {
       const sourcePhys = physicalColumn(desc.sourceEndpoint.fkColumn)
       const targetPhys = physicalColumn(desc.targetEndpoint.fkColumn)
@@ -1061,11 +1106,21 @@ export class MergeEngine {
         const sourceBackupId = String(row[sourcePhys])
         const targetBackupId = String(row[targetPhys])
         const sourceCanonical = identityMap.sourceMap.get(desc.sourceEndpoint.table)?.get(sourceBackupId)
-        if (sourceCanonical === undefined) continue // source not imported (skip/rename) → prune
+        if (sourceCanonical === undefined) {
+          bump(desc.table, `junction source '${desc.sourceEndpoint.table}' not imported`) // → prune
+          continue
+        }
         const targetCanonical = identityMap.targetMap.get(desc.targetEndpoint.table)?.get(targetBackupId)
-        if (targetCanonical === undefined) continue // target unavailable (unselected / no local) → prune
+        if (targetCanonical === undefined) {
+          bump(desc.table, `junction target '${desc.targetEndpoint.table}' unavailable`) // → prune
+          continue
+        }
         this.insertJunctionRow(workSqlite, desc.table, row, sourcePhys, sourceCanonical, targetPhys, targetCanonical)
       }
+    }
+    for (const [key, count] of counts) {
+      const [table, reason] = key.split(DEGRADE_KEY_SEP)
+      degradedToSkips.push({ kind: 'association_dropped', table: table as DbTableName, count, reason })
     }
   }
 
@@ -1161,7 +1216,7 @@ export class MergeEngine {
 
     for (const [key, count] of counts) {
       const [table, reason] = key.split(DEGRADE_KEY_SEP)
-      degradedToSkips.push({ table: table as DbTableName, count, reason })
+      degradedToSkips.push({ kind: 'association_dropped', table: table as DbTableName, count, reason })
     }
   }
 
@@ -1238,11 +1293,11 @@ export class MergeEngine {
               `UPDATE ${quoteIdent(v.table)} SET ${setCols.map((c) => `${quoteIdent(c)} = NULL`).join(', ')} WHERE rowid = ?`
             )
             .run(v.rowid)
-          const key = `${v.table}${DEGRADE_KEY_SEP}ref to missing ${v.parent} cleared (SET NULL)`
+          const key = `${v.table}${DEGRADE_KEY_SEP}ref_cleared${DEGRADE_KEY_SEP}ref to missing ${v.parent} cleared (SET NULL)`
           counts.set(key, (counts.get(key) ?? 0) + 1)
         } else {
           workSqlite.prepare(`DELETE FROM ${quoteIdent(v.table)} WHERE rowid = ?`).run(v.rowid)
-          const key = `${v.table}${DEGRADE_KEY_SEP}row pruned (required ${v.parent} target missing)`
+          const key = `${v.table}${DEGRADE_KEY_SEP}row_pruned${DEGRADE_KEY_SEP}row pruned (required ${v.parent} target missing)`
           counts.set(key, (counts.get(key) ?? 0) + 1)
         }
         repaired = true
@@ -1251,8 +1306,8 @@ export class MergeEngine {
       if (!repaired) break
     }
     for (const [key, count] of counts) {
-      const [table, reason] = key.split(DEGRADE_KEY_SEP)
-      degradedToSkips.push({ table: table as DbTableName, count, reason })
+      const [table, kind, reason] = key.split(DEGRADE_KEY_SEP)
+      degradedToSkips.push({ kind: kind as RestoreDegradationKind, table: table as DbTableName, count, reason })
     }
   }
 

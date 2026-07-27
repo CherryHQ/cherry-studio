@@ -60,7 +60,10 @@ function stagedJournal(): RestoreJournal {
     ],
     summary: {
       toRestore: [{ kind: 'file', count: 1 }],
-      toSkip: [{ id: 'existing-note.md', kind: 'note', reasonCode: 'target_exists' }]
+      toSkip: [{ id: 'existing-note.md', kind: 'note', reasonCode: 'target_exists' }],
+      degradations: [
+        { kind: 'row_pruned', scope: 'chat_message_file_ref', count: 2, detail: 'required file_entry missing' }
+      ]
     }
   }
 }

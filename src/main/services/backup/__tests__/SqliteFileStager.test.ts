@@ -157,7 +157,7 @@ describe('SqliteFileStager', () => {
     }
   })
 
-  it('stageSkillDirs copies skill folders and skips missing dirs without a missing list', async () => {
+  it('stageSkillDirs copies skill folders and reports absent ones as missing (degradation, not prune)', async () => {
     const skillsRoot = await mkdtemp(join(tmpdir(), 'cs-stager-skills-'))
     const dest = await mkdtemp(join(tmpdir(), 'cs-stager-dest-'))
     try {
@@ -174,6 +174,9 @@ describe('SqliteFileStager', () => {
       )
 
       expect(r.skills).toEqual([{ folderName: 'skill-a', contentHash: 'h1' }])
+      // Absent dirs surface so the export can record the degradation instead of shipping a
+      // registered Skill whose non-re-downloadable content the archive never carried.
+      expect(r.missing).toEqual([{ folderName: 'skill-missing', contentHash: 'h2' }])
       expect(existsSync(join(dest, 'skill-a', 'SKILL.md'))).toBe(true)
     } finally {
       await rm(skillsRoot, { recursive: true, force: true })

@@ -170,7 +170,8 @@ describe('RestoreV2Popup', () => {
           { kind: 'file', count: 3 },
           { kind: 'knowledge', count: 1 }
         ],
-        toSkip: [{ id: 'kb-local', kind: 'knowledge', reasonCode: 'target_exists' }]
+        toSkip: [{ id: 'kb-local', kind: 'knowledge', reasonCode: 'target_exists' }],
+        degradations: [{ kind: 'row_pruned', scope: 'chat_message_file_ref', count: 2 }]
       })
     })
 
@@ -182,6 +183,9 @@ describe('RestoreV2Popup', () => {
     expect(screen.getByText('settings.data.backup.v2.restore.summary.will_skip')).toBeInTheDocument()
     expect(screen.getByText('kb-local')).toBeInTheDocument()
     expect(screen.getByText('settings.data.backup.v2.restore.summary.skip_reason.target_exists')).toBeInTheDocument()
+    // Degradations are what the restore already gave up — disclosed alongside the plan.
+    expect(screen.getByText('settings.data.backup.v2.restore.summary.degraded')).toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup.v2.restore.summary.degraded_kind.row_pruned')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('v2-restore-restart-button'))
     expect(requestMock).toHaveBeenCalledWith('backup.restore_relaunch')
@@ -222,7 +226,8 @@ describe('RestoreV2Popup', () => {
       state: 'pending',
       summary: {
         toRestore: [{ kind: 'file', count: 3 }],
-        toSkip: [{ id: 'kb-local', kind: 'knowledge', reasonCode: 'target_exists' }]
+        toSkip: [{ id: 'kb-local', kind: 'knowledge', reasonCode: 'target_exists' }],
+        degradations: []
       }
     })
 
@@ -254,7 +259,7 @@ describe('RestoreV2Popup', () => {
     })
 
     act(() => {
-      ipcListeners.get('backup.restore_summary')!({ toRestore: [], toSkip: [] })
+      ipcListeners.get('backup.restore_summary')!({ toRestore: [], toSkip: [], degradations: [] })
     })
 
     expect(screen.getByText('settings.data.backup.v2.restore.summary.none')).toBeInTheDocument()
@@ -268,7 +273,8 @@ describe('RestoreV2Popup', () => {
             state: 'pending',
             summary: {
               toRestore: [{ kind: 'knowledge', count: 2 }],
-              toSkip: [{ id: 'skill-a', kind: 'skill', reasonCode: 'local_record_exists' }]
+              toSkip: [{ id: 'skill-a', kind: 'skill', reasonCode: 'local_record_exists' }],
+              degradations: []
             }
           }
         : undefined

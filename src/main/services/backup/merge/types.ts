@@ -11,6 +11,7 @@ import type { AggregateBoundary } from '@main/data/db/backup/contributorTypes'
 import type { DbColumnName, DbTableName } from '@main/data/db/backup/dbSchemaRefs'
 import type { BackupDomain, ConflictStrategy } from '@main/data/db/backup/domains'
 import type { DbType } from '@main/data/db/types'
+import type { RestoreDegradationKind } from '@shared/types/backup'
 import type Database from 'better-sqlite3'
 
 import type { ResourcePlan } from '../resourcePlanning'
@@ -119,14 +120,22 @@ export interface IdentityMap {
   readonly targetMap: Map<DbTableName, Map<string, string>>
 }
 
-/** A degraded-to-SKIP record (renamable:false RENAME fallback, etc.) — for the restore sidecar. */
+/**
+ * A degraded-to-SKIP record — the merge side of the one structured degradation contract
+ * (`RestoreDegradation`). Every lossy merge phase (dangling-ref repair, junction /
+ * polymorphic drops, field conflicts, attachment disclosure) emits one of these; the
+ * ImportOrchestrator maps them into `RestoreResultSummary.degradations` so they survive
+ * the relaunch in the journal instead of living only in a log line.
+ */
 export interface DegradedSkip {
+  /** Stable code the renderer i18n's — `reason` stays diagnostic-only. */
+  readonly kind: RestoreDegradationKind
   readonly table: DbTableName
   readonly count: number
   readonly reason: string
 }
 
-/** Merge engine result (degraded-to-SKIP records go to the BackupService-owned sidecar, NOT journal). */
+/** Merge engine result — degraded-to-SKIP records reach the durable restore summary + journal. */
 export interface MergeResult {
   readonly degradedToSkips: readonly DegradedSkip[]
 }

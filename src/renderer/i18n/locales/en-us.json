@@ -5841,6 +5841,16 @@
             "selected": "Selected archive:",
             "skip_only": "Only the skip (SKIP) merge strategy is supported. Overwrite and rename are not available yet.",
             "summary": {
+              "degraded": "Data affected by this restore",
+              "degraded_kind": {
+                "association_dropped": "Some associations will be dropped because one side is unavailable.",
+                "attachment_unavailable": "Some message attachments are not included in this archive.",
+                "field_conflict": "Some fields conflicted and will keep the local value.",
+                "ref_cleared": "Some links could not be preserved and will be cleared.",
+                "resource_content_missing": "Some items will restore without their file content.",
+                "row_pruned": "Some rows will be dropped because a required reference is missing.",
+                "rows_skipped": "Some rows from the backup will not be imported."
+              },
               "kind": {
                 "file": "Files",
                 "knowledge": "Knowledge bases",

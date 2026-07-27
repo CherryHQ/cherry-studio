@@ -387,12 +387,14 @@ describe('e2e-restore full resource fixtures (B3)', () => {
     const restoreId = 'rst-e2e-full-res-spine'
     const result = await new ImportOrchestrator(makeDeps()).importBackup({ archivePath, restoreId })
 
-    expect(result.plan.toRestore).toEqual([
+    expect(result.summary.toRestore).toEqual([
       { kind: 'file', count: 1 },
       { kind: 'knowledge', count: 1 },
       { kind: 'skill', count: 1 }
     ])
-    expect(result.plan.skips).toEqual([{ id: 'folder/note.md', kind: 'note', reasonCode: 'notes_root_unavailable' }])
+    expect(result.summary.toSkip).toEqual([
+      { id: 'folder/note.md', kind: 'note', reasonCode: 'notes_root_unavailable' }
+    ])
     const stagedDb = new Database(join(stagingRoot, restoreId, 'work.sqlite'), { readonly: true })
     try {
       expect((stagedDb.prepare(`SELECT COUNT(*) AS count FROM note`).get() as { count: number }).count).toBe(0)
@@ -405,10 +407,8 @@ describe('e2e-restore full resource fixtures (B3)', () => {
     if (journal.kind !== 'ok') throw new Error('unreachable')
     expect(journal.journal.fileResources).toHaveLength(3)
     expect(journal.journal.fileResources.map((r) => r.kind).sort()).toEqual(['blob-add', 'dir-add', 'dir-add'])
-    expect(journal.journal.summary).toEqual({
-      toRestore: result.plan.toRestore,
-      toSkip: result.plan.skips
-    })
+    // The broadcast payload and the durable journal summary are the same object.
+    expect(journal.journal.summary).toEqual(result.summary)
   })
 
   // restorePromotion e2e — follow-up beyond A2
