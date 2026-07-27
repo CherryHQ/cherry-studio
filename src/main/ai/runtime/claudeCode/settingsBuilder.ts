@@ -1059,6 +1059,11 @@ async function buildRuntimeContext(): Promise<string> {
     getPromptCliInventory()
   ])
   return [
+    '## Managed CLI Installation',
+    'When the goal is to make a reusable command-line executable available for later commands or future sessions, you MUST call `cli_search` before running any installer or following any installation guide. This applies even when the guide recommends `curl`/`wget` piped to a shell, `npx`, `pipx`, or a package-manager install command.',
+    'Use `cli_install` only with the exact candidate returned by `cli_search`. Never execute a remote install script as a fallback after a registry miss. If `cli_search` returns `needs_source`, inspect trusted documentation only to identify a supported source, exact package/module/repository, and real executable, then retry `cli_search`. If no supported source can be identified, explain that Cherry Studio cannot manage this CLI instead of installing it outside BinaryManager.',
+    '`curl` and `wget` remain available for non-installing work such as APIs, data, documentation, and project files. Fetching documentation does not authorize executing an installer found in it.',
+    '',
     '## Available Runtimes',
     'bun and uv are bundled and always on PATH. Use them to pull libraries and write throwaway scripts to verify logic — prefer them over node/npm/npx/pip, which are not guaranteed to be installed.',
     `- JavaScript / TypeScript — run with \`bun <file>\`, add deps with \`bun install <pkg>\`, run a package with \`bun x <tool>\` (bun: ${bunPath})`,
@@ -1066,7 +1071,7 @@ async function buildRuntimeContext(): Promise<string> {
     `- Search — \`rg\` for fast file/content search (ripgrep: ${rgPath})`,
     'Install dependencies INTO the project (cwd) only. Global installs (`-g`/`--global`, `uv tool install`, `pip install --user`) and direct mise mutations are blocked to keep tasks isolated — use `bun x` / `uvx` for one-off tools.',
     `Ready CLIs (startup snapshot, at most 20): ${cliInventory.length > 0 ? cliInventory.join(', ') : 'inventory unavailable'}.`,
-    'Use `cli_list` for the current complete inventory. Use `cli_search` and then `cli_install` for persistent CLI installation managed by Cherry Studio.',
+    'Use `cli_list` for the current complete inventory.',
     'A bare `cli_search` query checks Cherry’s managed catalog and the mise registry. If it returns `needs_source`, read a trusted installation guide, select its ecosystem with the `source` field, and retry using the exact package/module/repository identifier plus the real `executable`; never invent `npm:`/`pipx:` recipe prefixes. CLIs that need login, configuration, or reuse must be installed persistently, not run with `bun x` / `uvx`.'
   ].join('\n')
 }
