@@ -1,13 +1,8 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import {
-  defineTool,
-  type ToolComposerToolbarContribution,
-  type ToolLauncherApi,
-  TopicType
-} from '@renderer/components/composer/tools/types'
+import { GENERATE_IMAGE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
+import { defineTool, type ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { Image } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,13 +11,6 @@ interface Props {
   assistantId: string
   launcher: ToolLauncherApi
 }
-
-const GENERATE_IMAGE_TOOLBAR_MANIFEST = {
-  id: 'generate-image',
-  kind: 'command',
-  order: 20,
-  icon: <Image size={18} />
-} satisfies ToolComposerToolbarContribution
 
 /**
  * Toggle that flips `assistant.settings.enableGenerateImage`, which gates the `generate_image`
@@ -47,7 +35,7 @@ const useGenerateImageToolController = ({ assistantId, launcher }: Props) => {
   useEffect(() => {
     return launcher.registerLaunchers([
       {
-        ...GENERATE_IMAGE_TOOLBAR_MANIFEST,
+        ...GENERATE_IMAGE_TOOLBAR_MANIFEST.toolbar,
         sources: ['popover'],
         label: t('chat.input.generate_image'),
         description: '',
@@ -70,10 +58,10 @@ const GenerateImageComposerRuntime: FC<Props> = (props) => {
 
 const generateImageTool = defineTool({
   key: 'generate_image',
-  label: (t) => t('chat.input.generate_image'),
-  visibleInScopes: [TopicType.Chat],
+  label: GENERATE_IMAGE_TOOLBAR_MANIFEST.label,
+  visibleInScopes: GENERATE_IMAGE_TOOLBAR_MANIFEST.visibleInScopes,
   composer: {
-    toolbar: GENERATE_IMAGE_TOOLBAR_MANIFEST,
+    toolbar: GENERATE_IMAGE_TOOLBAR_MANIFEST.toolbar,
     runtime: ({ context }) => (
       <GenerateImageComposerRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
     )

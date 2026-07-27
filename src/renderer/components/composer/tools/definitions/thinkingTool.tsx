@@ -1,15 +1,13 @@
-import {
-  THINKING_TOOLBAR_MANIFEST,
-  ThinkingToolRuntime
-} from '@renderer/components/composer/tools/components/ThinkingButton'
-import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
+import { ThinkingToolRuntime } from '@renderer/components/composer/tools/components/ThinkingButton'
+import { THINKING_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
+import { defineTool } from '@renderer/components/composer/tools/types'
 
 const thinkingTool = defineTool({
   key: 'thinking',
-  label: (t) => t('assistants.settings.reasoning_effort.label'),
-  visibleInScopes: [TopicType.Chat, TopicType.Session],
+  label: THINKING_TOOLBAR_MANIFEST.label,
+  visibleInScopes: THINKING_TOOLBAR_MANIFEST.visibleInScopes,
   composer: {
-    toolbar: THINKING_TOOLBAR_MANIFEST,
+    toolbar: THINKING_TOOLBAR_MANIFEST.toolbar,
     runtime: ({ context: { assistant, model, launcher, reasoning } }) => (
       <ThinkingToolRuntime
         launcher={launcher}

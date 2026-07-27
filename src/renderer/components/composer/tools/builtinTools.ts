@@ -1,5 +1,3 @@
-import type { TFunction } from 'i18next'
-
 import attachmentTool from './definitions/attachmentTool'
 import generateImageTool from './definitions/generateImageTool'
 import knowledgeBaseTool from './definitions/knowledgeBaseTool'
@@ -9,11 +7,7 @@ import quickPhrasesTool from './definitions/quickPhrasesTool'
 import slashCommandsTool from './definitions/slashCommandsTool'
 import thinkingTool from './definitions/thinkingTool'
 import webSearchTool from './definitions/webSearchTool'
-import type { ComposerToolScope, ToolComposerToolbarContribution, ToolContext, ToolDefinition } from './types'
-
-export interface ComposerToolbarManifest extends ToolComposerToolbarContribution {
-  label: string
-}
+import type { ComposerToolScope, ToolContext, ToolDefinition } from './types'
 
 /**
  * The complete, explicit set of composer tools. Listing them here — instead of
@@ -37,27 +31,6 @@ export const getAllTools = (): ToolDefinition<any, any>[] => BUILTIN_COMPOSER_TO
 
 export const getTool = (key: string): ToolDefinition<any, any> | undefined =>
   BUILTIN_COMPOSER_TOOLS.find((tool) => tool.key === key)
-
-/**
- * Returns model-independent toolbar entries. Unlike runtime tool selection, this
- * intentionally ignores `condition`: pinned-button presence is a scope preference,
- * while runtime launchers own capability and enabled state.
- */
-export const getComposerToolbarManifestsForScope = (
-  scope: ComposerToolScope,
-  t: TFunction
-): ComposerToolbarManifest[] =>
-  BUILTIN_COMPOSER_TOOLS.flatMap((tool) => {
-    const toolbar = tool.composer?.toolbar
-    if (!toolbar || (tool.visibleInScopes && !tool.visibleInScopes.includes(scope))) return []
-
-    return [
-      {
-        ...toolbar,
-        label: typeof tool.label === 'function' ? tool.label(t) : tool.label
-      }
-    ]
-  }).sort((left, right) => left.order - right.order)
 
 export const getToolsForScope = (
   scope: ComposerToolScope,

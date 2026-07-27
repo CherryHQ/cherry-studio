@@ -4,7 +4,7 @@ import {
   useComposerToolLauncherVersion
 } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/quickPanel'
-import { getComposerToolbarManifestsForScope } from '@renderer/components/composer/tools/builtinTools'
+import { getComposerToolbarManifestsForScope } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ComposerToolScope } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'

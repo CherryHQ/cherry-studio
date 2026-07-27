@@ -1,6 +1,7 @@
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ToolComposerToolbarContribution, ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
+import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
   type QuickPanelInputAdapter,
@@ -23,13 +24,6 @@ interface Props {
   disabled?: boolean
   disabledReason?: string
 }
-
-export const KNOWLEDGE_BASE_TOOLBAR_MANIFEST = {
-  id: 'knowledge-base',
-  kind: 'panel',
-  order: 40,
-  icon: <FileSearch />
-} satisfies ToolComposerToolbarContribution
 
 const KNOWLEDGE_BASE_IDS_KEY_SEPARATOR = '\u0000'
 
@@ -191,7 +185,7 @@ const useKnowledgeBaseToolController = ({
   useEffect(() => {
     const disposeLauncher = launcher.registerLaunchers([
       {
-        ...KNOWLEDGE_BASE_TOOLBAR_MANIFEST,
+        ...KNOWLEDGE_BASE_TOOLBAR_MANIFEST.toolbar,
         sources: ['popover', 'root-panel'],
         label: t('chat.input.knowledge_base'),
         description: resolvedDisabledReason ?? '',

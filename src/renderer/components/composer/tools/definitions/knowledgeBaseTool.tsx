@@ -1,11 +1,12 @@
-import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
 import { isSupportedToolUse } from '@renderer/utils/assistant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useCallback } from 'react'
 
 import { chatComposerTokenId } from '../../variants/chatComposerTokens'
 import { getComposerTokenIds } from '../../variants/shared/composerTokens'
-import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST, KnowledgeBaseToolRuntime } from '../components/KnowledgeBaseButton'
+import { KnowledgeBaseToolRuntime } from '../components/KnowledgeBaseButton'
+import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST } from '../toolbarManifests'
 
 type KnowledgeBaseToolContext = ToolRenderContext<
   readonly ['selectedKnowledgeBases', 'files', 'selectableKnowledgeBases'],
@@ -48,8 +49,8 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
  */
 const knowledgeBaseTool = defineTool({
   key: 'knowledge_base',
-  label: (t) => t('chat.input.knowledge_base'),
-  visibleInScopes: [TopicType.Chat],
+  label: KNOWLEDGE_BASE_TOOLBAR_MANIFEST.label,
+  visibleInScopes: KNOWLEDGE_BASE_TOOLBAR_MANIFEST.visibleInScopes,
 
   dependencies: {
     state: ['selectedKnowledgeBases', 'files', 'selectableKnowledgeBases'] as const,
@@ -57,7 +58,7 @@ const knowledgeBaseTool = defineTool({
   },
 
   composer: {
-    toolbar: KNOWLEDGE_BASE_TOOLBAR_MANIFEST,
+    toolbar: KNOWLEDGE_BASE_TOOLBAR_MANIFEST.toolbar,
     runtime: ({ context }) => <KnowledgeBaseComposerRuntime context={context} />,
     // Editor→state: prune deselected knowledge bases and re-add ones whose marker was pasted,
     // resolved against the scope's selectable knowledge bases.

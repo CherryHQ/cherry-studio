@@ -1,9 +1,9 @@
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ToolComposerToolbarContribution, ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { ATTACHMENT_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
+import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { toast } from '@renderer/services/toast'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
-import { Paperclip } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,13 +16,6 @@ interface Props {
   setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
   disabled?: boolean
 }
-
-export const ATTACHMENT_TOOLBAR_MANIFEST = {
-  id: 'attachment',
-  kind: 'dialog',
-  order: 10,
-  icon: <Paperclip />
-} satisfies ToolComposerToolbarContribution
 
 const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, setFiles, disabled }: Props) => {
   const { t } = useTranslation()
@@ -75,7 +68,7 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
     const isDocumentOnly = !couldAddImageFile
     const disposeLauncher = launcher.registerLaunchers([
       {
-        ...ATTACHMENT_TOOLBAR_MANIFEST,
+        ...ATTACHMENT_TOOLBAR_MANIFEST.toolbar,
         sources: ['popover'],
         label: t('chat.input.upload.attachment'),
         description: '',

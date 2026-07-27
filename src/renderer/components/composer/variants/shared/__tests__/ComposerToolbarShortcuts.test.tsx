@@ -25,7 +25,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherVersion: () => 1
 }))
 
-vi.mock('@renderer/components/composer/tools/builtinTools', () => ({
+vi.mock('@renderer/components/composer/tools/toolbarManifests', () => ({
   getComposerToolbarManifestsForScope: () => mocks.manifests
 }))
 
@@ -176,7 +176,7 @@ describe('ComposerToolbarShortcuts', () => {
     const webSearchButton = screen.getByRole('button', { name: 'web-search-label' })
     expect(webSearchButton).toBeDisabled()
     expect(webSearchButton).not.toHaveAttribute('aria-pressed')
-    expect(screen.getByTestId('icon-web-search-fallback')).toBeInTheDocument()
+    expect(within(webSearchButton).getByTestId('icon-web-search-fallback')).toBeInTheDocument()
   })
 
   it('announces dialog launchers with aria-haspopup="dialog" and no toggle state', () => {

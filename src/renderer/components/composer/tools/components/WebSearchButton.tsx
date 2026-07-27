@@ -1,7 +1,8 @@
 import { Tooltip } from '@cherrystudio/ui'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ToolComposerToolbarContribution, ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { WEB_SEARCH_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
+import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
@@ -23,13 +24,6 @@ interface Props {
   assistantId: string
   launcher: ToolLauncherApi
 }
-
-export const WEB_SEARCH_TOOLBAR_MANIFEST = {
-  id: 'web-search',
-  kind: 'command',
-  order: 30,
-  icon: <Globe />
-} satisfies ToolComposerToolbarContribution
 
 const KEYLESS_PROVIDERS: ReadonlySet<WebSearchProviderId> = new Set(['fetch', 'searxng', 'exa-mcp', 'firecrawl'])
 const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean => !KEYLESS_PROVIDERS.has(id)
@@ -152,7 +146,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   useEffect(() => {
     return launcher.registerLaunchers([
       {
-        ...WEB_SEARCH_TOOLBAR_MANIFEST,
+        ...WEB_SEARCH_TOOLBAR_MANIFEST.toolbar,
         sources: ['popover'],
         label: t('chat.input.web_search.label'),
         description: '',
