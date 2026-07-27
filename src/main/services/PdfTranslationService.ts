@@ -8,6 +8,7 @@ import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { crossPlatformSpawn, killProcessTree } from '@main/utils/processRunner'
@@ -138,6 +139,36 @@ const gatewayHostForClient = (host: string): string => {
   if (host === '0.0.0.0') return '127.0.0.1'
   if (host === '::') return '[::1]'
   return host
+}
+
+/**
+ * Proxy env for the sidecar, which reaches the gateway over loopback.
+ *
+ * Two separate gaps break this on Windows. Cherry's proxy decision lives in `process.env`
+ * (written by ProxyService), not in the login shell the rest of the sidecar env is filtered
+ * from — so the sidecar inherits nothing, and Python falls back to `urllib.request.getproxies()`,
+ * which reads the WinINET registry and routes even the loopback call through the system proxy;
+ * the proxy refuses it and every paragraph fails with 502. Pinning the gateway host into
+ * NO_PROXY is separately required: the registry's own `ProxyOverride` uses shapes like `127.*`
+ * that httpx does not read as a bypass. Setting NO_PROXY alone is not enough either — it makes
+ * `getproxies()` non-empty, which suppresses the registry fallback and sends BabelDOC's asset
+ * downloads direct.
+ */
+const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost: string): Record<string, string> => {
+  const proxyEnv: Record<string, string> = {}
+  for (const [key, value] of Object.entries(getProxyEnvironment(process.env))) {
+    if (SIDECAR_ENV_KEYS.has(key.toUpperCase())) proxyEnv[key] = value
+  }
+  const bypass = proxyEnv.NO_PROXY ?? proxyEnv.no_proxy ?? inheritedNoProxy ?? ''
+  const hosts = bypass
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  // `new URL('http://[::1]:1/').hostname` keeps the brackets; NO_PROXY wants the bare address.
+  const host = gatewayHost.replace(/^\[|\]$/g, '')
+  if (!hosts.includes(host)) hosts.push(host)
+  const noProxy = hosts.join(',')
+  return { ...proxyEnv, NO_PROXY: noProxy, no_proxy: noProxy }
 }
 
 @Injectable('PdfTranslationService')
@@ -337,7 +368,7 @@ export class PdfTranslationService extends BaseService {
       'no_watermark',
       '--no-dual'
     ]
-    const env = { ...(await this.buildSidecarEnv()), PYTHONPATH: progressAdapterDir }
+    const env = { ...(await this.buildSidecarEnv(baseUrl)), PYTHONPATH: progressAdapterDir }
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -501,7 +532,7 @@ export class PdfTranslationService extends BaseService {
     if (job.cancelled) throw new Error('PDF translation cancelled')
   }
 
-  private async buildSidecarEnv(): Promise<Record<string, string>> {
+  private async buildSidecarEnv(gatewayBaseUrl: string): Promise<Record<string, string>> {
     const shellEnv = await getShellEnv()
     const allowedEnv: Record<string, string> = {}
     for (const [key, value] of Object.entries(shellEnv)) {
@@ -511,6 +542,7 @@ export class PdfTranslationService extends BaseService {
     const runtimeHome = application.getPath('feature.pdf_translation.babeldoc')
     return mergeBinaryExecutionEnv({
       ...allowedEnv,
+      ...buildSidecarProxyEnv(allowedEnv.NO_PROXY ?? allowedEnv.no_proxy, new URL(gatewayBaseUrl).hostname),
       HOME: runtimeHome,
       USERPROFILE: runtimeHome,
       PYTHONUTF8: '1'

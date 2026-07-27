@@ -568,4 +568,70 @@ describe('PdfTranslationService', () => {
 
     expect(fs.existsSync(staleDir)).toBe(false)
   })
+
+  describe('sidecar proxy environment', () => {
+    const PROXY_KEYS = ['ALL_PROXY', 'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY']
+
+    beforeEach(() => {
+      // The sidecar reads proxy settings off `process.env`, so a proxy configured on the
+      // machine running the suite would otherwise leak into these assertions.
+      for (const key of PROXY_KEYS) {
+        vi.stubEnv(key, '')
+        vi.stubEnv(key.toLowerCase(), '')
+      }
+    })
+
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    const spawnedEnv = async (): Promise<Record<string, string>> => {
+      const service = new PdfTranslationService()
+      await service.translate({
+        jobId: 'job-proxy',
+        modelId: 'openai::gpt-4.1-internal',
+        sourcePath: SOURCE_PATH,
+        sourceLangCode: 'en-us',
+        targetLangCode: 'zh-cn'
+      })
+      return mocks.spawn.mock.calls[0][2].env
+    }
+
+    it("inherits Cherry's proxy decision and exempts the loopback gateway from it", async () => {
+      vi.stubEnv('HTTP_PROXY', 'http://127.0.0.1:7890')
+      vi.stubEnv('HTTPS_PROXY', 'http://127.0.0.1:7890')
+      vi.stubEnv('NO_PROXY', 'localhost,*.local')
+
+      const env = await spawnedEnv()
+
+      expect(env.HTTP_PROXY).toBe('http://127.0.0.1:7890')
+      expect(env.HTTPS_PROXY).toBe('http://127.0.0.1:7890')
+      expect(env.NO_PROXY.split(',')).toEqual(['localhost', '*.local', '127.0.0.1'])
+      expect(env.no_proxy).toBe(env.NO_PROXY)
+    })
+
+    it('exempts the gateway even when no proxy is configured', async () => {
+      // Windows Python resolves proxies from the WinINET registry when the env carries none,
+      // which sends the loopback gateway call through the system proxy and 502s every paragraph.
+      const env = await spawnedEnv()
+
+      expect(env.NO_PROXY).toBe('127.0.0.1')
+    })
+
+    it('strips the brackets an IPv6 gateway host carries', async () => {
+      apiGateway.getCurrentConfig.mockReturnValue({ host: '::', port: 23333 })
+
+      const env = await spawnedEnv()
+
+      expect(env.NO_PROXY).toBe('::1')
+    })
+
+    it('leaves a bypass list that already covers the gateway untouched', async () => {
+      vi.stubEnv('NO_PROXY', '127.0.0.1,localhost')
+
+      const env = await spawnedEnv()
+
+      expect(env.NO_PROXY).toBe('127.0.0.1,localhost')
+    })
+  })
 })
