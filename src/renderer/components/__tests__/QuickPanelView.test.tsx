@@ -230,7 +230,7 @@ describe('QuickPanelView', () => {
       expect(panel.className).not.toContain('top-px')
     })
 
-    it('renders the panel body with drawer-like elevation and motion', () => {
+    it('exposes the panel surface for Custom CSS overrides', () => {
       const list = createList(1)
       const input = createInputAdapter()
 
@@ -248,9 +248,7 @@ describe('QuickPanelView', () => {
       )
 
       const panelBody = screen.getByTestId('quick-panel-body')
-      expect(panelBody).toHaveClass('rounded-xl', 'border', 'border-border/80', 'bg-popover', 'text-popover-foreground')
-      expect(panelBody).toHaveClass('translate-y-0', 'scale-100', 'opacity-100', 'shadow-none')
-      expect(panelBody.className).not.toContain('bg-background')
+      expect(panelBody).toHaveAttribute('data-slot', 'quick-panel-content')
     })
 
     it('uses neutral selected item styling instead of theme-primary styling', () => {

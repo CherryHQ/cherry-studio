@@ -85,6 +85,14 @@ const serializeComposerToken = (token: ComposerSurfaceProps['tokens'][number]) =
   textOffset: 0
 })
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
   targets: Set<Element>
@@ -2241,6 +2249,65 @@ describe('ChatComposer', () => {
         providerMetadata: { cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1' } }
       }
     ])
+  })
+
+  it('captures scroll eligibility before clearing a long draft or awaiting attachment preparation', async () => {
+    const attachedFile = {
+      id: 'file-1',
+      name: 'doc.pdf',
+      origin_name: 'doc.pdf',
+      ext: '.pdf',
+      type: 'document',
+      size: 1,
+      count: 1,
+      path: '/tmp/doc.pdf',
+      created_at: '2026-01-01T00:00:00.000Z',
+      fileTokenSourceId: 'source-1'
+    } as any
+    const fileToken = {
+      id: 'file:source-1',
+      kind: 'file',
+      label: 'doc.pdf',
+      payload: attachedFile,
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+    const entry = createDeferred<Awaited<ReturnType<typeof window.api.file.createInternalEntry>>>()
+    const captureLocalSendScrollEligibility = vi.fn()
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const longDraft = 'long line\n'.repeat(80)
+    mocks.files = [attachedFile]
+    vi.mocked(window.api.file.createInternalEntry).mockReturnValueOnce(entry.promise)
+
+    render(
+      <ChatComposer
+        topic={topic}
+        onSend={onSend}
+        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
+      />
+    )
+    mocks.setFiles.mockClear()
+
+    let sendPromise = Promise.resolve()
+    act(() => {
+      sendPromise = Promise.resolve(mocks.surfaceProps?.onSendDraft({ text: longDraft, tokens: [fileToken] }))
+    })
+
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
+    expect(onSend).not.toHaveBeenCalled()
+    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.setFiles.mock.invocationCallOrder[0]
+    )
+    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(window.api.file.createInternalEntry).mock.invocationCallOrder[0]
+    )
+
+    await act(async () => {
+      entry.resolve({ id: 'fe-1', ext: 'pdf' } as Awaited<ReturnType<typeof window.api.file.createInternalEntry>>)
+      await sendPromise
+    })
+
+    expect(onSend).toHaveBeenCalledOnce()
   })
 
   it('does not restore knowledge tokens from the draft cache', () => {

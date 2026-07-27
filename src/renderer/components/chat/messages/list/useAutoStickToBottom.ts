@@ -3,8 +3,8 @@
  * the bottom and content grew, stick to the new bottom. Visible growth follows
  * the bottom with a per-frame speed limit so line-wrap renders do not produce
  * one sudden scroll jump. Yields to a higher-priority scroll owner (the
- * scroll anchor) via the injected `isLocked()` predicate — the orchestrator
- * owns precedence; this hook doesn't know about anchors.
+ * user-owned viewport) via the injected `isLocked()` predicate — the
+ * orchestrator owns precedence; this hook doesn't know why it is locked.
  */
 
 import { type RefObject, useCallback, useMemo, useRef } from 'react'
@@ -30,7 +30,7 @@ export interface AutoStickInputs {
   getBottomInset?(): number
   smoothScroll: SmoothScrollController
   isAtBottom(): boolean
-  /** When true, auto-stick yields — another owner (e.g. scroll anchor) controls scrollTop. */
+  /** When true, auto-stick yields because another owner controls scrollTop. */
   isLocked(): boolean
   /** Called after we initiate a programmatic stick so the at-bottom tracker can update. */
   markStuck(): void
