@@ -11,11 +11,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * will: the handlers add sender policy and error mapping, nothing else, so the
  * behaviour worth proving lives on these methods.
  */
-const { loggerMock } = vi.hoisted(() => ({
-  loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+const { loggerMock, postPromotionMock } = vi.hoisted(() => ({
+  loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  postPromotionMock: vi.fn(async (_shouldContinue: () => boolean) => ({
+    ran: false,
+    enqueuedBaseIds: [] as string[]
+  }))
 }))
 
 vi.mock('@logger', () => ({ loggerService: { withContext: () => loggerMock } }))
+// The derived-work behaviour itself is proven in postPromotion.test.ts; what
+// matters here is that the service tracks the promise it starts.
+vi.mock('../postPromotion', () => ({ runPostPromotionWork: postPromotionMock }))
 
 let userDataDir = ''
 
@@ -60,9 +67,17 @@ function preparedJournal(): RestoreJournalV2 {
   }
 }
 
-/** Drive the protected lifecycle hook the container would call. */
+/** Drive the protected lifecycle hooks the container would call. */
 function ready(service: InstanceType<typeof BackupService>): void {
   ;(service as unknown as { onReady: () => void }).onReady()
+}
+
+function allReady(service: InstanceType<typeof BackupService>): void {
+  ;(service as unknown as { onAllReady: () => void }).onAllReady()
+}
+
+function stop(service: InstanceType<typeof BackupService>): Promise<void> {
+  return (service as unknown as { onStop: () => Promise<void> }).onStop()
 }
 
 describe('BackupService', () => {
@@ -126,6 +141,49 @@ describe('BackupService', () => {
       writeFileSync(journalPath(), '{ not json')
 
       expect(service.getStatus().restore.kind).toBe('unreadable')
+    })
+  })
+
+  describe('post-promotion work', () => {
+    it('starts the rebuild once everything is ready and joins it on stop', async () => {
+      // Un-joined, the rebuild would enqueue into a job manager that is already
+      // tearing down — the shutdown has to wait for it to notice.
+      let finish = (): void => {}
+      postPromotionMock.mockImplementationOnce(
+        () => new Promise((resolve) => (finish = () => resolve({ ran: true, enqueuedBaseIds: [] })))
+      )
+      allReady(service)
+
+      let stopped = false
+      const stopping = stop(service).then(() => (stopped = true))
+      await Promise.resolve()
+      expect(stopped).toBe(false)
+
+      finish()
+      await stopping
+      expect(stopped).toBe(true)
+    })
+
+    it('tells the rebuild to stop enqueuing as soon as shutdown begins', async () => {
+      let shouldContinue = (): boolean => true
+      postPromotionMock.mockImplementationOnce(async (probe: () => boolean) => {
+        shouldContinue = probe
+        return { ran: true, enqueuedBaseIds: [] }
+      })
+      allReady(service)
+      expect(shouldContinue()).toBe(true)
+
+      await stop(service)
+
+      expect(shouldContinue()).toBe(false)
+    })
+
+    it('logs a failed rebuild instead of failing the shutdown', async () => {
+      postPromotionMock.mockRejectedValueOnce(new Error('reindex queue is gone'))
+      allReady(service)
+
+      await expect(stop(service)).resolves.toBeUndefined()
+      expect(loggerMock.error).toHaveBeenCalled()
     })
   })
 
