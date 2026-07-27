@@ -293,7 +293,8 @@ describe('ComposerToolbarShortcuts', () => {
     ])
 
     expect(() => renderShortcuts({ pinnedIds: ['thinking'] })).not.toThrow()
-    expect(screen.getByTestId('icon-thinking-live')).toBeInTheDocument()
+    const thinkingButton = screen.getByRole('button', { name: 'thinking-manifest-label' })
+    expect(within(thinkingButton).getByTestId('icon-thinking-live')).toBeInTheDocument()
   })
 
   it('announces dialog launchers with aria-haspopup="dialog" and no toggle state', () => {
