@@ -70,7 +70,9 @@ describe('ApiGatewaySettings', () => {
     render(<ApiGatewaySettings />)
 
     expect(screen.getByDisplayValue('cs-sk-test-key')).toHaveAttribute('type', 'password')
-    expect(screen.getByDisplayValue('Authorization: Bearer cs-sk-test-key')).toHaveAttribute('type', 'password')
+    // Authorization header keeps the readable "Authorization: Bearer" prefix and masks only the key
+    expect(screen.queryByDisplayValue('Authorization: Bearer cs-sk-test-key')).not.toBeInTheDocument()
+    expect(screen.getByDisplayValue(/Authorization: Bearer •/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.provider.api_key.show_key' })).toBeInTheDocument()
   })
 
@@ -80,11 +82,11 @@ describe('ApiGatewaySettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_key.show_key' }))
 
     expect(screen.getByDisplayValue('cs-sk-test-key')).toHaveAttribute('type', 'text')
-    expect(screen.getByDisplayValue('Authorization: Bearer cs-sk-test-key')).toHaveAttribute('type', 'text')
+    expect(screen.getByDisplayValue('Authorization: Bearer cs-sk-test-key')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_key.hide_key' }))
 
     expect(screen.getByDisplayValue('cs-sk-test-key')).toHaveAttribute('type', 'password')
-    expect(screen.getByDisplayValue('Authorization: Bearer cs-sk-test-key')).toHaveAttribute('type', 'password')
+    expect(screen.queryByDisplayValue('Authorization: Bearer cs-sk-test-key')).not.toBeInTheDocument()
   })
 })
