@@ -2,6 +2,7 @@ import { application } from '@application'
 import {
   ArchiveAdmissionError,
   BackupBusyError,
+  BackupCancelledError,
   DiskFullError,
   HardLinkUnsupportedError,
   InsufficientDiskSpaceError,
@@ -78,6 +79,25 @@ async function mapped<T>(work: () => Promise<T> | T): Promise<T> {
   }
 }
 
+/**
+ * Run an abortable operation, returning `null` when the user cancelled it.
+ *
+ * A cancellation is folded into the SAME `canceled` outcome a dismissed file
+ * dialog produces: from the renderer's side both are "the user changed their
+ * mind", and neither is a failure worth a message. The pipeline unwinds its own
+ * partial work before it throws, so there is nothing left to report either.
+ */
+async function cancellable<T>(work: () => Promise<T>): Promise<T | null> {
+  try {
+    return await work()
+  } catch (error) {
+    if (error instanceof BackupCancelledError) {
+      return null
+    }
+    throw toIpcError(error)
+  }
+}
+
 export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
   'backup.get_status': async () => application.get('BackupService').getStatus(),
 
@@ -92,7 +112,10 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     if (canceled || !filePath) {
       return { status: 'canceled' as const }
     }
-    const result = await mapped(() => application.get('BackupService').export(filePath, preset))
+    const result = await cancellable(() => application.get('BackupService').export(filePath, preset))
+    if (result === null) {
+      return { status: 'canceled' as const }
+    }
     const manifest = result.manifest
     return {
       status: 'exported' as const,
@@ -113,7 +136,10 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     if (canceled || !archivePath) {
       return { status: 'canceled' as const }
     }
-    const preview = await mapped(() => application.get('BackupService').prepareRestore(archivePath))
+    const preview = await cancellable(() => application.get('BackupService').prepareRestore(archivePath))
+    if (preview === null) {
+      return { status: 'canceled' as const }
+    }
     return {
       status: 'prepared' as const,
       preview: {
@@ -125,6 +151,11 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
         migratedForward: preview.migratedForward
       }
     }
+  },
+
+  'backup.cancel_operation': async (_input, ctx) => {
+    assertManagedWindow(ctx)
+    return { cancelled: application.get('BackupService').cancelOperation() }
   },
 
   'backup.cancel_restore': async (_input, ctx) => {

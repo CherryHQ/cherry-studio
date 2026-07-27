@@ -94,6 +94,16 @@ export const backupRequestSchemas = {
   'backup.get_status': defineRoute({ input: z.void(), output: BackupStatusSchema }),
   'backup.export': defineRoute({ input: z.strictObject({ preset: PresetSchema }), output: ExportOutcomeSchema }),
   'backup.prepare_restore': defineRoute({ input: z.void(), output: PrepareOutcomeSchema }),
+  /**
+   * Abort the long-running operation reported by `backup.get_status.operation`.
+   * NOT `cancel_restore`: this one stops work in flight (an export, an archive
+   * being admitted), while `cancel_restore` discards an already-prepared restore.
+   * `cancelled: false` means nothing was running — the request raced the finish.
+   */
+  'backup.cancel_operation': defineRoute({
+    input: z.void(),
+    output: z.strictObject({ cancelled: z.boolean() })
+  }),
   'backup.cancel_restore': defineRoute({ input: z.void(), output: z.void() }),
   'backup.arm_restore': defineRoute({ input: z.void(), output: z.void() }),
   'backup.acknowledge_restore': defineRoute({ input: z.void(), output: AcknowledgeResultSchema })

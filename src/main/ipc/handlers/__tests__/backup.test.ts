@@ -6,6 +6,7 @@ const service = vi.hoisted(() => ({
   getStatus: vi.fn(),
   export: vi.fn(),
   prepareRestore: vi.fn(),
+  cancelOperation: vi.fn(),
   cancelRestore: vi.fn(),
   armRestore: vi.fn(),
   acknowledgeRestore: vi.fn()
@@ -20,6 +21,7 @@ vi.mock('electron', () => ({ dialog: { showSaveDialog, showOpenDialog } }))
 import {
   ArchiveAdmissionError,
   BackupBusyError,
+  BackupCancelledError,
   InsufficientDiskSpaceError,
   RestoreStateError
 } from '@main/services/backup'
@@ -50,6 +52,7 @@ describe('backupHandlers', () => {
     it.each([
       ['backup.export', () => backupHandlers['backup.export']({ preset: 'lite' }, detachedCtx)],
       ['backup.prepare_restore', () => backupHandlers['backup.prepare_restore'](undefined, detachedCtx)],
+      ['backup.cancel_operation', () => backupHandlers['backup.cancel_operation'](undefined, detachedCtx)],
       ['backup.cancel_restore', () => backupHandlers['backup.cancel_restore'](undefined, detachedCtx)],
       ['backup.arm_restore', () => backupHandlers['backup.arm_restore'](undefined, detachedCtx)],
       ['backup.acknowledge_restore', () => backupHandlers['backup.acknowledge_restore'](undefined, detachedCtx)]
@@ -128,6 +131,13 @@ describe('backupHandlers', () => {
         code: backupErrorCodes.EXPORT_DESTINATION
       })
     })
+
+    it('reports a cancelled export the same way a dismissed dialog is reported', async () => {
+      showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
+      service.export.mockRejectedValue(new BackupCancelledError())
+
+      await expect(backupHandlers['backup.export']({ preset: 'lite' }, ctx)).resolves.toEqual({ status: 'canceled' })
+    })
   })
 
   describe('prepare restore', () => {
@@ -165,6 +175,28 @@ describe('backupHandlers', () => {
         code: backupErrorCodes.ARCHIVE_REJECTED,
         data: { reason: 'chain-incompatible' }
       })
+    })
+
+    it('reports a cancelled preparation as canceled, not as a failure', async () => {
+      showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/in.cherrybackup'] })
+      service.prepareRestore.mockRejectedValue(new BackupCancelledError())
+
+      await expect(backupHandlers['backup.prepare_restore'](undefined, ctx)).resolves.toEqual({ status: 'canceled' })
+    })
+  })
+
+  describe('cancel operation', () => {
+    it('asks the service to abort and reports that it did', async () => {
+      service.cancelOperation.mockReturnValue(true)
+
+      await expect(backupHandlers['backup.cancel_operation'](undefined, ctx)).resolves.toEqual({ cancelled: true })
+      expect(service.cancelOperation).toHaveBeenCalledTimes(1)
+    })
+
+    it('reports a request that found nothing running', async () => {
+      service.cancelOperation.mockReturnValue(false)
+
+      await expect(backupHandlers['backup.cancel_operation'](undefined, ctx)).resolves.toEqual({ cancelled: false })
     })
   })
 

@@ -227,6 +227,41 @@ describe('BackupService', () => {
     })
   })
 
+  describe('cancellation', () => {
+    it('reports nothing to cancel when idle', () => {
+      expect(service.cancelOperation()).toBe(false)
+    })
+
+    it('aborts the signal the in-flight operation is holding', async () => {
+      let observed: AbortSignal | undefined
+      await service.runExclusive('export', async (signal) => {
+        observed = signal
+        expect(signal.aborted).toBe(false)
+        expect(service.cancelOperation()).toBe(true)
+        expect(signal.aborted).toBe(true)
+      })
+
+      expect(observed?.aborted).toBe(true)
+    })
+
+    it('gives each operation its own signal, so a cancellation cannot reach the next one', async () => {
+      const first = await service.runExclusive('export', async (signal) => {
+        service.cancelOperation()
+        return signal
+      })
+      const second = await service.runExclusive('export', async (signal) => signal)
+
+      expect(first.aborted).toBe(true)
+      expect(second.aborted).toBe(false)
+    })
+
+    it('has nothing to cancel once the operation finished', async () => {
+      await service.runExclusive('export', async () => 'done')
+
+      expect(service.cancelOperation()).toBe(false)
+    })
+  })
+
   describe('startup recovery reporting', () => {
     it('says nothing when no restore was attempted', () => {
       ready(service)
