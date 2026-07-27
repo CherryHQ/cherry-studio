@@ -344,8 +344,8 @@ describe('MigrationIpcHandler', () => {
       ({ ok: init.ok ?? true, status: init.status ?? 200, json: async () => body }) as never
 
     it.each([
-      ['CN', 'https://cherryai.com.cn/download'],
-      ['US', 'https://cherryai.com/download']
+      ['CN', 'https://cherryai.com.cn/download/v1'],
+      ['US', 'https://cherryai.com/download/v1']
     ])('opens the site matching the %s egress country', async (country, url) => {
       vi.mocked(net.fetch).mockResolvedValue(ipLookupResponse({ country_code: country }))
 
@@ -363,7 +363,7 @@ describe('MigrationIpcHandler', () => {
       arrange()
 
       await expect(invoke(MigrationIpcChannels.OpenDownloadPage)).resolves.toBe(true)
-      expect(shell.openExternal).toHaveBeenCalledWith('https://cherryai.com.cn/download')
+      expect(shell.openExternal).toHaveBeenCalledWith('https://cherryai.com.cn/download/v1')
     })
 
     it('detects the egress country once across repeated opens', async () => {

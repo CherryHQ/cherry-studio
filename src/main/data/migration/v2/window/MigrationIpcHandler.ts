@@ -55,8 +55,9 @@ function assertMigrationWindowSender(event: IpcMainInvokeEvent): void {
 // The migration window runs on the `simplest` preload (ipcRenderer only), so opening the v1
 // download page has to go through main — which also picks the site, since the renderer has no
 // say in it.
-const V1_DOWNLOAD_URL_CN = 'https://cherryai.com.cn/download'
-const V1_DOWNLOAD_URL_GLOBAL = 'https://cherryai.com/download'
+// The v1-specific page, since the button offers v1 rather than the current release.
+const V1_DOWNLOAD_URL_CN = 'https://cherryai.com.cn/download/v1'
+const V1_DOWNLOAD_URL_GLOBAL = 'https://cherryai.com/download/v1'
 const REGION_LOOKUP_TIMEOUT = 5000
 
 // One lookup per session: the error screen can be revisited across retries.
