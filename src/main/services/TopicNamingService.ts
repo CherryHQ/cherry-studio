@@ -338,7 +338,7 @@ export class TopicNamingService {
       // Main-only delivery (twin of StorageMonitorService / AppUpdaterService): naming runs
       // in a background job with no origin window, so the failure toast goes to the main
       // window rather than broadcasting to every window and double-toasting.
-      application.get('IpcApiService').broadcastToType(WindowType.Main, 'ai.topic_naming_failed', {
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'ai.topic.naming_failed', {
         message: error instanceof Error ? error.message : String(error)
       })
       return null
@@ -400,11 +400,11 @@ export class TopicNamingService {
   }
 
   private notifyTopicAutoRenamed(topicId: string): void {
-    application.get('IpcApiService').broadcast('ai.topic_auto_renamed', { topicId })
+    application.get('IpcApiService').broadcast('ai.topic.auto_renamed', { topicId })
   }
 
   private notifyAgentSessionAutoRenamed(sessionId: string): void {
-    application.get('IpcApiService').broadcast('ai.agent_session_auto_renamed', { sessionId })
+    application.get('IpcApiService').broadcast('ai.agent.session.auto_renamed', { sessionId })
   }
 }
 

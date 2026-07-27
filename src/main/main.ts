@@ -22,6 +22,7 @@ import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
+import { runDataReset } from '@main/services/dataReset'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
 
 // should be the first to resolveUserDataLocation()
@@ -42,6 +43,9 @@ import { versionService } from './services/VersionService'
 const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
+  // Reset before backup, migration, or services open user data.
+  runDataReset()
+
   // userData relocation: a pending/failed relocation makes this a dedicated
   // relocation launch (execute or explain, then relaunch) before any service
   // opens files under the source tree. See services/userDataRelocation/README.md.

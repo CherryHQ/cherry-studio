@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { FileUIPart } from '@shared/data/types/message'
@@ -14,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAnimationFrame'
 import type * as ComposerDraftModule from '../../composerDraft'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
+import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolLauncher } from '../../toolLauncher'
 import AgentComposer, { AgentHomeComposer, MissingAgentHomeComposer } from '../AgentComposer'
@@ -22,7 +24,8 @@ const mocks = vi.hoisted(() => ({
   draftText: 'hello',
   draftTokens: undefined as ComposerSerializedToken[] | undefined,
   files: [] as FileMetadata[],
-  modelLookupId: undefined as UniqueModelId | undefined,
+  agentLookupId: undefined as string | null | undefined,
+  modelLookupId: undefined as UniqueModelId | null | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
   isDirectory: vi.fn(),
@@ -83,6 +86,15 @@ let restoreRequestAnimationFrame: (() => void) | undefined
 const seedInputHistory = (items: string[]) => {
   MockUseCacheUtils.setPersistCacheValue('ui.composer.input_history', items)
 }
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
   targets: Set<Element>
@@ -325,17 +337,20 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
-  useAgent: () => ({
-    agent: {
-      id: 'agent-1',
-      name: 'Agent',
-      type: 'claude-code',
-      model: 'anthropic::claude-sonnet-4-5',
-      modelName: 'Claude Sonnet 4.5',
-      instructions: 'Follow instructions',
-      configuration: {}
+  useAgent: (agentId?: string | null) => {
+    mocks.agentLookupId = agentId
+    return {
+      agent: {
+        id: 'agent-1',
+        name: 'Agent',
+        type: 'claude-code',
+        model: 'anthropic::claude-sonnet-4-5',
+        modelName: 'Claude Sonnet 4.5',
+        instructions: 'Follow instructions',
+        configuration: {}
+      }
     }
-  }),
+  },
   useUpdateAgent: () => ({ updateModel: mocks.updateModel })
 }))
 
@@ -393,7 +408,7 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModelById: (id: UniqueModelId) => {
+  useModelById: (id: UniqueModelId | null) => {
     mocks.modelLookupId = id
     return { model }
   }
@@ -558,14 +573,33 @@ vi.mock('@renderer/components/QuickPanel/useQuickPanel', () => ({
   useQuickPanel: () => mocks.optionalQuickPanel
 }))
 
+// Mirrors just enough of the editor for token commands: the chain records inserted tokens as
+// document nodes so the async reference settle path can find (or miss) them afterwards.
 function buildComposerEditorMock() {
+  const nodes: Array<{ type: { name: string }; attrs: Record<string, unknown>; nodeSize: number }> = []
   const chain = {
     focus: vi.fn(() => chain),
-    insertComposerToken: vi.fn(() => chain),
+    insertComposerToken: vi.fn((token: Record<string, unknown>) => {
+      nodes.push({ type: { name: COMPOSER_TOKEN_NODE_NAME }, attrs: { ...token }, nodeSize: 1 })
+      return chain
+    }),
     insertContent: vi.fn(() => chain),
     run: vi.fn()
   }
-  return { editor: { chain: () => chain } as any, chain }
+  const transaction = { setNodeMarkup: vi.fn(), delete: vi.fn() }
+  const editor = {
+    isDestroyed: false,
+    chain: () => chain,
+    state: {
+      doc: {
+        descendants: (visit: (node: unknown, position: number) => void) =>
+          nodes.forEach((node, index) => visit(node, index))
+      },
+      tr: transaction
+    },
+    view: { dispatch: vi.fn() }
+  } as any
+  return { editor, chain, transaction, nodes }
 }
 
 // Skills live in the registered `agent-skills` launcher submenu; invoke its action with a capturing
@@ -583,6 +617,14 @@ function getAgentSkillsPanelItems() {
 
 describe('AgentComposer', () => {
   beforeEach(() => {
+    // The `@` panel's entity-reference merge hits these paths; the mock factory has no
+    // canned data for them, so default both to empty results.
+    const dataApiGetBase = vi.mocked(dataApiService.get).getMockImplementation()
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string, options?: unknown) => {
+      if (path === '/agent-sessions') return { items: [] }
+      if (path === '/search/entities') return { query: '', groups: [] }
+      return dataApiGetBase?.(path as never, options as never)
+    }) as never)
     mocks.openResourceEditDialog.mockReset()
     mocks.registeredLaunchers.clear()
     mocks.optionalQuickPanel = null
@@ -613,6 +655,7 @@ describe('AgentComposer', () => {
     mocks.draftText = 'hello'
     mocks.draftTokens = undefined
     mocks.files = []
+    mocks.agentLookupId = undefined
     mocks.modelLookupId = undefined
     mocks.sendMessage.mockReset()
     mocks.sendMessage.mockResolvedValue(undefined)
@@ -733,6 +776,39 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
+  })
+
+  it('uses page-resolved context without subscribing to agent and model data again', () => {
+    const resolvedAgent = {
+      id: 'agent-1',
+      name: 'Agent',
+      type: 'claude-code',
+      model: model.id,
+      configuration: {}
+    } as any
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sessionOverride={{
+          workspaceId: 'workspace-1',
+          workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+        }}
+        resolvedAgent={resolvedAgent}
+        resolvedModel={model}
+        resolvedWorkspaceWarning={null}
+        externalContextControls
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.agentLookupId).toBeNull()
+    expect(mocks.modelLookupId).toBeNull()
+    expect(mocks.runtimeHostProps?.model).toBe(model)
   })
 
   it('uses the same 20px size for the model and workspace icons', () => {
@@ -761,6 +837,7 @@ describe('AgentComposer', () => {
 
     await notifyComposerBottomToolbarWidth(420)
 
+    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
     expect(document.querySelector('.lucide-bot')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-sparkles')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')
@@ -1682,6 +1759,177 @@ describe('AgentComposer', () => {
     expect(setFilesUpdater([selectedFile])).toHaveLength(1)
   })
 
+  it('groups files and sessions under header rows when @ has no query', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue(
+      Array.from({ length: 7 }, (_, index) => ({ path: `/workspace/docs/f${index}.md`, isDirectory: false }))
+    )
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
+      if (path === '/agent-sessions') {
+        return {
+          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
+        }
+      }
+      if (path === '/search/entities') return { query: '', groups: [] }
+      return undefined
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: '', editor: {} as any })
+    const ids = items?.map((item) => item.id)
+
+    expect(ids?.[0]).toBe('agent-resource:files-header')
+    expect(ids).toContain('agent-resource:sessions-header')
+    expect(ids).toContain('reference:session:s1')
+    // Files are capped below the fold so the sessions group stays visible.
+    const fileRows = items?.filter((item) => item.id?.startsWith('agent-resource:') && !item.disabled)
+    expect(fileRows).toHaveLength(5)
+    expect(ids?.indexOf('agent-resource:sessions-header')).toBeGreaterThan(
+      Number(ids?.indexOf('agent-resource:files-header'))
+    )
+  })
+
+  it('inserts the reference chip at once, blocks sending, then fills it when the transcript lands', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([])
+    let resolveMessages: ((value: unknown) => void) | undefined
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
+      if (path === '/agent-sessions') {
+        return {
+          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
+        }
+      }
+      if (path === '/agent-sessions/s1/messages') {
+        return new Promise((resolve) => {
+          resolveMessages = resolve
+        })
+      }
+      if (path === '/search/entities') return { query: '', groups: [] }
+      return undefined
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: '', editor: {} as any })
+    const item = items?.find((entry) => entry.id === 'reference:session:s1')
+    if (!item) throw new Error('Expected a session reference item')
+    const { editor, chain, transaction } = buildComposerEditorMock()
+
+    await act(async () => {
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
+    })
+
+    // The chip is bound to this draft synchronously, still empty of context...
+    expect(chain.insertComposerToken).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'reference:session:s1', kind: 'reference', promptText: '' })
+    )
+    // ...so sending stays blocked until the transcript arrives.
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('common.loading')
+
+    await act(async () => {
+      resolveMessages?.({
+        items: [
+          {
+            id: 'm1',
+            sessionId: 's1',
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'session context' }] }
+          }
+        ],
+        nextCursor: undefined
+      })
+    })
+
+    expect(transaction.setNodeMarkup).toHaveBeenCalledWith(
+      0,
+      undefined,
+      expect.objectContaining({ promptText: expect.stringContaining('session context') })
+    )
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
+  it('drops the reference chip when its transcript fails to load', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([])
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
+      if (path === '/agent-sessions') {
+        return {
+          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
+        }
+      }
+      if (path === '/agent-sessions/s1/messages') throw new Error('offline')
+      if (path === '/search/entities') return { query: '', groups: [] }
+      return undefined
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: '', editor: {} as any })
+    const item = items?.find((entry) => entry.id === 'reference:session:s1')
+    if (!item) throw new Error('Expected a session reference item')
+    const { editor, transaction } = buildComposerEditorMock()
+
+    await act(async () => {
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
+    })
+
+    expect(transaction.delete).toHaveBeenCalledWith(0, 1)
+    expect(toast.error).toHaveBeenCalledWith('chat.input.reference_panel.load_failed')
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
+  it('keeps workspace files in the @ panel when the session query fails', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/workspace/docs/notes.md', isDirectory: false }])
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
+      if (path === '/agent-sessions') throw new Error('offline')
+      if (path === '/search/entities') throw new Error('offline')
+      return undefined
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: 'notes', editor: {} as any })
+    const ids = items?.map((entry) => entry.id)
+
+    expect(ids).toContain('agent-resource:sessions-error')
+    expect(items?.some((entry) => entry.label === 'docs/notes.md')).toBe(true)
+  })
+
   it('keeps ComposerSurface suggestion sources stable across streaming rerenders', () => {
     const { rerender } = render(
       <AgentComposer
@@ -2334,6 +2582,62 @@ describe('AgentComposer', () => {
         }
       }
     )
+  })
+
+  it('captures scroll eligibility before clearing a long draft or awaiting workspace attachment metadata', async () => {
+    const workspaceFile = {
+      id: 'workspace-file-1',
+      fileTokenSourceId: 'source-workspace-file-1',
+      name: 'notes.md',
+      origin_name: 'notes.md',
+      path: '/workspace/docs/notes.md'
+    } as FileMetadata
+    const metadata = createDeferred<Record<string, { kind: string; mime: string; size: number; mtime: number }>>()
+    const captureLocalSendScrollEligibility = vi.fn()
+    mocks.draftText = 'long line\n'.repeat(80)
+    mocks.files = [workspaceFile]
+    mocks.draftTokens = [
+      {
+        id: `file:${workspaceFile.fileTokenSourceId}`,
+        kind: 'file',
+        label: workspaceFile.name,
+        payload: workspaceFile,
+        index: 0,
+        textOffset: mocks.draftText.length
+      } as ComposerSerializedToken
+    ]
+    mocks.ipcApiRequest.mockReturnValueOnce(metadata.promise)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
+      />
+    )
+    mocks.setFiles.mockClear()
+
+    fireEvent.click(screen.getByText('send'))
+
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.setFiles.mock.invocationCallOrder[0]
+    )
+    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.ipcApiRequest.mock.invocationCallOrder[0]
+    )
+
+    await act(async () => {
+      metadata.resolve({
+        '/workspace/docs/notes.md': { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
+      })
+    })
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce())
   })
 
   it('batches workspace attachment metadata while preserving attachment order', async () => {

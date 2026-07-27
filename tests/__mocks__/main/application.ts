@@ -49,6 +49,8 @@ const mockWindowManager = {
   getWindowIdByWebContents: vi.fn(() => undefined),
   open: vi.fn(() => 'mock-window-id'),
   close: vi.fn(() => true),
+  suspendPool: vi.fn(() => 0),
+  resumePool: vi.fn(),
   show: vi.fn(() => true),
   hide: vi.fn(() => true),
   focus: vi.fn(() => true),
@@ -136,6 +138,9 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
     isReady: vi.fn(() => true),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+    relaunch: vi.fn(),
+    forceExit: vi.fn(),
     // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
     quit: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.

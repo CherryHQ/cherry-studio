@@ -65,7 +65,7 @@ export function toCreateModelDto(
 }
 
 /**
- * Enrich raw v2 models from `ipcApi.request('ai.list_models', …)` with registry
+ * Enrich raw v2 models from `ipcApi.request('ai.provider.model.list', …)` with registry
  * metadata fetched via `/providers/:id/models:resolve`. The IPC already
  * returns v2 `Partial<Model>` (with `apiModelId`, `endpointTypes`, etc.)
  * — this layer overlays preset capabilities/limits/pricing that aren't
@@ -146,7 +146,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
 export async function fetchResolvedProviderModels(providerId: string): Promise<Model[]> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
-    const fetched = await ipcApi.request('ai.list_models', { providerId, throwOnError: true })
+    const fetched = await ipcApi.request('ai.provider.model.list', { providerId, throwOnError: true })
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
     return await enrichFetchedModels(providerId, fetched)
   } catch (error) {

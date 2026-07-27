@@ -1,5 +1,5 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
-import 'katex/dist/katex.min.css'
+import '@renderer/assets/styles/vendor/katex.css'
 
 import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui'
 import type { FC } from 'react'

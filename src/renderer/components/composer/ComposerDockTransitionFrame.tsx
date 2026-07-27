@@ -83,6 +83,11 @@ export default function ComposerDockTransitionFrame({
         return
       }
       const insetTargetRect = insetTarget.getBoundingClientRect()
+      // A composer mid-swap (e.g. its lazy chunk still loading behind Suspense)
+      // measures as a zero rect. Deriving insets from it would push the message
+      // list's bottom margin to the full stage height and collapse the list to
+      // zero height, so keep the last good insets until the composer lays out.
+      if (insetTargetRect.width === 0 && insetTargetRect.height === 0) return
       const composerRect = node.getBoundingClientRect()
       const rootRect = root.getBoundingClientRect()
       const scroller = root.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')

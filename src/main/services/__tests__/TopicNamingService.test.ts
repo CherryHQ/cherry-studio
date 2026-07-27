@@ -136,7 +136,7 @@ describe('TopicNamingService', () => {
       name: 'Generated Title',
       isNameManuallyEdited: false
     })
-    expect(mocks.broadcast).toHaveBeenCalledWith('ai.topic_auto_renamed', { topicId: 'topic-1' })
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.topic.auto_renamed', { topicId: 'topic-1' })
   })
 
   it('sends a naming-failed toast event to the main window when summary generation throws', async () => {
@@ -149,7 +149,7 @@ describe('TopicNamingService', () => {
     } as never)
 
     expect(mocks.updateTopic).not.toHaveBeenCalled()
-    expect(mocks.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'ai.topic_naming_failed', {
+    expect(mocks.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'ai.topic.naming_failed', {
       message: 'Invalid signature'
     })
   })
@@ -257,7 +257,7 @@ describe('TopicNamingService', () => {
       name: 'Please inspect the renderer startup path and sugge',
       isNameManuallyEdited: false
     })
-    expect(mocks.broadcast).toHaveBeenCalledWith('ai.agent_session_auto_renamed', { sessionId: 'session-1' })
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.agent.session.auto_renamed', { sessionId: 'session-1' })
   })
 
   it.each(unnamedTranslations)('recognizes localized default agent session name "%s"', async (name) => {

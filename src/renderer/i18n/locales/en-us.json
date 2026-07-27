@@ -199,7 +199,7 @@
       "type": "Agent Icon"
     },
     "input": {
-      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands."
+      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands, @ for files and sessions."
     },
     "list": {
       "error": {
@@ -377,6 +377,11 @@
         "helper": "Pre-approved tools run without manual approval. Unselected tools require approval before use.",
         "label": "Pre-approved tools",
         "placeholder": "Select pre-approved tools"
+      },
+      "api_retry": {
+        "reason": "Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "Retrying {{attempt}}/{{max}} in {{seconds}}s"
       },
       "auto_rename": "Generate task name",
       "create": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Failed to delete task",
         "loadFailed": "Failed to load tasks",
         "runFailed": "Failed to run task",
+        "triggerInvalid": "Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Failed to update task"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "Run",
       "runTriggered": "Task triggered",
       "save": "Save",
+      "schedule": {
+        "custom": "Custom schedule",
+        "daily": "Daily",
+        "hour": "Hour",
+        "hourly": "Hourly",
+        "interval": "Custom interval",
+        "intervalMinutes": "Interval",
+        "invalid": "Enter a valid execution frequency.",
+        "minute": "Minute",
+        "once": "One time",
+        "runAt": "Run at",
+        "summary": {
+          "daily": "Daily at {{time}}",
+          "hourly": "At the start of every hour",
+          "interval": "Every {{count}} minutes",
+          "weekdays": "Weekdays at {{time}}",
+          "weekly": "Every {{weekday}} at {{time}}"
+        },
+        "time": "Time",
+        "weekday": "Day of week",
+        "weekdays": {
+          "friday": "Friday",
+          "monday": "Monday",
+          "saturday": "Saturday",
+          "sunday": "Sunday",
+          "thursday": "Thursday",
+          "tuesday": "Tuesday",
+          "wednesday": "Wednesday"
+        },
+        "weekdaysOnly": "Weekdays",
+        "weekly": "Weekly"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Interval",
@@ -1424,8 +1462,26 @@
       "paste_text_file": "Paste into input",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
-      "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions.",
+      "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions, @ to reference topics.",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "reference_panel": {
+        "load_failed": "Failed to load the referenced conversation",
+        "no_room": "Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "No sessions match your search",
+            "label": "No Sessions Found"
+          },
+          "title": "Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "No topics match your search",
+            "label": "No Topics Found"
+          },
+          "title": "Topics"
+        }
+      },
       "resize_height": "Resize input height",
       "resource_panel": {
         "categories": {
@@ -1443,7 +1499,7 @@
           "description": "No files, agents, or skills available",
           "label": "No Items Found"
         },
-        "title": "Resources"
+        "title": "Files & Sessions"
       },
       "restore": "Restore",
       "send": "Send",
@@ -2275,6 +2331,7 @@
     "provider": "Provider",
     "reasoning_content": "Deep reasoning",
     "refresh": "Refresh",
+    "refresh_failed": "Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Regenerate",
     "remove_image": "Remove image",
     "rename": "Rename",
@@ -3762,6 +3819,8 @@
         "title": "Delete Confirmation"
       },
       "failed": "Delete Failed",
+      "first_turn_not_supported": "The first user message cannot be deleted.",
+      "root_unavailable": "Messages are still loading and cannot be deleted yet.",
       "success": "Delete Successful"
     },
     "dialog": {
@@ -3904,18 +3963,6 @@
     "processing": "Processing...",
     "regenerate": {
       "confirm": "Regenerating will replace current message"
-    },
-    "reset": {
-      "confirm": {
-        "content": "Are you sure you want to clear all data?"
-      },
-      "double": {
-        "confirm": {
-          "content": "All data will be lost, do you want to continue?",
-          "title": "DATA LOST !!!"
-        }
-      },
-      "success": "Data reset successful"
     },
     "restore": {
       "failed": "Restore failed",
@@ -5761,6 +5808,13 @@
       "data": {
         "title": "Data Directory"
       },
+      "data_reset": {
+        "button": "Reset",
+        "confirm_content": "This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",
+        "confirm_title": "Reset App Data",
+        "error": "Failed to start data reset",
+        "title": "Data Reset"
+      },
       "divider": {
         "basic": "Basic Data",
         "cloud_storage": "Cloud Backup",
@@ -6493,10 +6547,6 @@
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
       "label": "General Settings",
-      "reset": {
-        "button": "Reset",
-        "title": "Data Reset"
-      },
       "restore": {
         "button": "Restore"
       },
@@ -7672,12 +7722,39 @@
       "titlePlaceholder": "Please enter phrase title"
     },
     "scheduledTasks": {
+      "agentCreate": "Create with Agent",
+      "allAgents": "All Agents",
+      "allStatuses": "All statuses",
+      "clearFilters": "Clear filters",
+      "createDescription": "Set what the Agent should do and when it should run.",
+      "createTitle": "New scheduled task",
       "description": "Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
+      "editDescription": "Update what the Agent should do and when it should run.",
+      "editTitle": "Edit scheduled task",
+      "filterAgent": "Filter by Agent",
+      "filterStatus": "Filter by status",
+      "manualCreate": "Create manually",
+      "newTask": "New",
       "noAgents": "No agents found. Create an agent first to add scheduled tasks.",
       "noAgentsTip": "Tip: You can also ask your agent to create scheduled tasks via chat.",
-      "noTasks": "No scheduled tasks. Click \"+ Add\" to create one for an agent.",
+      "noAgentsTitle": "No Agents",
+      "noMatches": "Try a different search or filter.",
+      "noMatchesTitle": "No matching tasks",
+      "noTasks": "Create a task and let an Agent run it on schedule.",
+      "noTasksTitle": "No scheduled tasks",
+      "notFoundDescription": "This task may have been deleted, or the link is invalid.",
+      "notFoundTitle": "Task not found",
+      "paginationLabel": "Scheduled tasks pagination",
+      "paginationStatus": "Page {{page}} of {{pageCount}} · {{total}} tasks",
+      "search": "Search scheduled tasks",
+      "searchPlaceholder": "Search tasks or Agents",
       "selectTask": "Select a task to view details",
-      "title": "Scheduled Tasks"
+      "title": "Scheduled Tasks",
+      "validation": {
+        "agent": "Select an Agent.",
+        "name": "Enter a task name.",
+        "prompt": "Enter a task prompt."
+      }
     },
     "shortcuts": {
       "action": "Action",
