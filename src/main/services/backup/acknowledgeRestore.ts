@@ -59,7 +59,12 @@ export function acknowledgeRestore(): AcknowledgeResult {
     ...journal.resourceInstalls.map((entry) => entry.aside),
     // The database a post-commit revert parked for forensics. Nothing else
     // knows its restoreId, so nothing else could ever clean it up.
-    `restore-failed-${journal.restoreId}.sqlite`
+    `restore-failed-${journal.restoreId}.sqlite`,
+    // Normally already gone — the promotion drops it on its way to a terminal
+    // state. It survives only when a crash landed between the terminal journal
+    // write and that removal, and this is the last step that still knows which
+    // tree belonged to this restore.
+    `${path.basename(application.getPath('feature.backup.restore.staging'))}/${journal.restoreId}`
   ]
 
   let removed = 0

@@ -8,6 +8,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
+import { installedKnowledgeBaseIds, installResourceUnits, recoverResourceUnits } from './resourceInstallV2'
 import type { PromotionStepV2, RestoreJournalV2 } from './restoreJournalV2'
 import {
   DB_COMMIT_STEP,
@@ -131,7 +132,7 @@ export function markRestoreFailedAfterCrashV2(): void {
     return
   }
   restoreLiveFromAside(ctx)
-  finalize(ctx, 'failed', 'promotion crashed outside its own recovery')
+  failRolledBack(ctx, 'promotion crashed outside its own recovery')
 }
 
 /**
@@ -249,18 +250,20 @@ function recoverPromoting(journal: PromotingJournal): Promise<void> | void {
     case 'complete':
       // The commit landed. Persist it so a later crash needs no probe, then run
       // whatever follows it (integrity).
+      finishResources(ctx)
       return executeForward(ctx, persistCommitMarker(journal), COMMIT_INDEX + 1)
     case 'install-forward':
       // Defensive: the marker claims committed while the staged DB is still
       // there, so the rename cannot have landed. Re-run it.
+      finishResources(ctx)
       return executeForward(ctx, journal, COMMIT_INDEX)
     case 'discard-staged':
       discardStaged(ctx)
-      return finalize(ctx, 'failed', `rolled back from step '${journal.step}'`)
+      return failRolledBack(ctx, `rolled back from step '${journal.step}'`)
     case 'restore-aside':
       return revertToAside(ctx, `rolled back from step '${journal.step}'`)
     case 'noop':
-      return finalize(ctx, 'failed', `nothing left to roll back from step '${journal.step}'`)
+      return failRolledBack(ctx, `nothing left to roll back from step '${journal.step}'`)
     case 'abort-inconsistent':
       return failClosed(ctx)
     case 'uninstall':
@@ -382,11 +385,9 @@ function runStep(ctx: PromotionContext, step: PromotionStepV2): void {
       checkpointLiveDb(ctx.livePath)
       return
     case 'resources-installed':
-      if (ctx.journal.resourceInstalls.length > 0) {
-        // Fail closed rather than silently promote a Full archive's database
-        // without the resources it references (§6.3, Phase 3 implements this).
-        throw new Error('resource installation is not implemented in this build')
-      }
+      // Before the commit boundary on purpose: a resource that cannot be
+      // installed must still have the untouched old database to fall back to.
+      installResourceUnits(ctx.journal.resourceInstalls, ctx.userData)
       return
     case 'sidecars-removed':
       // Stale live sidecars would be replayed by SQLite over the PROMOTED main
@@ -464,7 +465,53 @@ function revertToAside(ctx: PromotionContext, reason: string): void {
   }
   restoreLiveFromAside(ctx)
   discardStaged(ctx)
-  finalize(ctx, 'failed', reason)
+  failRolledBack(ctx, reason)
+}
+
+/**
+ * Finish a rolled-back attempt: the Full preset's resource units go back out
+ * before the journal turns terminal.
+ *
+ * A restore is ONE replacement. Leaving the archive's files installed over a
+ * database that rolled back would produce exactly the mixed state §1 forbids, so
+ * this runs on every failing path, including the ones where the database itself
+ * had nothing left to undo.
+ *
+ * A wedged unit cannot hold the database hostage — the cardinal invariant is
+ * that the live slot ends up holding a complete database — so the failure is
+ * carried into the journal's reason instead: the affected units keep their
+ * asides, and acknowledgement will not silently drop them while the user still
+ * has a repair to make.
+ */
+function failRolledBack(ctx: PromotionContext, reason: string): void {
+  let suffix = ''
+  try {
+    recoverResourceUnits(ctx.journal.resourceInstalls, ctx.userData, 'pre-commit')
+  } catch (error) {
+    logger.error('Resource rollback could not complete — keeping the units and their asides', error as Error)
+    suffix = `; resource rollback incomplete: ${(error as Error).message}`
+  }
+  finalize(ctx, 'failed', `${reason}${suffix}`)
+}
+
+/**
+ * Bring the resource units to their committed terminal state on a crash re-entry
+ * past the commit boundary.
+ *
+ * Normally a no-op: the install and its marker both precede the commit, so by
+ * this point every unit is already installed. A unit that says otherwise is an
+ * anomaly, and past the commit there is no rollback left to offer — the database
+ * is live. Record it and finish the promotion rather than strand the boot.
+ */
+function finishResources(ctx: PromotionContext): void {
+  try {
+    recoverResourceUnits(ctx.journal.resourceInstalls, ctx.userData, 'committed')
+  } catch (error) {
+    logger.error('Resource units were inconsistent after the commit — continuing with the restored database', {
+      restoreId: ctx.journal.restoreId,
+      error: (error as Error).message
+    })
+  }
 }
 
 function restoreLiveFromAside(ctx: PromotionContext): void {
@@ -494,26 +541,40 @@ function failClosed(ctx: PromotionContext): void {
 /**
  * Every terminal outcome writes the journal state and drops the staging tree —
  * a failed restore is re-run from the archive, never resumed from a half-moved
- * one. The tree goes FIRST: while the journal exists the tree is protected
- * (§6.5), so clearing the journal first would orphan it. The journal itself is
- * kept for post-boot reporting and acknowledgement.
+ * one. The journal itself is kept for post-boot reporting and acknowledgement.
+ *
+ * THE TERMINAL STATE GOES FIRST. The tree stays protected either way (§6.5 keys
+ * protection on the journal EXISTING, and this rewrites it rather than clearing
+ * it), while the reverse order has a window that costs data: between dropping
+ * the tree and writing the state, a still-`promoting` journal describes rolled
+ * back units whose staged copies just vanished — and "live present, nothing
+ * staged, no aside" is the one triple the recovery table reads as an installed
+ * backup, so the next boot would take the user's own file back out. A crash in
+ * the window this order opens instead leaves an orphan tree, which the
+ * acknowledgement sweep collects.
  */
 function finalize(ctx: PromotionContext, state: 'failed' | 'expired', reason: string): void {
-  removeStagingTree(ctx.journal.restoreId)
   writeTerminal(ctx, state, reason)
+  removeStagingTree(ctx.journal.restoreId)
 }
 
 function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2): void {
-  removeStagingTree(ctx.journal.restoreId)
   writeRestoreJournalV2({
     ...ctx.journal,
     state: 'completed',
     step,
-    // Lite installs nothing, so nothing was "installed or already present" to
-    // record. §6.7's Lite reindex reads the restored DB itself; Full populates
-    // this in Phase 3.
-    summary: { knowledgeBaseIds: [] }
+    // What the post-promotion rebuild must not re-index (§6.7). Full records the
+    // Knowledge bases it installed; Lite installs nothing and leaves it empty,
+    // which sends the scheduler to the restored database instead.
+    summary: {
+      knowledgeBaseIds: installedKnowledgeBaseIds(
+        ctx.journal.resourceInstalls,
+        ctx.userData,
+        application.getPath('feature.knowledgebase.data')
+      )
+    }
   })
+  removeStagingTree(ctx.journal.restoreId)
 }
 
 function writeTerminal(ctx: PromotionContext, state: 'failed' | 'expired', reason: string): void {
