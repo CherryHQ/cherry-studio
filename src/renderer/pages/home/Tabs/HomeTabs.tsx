@@ -45,7 +45,7 @@ const HomeTabs: FC<Props> = ({
   style
 }) => {
   return (
-    <ConversationNavigationPane style={style} className="home-tabs">
+    <ConversationNavigationPane style={style}>
       <Topics
         activeTopic={activeTopic}
         historyRecordsActive={historyRecordsActive}
