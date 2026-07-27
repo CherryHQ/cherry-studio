@@ -1,13 +1,8 @@
-import type { Dirent } from 'node:fs'
-import { promises as fs } from 'node:fs'
-import path from 'node:path'
-
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { assertAgentStoragePath } from '@main/ai/agents/agentDataDirectory'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -59,8 +54,6 @@ import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 const SESSION_FILE_SWEEP_INTERVAL_MS = 30 * 60 * 1000
-const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const SYSTEM_WORKSPACE_DATE_RE = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = 'success' | 'paused' | 'error'
@@ -238,10 +231,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Garbage-collect on-disk session residue: anything keyed by a session id / resume token that
-   * the DB and the in-memory runtime no longer know is orphaned (deleted session, or messages
-   * edited away). Host removes the auto-created system workspace dirs; each driver with an
-   * external session store sweeps its own files. Best-effort — failures only log.
+   * Garbage-collect runtime-owned session residue keyed by resume token. Workspace directories
+   * are deliberately excluded: their directory shape does not prove ownership, so the shared
+   * filesystem GC owns those app-managed paths. Best-effort — failures only log.
    */
   private sweeping = false
   private async sweepExternalSessionFiles(): Promise<void> {
@@ -262,9 +254,8 @@ export class AgentSessionRuntimeService extends BaseService {
         isResumeTokenLive: (token) => liveEntryTokens.has(token) || persistedTokens.has(token)
       }
 
-      // Drivers sweep first: their contract includes releasing session resources they still hold
-      // for dead sessions (e.g. Claude's prewarmed queries, whose subprocess sits in the workspace
-      // cwd) — only after that is removing the workspace directories safe.
+      // Drivers release session resources they still hold for dead sessions (e.g. Claude's
+      // prewarmed queries) before sweeping their runtime-owned files.
       for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) {
         if (!driver.sweepSessionFiles) continue
         try {
@@ -273,61 +264,10 @@ export class AgentSessionRuntimeService extends BaseService {
           logger.warn('Runtime session file sweep failed', { driver: driver.type, error })
         }
       }
-      await this.sweepSystemWorkspaceDirectories(live)
     } catch (error) {
       logger.warn('Session file sweep failed', { error })
     } finally {
       this.sweeping = false
-    }
-  }
-
-  /** Auto-created system workspace dirs are grouped by date, then named by session id. */
-  private async sweepSystemWorkspaceDirectories(live: AgentSessionLiveIndex): Promise<void> {
-    const root = application.getPath('feature.agents.system_workspaces')
-    let dateEntries: Dirent[]
-    try {
-      dateEntries = await fs.readdir(root, { withFileTypes: true })
-    } catch {
-      return
-    }
-
-    for (const dateEntry of dateEntries) {
-      if (!dateEntry.isDirectory() || dateEntry.isSymbolicLink() || !SYSTEM_WORKSPACE_DATE_RE.test(dateEntry.name)) {
-        continue
-      }
-      const datePath = path.join(root, dateEntry.name)
-      let sessionEntries: Dirent[]
-      try {
-        sessionEntries = await fs.readdir(datePath, { withFileTypes: true })
-      } catch {
-        continue
-      }
-      for (const sessionEntry of sessionEntries) {
-        if (
-          !sessionEntry.isDirectory() ||
-          sessionEntry.isSymbolicLink() ||
-          !SESSION_UUID_RE.test(sessionEntry.name) ||
-          live.isSessionLive(sessionEntry.name)
-        ) {
-          continue
-        }
-        try {
-          const sessionPath = path.join(datePath, sessionEntry.name)
-          await assertAgentStoragePath(root, sessionPath)
-          await fs.rm(sessionPath, { recursive: true, force: true })
-          logger.info('Swept orphaned session workspace directory', {
-            date: dateEntry.name,
-            sessionId: sessionEntry.name
-          })
-        } catch (error) {
-          logger.warn('Failed to sweep session workspace directory', {
-            date: dateEntry.name,
-            sessionId: sessionEntry.name,
-            error
-          })
-        }
-      }
-      await fs.rmdir(datePath).catch(() => undefined)
     }
   }
 

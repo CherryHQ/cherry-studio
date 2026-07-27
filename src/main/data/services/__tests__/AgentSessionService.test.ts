@@ -447,6 +447,39 @@ describe('AgentSessionService', () => {
     }
   })
 
+  it('keeps the system workspace path stable across a timezone change', async () => {
+    const createdAt = Date.parse('2026-07-27T00:30:00Z')
+    const now = vi.spyOn(Date, 'now').mockReturnValue(createdAt)
+    const originalTimezone = process.env.TZ
+
+    try {
+      process.env.TZ = 'UTC'
+      const userWorkspace = await createWorkspace('cross-timezone-system-roundtrip')
+      const session = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'Cross-timezone system roundtrip',
+        workspace: { type: 'system' }
+      })
+      const originalSystemPath = session.workspace.path
+
+      agentSessionService.setWorkspace(session.id, {
+        type: 'user',
+        workspaceId: userWorkspace.id
+      })
+      process.env.TZ = 'America/Los_Angeles'
+      const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
+
+      expect(restored.workspace.path).toBe(originalSystemPath)
+      expect(restored.workspace.path).toBe(
+        path.join(application.getPath('feature.agents.system_workspaces'), '2026-07-27', session.id)
+      )
+    } finally {
+      now.mockRestore()
+      if (originalTimezone === undefined) delete process.env.TZ
+      else process.env.TZ = originalTimezone
+    }
+  })
+
   it('is a no-op when re-setting an empty system session to a system workspace', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',

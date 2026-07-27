@@ -171,8 +171,8 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
-  describe('system workspace sweep', () => {
-    it('only removes orphan session directories below a dated system-workspace bucket', async () => {
+  describe('external session file sweep', () => {
+    it('leaves workspace directory ownership to the shared filesystem GC', async () => {
       const root = await mkdtemp(path.join(os.tmpdir(), 'agent-system-workspace-sweep-'))
       const sessionId = '11111111-1111-4111-8111-111111111111'
       const datedSessionPath = path.join(root, '2026-07-27', sessionId)
@@ -184,12 +184,9 @@ describe('AgentSessionRuntimeService', () => {
 
       try {
         const service = new AgentSessionRuntimeService()
-        await (service as any).sweepSystemWorkspaceDirectories({
-          isSessionLive: () => false,
-          isResumeTokenLive: () => false
-        })
+        await (service as any).sweepExternalSessionFiles()
 
-        await expect(access(datedSessionPath)).rejects.toThrow()
+        await expect(access(datedSessionPath)).resolves.toBeUndefined()
         await expect(access(path.join(prefixCollisionPath, 'keep.txt'))).resolves.toBeUndefined()
       } finally {
         await rm(root, { recursive: true, force: true })

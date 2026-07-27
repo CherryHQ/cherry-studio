@@ -16,11 +16,11 @@ export function normalizeWorkspacePath(rawPath: string): string {
   return normalized.slice(0, end)
 }
 
-function formatLocalDate(timestampMs: number): string {
+function formatUtcDate(timestampMs: number): string {
   const date = new Date(timestampMs)
-  const year = String(date.getFullYear()).padStart(4, '0')
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
+  const year = String(date.getUTCFullYear()).padStart(4, '0')
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
@@ -28,5 +28,5 @@ export function systemWorkspacePath(systemWorkspacesRoot: string, sessionId: str
   if (!sessionId || sessionId === '.' || sessionId === '..' || /[\\/]/.test(sessionId)) {
     throw new Error(`Invalid agent session id for system workspace: ${sessionId}`)
   }
-  return path.join(systemWorkspacesRoot, formatLocalDate(createdAt), sessionId)
+  return path.join(systemWorkspacesRoot, formatUtcDate(createdAt), sessionId)
 }

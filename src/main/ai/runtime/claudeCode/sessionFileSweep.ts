@@ -15,22 +15,9 @@ const logger = loggerService.withContext('ClaudeCodeSessionFileSweep')
  */
 const SWEEP_MIN_AGE_MS = 24 * 60 * 60 * 1000
 
-/** Claude Code derives a session's `projects/` dir name from its cwd by replacing every
- *  non-alphanumeric character with '-'. No SDK export exists for this — mirrored here. */
-function encodeProjectDirName(workspacePath: string): string {
-  return workspacePath.replace(/[^a-zA-Z0-9]/g, '-')
-}
-
 // Claude session ids (resume tokens) and Cherry session ids are both uuids; anything else in the
 // swept stores was not written per-session and must be left alone (memory/, sessions-index.json…).
 const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const SYSTEM_WORKSPACE_SUFFIX_RE =
-  /^(\d{4}-\d{2}-\d{2})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
-
-export interface SweepRootOptions {
-  /** Parent of Cherry's auto-created system workspaces (`feature.agents.system_workspaces`). */
-  workspacesRoot: string
-}
 
 /**
  * GC Cherry's own CLAUDE_CONFIG_DIR (`feature.agents.claude.root`) — everything under it was
@@ -40,38 +27,19 @@ export interface SweepRootOptions {
  * (reinstall, second instance); Claude Code's own retention cleanup owns that dir.
  */
 export async function sweepClaudeSessionFiles(live: AgentSessionLiveIndex): Promise<void> {
-  await sweepConfigRoot(path.resolve(application.getPath('feature.agents.claude.root')), live, {
-    workspacesRoot: application.getPath('feature.agents.system_workspaces')
-  })
+  await sweepConfigRoot(path.resolve(application.getPath('feature.agents.claude.root')), live)
 }
 
 /** Sweeps one CLAUDE_CONFIG_DIR root. Exported for tests; callers use {@link sweepClaudeSessionFiles}. */
-export async function sweepConfigRoot(
-  root: string,
-  live: AgentSessionLiveIndex,
-  options: SweepRootOptions
-): Promise<void> {
+export async function sweepConfigRoot(root: string, live: AgentSessionLiveIndex): Promise<void> {
   const projectsDir = path.join(root, 'projects')
-  const systemWorkspacePrefix = encodeProjectDirName(options.workspacesRoot) + '-'
 
   for (const name of await readdirSafe(projectsDir)) {
     const projectDir = path.join(projectsDir, name)
 
-    // A project dir whose cwd was an auto-created system workspace belongs to exactly one Cherry
-    // session. Match the complete encoded `system/YYYY-MM-DD/<uuid>` suffix:
-    // a user workspace such as `system-backup/<uuid>` must stay on the
-    // per-token path below and must never be removed as one system project.
-    const systemWorkspaceMatch = name.startsWith(systemWorkspacePrefix)
-      ? SYSTEM_WORKSPACE_SUFFIX_RE.exec(name.slice(systemWorkspacePrefix.length))
-      : null
-    const systemSessionId = systemWorkspaceMatch?.[2]
-    if (systemSessionId) {
-      if (!live.isSessionLive(systemSessionId)) await remove(projectDir)
-      continue
-    }
-
-    // User-workspace project dir: multiple Cherry sessions share it, so judge per token —
-    // `<token>.jsonl` transcripts and `<token>/subagents/…` sidechain dirs.
+    // Claude's cwd-to-project encoding is lossy, so the directory name cannot prove whether a
+    // project belongs to a system or user workspace. Always judge per resume token and retain the
+    // 24-hour protection instead of recursively deleting a project directory by its encoded name.
     for (const entry of await readdirSafe(projectDir)) {
       const token = entry.endsWith('.jsonl') ? entry.slice(0, -'.jsonl'.length) : entry
       if (!SESSION_ID_RE.test(token) || live.isResumeTokenLive(token)) continue

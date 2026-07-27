@@ -13,7 +13,6 @@ const LIVE_TOKEN = 'bbbbbbbb-0000-4000-8000-000000000001'
 const DEAD_TOKEN = 'bbbbbbbb-0000-4000-8000-000000000002'
 const FRESH_DEAD_TOKEN = 'bbbbbbbb-0000-4000-8000-000000000003'
 
-const WORKSPACES_ROOT = '/Users/tester/Library/App/Data/Agents/system'
 const ENCODED_WORKSPACES_ROOT = '-Users-tester-Library-App-Data-Agents-system'
 const SYSTEM_WORKSPACE_DATE = '2026-07-27'
 const USER_PROJECT = '-Users-tester-my-project'
@@ -50,7 +49,8 @@ describe('sweepConfigRoot', () => {
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-sweep-'))
-    // System-workspace project dirs — judged by Cherry session id.
+    // System-looking project dirs still have to be judged by resume token because Claude's
+    // cwd encoding cannot distinguish them from colliding user-workspace paths.
     await agedFile(
       path.join(
         root,
@@ -65,6 +65,14 @@ describe('sweepConfigRoot', () => {
         'projects',
         `${ENCODED_WORKSPACES_ROOT}-${SYSTEM_WORKSPACE_DATE}-${DEAD_SESSION}`,
         `${DEAD_TOKEN}.jsonl`
+      )
+    )
+    await agedFile(
+      path.join(
+        root,
+        'projects',
+        `${ENCODED_WORKSPACES_ROOT}-${SYSTEM_WORKSPACE_DATE}-${DEAD_SESSION}`,
+        'sessions-index.json'
       )
     )
     // Shared user-workspace project dir — judged per token.
@@ -94,14 +102,34 @@ describe('sweepConfigRoot', () => {
   })
 
   it('sweeps orphans in the app-managed root, keeping live and recent entries', async () => {
-    await sweepConfigRoot(root, live, { workspacesRoot: WORKSPACES_ROOT })
+    await sweepConfigRoot(root, live)
 
     expect(
       await exists(path.join(root, 'projects', `${ENCODED_WORKSPACES_ROOT}-${SYSTEM_WORKSPACE_DATE}-${LIVE_SESSION}`))
     ).toBe(true)
     expect(
       await exists(path.join(root, 'projects', `${ENCODED_WORKSPACES_ROOT}-${SYSTEM_WORKSPACE_DATE}-${DEAD_SESSION}`))
+    ).toBe(true)
+    expect(
+      await exists(
+        path.join(
+          root,
+          'projects',
+          `${ENCODED_WORKSPACES_ROOT}-${SYSTEM_WORKSPACE_DATE}-${DEAD_SESSION}`,
+          `${DEAD_TOKEN}.jsonl`
+        )
+      )
     ).toBe(false)
+    expect(
+      await exists(
+        path.join(
+          root,
+          'projects',
+          `${ENCODED_WORKSPACES_ROOT}-${SYSTEM_WORKSPACE_DATE}-${DEAD_SESSION}`,
+          'sessions-index.json'
+        )
+      )
+    ).toBe(true)
 
     const userProject = path.join(root, 'projects', USER_PROJECT)
     expect(await exists(path.join(userProject, `${LIVE_TOKEN}.jsonl`))).toBe(true)
@@ -124,8 +152,6 @@ describe('sweepConfigRoot', () => {
   })
 
   it('is a no-op on a missing root', async () => {
-    await expect(
-      sweepConfigRoot(path.join(root, 'nope'), live, { workspacesRoot: WORKSPACES_ROOT })
-    ).resolves.toBeUndefined()
+    await expect(sweepConfigRoot(path.join(root, 'nope'), live)).resolves.toBeUndefined()
   })
 })
