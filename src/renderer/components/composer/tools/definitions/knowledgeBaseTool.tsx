@@ -3,8 +3,7 @@ import { isSupportedToolUse } from '@renderer/utils/assistant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useCallback } from 'react'
 
-import { chatComposerTokenId } from '../../variants/chatComposerTokens'
-import { getComposerTokenIds } from '../../variants/shared/composerTokens'
+import { composerKnowledgeBaseTokenId, getComposerTokenIds } from '../../variants/shared/composerTokens'
 import { KnowledgeBaseToolRuntime } from '../components/KnowledgeBaseButton'
 import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST } from '../toolbarManifests'
 
@@ -27,12 +26,12 @@ const useKnowledgeBaseSelect = (context: KnowledgeBaseToolContext) => {
 const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolContext }) => {
   const { state, launcher } = context
   const handleSelect = useKnowledgeBaseSelect(context)
-  const isToolUseAvailable = !!context.assistant && isSupportedToolUse(context.model)
+  const isToolUseAvailable = context.session ? true : !!context.assistant && isSupportedToolUse(context.model)
 
   return (
     <KnowledgeBaseToolRuntime
       launcher={launcher}
-      configuredKnowledgeBaseIds={context.assistant?.knowledgeBaseIds ?? []}
+      configuredKnowledgeBaseIds={context.assistant?.knowledgeBaseIds ?? context.session?.knowledgeBaseIds ?? []}
       selectedBases={state.selectedKnowledgeBases}
       onSelect={handleSelect}
       disabled={!isToolUseAvailable || (Array.isArray(state.files) && state.files.length > 0)}
@@ -65,12 +64,12 @@ const knowledgeBaseTool = defineTool({
       reconcile: (draftTokens, { state, actions }) => {
         const knowledgeTokenIds = getComposerTokenIds(draftTokens, 'knowledge')
         actions.setSelectedKnowledgeBases?.((prev) => {
-          const next = prev.filter((base) => knowledgeTokenIds.has(chatComposerTokenId.knowledge(base)))
-          const nextIds = new Set(next.map(chatComposerTokenId.knowledge))
+          const next = prev.filter((base) => knowledgeTokenIds.has(composerKnowledgeBaseTokenId(base)))
+          const nextIds = new Set(next.map(composerKnowledgeBaseTokenId))
           let changed = next.length !== prev.length
 
           for (const base of state.selectableKnowledgeBases) {
-            const tokenId = chatComposerTokenId.knowledge(base)
+            const tokenId = composerKnowledgeBaseTokenId(base)
             if (!knowledgeTokenIds.has(tokenId) || nextIds.has(tokenId)) continue
             next.push(base)
             nextIds.add(tokenId)

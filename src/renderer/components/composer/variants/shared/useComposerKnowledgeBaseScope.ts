@@ -2,45 +2,38 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef } from 'react'
 
 import type { ComposerDraftToken } from '../../tokens'
-import { chatComposerTokenId, knowledgeBaseToComposerToken } from '../chatComposerTokens'
+import { composerKnowledgeBaseTokenId, knowledgeBaseToComposerToken } from './composerTokens'
 
 const KNOWLEDGE_BASE_IDS_KEY_SEPARATOR = '\u0000'
 
-interface UseChatKnowledgeBaseScopeParams {
-  /** Knowledge base ids configured on the active assistant. */
-  assistantKnowledgeBaseIds: readonly string[] | undefined
+interface UseComposerKnowledgeBaseScopeParams {
+  /** Knowledge base ids configured on the active assistant or Agent. */
+  configuredKnowledgeBaseIds: readonly string[] | undefined
   allKnowledgeBases: KnowledgeBase[]
   isKnowledgeBasesLoading: boolean
-  topicId: string
-  selectedAssistantId: string | null
+  scopeKey: string
   selectedKnowledgeBases: KnowledgeBase[]
   setSelectedKnowledgeBases: Dispatch<SetStateAction<KnowledgeBase[]>>
 }
 
-interface UseChatKnowledgeBaseScopeResult {
+interface UseComposerKnowledgeBaseScopeResult {
   selectableKnowledgeBases: KnowledgeBase[]
   selectedKnowledgeBasesInScope: KnowledgeBase[]
   resolveKnowledgeBaseMarker: (marker: string) => ComposerDraftToken | null
 }
 
-/**
- * Owns the chat composer's knowledge-base scoping: which configured-and-available bases are
- * selectable, the marker resolver, and the per-(topic+assistant) scope reset that prunes the
- * selection. Extracted verbatim from ChatComposer — chat-only.
- */
-export function useChatKnowledgeBaseScope({
-  assistantKnowledgeBaseIds,
+/** Owns knowledge-base availability, marker resolution, and selection pruning for one composer scope. */
+export function useComposerKnowledgeBaseScope({
+  configuredKnowledgeBaseIds,
   allKnowledgeBases,
   isKnowledgeBasesLoading,
-  topicId,
-  selectedAssistantId,
+  scopeKey,
   selectedKnowledgeBases,
   setSelectedKnowledgeBases
-}: UseChatKnowledgeBaseScopeParams): UseChatKnowledgeBaseScopeResult {
+}: UseComposerKnowledgeBaseScopeParams): UseComposerKnowledgeBaseScopeResult {
   const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(null)
-  const selectedKnowledgeBasesScopeKey = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
 
-  const configuredKnowledgeBaseIdsKey = (assistantKnowledgeBaseIds ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
+  const configuredKnowledgeBaseIdsKey = (configuredKnowledgeBaseIds ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
   const configuredKnowledgeBaseIdSet = useMemo(
     () =>
       new Set(
@@ -78,7 +71,7 @@ export function useChatKnowledgeBaseScope({
     selectableKnowledgeBases.forEach((base) => {
       map.set(base.id, base)
       map.set(base.name, base)
-      map.set(chatComposerTokenId.knowledge(base), base)
+      map.set(composerKnowledgeBaseTokenId(base), base)
     })
     return map
   }, [selectableKnowledgeBases])
@@ -89,22 +82,21 @@ export function useChatKnowledgeBaseScope({
     },
     [knowledgeBaseMarkerMap]
   )
-  const isSelectedKnowledgeBasesScopeCurrent =
-    selectedKnowledgeBasesScopeKeyRef.current === selectedKnowledgeBasesScopeKey
+  const isSelectedKnowledgeBasesScopeCurrent = selectedKnowledgeBasesScopeKeyRef.current === scopeKey
   const selectedKnowledgeBasesInScope = useMemo(
     () => (isSelectedKnowledgeBasesScopeCurrent ? filterSelectableKnowledgeBases(selectedKnowledgeBases) : []),
     [filterSelectableKnowledgeBases, isSelectedKnowledgeBasesScopeCurrent, selectedKnowledgeBases]
   )
 
   useEffect(() => {
-    const scopeChanged = selectedKnowledgeBasesScopeKeyRef.current !== selectedKnowledgeBasesScopeKey
-    selectedKnowledgeBasesScopeKeyRef.current = selectedKnowledgeBasesScopeKey
+    const scopeChanged = selectedKnowledgeBasesScopeKeyRef.current !== scopeKey
+    selectedKnowledgeBasesScopeKeyRef.current = scopeKey
     setSelectedKnowledgeBases((prev) => {
       const next = scopeChanged ? [] : filterSelectableKnowledgeBases(prev)
       if (next.length === prev.length && next.every((base, index) => base.id === prev[index]?.id)) return prev
       return next
     })
-  }, [filterSelectableKnowledgeBases, selectedKnowledgeBasesScopeKey, setSelectedKnowledgeBases])
+  }, [filterSelectableKnowledgeBases, scopeKey, setSelectedKnowledgeBases])
 
   return { selectableKnowledgeBases, selectedKnowledgeBasesInScope, resolveKnowledgeBaseMarker }
 }

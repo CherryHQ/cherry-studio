@@ -4,7 +4,7 @@
  * One tool with an `action`: add a new source (file / url / note), or delete /
  * re-index existing documents addressed by their Concept ID. The effective knowledge
  * base scope (the assistant's static binding when non-empty, else the composer's
- * per-turn selection — see `resolveKnowledgeBaseIds`) flows in via
+ * per-turn selection — see `resolveKnowledgeBaseScope`) flows in via
  * `RequestContext.knowledgeBaseIds` and scopes which bases are reachable. Every
  * action mutates the base, so the tool is approval-gated
  * (`needsApproval: true`) — Cherry surfaces the approval card before it runs. The

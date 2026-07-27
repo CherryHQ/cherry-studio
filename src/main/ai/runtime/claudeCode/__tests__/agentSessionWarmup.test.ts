@@ -152,6 +152,34 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
   })
 
+  it('passes the per-turn knowledge selection into settings and the warm signature', async () => {
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', [
+      'kb-selected'
+    ])
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ knowledgeBaseIds: ['kb-selected'] }),
+      expect.anything()
+    )
+    expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
+  })
+
+  it('uses the Agent static binding instead of the per-turn selection', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      knowledgeBaseIds: ['kb-bound']
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', [
+      'kb-selected'
+    ])
+
+    expect(request?.knowledgeBaseIds).toEqual(['kb-bound'])
+  })
+
   it('routes with the connection-scoped model override instead of the agent latest model', async () => {
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
@@ -754,6 +782,26 @@ describe('deriveConnectionConfig', () => {
 
     expect(reordered.rebuildSignature).toBe(bound.rebuildSignature)
     expect(unbound.rebuildSignature).not.toBe(bound.rebuildSignature)
+  })
+
+  it('fingerprints composer knowledge selection only when the Agent has no static binding', async () => {
+    const unselected = await deriveConnectionConfig('session-1', undefined, 'default', [])
+    const selected = await deriveConnectionConfig('session-1', undefined, 'default', ['kb-selected'])
+    if (!unselected.ok || !selected.ok) throw new Error('expected ok derive')
+    expect(selected.config.rebuildSignature).not.toBe(unselected.config.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      knowledgeBaseIds: ['kb-bound'],
+      configuration: {}
+    })
+    const firstSelection = await deriveConnectionConfig('session-1', undefined, 'default', ['kb-a'])
+    const secondSelection = await deriveConnectionConfig('session-1', undefined, 'default', ['kb-b'])
+    if (!firstSelection.ok || !secondSelection.ok) throw new Error('expected ok derive')
+    expect(secondSelection.config.rebuildSignature).toBe(firstSelection.config.rebuildSignature)
   })
 
   it('keeps permission mode live-only while disabled tools also require a rebuild', async () => {

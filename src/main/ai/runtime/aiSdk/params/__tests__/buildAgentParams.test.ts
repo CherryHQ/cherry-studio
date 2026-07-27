@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -34,7 +35,6 @@ const {
   applyCallOverrides,
   buildAgentParams,
   composeStopWhen,
-  resolveKnowledgeBaseIds,
   resolveReasoningMaxTokens,
   resolveToolCallLimit,
   resolveTools
@@ -340,29 +340,27 @@ describe('resolveToolCallLimit', () => {
   })
 })
 
-describe('resolveKnowledgeBaseIds', () => {
+describe('resolveKnowledgeBaseScope integration', () => {
   it('falls back to the assistant-bound bases when the request selects none', () => {
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), undefined)).toEqual(['kb-1'])
+    expect(resolveKnowledgeBaseScope(['kb-1'], undefined)).toEqual(['kb-1'])
   })
 
   it('trusts the request-selected bases when the assistant has no static binding', () => {
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), ['kb-2'])).toEqual(['kb-2'])
-    expect(resolveKnowledgeBaseIds(undefined, ['kb-2'])).toEqual(['kb-2'])
+    expect(resolveKnowledgeBaseScope([], ['kb-2'])).toEqual(['kb-2'])
+    expect(resolveKnowledgeBaseScope(undefined, ['kb-2'])).toEqual(['kb-2'])
   })
 
   it('drops request-selected bases outside the assistant scope instead of expanding it', () => {
     // An assistant statically bound to `kb-public` must not become searchable for `kb-private`
     // just because the renderer/IPC request asked for it — the assistant's own binding is the
     // trust boundary, not whatever the composer UI happened to let the user pick.
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-public'] }), ['kb-private'])).toEqual([
-      'kb-public'
-    ])
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), ['kb-1', 'kb-2'])).toEqual(['kb-1'])
+    expect(resolveKnowledgeBaseScope(['kb-public'], ['kb-private'])).toEqual(['kb-public'])
+    expect(resolveKnowledgeBaseScope(['kb-1'], ['kb-1', 'kb-2'])).toEqual(['kb-1'])
   })
 
   it('returns an empty array when neither source selects a base', () => {
-    expect(resolveKnowledgeBaseIds(undefined, undefined)).toEqual([])
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), undefined)).toEqual([])
+    expect(resolveKnowledgeBaseScope(undefined, undefined)).toEqual([])
+    expect(resolveKnowledgeBaseScope([], undefined)).toEqual([])
   })
 })
 

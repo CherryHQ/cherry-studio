@@ -9,7 +9,7 @@
  *
  * The model passes a `conceptId` + `baseId` from a `kb_search` hit (or a `kb_list` outline).
  * The effective knowledge base scope (the assistant's static binding when non-empty, else the
- * composer's per-turn selection — see `resolveKnowledgeBaseIds`) flows in via
+ * composer's per-turn selection — see `resolveKnowledgeBaseScope`) flows in via
  * `RequestContext.knowledgeBaseIds` and scopes which bases are reachable. Both modes live in the
  * shared `knowledgeLookup` core so the Claude Code MCP bridge runs
  * identical logic; this file is just the AI-SDK `tool()` wrapper.

@@ -50,6 +50,7 @@ import {
   toCherryBuiltinRuntimeName
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getAppLanguage, t } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
@@ -240,6 +241,8 @@ export interface ClaudeCodeSessionOptions {
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
   linkedChannelSnapshot?: LinkedChannelSnapshot
+  /** Per-turn composer selection captured by the connection builder. */
+  knowledgeBaseIds?: readonly string[]
   thinkingOptions?: {
     effort?: Options['effort']
     thinking?: Options['thinking']
@@ -327,7 +330,8 @@ export async function buildClaudeCodeSessionSettings(
     agent,
     assistantMcpEnabled,
     options?.mcpServerSnapshots,
-    linkedChannelSnapshot
+    linkedChannelSnapshot,
+    options?.knowledgeBaseIds
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
 
@@ -1112,7 +1116,8 @@ export function buildMcpServers(
   agent: AgentEntity,
   assistantMcpEnabled: boolean,
   mcpServerSnapshots?: McpServerSnapshotMap,
-  linkedChannelSnapshot?: LinkedChannelSnapshot
+  linkedChannelSnapshot?: LinkedChannelSnapshot,
+  selectedKnowledgeBaseIds: readonly string[] = []
 ): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
 
@@ -1161,7 +1166,10 @@ export function buildMcpServers(
       workspacePath: session.workspace.path,
       sourceChannelId,
       canManageCli: agent.configuration?.builtin_role !== 'assistant',
-      getKnowledgeBaseIds: () => agentService.getAgent(agent.id)?.knowledgeBaseIds ?? []
+      getKnowledgeBaseIds: () => {
+        const liveAgent = agentService.getAgent(agent.id)
+        return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
+      }
     }).mcpServer
   }
 

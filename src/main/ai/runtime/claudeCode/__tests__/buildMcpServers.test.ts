@@ -193,6 +193,21 @@ describe('buildMcpServers', () => {
     expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
   })
 
+  it('exposes the kb_* tools from a frozen composer selection when the Agent has no binding', async () => {
+    mockGetAgent.mockReturnValue(agent)
+    const names = await cherryToolNames(buildMcpServers(session, agent, false, undefined, undefined, ['kb-selected']))
+
+    expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
+  })
+
+  it('fails closed when the Agent backing a frozen composer selection is deleted', async () => {
+    mockGetAgent.mockReturnValueOnce(agent).mockReturnValueOnce(undefined)
+    const servers = buildMcpServers(session, agent, false, undefined, undefined, ['kb-selected'])
+
+    expect(await cherryToolNames(servers)).toContain('kb_search')
+    expect(await cherryToolNames(servers)).not.toContain('kb_search')
+  })
+
   it('re-reads knowledge bindings for an already-created cherry-tools server', async () => {
     const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
     mockGetAgent.mockReturnValueOnce(boundAgent).mockReturnValueOnce({ ...boundAgent, knowledgeBaseIds: [] })

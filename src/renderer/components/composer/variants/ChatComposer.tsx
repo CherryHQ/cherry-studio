@@ -59,7 +59,6 @@ import { useInputHistory } from '../useInputHistory'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
-import { useChatKnowledgeBaseScope } from './chat/useChatKnowledgeBaseScope'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
 import {
   chatComposerTokenId,
@@ -78,6 +77,7 @@ import { buildComposerQueuedPayload, hasUnsyncedComposerAttachments } from './sh
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
@@ -731,12 +731,11 @@ const ChatComposerInner = ({
   })
 
   const { selectableKnowledgeBases, selectedKnowledgeBasesInScope, resolveKnowledgeBaseMarker } =
-    useChatKnowledgeBaseScope({
-      assistantKnowledgeBaseIds: assistant?.knowledgeBaseIds,
+    useComposerKnowledgeBaseScope({
+      configuredKnowledgeBaseIds: assistant?.knowledgeBaseIds,
       allKnowledgeBases,
       isKnowledgeBasesLoading,
-      topicId: scopeKey,
-      selectedAssistantId,
+      scopeKey: selectedKnowledgeBasesScopeKey,
       selectedKnowledgeBases,
       setSelectedKnowledgeBases
     })

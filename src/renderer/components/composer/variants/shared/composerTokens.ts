@@ -3,6 +3,7 @@ import {
   composerFileTokenIdFromSourceId,
   getComposerFileTokenSourceId
 } from '@renderer/utils/message/composerFileTokenSource'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { ComposerDraftToken, ComposerSerializedToken } from '../../tokens'
 
@@ -14,12 +15,23 @@ export const composerFileTokenId = (file: Pick<ComposerAttachment, 'fileTokenSou
   return composerFileTokenIdFromSourceId(sourceId)
 }
 
+export const composerKnowledgeBaseTokenId = (base: Pick<KnowledgeBase, 'id'>) => `knowledge:${base.id}`
+
 export function fileToComposerToken(file: ComposerAttachment): ComposerDraftToken {
   return {
     id: composerFileTokenId(file),
     kind: 'file',
     label: file.origin_name || file.name,
     payload: file
+  }
+}
+
+export function knowledgeBaseToComposerToken(base: KnowledgeBase): ComposerDraftToken {
+  return {
+    id: composerKnowledgeBaseTokenId(base),
+    kind: 'knowledge',
+    label: base.name,
+    payload: base
   }
 }
 

@@ -10,6 +10,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -141,7 +142,8 @@ export type DeriveConnectionConfigResult = { ok: true; config: ConnectionConfig 
 export async function deriveConnectionConfig(
   sessionId: string,
   connectionModelId?: UniqueModelId,
-  reasoningEffort: ReasoningEffortOption = 'default'
+  reasoningEffort: ReasoningEffortOption = 'default',
+  selectedKnowledgeBaseIds: readonly string[] = []
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
@@ -156,7 +158,8 @@ export async function deriveConnectionConfig(
         session,
         agent,
         connectionModelId ?? agent.model,
-        reasoningEffort
+        reasoningEffort,
+        selectedKnowledgeBaseIds
       )
     }
   } catch {
@@ -171,6 +174,7 @@ async function deriveConnectionConfigFromSnapshot(
   agent: AgentEntity,
   uniqueModelId: UniqueModelId,
   reasoningEffort: ReasoningEffortOption,
+  selectedKnowledgeBaseIds: readonly string[] = [],
   materialized?: ConnectionMaterializationFacts
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
@@ -208,7 +212,7 @@ async function deriveConnectionConfigFromSnapshot(
     maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
-    knowledgeBaseIds: [...(agent.knowledgeBaseIds ?? [])].sort(),
+    knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds).sort(),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     linkedChannelId
   }
@@ -260,7 +264,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
    *  agent's current model (prewarm and turn-less connections). */
   connectionModelId?: UniqueModelId,
   /** Canonical reasoning selection frozen when the turn was submitted. */
-  reasoningEffort: ReasoningEffortOption = 'default'
+  reasoningEffort: ReasoningEffortOption = 'default',
+  /** Composer knowledge selection frozen when the turn was submitted. */
+  selectedKnowledgeBaseIds: readonly string[] = []
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -297,6 +303,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
+        knowledgeBaseIds: selectedKnowledgeBaseIds,
         thinkingOptions
       },
       agent
@@ -306,12 +313,19 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
   // already persisted and the connect-time fingerprint matches later pure reconciles.
-  const connectionConfig = await deriveConnectionConfigFromSnapshot(session, agent, uniqueModelId, reasoningEffort, {
-    route: toConnectionRouteFacts(route),
-    mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
-    skills: settings.skills ?? [],
-    linkedChannelId: linkedChannelSnapshot?.id ?? null
-  })
+  const connectionConfig = await deriveConnectionConfigFromSnapshot(
+    session,
+    agent,
+    uniqueModelId,
+    reasoningEffort,
+    selectedKnowledgeBaseIds,
+    {
+      route: toConnectionRouteFacts(route),
+      mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
+      skills: settings.skills ?? [],
+      linkedChannelId: linkedChannelSnapshot?.id ?? null
+    }
+  )
   const sdkModelId = route.modelIds.primary
   const options = createClaudeCodeQueryOptions({
     modelId: sdkModelId,
@@ -329,7 +343,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
     credentialsFingerprint: route.credentialsFingerprint,
-    knowledgeBaseIds: [...(agent.knowledgeBaseIds ?? [])].sort(),
+    knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds).sort(),
     settings,
     sdkModelId
   }

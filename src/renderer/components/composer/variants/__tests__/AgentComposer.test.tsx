@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -24,6 +25,9 @@ const mocks = vi.hoisted(() => ({
   draftText: 'hello',
   draftTokens: undefined as ComposerSerializedToken[] | undefined,
   files: [] as FileMetadata[],
+  selectedKnowledgeBases: [] as KnowledgeBase[],
+  knowledgeBases: [] as KnowledgeBase[],
+  agentKnowledgeBaseIds: [] as string[],
   agentLookupId: undefined as string | null | undefined,
   modelLookupId: undefined as UniqueModelId | null | undefined,
   sendMessage: vi.fn(),
@@ -41,6 +45,7 @@ const mocks = vi.hoisted(() => ({
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
+  setSelectedKnowledgeBases: vi.fn(),
   inputAdapterFocus: vi.fn(),
   quickPanelOpen: vi.fn(),
   pinnedToolIds: ['composer:new-session', 'thinking', 'skills'] as string[],
@@ -59,7 +64,9 @@ const mocks = vi.hoisted(() => ({
   contextUsagePercentage: null as number | null,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   getDraft: vi.fn(),
-  derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
+  derivedToolState: undefined as
+    | { couldAddImageFile: boolean; extensions: string[]; selectableKnowledgeBases?: KnowledgeBase[] }
+    | undefined,
   shortcutHandlers: new Map<string, () => void>(),
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
@@ -134,6 +141,17 @@ const reviewSkill = {
   description: 'Review changed files',
   filename: 'review-fast'
 } satisfies LocalSkill
+const knowledgeBaseOne = { id: 'kb-1', name: 'Knowledge One' } as KnowledgeBase
+const knowledgeBaseTwo = { id: 'kb-2', name: 'Knowledge Two' } as KnowledgeBase
+
+const knowledgeBaseToken = (base: KnowledgeBase): ComposerSerializedToken => ({
+  id: `knowledge:${base.id}`,
+  kind: 'knowledge',
+  label: base.name,
+  payload: base,
+  index: 0,
+  textOffset: 0
+})
 
 const pdfSkillToken = {
   id: 'skill:pdf',
@@ -276,13 +294,15 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   ComposerToolDerivedStateProvider: ({
     children,
     couldAddImageFile,
-    extensions
+    extensions,
+    selectableKnowledgeBases
   }: {
     children: ReactNode
     couldAddImageFile: boolean
     extensions: string[]
+    selectableKnowledgeBases?: KnowledgeBase[]
   }) => {
-    mocks.derivedToolState = { couldAddImageFile, extensions }
+    mocks.derivedToolState = { couldAddImageFile, extensions, selectableKnowledgeBases }
     return <>{children}</>
   },
   ComposerToolRuntimeHost: (props: {
@@ -303,13 +323,14 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolState: () => ({
     files: mocks.files,
     mentionedModels: [],
-    selectedKnowledgeBases: [],
+    selectedKnowledgeBases: mocks.selectedKnowledgeBases,
     isExpanded: false,
     couldAddImageFile: false,
     extensions: []
   }),
   useComposerToolDispatch: () => ({
     setFiles: mocks.setFiles,
+    setSelectedKnowledgeBases: mocks.setSelectedKnowledgeBases,
     setIsExpanded: vi.fn(),
     addNewTopic: vi.fn(),
     onTextChange: vi.fn(),
@@ -347,6 +368,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
         model: 'anthropic::claude-sonnet-4-5',
         modelName: 'Claude Sonnet 4.5',
         instructions: 'Follow instructions',
+        knowledgeBaseIds: mocks.agentKnowledgeBaseIds,
         configuration: {}
       }
     }
@@ -412,6 +434,10 @@ vi.mock('@renderer/hooks/useModel', () => ({
     mocks.modelLookupId = id
     return { model }
   }
+}))
+
+vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
+  useKnowledgeBases: () => ({ bases: mocks.knowledgeBases, isLoading: false })
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
@@ -655,6 +681,9 @@ describe('AgentComposer', () => {
     mocks.draftText = 'hello'
     mocks.draftTokens = undefined
     mocks.files = []
+    mocks.selectedKnowledgeBases = []
+    mocks.knowledgeBases = []
+    mocks.agentKnowledgeBaseIds = []
     mocks.agentLookupId = undefined
     mocks.modelLookupId = undefined
     mocks.sendMessage.mockReset()
@@ -709,6 +738,7 @@ describe('AgentComposer', () => {
     mocks.updateModel.mockResolvedValue({})
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
+    mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
     mocks.quickPanelOpen.mockReset()
     mocks.pinnedToolIds = ['composer:new-session', 'thinking', 'skills']
@@ -717,6 +747,9 @@ describe('AgentComposer', () => {
     mocks.toolLaunchersVersion = 0
     mocks.setFiles.mockImplementation((value) => {
       mocks.files = typeof value === 'function' ? value(mocks.files) : value
+    })
+    mocks.setSelectedKnowledgeBases.mockImplementation((value) => {
+      mocks.selectedKnowledgeBases = typeof value === 'function' ? value(mocks.selectedKnowledgeBases) : value
     })
     mocks.insertToken.mockReset()
     mocks.replaceDraft.mockReset()
@@ -777,6 +810,146 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
     expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
+  })
+
+  it('limits Session knowledge choices to the Agent static binding', () => {
+    mocks.knowledgeBases = [knowledgeBaseOne, knowledgeBaseTwo]
+    mocks.agentKnowledgeBaseIds = [knowledgeBaseOne.id]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.derivedToolState?.selectableKnowledgeBases).toEqual([knowledgeBaseOne])
+    expect(mocks.runtimeHostProps?.session).toMatchObject({ knowledgeBaseIds: [knowledgeBaseOne.id] })
+    expect(mocks.surfaceProps?.resolveKnowledgeBaseMarker?.(knowledgeBaseOne.name)).toMatchObject({
+      id: `knowledge:${knowledgeBaseOne.id}`,
+      kind: 'knowledge'
+    })
+    expect(mocks.surfaceProps?.resolveKnowledgeBaseMarker?.(knowledgeBaseTwo.name)).toBeNull()
+  })
+
+  it('sends the selected knowledge scope on consecutive Agent turns without clearing it', async () => {
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseOne]))
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    mocks.draftTokens = [knowledgeBaseToken(knowledgeBaseOne)]
+
+    fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+    expect(mocks.sendMessage.mock.calls[0][1].body.userMessageParts).toContainEqual({
+      type: 'data-knowledge-scope',
+      data: { baseIds: [knowledgeBaseOne.id] }
+    })
+
+    mocks.draftText = 'second question'
+    fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(2))
+    expect(mocks.sendMessage.mock.calls[1][1].body.userMessageParts).toContainEqual({
+      type: 'data-knowledge-scope',
+      data: { baseIds: [knowledgeBaseOne.id] }
+    })
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
+  })
+
+  it('omits the Agent scope part after the knowledge selection is cleared', async () => {
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseOne]))
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    void act(() => mocks.setSelectedKnowledgeBases([]))
+    mocks.draftTokens = []
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce())
+    expect(mocks.sendMessage.mock.calls[0][1].body.userMessageParts).not.toContainEqual(
+      expect.objectContaining({ type: 'data-knowledge-scope' })
+    )
+  })
+
+  it('restores a queued Agent message knowledge scope when editing it', async () => {
+    mocks.knowledgeBases = [knowledgeBaseOne, knowledgeBaseTwo]
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseOne]))
+    mocks.draftTokens = [knowledgeBaseToken(knowledgeBaseOne)]
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    fireEvent.click(screen.getByText('send'))
+    const queued = mocks.surfaceProps?.queueContent as any
+    expect(queued.props.items[0].payload.userMessageParts).toContainEqual({
+      type: 'data-knowledge-scope',
+      data: { baseIds: [knowledgeBaseOne.id] }
+    })
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseTwo]))
+    await act(async () => queued.props.onEdit(queued.props.items[0].id))
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
   })
 
   it('uses page-resolved context without subscribing to agent and model data again', () => {
@@ -1638,7 +1811,8 @@ describe('AgentComposer', () => {
     // own tools, so every file type is attachable on any model (modality is irrelevant).
     expect(mocks.derivedToolState).toEqual({
       couldAddImageFile: true,
-      extensions: mocks.surfaceProps?.supportedExts
+      extensions: mocks.surfaceProps?.supportedExts,
+      selectableKnowledgeBases: []
     })
   })
 
@@ -2120,7 +2294,7 @@ describe('AgentComposer', () => {
 
     render(<div data-testid="skill-panel-icon">{skillItem?.icon}</div>)
     expect(screen.getByTestId('skill-panel-icon').querySelector('.lucide-tool-case')).toBeInTheDocument()
-    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])
+    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'knowledge', 'skill'])
 
     mocks.availableSkillsRefresh.mockClear()
     mocks.surfaceProps?.onRootPanelOpen?.()

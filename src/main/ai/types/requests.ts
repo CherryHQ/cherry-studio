@@ -48,7 +48,7 @@ export interface AiBaseRequest {
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
   /**
-   * Knowledge bases selected for this turn. Scope is resolved by `resolveKnowledgeBaseIds`: the
+   * Knowledge bases selected for this turn. Scope is resolved by `resolveKnowledgeBaseScope`: the
    * assistant's own bound bases take precedence when non-empty (these ids are then ignored); only
    * when the assistant has none does this selection define the scope.
    */

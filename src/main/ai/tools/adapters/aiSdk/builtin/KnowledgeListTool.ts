@@ -11,8 +11,8 @@
  * logic; this file is just the AI-SDK `tool()` wrapper.
  *
  * Scope: when the effective scope (the assistant's static binding when non-empty, else the composer's
- * per-turn selection — see `resolveKnowledgeBaseIds`) is non-empty, only those bases are reachable;
- * when empty, all user bases are.
+ * per-turn selection — see `resolveKnowledgeBaseScope`) is non-empty, only those bases are reachable.
+ * The tool is not exposed when the effective scope is empty.
  */
 
 import {
