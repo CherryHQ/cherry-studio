@@ -235,6 +235,37 @@ export function readRestoreJournalV2(): ReadJournalV2FileResult {
 }
 
 /**
+ * Remove the journal, making "no restore is pending" durable.
+ *
+ * Idempotent: an already-absent journal is success, which is what lets
+ * acknowledgement cleanup and cancellation be re-run after a crash. The parent
+ * directory is fsynced for the same reason writes are — the unlink must survive
+ * power loss, or a cleared restore would come back and promote again.
+ *
+ * ORDERING CONTRACT (§6.5): this is the LAST step of acknowledgement. While the
+ * journal exists, the recovery asides are protected; clearing it first would
+ * release that protection over asides that are still on disk.
+ */
+export function clearRestoreJournalV2(): void {
+  const journalPath = journalFilePath()
+  try {
+    fs.unlinkSync(journalPath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    return
+  }
+
+  if (process.platform !== 'win32') {
+    const dirFd = fs.openSync(path.dirname(journalPath), 'r')
+    try {
+      fs.fsyncSync(dirFd)
+    } finally {
+      fs.closeSync(dirFd)
+    }
+  }
+}
+
+/**
  * Crash-safe journal write: write-ahead to a `.tmp` sibling, fsync it, rename
  * over the journal path, then fsync the parent directory on POSIX so the rename
  * itself is durable. Windows moves are write-through and its directory handles
