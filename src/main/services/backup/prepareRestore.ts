@@ -31,6 +31,7 @@ import { clearRestoreJournalV2, readRestoreJournalV2, writeRestoreJournalV2 } fr
 import { loggerService } from '@logger'
 
 import { admitArchive } from './admission/admitArchive'
+import { RestoreStateError } from './errors'
 import type { BackupManifestDegradation, BackupPreset } from './manifest'
 import { currentBackupPlatform } from './platform'
 import { type ManagedRootRebaseTable, prepareManagedRootRebase } from './portability/managedPathRebase'
@@ -232,10 +233,13 @@ export function cancelPreparedRestore(): void {
   if (read.kind === 'corrupt') {
     // Nothing can be proven about what it staged, so the promotion gate
     // quarantines it at the next boot rather than this path deleting blindly.
-    throw new Error('the restore journal is unreadable; the next boot will quarantine it')
+    throw new RestoreStateError('unreadable', 'the restore journal is unreadable; the next boot will quarantine it')
   }
   if (read.journal.state !== 'prepared') {
-    throw new Error(`only a prepared restore can be cancelled (state: ${read.journal.state})`)
+    throw new RestoreStateError(
+      'wrong-state',
+      `only a prepared restore can be cancelled (state: ${read.journal.state})`
+    )
   }
 
   removeStagedRestore(read.journal.restoreId)
@@ -258,11 +262,11 @@ export function cancelPreparedRestore(): void {
 export function armPreparedRestore(): void {
   const read = readRestoreJournalV2()
   if (read.kind !== 'ok') {
-    throw new Error('no prepared restore to arm')
+    throw new RestoreStateError(read.kind === 'corrupt' ? 'unreadable' : 'wrong-state', 'no prepared restore to arm')
   }
   const journal = read.journal
   if (journal.state !== 'prepared') {
-    throw new Error(`only a prepared restore can be armed (state: ${journal.state})`)
+    throw new RestoreStateError('wrong-state', `only a prepared restore can be armed (state: ${journal.state})`)
   }
 
   writeRestoreJournalV2({ ...journal, state: 'armed' })
@@ -271,7 +275,7 @@ export function armPreparedRestore(): void {
   } catch (error) {
     writeRestoreJournalV2(journal)
     logger.error('Relaunch failed; the arm was rolled back to prepared', error as Error)
-    throw error
+    throw new RestoreStateError('relaunch-failed', (error as Error).message)
   }
   logger.info('Restore armed; relaunching', { restoreId: journal.restoreId })
 }
