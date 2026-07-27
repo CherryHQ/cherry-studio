@@ -44,7 +44,7 @@ function normalizeWorkspaceName(rawName: string): string {
 }
 
 export class AgentWorkspaceService {
-  private systemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
+  systemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
     if (!sessionId || sessionId === '.' || sessionId === '..' || /[\\/]/.test(sessionId)) {
       throw new Error(`Invalid agent session id for system workspace: ${sessionId}`)
     }

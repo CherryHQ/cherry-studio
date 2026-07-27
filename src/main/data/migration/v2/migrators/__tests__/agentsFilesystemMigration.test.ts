@@ -195,7 +195,7 @@ describe('agentsFilesystemMigration', () => {
     }
   )
 
-  it('never overwrites identity conflicts and leaves the conflicting source in place', async () => {
+  it('aborts on an identity conflict without overwriting either side', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     await mkdir(legacyWorkspace, { recursive: true })
     await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'legacy soul')
@@ -210,17 +210,19 @@ describe('agentsFilesystemMigration', () => {
     await mkdir(path.join(agentDataPath, 'memory'), { recursive: true })
     await writeFile(path.join(agentDataPath, 'SOUL.md'), 'existing soul')
 
-    await stageLegacyAgentFiles({
-      agentsDataRoot,
-      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-      sessions: [latestSession]
-    })
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [latestSession]
+      })
+    ).rejects.toThrow(/identity destination conflict/i)
 
     expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('existing soul')
     expect(await readFile(path.join(legacyWorkspace, 'SOUL.md'), 'utf8')).toBe('legacy soul')
   })
 
-  it('reuses identical identity and preserves newer v1 identity for downgrade compatibility', async () => {
+  it('reuses identical identity but aborts when the v1 identity changes before a retry', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     await mkdir(path.join(legacyWorkspace, 'memory'), { recursive: true })
     await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'first soul')
@@ -243,7 +245,7 @@ describe('agentsFilesystemMigration', () => {
 
     await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'newer soul')
     await writeFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'newer fact')
-    await expect(stageLegacyAgentFiles(input)).resolves.toBeUndefined()
+    await expect(stageLegacyAgentFiles(input)).rejects.toThrow(/identity destination conflict/i)
 
     expect(await readFile(path.join(legacyWorkspace, 'SOUL.md'), 'utf8')).toBe('newer soul')
     expect(await readFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'utf8')).toBe('newer fact')

@@ -42,6 +42,17 @@ describe('AgentWorkspaceService', () => {
     expect(agentWorkspaceService).toBeInstanceOf(AgentWorkspaceService)
   })
 
+  it('owns the system workspace path policy', () => {
+    const root = workspacePath('system')
+
+    expect(agentWorkspaceService.systemWorkspacePath(root, 'session-1', SYSTEM_WORKSPACE_CREATED_AT)).toBe(
+      path.join(root, '2026-07-27', 'session-1')
+    )
+    expect(() => agentWorkspaceService.systemWorkspacePath(root, '../session-1', SYSTEM_WORKSPACE_CREATED_AT)).toThrow(
+      /invalid agent session id/i
+    )
+  })
+
   it('normalizes paths and dedupes rows by path', async () => {
     const rawPath = `${workspacePath('project', '..', 'project')}${path.sep}`
     const normalizedPath = workspacePath('project')

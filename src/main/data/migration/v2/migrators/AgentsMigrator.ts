@@ -4,6 +4,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
@@ -760,17 +761,6 @@ function legacyTimestampToMs(value: string | number | null, fallback: number): n
   return fallback
 }
 
-function defaultWorkspacePathForSession(systemWorkspacesDir: string, sessionId: string, createdAt: number): string {
-  if (!sessionId || sessionId === '.' || sessionId === '..' || /[\\/]/.test(sessionId)) {
-    throw new Error(`Invalid agent session id for system workspace: ${sessionId}`)
-  }
-  const date = new Date(createdAt)
-  const year = String(date.getUTCFullYear()).padStart(4, '0')
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(date.getUTCDate()).padStart(2, '0')
-  return path.join(systemWorkspacesDir, `${year}-${month}-${day}`, sessionId)
-}
-
 function countExpectedSessionWorkspacePaths(derived: DerivedSessionWorkspaces): Map<string, number> {
   const workspacePathById = new Map(derived.workspaces.map((workspace) => [workspace.id, workspace.path]))
   const counts = new Map<string, number>()
@@ -802,7 +792,7 @@ async function deriveSessionWorkspaces(
     const createdAt = legacyTimestampToMs(row.created_at, now)
     const updatedAt = legacyTimestampToMs(row.updated_at, createdAt)
     const workspacePath = isManagedDefault
-      ? defaultWorkspacePathForSession(systemWorkspacesDir, row.session_id, createdAt)
+      ? agentWorkspaceService.systemWorkspacePath(systemWorkspacesDir, row.session_id, createdAt)
       : sourceWorkspacePath
     const workspaceType = isManagedDefault ? 'system' : 'user'
 
@@ -871,7 +861,7 @@ function finalizeSessionWorkspaces(
     const finalAgentId = idRemap.agentIds.get(mapping.agentId) ?? mapping.agentId
     const workspace = workspacesById.get(mapping.workspaceId)
     if (workspace?.type === 'system') {
-      const workspacePath = defaultWorkspacePathForSession(
+      const workspacePath = agentWorkspaceService.systemWorkspacePath(
         ctx.paths.agentSystemWorkspacesDir,
         finalSessionId,
         mapping.createdAt

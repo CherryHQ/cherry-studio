@@ -203,11 +203,7 @@ async function copyIdentityEntry(
     let destinationSnapshot = await filesystemEntrySnapshot(destinationPath)
     if (destinationSnapshot) {
       if (destinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
-        logger.warn('Keeping legacy identity entry because the existing target differs', {
-          sourcePath,
-          destinationPath
-        })
-        return
+        throw new Error(`Legacy Agent identity destination conflict: ${destinationPath}`)
       }
       logger.info('Reusing identical identity entry from an earlier migration attempt', {
         sourcePath,
