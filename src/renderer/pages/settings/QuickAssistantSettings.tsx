@@ -69,6 +69,7 @@ const QuickAssistantSettings: FC = () => {
 
   const handleAssistantSelect = (assistantId: string) => {
     void setQuickAssistantId(assistantId)
+    setAssistantSelectOpen(false)
   }
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
