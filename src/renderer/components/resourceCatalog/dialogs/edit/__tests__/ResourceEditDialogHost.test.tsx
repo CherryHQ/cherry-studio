@@ -205,6 +205,25 @@ describe('ResourceEditDialogHost', () => {
     expect(mocks.onOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it('reopens the same logical target and cancels its pending close', async () => {
+    vi.useFakeTimers()
+
+    const { rerender } = render(
+      <ResourceEditDialogHost target={{ kind: 'agent', id: 'agent-1' }} onOpenChange={mocks.onOpenChange} />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'close' }))
+    expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'false')
+
+    await act(() => vi.advanceTimersByTime(DIALOG_CLOSE_DURATION_MS))
+    rerender(<ResourceEditDialogHost target={{ kind: 'agent', id: 'agent-1' }} onOpenChange={mocks.onOpenChange} />)
+
+    expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'true')
+
+    await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS))
+    expect(mocks.onOpenChange).not.toHaveBeenCalled()
+  })
+
   it('renders nothing without a target', () => {
     render(<ResourceEditDialogHost target={null} onOpenChange={mocks.onOpenChange} />)
 

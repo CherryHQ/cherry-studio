@@ -27,8 +27,6 @@ const logger = loggerService.withContext('ResourceEditDialogHost')
 export function ResourceEditDialogHost({ target, onOpenChange, onSaved }: ResourceEditDialogHostProps) {
   const [open, setOpen] = useState(target !== null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const targetKey = target ? `${target.kind}:${target.id}:${target.initialTab ?? ''}` : null
-  const hasTarget = target !== null
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current === null) return
@@ -37,10 +35,11 @@ export function ResourceEditDialogHost({ target, onOpenChange, onSaved }: Resour
     closeTimerRef.current = null
   }, [])
 
+  // A fresh target object represents a distinct open request, even when its fields match.
   useEffect(() => {
     clearCloseTimer()
-    setOpen(hasTarget)
-  }, [clearCloseTimer, hasTarget, targetKey])
+    setOpen(target !== null)
+  }, [clearCloseTimer, target])
 
   useEffect(() => clearCloseTimer, [clearCloseTimer])
 

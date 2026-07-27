@@ -185,7 +185,7 @@ function App() {
 import { Button } from '@cherrystudio/ui/components'
 
 // Utilities only
-import { DIALOG_CLOSE_DURATION_MS, toUndefinedIfNull } from '@cherrystudio/ui/utils'
+import { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS, toUndefinedIfNull } from '@cherrystudio/ui/utils'
 ```
 
 ## Development
@@ -349,7 +349,12 @@ Converts `undefined` to `null` at API boundaries.
 
 ### DIALOG_CLOSE_DURATION_MS
 
-Shared duration for coordinating work with the Dialog close animation.
+Duration of the Dialog CSS close animation: 220 ms.
+
+### DIALOG_UNMOUNT_DELAY_MS
+
+Delay for imperative Dialog hosts before unmounting: 250 ms. This leaves a 30 ms paint buffer after the close
+animation so the compositor can present the final transparent frame.
 
 ## License
 
