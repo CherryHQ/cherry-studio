@@ -102,11 +102,18 @@ Two perf-driven changes shipped in this cluster:
   bound delta coalescing by wall-clock and size` — smoothing the visual
   pacing of text-delta playback.
 
-### `useScrollAnchor`
+### Message-list scrolling
 
-New hook that anchors the virtual list on the active message rather
-than the bottom — keeps the user's reading position stable as the
-assistant streams in.
+The virtual-list runtime owns bottom following and viewport stability.
+Before a local send mutates the layout, the send path records whether
+the viewport is within one screen of the bottom. A successful send
+returns to the live bottom only when that captured decision allows it;
+otherwise the user's reading position remains frozen.
+
+The separate `blocks/useScrollAnchor.ts` hook only preserves position
+for expand/collapse changes inside independently managed nested
+scrollers. It yields to the virtual-list runtime for the message list
+itself.
 
 ## Invariants
 

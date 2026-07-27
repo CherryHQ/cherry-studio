@@ -176,6 +176,34 @@ describe('useAgentMessageListProviderValue', () => {
     window.api.file.isDirectory = vi.fn().mockResolvedValue(false)
   })
 
+  it('forwards the local-send generation to the shared list state', () => {
+    const topic = {
+      id: 'agent-session-topic',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        localSendGeneration: 3,
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(value?.state.localSendGeneration).toBe(3)
+  })
+
   it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
     const topic = {
       id: 'agent-session-topic',

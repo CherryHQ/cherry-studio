@@ -38,6 +38,30 @@ function createDeferred<T>() {
   return { promise, resolve }
 }
 
+function renderController(initialScopeKey = 'topic-a') {
+  const historyAdapter: ConversationHistoryAdapter = {
+    seedReservedMessages: vi.fn(),
+    refresh: vi.fn(),
+    rollback: vi.fn()
+  }
+  const view = renderHook(
+    ({ scopeKey }: { scopeKey: string }) =>
+      useConversationTurnController<string, { topicId: string }>({
+        scopeKey,
+        historyAdapter,
+        ensureConversation: () => ({ topicId: scopeKey }),
+        buildStreamRequest: (_input, conversation) => ({
+          trigger: 'submit-message',
+          topicId: conversation.topicId,
+          userMessageParts: []
+        })
+      }),
+    { initialProps: { scopeKey: initialScopeKey } }
+  )
+
+  return { ...view, historyAdapter }
+}
+
 describe('useConversationTurnController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -46,25 +70,7 @@ describe('useConversationTurnController', () => {
   it('ignores a stream-open acknowledgement from a previous scope', async () => {
     const pendingAck = createDeferred<AiStreamOpenResponse>()
     mocks.streamOpen.mockReturnValueOnce(pendingAck.promise)
-    const historyAdapter: ConversationHistoryAdapter = {
-      seedReservedMessages: vi.fn(),
-      refresh: vi.fn(),
-      rollback: vi.fn()
-    }
-    const { result, rerender } = renderHook(
-      ({ scopeKey }: { scopeKey: string }) =>
-        useConversationTurnController<string, { topicId: string }>({
-          scopeKey,
-          historyAdapter,
-          ensureConversation: () => ({ topicId: scopeKey }),
-          buildStreamRequest: (_input, conversation) => ({
-            trigger: 'submit-message',
-            topicId: conversation.topicId,
-            userMessageParts: []
-          })
-        }),
-      { initialProps: { scopeKey: 'agent-session:a' } }
-    )
+    const { result, rerender } = renderController('agent-session:a')
 
     let sendFromA!: Promise<AiStreamOpenResponse | null>
     act(() => {
@@ -88,5 +94,38 @@ describe('useConversationTurnController', () => {
 
     expect(result.current.localSendGeneration).toBe(1)
     expect(result.current.phase).toBe('streaming')
+  })
+
+  it('does not advance the local-send generation when stream open is blocked', async () => {
+    mocks.streamOpen.mockResolvedValueOnce({
+      mode: 'blocked',
+      reason: 'agent-session-workspace',
+      message: 'Workspace access is required'
+    })
+    const { result, historyAdapter } = renderController()
+
+    await act(async () => {
+      await result.current.send('blocked message')
+    })
+
+    expect(result.current.localSendGeneration).toBe(0)
+    expect(result.current.phase).toBe('ready')
+    expect(mocks.toastError).toHaveBeenCalledWith('Workspace access is required')
+    expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
+    expect(historyAdapter.rollback).not.toHaveBeenCalled()
+  })
+
+  it('does not advance the local-send generation when stream open fails', async () => {
+    mocks.streamOpen.mockRejectedValueOnce(new Error('stream open failed'))
+    const { result, historyAdapter } = renderController()
+
+    await act(async () => {
+      await expect(result.current.send('failed message')).rejects.toThrow('stream open failed')
+    })
+
+    expect(result.current.localSendGeneration).toBe(0)
+    expect(result.current.phase).toBe('draft')
+    expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
+    expect(historyAdapter.rollback).toHaveBeenCalledOnce()
   })
 })
