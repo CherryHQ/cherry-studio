@@ -26,6 +26,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'message.tools.activity.projectChecks': 'project checks',
         'message.tools.activity.relatedContent': 'related content',
         'message.tools.activity.searching': 'Searching',
+        'message.tools.activity.usingExtension': 'Bringing in an extension',
         'message.tools.labels.mcpServerTool': 'MCP Server Tool',
         'message.tools.labels.tool': 'Tool',
         'message.tools.sections.input': 'Input'
@@ -149,7 +150,7 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    expect(screen.getByRole('heading', { name: 'Searching related content' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Bringing in an extension' })).toBeInTheDocument()
     expect(screen.getByText('Search project documentation.')).toBeInTheDocument()
     expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
     expect(screen.getByTestId('permission-mcp-args-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
