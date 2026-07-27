@@ -19,6 +19,17 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classNames: Array<string | false | null | undefined>) => classNames.filter(Boolean).join(' ')
 }))
 
+// Stubbed out because the real button probes `local_model.get_status` on mount,
+// which would show up in the ipc assertions below. Its own behavior is covered
+// by LocalEmbeddingDownloadButton.test.tsx.
+vi.mock('../LocalEmbeddingDownloadButton', () => ({
+  default: ({ onSelected }: { onSelected: (id: string) => void }) => (
+    <button type="button" onClick={() => onSelected('local-embedding::qwen3-embedding-0.6b')}>
+      local-download
+    </button>
+  )
+}))
+
 vi.mock('../KnowledgeModelSelect', () => ({
   isEmbeddingModel: () => true,
   KnowledgeModelSelect: ({
@@ -456,6 +467,60 @@ describe('CreateKnowledgeBaseDialog', () => {
       uniqueModelId: 'openai::text-embedding-3-small',
       values: ['test']
     })
+  })
+
+  it('offers the local embedding download only until a model is picked', () => {
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'local-download' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+
+    expect(screen.queryByRole('button', { name: 'local-download' })).toBeNull()
+  })
+
+  it('submits the local embedding model with its fixed dimensions and no probe', async () => {
+    const createBase = vi.fn().mockResolvedValue(
+      createKnowledgeBase({
+        embeddingModelId: 'local-embedding::qwen3-embedding-0.6b',
+        dimensions: 1024
+      })
+    )
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    // A finished download selects the model through the same handler as the picker.
+    fireEvent.click(screen.getByRole('button', { name: 'local-download' }))
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() =>
+      expect(createBase).toHaveBeenCalledWith({
+        name: 'My Base',
+        embeddingModelId: 'local-embedding::qwen3-embedding-0.6b',
+        dimensions: 1024
+      })
+    )
+    // The local model runs in-process with a known dimension, so it is never probed.
+    expect(mockIpcRequest).not.toHaveBeenCalled()
   })
 
   it('keeps the dialog open and reports the error when probing dimensions fails', async () => {

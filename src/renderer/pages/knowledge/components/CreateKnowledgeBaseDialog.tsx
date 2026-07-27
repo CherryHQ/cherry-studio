@@ -28,6 +28,7 @@ import {
   KnowledgeDialogHeader
 } from './KnowledgeDialogLayout'
 import { isEmbeddingModel, KnowledgeModelSelect } from './KnowledgeModelSelect'
+import LocalEmbeddingDownloadButton from './LocalEmbeddingDownloadButton'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
@@ -134,6 +135,11 @@ const CreateKnowledgeBaseDialogRoot = ({
     })
   }, [groupIds])
 
+  const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
+    setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
+    setSubmitError(null)
+  }
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setHasAttemptedSubmit(true)
@@ -200,19 +206,25 @@ const CreateKnowledgeBaseDialogRoot = ({
 
             <KnowledgeDialogField>
               <Label>{t('knowledge.embedding_model')}</Label>
-              <KnowledgeModelSelect
-                aria-label={t('knowledge.embedding_model')}
-                value={values.embeddingModelId}
-                placeholder={t('knowledge.not_set')}
-                filter={isEmbeddingModel}
-                allowClear
-                clearAriaLabel={t('common.clear')}
-                onSettingsNavigate={handleSettingsNavigate}
-                onChange={(embeddingModelId) => {
-                  setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
-                  setSubmitError(null)
-                }}
-              />
+              <div className="flex items-center gap-2">
+                {/* The local model is absent from every picker until it is downloaded,
+                    so without this button it would be unreachable when creating a base. */}
+                {values.embeddingModelId === null ? (
+                  <LocalEmbeddingDownloadButton onSelected={handleEmbeddingModelChange} />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <KnowledgeModelSelect
+                    aria-label={t('knowledge.embedding_model')}
+                    value={values.embeddingModelId}
+                    placeholder={t('knowledge.not_set')}
+                    filter={isEmbeddingModel}
+                    allowClear
+                    clearAriaLabel={t('common.clear')}
+                    onSettingsNavigate={handleSettingsNavigate}
+                    onChange={handleEmbeddingModelChange}
+                  />
+                </div>
+              </div>
             </KnowledgeDialogField>
 
             {groups.length > 0 ? (
