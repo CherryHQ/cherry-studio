@@ -202,7 +202,7 @@ const SystemSettings: FC = () => {
           </Flex>
           <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
         </SettingRow>
-        {enableDeveloperMode && (
+        {enableDeveloperMode && clientId ? (
           <>
             <SettingDivider />
             <SettingRow className="gap-3">
@@ -215,7 +215,7 @@ const SystemSettings: FC = () => {
               </div>
             </SettingRow>
           </>
-        )}
+        ) : null}
       </SettingGroup>
     </SettingsContentColumn>
   )
