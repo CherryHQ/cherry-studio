@@ -15,6 +15,14 @@ export {
   type ResourceRequirement
 } from './manifest'
 export {
+  armPreparedRestore,
+  cancelPreparedRestore,
+  prepareLiteRestore,
+  type PrepareRestoreInputs,
+  type ResourceCoverage,
+  type RestorePreview
+} from './prepareRestore'
+export {
   type ResourcePathCandidate,
   type ResourcePathLimits,
   type ResourcePathValidation,
