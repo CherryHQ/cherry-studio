@@ -1,0 +1,23 @@
+---
+title: Backup and restore rebuilt — a restore now replaces the whole database
+category: changed
+severity: breaking
+introduced_in_pr: #17499
+date: 2026-07-28
+---
+
+## What changed
+
+Backup and restore moved to a new section (Settings → Data → Backup & restore) and works differently from v1. There are two exports: **Lite** writes a `.cherrybackup` file containing the complete database only, and **Full** writes the same database plus the app's portable managed files (knowledge base data, paintings, managed notes, local skills, stored files). Restoring either one **replaces the entire database** with the one in the file and restarts the app — it never merges the backup into what is already there, and there is no per-section or per-domain choice. Restoring does not delete files that exist only on the target device. The v1 cloud backup destinations (Local backup, WebDAV, S3, Nutstore) stay disabled for now; v2 backup is manual file export and restore only.
+
+## Why this matters to the user
+
+Anyone who used v1's backup expecting it to add missing data to the current profile will get the opposite: everything created since the backup was made disappears from the app when the restore completes, because the backup's database is now the database. After a Lite restore, content that depends on files (attachments, knowledge base indexes, paintings) may be unavailable on a device that does not have those files, and routine cleanup can later reclaim files the restored database no longer refers to. After any restore, integrations that run programs or reach the network (MCP servers, agent automation, code CLIs) stay switched off until the user re-confirms them on that device, and API keys and other credentials travel inside the backup file in readable form.
+
+## What the user should do
+
+Export a fresh backup before restoring an old one if anything since then is worth keeping. Choose Full when moving to another device or when knowledge bases and attachments must come along; Lite is enough when the same device already holds the files. After a restore completes, the app keeps the previous database and every replaced file on disk until "Keep restored data" is confirmed, so a restore that went wrong can still be reported before that point. Re-enable the integrations that were switched off, and store `.cherrybackup` files somewhere private.
+
+## Notes for release manager
+
+Fold `2026-07-27-v1-pending-restore-discarded.md` into this entry — it is the narrow upgrade-window case of the same rewrite. Correct that entry's closing line before publishing: the v2 restore route accepts `.cherrybackup` files only, and the v1 surfaces that could read a v1 `.zip` are still disabled, so a v1 backup file cannot be restored in v2 today. Worth a screenshot of the new section and of the confirmation dialog, since the "replaces everything" wording is the whole point.
