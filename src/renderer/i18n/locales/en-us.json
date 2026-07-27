@@ -2080,6 +2080,12 @@
     "auto_update_to_latest": "Automatically update to latest version",
     "bun_required_message": "Bun environment is required to run CLI tools",
     "can_upgrade": "Upgrade available",
+    "claude_preflight": {
+      "authentication_error": "Claude Code authentication failed. Check that this provider accepts the configured API key.",
+      "model_error": "Claude Code could reach the endpoint, but the selected model is unavailable or its gateway mapping is invalid.",
+      "route_error": "The provider does not expose the Claude Code /v1/messages route. Check the Anthropic endpoint URL.",
+      "service_error": "Could not verify the Claude Code endpoint because the provider or network is unavailable."
+    },
     "clear_config_failed": "Failed to clear the CLI config. Your credentials may still be in the tool's config files.",
     "cli_config": {
       "format_failed": "Format failed. Check the file syntax.",

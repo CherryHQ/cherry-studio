@@ -1,5 +1,6 @@
 import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/pages/code/cliConfig'
 import {
+  cliConfigApplyErrorKey,
   cliConfigConnectionMatchesProvider,
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
@@ -390,7 +391,7 @@ export function useConfigDraftController({
     } catch (err) {
       // Keep the dialog open so the user's edits survive a failed apply.
       logger.error('Failed to save CLI provider config', err as Error)
-      toast.error(t('code.apply_failed'))
+      toast.error(t(cliConfigApplyErrorKey(err)))
     } finally {
       setSubmitting(false)
     }

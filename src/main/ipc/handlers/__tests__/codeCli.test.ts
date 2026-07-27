@@ -9,6 +9,7 @@ import { codeCliHandlers } from '../codeCli'
 const codeCliService = {
   run: vi.fn(),
   writeConfigFiles: vi.fn(),
+  preflightClaudeEndpoint: vi.fn(),
   getAvailableTerminalsForPlatform: vi.fn()
 }
 
@@ -94,6 +95,28 @@ describe('codeCliHandlers', () => {
         success: false,
         message: 'disk full'
       })
+    })
+  })
+
+  describe('code_cli.claude.preflight', () => {
+    it('delegates the endpoint, credential, and model without logging them in the handler', async () => {
+      const input = {
+        baseUrl: 'https://open.cherryin.net',
+        apiKey: 'enterprise-secret-key',
+        model: 'kimi-k3'
+      }
+      codeCliService.preflightClaudeEndpoint.mockResolvedValue({
+        success: true,
+        category: 'ok',
+        statusCode: 200
+      })
+
+      await expect(codeCliHandlers['code_cli.claude.preflight'](input, ctx)).resolves.toEqual({
+        success: true,
+        category: 'ok',
+        statusCode: 200
+      })
+      expect(codeCliService.preflightClaudeEndpoint).toHaveBeenCalledWith(input)
     })
   })
 

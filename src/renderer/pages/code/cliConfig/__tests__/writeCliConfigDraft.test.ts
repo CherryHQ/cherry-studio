@@ -105,7 +105,10 @@ describe('writeCliConfigDraft', () => {
     // The disk write is main-process now (`code_cli.write_config` carries
     // `{ target, content }`, never a path). Translate each target back to the
     // same `/resolved~/…` path so the content fixtures stay unchanged.
-    mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
+    mocks.request.mockImplementation(async (route: string, input: { files: CliConfigWriteFile[] }) => {
+      if (route === 'code_cli.claude.preflight') {
+        return { success: true, category: 'ok', statusCode: 200 }
+      }
       for (const file of input.files) {
         written = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
         writes.push(written)
@@ -151,6 +154,37 @@ describe('writeCliConfigDraft', () => {
         ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
         ANTHROPIC_AUTH_TOKEN: 'sk-secret',
         ANTHROPIC_MODEL: 'claude-sonnet-4-5'
+      })
+    })
+
+    it('normalizes a versioned CherryIN endpoint and writes the upstream API model id', async () => {
+      const versionedCherryinProvider = {
+        ...cherryinProvider,
+        endpointConfigs: {
+          ...cherryinProvider.endpointConfigs,
+          'anthropic-messages': { baseUrl: 'https://open.cherryin.net/v1/' }
+        }
+      } as Provider
+      mockGet({
+        '/providers/cherryin': () => versionedCherryinProvider,
+        '/providers/cherryin/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ apiModelId: 'kimi-k3' })
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'cherryin::moonshotai/kimi-k3'
+      })
+
+      expect(JSON.parse(written!.content).env).toEqual({
+        ANTHROPIC_BASE_URL: 'https://open.cherryin.net',
+        ANTHROPIC_AUTH_TOKEN: 'sk-secret',
+        ANTHROPIC_MODEL: 'kimi-k3'
+      })
+      expect(mocks.request).toHaveBeenCalledWith('code_cli.claude.preflight', {
+        baseUrl: 'https://open.cherryin.net',
+        apiKey: 'sk-secret',
+        model: 'kimi-k3'
       })
     })
 

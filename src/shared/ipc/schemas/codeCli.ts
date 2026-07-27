@@ -17,6 +17,16 @@ const terminalConfigSchema = z.object({
   name: z.string()
 })
 
+export const CLAUDE_PREFLIGHT_CATEGORIES = ['ok', 'route', 'authentication', 'model', 'service'] as const
+
+const claudePreflightResultSchema = z.object({
+  success: z.boolean(),
+  category: z.enum(CLAUDE_PREFLIGHT_CATEGORIES),
+  statusCode: z.number().int().nullable()
+})
+
+export type ClaudePreflightResult = z.infer<typeof claudePreflightResultSchema>
+
 const runBaseSchema = z.object({
   cliTool: z.enum(CodeCli),
   // Plain string on purpose: the service owns the friendly "Directory does not
@@ -74,6 +84,14 @@ export const codeCliRequestSchemas = {
         .min(1)
     }),
     output: operationResultSchema
+  }),
+  'code_cli.claude.preflight': defineRoute({
+    input: z.object({
+      baseUrl: z.url(),
+      apiKey: z.string().min(1),
+      model: z.string().min(1)
+    }),
+    output: claudePreflightResultSchema
   }),
   'code_cli.get_available_terminals': defineRoute({
     input: z.void(),

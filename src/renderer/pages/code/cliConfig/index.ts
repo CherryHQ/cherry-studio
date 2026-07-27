@@ -32,6 +32,7 @@ export {
   OPEN_CODE_PERMISSION_MODES,
   QWEN_APPROVAL_MODES
 } from './permissionModes'
+export { ClaudeConfigPreflightError, cliConfigApplyErrorKey } from './preflight'
 export { cliConfigConnectionMatchesProvider } from './providerMatching'
 export type {
   CliConfigConnection,
