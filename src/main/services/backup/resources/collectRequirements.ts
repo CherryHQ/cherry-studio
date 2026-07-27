@@ -15,7 +15,7 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 import type { ResourceRequirement } from '../manifest'
-import type { BackupPlatform } from '../portability/managedPathRebase'
+import { currentBackupPlatform } from '../platform'
 import { BACKUP_RESOURCE_KINDS, type BackupResourceKind, RESOURCE_ADAPTERS, type ResourceRoots } from './adapters'
 
 const logger = loggerService.withContext('backupResourceInventory')
@@ -53,10 +53,6 @@ export function resolveResourceRoots(): ResourceRoots {
   }
 }
 
-function currentPlatform(): BackupPlatform {
-  return process.platform === 'win32' ? 'win32' : process.platform === 'darwin' ? 'darwin' : 'linux'
-}
-
 export function collectResourceRequirements(input: CollectRequirementsInput): ResourceInventory {
   const sqlite = new Database(input.dbPath, { fileMustExist: true, readonly: true })
   try {
@@ -64,7 +60,7 @@ export function collectResourceRequirements(input: CollectRequirementsInput): Re
       db: drizzle({ client: sqlite, casing: 'snake_case' }),
       userDataPath: input.userDataPath ?? application.getPath('app.userdata'),
       roots: input.roots ?? resolveResourceRoots(),
-      platform: currentPlatform()
+      platform: currentBackupPlatform()
     }
 
     const requirements: ResourceRequirement[] = []
