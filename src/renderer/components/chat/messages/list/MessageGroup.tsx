@@ -27,7 +27,6 @@ const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 
 interface Props {
   messages: MessageListItem[]
-  enteringMessageIds?: ReadonlySet<string>
   partsByMessageId?: Record<string, CherryMessagePart[]> | null
   topic: Topic
   captureMode?: boolean
@@ -50,7 +49,6 @@ function pickPreferredSelectedMessage(
 
 const MessageGroup = ({
   messages,
-  enteringMessageIds,
   partsByMessageId,
   topic,
   captureMode = false,
@@ -309,7 +307,6 @@ const MessageGroup = ({
     (message: MessageListItem, index: number) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
       const messageProps = {
-        enterMotionActive: enteringMessageIds?.has(message.id) ?? false,
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',
@@ -376,8 +373,7 @@ const MessageGroup = ({
       onUpdateUseful,
       groupContextMessageId,
       gridPopoverTrigger,
-      partsByMessageId,
-      enteringMessageIds
+      partsByMessageId
     ]
   )
 
@@ -527,15 +523,6 @@ function messagePartsShallowEqual(
   return messages.every((message) => previous?.[message.id] === next?.[message.id])
 }
 
-function enterMotionStateEqual(
-  previous: ReadonlySet<string> | undefined,
-  next: ReadonlySet<string> | undefined,
-  messages: MessageListItem[]
-): boolean {
-  if (previous === next) return true
-  return messages.every((message) => (previous?.has(message.id) ?? false) === (next?.has(message.id) ?? false))
-}
-
 // Custom comparator: bail out only when topic / latest flag / derived model map /
 // per-message refs are all identical. Inline callback props (onMultiModelMessageStyleChange,
 // registerMessageElement) are intentionally ignored — they close over
@@ -553,7 +540,6 @@ export default memo(MessageGroup, (prev, next) => {
     prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     prev.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
     messageArrayShallowEqual(prev.messages, next.messages) &&
-    enterMotionStateEqual(prev.enteringMessageIds, next.enteringMessageIds, prev.messages) &&
     messagePartsShallowEqual(prev.partsByMessageId, next.partsByMessageId, prev.messages)
   )
 })
