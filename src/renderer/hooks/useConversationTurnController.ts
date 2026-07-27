@@ -48,7 +48,7 @@ export function useConversationTurnController<TInput, TConversation>({
         }
 
         setPhase('opening')
-        const ack = await ipcApi.request('ai.stream_open', buildStreamRequest(input, conversation))
+        const ack = await ipcApi.request('ai.stream.open', buildStreamRequest(input, conversation))
 
         if (ack.mode === 'blocked') {
           toast.error(ack.message)
