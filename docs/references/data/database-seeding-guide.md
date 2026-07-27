@@ -175,7 +175,7 @@ No changes to `DbService` are needed.
 
 ## Important Notes
 
-- **Idempotency**: Seed logic must check existing data before inserting. Users may have modified or deleted seeded records; the seeder should only insert records that do not already exist. Note "insert-only" governs *rows*, not *freshness*: an insert-only seeder can never propagate updates to fields it materialized earlier. Data that an upstream source (e.g. the provider registry) keeps updating must therefore not be materialized by a seeder at all — resolve it at read time and seed only user-editable scaffolding, as `PresetProviderSeeder` does (#17096).
+- **Idempotency**: Seed logic must check existing data before inserting. Users may have modified or deleted seeded records; the seeder should only insert records that do not already exist.
 - **Transaction boundaries**: Each seeder owns its own transaction. `SeedRunner` writes the journal only after `seeder.run(db)` resolves; if a seed throws, the journal is not written.
 - **Phase**: Seeds run at `Phase.BeforeReady` during app initialization, before any services that depend on the seeded data are active.
 - **Journal storage**: Journal entries are stored in the `app_state` table with key prefix `seed:` and a JSON value containing `version`. The table's built-in `updatedAt` column serves as the applied-at timestamp. The `seed:` prefix follows the `app_state` key-naming convention — see [App State Overview](./app-state-overview.md).
