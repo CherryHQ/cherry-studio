@@ -1236,11 +1236,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09999999999999999
+          "perMillionTokens": 0.04815
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.19305
         }
       }
     },
@@ -3859,23 +3859,13 @@
         "web-search"
       ],
       "contextWindow": 1000000,
-      "family": "claude-opus",
       "id": "claude-opus-4-7-fast",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "Claude Opus 4.7 (Fast)",
+      "name": "Anthropic: Claude Opus 4.7 (Fast)",
       "outputModalities": ["text"],
       "ownedBy": "anthropic",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 3
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 37.5
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 30
@@ -3889,18 +3879,18 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "xhigh"]
-          },
-          {
-            "kind": "toggle"
+            "values": ["low", "medium", "high", "max"]
           },
           {
             "kind": "budget",
             "max": 128000,
             "min": 1024
+          },
+          {
+            "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "none"],
+        "supportedEfforts": ["low", "medium", "high", "max", "none"],
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
@@ -15049,19 +15039,13 @@
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "web-search"],
       "contextWindow": 128000,
-      "family": "gpt",
       "id": "gpt-5-2-chat",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 16384,
+      "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "GPT-5.2 Chat",
+      "name": "OpenAI: GPT-5.2 Chat",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.175
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 1.75
@@ -15905,19 +15889,13 @@
         "web-search"
       ],
       "contextWindow": 128000,
-      "family": "gpt",
       "id": "gpt-5-chat",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 16384,
+      "inputModalities": ["image", "text"],
       "metadata": {},
       "name": "GPT-5 Chat",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.125
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 1.25
@@ -20618,5 +20596,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "f04f29ae2b31fda7"
+  "version": "e7a0876529767a94"
 }
