@@ -1,3 +1,4 @@
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock, cleanupPdfMock, cancelPdfMock, ipcSendMock, openMock, translatePdfMock } = vi.hoisted(() => ({
@@ -54,7 +55,7 @@ describe('translateHandlers', () => {
     const request = {
       jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
       modelId: 'openai::gpt-4.1',
-      sourcePath: '/tmp/paper.pdf',
+      sourcePath: '/tmp/paper.pdf' as AbsoluteFilePath,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
     } as const
