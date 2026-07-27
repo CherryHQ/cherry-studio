@@ -947,7 +947,7 @@ interface IFileUploadService {
 
 ### 10.1 Positioning
 
-Orphan sweep is **explicitly triggered via the `File_RunSweep` IPC channel** — there is no startup auto-run. FileManager exposes a single `runSweep()` method for cleanup UI/caller-initiated flows; it runs both the FS-level pass (§10) and the DB-level pass (§7 Layer 3) concurrently and returns a single `OrphanReport` once both settle. Both passes begin with a `hasPendingRestore()` guard (`src/main/data/db/restore/restoreJournal.ts`): while a staged backup restore awaits promotion, the sweep stands aside with `outcome: 'aborted', abortReason: 'pending-restore'` — a staged restore's blobs are on disk but not yet referenced by the live DB, which is exactly what the sweep would otherwise reclaim.
+Orphan sweep is **explicitly triggered via the `File_RunSweep` IPC channel** — there is no startup auto-run. FileManager exposes a single `runSweep()` method for cleanup UI/caller-initiated flows; it runs both the FS-level pass (§10) and the DB-level pass (§7 Layer 3) concurrently and returns a single `OrphanReport` once both settle. Both passes begin with a `hasPendingRestore()` guard (`src/main/data/db/restore/restoreGuard.ts`): while a backup restore awaits promotion — or a completed one still holds the asides its rollback needs — the sweep stands aside with `outcome: 'aborted', abortReason: 'pending-restore'`; a prepared restore's blobs are on disk but not yet referenced by the live DB, which is exactly what the sweep would otherwise reclaim.
 
 ```typescript
 protected override async onInit(): Promise<void> {

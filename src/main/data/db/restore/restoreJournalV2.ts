@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { application } from '@application'
 import { portableCollisionKey, RelativeSubpathSchema } from '@main/utils/relativePath'
 import * as z from 'zod'
 
@@ -7,12 +11,10 @@ import { MAX_RESOURCE_INSTALL_ENTRIES } from './restoreLimits'
  * Restore-promotion journal v2 — the crash-safe contract for the Backup v2
  * replacement flow (docs/references/backup/README.md §6). This is a
  * SIDE-BY-SIDE contract: the v1 journal (`./restoreJournal.ts`, `version: 1`,
- * state `staged`) and its promotion code stay live and untouched until Phase 2
- * performs the cutover. Introducing v2 here as a separate module — rather than
- * mutating v1 in place — keeps the running v1 promotion/orphan-sweep path
- * whole while the v2 contract is proven by tests. There is intentionally NO
- * file I/O and NO wiring to the live journal sidecar in this module; Phase 2
- * owns reading/writing this journal to `feature.backup.restore.file`.
+ * state `staged`) and its promotion code stay live and untouched until the
+ * promotion cutover. Both versions address the SAME sidecar file, so at most
+ * one of them ever parses it; `./restoreGuard.ts` owns that cross-version
+ * decision for readers that only need "is a restore holding storage".
  *
  * Version independence: `RESTORE_JOURNAL_VERSION` (the on-disk journal contract)
  * is distinct from the archive `BACKUP_FORMAT_VERSION`. Both being `2` is
@@ -179,8 +181,88 @@ export type ReadJournalV2Result =
   | { readonly kind: 'ok'; readonly journal: RestoreJournalV2 }
   | { readonly kind: 'invalid'; readonly error: string }
 
-/** Pure structural parse — no I/O. Phase 2 wraps file reads around this. */
+/** Pure structural parse — no I/O. The file readers below wrap this. */
 export function parseRestoreJournalV2(value: unknown): ReadJournalV2Result {
   const result = RestoreJournalV2Schema.safeParse(value)
   return result.success ? { kind: 'ok', journal: result.data } : { kind: 'invalid', error: result.error.message }
+}
+
+/**
+ * The journal is a standalone sidecar in the database's own directory
+ * (`feature.backup.restore.file`), and that CO-LOCATION IS A DURABILITY
+ * INVARIANT, not convenience: every write below fsyncs the shared parent
+ * directory, which also flushes a not-yet-durable DB rename in that same
+ * directory — so "marker at/past the commit step" implies "the commit rename is
+ * durable" even if the rename's own directory fsync was lost. Moving this file
+ * elsewhere reopens a power-loss window where a completed journal survives a
+ * rolled-back rename, i.e. booting into an empty database.
+ */
+function journalFilePath(): string {
+  return application.getPath('feature.backup.restore.file')
+}
+
+export type ReadJournalV2FileResult =
+  | { readonly kind: 'none' }
+  | { readonly kind: 'corrupt'; readonly error: string }
+  | { readonly kind: 'ok'; readonly journal: RestoreJournalV2 }
+
+/**
+ * Read the on-disk journal as v2. A v1 journal, a future version, or garbage all
+ * come back `corrupt` — never reinterpreted (§5.2 strict-version quarantine).
+ * Unreadable is `corrupt` too, not `none`: "absent" is a claim only ENOENT can
+ * make, and every other errno must fail safe for the reclaim guard.
+ */
+export function readRestoreJournalV2(): ReadJournalV2FileResult {
+  let raw: string
+  try {
+    raw = fs.readFileSync(journalFilePath(), 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { kind: 'none' }
+    }
+    return { kind: 'corrupt', error: String(error) }
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (error) {
+    return { kind: 'corrupt', error: String(error) }
+  }
+
+  const result = parseRestoreJournalV2(parsed)
+  return result.kind === 'ok' ? { kind: 'ok', journal: result.journal } : { kind: 'corrupt', error: result.error }
+}
+
+/**
+ * Crash-safe journal write: write-ahead to a `.tmp` sibling, fsync it, rename
+ * over the journal path, then fsync the parent directory on POSIX so the rename
+ * itself is durable. Windows moves are write-through and its directory handles
+ * cannot be fsynced, so the same guarantee is inherited from the platform there.
+ *
+ * Deliberately mirrors the v1 writer rather than sharing it: v1 disappears at
+ * the promotion cutover, and coupling two on-disk contracts that are about to
+ * diverge would be the wrong dependency to create for one phase of overlap.
+ */
+export function writeRestoreJournalV2(journal: RestoreJournalV2): void {
+  const journalPath = journalFilePath()
+  const tmpPath = `${journalPath}.tmp`
+
+  const fd = fs.openSync(tmpPath, 'w')
+  try {
+    fs.writeSync(fd, JSON.stringify(journal, null, 2))
+    fs.fsyncSync(fd)
+  } finally {
+    fs.closeSync(fd)
+  }
+  fs.renameSync(tmpPath, journalPath)
+
+  if (process.platform !== 'win32') {
+    const dirFd = fs.openSync(path.dirname(journalPath), 'r')
+    try {
+      fs.fsyncSync(dirFd)
+    } finally {
+      fs.closeSync(dirFd)
+    }
+  }
 }

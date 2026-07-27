@@ -418,9 +418,11 @@ state and must reject overlapping/symlink/EXDEV states before mutation.
 
 While a completed restore's DB/resource asides are retained, orphan sweep must **abort or
 quarantine** instead of permanently unlinking anything based on the newly restored DB —
-`orphanSweep` already stands aside on `hasPendingRestore()`
-(`src/main/services/file/internal/orphanSweep.ts:126`); the guard is extended to cover
-`prepared`, `armed`, `promoting`, and completed-but-unacknowledged recovery.
+`orphanSweep` stands aside on `hasPendingRestore()`
+(`src/main/services/file/internal/orphanSweep.ts`), which lives in
+[`src/main/data/db/restore/restoreGuard.ts`](../../../src/main/data/db/restore/restoreGuard.ts)
+and covers `prepared`, `armed`, `promoting`, and completed-but-unacknowledged recovery
+across both journal versions.
 
 **Acknowledgement is the commit-to-keep action.** Cleanup idempotently removes recovery
 asides **first**, clears the journal **last**, then releases GC protection. A crash
@@ -561,7 +563,8 @@ evidence of *what* the system must do, never ancestry to inherit.
 | Restore journal fsync primitives, promotion step/commit probing, crash recovery, `markRestoreFailedAfterCrash`, `isLiveDbStranded`, `runRestorePromotion` | `src/main/data/db/restore/{restoreJournal,restorePromotion}.ts` |
 | Preboot restore gate | `src/main/core/preboot/backupRestoreGate.ts` |
 | Path registry / containment rules (`feature.backup.*` keys) | `src/main/core/paths/pathRegistry.ts` |
-| Orphan sweep + its `hasPendingRestore()` stand-aside guard | `src/main/services/file/internal/orphanSweep.ts` |
+| Orphan sweep | `src/main/services/file/internal/orphanSweep.ts` |
+| Its `hasPendingRestore()` stand-aside guard (both journal versions) | `src/main/data/db/restore/restoreGuard.ts` |
 | Preboot userData relocation (runs before the restore gate) | `src/main/core/preboot/userDataLocation.ts` |
 | v1 whole-store replacement semantics (evidence only) | `src/main/services/LegacyBackupManager.ts` |
 

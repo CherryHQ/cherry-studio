@@ -1,3 +1,4 @@
+export { type BackupOperation, BackupService, type BackupStatus, type RestoreStatus } from './BackupService'
 export { BACKUP_CEILINGS, type BackupCeilings } from './ceilings'
 export {
   BACKUP_FORMAT_VERSION,

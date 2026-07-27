@@ -22,7 +22,7 @@ vi.mock('@application', async () => {
 // Both sweep entries consult hasPendingRestore before doing anything; default
 // to false so every pre-existing scenario runs unguarded.
 const hasPendingRestoreMock = vi.fn((): boolean => false)
-vi.mock('@data/db/restore/restoreJournal', () => ({
+vi.mock('@data/db/restore/restoreGuard', () => ({
   hasPendingRestore: () => hasPendingRestoreMock()
 }))
 
