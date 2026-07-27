@@ -36,7 +36,6 @@ export interface ChatTurnInput {
   text: string
   options?: {
     mentionedModels?: UniqueModelId[]
-    knowledgeBaseIds?: string[]
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
   }
@@ -272,7 +271,6 @@ export function useChatRuntimeState({
       parentAnchorId: conversation.parentAnchorId ?? undefined,
       userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
       mentionedModelIds: options?.mentionedModels,
-      knowledgeBaseIds: options?.knowledgeBaseIds,
       reasoningEffort: options?.reasoningEffort
     }),
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])

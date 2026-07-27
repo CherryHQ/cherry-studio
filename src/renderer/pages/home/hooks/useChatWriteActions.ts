@@ -205,10 +205,9 @@ export function useChatWriteActions(params: Params): Result {
 
   const capabilityBody = useMemo<Record<string, unknown>>(
     () => ({
-      knowledgeBaseIds: assistant?.knowledgeBaseIds,
       enableWebSearch: assistant?.settings.enableWebSearch
     }),
-    [assistant?.knowledgeBaseIds, assistant?.settings.enableWebSearch]
+    [assistant?.settings.enableWebSearch]
   )
 
   /** Regenerate with capability body + target-driven anchor/model. */
