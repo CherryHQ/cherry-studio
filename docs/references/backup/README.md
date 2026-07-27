@@ -270,26 +270,39 @@ replaced.
 ### 6.2 Live WAL checkpoint is mandatory
 
 Removing fingerprint comparison MUST NOT remove the data-preservation step: in the
-zero-connection preboot window, **checkpoint-truncate the current live DB** before removing
-sidecars or moving it aside (`DbService.checkpointTruncate()` →
-`checkpointTruncateAssert`, `src/main/data/db/DbService.ts:270`). A dirty-WAL fixture must
-prove the aside contains the latest committed live transactions before replacement.
+zero-connection preboot window, **checkpoint-truncate the current live DB** (`DbService.checkpointTruncate()`
+→ `checkpointTruncateAssert`, `src/main/data/db/DbService.ts:270`). This is the **first**
+effectful step (`live-checkpointed`), before any resource install, sidecar removal, or
+DB move: a checkpoint failure therefore aborts the promotion with **zero resource
+effects**. A dirty-WAL fixture must prove the aside contains the latest committed live
+transactions before replacement.
 
 ### 6.3 Full resource-install operation
 
 Every Full payload is one journal-v2 `resource-install` operation carrying: a resource type
 (`file` or `directory`), a staged path, a registered live path, and a reserved
-restore-specific aside path. Full promotion installs all declared resources **before** the
-DB commit boundary, then moves the checkpointed live DB aside and promotes the staged DB.
+restore-specific aside path. Full promotion installs all declared resources **after the
+live checkpoint (§6.2) but before** the DB commit boundary, then moves the checkpointed
+live DB aside and promotes the staged DB. Within one entry the staging/live/aside paths are
+pairwise distinct (and the DB `promote`/`aside` distinct) under the collision policy below.
 
 Install action by target state at preboot execution:
 
 | Target state | Action |
 |---|---|
 | Declared live path absent | Rename staged resource into live path. |
-| Declared live path present | Rename target to aside, then rename staged resource into live path. |
+| Declared live path present, **same type** as the unit | Rename target to aside, then rename staged resource into live path. |
 | Target-only path not declared by archive | Leave untouched (absent from journal). |
 | External/user-owned path | Never create a journal entry; report unsupported/unavailable. |
+
+**Type/kind mismatches fail closed before any mutation.** A rename install is admitted only
+when the existing live node is absent, or a regular file/directory whose type **matches**
+the unit's `resourceType`. A declared live path that is a symlink or special file, whose
+existing type differs from the unit (file-over-directory or directory-over-file), or that
+is reached through a symlink/special ancestor, is **rejected** at admission and journal
+sealing (`validateResourcePaths`) — never overwritten — because replacing it would require
+destroying the existing node and could delete target-only descendants, violating
+preservation.
 
 There is intentionally **no** target-side hash / no-op branch: reinstalling identical
 content costs I/O but removes target hashing and staging-to-boot classification drift.
@@ -320,6 +333,13 @@ state. Existence alone is insufficient — `(present, absent, present)` is ambig
 - A crash before the resource-install step marker may roll back already-installed entries
   rather than resume them; a crash at/after the DB commit follows the committed branch.
 - Target-only paths are absent from the journal and untouched throughout.
+- **Both-source-and-live states fail closed.** Under rename-only install the backup lives
+  in exactly one of `{staged, live}`, so `staged` and `live` both present is impossible —
+  with one provable exception: pre-commit with `aside` **also** absent proves no parking
+  happened, so `live` is the untouched original target and the plan simply drops `staged`.
+  Every other `staged`+`live` state (pre-commit `SLA`, committed `SL-`/`SLA`) cannot prove
+  whether `live` is an installed backup or a target-only file, so the recovery **aborts
+  inconsistent** rather than overwrite or discard a possibly target-only node.
 
 The table MUST be **total** over every reachable `(direction/step, staged, live, aside)`
 state and must reject overlapping/symlink/EXDEV states before mutation.
