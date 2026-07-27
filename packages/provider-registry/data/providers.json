@@ -66,7 +66,15 @@
           "adapterFamily": "aihubmix",
           "baseUrl": "https://aihubmix.com"
         },
+        "google-generate-content": {
+          "adapterFamily": "aihubmix",
+          "baseUrl": "https://aihubmix.com/gemini/v1beta"
+        },
         "openai-chat-completions": {
+          "adapterFamily": "aihubmix",
+          "baseUrl": "https://aihubmix.com/v1"
+        },
+        "openai-responses": {
           "adapterFamily": "aihubmix",
           "baseUrl": "https://aihubmix.com/v1"
         }
@@ -273,11 +281,15 @@
       "description": "DMXAPI - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "anthropic",
+          "adapterFamily": "dmxapi",
           "baseUrl": "https://www.dmxapi.cn"
         },
+        "google-generate-content": {
+          "adapterFamily": "dmxapi",
+          "baseUrl": "https://www.dmxapi.cn/v1beta/"
+        },
         "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
+          "adapterFamily": "dmxapi",
           "baseUrl": "https://www.dmxapi.cn"
         }
       },
@@ -1849,5 +1861,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "9ef047b89c8ba9e8"
+  "version": "716e3d74ef6dac75"
 }
