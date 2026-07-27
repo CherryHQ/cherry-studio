@@ -29,7 +29,6 @@ import {
   ArrowRight,
   Check,
   Database,
-  ExternalLink,
   FolderOpen,
   Loader2,
   Monitor,
@@ -370,7 +369,6 @@ const MigrationApp: React.FC = () => {
   const openDownloadPage = async () => {
     try {
       if (await actions.openDownloadPage()) {
-        // The offer has served its purpose; the inline entry stays for a second visit.
         setV1DialogOpen(false)
         return
       }
@@ -577,24 +575,6 @@ const MigrationApp: React.FC = () => {
                 {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>
             </div>
-            {/* Takes over as the entry point once the dialog is dismissed, so the offer survives
-                without duplicating the dialog's copy behind it. */}
-            {hasRetried && !v1DialogOpen && (
-              <Alert
-                type="warning"
-                showIcon
-                message={t('migration.error.v1_fallback.title')}
-                description={
-                  <div className="space-y-2.5">
-                    <p>{t('migration.error.v1_fallback.description')}</p>
-                    <Button variant="outline" size="sm" onClick={() => void openDownloadPage()}>
-                      <ExternalLink size={13} />
-                      {t('migration.error.v1_fallback.download')}
-                    </Button>
-                  </div>
-                }
-              />
-            )}
             <MigrationDiagnosticPanel />
             <div className="flex items-center gap-2">
               <Button variant="outline" size="lg" onClick={() => actions.cancel()}>

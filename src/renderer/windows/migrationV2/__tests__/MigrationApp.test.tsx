@@ -550,14 +550,14 @@ describe('MigrationApp', () => {
     expect(screen.queryByTestId('migration-diagnostic-panel')).not.toBeInTheDocument()
   })
 
-  describe('v1 download guidance', () => {
+  describe('v1 download dialog', () => {
     const errorProgress = {
       currentMessage: 'Failed',
       migrators: [],
       overallProgress: 0,
       stage: 'error'
     }
-    const downloadButton = () => screen.queryByRole('button', { name: 'migration.error.v1_fallback.download' })
+    const dialog = () => screen.queryByTestId('v1-download-dialog')
 
     // Retry hands the user back to the introduction screen, so "still failing" means a second
     // error stage — the first failure alone must not push people off the upgrade.
@@ -573,28 +573,27 @@ describe('MigrationApp', () => {
       rerender(<MigrationApp />)
     }
 
-    it('stays hidden on the first failure', () => {
+    it('stays closed on the first failure', () => {
       migrationHookMock.progress = errorProgress
 
       render(<MigrationApp />)
 
-      expect(downloadButton()).not.toBeInTheDocument()
-      expect(screen.queryByTestId('v1-download-dialog')).not.toBeInTheDocument()
+      expect(dialog()).not.toBeInTheDocument()
     })
 
     // Clicking Retry flips the "has retried" flag while the error screen is still up; the dialog
     // must wait for the stage to be re-entered instead of popping open under the user's cursor.
-    it('does not pop the dialog open on the retry click itself', () => {
+    it('does not open on the retry click itself', () => {
       migrationHookMock.progress = errorProgress
       const { rerender } = render(<MigrationApp />)
 
       fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.retry' }))
       rerender(<MigrationApp />)
 
-      expect(screen.queryByTestId('v1-download-dialog')).not.toBeInTheDocument()
+      expect(dialog()).not.toBeInTheDocument()
     })
 
-    it('stays hidden while a retried migration is still running', () => {
+    it('stays closed while a retried migration is still running', () => {
       migrationHookMock.progress = errorProgress
       const { rerender } = render(<MigrationApp />)
 
@@ -609,78 +608,48 @@ describe('MigrationApp', () => {
       }
       rerender(<MigrationApp />)
 
-      expect(downloadButton()).not.toBeInTheDocument()
-      expect(screen.queryByTestId('v1-download-dialog')).not.toBeInTheDocument()
+      expect(dialog()).not.toBeInTheDocument()
     })
 
-    it('pops the dialog open once a retried migration fails again', () => {
+    it('opens once a retried migration fails again', () => {
       failAfterRetry()
 
-      expect(screen.getByTestId('v1-download-dialog')).toBeInTheDocument()
-      // The inline entry would only repeat the dialog's copy behind it.
-      expect(downloadButton()).not.toBeInTheDocument()
+      expect(dialog()).toBeInTheDocument()
     })
 
-    it('hands over to the inline entry after the dialog is dismissed', () => {
+    it('closes on dismissal', () => {
       failAfterRetry()
 
       fireEvent.click(screen.getByTestId('v1-dismiss-button'))
 
-      expect(screen.queryByTestId('v1-download-dialog')).not.toBeInTheDocument()
-      expect(downloadButton()).toBeInTheDocument()
+      expect(dialog()).not.toBeInTheDocument()
     })
 
-    it('closes the dialog after its download opens the page', async () => {
+    it('closes after its download opens the page', async () => {
       migrationHookMock.actions.openDownloadPage.mockResolvedValue(true)
 
       failAfterRetry()
 
       await act(async () => {
         fireEvent.click(screen.getByTestId('v1-download-button'))
-      })
-
-      expect(migrationHookMock.actions.openDownloadPage).toHaveBeenCalledOnce()
-      expect(screen.queryByTestId('v1-download-dialog')).not.toBeInTheDocument()
-    })
-
-    it('keeps the dialog open when the download page cannot be opened', async () => {
-      migrationHookMock.actions.openDownloadPage.mockResolvedValue(false)
-
-      failAfterRetry()
-
-      await act(async () => {
-        fireEvent.click(screen.getByTestId('v1-download-button'))
-      })
-
-      expect(toastErrorMock).toHaveBeenCalledWith('migration.error.v1_fallback.open_failed')
-      expect(screen.getByTestId('v1-download-dialog')).toBeInTheDocument()
-    })
-
-    it('opens the download page from the inline entry', async () => {
-      migrationHookMock.actions.openDownloadPage.mockResolvedValue(true)
-
-      failAfterRetry()
-      fireEvent.click(screen.getByTestId('v1-dismiss-button'))
-
-      await act(async () => {
-        fireEvent.click(downloadButton() as HTMLElement)
       })
 
       expect(migrationHookMock.actions.openDownloadPage).toHaveBeenCalledOnce()
       expect(toastErrorMock).not.toHaveBeenCalled()
+      expect(dialog()).not.toBeInTheDocument()
     })
 
-    it('surfaces a toast when the download page cannot be opened', async () => {
+    it('stays open when the download page cannot be opened', async () => {
       migrationHookMock.actions.openDownloadPage.mockResolvedValue(false)
 
       failAfterRetry()
-      fireEvent.click(screen.getByTestId('v1-dismiss-button'))
 
       await act(async () => {
-        fireEvent.click(downloadButton() as HTMLElement)
+        fireEvent.click(screen.getByTestId('v1-download-button'))
       })
 
       expect(toastErrorMock).toHaveBeenCalledWith('migration.error.v1_fallback.open_failed')
+      expect(dialog()).toBeInTheDocument()
     })
   })
 
