@@ -28,7 +28,7 @@ import * as z from 'zod'
 export const buildMcpSchema = (t: (key: string) => string) =>
   z
     .object({
-      name: z.string().min(1, t('common.name')),
+      name: z.string().trim().min(1, t('common.name')),
       description: z.string().optional(),
       serverType: z.enum(['stdio', 'sse', 'streamableHttp', 'inMemory']),
       baseUrl: z.string().optional(),
@@ -120,6 +120,12 @@ export function useMcpRegistryState(form: McpForm, onChanged?: () => void) {
     setCustomRegistryUrl(isCustom ? (server.registryUrl ?? '') : '')
   }, [])
 
+  const reset = useCallback(() => {
+    setRegistry(undefined)
+    setSelectedRegistryType('')
+    setCustomRegistryUrl('')
+  }, [])
+
   const onSelectRegistry = useCallback(
     (url: string) => {
       if (url === 'custom') {
@@ -152,6 +158,7 @@ export function useMcpRegistryState(form: McpForm, onChanged?: () => void) {
     customRegistryUrl,
     handleCommandChange,
     syncFromServer,
+    reset,
     onSelectRegistry,
     onCustomRegistryChange
   }
@@ -184,12 +191,18 @@ export function toMcpServerFields(values: McpFormValues): Partial<McpServer> {
   return fields
 }
 
-const McpFormGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+export const McpFormGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('grid grid-cols-1 items-start gap-x-4 gap-y-4 xl:grid-cols-2', className)} {...props} />
 )
 
 /** Dialog layout: one column, and the same vertical rhythm as `FieldGroup`. */
 const singleColumnGridClassName = 'gap-y-6 xl:grid-cols-1'
+
+const McpFieldGroup = ({
+  children,
+  singleColumn
+}: React.PropsWithChildren<{ singleColumn?: boolean }>): React.ReactNode =>
+  singleColumn ? <McpFormGrid className={singleColumnGridClassName}>{children}</McpFormGrid> : children
 
 const inlineSettingItemClassName =
   'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border/70 px-3'
@@ -285,7 +298,7 @@ export function McpEndpointField({ form, serverType, registryState, singleColumn
   if (serverType === 'inMemory') return null
 
   return (
-    <McpFormGrid className={singleColumn ? singleColumnGridClassName : undefined}>
+    <McpFieldGroup singleColumn={singleColumn}>
       {serverType === 'stdio' ? (
         <FormField
           control={form.control}
@@ -328,7 +341,7 @@ export function McpEndpointField({ form, serverType, registryState, singleColumn
           )}
         />
       )}
-    </McpFormGrid>
+    </McpFieldGroup>
   )
 }
 
@@ -338,7 +351,7 @@ export function McpTransportFields({ form, serverType, registryState, singleColu
   const { registry, selectedRegistryType, customRegistryUrl, onSelectRegistry, onCustomRegistryChange } = registryState
 
   return (
-    <McpFormGrid className={singleColumn ? singleColumnGridClassName : undefined}>
+    <McpFieldGroup singleColumn={singleColumn}>
       {(serverType === 'sse' || serverType === 'streamableHttp') && (
         <FormField
           control={form.control}
@@ -439,7 +452,7 @@ export function McpTransportFields({ form, serverType, registryState, singleColu
           />
         </>
       )}
-    </McpFormGrid>
+    </McpFieldGroup>
   )
 }
 

@@ -32,6 +32,7 @@ import {
   buildMcpSchema,
   MCP_FORM_DEFAULT_VALUES,
   McpEndpointField,
+  McpFormGrid,
   type McpFormValues,
   McpIdentityFields,
   McpRuntimeFields,
@@ -461,9 +462,11 @@ const McpSettings: React.FC = () => {
               <McpIdentityFields {...fieldsProps} />
             </McpFormSection>
 
-            <McpFormSection className="flex flex-col gap-4">
-              <McpEndpointField {...fieldsProps} />
-              <McpTransportFields {...fieldsProps} />
+            <McpFormSection>
+              <McpFormGrid>
+                <McpEndpointField {...fieldsProps} />
+                <McpTransportFields {...fieldsProps} />
+              </McpFormGrid>
             </McpFormSection>
 
             <McpFormSection>

@@ -336,10 +336,10 @@ const ChannelInstanceRow: FC<{
         </Badge>
       )
     } else if (hasError) {
-      statusColor = 'bg-destructive'
+      statusColor = 'bg-error'
       statusTag = (
         <Tooltip title={hasError}>
-          <Badge className="border-destructive/30 bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive leading-3.5">
+          <Badge className="border-error-border bg-error-subtle px-1.5 py-0 text-[10px] text-error-subtle-foreground leading-3.5">
             {t('agent.channels.error')}
           </Badge>
         </Tooltip>

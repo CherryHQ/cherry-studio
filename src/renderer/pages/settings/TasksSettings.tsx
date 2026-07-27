@@ -706,7 +706,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
                   </Button>
                 </Tooltip>
               )}
-              <span className={isErrorStatus ? 'line-clamp-4 text-destructive' : 'line-clamp-4'}>{text}</span>
+              <span className={isErrorStatus ? 'line-clamp-4 text-error' : 'line-clamp-4'}>{text}</span>
             </RowFlex>
           )
         }

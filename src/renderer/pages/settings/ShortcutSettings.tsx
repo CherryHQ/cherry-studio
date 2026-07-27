@@ -461,7 +461,7 @@ const ShortcutSettings: FC = () => {
             className={cn(
               'h-8 w-36 rounded-lg border-border/60 bg-background text-center text-sm',
               !pendingDisplay && 'text-muted-foreground',
-              hasConflict && 'border-destructive focus-visible:ring-red-500/50'
+              hasConflict && 'border-error-border focus-visible:ring-error/50'
             )}
             onKeyDown={(event) => void handleKeyDown(event, record)}
             onBlur={(event) => {
@@ -473,7 +473,7 @@ const ShortcutSettings: FC = () => {
             {pendingDisplay || t('settings.shortcuts.press_shortcut')}
           </Button>
           {hasConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-destructive text-xs">
+            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">
               {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}
             </span>
           )}
@@ -499,7 +499,7 @@ const ShortcutSettings: FC = () => {
             <RowFlex
               className={cn(
                 'min-h-9 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 transition-colors hover:border-border/60 hover:bg-muted/35',
-                hasSystemConflict && 'border-destructive',
+                hasSystemConflict && 'border-error-border',
                 isEditable ? 'cursor-pointer hover:bg-accent/60' : 'cursor-not-allowed opacity-50'
               )}
               onClick={() => isEditable && handleAddShortcut(record.key)}>
@@ -508,7 +508,7 @@ const ShortcutSettings: FC = () => {
                   key={key}
                   className={cn(
                     'min-w-6 rounded-md border border-border/60 bg-card px-1.5 py-0.75 text-foreground text-xs shadow-none',
-                    hasSystemConflict && 'border-destructive/60 text-destructive'
+                    hasSystemConflict && 'border-error-border text-error'
                   )}>
                   {formatKeyDisplay(key, isMac)}
                 </Kbd>
@@ -516,7 +516,7 @@ const ShortcutSettings: FC = () => {
             </RowFlex>
           </RowFlex>
           {hasSystemConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-destructive text-xs">
+            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">
               {conflictMessage}
             </span>
           )}
@@ -529,16 +529,14 @@ const ShortcutSettings: FC = () => {
         <span
           className={cn(
             'rounded-lg border border-transparent border-dashed bg-transparent px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-border/60 hover:bg-muted/30',
-            hasSystemConflict && 'border-destructive text-destructive',
+            hasSystemConflict && 'border-error-border text-error',
             isEditable ? 'cursor-pointer hover:bg-accent/50' : 'cursor-not-allowed opacity-50'
           )}
           onClick={() => isEditable && handleAddShortcut(record.key)}>
           {t('settings.shortcuts.press_shortcut')}
         </span>
         {hasSystemConflict && (
-          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-destructive text-xs">
-            {conflictMessage}
-          </span>
+          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">{conflictMessage}</span>
         )}
       </div>
     )

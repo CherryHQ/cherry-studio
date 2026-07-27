@@ -259,8 +259,8 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
           {status === 'pending' && <span className="text-info text-xs">{t('agent.channels.feishu.qrHint')}</span>}
           {status === 'expired' && (
             <>
-              <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
-              <span className="text-destructive text-xs">{t('agent.channels.feishu.qrExpired')}</span>
+              <span className="inline-block h-2 w-2 rounded-full bg-error" />
+              <span className="text-error text-xs">{t('agent.channels.feishu.qrExpired')}</span>
             </>
           )}
           {status === 'idle' && <span className="text-info text-xs">{t('agent.channels.feishu.loginHint')}</span>}
@@ -432,8 +432,8 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
           )}
           {status === 'disconnected' && (
             <>
-              <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
-              <span className="text-destructive text-xs">{t('agent.channels.wechat.disconnected')}</span>
+              <span className="inline-block h-2 w-2 rounded-full bg-error" />
+              <span className="text-error text-xs">{t('agent.channels.wechat.disconnected')}</span>
             </>
           )}
           {(status === 'idle' || status === 'pending') && (

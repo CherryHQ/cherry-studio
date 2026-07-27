@@ -603,7 +603,6 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { ...props, 'data-slot': 'field-group' }, children),
     Field: ({ children, ...props }) => React.createElement('div', { ...props, 'data-slot': 'field' }, children),
     FieldLabel: ({ children, ...props }) => React.createElement('label', { ...props }, children),
-    FieldError: ({ children, ...props }) => React.createElement('div', { ...props, role: 'alert' }, children),
     MenuItem: ({ active, children, icon, label, labelClassName, onClick, suffix, ...props }) =>
       React.createElement(
         'button',

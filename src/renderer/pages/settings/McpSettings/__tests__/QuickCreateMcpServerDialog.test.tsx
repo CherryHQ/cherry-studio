@@ -20,8 +20,20 @@ const existing = [{ id: '1', name: 'taken' }] as McpServer[]
 
 function setup(onCreate = vi.fn().mockResolvedValue(undefined)) {
   const onOpenChange = vi.fn()
-  render(<QuickCreateMcpServerDialog open onOpenChange={onOpenChange} existingServers={existing} onCreate={onCreate} />)
-  return { onCreate, onOpenChange, user: userEvent.setup() }
+  const { rerender } = render(
+    <QuickCreateMcpServerDialog open onOpenChange={onOpenChange} existingServers={existing} onCreate={onCreate} />
+  )
+  const setOpen = (open: boolean) =>
+    rerender(
+      <QuickCreateMcpServerDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        existingServers={existing}
+        onCreate={onCreate}
+      />
+    )
+
+  return { onCreate, onOpenChange, setOpen, user: userEvent.setup() }
 }
 
 const submit = () => screen.getByRole('button', { name: 'common.add' })
@@ -70,5 +82,31 @@ describe('QuickCreateMcpServerDialog', () => {
 
     expect(await screen.findByText('settings.mcp.addServer.importFrom.nameExists')).toBeInTheDocument()
     expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects a whitespace-only name with inline validation', async () => {
+    const { onCreate, user } = setup()
+
+    await user.type(screen.getByLabelText('settings.mcp.name'), '   ')
+    await user.type(screen.getByLabelText('settings.mcp.command'), 'npx')
+    await user.click(submit())
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('common.name')
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('resets registry options when reopened', async () => {
+    const { setOpen, user } = setup()
+
+    await user.type(screen.getByLabelText('settings.mcp.command'), 'npx')
+    await user.click(screen.getByText('settings.mcp.addServer.advanced'))
+    expect(screen.getByText('settings.mcp.registry')).toBeInTheDocument()
+
+    setOpen(false)
+    setOpen(true)
+    await user.click(screen.getByText('settings.mcp.addServer.advanced'))
+
+    expect(screen.getByLabelText('settings.mcp.command')).toHaveValue('')
+    expect(screen.queryByText('settings.mcp.registry')).not.toBeInTheDocument()
   })
 })

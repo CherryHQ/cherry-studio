@@ -51,13 +51,15 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
     defaultValues: MCP_FORM_DEFAULT_VALUES
   })
   const registryState = useMcpRegistryState(form)
+  const { reset: resetRegistryState } = registryState
 
   useEffect(() => {
     if (!open) return
     form.reset(MCP_FORM_DEFAULT_VALUES)
+    resetRegistryState()
     setServerType('stdio')
     setAdvancedOpen(false)
-  }, [open, form])
+  }, [open, form, resetRegistryState])
 
   const fieldsProps = {
     form,

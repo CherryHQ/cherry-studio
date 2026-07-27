@@ -94,7 +94,7 @@ const BuiltinMcpServerList: FC = () => {
                       rel="noopener noreferrer">
                       <Badge
                         variant="outline"
-                        className="h-5 gap-1 rounded-md border-destructive/25 bg-destructive/10 px-1.5 text-[11px] text-destructive leading-none">
+                        className="h-5 gap-1 rounded-md border-error-border bg-error-subtle px-1.5 text-[11px] text-error-subtle-foreground leading-none">
                         {t('settings.mcp.requiresConfig')}
                         <ExternalLink size={10} />
                       </Badge>
