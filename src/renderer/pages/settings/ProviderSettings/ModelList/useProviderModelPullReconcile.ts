@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 
 import { chunkArray } from '../utils/chunkArray'
 import { getModelInUseAsDefaultUniqueModelId } from './errorMessage'
+import { useEmbeddingModelUnbindConfirm } from './useEmbeddingModelUnbindConfirm'
 
 const logger = loggerService.withContext('ProviderModelManageDrawer')
 
@@ -74,6 +75,7 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [quickAssistantModelId] = usePreference('feature.quick_assistant.model_id')
   const [translateModelId] = usePreference('feature.translate.model_id')
+  const confirmEmbeddingModelUnbind = useEmbeddingModelUnbindConfirm()
   const { provider, enableProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
   const { createModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
@@ -218,10 +220,16 @@ export function useProviderModelPullReconcile(providerId: string) {
       }
 
       try {
-        const skippedIds = await deleteModelsSkippingDefaults(uniqueIds, deleteModels)
-        if (skippedIds.size > 0) {
-          toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedIds.size }))
-        }
+        // Pre-check only the ids that will actually be deleted: a default model survives
+        // deleteModelsSkippingDefaults, so unbinding its knowledge bases would strip their
+        // vectors for a model that then stays.
+        const deletableIds = uniqueIds.filter((id) => !defaultModelIds.has(id))
+        await confirmEmbeddingModelUnbind(deletableIds, async () => {
+          const skippedIds = await deleteModelsSkippingDefaults(uniqueIds, deleteModels)
+          if (skippedIds.size > 0) {
+            toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedIds.size }))
+          }
+        })
       } catch (error) {
         logger.error('Failed to remove provider models from manage drawer', {
           providerId,
@@ -231,7 +239,7 @@ export function useProviderModelPullReconcile(providerId: string) {
         toast.error(t('settings.models.manage.operation_failed'))
       }
     },
-    [deleteModels, providerId, t]
+    [confirmEmbeddingModelUnbind, defaultModelIds, deleteModels, providerId, t]
   )
 
   const cleanStaleModels = useCallback(async () => {

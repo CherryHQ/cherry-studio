@@ -11,6 +11,7 @@ import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
+  KnowledgeBaseEmbeddingModelUsage,
   KnowledgeBaseListItem,
   ListKnowledgeBasesQuery,
   UpdateKnowledgeBaseDto
@@ -36,6 +37,13 @@ const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
 type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
+
+/**
+ * The in-place embedding-model migration a caller of {@link KnowledgeBaseService.update}
+ * is authorized to perform on a base that already has items. See that method for why each
+ * direction is safe and why swapping one model for another still is not.
+ */
+export type EmbeddingModelTransition = 'backfill' | 'unbind'
 
 function validateKnowledgeBaseConfig(config: {
   chunkSize: number
@@ -67,6 +75,21 @@ function validateDimensionsForEmbeddingModel(
 ): Record<string, string[]> {
   if (embeddingModelId != null && !(typeof dimensions === 'number' && Number.isInteger(dimensions) && dimensions > 0)) {
     return { dimensions: ['A knowledge base with an embedding model requires positive dimensions'] }
+  }
+  return {}
+}
+
+// The other arm of the same DB CHECK: a no-model base must persist a null dimensions.
+// `create` enforces this by dropping a stray dimensions outright, but `update` writes the
+// resolved value verbatim, so a half-null pair would reach the CHECK as an untranslated
+// constraint violation. UpdateKnowledgeBaseSchema rejects it at the IPC boundary; this
+// guards internal callers that build a DTO directly.
+function validateNoDimensionsWithoutEmbeddingModel(
+  embeddingModelId: string | null,
+  dimensions: number | null
+): Record<string, string[]> {
+  if (embeddingModelId == null && dimensions != null) {
+    return { dimensions: ['A knowledge base without an embedding model cannot store dimensions'] }
   }
   return {}
 }
@@ -195,6 +218,33 @@ export class KnowledgeBaseService {
     }
   }
 
+  /**
+   * Every base that references `embeddingModelId`, ordered by name.
+   *
+   * Unpaginated by design: this backs both the confirmation dialog shown before deleting an
+   * embedding model and the unbind that follows it (see `KnowledgeService.unbindEmbeddingModel`),
+   * so a page limit here would let the operation touch bases the user was never shown.
+   * `itemCount` excludes `deleting` rows, matching {@link list}.
+   */
+  listUsingEmbeddingModel(embeddingModelId: string): KnowledgeBaseEmbeddingModelUsage[] {
+    return this.db
+      .select({
+        id: knowledgeBaseTable.id,
+        name: knowledgeBaseTable.name,
+        status: knowledgeBaseTable.status,
+        itemCount: sqlCount(knowledgeItemTable.id)
+      })
+      .from(knowledgeBaseTable)
+      .leftJoin(
+        knowledgeItemTable,
+        and(eq(knowledgeItemTable.baseId, knowledgeBaseTable.id), ne(knowledgeItemTable.status, 'deleting'))
+      )
+      .where(eq(knowledgeBaseTable.embeddingModelId, embeddingModelId))
+      .groupBy(knowledgeBaseTable.id)
+      .orderBy(asc(knowledgeBaseTable.name), asc(knowledgeBaseTable.id))
+      .all()
+  }
+
   getById(id: string): KnowledgeBase {
     const [row] = this.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1).all()
 
@@ -251,7 +301,11 @@ export class KnowledgeBaseService {
     return rowToKnowledgeBase(row)
   }
 
-  update(id: string, dto: UpdateKnowledgeBaseDto, options?: { allowEmbeddingModelBackfill?: boolean }): KnowledgeBase {
+  update(
+    id: string,
+    dto: UpdateKnowledgeBaseDto,
+    options?: { embeddingModelTransition?: EmbeddingModelTransition }
+  ): KnowledgeBase {
     const existing = this.getById(id)
 
     const nextEmbeddingModelId =
@@ -265,15 +319,25 @@ export class KnowledgeBaseService {
     // is still empty — a base with items must go through restore-into-a-new-base
     // instead (see the mutable fields comment in UpdateKnowledgeBaseSchema).
     //
-    // The one exception is `allowEmbeddingModelBackfill`: a BM25-only base (no model
-    // configured yet) has no vectors to invalidate, so its caller (KnowledgeService.
-    // enableEmbeddingModel) may set a model in place and backfill embeddings for the
-    // existing items instead of routing through restore-into-a-new-base. This flag is
-    // internal-only — the public update route never passes it — and it never forgives
-    // switching an already-configured model, only the null-to-a-model transition.
+    // The exception is `options.embeddingModelTransition`, which names the one migration
+    // direction its caller is authorized for. Both are internal-only — the public update
+    // route passes neither — and neither forgives swapping an already-configured model for
+    // a different one, the case that genuinely invalidates vectors with nothing to fall
+    // back to. Note the guard only runs when something actually changed, so re-running
+    // either transition against a base already in the target shape is a plain no-op —
+    // which is what makes both callers safe to retry.
+    //  - 'backfill': a BM25-only base has no vectors to invalidate, so KnowledgeService.
+    //    enableEmbeddingModel may set a model in place and backfill the existing items.
+    //  - 'unbind': KnowledgeService.unbindEmbeddingModel downgrades a base to BM25-only so
+    //    a referenced model can finally be deleted; it clears the stale vectors itself.
     if (embeddingModelChanged || dimensionsChanged) {
-      const isFirstTimeEmbeddingSetup = existing.embeddingModelId === null && nextEmbeddingModelId !== null
-      const skipItemCountGuard = options?.allowEmbeddingModelBackfill === true && isFirstTimeEmbeddingSetup
+      const transition = options?.embeddingModelTransition
+      const skipItemCountGuard =
+        (transition === 'backfill' && existing.embeddingModelId === null && nextEmbeddingModelId !== null) ||
+        (transition === 'unbind' &&
+          existing.embeddingModelId !== null &&
+          nextEmbeddingModelId === null &&
+          nextDimensions === null)
 
       if (!skipItemCountGuard) {
         const [{ count: itemCount }] = this.db
@@ -304,7 +368,8 @@ export class KnowledgeBaseService {
 
     const updateFieldErrors = {
       ...validateKnowledgeBaseConfig(nextConfig),
-      ...validateDimensionsForEmbeddingModel(nextEmbeddingModelId, nextDimensions)
+      ...validateDimensionsForEmbeddingModel(nextEmbeddingModelId, nextDimensions),
+      ...validateNoDimensionsWithoutEmbeddingModel(nextEmbeddingModelId, nextDimensions)
     }
     if (Object.keys(updateFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(updateFieldErrors)

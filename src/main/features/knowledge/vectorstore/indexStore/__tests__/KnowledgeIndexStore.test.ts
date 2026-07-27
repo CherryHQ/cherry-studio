@@ -621,6 +621,60 @@ describe('KnowledgeIndexStore', () => {
     expect((await store.listExistingEmbeddingHashes([])).size).toBe(0)
   })
 
+  describe('clearEmbeddings', () => {
+    it('drops every vector while leaving the lexical index fully intact and searchable', async () => {
+      await store.rebuildMaterial('m1', buildInput('hello world wide', [[0, 16]], 'a.md'))
+      await store.rebuildMaterial('m2', buildInput('another distinct document', [[0, 25]], 'b.md'))
+      const before = {
+        materials: await count('material'),
+        content: await count('content'),
+        units: await count('search_unit'),
+        searchText: await count('search_text'),
+        fts: await ftsMatchCount('hello')
+      }
+      expect(await count('embedding')).toBe(2)
+
+      expect(await store.clearEmbeddings()).toBe(2)
+
+      expect(await count('embedding')).toBe(0)
+      // Everything BM25 reads through must survive untouched.
+      expect(await count('material')).toBe(before.materials)
+      expect(await count('content')).toBe(before.content)
+      expect(await count('search_unit')).toBe(before.units)
+      expect(await count('search_text')).toBe(before.searchText)
+      expect(await ftsMatchCount('hello')).toBe(before.fts)
+      expect(() => ftsIntegrityCheck()).not.toThrow()
+
+      const matches = await store.search({ mode: 'bm25', queryText: 'hello', topK: 10 })
+      expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+    })
+
+    it('leaves vector search empty once cleared', async () => {
+      await store.rebuildMaterial('m1', buildInput('hello world', [[0, 11]]))
+
+      await store.clearEmbeddings()
+
+      const matches = await store.search({
+        mode: 'vector',
+        queryText: 'hello',
+        queryEmbedding: [0.1, 0.2, 0.3],
+        topK: 10
+      })
+      expect(matches).toEqual([])
+    })
+
+    it('is idempotent — a second pass reports nothing left to drop', async () => {
+      await store.rebuildMaterial('m1', buildInput('hello world', [[0, 11]]))
+
+      expect(await store.clearEmbeddings()).toBe(1)
+      expect(await store.clearEmbeddings()).toBe(0)
+    })
+
+    it('is a no-op on an index that never stored a vector', async () => {
+      expect(await store.clearEmbeddings()).toBe(0)
+    })
+  })
+
   describe('deep-read lookups', () => {
     it('resolves a material by its relative path (the Concept ID) and returns null for an unknown path', async () => {
       await store.rebuildMaterial('m1', buildInput('hello world', [[0, 11]], 'docs/intro.md'))

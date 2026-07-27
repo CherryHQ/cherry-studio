@@ -24,6 +24,13 @@ vi.mock('@logger', () => ({
   }
 }))
 
+const { ipcRequestMock } = vi.hoisted(() => ({ ipcRequestMock: vi.fn() }))
+
+// Deleting a model first checks which knowledge bases embed with it. Here none do, so the
+// confirmation is skipped and the delete runs straight through — including the TOCTOU case
+// below, where a base starts using the model between the check and the delete.
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock }, useIpcOn: vi.fn() }))
+
 vi.mock('@cherrystudio/ui/icons', () => ({
   useIcon: () => ({
     Avatar: ({ size, shape }: { size: number; shape: string }) => (
@@ -60,6 +67,7 @@ vi.mock('../../components/ModelTagsWithLabel', () => ({
 describe('ModelListItem', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ipcRequestMock.mockResolvedValue([])
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -131,7 +139,7 @@ describe('ModelListItem', () => {
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
   })
 
-  it('deletes the model from the row delete button without opening edit', () => {
+  it('deletes the model from the row delete button without opening edit', async () => {
     const onDelete = vi.fn().mockResolvedValue(undefined)
     const onEdit = vi.fn()
 
@@ -153,7 +161,9 @@ describe('ModelListItem', () => {
 
     fireEvent.click(screen.getByLabelText('settings.models.manage.remove_model'))
 
-    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
+    await waitFor(() => {
+      expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
+    })
     expect(onEdit).not.toHaveBeenCalled()
   })
 
@@ -231,10 +241,10 @@ describe('ModelListItem', () => {
 
     fireEvent.click(screen.getByLabelText('settings.models.manage.remove_model'))
 
-    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     })
+    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
   })
 
   it('shows a localized knowledge base in-use message when deleting a model fails', async () => {

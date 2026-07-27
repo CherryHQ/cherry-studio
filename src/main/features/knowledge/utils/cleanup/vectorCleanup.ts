@@ -28,6 +28,46 @@ export async function deleteKnowledgeItemVectors(base: KnowledgeBase, itemIds: s
 }
 
 /**
+ * Drop every vector a base still stores, keeping its BM25 side intact — the cleanup half
+ * of downgrading a base to BM25-only (see `KnowledgeService.unbindEmbeddingModel`).
+ *
+ * Best-effort by design, and the reason is not symmetry with reclaim: unbinding exists so
+ * a referenced embedding model can finally be deleted, and the only step that actually
+ * unblocks that is clearing `knowledge_base.embeddingModelId`. If a failure here could
+ * abort the unbind, one base with an unopenable index would permanently block the model
+ * deletion — exactly the dead end this feature removes. A `failed` base makes that concrete:
+ * `getIndexStoreIfExists` falls through to `getIndexStore` when the file exists on disk, and
+ * that asserts readiness, so it throws rather than returning undefined.
+ *
+ * The cost of swallowing is bounded and visible: leftover vectors are never read (search
+ * recomputes `'bm25'` from the now-null model on every call) and never garbage-collected
+ * (`collectIndexGarbage` keeps any hash `search_text` still references, which a BM25-only
+ * rebuild keeps writing). They are dead bytes the caller reports back so a retry — unbind is
+ * idempotent — can finish the job.
+ *
+ * @returns whether the index was left with no vectors (`true` also when there is no index file).
+ */
+export async function clearKnowledgeBaseVectors(base: KnowledgeBase): Promise<boolean> {
+  try {
+    const store = await application.get('KnowledgeVectorStoreService').getIndexStoreIfExists(base)
+    if (!store) {
+      return true
+    }
+    const cleared = await store.clearEmbeddings()
+    logger.info('Cleared knowledge index vectors', { baseId: base.id, cleared })
+    return true
+  } catch (error) {
+    const code = (error as { code?: string }).code
+    if (code === 'SQLITE_CORRUPT' || code === 'SQLITE_NOTADB') {
+      logger.error('Knowledge index appears corrupt while clearing vectors', error as Error, { baseId: base.id })
+    } else {
+      logger.warn('Failed to clear knowledge index vectors', error as Error, { baseId: base.id })
+    }
+    return false
+  }
+}
+
+/**
  * Return the space a subtree delete freed in a base's index.sqlite to the OS.
  * Best-effort: the rows and vectors are already gone, so a reclaim failure (e.g. a
  * transient lock from a concurrent read) must never fail the delete job — it just

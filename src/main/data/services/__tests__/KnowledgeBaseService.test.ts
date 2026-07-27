@@ -940,7 +940,7 @@ describe('KnowledgeBaseService', () => {
         })
       })
 
-      describe('allowEmbeddingModelBackfill', () => {
+      describe("embeddingModelTransition: 'backfill'", () => {
         it('allows setting a model in place on a BM25-only base with items when opted in', async () => {
           await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
           await seedSecondEmbeddingModel()
@@ -949,7 +949,7 @@ describe('KnowledgeBaseService', () => {
           const result = service.update(
             KNOWLEDGE_BASE_ID,
             { embeddingModelId: createUniqueModelId('openai', 'embed-model-2'), dimensions: 768 },
-            { allowEmbeddingModelBackfill: true }
+            { embeddingModelTransition: 'backfill' }
           )
 
           expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model-2'))
@@ -972,7 +972,7 @@ describe('KnowledgeBaseService', () => {
             service.update(
               KNOWLEDGE_BASE_ID,
               { embeddingModelId: createUniqueModelId('openai', 'embed-model-2'), dimensions: 768 },
-              { allowEmbeddingModelBackfill: true }
+              { embeddingModelTransition: 'backfill' }
             )
           } catch (e) {
             err = e
@@ -1011,6 +1011,154 @@ describe('KnowledgeBaseService', () => {
           })
         })
       })
+
+      describe("embeddingModelTransition: 'unbind'", () => {
+        it('clears the model on a base with items when opted in, downgrading it to BM25-only', async () => {
+          await seedKnowledgeBase()
+          await seedFileKnowledgeItem()
+
+          const result = service.update(
+            KNOWLEDGE_BASE_ID,
+            { embeddingModelId: null, dimensions: null },
+            { embeddingModelTransition: 'unbind' }
+          )
+
+          expect(result.embeddingModelId).toBeNull()
+          expect(result.dimensions).toBeNull()
+
+          const [row] = await dbh.db
+            .select()
+            .from(knowledgeBaseTable)
+            .where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+          expect(row.embeddingModelId).toBeNull()
+          expect(row.dimensions).toBeNull()
+          // The base stays `completed` — unbinding lets the model deletion through, it is not a repair.
+          expect(row.status).toBe('completed')
+        })
+
+        it('clears the model on a failed base without reviving it', async () => {
+          // Deleting a model must not be blocked by a base that happens to be failed, but the
+          // downgrade is not a fix either: status and error survive untouched.
+          await seedKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })
+          await seedFileKnowledgeItem()
+
+          service.update(
+            KNOWLEDGE_BASE_ID,
+            { embeddingModelId: null, dimensions: null },
+            {
+              embeddingModelTransition: 'unbind'
+            }
+          )
+
+          const [row] = await dbh.db
+            .select()
+            .from(knowledgeBaseTable)
+            .where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+          expect(row.embeddingModelId).toBeNull()
+          expect(row.status).toBe('failed')
+          expect(row.error).toBe('missing_embedding_model')
+        })
+
+        it('is a no-op on a base already unbound, so the caller can safely retry', async () => {
+          // The item-count guard only runs when something actually changed. Unbind leans on that:
+          // clearing vectors is best-effort, so a partial run has to be re-runnable.
+          await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+          await seedFileKnowledgeItem()
+
+          const result = service.update(
+            KNOWLEDGE_BASE_ID,
+            { embeddingModelId: null, dimensions: null },
+            { embeddingModelTransition: 'unbind' }
+          )
+
+          expect(result.embeddingModelId).toBeNull()
+          expect(result.dimensions).toBeNull()
+        })
+
+        it('does not forgive swapping one model for another', async () => {
+          await seedKnowledgeBase()
+          await seedSecondEmbeddingModel()
+          await seedFileKnowledgeItem()
+
+          let err: unknown
+          try {
+            service.update(
+              KNOWLEDGE_BASE_ID,
+              { embeddingModelId: createUniqueModelId('openai', 'embed-model-2'), dimensions: 768 },
+              { embeddingModelTransition: 'unbind' }
+            )
+          } catch (e) {
+            err = e
+          }
+          expect(err).toMatchObject({
+            code: ErrorCode.VALIDATION_ERROR,
+            details: {
+              fieldErrors: {
+                embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
+              }
+            }
+          })
+        })
+
+        it('rejects clearing the model while leaving dimensions behind', async () => {
+          // Half-null would otherwise reach the DB CHECK as an untranslated constraint violation.
+          await seedKnowledgeBase()
+
+          let err: unknown
+          try {
+            service.update(
+              KNOWLEDGE_BASE_ID,
+              { embeddingModelId: null, dimensions: 1536 },
+              {
+                embeddingModelTransition: 'unbind'
+              }
+            )
+          } catch (e) {
+            err = e
+          }
+          expect(err).toMatchObject({
+            code: ErrorCode.VALIDATION_ERROR,
+            details: {
+              fieldErrors: {
+                dimensions: ['A knowledge base without an embedding model cannot store dimensions']
+              }
+            }
+          })
+        })
+      })
+    })
+  })
+
+  describe('listUsingEmbeddingModel', () => {
+    it('returns only the bases referencing the model, with deleting items excluded from the count', async () => {
+      await seedKnowledgeBase()
+      await seedFileKnowledgeItem()
+      await seedFileKnowledgeItem({ id: 'item-deleting', status: 'deleting' })
+      await seedSecondEmbeddingModel()
+      await seedKnowledgeBase({
+        id: SECOND_KNOWLEDGE_BASE_ID,
+        name: 'Other Base',
+        embeddingModelId: createUniqueModelId('openai', 'embed-model-2'),
+        dimensions: 768
+      })
+
+      const result = service.listUsingEmbeddingModel(createUniqueModelId('openai', 'embed-model'))
+
+      expect(result).toEqual([{ id: KNOWLEDGE_BASE_ID, name: 'Knowledge Base', status: 'completed', itemCount: 1 }])
+    })
+
+    it('includes bases with no items and failed bases', async () => {
+      await seedKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })
+
+      const result = service.listUsingEmbeddingModel(createUniqueModelId('openai', 'embed-model'))
+
+      expect(result).toEqual([{ id: KNOWLEDGE_BASE_ID, name: 'Knowledge Base', status: 'failed', itemCount: 0 }])
+    })
+
+    it('ignores BM25-only bases and returns an empty list for an unreferenced model', async () => {
+      await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+
+      expect(service.listUsingEmbeddingModel(createUniqueModelId('openai', 'embed-model'))).toEqual([])
     })
   })
 

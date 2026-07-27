@@ -1,4 +1,8 @@
-import { UpdateKnowledgeBaseSchema } from '@shared/data/api/schemas/knowledges'
+import {
+  KnowledgeBaseEmbeddingModelUsageSchema,
+  UnbindEmbeddingModelResultSchema,
+  UpdateKnowledgeBaseSchema
+} from '@shared/data/api/schemas/knowledges'
 import {
   CreateKnowledgeBaseSchema,
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
@@ -70,6 +74,18 @@ export const knowledgeRequestSchemas = {
   'knowledge.enable_embedding_model': defineRoute({
     input: z.strictObject({ baseId: baseIdSchema, patch: UpdateKnowledgeBaseSchema }),
     output: KnowledgeBaseSchema
+  }),
+  // The two halves of deleting an embedding model that knowledge bases still reference:
+  // list what would be affected so the user can consent, then downgrade those bases to
+  // BM25-only so the model row is finally deletable. Split rather than folded into one
+  // call because the consent step must be able to run without changing anything.
+  'knowledge.list_bases_using_embedding_model': defineRoute({
+    input: z.strictObject({ embeddingModelId: z.string().trim().min(1) }),
+    output: z.array(KnowledgeBaseEmbeddingModelUsageSchema)
+  }),
+  'knowledge.unbind_embedding_model': defineRoute({
+    input: z.strictObject({ embeddingModelId: z.string().trim().min(1) }),
+    output: UnbindEmbeddingModelResultSchema
   }),
   'knowledge.search': defineRoute({
     input: z.strictObject({ baseId: baseIdSchema, query: z.string().trim().min(1).max(1000) }),

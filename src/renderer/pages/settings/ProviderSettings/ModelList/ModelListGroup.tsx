@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { getModelOperationErrorMessage } from './errorMessage'
 import { getModelGroupLabel } from './grouping'
+import { useEmbeddingModelUnbindConfirm } from './useEmbeddingModelUnbindConfirm'
 import type { ModelListGroupItem } from './useProviderModelList'
 
 const logger = loggerService.withContext('ModelListGroup')
@@ -40,6 +41,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   onToggleOpen
 }) => {
   const { t } = useTranslation()
+  const confirmEmbeddingModelUnbind = useEmbeddingModelUnbindConfirm()
   const groupLabel = getModelGroupLabel(groupName, t)
   const groupModels = useMemo(() => items.map(({ model }) => model), [items])
   const deletableGroupModels = useMemo(
@@ -67,7 +69,8 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   const handleDeleteGroupModels = useCallback(
     (event?: React.MouseEvent<HTMLButtonElement>) => {
       event?.stopPropagation()
-      void onDeleteModels(deletableGroupModels).catch((error) => {
+      const modelIds = deletableGroupModels.map((model) => model.id)
+      void confirmEmbeddingModelUnbind(modelIds, () => onDeleteModels(deletableGroupModels)).catch((error) => {
         logger.error('Failed to delete provider model group', { groupName, error })
         toast.error(
           getModelOperationErrorMessage(error, {
@@ -78,7 +81,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
         )
       })
     },
-    [deletableGroupModels, groupName, onDeleteModels, t]
+    [confirmEmbeddingModelUnbind, deletableGroupModels, groupName, onDeleteModels, t]
   )
 
   const handleDeleteGroupKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {

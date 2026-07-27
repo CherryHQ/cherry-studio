@@ -899,24 +899,33 @@ class ModelService {
       () =>
         db.transaction((tx) => {
           if (toRemove.length > 0) {
-            for (let i = 0; i < toRemove.length; i += SQLITE_INARRAY_CHUNK) {
-              const chunk = toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
-              const deletedRows = tx
-                .delete(userModelTable)
-                .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
-                .returning({ id: userModelTable.id })
-                .all()
-              actuallyDeleted += deletedRows.length
-              deletedIds.push(...deletedRows.map((row) => row.id))
+            // The removal half needs its own FK map: here a violation means a knowledge base still
+            // references the model, whereas the insert below reads the same constraint as a missing
+            // provider. The outer withSqliteErrors passes this handler's DataApiError through
+            // untouched, since a DataApiError is not a recognized SQLite constraint error.
+            withSqliteErrors(
+              () => {
+                for (let i = 0; i < toRemove.length; i += SQLITE_INARRAY_CHUNK) {
+                  const chunk = toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+                  const deletedRows = tx
+                    .delete(userModelTable)
+                    .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
+                    .returning({ id: userModelTable.id })
+                    .all()
+                  actuallyDeleted += deletedRows.length
+                  deletedIds.push(...deletedRows.map((row) => row.id))
 
-              if (deletedRows.length > 0) {
-                pinService.purgeForEntitiesTx(
-                  tx,
-                  'model',
-                  deletedRows.map((row) => row.id)
-                )
-              }
-            }
+                  if (deletedRows.length > 0) {
+                    pinService.purgeForEntitiesTx(
+                      tx,
+                      'model',
+                      deletedRows.map((row) => row.id)
+                    )
+                  }
+                }
+              },
+              deleteModelsSqliteHandlers(toRemove.length === 1 ? toRemove[0] : `batch(${toRemove.length} items)`)
+            )
           }
 
           if (values.length > 0) {

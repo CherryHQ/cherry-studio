@@ -28,9 +28,12 @@ function assertVectorStoreReadyBase(base: KnowledgeBase): asserts base is Comple
 /**
  * Owns the per-base {@link KnowledgeIndexStore} instances (each backed by that
  * base's `.cherry/index.sqlite`), caching one per base id and closing them on
- * shutdown. The cache key is the base id alone: store-shaping config (embedding
- * model / dimensions) is immutable for an existing base — to change it, callers
- * migrate into a new base rather than mutating in place.
+ * shutdown. The cache key is the base id alone, which holds because the two ways
+ * store-shaping config (embedding model / dimensions) can change on an existing
+ * base both leave the cached store valid: adding a first model to a BM25-only base
+ * only starts writing vectors into the same file, and unbinding a model empties
+ * them out of it. Swapping one model for another — the case that would invalidate
+ * the stored vectors — still migrates into a new base rather than mutating in place.
  */
 @Injectable('KnowledgeVectorStoreService')
 @ServicePhase(Phase.WhenReady)

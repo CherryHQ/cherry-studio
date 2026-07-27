@@ -5,7 +5,12 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
-import { KNOWLEDGE_BASES_MAX_LIMIT, type UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import {
+  KNOWLEDGE_BASES_MAX_LIMIT,
+  type KnowledgeBaseEmbeddingModelUsage,
+  type UnbindEmbeddingModelResult,
+  type UpdateKnowledgeBaseDto
+} from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
   getKnowledgeItemDisplayTitle,
@@ -45,6 +50,7 @@ import {
   toKnowledgeItemId,
   toKnowledgeItemIds
 } from './types'
+import { clearKnowledgeBaseVectors, reclaimKnowledgeIndexSpace } from './utils/cleanup/vectorCleanup'
 import { embedKnowledgeQuery } from './utils/indexing/embed'
 import { toMaterialRelativePath } from './utils/indexing/materialFields'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
@@ -68,6 +74,19 @@ const KNOWLEDGE_SEARCH_OVERFETCH_FACTOR = 5
 const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
+/**
+ * The knowledge jobs whose work depends on the base's embedding model — everything except
+ * `knowledge.delete-subtree`.
+ *
+ * {@link KnowledgeService.unbindEmbeddingModel} preempts this narrower set instead of the full
+ * one because a cancelled delete is not recoverable in-session: that handler declares no
+ * `onSettled`, and by design its rows must stay `deleting` (see operation-guards.md), so the
+ * only thing that re-enqueues them is the next startup sweep. Cancelling one would strand a
+ * whole subtree — invisible in the list and never cleaned up — until the app restarts.
+ */
+const KNOWLEDGE_EMBEDDING_DEPENDENT_JOB_TYPE_SET = new Set<string>(
+  KNOWLEDGE_JOB_TYPES.filter((type) => type !== 'knowledge.delete-subtree')
+)
 
 /** Max characters {@link KnowledgeService.readConcept} returns in one slice, so a large document can't flood the agent's context. */
 const CONCEPT_READ_MAX_CHARS = 20_000
@@ -331,7 +350,7 @@ export class KnowledgeService extends BaseService {
   }
 
   async deleteBase(baseId: string): Promise<void> {
-    await this.cancelAllJobsForBase(baseId)
+    await this.cancelJobsForBase(baseId, 'delete-base')
 
     await this.knowledgeLockManager.withBaseMutationLock(baseId, async () => {
       try {
@@ -487,7 +506,7 @@ export class KnowledgeService extends BaseService {
       await this.assertSubtreesCanReindex(baseId, rootItemIds)
     }
 
-    const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
+    const updatedBase = knowledgeBaseService.update(baseId, patch, { embeddingModelTransition: 'backfill' })
 
     if (rootItemIds.length > 0) {
       await this.reindexItems(baseId, rootItemIds)
@@ -496,9 +515,97 @@ export class KnowledgeService extends BaseService {
     return updatedBase
   }
 
+  /**
+   * Downgrade every base that references `embeddingModelId` to BM25-only — the inverse of
+   * {@link enableEmbeddingModel}, and the precondition for deleting an embedding model that
+   * knowledge bases still point at.
+   *
+   * Clearing the model on the base is the only step allowed to fail a base: it is what releases
+   * the foreign key the model deletion is blocked on. Dropping the now-unreadable vectors and
+   * reclaiming their pages are best-effort and reported instead — a base whose index cannot even
+   * be opened must not veto the deletion, which is precisely the dead end this operation exists
+   * to remove. Leftover vectors are inert (`search` recomputes `'bm25'` from the now-null model)
+   * and a retry finishes the job: `update` treats an already-unbound base as a no-op, so the
+   * whole operation is idempotent.
+   *
+   * One base failing never stops the others. Aborting midway would leave some bases downgraded
+   * *and* the model still referenced by the rest — the worst of both, and unlike the individual
+   * downgrades not something the user can undo (re-binding the model needs the vectors that are
+   * now gone). The caller decides what a non-empty `failedBases` means.
+   *
+   * Deliberately skips `assertBaseCanRunRuntimeOperation` and pre-empts in-flight work instead of
+   * refusing (see `docs/references/knowledge/operation-guards.md`): a `failed` base holds the
+   * reference just as well, and refusing it would put the user back in front of the same dead end.
+   * The jobs being cancelled are the ones using the model that is about to disappear, so they are
+   * doomed either way. Pre-empting is not repairing — a failed base keeps its status and error and
+   * still needs a manual restore.
+   */
+  async unbindEmbeddingModel(embeddingModelId: string): Promise<UnbindEmbeddingModelResult> {
+    const result: UnbindEmbeddingModelResult = {
+      unboundBaseIds: [],
+      failedBases: [],
+      vectorCleanupFailedBaseIds: []
+    }
+
+    // Same query the confirmation dialog listed, so consent can never be narrower than the effect.
+    const usages = knowledgeBaseService.listUsingEmbeddingModel(embeddingModelId)
+
+    // Serial, not concurrent: better-sqlite3 is synchronous and the reclaim below VACUUMs a whole
+    // index file on the main thread, so overlapping bases would only interleave the blocking.
+    for (const usage of usages) {
+      try {
+        await this.cancelJobsForBase(usage.id, 'unbind-embedding-model', KNOWLEDGE_EMBEDDING_DEPENDENT_JOB_TYPE_SET)
+
+        await this.knowledgeLockManager.withBaseMutationLock(usage.id, async () => {
+          // Re-read under the lock: the listing is a snapshot taken before the loop started, and
+          // another window may have re-pointed the base since. Its vectors would then belong to a
+          // different model and must not be cleared.
+          if (knowledgeBaseService.getById(usage.id).embeddingModelId !== embeddingModelId) {
+            return
+          }
+
+          const unboundBase = knowledgeBaseService.update(
+            usage.id,
+            { embeddingModelId: null, dimensions: null },
+            { embeddingModelTransition: 'unbind' }
+          )
+
+          if (await clearKnowledgeBaseVectors(unboundBase)) {
+            // Worth a VACUUM here even though delete paths usually skip it: an emptied `embedding`
+            // table is by far the largest thing an index can free, and a base that is now
+            // BM25-only will never reuse those pages itself.
+            await reclaimKnowledgeIndexSpace(unboundBase)
+          } else {
+            result.vectorCleanupFailedBaseIds.push(usage.id)
+          }
+        })
+
+        result.unboundBaseIds.push(usage.id)
+      } catch (error) {
+        const normalizedError = error instanceof Error ? error : new Error(String(error))
+        logger.error('Failed to unbind embedding model from knowledge base', normalizedError, {
+          baseId: usage.id,
+          embeddingModelId
+        })
+        result.failedBases.push({ id: usage.id, name: usage.name, reason: normalizedError.message })
+      }
+    }
+
+    return result
+  }
+
   listBases(): KnowledgeBase[] {
     const { items } = knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
     return items
+  }
+
+  /**
+   * The bases that would be downgraded to BM25-only if `embeddingModelId` were deleted.
+   * Same query {@link unbindEmbeddingModel} iterates, so what the user consents to and what
+   * actually happens cannot drift apart.
+   */
+  listBasesUsingEmbeddingModel(embeddingModelId: string): KnowledgeBaseEmbeddingModelUsage[] {
+    return knowledgeBaseService.listUsingEmbeddingModel(embeddingModelId)
   }
 
   /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */
@@ -975,22 +1082,33 @@ export class KnowledgeService extends BaseService {
     }
   }
 
-  private async cancelAllJobsForBase(baseId: string): Promise<void> {
+  /**
+   * Cancel the base's in-flight jobs of the given types, plus the external file-processing
+   * jobs the cancelled `check-file-processing-result` jobs were waiting on.
+   *
+   * Callers must be outside `withBaseMutationLock`: cancelling awaits each handler's
+   * settlement and several handlers take that same lock (see subtreePurge.ts).
+   */
+  private async cancelJobsForBase(
+    baseId: string,
+    reason: string,
+    jobTypes: ReadonlySet<string> = KNOWLEDGE_JOB_TYPE_SET
+  ): Promise<void> {
     const jobManager = application.get('JobManager')
     const activeJobs = await jobManager.list({
       queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
       status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES],
       limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
     })
-    const jobsToCancel = activeJobs.filter((job) => KNOWLEDGE_JOB_TYPE_SET.has(job.type))
-    const linkedFileProcessingJobIds = activeJobs.flatMap((job) => {
+    const jobsToCancel = activeJobs.filter((job) => jobTypes.has(job.type))
+    const linkedFileProcessingJobIds = jobsToCancel.flatMap((job) => {
       const narrowed = narrowKnowledgeJobInput(job)
       return narrowed?.type === 'knowledge.check-file-processing-result' ? [narrowed.input.fileProcessingJobId] : []
     })
 
     await Promise.all([
-      ...jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')),
-      ...linkedFileProcessingJobIds.map((jobId) => jobManager.cancel(jobId, 'delete-base'))
+      ...jobsToCancel.map((job) => jobManager.cancel(job.id, reason)),
+      ...linkedFileProcessingJobIds.map((jobId) => jobManager.cancel(jobId, reason))
     ])
   }
 

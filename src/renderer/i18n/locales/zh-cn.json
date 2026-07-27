@@ -7143,7 +7143,7 @@
         "filter_remove_all": "全部移除",
         "footer_done": "完成",
         "large_group_hidden": "显示剩余 {{count}} 个模型",
-        "model_in_use_by_knowledge_base": "该模型正在被知识库使用，无法删除。",
+        "model_in_use_by_knowledge_base": "有知识库刚刚开始使用该模型，请重试删除。",
         "operation_failed": "模型操作失败。",
         "refetch_list": "重新拉取模型",
         "reload_catalog": "刷新列表",
@@ -7186,7 +7186,16 @@
         "sync_selected_summary": "已选择 {{selected}} / {{total}} 项",
         "sync_switch_to_delete": "改为删除",
         "sync_switch_to_deprecate": "改为标记弃用",
-        "sync_will_deprecate": "将标记为弃用"
+        "sync_will_deprecate": "将标记为弃用",
+        "unbind_knowledge_base": {
+          "base_entry": "{{name}} · {{count}} 个条目",
+          "description": "以下知识库正在用该模型嵌入内容。删除后它们将切换为纯关键词（BM25）检索，并丢弃已存储的向量。正在进行的索引会被中断。若要恢复语义检索，请另配一个嵌入模型并重建索引。",
+          "failed_base_note": "该知识库已处于失败状态，清除模型不会使其恢复。",
+          "title": "删除该模型并降级其知识库？",
+          "unbind_failed": "以下知识库解绑失败：{{names}}。模型未被删除。",
+          "unbound_but_delete_failed": "知识库已降级，但模型删除失败：{{reason}}",
+          "vector_cleanup_failed": "有 {{count}} 个知识库的存储向量未能清除。它们已不再被使用；重试删除即可清理。"
+        }
       },
       "more_actions": "更多模型列表操作",
       "not_enabled_models": "已禁用",

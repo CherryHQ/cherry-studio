@@ -7143,7 +7143,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Show {{count}} more models",
-        "model_in_use_by_knowledge_base": "This model is used by a knowledge base and cannot be deleted.",
+        "model_in_use_by_knowledge_base": "A knowledge base started using this model. Try deleting it again.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Pull models again",
         "reload_catalog": "Refresh list",
@@ -7186,7 +7186,16 @@
         "sync_selected_summary": "{{selected}} / {{total}} selected",
         "sync_switch_to_delete": "Delete instead",
         "sync_switch_to_deprecate": "Mark deprecated instead",
-        "sync_will_deprecate": "Will be marked deprecated"
+        "sync_will_deprecate": "Will be marked deprecated",
+        "unbind_knowledge_base": {
+          "base_entry": "{{name}} · {{count}} item(s)",
+          "description": "These knowledge bases use this model to embed their content. Deleting it switches them to keyword-only (BM25) search and discards their stored vectors. Any indexing in progress will be interrupted. To use semantic search again, configure another embedding model and rebuild the index.",
+          "failed_base_note": "This knowledge base has already failed; releasing the model will not repair it.",
+          "title": "Delete this model and downgrade its knowledge bases?",
+          "unbind_failed": "Could not release these knowledge bases: {{names}}. The model was not deleted.",
+          "unbound_but_delete_failed": "The knowledge bases were downgraded, but the model could not be deleted: {{reason}}",
+          "vector_cleanup_failed": "Could not clear stored vectors for {{count}} knowledge base(s). They are no longer used; retry the deletion to remove them."
+        }
       },
       "more_actions": "More model list actions",
       "not_enabled_models": "Disabled",

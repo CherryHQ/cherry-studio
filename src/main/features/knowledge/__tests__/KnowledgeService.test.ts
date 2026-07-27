@@ -11,6 +11,7 @@ import {
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as VectorCleanup from '../utils/cleanup/vectorCleanup'
 import type * as PathStorage from '../utils/storage/pathStorage'
 
 const {
@@ -26,7 +27,10 @@ const {
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
   knowledgeBaseListMock,
+  knowledgeBaseListUsingEmbeddingModelMock,
   knowledgeBaseUpdateMock,
+  clearKnowledgeBaseVectorsMock,
+  reclaimKnowledgeIndexSpaceMock,
   knowledgeItemCreateMock,
   knowledgeItemDeleteMock,
   knowledgeItemGetDeletingRootGroupsMock,
@@ -64,7 +68,10 @@ const {
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeBaseListMock: vi.fn(),
+  knowledgeBaseListUsingEmbeddingModelMock: vi.fn(),
   knowledgeBaseUpdateMock: vi.fn(),
+  clearKnowledgeBaseVectorsMock: vi.fn(),
+  reclaimKnowledgeIndexSpaceMock: vi.fn(),
   knowledgeItemCreateMock: vi.fn(),
   knowledgeItemDeleteMock: vi.fn(),
   knowledgeItemGetDeletingRootGroupsMock: vi.fn(),
@@ -154,9 +161,21 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
     delete: knowledgeBaseDeleteMock,
     getById: knowledgeBaseGetByIdMock,
     list: knowledgeBaseListMock,
+    listUsingEmbeddingModel: knowledgeBaseListUsingEmbeddingModelMock,
     update: knowledgeBaseUpdateMock
   }
 }))
+
+// Spread the actual module: `deleteKnowledgeItemVectors` from the same file reaches the delete
+// job handlers through subtreePurge, and stubbing it out here would silently disarm those tests.
+vi.mock('../utils/cleanup/vectorCleanup', async () => {
+  const actual = await vi.importActual<typeof VectorCleanup>('../utils/cleanup/vectorCleanup')
+  return {
+    ...actual,
+    clearKnowledgeBaseVectors: clearKnowledgeBaseVectorsMock,
+    reclaimKnowledgeIndexSpace: reclaimKnowledgeIndexSpaceMock
+  }
+})
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
@@ -316,7 +335,12 @@ describe('KnowledgeService', () => {
     knowledgeBaseCreateMock.mockReturnValue(createBase())
     knowledgeBaseDeleteMock.mockReturnValue(undefined)
     knowledgeBaseGetByIdMock.mockReturnValue(createBase())
-    knowledgeBaseUpdateMock.mockImplementation((_id: string, patch: Partial<KnowledgeBase>) => createBase(patch))
+    knowledgeBaseUpdateMock.mockImplementation((id: string, patch: Partial<KnowledgeBase>) =>
+      createBase({ id, ...patch })
+    )
+    knowledgeBaseListUsingEmbeddingModelMock.mockReturnValue([])
+    clearKnowledgeBaseVectorsMock.mockResolvedValue(true)
+    reclaimKnowledgeIndexSpaceMock.mockResolvedValue(undefined)
     fsStatMock.mockResolvedValue({
       isFile: () => true,
       size: 1024,
@@ -973,7 +997,7 @@ describe('KnowledgeService', () => {
       const patch = { embeddingModelId: 'provider::embed', dimensions: 3 }
       const result = await service.enableEmbeddingModel('kb-1', patch)
 
-      expect(knowledgeBaseUpdateMock).toHaveBeenCalledWith('kb-1', patch, { allowEmbeddingModelBackfill: true })
+      expect(knowledgeBaseUpdateMock).toHaveBeenCalledWith('kb-1', patch, { embeddingModelTransition: 'backfill' })
       expect(result.embeddingModelId).toBe('provider::embed')
       expect(enqueueMock).toHaveBeenCalledWith(
         'knowledge.reindex-subtree',
@@ -989,7 +1013,7 @@ describe('KnowledgeService', () => {
       const patch = { embeddingModelId: 'provider::embed', dimensions: 3 }
       const result = await service.enableEmbeddingModel('kb-1', patch)
 
-      expect(knowledgeBaseUpdateMock).toHaveBeenCalledWith('kb-1', patch, { allowEmbeddingModelBackfill: true })
+      expect(knowledgeBaseUpdateMock).toHaveBeenCalledWith('kb-1', patch, { embeddingModelTransition: 'backfill' })
       expect(result.embeddingModelId).toBe('provider::embed')
       expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
     })
@@ -1064,6 +1088,160 @@ describe('KnowledgeService', () => {
 
       expect(knowledgeBaseUpdateMock).not.toHaveBeenCalled()
       expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.reindex-subtree', expect.anything(), expect.anything())
+    })
+  })
+
+  describe('unbindEmbeddingModel', () => {
+    const UNBIND_PATCH = { embeddingModelId: null, dimensions: null }
+
+    function usage(
+      id: string,
+      overrides: Partial<{ name: string; status: KnowledgeBase['status']; itemCount: number }> = {}
+    ) {
+      return { id, name: `KB ${id}`, status: 'completed' as const, itemCount: 3, ...overrides }
+    }
+
+    it('does nothing when no base references the model', async () => {
+      const service = new KnowledgeService()
+
+      const result = await service.unbindEmbeddingModel('provider::embed')
+
+      expect(result).toEqual({ unboundBaseIds: [], failedBases: [], vectorCleanupFailedBaseIds: [] })
+      expect(knowledgeBaseUpdateMock).not.toHaveBeenCalled()
+      expect(clearKnowledgeBaseVectorsMock).not.toHaveBeenCalled()
+      expect(listMock).not.toHaveBeenCalled()
+    })
+
+    it('cancels embedding jobs, then clears the model before its vectors', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseListUsingEmbeddingModelMock.mockReturnValue([usage('kb-1')])
+
+      const result = await service.unbindEmbeddingModel('provider::embed')
+
+      expect(result.unboundBaseIds).toEqual(['kb-1'])
+      expect(knowledgeBaseUpdateMock).toHaveBeenCalledWith('kb-1', UNBIND_PATCH, {
+        embeddingModelTransition: 'unbind'
+      })
+      expect(clearKnowledgeBaseVectorsMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'kb-1' }))
+      expect(reclaimKnowledgeIndexSpaceMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'kb-1' }))
+      // Cancel first (outside the lock), then clear the model, and only then the vectors it made
+      // unreadable — the reverse order would leave a "vector base with no vectors".
+      expect(listMock.mock.invocationCallOrder[0]).toBeLessThan(knowledgeBaseUpdateMock.mock.invocationCallOrder[0])
+      expect(knowledgeBaseUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(
+        clearKnowledgeBaseVectorsMock.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('cancels the jobs that depend on the model but spares an in-flight subtree delete', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseListUsingEmbeddingModelMock.mockReturnValue([usage('kb-1')])
+      listMock.mockResolvedValueOnce([
+        { id: 'index-job', type: 'knowledge.index-documents', input: { baseId: 'kb-1' } },
+        { id: 'prepare-job', type: 'knowledge.prepare-root', input: { baseId: 'kb-1' } },
+        { id: 'reindex-job', type: 'knowledge.reindex-subtree', input: { baseId: 'kb-1' } },
+        {
+          id: 'check-job',
+          type: 'knowledge.check-file-processing-result',
+          input: {
+            baseId: 'kb-1',
+            itemId: 'file-1',
+            fileProcessingJobId: 'fp-job-1',
+            pollRound: 0,
+            firstScheduledAt: 1779811200000,
+            parentJobId: null
+          }
+        },
+        { id: 'delete-job', type: 'knowledge.delete-subtree', input: { baseId: 'kb-1' } }
+      ])
+
+      await service.unbindEmbeddingModel('provider::embed')
+
+      for (const jobId of ['index-job', 'prepare-job', 'reindex-job', 'check-job', 'fp-job-1']) {
+        expect(cancelMock).toHaveBeenCalledWith(jobId, 'unbind-embedding-model')
+      }
+      // A cancelled delete-subtree strands its items at `deleting` until the next app start —
+      // see docs/references/knowledge/operation-guards.md.
+      expect(cancelMock).not.toHaveBeenCalledWith('delete-job', expect.anything())
+    })
+
+    it('unbinds a failed base without touching its status or error', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseListUsingEmbeddingModelMock.mockReturnValue([usage('kb-1', { status: 'failed' })])
+      knowledgeBaseGetByIdMock.mockReturnValue(
+        createBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL })
+      )
+
+      const result = await service.unbindEmbeddingModel('provider::embed')
+
+      expect(result.unboundBaseIds).toEqual(['kb-1'])
+      expect(knowledgeBaseUpdateMock).toHaveBeenCalledWith('kb-1', UNBIND_PATCH, {
+        embeddingModelTransition: 'unbind'
+      })
+    })
+
+    it('still reports a base as unbound when its vectors could not be cleared', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseListUsingEmbeddingModelMock.mockReturnValue([usage('kb-1')])
+      clearKnowledgeBaseVectorsMock.mockResolvedValue(false)
+
+      const result = await service.unbindEmbeddingModel('provider::embed')
+
+      // The model reference is released, so the deletion must not be blocked; the dead bytes are
+      // reported instead, and a retry can finish the job.
+      expect(result.unboundBaseIds).toEqual(['kb-1'])
+      expect(result.vectorCleanupFailedBaseIds).toEqual(['kb-1'])
+      expect(result.failedBases).toEqual([])
+      expect(reclaimKnowledgeIndexSpaceMock).not.toHaveBeenCalled()
+    })
+
+    it('keeps going past a base that fails to unbind and reports it', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseListUsingEmbeddingModelMock.mockReturnValue([usage('kb-1'), usage('kb-2'), usage('kb-3')])
+      knowledgeBaseUpdateMock.mockImplementation((id: string, patch: Partial<KnowledgeBase>) => {
+        if (id === 'kb-2') {
+          throw new Error('update boom')
+        }
+        return createBase({ id, ...patch })
+      })
+
+      const result = await service.unbindEmbeddingModel('provider::embed')
+
+      expect(result.unboundBaseIds).toEqual(['kb-1', 'kb-3'])
+      expect(result.failedBases).toEqual([{ id: 'kb-2', name: 'KB kb-2', reason: 'update boom' }])
+    })
+
+    it('is a no-op for a base that no longer points at the model', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseListUsingEmbeddingModelMock.mockReturnValue([usage('kb-1')])
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase({ embeddingModelId: null, dimensions: null }))
+
+      const result = await service.unbindEmbeddingModel('provider::embed')
+
+      // Re-running unbind must stay safe — the whole best-effort/retry model depends on it.
+      expect(result.unboundBaseIds).toEqual(['kb-1'])
+      expect(knowledgeBaseUpdateMock).not.toHaveBeenCalled()
+      expect(clearKnowledgeBaseVectorsMock).not.toHaveBeenCalled()
+    })
+
+    it('cancels jobs without holding the base mutation lock', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseListUsingEmbeddingModelMock.mockReturnValue([usage('kb-1')])
+      listMock.mockResolvedValueOnce([
+        { id: 'index-job', type: 'knowledge.index-documents', input: { baseId: 'kb-1' } }
+      ])
+      const releaseCancel = createDeferred()
+      cancelMock.mockReturnValueOnce(releaseCancel.promise)
+
+      const unbind = service.unbindEmbeddingModel('provider::embed')
+      await flushMicrotasks()
+
+      // Holding the lock across the cancel would deadlock against the very job being cancelled.
+      const concurrentDelete = service.deleteBase('kb-1')
+      await flushMicrotasks()
+      expect(deleteStoreMock).toHaveBeenCalledWith('kb-1')
+
+      releaseCancel.resolve()
+      await Promise.all([unbind, concurrentDelete])
     })
   })
 

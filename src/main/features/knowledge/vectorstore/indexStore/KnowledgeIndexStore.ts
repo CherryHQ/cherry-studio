@@ -257,6 +257,31 @@ export class KnowledgeIndexStore {
   }
 
   /**
+   * Drop every stored vector while leaving the lexical side of the index intact —
+   * the store-level half of downgrading a base to BM25-only.
+   *
+   * Safe as a single unconditional statement because `embedding` is a leaf:
+   *  - no FK points at it (the only three in this schema are material→content and
+   *    search_unit→{material,content}), and `search_text.embedding_text_hash` is a
+   *    plain indexed column, not a reference;
+   *  - it carries no triggers (all three live on `search_text`), so unlike
+   *    {@link deleteMaterials} this cannot cascade into the FTS shadow tables and
+   *    needs no per-row chunking or event-loop yielding.
+   *
+   * `material` / `content` / `search_unit` / `search_text` and the FTS index are
+   * untouched, so BM25 keeps returning the same hits. Vector search degrades to
+   * empty, which the caller must pair with clearing the base's `embeddingModelId`
+   * so `KnowledgeService.search` computes `'bm25'` and never reads this table.
+   *
+   * Not a DDL change, so `KNOWLEDGE_INDEX_SCHEMA_VERSION` stays put.
+   *
+   * @returns how many vectors were dropped.
+   */
+  async clearEmbeddings(): Promise<number> {
+    return this.driver.transaction((tx) => tx.execute(`DELETE FROM embedding`).changes)
+  }
+
+  /**
    * Sweep rows orphaned by a material delete/rebuild, inside the same write
    * transaction (so under the base mutation lock the callers already hold). Runs
    * after the material change, so the just-written rows are visible and never

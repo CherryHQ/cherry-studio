@@ -11,6 +11,7 @@ import { FreeTrialModelTag } from '../components/FreeTrialModelTag'
 import ModelTagsWithLabel from '../components/ModelTagsWithLabel'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { getModelOperationErrorMessage } from './errorMessage'
+import { useEmbeddingModelUnbindConfirm } from './useEmbeddingModelUnbindConfirm'
 
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
@@ -24,6 +25,7 @@ interface ModelListItemProps {
 const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isDefaultModel, onEdit, onDelete }) => {
   const { t } = useTranslation()
   const Icon = useIcon(getModelLogoRef(model))
+  const confirmEmbeddingModelUnbind = useEmbeddingModelUnbindConfirm()
   const deleteTooltip = isDefaultModel
     ? t('settings.models.manage.default_model_cannot_remove')
     : t('settings.models.manage.remove_model')
@@ -33,7 +35,9 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isD
   }, [model, onEdit])
 
   const handleDelete = useCallback(() => {
-    void onDelete(model).catch((error) => {
+    // Releasing knowledge bases first is what makes an embedding model deletable at all;
+    // with none referencing it this is a straight pass-through to onDelete.
+    void confirmEmbeddingModelUnbind([model.id], () => onDelete(model)).catch((error) => {
       toast.error(
         getModelOperationErrorMessage(error, {
           fallback: t('settings.models.manage.operation_failed'),
@@ -42,7 +46,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isD
         })
       )
     })
-  }, [model, onDelete, t])
+  }, [confirmEmbeddingModelUnbind, model, onDelete, t])
 
   return (
     <div ref={ref} className={modelListClasses.row}>

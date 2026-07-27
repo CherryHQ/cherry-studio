@@ -1925,6 +1925,45 @@ describe('ModelService.reconcileForProvider', () => {
     infoSpy.mockRestore()
   })
 
+  it('translates a knowledge base embedding reference during reconcile, not into a missing provider', async () => {
+    // The reconcile transaction deletes and inserts, and both halves can raise the same FK code.
+    // The removal half scopes its own handler so a knowledge-base reference reads as such instead
+    // of the insert half's "Provider not found", which is what a stale-model cleanup used to show.
+    const targetModelId = createUniqueModelId('openai', 'text-embedding-3-large')
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'text-embedding-3-large', {
+        id: targetModelId,
+        presetModelId: 'text-embedding-3-large',
+        name: 'text-embedding-3-large'
+      })
+    )
+    await dbh.db.insert(knowledgeBaseTable).values({
+      name: 'Docs',
+      dimensions: 1536,
+      embeddingModelId: targetModelId,
+      status: 'completed',
+      error: null,
+      chunkSize: 1024,
+      chunkOverlap: 200
+    })
+
+    let err: unknown
+    try {
+      modelService.reconcileForProvider('openai', { toAdd: [], toRemove: [targetModelId] })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
+      code: ErrorCode.INVALID_OPERATION,
+      status: 400,
+      message: expect.stringContaining('knowledge base')
+    })
+
+    const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, targetModelId))
+    expect(rows).toHaveLength(1)
+  })
+
   it('does not remove custom models during reconcile', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const customModelId = createUniqueModelId('openai', 'custom-model')

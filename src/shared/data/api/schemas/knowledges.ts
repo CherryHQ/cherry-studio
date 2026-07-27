@@ -33,9 +33,12 @@ const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
 // `embeddingModelId` and `dimensions` are mutable here only while the base has
 // zero items — KnowledgeBaseService.update() enforces that server-side. Once
 // items exist, changing either must go through the restore-into-a-new-base flow
-// instead: changing either on a vector base invalidates its existing vectors,
-// and adding a model to a BM25-only base still needs a full embedding backfill
-// for those items.
+// instead, because changing either on a vector base invalidates its existing
+// vectors. Two transitions opt out of that guard via the `embeddingModelTransition`
+// option, since neither leaves the base claiming vectors it does not have:
+// `enableEmbeddingModel` (first model on a BM25-only base, followed by a full
+// backfill) and `unbindEmbeddingModel` (clearing the model and its vectors so the
+// model row can be deleted).
 export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDGE_BASE_MUTABLE_FIELDS)
   .partial()
   .extend({
@@ -94,6 +97,39 @@ export type ListKnowledgeBasesQuery = z.output<typeof ListKnowledgeBasesQuerySch
 export type KnowledgeBaseListItem = KnowledgeBase & {
   itemCount: number
 }
+
+/**
+ * The bases that reference one embedding model, narrowed to what the confirmation dialog
+ * before deleting that model needs: a name to list, an item count to size the disruption,
+ * and the status so an already-`failed` base can be called out (downgrading it to BM25 lets
+ * the deletion through but does not heal it).
+ *
+ * Unpaginated on purpose — it backs both the dialog and the unbind that follows, so listing
+ * fewer bases than the operation touches would make the user's consent narrower than its
+ * effect. Every consumer reads this one projection.
+ */
+export const KnowledgeBaseEmbeddingModelUsageSchema = z.strictObject({
+  id: KnowledgeBaseEntitySchema.shape.id,
+  name: KnowledgeBaseEntitySchema.shape.name,
+  status: KnowledgeBaseEntitySchema.shape.status,
+  itemCount: z.int().nonnegative()
+})
+export type KnowledgeBaseEmbeddingModelUsage = z.output<typeof KnowledgeBaseEmbeddingModelUsageSchema>
+
+/**
+ * Outcome of downgrading every base that referenced one embedding model to BM25-only.
+ *
+ * Reported per base rather than as a single boolean because the steps have different weights:
+ * a base in `failedBases` still holds the reference and blocks the model deletion, while one in
+ * `vectorCleanupFailedBaseIds` was unbound successfully and merely left dead bytes behind — the
+ * deletion may proceed, and a retry can finish the cleanup.
+ */
+export const UnbindEmbeddingModelResultSchema = z.strictObject({
+  unboundBaseIds: z.array(z.string()),
+  failedBases: z.array(z.strictObject({ id: z.string(), name: z.string(), reason: z.string() })),
+  vectorCleanupFailedBaseIds: z.array(z.string())
+})
+export type UnbindEmbeddingModelResult = z.output<typeof UnbindEmbeddingModelResultSchema>
 
 /**
  * Query parameters for GET /knowledge-bases/:id/items

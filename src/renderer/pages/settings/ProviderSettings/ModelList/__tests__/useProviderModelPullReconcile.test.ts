@@ -8,9 +8,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useProviderModelPullReconcile } from '../useProviderModelPullReconcile'
 
-const { reconcileTriggerMock } = vi.hoisted(() => ({
-  reconcileTriggerMock: vi.fn()
+const { reconcileTriggerMock, ipcRequestMock } = vi.hoisted(() => ({
+  reconcileTriggerMock: vi.fn(),
+  ipcRequestMock: vi.fn()
 }))
+
+// Removing models first checks which knowledge bases embed with them; none do here, so the
+// confirmation is skipped and the removal runs straight through.
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock }, useIpcOn: vi.fn() }))
 const createModelsMock = vi.fn()
 const deleteModelsMock = vi.fn()
 const enableProviderWhenModelsAvailableMock = vi.fn()
@@ -101,6 +106,7 @@ describe('useProviderModelPullReconcile', () => {
     MockUseDataApiUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/providers/:providerId/models:reconcile', reconcileTriggerMock)
+    ipcRequestMock.mockResolvedValue([])
     createModelsMock.mockResolvedValue([])
     deleteModelsMock.mockResolvedValue(undefined)
     reconcileTriggerMock.mockResolvedValue([])

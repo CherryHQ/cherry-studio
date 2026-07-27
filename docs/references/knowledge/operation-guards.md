@@ -17,6 +17,7 @@ Used by operations that create or rebuild runtime work on an existing base.
 - `addItems`: rejects `failed` bases.
 - `reindexItems`: rejects `failed` bases.
 - `deleteItems`: does not use this guard. Deleting a failed base's items must remain possible so callers can clean up recoverable or partially migrated data.
+- `unbindEmbeddingModel`: does not use this guard, for the same reason — see below.
 
 ### `KnowledgeItemService.getOutermostSelectedItemIds`
 
@@ -189,7 +190,7 @@ The simpler rule is:
 - active work must finish as `completed` or `failed` before the user can reindex;
 - failed work can be retried by reindexing because it is already terminal;
 - deleting work cannot be reindexed because delete owns cleanup once the durable `deleting` intent is written;
-- delete remains available at any time and is the only user action allowed to preempt active work.
+- delete remains available at any time, and together with `unbindEmbeddingModel` (below) is one of only two user actions allowed to preempt active work.
 
 ### Why Reindex Does Not Pre-Mark Items Active
 
@@ -260,6 +261,39 @@ The second root read closes the race where `prepare-root` loads an active root, 
 
 The child scheduling compensation mirrors `addItems`: once a child job was accepted, the row is left alone; the failing child and later children are marked `failed` so no `processing` leaf remains without a job.
 
+## `unbindEmbeddingModel`
+
+`unbindEmbeddingModel` downgrades every base referencing one embedding model to BM25-only so that model can be deleted. It is the second operation allowed to preempt active work, and the only one that is not item-scoped.
+
+```text
+unbindEmbeddingModel(embeddingModelId)
+  -> list bases referencing the model
+  -> per base, serially, never aborting the loop:
+       cancel embedding-dependent jobs (outside the lock)
+       under same-base mutation lock:
+         re-read the base and skip if it no longer references the model
+         clear embeddingModelId + dimensions
+         clear stored vectors (best-effort)
+         reclaim index space (best-effort)
+  -> return per-base outcome
+```
+
+### Why It Preempts Instead of Rejecting
+
+It deliberately skips `assertBaseCanRunRuntimeOperation`. A `failed` base holds the foreign key just as well as a healthy one, and refusing it would leave the user unable to delete the model at all — the dead end this operation exists to remove. The in-flight jobs being cancelled are the ones embedding with the model that is about to disappear, so they are doomed either way.
+
+Preempting is not repairing: a `failed` base keeps its status and error, and still needs a manual restore.
+
+### Why It Does Not Cancel `delete-subtree`
+
+Cancellation is scoped to the job types that depend on the embedding model (`index-documents`, `prepare-root`, `reindex-subtree`, `check-file-processing-result`, plus their linked file-processing jobs). `knowledge.delete-subtree` is deliberately spared: per "Why Delete Cleanup Failure Does Not Mark Items `failed`" above, a cancelled delete leaves its rows at `deleting` with startup recovery as the only path out, so killing one would strand a subtree until the next app start. Only `deleteBase` — which takes ownership of that cleanup — may cancel it.
+
+### Why Only Clearing the Model Is Fatal
+
+Clearing `embeddingModelId` is what releases the foreign key, so a failure there fails that base. Vector cleanup and space reclaim are best-effort and reported instead: a base whose index cannot be opened must not veto the model deletion. Leftover vectors are inert (retrieval mode is recomputed as `bm25` from the now-null model) and a retry finishes the job, because re-running the unbind on an already-unbound base is a no-op.
+
+A base that fails does not stop the others. Aborting midway would leave some bases downgraded *and* the model still referenced by the rest — the worst of both, and unlike the downgrades themselves not something the user can undo.
+
 ## Shutdown
 
 `KnowledgeService` does not cancel knowledge jobs during service shutdown. Knowledge job handlers use JobManager `recovery: 'retry'`, so unfinished pending, delayed, or running rows are left for JobManager startup recovery instead of being terminal-cancelled while their knowledge items still show active statuses.
@@ -274,5 +308,6 @@ When changing these operations, check the operation-specific failure behavior be
 | `deleteItems` | Allow | Yes | N/A | `deleting` | Keep `deleting`; startup recovery best-effort re-enqueues |
 | `reindexItems` | Reject | Yes | Entire selected subtree must be `completed` or `failed` | None | Throw; no active state was written |
 | `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
+| `unbindEmbeddingModel` | Allow | N/A | None; cancels embedding-dependent jobs instead | None | N/A; cancels rather than enqueues |
 
 Prefer shared helpers for exact common behavior, such as base-state guards, base ownership checks, root collapse, queue names, and idempotency key builders. Keep operation flows explicit when the state or recovery semantics differ.

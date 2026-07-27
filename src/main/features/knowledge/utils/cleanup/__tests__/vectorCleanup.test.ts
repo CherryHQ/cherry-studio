@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   getIndexStoreIfExistsMock,
   deleteMaterialsMock,
+  clearEmbeddingsMock,
   reclaimSpaceMock,
   loggerWarnMock,
   loggerErrorMock,
@@ -11,6 +12,7 @@ const {
 } = vi.hoisted(() => ({
   getIndexStoreIfExistsMock: vi.fn(),
   deleteMaterialsMock: vi.fn(),
+  clearEmbeddingsMock: vi.fn(),
   reclaimSpaceMock: vi.fn(),
   loggerWarnMock: vi.fn(),
   loggerErrorMock: vi.fn(),
@@ -32,7 +34,9 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { deleteKnowledgeItemVectors, reclaimKnowledgeIndexSpace } = await import('../vectorCleanup')
+const { clearKnowledgeBaseVectors, deleteKnowledgeItemVectors, reclaimKnowledgeIndexSpace } = await import(
+  '../vectorCleanup'
+)
 
 function createBase(): KnowledgeBase {
   return {
@@ -89,6 +93,65 @@ describe('deleteKnowledgeItemVectors', () => {
     deleteMaterialsMock.mockRejectedValueOnce(new Error('batch delete failed'))
 
     await expect(deleteKnowledgeItemVectors(createBase(), ['note-1', 'note-2'])).rejects.toThrow('batch delete failed')
+  })
+})
+
+describe('clearKnowledgeBaseVectors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getIndexStoreIfExistsMock.mockResolvedValue({
+      clearEmbeddings: clearEmbeddingsMock,
+      deleteMaterials: deleteMaterialsMock,
+      reclaimSpace: reclaimSpaceMock
+    })
+    clearEmbeddingsMock.mockResolvedValue(7)
+  })
+
+  it('reports success without touching the store when the base has no index file', async () => {
+    getIndexStoreIfExistsMock.mockResolvedValueOnce(undefined)
+
+    await expect(clearKnowledgeBaseVectors(createBase())).resolves.toBe(true)
+    expect(clearEmbeddingsMock).not.toHaveBeenCalled()
+  })
+
+  it('clears the vectors and reports success', async () => {
+    await expect(clearKnowledgeBaseVectors(createBase())).resolves.toBe(true)
+
+    expect(clearEmbeddingsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports failure instead of throwing when clearing fails', async () => {
+    // Best-effort on purpose: unbinding exists so a referenced model can finally be deleted,
+    // and only clearing embeddingModelId unblocks that. Letting a dead index abort the unbind
+    // would recreate the dead end this feature removes.
+    clearEmbeddingsMock.mockRejectedValueOnce(new Error('database is locked'))
+
+    await expect(clearKnowledgeBaseVectors(createBase())).resolves.toBe(false)
+    expect(loggerWarnMock).toHaveBeenCalledTimes(1)
+    expect(loggerErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('reports failure when the index store cannot be opened', async () => {
+    // A `failed` base whose index file still exists makes this concrete: getIndexStoreIfExists
+    // falls through to getIndexStore, which asserts readiness and therefore throws.
+    getIndexStoreIfExistsMock.mockRejectedValueOnce(new Error('not ready for vector store operations'))
+
+    await expect(clearKnowledgeBaseVectors(createBase())).resolves.toBe(false)
+    expect(clearEmbeddingsMock).not.toHaveBeenCalled()
+  })
+
+  it('logs a corruption-class failure at error (still swallowed) so a damaged index is triaged', async () => {
+    clearEmbeddingsMock.mockRejectedValueOnce(
+      Object.assign(new Error('database disk image is malformed'), { code: 'SQLITE_NOTADB' })
+    )
+
+    await expect(clearKnowledgeBaseVectors(createBase())).resolves.toBe(false)
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Knowledge index appears corrupt while clearing vectors',
+      expect.any(Error),
+      { baseId: 'kb-1' }
+    )
+    expect(loggerWarnMock).not.toHaveBeenCalled()
   })
 })
 

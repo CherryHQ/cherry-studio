@@ -16,6 +16,8 @@ const knowledgeService = {
   deleteItems: vi.fn(),
   reindexItems: vi.fn(),
   enableEmbeddingModel: vi.fn(),
+  listBasesUsingEmbeddingModel: vi.fn(),
+  unbindEmbeddingModel: vi.fn(),
   search: vi.fn(),
   getFilePath: vi.fn(),
   listItemChunks: vi.fn()
@@ -107,6 +109,32 @@ describe('knowledgeHandlers', () => {
 
     expect(knowledgeService.enableEmbeddingModel).toHaveBeenCalledWith('base-1', patch)
     expect(result).toBe(updated)
+  })
+
+  it('list_bases_using_embedding_model forwards the model id and returns the affected bases', async () => {
+    const usages = [{ id: 'base-1', name: 'KB', status: 'completed', itemCount: 3 }]
+    knowledgeService.listBasesUsingEmbeddingModel.mockReturnValue(usages)
+
+    const result = await knowledgeHandlers['knowledge.list_bases_using_embedding_model'](
+      { embeddingModelId: 'provider::embed' },
+      ctx
+    )
+
+    expect(knowledgeService.listBasesUsingEmbeddingModel).toHaveBeenCalledWith('provider::embed')
+    expect(result).toBe(usages)
+  })
+
+  it('unbind_embedding_model forwards the model id and returns the per-base outcome', async () => {
+    const outcome = { unboundBaseIds: ['base-1'], failedBases: [], vectorCleanupFailedBaseIds: [] }
+    knowledgeService.unbindEmbeddingModel.mockResolvedValue(outcome)
+
+    const result = await knowledgeHandlers['knowledge.unbind_embedding_model'](
+      { embeddingModelId: 'provider::embed' },
+      ctx
+    )
+
+    expect(knowledgeService.unbindEmbeddingModel).toHaveBeenCalledWith('provider::embed')
+    expect(result).toBe(outcome)
   })
 
   it('search forwards baseId and query and returns the matches', async () => {

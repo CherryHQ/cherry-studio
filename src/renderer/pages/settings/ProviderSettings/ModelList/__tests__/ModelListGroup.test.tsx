@@ -5,9 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ModelListGroup from '../ModelListGroup'
 
-const { loggerErrorMock } = vi.hoisted(() => ({
-  loggerErrorMock: vi.fn()
+const { loggerErrorMock, ipcRequestMock } = vi.hoisted(() => ({
+  loggerErrorMock: vi.fn(),
+  ipcRequestMock: vi.fn()
 }))
+
+// Deleting models first checks which knowledge bases embed with them. Here none do, so the
+// confirmation is skipped and the delete runs straight through — including the TOCTOU case
+// below, where a base starts using a model between the check and the delete.
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock }, useIpcOn: vi.fn() }))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -66,6 +72,7 @@ const models = [
 describe('ModelListGroup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ipcRequestMock.mockResolvedValue([])
   })
 
   it('renders the group without an enabled switch', () => {
@@ -84,7 +91,7 @@ describe('ModelListGroup', () => {
     expect(screen.getByRole('button', { name: 'chat' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('deletes all models in the group from the header action', () => {
+  it('deletes all models in the group from the header action', async () => {
     const onDeleteModels = vi.fn().mockResolvedValue(undefined)
 
     render(
@@ -103,10 +110,12 @@ describe('ModelListGroup', () => {
     expect(deleteButtons[0]).toHaveClass('opacity-0', 'group-hover/modelGroup:opacity-100')
     fireEvent.click(deleteButtons[0])
 
-    expect(onDeleteModels).toHaveBeenCalledWith(models)
+    await waitFor(() => {
+      expect(onDeleteModels).toHaveBeenCalledWith(models)
+    })
   })
 
-  it('deletes only non-default models from a mixed group', () => {
+  it('deletes only non-default models from a mixed group', async () => {
     const onDeleteModels = vi.fn().mockResolvedValue(undefined)
 
     render(
@@ -123,7 +132,9 @@ describe('ModelListGroup', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.remove_whole_group' }))
 
-    expect(onDeleteModels).toHaveBeenCalledWith([models[1]])
+    await waitFor(() => {
+      expect(onDeleteModels).toHaveBeenCalledWith([models[1]])
+    })
   })
 
   it('disables group deletion when every model is a default model', () => {
@@ -142,7 +153,7 @@ describe('ModelListGroup', () => {
     expect(screen.getByRole('button', { name: 'settings.models.manage.remove_whole_group' })).toBeDisabled()
   })
 
-  it('does not toggle the group when the delete action receives keyboard activation keys', () => {
+  it('does not toggle the group when the delete action receives keyboard activation keys', async () => {
     const onDeleteModels = vi.fn().mockResolvedValue(undefined)
     const onToggleOpen = vi.fn()
 
@@ -165,7 +176,9 @@ describe('ModelListGroup', () => {
     fireEvent.click(deleteButton)
 
     expect(onToggleOpen).not.toHaveBeenCalled()
-    expect(onDeleteModels).toHaveBeenCalledWith(models)
+    await waitFor(() => {
+      expect(onDeleteModels).toHaveBeenCalledWith(models)
+    })
   })
 
   it('logs and shows a toast when deleting a group fails', async () => {
