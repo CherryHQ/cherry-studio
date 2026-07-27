@@ -46,15 +46,17 @@ const kbReadTool = tool({
   strict: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
+    // Normalize the strict schema's primitive sentinels at the provider boundary. The shared
+    // read/grep core keeps its natural optional-field contract.
     return readOrGrepConcept(
       {
         baseId: input.baseId,
         conceptId: input.conceptId,
-        charStart: input.charStart ?? undefined,
-        charEnd: input.charEnd ?? undefined,
-        pattern: input.pattern ?? undefined,
-        ignoreCase: input.ignoreCase ?? undefined,
-        maxMatches: input.maxMatches ?? undefined
+        charStart: input.charStart,
+        charEnd: input.charEnd || undefined,
+        pattern: input.pattern || undefined,
+        ignoreCase: input.ignoreCase,
+        maxMatches: input.maxMatches || undefined
       },
       request.knowledgeBaseIds ?? []
     )

@@ -34,24 +34,36 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 type ReadArgs = {
   baseId: string
   conceptId: string
-  charStart?: number | null
-  charEnd?: number | null
-  pattern?: string | null
-  ignoreCase?: boolean | null
-  maxMatches?: number | null
+  charStart?: number
+  charEnd?: number
+  pattern?: string
+  ignoreCase?: boolean
+  maxMatches?: number
 }
 
+type StrictReadArgs = Required<ReadArgs>
+
 function callExecute(args: ReadArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
-  const execute = entry.tool.execute as (args: ReadArgs, options: ToolExecutionOptions) => Promise<unknown>
-  return execute(args, {
-    toolCallId: 'tc-1',
-    messages: [],
-    experimental_context: {
-      requestId: 'req-1',
-      knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
-      abortSignal: new AbortController().signal
-    }
-  } as ToolExecutionOptions)
+  const execute = entry.tool.execute as (args: StrictReadArgs, options: ToolExecutionOptions) => Promise<unknown>
+  return execute(
+    {
+      charStart: 0,
+      charEnd: 0,
+      pattern: '',
+      ignoreCase: true,
+      maxMatches: 0,
+      ...args
+    },
+    {
+      toolCallId: 'tc-1',
+      messages: [],
+      experimental_context: {
+        requestId: 'req-1',
+        knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
+        abortSignal: new AbortController().signal
+      }
+    } as ToolExecutionOptions
+  )
 }
 
 function conceptContent(overrides: Record<string, unknown> = {}) {
@@ -115,24 +127,13 @@ describe('kb_read', () => {
     })
   })
 
-  it('normalizes strict-path null fields to read-mode defaults', async () => {
+  it('normalizes strict-path sentinels to read-mode defaults', async () => {
     readConcept.mockResolvedValue(conceptContent())
 
-    await callExecute(
-      {
-        baseId: 'kb-1',
-        conceptId: 'docs/intro.md',
-        charStart: null,
-        charEnd: null,
-        pattern: null,
-        ignoreCase: null,
-        maxMatches: null
-      },
-      { knowledgeBaseIds: ['kb-1'] }
-    )
+    await callExecute({ baseId: 'kb-1', conceptId: 'docs/intro.md' }, { knowledgeBaseIds: ['kb-1'] })
 
     expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', {
-      charStart: undefined,
+      charStart: 0,
       charEnd: undefined
     })
     expect(grepConcept).not.toHaveBeenCalled()
