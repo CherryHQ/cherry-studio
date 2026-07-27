@@ -19,6 +19,7 @@ describe('useConversationGreeting', () => {
       'app.user.name': 'Siin'
     })
     mocks.request.mockReset()
+    sessionStorage.clear()
   })
 
   it('shows the localized fallback while CherryAI generates a contextual greeting', async () => {
@@ -117,5 +118,33 @@ describe('useConversationGreeting', () => {
       await firstGreeting
     })
     expect(result.current).toBe('第二个会话的问候')
+  })
+
+  it('generates a different greeting after refresh and retries a repeated response', async () => {
+    const generatedGreetings = ['晚上好，想聊点什么？', '晚上好，想聊点什么？', '周末愉快，要来玩个游戏吗？']
+    let generationCount = 0
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'system.get_ip_country') {
+        return Promise.resolve('CN')
+      }
+      if (route === 'ai.generate_text') {
+        const text = generatedGreetings[generationCount]
+        generationCount += 1
+        return Promise.resolve({ text })
+      }
+      return Promise.reject(new Error(`Unexpected route: ${route}`))
+    })
+
+    const firstRender = renderHook(() => useConversationGreeting('今天想聊点什么？', 'conversation-1'))
+    await waitFor(() => expect(firstRender.result.current).toBe('晚上好，想聊点什么？'))
+    firstRender.unmount()
+
+    const refreshedRender = renderHook(() => useConversationGreeting('今天想聊点什么？', 'conversation-1'))
+    await waitFor(() => expect(refreshedRender.result.current).toBe('周末愉快，要来玩个游戏吗？'))
+
+    const generationRequests = mocks.request.mock.calls.filter(([route]) => route === 'ai.generate_text')
+    expect(generationRequests).toHaveLength(3)
+    expect(generationRequests[1][1].system).toContain('"previousGreeting": "晚上好，想聊点什么？"')
+    expect(generationRequests[2][1].prompt).toBe('Generate a different greeting now.')
   })
 })
