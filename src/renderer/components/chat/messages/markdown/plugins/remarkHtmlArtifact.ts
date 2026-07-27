@@ -8,6 +8,9 @@ const HTML_DOCUMENT_START_REGEX = /^<html(?:\s|>)/i
 const HTML_DOCUMENT_END_REGEX = /<\/html\s*>/i
 const HTML_LANGUAGE_REGEX = /^html?$/i
 const PROTECTED_HTML_PLACEHOLDER_PREFIX = '__CHERRY_STUDIO_HTML_ARTIFACT_'
+const LEADING_HTML_DOCTYPE_REGEX = /^(?:\s*(?:<!--[\s\S]*?-->|<\?[\s\S]*?\?>))*\s*<!doctype(?:\s|>)/i
+// A *closed* opening tag, so a half-streamed `<div` never counts as a fragment.
+const HTML_FRAGMENT_START_REGEX = /^<[a-z][a-z0-9-]*(?:\s[^>]*)?>/i
 
 interface SourceRange {
   start: number
@@ -16,6 +19,26 @@ interface SourceRange {
 
 function stripLeadingHtmlMetadata(value: string): string {
   return value.replace(LEADING_HTML_METADATA_REGEX, '').trimStart()
+}
+
+/**
+ * A whole HTML document (rendered as source while streaming, then gated on safety) versus a
+ * fragment embedded in prose (always rendered live in the script-less preview frame).
+ */
+export type HtmlArtifactKind = 'document' | 'fragment'
+
+/**
+ * Classifies a possibly-partial HTML source. Returns `undefined` while a streamed prefix is
+ * still too short to tell — `<!doc` and `<di` are indistinguishable, and committing early
+ * would swap the whole rendering surface a few characters later.
+ */
+export function classifyHtmlArtifactSource(value: string): HtmlArtifactKind | undefined {
+  if (LEADING_HTML_DOCTYPE_REGEX.test(value)) return 'document'
+
+  const content = stripLeadingHtmlMetadata(value)
+  if (HTML_DOCUMENT_START_REGEX.test(content)) return 'document'
+
+  return HTML_FRAGMENT_START_REGEX.test(content) ? 'fragment' : undefined
 }
 
 function isHtmlArtifact(node: Html): boolean {

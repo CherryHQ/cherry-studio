@@ -322,6 +322,65 @@ describe('HtmlArtifactView', () => {
     )
   })
 
+  it('renders a streaming fragment as a restricted DOM preview without controls', () => {
+    const html = '<div><script>document.body.textContent = "interactive"</script></div>'
+    render(<HtmlArtifactView html={html} title="Preview" kind="fragment" isStreaming />)
+
+    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+    expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+    expect(screen.getByTestId('html-artifact-controls')).toHaveClass('hidden')
+    expect(mocks.HtmlPreviewFrame).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html,
+        sandbox: 'allow-same-origin',
+        csp: expect.stringContaining("default-src 'none'")
+      }),
+      undefined
+    )
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const setPreviewContentHeight = createPreviewContentHeightController()
+    setPreviewContentHeight(1200)
+    expect(surface).toHaveStyle({ height: '350px' })
+  })
+
+  it('keeps a fragment in the script-less preview once streaming ends, never gating it', () => {
+    const html = '<div><script>document.body.textContent = "interactive"</script></div>'
+    const { rerender } = render(<HtmlArtifactView html={html} title="Preview" kind="fragment" isStreaming />)
+
+    rerender(<HtmlArtifactView html={html} title="Preview" kind="fragment" />)
+
+    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+    expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+    // The gate is unnecessary precisely because the frame can never run the script.
+    expect(mocks.HtmlPreviewFrame).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        sandbox: 'allow-same-origin',
+        csp: expect.stringContaining("default-src 'none'")
+      }),
+      undefined
+    )
+  })
+
+  it('gates an interactive document but leaves a safe one ungated', () => {
+    const { rerender } = render(
+      <HtmlArtifactView html="<html><body><script>go()</script></body></html>" title="Preview" kind="document" />
+    )
+    expect(screen.getByTestId('html-artifact-consent-card')).toBeInTheDocument()
+
+    rerender(<HtmlArtifactView html="<html><body><h1>Static</h1></body></html>" title="Preview" kind="document" />)
+    expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
+    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+  })
+
+  it('falls back to the gated document path when no classification is supplied', () => {
+    render(<HtmlArtifactView html="<script>go()</script>" title="Preview" />)
+
+    expect(screen.getByTestId('html-artifact-consent-card')).toBeInTheDocument()
+  })
+
   it('allows iframe boundary scrolling to continue into the chat scroller', () => {
     render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
 

@@ -32,9 +32,10 @@ const mocks = vi.hoisted(() => {
         </button>
       </div>
     )),
-    MessageHtmlArtifact: vi.fn(({ html }) => (
+    MessageHtmlArtifact: vi.fn(({ html, isStreaming }) => (
       <div data-testid="message-html-artifact">
         <span>{html}</span>
+        <span data-testid="message-html-streaming-state">{String(isStreaming)}</span>
       </div>
     ))
   }
@@ -303,7 +304,20 @@ describe('CodeBlock', () => {
 
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
       expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
-        expect.objectContaining({ html: '<h1>Hello</h1>' }),
+        expect.objectContaining({ html: '<h1>Hello</h1>', kind: 'fragment', isStreaming: false }),
+        undefined
+      )
+    })
+
+    it.each([
+      '<html><body><script>interactive()</script></body></html>',
+      '<!doctype html><html><head><link rel="stylesheet" href="https://example.com/style.css"></head></html>'
+    ])('classifies a completed HTML document so the view can gate it: %s', (html) => {
+      render(<CodeBlock {...defaultProps} className="language-html" children={html} inlineHtmlPreviewMode="ready" />)
+
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ html, kind: 'document', isStreaming: false }),
         undefined
       )
     })
@@ -311,14 +325,12 @@ describe('CodeBlock', () => {
     it.each([
       '<script>document.body.textContent = "interactive"</script>',
       '<link rel="stylesheet" href="https://example.com/style.css">'
-    ])('keeps interactive HTML in the message surface for consent gating: %s', (html) => {
+    ])('classifies active markup embedded in prose as a fragment, never gated: %s', (html) => {
       render(<CodeBlock {...defaultProps} className="language-html" children={html} inlineHtmlPreviewMode="ready" />)
 
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
       expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
-        expect.objectContaining({
-          html
-        }),
+        expect.objectContaining({ html, kind: 'fragment', isStreaming: false }),
         undefined
       )
     })
@@ -379,24 +391,83 @@ describe('CodeBlock', () => {
       expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
     })
 
-    it('renders streaming HTML as source code until the artifact is ready', () => {
+    it('renders a streaming fenced HTML fragment in the existing message artifact view', () => {
       render(
         <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="generating">
-          {'<h1>Hello</h1>'}
+          {'<div><h1>Hello</h1></div>'}
         </CodeBlock>
       )
 
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ html: '<div><h1>Hello</h1></div>', kind: 'fragment', isStreaming: true }),
+        undefined
+      )
+      expect(screen.getByTestId('message-html-streaming-state')).toHaveTextContent('true')
+    })
+
+    it.each(['<html><body><h1>Hello</h1></body></html>', '<!doctype html><html><body><h1>Hello</h1></body></html>'])(
+      'keeps a streaming HTML document in the display-only source view: %s',
+      (html) => {
+        render(
+          <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="generating">
+            {html}
+          </CodeBlock>
+        )
+
+        expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+        expect(mocks.MessageHtmlArtifact).not.toHaveBeenCalled()
+        expect(mocks.CodeBlockView).toHaveBeenCalledWith(
+          expect.objectContaining({
+            children: html,
+            editable: false,
+            language: 'html',
+            isStreaming: true,
+            maxHeight: 350,
+            showToolbar: false
+          }),
+          undefined
+        )
+      }
+    )
+
+    it('renders an empty streaming fence without crashing', () => {
+      expect(() =>
+        render(
+          <CodeBlock
+            blockId={defaultProps.blockId}
+            node={defaultProps.node}
+            className="language-html"
+            inlineHtmlPreviewMode="generating"
+          />
+        )
+      ).not.toThrow()
+
+      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
       expect(mocks.MessageHtmlArtifact).not.toHaveBeenCalled()
-      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
-        expect.objectContaining({
-          children: '<h1>Hello</h1>',
-          editable: false,
-          language: 'html',
-          isStreaming: true,
-          maxHeight: 350,
-          showToolbar: false
-        }),
+    })
+
+    it.each(['<!doc', '<htm', '<di'])('holds the surface until a streamed prefix can be classified: %s', (partial) => {
+      render(
+        <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="generating">
+          {partial}
+        </CodeBlock>
+      )
+
+      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).not.toHaveBeenCalled()
+    })
+
+    it('falls back to the fragment surface for unclassifiable but completed HTML', () => {
+      render(
+        <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="ready">
+          {'plain text in an html fence'}
+        </CodeBlock>
+      )
+
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'fragment', isStreaming: false }),
         undefined
       )
     })

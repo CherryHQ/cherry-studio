@@ -4,8 +4,18 @@ import { describe, expect, it, vi } from 'vitest'
 import { MessageHtmlArtifact } from '../MessageHtmlArtifact'
 
 vi.mock('@renderer/components/chat/HtmlArtifactView', () => ({
-  HtmlArtifactView: ({ html, title }: { html: string; title: string }) => (
-    <div data-testid="html-artifact-view" data-title={title}>
+  HtmlArtifactView: ({
+    html,
+    title,
+    kind,
+    isStreaming
+  }: {
+    html: string
+    title: string
+    kind: string
+    isStreaming: boolean
+  }) => (
+    <div data-testid="html-artifact-view" data-title={title} data-kind={kind} data-streaming={isStreaming}>
       {html}
     </div>
   )
@@ -19,7 +29,22 @@ describe('MessageHtmlArtifact', () => {
 
     expect(screen.getByTestId('message-html-artifact')).toHaveAttribute('data-html-artifact')
     expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-title', 'Demo')
+    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-streaming', 'false')
     expect(screen.getByTestId('html-artifact-view')).toHaveTextContent('<title>Demo</title><h1>Hello</h1>')
+  })
+
+  it('forwards the Markdown streaming state and classification to the existing artifact view', () => {
+    render(<MessageHtmlArtifact html="<main>Partial</main>" kind="fragment" isStreaming />)
+
+    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-streaming', 'true')
+    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-kind', 'fragment')
+    expect(screen.getByTestId('html-artifact-view')).toHaveTextContent('<main>Partial</main>')
+  })
+
+  it('falls back to the gated document classification when none is supplied', () => {
+    render(<MessageHtmlArtifact html="<main>Partial</main>" />)
+
+    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-kind', 'document')
   })
 
   it('inherits the message content width in every layout', () => {

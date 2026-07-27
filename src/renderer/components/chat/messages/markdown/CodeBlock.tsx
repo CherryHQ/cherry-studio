@@ -12,9 +12,11 @@ import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import { useMessageRenderConfig, useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
 import type { InlineHtmlPreviewMode } from './ChatMarkdown'
+import { classifyHtmlArtifactSource } from './plugins/remarkHtmlArtifact'
 
 interface Props {
-  children: string
+  /** Absent while a fence is still empty (e.g. the first chunk of a streamed ```html block). */
+  children?: string
   className?: string
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   node?: Omit<Node, 'type'>
@@ -30,13 +32,14 @@ const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} max-w-full align-middl
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
 
 const CodeBlock: React.FC<Props> = ({
-  children,
+  children: rawChildren,
   className,
   inlineHtmlPreviewMode,
   node,
   blockId,
   isStreaming = false
 }) => {
+  const children = rawChildren ?? ''
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
   const isMultiline = children?.includes('\n')
   const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
@@ -89,9 +92,16 @@ const CodeBlock: React.FC<Props> = ({
     if (codeFancyBlock) {
       if (language.toLowerCase() === 'html') {
         const isHtmlArtifactStreaming = inlineHtmlPreviewMode === 'generating' || isStreaming || isIncomplete
+        // The single classification for the whole artifact pipeline: it picks the streaming
+        // surface here and travels down as `kind` to decide the safety gate once complete.
+        const htmlKind = classifyHtmlArtifactSource(children)
 
         if (inlineHtmlPreviewMode) {
-          if (isHtmlArtifactStreaming) {
+          // Too short to classify yet — render nothing rather than pick a surface we would
+          // have to swap out a few characters later.
+          if (isHtmlArtifactStreaming && htmlKind === undefined) return null
+
+          if (isHtmlArtifactStreaming && htmlKind === 'document') {
             return (
               <CodeBlockView
                 language={language}
@@ -104,7 +114,9 @@ const CodeBlock: React.FC<Props> = ({
             )
           }
 
-          return <MessageHtmlArtifact html={children} />
+          return (
+            <MessageHtmlArtifact html={children} kind={htmlKind ?? 'fragment'} isStreaming={isHtmlArtifactStreaming} />
+          )
         }
 
         return (

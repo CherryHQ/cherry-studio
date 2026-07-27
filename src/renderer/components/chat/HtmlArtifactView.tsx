@@ -2,6 +2,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
+import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
 import HtmlPreviewFrame, {
   HTML_PREVIEW_RESTRICTED_CSP,
   injectHtmlPreviewHeadElement
@@ -27,10 +28,20 @@ const MAX_ZOOM = 200
 const ZOOM_STEP = 10
 const INITIAL_PREVIEW_HEIGHT = 240
 const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
+const MAX_STREAMING_PREVIEW_HEIGHT = 350
 
 interface HtmlArtifactViewProps {
   html: string
   title: string
+  /**
+   * Drives the safety gate: only a whole `document` can be promoted to an interactive webview,
+   * and only after consent. A `fragment` embedded in prose always stays in the script-less
+   * preview frame, so it needs no gate. Defaults to `document` — a missing classification must
+   * fail closed.
+   */
+  kind?: HtmlArtifactKind
+  /** Purely presentational: caps the height and hides the toolbar / code view while generating. */
+  isStreaming?: boolean
 }
 
 type HtmlArtifactBridgeMessage =
@@ -435,7 +446,12 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
   )
 })
 
-export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: HtmlArtifactViewProps) {
+export const HtmlArtifactView = memo(function HtmlArtifactView({
+  html,
+  title,
+  kind = 'document',
+  isStreaming = false
+}: HtmlArtifactViewProps) {
   const { t } = useTranslation()
   const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview')
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
@@ -443,12 +459,15 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   const [approvedInteractiveHtml, setApprovedInteractiveHtml] = useState<string | null>(null)
   const [popupHtml, setPopupHtml] = useState<string | null>(null)
   const hasContent = html.trim().length > 0
-  const requiresUserConsent = useMemo(() => htmlArtifactRequiresUserConsent(html), [html])
+  const requiresUserConsent = useMemo(() => kind === 'document' && htmlArtifactRequiresUserConsent(html), [html, kind])
   const isInteractivePreviewApproved = requiresUserConsent && approvedInteractiveHtml === html
   const isPreviewBlocked = requiresUserConsent && !isInteractivePreviewApproved
-  const isPopupOpen = popupHtml === html && !isPreviewBlocked
-  const showCode = viewMode === 'code'
-  const surfaceHeight = showCode ? Math.max(INITIAL_PREVIEW_HEIGHT, previewHeight) : previewHeight
+  const isPopupOpen = !isStreaming && popupHtml === html && !isPreviewBlocked
+  const showCode = !isStreaming && viewMode === 'code'
+  const completedSurfaceHeight = showCode ? Math.max(INITIAL_PREVIEW_HEIGHT, previewHeight) : previewHeight
+  const surfaceHeight = isStreaming
+    ? Math.min(MAX_STREAMING_PREVIEW_HEIGHT, completedSurfaceHeight)
+    : completedSurfaceHeight
   const toggleLabel = t(showCode ? 'html_artifacts.preview' : 'html_artifacts.code')
   const handleToggle = () => {
     setViewMode((current) => (current === 'preview' ? 'code' : 'preview'))
@@ -526,7 +545,10 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
 
             <div
               data-testid="html-artifact-controls"
-              className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md border border-border-subtle bg-popover p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
+              className={cn(
+                'pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md border border-border-subtle bg-popover p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none',
+                isStreaming ? 'hidden' : undefined
+              )}>
               {!showCode && (
                 <>
                   <Tooltip content={t('preview.zoom_out')} delay={500}>
