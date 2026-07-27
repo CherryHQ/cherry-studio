@@ -23,6 +23,10 @@ export function useComposerContext(): ComposerContextValue | null {
   return use(ComposerContext)
 }
 
+export function useActiveComposerOverride(): ComposerOverride | null {
+  return selectActiveComposerOverride(useComposerContext()?.overrides)
+}
+
 export function selectActiveComposerOverride(
   overrides: readonly ComposerOverride[] | null | undefined
 ): ComposerOverride | null {

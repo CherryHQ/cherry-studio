@@ -4,6 +4,7 @@ import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
+import { useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerPinnedToolsProvider,
@@ -44,6 +45,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { Cable } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -127,7 +129,6 @@ export interface ChatComposerProps {
     text: string,
     options?: {
       mentionedModels?: UniqueModelId[]
-      knowledgeBaseIds?: KnowledgeBase['id'][]
       userMessageParts?: CherryMessagePart[]
       reasoningEffort?: ReasoningEffortOption
     }
@@ -449,6 +450,7 @@ const ChatComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
+  const composerOverridden = useActiveComposerOverride() !== null
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const { t } = useTranslation()
@@ -694,8 +696,8 @@ const ChatComposerInner = ({
     ]
   )
   useLayoutEffect(() => {
-    onConversationControlsChange?.(conversationControlsSnapshot)
-  }, [conversationControlsSnapshot, onConversationControlsChange])
+    onConversationControlsChange?.(composerOverridden ? null : conversationControlsSnapshot)
+  }, [composerOverridden, conversationControlsSnapshot, onConversationControlsChange])
   useLayoutEffect(() => {
     if (!onConversationControlsChange) return
     return () => onConversationControlsChange(null)
@@ -710,6 +712,12 @@ const ChatComposerInner = ({
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
+  const isModelUnavailable =
+    !missingAssistantMessage &&
+    !runtimeModelPending &&
+    !runtimeModel &&
+    !selectedModelForMissingAssistantDefault &&
+    !selectedModelForUnlinkedHome
 
   useEffect(() => {
     if (isPending) setIsSending(false)
@@ -968,25 +976,28 @@ const ChatComposerInner = ({
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
 
   const buildQueuedPayload = useCallback(
-    (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>
-      buildComposerQueuedPayload(draft, {
+    (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
+      const payload = buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: chatComposerTokenId.file,
         // Allow attachment-only sends (matches v1 Inputbar + the send-enabled condition above).
         requireText: false,
-        extra: (tokenIds) => {
-          const knowledgeBaseIds = selectedKnowledgeBasesInScope
-            .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
-            .map((base) => base.id)
-          return {
-            mentionedModels: mentionedModels.length
-              ? mentionedModels.map((currentModel) => currentModel.id)
-              : undefined,
-            knowledgeBaseIds: knowledgeBaseIds.length ? knowledgeBaseIds : undefined,
-            reasoningEffort: assistantId ? reasoningEffort : 'default'
-          }
-        }
-      }),
+        extra: () => ({
+          mentionedModels: mentionedModels.length ? mentionedModels.map((currentModel) => currentModel.id) : undefined,
+          reasoningEffort: assistantId ? reasoningEffort : 'default'
+        })
+      })
+      if (!payload) return null
+
+      const tokenIds = getComposerTokenIds(draft.tokens)
+      const knowledgeBaseIds = selectedKnowledgeBasesInScope
+        .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
+        .map((base) => base.id)
+      return {
+        ...payload,
+        userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
+      }
+    },
     [assistantId, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope]
   )
 
@@ -1000,7 +1011,6 @@ const ChatComposerInner = ({
         const fileParts = await buildFilePartsForAttachments(attachments)
         await onSend(payload.text, {
           mentionedModels: payload.mentionedModels,
-          knowledgeBaseIds: payload.knowledgeBaseIds,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
           reasoningEffort: payload.reasoningEffort
         })
@@ -1058,7 +1068,8 @@ const ChatComposerInner = ({
       setText(item.draft.text)
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
-      setSelectedKnowledgeBases(allKnowledgeBases.filter((base) => item.payload.knowledgeBaseIds?.includes(base.id)))
+      const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? []
+      setSelectedKnowledgeBases(allKnowledgeBases.filter((base) => knowledgeBaseIds.includes(base.id)))
     },
     [actionsRef, allKnowledgeBases, resetHistoryIndex, setFiles, setSelectedKnowledgeBases, setText]
   )
@@ -1082,7 +1093,7 @@ const ChatComposerInner = ({
         if (file) rebuiltFileParts.set(chatComposerTokenId.file(file), part)
       })
 
-      return [
+      const messageParts = [
         textPart,
         ...payloadFiles.flatMap((file) => {
           const tokenId = chatComposerTokenId.file(file)
@@ -1093,8 +1104,12 @@ const ChatComposerInner = ({
           return filePart ? [filePart] : []
         })
       ]
+      const knowledgeBaseIds = selectedKnowledgeBasesInScope
+        .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
+        .map((base) => base.id)
+      return withKnowledgeScopePart(messageParts, knowledgeBaseIds)
     },
-    [files]
+    [files, selectedKnowledgeBasesInScope]
   )
 
   const handleSendDraft = useCallback(
@@ -1253,12 +1268,14 @@ const ChatComposerInner = ({
         customTools={toolbarCustomTools}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
+        isModelUnavailable={isModelUnavailable}
         inputAdapter={inputAdapter}
         unifiedPanelControl={unifiedPanelControl}
       />
     ),
     [
       customizeToolbarOpen,
+      isModelUnavailable,
       pinnedToolIds,
       pinnedToolsAtDefault,
       resetPinnedToolIds,

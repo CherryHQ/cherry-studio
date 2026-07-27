@@ -113,7 +113,8 @@ describe('projectLiveMessageParts', () => {
         { type: 'step-start' },
         { type: 'source-url' },
         { type: 'source-document' },
-        { type: 'data-agent-task-event', data: {} }
+        { type: 'data-agent-task-event', data: {} },
+        { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } }
       ])
     )
     const emptyReasoning = projectLiveMessageParts(entries([{ type: 'reasoning', text: '', state: 'done' }]))
