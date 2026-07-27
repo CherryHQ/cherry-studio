@@ -1,4 +1,4 @@
-import { Button, PageHeader } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import {
   buildKnowledgeBaseGroupSections,
   DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY
@@ -14,6 +14,10 @@ import { useTranslation } from 'react-i18next'
 import BaseNavigatorContent from './BaseNavigatorContent'
 import BaseNavigatorResizeHandle from './BaseNavigatorResizeHandle'
 import BaseNavigatorSearch from './BaseNavigatorSearch'
+
+// A search box costs a permanent row of sidebar space, which only pays off once the
+// list is long enough that scanning it becomes work.
+const SEARCH_MIN_BASE_COUNT = 3
 
 interface BaseNavigatorProps {
   bases: KnowledgeBaseListItem[]
@@ -51,9 +55,14 @@ const BaseNavigator = ({
   const { t } = useTranslation()
   const [searchValue, setSearchValue] = useState('')
 
+  const isSearchVisible = bases.length > SEARCH_MIN_BASE_COUNT
+  // Once the box is hidden its query would keep filtering invisibly — e.g. after the
+  // user searches and then deletes bases until only a few are left.
+  const activeSearchValue = isSearchVisible ? searchValue : ''
+
   const knowledgeBaseGroupSections = useMemo(
-    () => buildKnowledgeBaseGroupSections(bases, groups, searchValue),
-    [bases, groups, searchValue]
+    () => buildKnowledgeBaseGroupSections(bases, groups, activeSearchValue),
+    [bases, groups, activeSearchValue]
   )
 
   const groupById = useMemo(() => {
@@ -74,8 +83,7 @@ const BaseNavigator = ({
   return (
     <div style={{ width }} className="relative h-full min-h-0 shrink-0">
       <aside className="flex size-full min-h-0 flex-col border-border border-r-[0.5px]">
-        <PageHeader title={t('knowledge.title')} />
-        <div className="flex shrink-0 flex-col gap-2 px-2.5 pb-2">
+        <div className="flex shrink-0 flex-col gap-2 px-2.5 py-2">
           <Button
             type="button"
             variant="outline"
@@ -84,7 +92,7 @@ const BaseNavigator = ({
             <Plus className="size-3.5" />
             {t('knowledge.add.title')}
           </Button>
-          <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} />
+          {isSearchVisible ? <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} /> : null}
         </div>
 
         <BaseNavigatorContent

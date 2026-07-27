@@ -577,8 +577,62 @@ describe('BaseNavigator', () => {
     expect(screen.queryByText('无结果')).toBeNull()
   })
 
+  it('withholds the search box until the list grows past three bases', () => {
+    const threeBases = [
+      createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
+      createKnowledgeBase({ id: 'base-2', name: 'Beta' }),
+      createKnowledgeBase({ id: 'base-3', name: 'Gamma' })
+    ]
+
+    const { rerender } = render(<BaseNavigator {...baseProps} bases={threeBases} />)
+
+    expect(screen.queryByPlaceholderText('搜索知识库...')).toBeNull()
+    // The create action stays put regardless.
+    expect(screen.getByRole('button', { name: '新建知识库' })).toBeInTheDocument()
+
+    rerender(
+      <BaseNavigator {...baseProps} bases={[...threeBases, createKnowledgeBase({ id: 'base-4', name: 'Delta' })]} />
+    )
+
+    expect(screen.getByPlaceholderText('搜索知识库...')).toBeInTheDocument()
+  })
+
+  it('stops applying a stale query once the search box disappears', () => {
+    const fourBases = [
+      createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
+      createKnowledgeBase({ id: 'base-2', name: 'Beta' }),
+      createKnowledgeBase({ id: 'base-3', name: 'Gamma' }),
+      createKnowledgeBase({ id: 'base-4', name: 'Delta' })
+    ]
+
+    const { rerender } = render(<BaseNavigator {...baseProps} bases={fourBases} />)
+
+    fireEvent.change(screen.getByPlaceholderText('搜索知识库...'), { target: { value: 'Alpha' } })
+    expect(screen.queryByRole('button', { name: /Beta/ })).toBeNull()
+
+    // Dropping back under the threshold hides the box; its query must not keep
+    // filtering the list the user can no longer see or clear.
+    rerender(<BaseNavigator {...baseProps} bases={fourBases.slice(0, 3)} />)
+
+    expect(screen.queryByPlaceholderText('搜索知识库...')).toBeNull()
+    expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Beta/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Gamma/ })).toBeInTheDocument()
+  })
+
   it('shows a no-results hint when the search filters out every base', () => {
-    render(<BaseNavigator {...baseProps} bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha' })]} />)
+    // Four bases: the search box only renders past the three-base threshold.
+    render(
+      <BaseNavigator
+        {...baseProps}
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta' }),
+          createKnowledgeBase({ id: 'base-3', name: 'Gamma' }),
+          createKnowledgeBase({ id: 'base-4', name: 'Delta' })
+        ]}
+      />
+    )
 
     fireEvent.change(screen.getByPlaceholderText('搜索知识库...'), { target: { value: 'zzz' } })
 
@@ -1253,9 +1307,12 @@ describe('BaseNavigator', () => {
   it('filters visible sections and rows when the search value changes', () => {
     render(
       <BaseNavigator
+        // Four bases: the search box only renders past the three-base threshold.
         bases={[
           createKnowledgeBase({ id: 'base-1', name: 'Alpha Notes', groupId: 'group-1' }),
-          createKnowledgeBase({ id: 'base-2', name: 'Beta Docs', groupId: 'group-2' })
+          createKnowledgeBase({ id: 'base-2', name: 'Beta Docs', groupId: 'group-2' }),
+          createKnowledgeBase({ id: 'base-3', name: 'Gamma Files', groupId: 'group-1' }),
+          createKnowledgeBase({ id: 'base-4', name: 'Delta Sheets', groupId: 'group-2' })
         ]}
         groups={[
           createGroup({ id: 'group-1', name: 'Research' }),
@@ -1322,7 +1379,13 @@ describe('BaseNavigator', () => {
 
     render(
       <BaseNavigator
-        bases={[]}
+        // Four bases: the search box only renders past the three-base threshold.
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta' }),
+          createKnowledgeBase({ id: 'base-3', name: 'Gamma' }),
+          createKnowledgeBase({ id: 'base-4', name: 'Delta' })
+        ]}
         groups={[]}
         width={280}
         selectedBaseId=""
@@ -1341,7 +1404,8 @@ describe('BaseNavigator', () => {
     const searchInput = screen.getByPlaceholderText('搜索知识库...')
     const createButton = screen.getByRole('button', { name: '新建知识库' })
 
-    expect(screen.getByRole('heading', { name: '知识库' })).toBeInTheDocument()
+    // The sidebar no longer repeats the page title above the create action.
+    expect(screen.queryByRole('heading', { name: '知识库' })).toBeNull()
     expect(createButton.parentElement).toHaveClass('flex-col', 'px-2.5')
     expect(createButton).toHaveClass('h-8', 'w-full', 'justify-start')
     expect(createButton.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
