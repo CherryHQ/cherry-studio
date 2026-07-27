@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { flushSync } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ComposerContextProvider } from '../ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurface'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
@@ -562,6 +563,26 @@ describe('ComposerSurface', () => {
 
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-narrow-mode', 'true')
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-with-side-padding', 'true')
+  })
+
+  it('closes an open QuickPanel before an override is shown', () => {
+    mocks.quickPanelIsVisible = true
+
+    render(
+      <ComposerContextProvider
+        value={{
+          overrides: [
+            {
+              id: 'tool-permission:approval-1',
+              render: () => null
+            }
+          ]
+        }}>
+        <ComposerSurface {...baseProps} quickPanelEnabled />
+      </ComposerContextProvider>
+    )
+
+    expect(mocks.quickPanelClose).toHaveBeenCalledWith('composer_override')
   })
 
   it('exposes stable UI contract anchors', () => {
