@@ -127,7 +127,7 @@ describe('imageGenerationJobHandler contract', () => {
 
 describe('imageGenerationJobHandler.execute', () => {
   it('async: submit(taskId) → patchMetadata → poll → download/persist', async () => {
-    const credentialSnapshot = {
+    const credentialReceipt = {
       attribution: 'explicit',
       id: 'key-a',
       label: 'Primary',
@@ -136,7 +136,7 @@ describe('imageGenerationJobHandler.execute', () => {
     const source = { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' } as const
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'ppio', providerSettings: { apiKey: 'k' } },
-      credentialSnapshot
+      credentialReceipt
     })
     submitMock.mockResolvedValue({ taskId: 'task-xyz' })
     pollMock.mockImplementation(async (_taskId: string, opts: { onProgress?: (p: number) => void }) => {
@@ -149,7 +149,7 @@ describe('imageGenerationJobHandler.execute', () => {
     const result = (await imageGenerationJobHandler.execute(ctx)) as { files: Array<{ id: string }> }
 
     expect(result.files).toEqual([{ id: 'file-1' }])
-    expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz', credentialSnapshot })
+    expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz', credentialReceipt })
     expect(pollMock).toHaveBeenCalledWith(
       'task-xyz',
       expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
@@ -160,7 +160,7 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(recordRequestMock).toHaveBeenCalledWith({
       requestId: 'img-job-1',
       modelId: 'ppio::qwen-image',
-      credentialSnapshot,
+      credentialReceipt,
       source,
       modality: 'image',
       imageCount: 1,
@@ -174,7 +174,7 @@ describe('imageGenerationJobHandler.execute', () => {
   })
 
   it('resume: keeps the submit key identity even if config rotation selects another key', async () => {
-    const submitCredentialSnapshot = {
+    const submitCredentialReceipt = {
       attribution: 'explicit',
       id: 'key-a',
       label: 'Primary',
@@ -182,7 +182,7 @@ describe('imageGenerationJobHandler.execute', () => {
     } as const
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'ppio', providerSettings: { apiKey: 'new-key' } },
-      credentialSnapshot: {
+      credentialReceipt: {
         attribution: 'explicit',
         id: 'key-b',
         label: 'Secondary',
@@ -191,7 +191,7 @@ describe('imageGenerationJobHandler.execute', () => {
     })
     pollMock.mockResolvedValue(['https://cdn.example.com/b.png'])
 
-    const ctx = createCtx({ metadata: { taskId: 'resumed-task', credentialSnapshot: submitCredentialSnapshot } })
+    const ctx = createCtx({ metadata: { taskId: 'resumed-task', credentialReceipt: submitCredentialReceipt } })
     await imageGenerationJobHandler.execute(ctx)
 
     expect(submitMock).not.toHaveBeenCalled()
@@ -203,7 +203,7 @@ describe('imageGenerationJobHandler.execute', () => {
       expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
     )
     expect(recordRequestMock).toHaveBeenCalledWith(
-      expect.objectContaining({ credentialSnapshot: submitCredentialSnapshot })
+      expect.objectContaining({ credentialReceipt: submitCredentialReceipt })
     )
   })
 

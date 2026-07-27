@@ -254,12 +254,8 @@ function topGroupCondition(groupBy: AiUsageRecordGroupBy, buckets: AiUsageRecord
           and(
             eq(aiUsageRecordTable.providerId, bucket.providerId),
             nullableIdentity(aiUsageRecordTable.apiKeyId, bucket.apiKeyId),
-            ...(bucket.apiKeyId === null
-              ? [
-                  eq(aiUsageRecordTable.apiKeyAttribution, bucket.apiKeyAttribution),
-                  nullableIdentity(aiUsageRecordTable.authMethod, bucket.authMethod)
-                ]
-              : [])
+            eq(aiUsageRecordTable.apiKeyAttribution, bucket.apiKeyAttribution),
+            nullableIdentity(aiUsageRecordTable.authMethod, bucket.authMethod)
           )!
         ]
     }

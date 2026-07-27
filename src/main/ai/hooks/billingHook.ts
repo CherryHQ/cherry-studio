@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
 import { aiUsageRecordService, type SourceSnapshot } from '@main/data/services/aiUsageRecord'
-import type { ProviderCredentialSnapshot } from '@main/data/services/ProviderService'
 import type { Model } from '@shared/data/types/model'
 import type { LanguageModelUsage } from 'ai'
 
+import type { ServingCredentialReceipt } from '../provider/credential'
 import type { AgentLoopHooks } from '../runtime/aiSdk'
 import { mergeUsage, usageToStats, ZERO_USAGE } from '../runtime/aiSdk'
 import { computeImageCost, extractProviderCost } from '../utils/billingCost'
@@ -46,7 +46,7 @@ export interface BillingRecorder {
 export function createBillingRecorder(
   model: Model,
   requestMessageId?: string,
-  credentialSnapshot?: ProviderCredentialSnapshot,
+  credentialReceipt?: ServingCredentialReceipt,
   source?: SourceSnapshot
 ): BillingRecorder {
   let total: LanguageModelUsage = ZERO_USAGE
@@ -71,7 +71,7 @@ export function createBillingRecorder(
       .recordRequest({
         requestId,
         modelId: model.id,
-        credentialSnapshot,
+        credentialReceipt,
         source,
         stats: usageToStats(total),
         providerCostUsd,
@@ -102,17 +102,17 @@ export function createBillingRecorder(
 export function createBillingHook(
   model: Model,
   requestMessageId?: string,
-  credentialSnapshot?: ProviderCredentialSnapshot,
+  credentialReceipt?: ServingCredentialReceipt,
   source?: SourceSnapshot
 ): Partial<AgentLoopHooks> {
-  return createBillingRecorder(model, requestMessageId, credentialSnapshot, source).hook
+  return createBillingRecorder(model, requestMessageId, credentialReceipt, source).hook
 }
 
 export async function recordImageUsage(
   id: string,
   model: Model,
   imageCount: number,
-  credentialSnapshot?: ProviderCredentialSnapshot,
+  credentialReceipt?: ServingCredentialReceipt,
   source?: SourceSnapshot
 ): Promise<void> {
   if (imageCount <= 0) return
@@ -122,7 +122,7 @@ export async function recordImageUsage(
     await aiUsageRecordService.recordRequest({
       requestId: id,
       modelId: model.id,
-      credentialSnapshot,
+      credentialReceipt,
       source,
       modality: 'image',
       imageCount,

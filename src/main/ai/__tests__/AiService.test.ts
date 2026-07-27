@@ -259,7 +259,7 @@ describe('AiService', () => {
 
   it('records language usage with the key and assistant snapshots captured for that request', async () => {
     const service = createService()
-    const credentialSnapshot = {
+    const credentialReceipt = {
       attribution: 'explicit',
       id: 'key-a',
       label: 'Primary',
@@ -268,7 +268,7 @@ describe('AiService', () => {
     const assistant = { id: 'assistant-1', name: 'Research', emoji: '🔎' }
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
-      credentialSnapshot,
+      credentialReceipt,
       model: { id: 'test-provider::test-model', providerId: 'test-provider' },
       assistant,
       tools: {},
@@ -292,7 +292,7 @@ describe('AiService', () => {
     expect(mockRecordRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         modelId: 'test-provider::test-model',
-        credentialSnapshot,
+        credentialReceipt,
         source: { type: 'assistant', id: 'assistant-1', name: 'Research', icon: '🔎' },
         stats: expect.objectContaining(usage)
       })
@@ -572,7 +572,7 @@ describe('AiService', () => {
     function stubEmbedding(service: InstanceType<typeof AiService>) {
       vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embedding-model' },
-        credentialSnapshot: {
+        credentialReceipt: {
           attribution: 'explicit',
           id: 'key-a',
           label: 'Primary',
@@ -593,7 +593,7 @@ describe('AiService', () => {
       expect(mockRecordRequest).toHaveBeenCalledWith({
         requestId: expect.any(String),
         modelId: 'test-provider::test-embedding-model',
-        credentialSnapshot: {
+        credentialReceipt: {
           attribution: 'explicit',
           id: 'key-a',
           label: 'Primary',

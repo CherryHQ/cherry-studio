@@ -29,16 +29,17 @@ Credential attribution shows its confidence:
 
 - `explicit`: the provider service selected this configured key;
 - `matched`: a caller override matched a configured key;
-- `fallback`: a compatibility writer used current provider state;
 - `auth`: provider-level authentication, with its OAuth/IAM/external-CLI
   mechanism retained;
 - `unknown`: no trustworthy serving credential identity is available.
 
 ## Boundaries
 
-- Normal language, embedding, and image request construction carries
-  non-secret credential provenance and assistant/source snapshots into the
-  usage event.
+- Normal language, embedding, and image provider config builders return the SDK
+  configuration together with a non-secret credential receipt, which request
+  construction carries with assistant/source snapshots into the usage event.
+- Persistence-only writers without a request-owned receipt use `unknown`; they
+  never infer a serving key from current rotation state.
 - Nested AI tool-input repair usage is merged into its parent language request.
 - Image output count is captured after provider success and before local file
   persistence.
@@ -55,6 +56,8 @@ Credential attribution shows its confidence:
   fields it did not observe.
 - Explicit zero-cost currency buckets remain visible instead of being treated
   as unpriced data.
+- API-key rollups keep `explicit` selection and `matched` overrides separate,
+  even when they refer to the same configured key.
 - A crash can still lose a best-effort stateless record between provider
   completion and the SQLite write.
 

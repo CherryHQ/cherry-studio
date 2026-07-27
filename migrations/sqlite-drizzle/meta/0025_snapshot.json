@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d8848fa2-39d6-41ae-8fa5-41a03372147b",
+  "id": "3f67b88d-930b-40a4-91be-3c28286ff898",
   "prevId": "89e1707b-580e-4d39-8c85-9bd812a65a5b",
   "tables": {
     "agent": {
@@ -1175,7 +1175,7 @@
       "checkConstraints": {
         "ai_usage_record_attribution_check": {
           "name": "ai_usage_record_attribution_check",
-          "value": "\"ai_usage_record\".\"api_key_attribution\" IN ('explicit', 'matched', 'fallback', 'auth', 'unknown')"
+          "value": "\"ai_usage_record\".\"api_key_attribution\" IN ('explicit', 'matched', 'auth', 'unknown')"
         },
         "ai_usage_record_auth_method_check": {
           "name": "ai_usage_record_auth_method_check",
@@ -1195,7 +1195,7 @@
         },
         "ai_usage_record_api_key_identity_check": {
           "name": "ai_usage_record_api_key_identity_check",
-          "value": "(\n        \"ai_usage_record\".\"api_key_attribution\" IN ('explicit', 'matched', 'fallback')\n        AND \"ai_usage_record\".\"api_key_id\" IS NOT NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NULL\n      ) OR (\n        \"ai_usage_record\".\"api_key_attribution\" = 'auth'\n        AND \"ai_usage_record\".\"api_key_id\" IS NULL\n        AND \"ai_usage_record\".\"api_key_label\" IS NULL\n        AND \"ai_usage_record\".\"api_key_masked\" IS NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NOT NULL\n      ) OR (\n        \"ai_usage_record\".\"api_key_attribution\" = 'unknown'\n        AND \"ai_usage_record\".\"api_key_id\" IS NULL\n        AND \"ai_usage_record\".\"api_key_label\" IS NULL\n        AND \"ai_usage_record\".\"api_key_masked\" IS NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NULL\n      )"
+          "value": "(\n        \"ai_usage_record\".\"api_key_attribution\" IN ('explicit', 'matched')\n        AND \"ai_usage_record\".\"api_key_id\" IS NOT NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NULL\n      ) OR (\n        \"ai_usage_record\".\"api_key_attribution\" = 'auth'\n        AND \"ai_usage_record\".\"api_key_id\" IS NULL\n        AND \"ai_usage_record\".\"api_key_label\" IS NULL\n        AND \"ai_usage_record\".\"api_key_masked\" IS NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NOT NULL\n      ) OR (\n        \"ai_usage_record\".\"api_key_attribution\" = 'unknown'\n        AND \"ai_usage_record\".\"api_key_id\" IS NULL\n        AND \"ai_usage_record\".\"api_key_label\" IS NULL\n        AND \"ai_usage_record\".\"api_key_masked\" IS NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NULL\n      )"
         },
         "ai_usage_record_source_identity_check": {
           "name": "ai_usage_record_source_identity_check",

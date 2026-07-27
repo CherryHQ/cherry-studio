@@ -39,8 +39,9 @@ Stateless operations use a generated stable request id.
 ## Capture architecture
 
 ```text
-Provider selection
-  -> serving credential + non-secret provenance snapshot
+Provider key selection
+  -> provider config builder
+       -> SDK config + non-secret serving credential receipt
   -> request construction + assistant/source snapshot
   -> provider operation
        Agent text step -----------+
@@ -109,8 +110,13 @@ provenance in job metadata and the request source in the non-secret job payload.
 
 ## Identity snapshots
 
-`ProviderService` resolves the secret credential and non-secret provenance in
-one selection step. Key-backed requests carry one of:
+`ProviderService` owns stored API-key selection. The provider config builder
+owns the final serving configuration and must return both the SDK config and a
+non-secret credential receipt. This keeps the declaration beside provider
+branches that may replace a selected key with OAuth, IAM, CLI authentication,
+or no credential.
+
+Key-backed requests carry one of:
 
 ```ts
 { attribution: 'explicit' | 'matched', id, label?, masked }
@@ -123,26 +129,27 @@ Provider-level credentials instead carry the actual non-secret mechanism:
 ```
 
 An unmatched caller override carries `{ attribution: 'unknown' }`; it is never
-misrepresented as the configured rotation key. The raw credential is passed
-only to provider configuration. Provenance and the assistant/source snapshot
-travel with the request into the usage event, making concurrent multi-key
-requests deterministic without storing a secret.
+misrepresented as the configured rotation key. The raw credential remains
+inside provider configuration. The receipt and assistant/source snapshot travel
+with the request into the usage event, making concurrent multi-key requests
+deterministic without storing a secret.
 
-Compatibility writers that do not own request construction can fall back to
-current provider state. Confidence is explicit:
+Writers that do not own request construction cannot infer a credential from
+current provider state; a missing receipt is `unknown`. Attribution is explicit:
 
 | Attribution | Meaning |
 | --- | --- |
 | `explicit` | `ProviderService` selected this configured key for the request |
 | `matched` | A caller override matched this configured key |
-| `fallback` | A compatibility writer inferred a key from current provider state |
 | `auth` | Provider-level authentication; `authMethod` records the mechanism |
 | `unknown` | No trustworthy serving-credential identity is available |
 
-`auth` mechanisms and `unknown` remain distinct aggregation buckets even
-though they have a null `apiKeyId`. Historical migration always uses
-`unknown`; it never guesses an old serving key from current provider
-configuration.
+API-key aggregates preserve the complete credential identity:
+`providerId + apiKeyId + apiKeyAttribution + authMethod`. Consequently
+`explicit` selection and a `matched` override remain separate even when they
+refer to the same key, and `auth` mechanisms remain separate from `unknown`
+even though both have a null `apiKeyId`. Historical migration always uses
+`unknown`; it never guesses an old serving key from current provider state.
 
 ## Data model and upsert rules
 
@@ -161,7 +168,7 @@ Database checks enforce:
 
 - supported modality, attribution, source type, cost source, and currency;
 - a cost is either wholly absent or has amount, currency, and source;
-- `explicit`/`matched`/`fallback` requires a key id and no auth mechanism;
+- `explicit`/`matched` requires a key id and no auth mechanism;
 - `auth` requires an auth mechanism and forbids key identity; `unknown` has neither;
 - source metadata is absent together or includes source type and id;
 - image rows have a positive `imageCount`; non-image rows have none.
@@ -174,8 +181,8 @@ When request capture and persistence converge:
 - topic, source, and presentation snapshots do not regress to null;
 - runtime collector usage is authoritative; later persistence only fills
   missing usage/timing fields and cannot overwrite repair-inclusive totals;
-- runtime credential provenance replaces compatibility inference, while
-  persistence never rewrites stored provenance from mutable provider state;
+- runtime credential provenance replaces `unknown`, while persistence never
+  rewrites stored provenance from mutable provider state;
 - a persisted `messageSnapshot` may replace a current-database source fallback;
 - a provider-reported cost is never replaced or completed with a later local
   estimate;
@@ -304,8 +311,7 @@ disabled for DataApi IPC queries.
 ## Known limitations
 
 - Rerank is not recorded until its provider result exposes usage or cost.
-- `fallback` attribution reads mutable current provider state and can be wrong
-  under concurrency; request-owned capture should carry explicit provenance.
+- Persistence-only writers without a request-owned receipt record `unknown`.
 - Historical rows cannot identify the serving key.
 - A crash between a stateless request finishing and its best-effort write can
   lose the record.

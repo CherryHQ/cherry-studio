@@ -16,12 +16,11 @@ import { CURRENCY, objectValues } from './model'
  * How the serving credential was attributed at write time:
  * - `explicit`: configured key captured by the serving-key selection owner.
  * - `matched`: caller override matched to a configured key.
- * - `fallback`: compatibility inference from current provider state.
  * - `auth`: provider authenticates with a provider-level credential
  *   (IAM/OAuth/external CLI), not an API key.
  * - `unknown`: the serving credential cannot be safely identified.
  */
-export const AiUsageRecordAttributionSchema = z.enum(['explicit', 'matched', 'fallback', 'auth', 'unknown'])
+export const AiUsageRecordAttributionSchema = z.enum(['explicit', 'matched', 'auth', 'unknown'])
 export type AiUsageRecordAttribution = z.infer<typeof AiUsageRecordAttributionSchema>
 
 /** Non-secret provider-level authentication mechanism used for `auth` attribution. */

@@ -179,13 +179,13 @@ describe('createBillingHook', () => {
   })
 
   it('records the usage accrued across steps when the run is aborted', () => {
-    const credentialSnapshot = {
+    const credentialReceipt = {
       attribution: 'explicit',
       id: 'key-a',
       label: 'Primary',
       masked: 'sk-a****aaaa'
     } as const
-    const hook = createBillingHook(model, 'assistant-abort', credentialSnapshot)
+    const hook = createBillingHook(model, 'assistant-abort', credentialReceipt)
 
     void hook.onStepFinish?.(fakeStep({ inputTokens: 6, outputTokens: 3, totalTokens: 9 }))
     void hook.onStepFinish?.(fakeStep({ inputTokens: 4, outputTokens: 2, totalTokens: 6 }))
@@ -195,7 +195,7 @@ describe('createBillingHook', () => {
     expect(mockRecordRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         requestId: 'assistant-abort',
-        credentialSnapshot,
+        credentialReceipt,
         modality: 'language',
         stats: expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
       })

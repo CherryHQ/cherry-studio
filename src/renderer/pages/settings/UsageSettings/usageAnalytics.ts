@@ -193,8 +193,7 @@ export function getCacheUsageMetrics(
 
 export function getBucketKey(bucket: AiUsageRecordGroupIdentity & { isOther?: true }): string {
   if (bucket.isOther) return 'other'
-  const apiKeyIdentity =
-    bucket.apiKeyId ?? `attribution:${bucket.apiKeyAttribution ?? 'unknown'}:${bucket.authMethod ?? ''}`
+  const apiKeyIdentity = [bucket.apiKeyId ?? '', bucket.apiKeyAttribution ?? '', bucket.authMethod ?? ''].join(':')
   return `${bucket.providerId ?? ''}-${bucket.sourceType ?? ''}-${bucket.sourceId ?? ''}-${apiKeyIdentity}-${bucket.modelId ?? ''}`
 }
 

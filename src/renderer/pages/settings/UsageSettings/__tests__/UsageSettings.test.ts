@@ -127,6 +127,30 @@ describe('buildChartSeries', () => {
     expect(series[0].values).toEqual([20, 0, 0])
   })
 
+  it('keeps explicit selection and matched overrides in separate key series', () => {
+    const series = buildChartSeries(
+      [
+        bucket('2026-03-01', 10, {
+          providerId: 'openai',
+          apiKeyId: 'key-a',
+          apiKeyAttribution: 'explicit',
+          authMethod: null
+        }),
+        bucket('2026-03-01', 20, {
+          providerId: 'openai',
+          apiKeyId: 'key-a',
+          apiKeyAttribution: 'matched',
+          authMethod: null
+        })
+      ],
+      periods,
+      options
+    )
+
+    expect(series).toHaveLength(2)
+    expect(series.map((item) => item.identity?.apiKeyAttribution)).toEqual(['matched', 'explicit'])
+  })
+
   it('counts cost only in the scoped currency', () => {
     const series = buildChartSeries(
       [

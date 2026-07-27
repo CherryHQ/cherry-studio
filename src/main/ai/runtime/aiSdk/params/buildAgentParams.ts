@@ -4,7 +4,6 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
-import type { ProviderCredentialSnapshot } from '@main/data/services/ProviderService'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -22,6 +21,7 @@ import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { createHttpTraceFetch } from '../../../observability'
 import { resolveProviderAiSdkConfig } from '../../../provider/config'
+import type { ServingCredentialReceipt } from '../../../provider/credential'
 import {
   resolveAiSdkProviderId,
   type ResolvedEndpoint,
@@ -77,8 +77,8 @@ export interface BuildAgentParamsInput {
 
 export interface BuiltAgentParams {
   sdkConfig: SdkConfig
-  /** Non-secret provenance of the credential selected for this request. */
-  credentialSnapshot: ProviderCredentialSnapshot
+  /** Non-secret receipt for the credential path selected for this request. */
+  credentialReceipt: ServingCredentialReceipt
   tools: ToolSet | undefined
   plugins: AiPlugin<any, any>[]
   system: string | undefined
@@ -94,7 +94,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
-  const { sdkConfig, credentialSnapshot } = await resolveSdkConfig(
+  const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
     provider,
     model,
     resolvedEndpoint,
@@ -163,7 +163,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   return {
     sdkConfig,
-    credentialSnapshot,
+    credentialReceipt,
     tools,
     plugins: contributions.modelAdapters,
     system,
@@ -192,8 +192,8 @@ async function resolveSdkConfig(
   model: Model,
   resolvedEndpoint: ResolvedEndpoint,
   apiKeyOverride?: string
-): Promise<{ sdkConfig: SdkConfig; credentialSnapshot: ProviderCredentialSnapshot }> {
-  const { config, credentialSnapshot } = await resolveProviderAiSdkConfig(provider, model, {
+): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
+  const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
     resolvedEndpoint
   })
@@ -207,7 +207,7 @@ async function resolveSdkConfig(
       }),
       modelId: model.apiModelId ?? model.id
     },
-    credentialSnapshot
+    credentialReceipt
   }
 }
 

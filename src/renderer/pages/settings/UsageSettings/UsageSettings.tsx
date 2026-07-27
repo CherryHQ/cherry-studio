@@ -311,7 +311,12 @@ function UsageSettings() {
       return t('settings.usage.cards.unattributedApiKey')
     }
 
-    return apiKey.apiKeyLabel || apiKey.apiKeyMasked || apiKey.apiKeyId
+    const keyLabel = apiKey.apiKeyLabel || apiKey.apiKeyMasked || apiKey.apiKeyId
+    const attributionLabel =
+      apiKey.apiKeyAttribution === 'matched'
+        ? t('settings.usage.cards.matchedApiKey')
+        : t('settings.usage.cards.explicitApiKey')
+    return `${keyLabel} · ${attributionLabel}`
   }
   const getSourceLabel = (bucket: AiUsageRecordGroupIdentity): string => {
     if (!bucket.sourceType || !bucket.sourceId) {

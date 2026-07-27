@@ -73,8 +73,8 @@ export const aiUsageRecordTable = sqliteTable(
     apiKeyId: text(),
     apiKeyLabel: text(),
     apiKeyMasked: text(),
-    // How the credential was attributed: explicit selection, matched override,
-    // compatibility fallback, provider-level auth, or unknown.
+    // How the request owner attributed the credential: explicit selection,
+    // matched override, provider-level auth, or unknown.
     apiKeyAttribution: text().$type<AiUsageRecordAttribution>().notNull(),
     // Provider-level mechanism for `auth`; never contains a token or secret.
     authMethod: text().$type<AiUsageRecordAuthMethod>(),
@@ -136,7 +136,7 @@ export const aiUsageRecordTable = sqliteTable(
     check(
       'ai_usage_record_api_key_identity_check',
       sql`(
-        ${t.apiKeyAttribution} IN ('explicit', 'matched', 'fallback')
+        ${t.apiKeyAttribution} IN ('explicit', 'matched')
         AND ${t.apiKeyId} IS NOT NULL
         AND ${t.authMethod} IS NULL
       ) OR (

@@ -404,7 +404,7 @@ export class AiService extends BaseService {
     const repairUsageSink: { current?: (usage: LanguageModelUsage) => void } = {}
     const {
       sdkConfig,
-      credentialSnapshot,
+      credentialReceipt,
       tools,
       plugins,
       system,
@@ -418,7 +418,7 @@ export class AiService extends BaseService {
     const billing = createBillingRecorder(
       model,
       request.messageId,
-      credentialSnapshot,
+      credentialReceipt,
       sourceSnapshotForAssistant(assistant)
     )
     repairUsageSink.current = billing.recordUsage
@@ -462,9 +462,9 @@ export class AiService extends BaseService {
     const signal = request.requestOptions?.signal
 
     const repairUsageSink: { current?: (usage: LanguageModelUsage) => void } = {}
-    const { sdkConfig, credentialSnapshot, tools, plugins, system, options, model, assistant, hookParts } =
+    const { sdkConfig, credentialReceipt, tools, plugins, system, options, model, assistant, hookParts } =
       await this.buildAgentParamsFor(request, signal, extraFeatures, (usage) => repairUsageSink.current?.(usage))
-    const billing = createBillingRecorder(model, undefined, credentialSnapshot, sourceSnapshotForAssistant(assistant))
+    const billing = createBillingRecorder(model, undefined, credentialReceipt, sourceSnapshotForAssistant(assistant))
     repairUsageSink.current = billing.recordUsage
 
     const agent = new Agent({
@@ -534,7 +534,7 @@ export class AiService extends BaseService {
       return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
     }
 
-    const { sdkConfig, credentialSnapshot } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(request, signal)
     const promptParam = request.inputImages
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -586,7 +586,7 @@ export class AiService extends BaseService {
       sdkConfig.providerSettings,
       imageParams
     )
-    await recordImageUsage(usageRecordId, model, result.images?.length ?? 0, credentialSnapshot, source)
+    await recordImageUsage(usageRecordId, model, result.images?.length ?? 0, credentialReceipt, source)
 
     const dataUrls: Base64String[] = []
     let filteredCount = 0
@@ -719,7 +719,7 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialSnapshot, model, assistant } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt, model, assistant } = await this.buildAgentParamsFor(request, signal)
 
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
@@ -737,7 +737,7 @@ export class AiService extends BaseService {
         .recordRequest({
           requestId: crypto.randomUUID(),
           modelId: model.id,
-          credentialSnapshot,
+          credentialReceipt,
           source: sourceSnapshotForAssistant(assistant),
           modality: 'embedding',
           stats: { inputTokens: tokens, totalTokens: tokens }

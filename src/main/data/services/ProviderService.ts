@@ -28,7 +28,6 @@ import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/e
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
-import type { AiUsageRecordAuthMethod } from '@shared/data/types/aiUsageRecord'
 import { providerLogoRef } from '@shared/data/types/file'
 import type {
   ApiKeyEntry,
@@ -60,24 +59,21 @@ export interface ProviderApiKeySnapshot {
   masked: string
 }
 
-export type ProviderAuthMethod = AiUsageRecordAuthMethod
-
 /**
- * Non-secret provenance of the credential that actually served one request.
+ * Non-secret result of ProviderService's API-key selection.
  *
- * `explicit` is a configured key selected by ProviderService, `matched` is an
- * explicit override matched back to a configured key, and `unknown` records
- * that the serving credential identity cannot be safely attributed.
+ * ProviderService owns stored-key selection only. Provider SDK configuration
+ * owns the final serving-credential receipt because a builder may replace this
+ * selection with OAuth, IAM, or another provider-level credential.
  */
-export type ProviderCredentialSnapshot =
+export type ProviderApiKeySelection =
   | ({ attribution: 'explicit' | 'matched' } & ProviderApiKeySnapshot)
-  | { attribution: 'auth'; method: ProviderAuthMethod }
   | { attribution: 'unknown' }
 
-/** The serving credential and its non-secret provenance, resolved atomically. */
+/** The selected API-key value and its safe identity, resolved atomically. */
 export interface ResolvedProviderApiKey {
   value: string
-  credentialSnapshot: ProviderCredentialSnapshot
+  apiKeySelection: ProviderApiKeySelection
 }
 
 function assertManagedCherryAiProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
@@ -134,7 +130,7 @@ function toResolvedProviderApiKey(
 ): ResolvedProviderApiKey {
   return {
     value,
-    credentialSnapshot: {
+    apiKeySelection: {
       attribution,
       id: entry.id,
       ...(entry.label ? { label: entry.label } : {}),
@@ -143,33 +139,10 @@ function toResolvedProviderApiKey(
   }
 }
 
-export function resolveProviderAuthCredential(provider: Provider): ProviderCredentialSnapshot | undefined {
-  const registryMethod = provider.authMethods?.includes('api-key')
-    ? undefined
-    : provider.authMethods?.find(
-        (method): method is Extract<ProviderAuthMethod, 'oauth' | 'external-cli'> => method !== 'api-key'
-      )
-  if (registryMethod) {
-    return { attribution: 'auth', method: registryMethod }
-  }
-
-  if (
-    provider.authType === 'oauth' ||
-    provider.authType === 'iam-aws' ||
-    provider.authType === 'api-key-aws' ||
-    provider.authType === 'iam-gcp' ||
-    provider.authType === 'iam-azure'
-  ) {
-    return { attribution: 'auth', method: provider.authType }
-  }
-
-  return undefined
-}
-
 function unknownCredential(value: string): ResolvedProviderApiKey {
   return {
     value,
-    credentialSnapshot: { attribution: 'unknown' }
+    apiKeySelection: { attribution: 'unknown' }
   }
 }
 
@@ -472,20 +445,10 @@ class ProviderService {
   }
 
   /**
-   * Read-only view of the key-rotation pointer: the id of the key most
-   * recently handed out by {@link getRotatedApiKey} (only written when the
-   * provider has more than one enabled key). In-memory — lost on restart.
-   * ProviderService is the single owner of this cache key; consumers
-   * (e.g. ai-usage-record attribution) must read it through this method.
-   */
-  getLastUsedApiKeyId(providerId: string): string | undefined {
-    return application.get('CacheService').get<string>(rotationCacheKey(providerId))
-  }
-
-  /**
-   * Resolve the credential for one provider request and capture the identity
-   * of the exact stored key that will serve it. An explicit override is never
-   * rotated, but is matched back to a stored key when possible.
+   * Select an API-key candidate and capture its identity atomically. The
+   * provider config builder decides whether this value or provider-level auth
+   * actually serves the request. An explicit override is never rotated, but is
+   * matched back to a stored key when possible.
    */
   resolveApiKey(providerId: string, override?: string): ResolvedProviderApiKey {
     const db = application.get('DbService').getDb()

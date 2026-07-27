@@ -15,12 +15,6 @@ import { timestampToISO } from '../utils/rowMappers'
 
 export type GroupDimension = AiUsageRecordGroupBy | undefined
 
-const nullKeyAttributionClass = sql<string | null>`CASE
-  WHEN ${aiUsageRecordTable.apiKeyId} IS NULL
-  THEN ${aiUsageRecordTable.apiKeyAttribution} || ':' || coalesce(${aiUsageRecordTable.authMethod}, '')
-  ELSE NULL
-END`
-
 export function rowToRecord(row: AiUsageRecordRow): AiUsageRecordEntry {
   return {
     id: row.id,
@@ -65,9 +59,12 @@ export function groupIdentityColumns(groupBy: GroupDimension) {
     case 'provider':
       return [aiUsageRecordTable.providerId]
     case 'apiKey':
-      // `auth` and `unknown` both have a NULL key id but are distinct buckets.
-      // Key-bearing provenance states for one concrete key still collapse.
-      return [aiUsageRecordTable.providerId, aiUsageRecordTable.apiKeyId, nullKeyAttributionClass]
+      return [
+        aiUsageRecordTable.providerId,
+        aiUsageRecordTable.apiKeyId,
+        aiUsageRecordTable.apiKeyAttribution,
+        aiUsageRecordTable.authMethod
+      ]
     case 'model':
       return [aiUsageRecordTable.providerId, aiUsageRecordTable.modelId]
     case 'source':
@@ -93,24 +90,8 @@ export function groupIdentitySelect(groupBy: GroupDimension) {
     modelId: groupBy === 'model' ? aiUsageRecordTable.modelId : sql<string | null>`NULL`,
     apiKeyLabel: byApiKey ? sql<string | null>`max(${aiUsageRecordTable.apiKeyLabel})` : sql<string | null>`NULL`,
     apiKeyMasked: byApiKey ? sql<string | null>`max(${aiUsageRecordTable.apiKeyMasked})` : sql<string | null>`NULL`,
-    apiKeyAttribution: byApiKey
-      ? sql<string>`CASE
-          WHEN ${aiUsageRecordTable.apiKeyId} IS NULL
-          THEN max(${aiUsageRecordTable.apiKeyAttribution})
-          ELSE CASE min(CASE ${aiUsageRecordTable.apiKeyAttribution}
-            WHEN 'explicit' THEN 4
-            WHEN 'matched' THEN 3
-            WHEN 'fallback' THEN 2
-            ELSE 1
-          END)
-            WHEN 4 THEN 'explicit'
-            WHEN 3 THEN 'matched'
-            WHEN 2 THEN 'fallback'
-            ELSE 'unknown'
-          END
-        END`
-      : sql<string | null>`NULL`,
-    authMethod: byApiKey ? sql<string | null>`max(${aiUsageRecordTable.authMethod})` : sql<string | null>`NULL`
+    apiKeyAttribution: byApiKey ? aiUsageRecordTable.apiKeyAttribution : sql<string | null>`NULL`,
+    authMethod: byApiKey ? aiUsageRecordTable.authMethod : sql<string | null>`NULL`
   }
 }
 

@@ -352,7 +352,7 @@ describe('ProviderService API keys', () => {
     const first = providerService.resolveApiKey('openai')
     expect(first).toEqual({
       value: 'sk-a',
-      credentialSnapshot: {
+      apiKeySelection: {
         attribution: 'explicit',
         id: 'key-a',
         label: 'A',
@@ -364,7 +364,7 @@ describe('ProviderService API keys', () => {
     const second = providerService.resolveApiKey('openai')
     expect(second).toEqual({
       value: 'sk-b',
-      credentialSnapshot: {
+      apiKeySelection: {
         attribution: 'explicit',
         id: 'key-b',
         label: 'B',
@@ -372,7 +372,7 @@ describe('ProviderService API keys', () => {
       }
     })
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-b')
-    expect(first.credentialSnapshot).toMatchObject({ id: 'key-a' })
+    expect(first.apiKeySelection).toMatchObject({ id: 'key-a' })
 
     MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'deleted-key')
     expect(providerService.getRotatedApiKey('openai')).toBe('sk-a')
@@ -386,7 +386,7 @@ describe('ProviderService API keys', () => {
 
     expect(resolved).toEqual({
       value: 'sk-b',
-      credentialSnapshot: {
+      apiKeySelection: {
         attribution: 'matched',
         id: 'key-b',
         label: 'B',
@@ -401,7 +401,7 @@ describe('ProviderService API keys', () => {
 
     expect(providerService.resolveApiKey('openai', 'sk-external')).toEqual({
       value: 'sk-external',
-      credentialSnapshot: { attribution: 'unknown' }
+      apiKeySelection: { attribution: 'unknown' }
     })
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBeUndefined()
   })

@@ -24,7 +24,6 @@ import type { Message } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { sql } from 'drizzle-orm'
 
-import type { ProviderCredentialSnapshot } from '../ProviderService'
 import { enrichStatsWithCost } from '../utils/costEnrichment'
 import type { AiUsageRecordListServiceQuery } from './recordCursor'
 import { getAiUsageRecordStats, getAiUsageRecordTimeline, listAiUsageRecords } from './recordQueries'
@@ -32,7 +31,8 @@ import {
   type KeyAttribution,
   resolveKeyAttribution,
   resolveSourceSnapshot,
-  type SourceSnapshot
+  type SourceSnapshot,
+  type UsageCredentialReceipt
 } from './recordSnapshots'
 
 const logger = loggerService.withContext('DataApi:AiUsageRecordService')
@@ -94,15 +94,15 @@ interface RecordRequestBase {
   requestId: string
   topicId?: string | null
   agentSessionId?: string | null
-  /** Source captured at request construction; database lookup is compatibility fallback. */
+  /** Source captured at request construction; database lookup is a source-only fallback. */
   source?: SourceSnapshot | null
   /** UniqueModelId (`providerId::modelId`). */
   modelId: string
   stats: NonNullable<Message['stats']>
   /** Provider-reported cost candidate from raw usage (for example OpenRouter). */
   providerCostUsd?: number
-  /** Non-secret credential provenance captured at provider selection. */
-  credentialSnapshot?: ProviderCredentialSnapshot
+  /** Non-secret credential receipt captured by provider configuration. */
+  credentialReceipt?: UsageCredentialReceipt
 }
 
 export type RecordRequestInput = RecordRequestBase &
@@ -179,7 +179,7 @@ export class AiUsageRecordService {
         : input.stats
     if (input.modality !== 'image' && !hasUsageSignal(stats)) return
 
-    const key = resolveKeyAttribution(providerId, input.credentialSnapshot)
+    const key = resolveKeyAttribution(providerId, input.credentialReceipt)
     const source = resolveSourceSnapshot(input.source, input.topicId, input.agentSessionId)
 
     const values = {
@@ -271,9 +271,9 @@ export class AiUsageRecordService {
     notifyDataApiDataChange(AI_USAGE_RECORD_READ_MODEL_CHANGES)
   }
 
-  /** Public for focused attribution tests and compatibility callers. */
-  resolveKeyAttribution(providerId: string, credentialSnapshot?: ProviderCredentialSnapshot): KeyAttribution {
-    return resolveKeyAttribution(providerId, credentialSnapshot)
+  /** Public for focused attribution tests. Missing request-owned proof remains unknown. */
+  resolveKeyAttribution(providerId: string, credentialReceipt?: UsageCredentialReceipt): KeyAttribution {
+    return resolveKeyAttribution(providerId, credentialReceipt)
   }
 
   list(query: AiUsageRecordListServiceQuery): AiUsageRecordListResponse {

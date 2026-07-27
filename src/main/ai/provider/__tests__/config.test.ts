@@ -22,20 +22,16 @@ import { customFetch } from '../../utils/customFetch'
 // providerToAiSdkConfig resolves the serving API key and (for Vertex/Bedrock) the
 // auth config off the direct-import ProviderService singleton. Mock both at the
 // module boundary so the dispatch builders run without touching the DB.
-const { resolveApiKeyMock, resolveProviderAuthCredentialMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(
-  () => ({
-    resolveApiKeyMock: vi.fn(),
-    resolveProviderAuthCredentialMock: vi.fn(),
-    getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
-    getByProviderIdMock: vi.fn()
-  })
-)
+const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
+  resolveApiKeyMock: vi.fn(),
+  getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
+  getByProviderIdMock: vi.fn()
+}))
 const { generateSignatureMock } = vi.hoisted(() => ({
   generateSignatureMock: vi.fn()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
-  resolveProviderAuthCredential: resolveProviderAuthCredentialMock,
   providerService: {
     resolveApiKey: resolveApiKeyMock,
     getAuthConfig: getAuthConfigMock,
@@ -54,22 +50,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   resolveApiKeyMock.mockImplementation((_providerId: string, override?: string) => ({
     value: override ?? 'sk-test-key',
-    credentialSnapshot: override
+    apiKeySelection: override
       ? { attribution: 'unknown' }
       : { attribution: 'explicit', id: 'test-key', masked: 'sk-t****-key' }
   }))
   getAuthConfigMock.mockReturnValue(null)
-  resolveProviderAuthCredentialMock.mockImplementation(
-    (provider: { authType?: string; authMethods?: Array<'api-key' | 'oauth' | 'external-cli'> }) => {
-      const registryMethod = provider.authMethods?.includes('api-key')
-        ? undefined
-        : provider.authMethods?.find((method) => method !== 'api-key')
-      if (registryMethod) return { attribution: 'auth', method: registryMethod }
-      return provider.authType && provider.authType !== 'api-key'
-        ? { attribution: 'auth', method: provider.authType }
-        : undefined
-    }
-  )
 })
 
 afterEach(() => {
@@ -88,20 +73,20 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   it('returns the safe provenance captured with the serving key', async () => {
-    const credentialSnapshot = {
+    const apiKeySelection = {
       attribution: 'explicit',
       id: 'key-a',
       label: 'Primary',
       masked: 'sk-a****aaaa'
     } as const
-    resolveApiKeyMock.mockReturnValue({ value: 'sk-selected', credentialSnapshot })
+    resolveApiKeyMock.mockReturnValue({ value: 'sk-selected', apiKeySelection })
     const provider = makeProvider({ id: 'openai' })
     const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })
 
     const resolved = await resolveProviderAiSdkConfig(provider, model)
 
     expect((resolved.config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
-    expect(resolved.credentialSnapshot).toEqual(credentialSnapshot)
+    expect(resolved.credentialReceipt).toEqual(apiKeySelection)
   })
 
   it('records the provider-level auth mechanism when the SDK builder replaces the selected key', async () => {
@@ -109,7 +94,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       type: 'iam-gcp',
       project: 'my-project',
       location: 'global',
-      credentials: {}
+      credentials: {
+        client_email: 'vertex@example.com',
+        private_key: '-----BEGIN PRIVATE KEY-----\\ndGVzdA==\\n-----END PRIVATE KEY-----'
+      }
     })
     const provider = makeProvider({
       id: 'vertex',
@@ -128,11 +116,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
     const resolved = await resolveProviderAiSdkConfig(provider, model)
 
-    expect(resolved.credentialSnapshot).toEqual({ attribution: 'auth', method: 'iam-gcp' })
+    expect(resolved.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
   })
 
-  it('records external CLI auth when no API key serves the request', async () => {
-    resolveApiKeyMock.mockReturnValue({ value: '', credentialSnapshot: { attribution: 'unknown' } })
+  it('does not infer external CLI auth from registry metadata outside its runtime owner', async () => {
+    resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
     const provider = makeProvider({
       id: 'claude-code',
       authMethods: ['external-cli'],
@@ -149,7 +137,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
     const resolved = await resolveProviderAiSdkConfig(provider, model)
 
-    expect(resolved.credentialSnapshot).toEqual({ attribution: 'auth', method: 'external-cli' })
+    expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
   })
 
   describe('Vertex routing (google-vertex AND google-vertex-anthropic → buildVertexConfig)', () => {
@@ -646,7 +634,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
   describe('CherryAI routing', () => {
     it('uses custom fetch to sign chat completions requests', async () => {
-      resolveApiKeyMock.mockReturnValue({ value: '', credentialSnapshot: { attribution: 'unknown' } })
+      resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
       generateSignatureMock.mockReturnValue({
         'X-Client-ID': 'cherry-studio',
         'X-Timestamp': '1700000000',

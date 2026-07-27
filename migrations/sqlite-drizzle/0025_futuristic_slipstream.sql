@@ -34,7 +34,7 @@ CREATE TABLE `ai_usage_record` (
 	`time_thinking_ms` integer,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	CONSTRAINT "ai_usage_record_attribution_check" CHECK("ai_usage_record"."api_key_attribution" IN ('explicit', 'matched', 'fallback', 'auth', 'unknown')),
+	CONSTRAINT "ai_usage_record_attribution_check" CHECK("ai_usage_record"."api_key_attribution" IN ('explicit', 'matched', 'auth', 'unknown')),
 	CONSTRAINT "ai_usage_record_auth_method_check" CHECK("ai_usage_record"."auth_method" IN ('oauth', 'external-cli', 'iam-aws', 'api-key-aws', 'iam-gcp', 'iam-azure')),
 	CONSTRAINT "ai_usage_record_capture_source_check" CHECK("ai_usage_record"."capture_source" IN ('runtime', 'persistence', 'migration')),
 	CONSTRAINT "ai_usage_record_cost_source_check" CHECK("ai_usage_record"."cost_source" IN ('provider', 'computed')),
@@ -50,7 +50,7 @@ CREATE TABLE `ai_usage_record` (
         AND "ai_usage_record"."cost_source" IS NOT NULL
       )),
 	CONSTRAINT "ai_usage_record_api_key_identity_check" CHECK((
-        "ai_usage_record"."api_key_attribution" IN ('explicit', 'matched', 'fallback')
+        "ai_usage_record"."api_key_attribution" IN ('explicit', 'matched')
         AND "ai_usage_record"."api_key_id" IS NOT NULL
         AND "ai_usage_record"."auth_method" IS NULL
       ) OR (

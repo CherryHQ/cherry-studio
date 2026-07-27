@@ -3,17 +3,14 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
-import {
-  type ProviderAuthMethod,
-  type ProviderCredentialSnapshot,
-  providerService
-} from '@main/data/services/ProviderService'
+import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
 import { recordImageUsage } from '../../../hooks/billingHook'
 import { resolveProviderAiSdkConfig } from '../../config'
+import type { ServingAuthMethod, ServingCredentialReceipt } from '../../credential'
 import type {
   ImageGenerationSubmitInput,
   ImageGenerationTransport,
@@ -56,13 +53,10 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       const model = modelService.getByKey(providerId, modelId)
       if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-      const { config, credentialSnapshot: selectedCredentialSnapshot } = await resolveProviderAiSdkConfig(
-        provider,
-        model
-      )
+      const { config, credentialReceipt: selectedCredentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
       const sdkConfig = { ...config, modelId: model.apiModelId ?? model.id }
-      const billingCredentialSnapshot =
-        readCredentialSnapshot(ctx.metadata.credentialSnapshot) ?? selectedCredentialSnapshot
+      const billingCredentialReceipt =
+        readCredentialReceipt(ctx.metadata.credentialReceipt) ?? selectedCredentialReceipt
       const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
       if (!transport) {
         throw new Error(
@@ -85,7 +79,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
           // re-submits, wasting the user's vendor quota.
           await ctx.patchMetadata({
             taskId: submit.taskId,
-            credentialSnapshot: selectedCredentialSnapshot
+            credentialReceipt: selectedCredentialReceipt
           })
           urls = await pollUntilDone(transport, submit.taskId, ctx)
         } else {
@@ -108,7 +102,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       // download failure must not under-bill. `ctx.jobId` is stable across
       // retries/restart-resume, so the record upsert stays idempotent.
       // Fire-and-forget — recording must never fail a paid generation.
-      void recordImageUsage(ctx.jobId, model, urls.length, billingCredentialSnapshot, input.source)
+      void recordImageUsage(ctx.jobId, model, urls.length, billingCredentialReceipt, input.source)
 
       const files = await downloadAndPersistImageUrls(urls, ctx.signal)
       ctx.reportProgress(100, { stage: 'done' })
@@ -123,7 +117,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
   }
 }
 
-const AUTH_METHODS: ReadonlySet<ProviderAuthMethod> = new Set([
+const AUTH_METHODS: ReadonlySet<ServingAuthMethod> = new Set([
   'oauth',
   'external-cli',
   'iam-aws',
@@ -132,7 +126,7 @@ const AUTH_METHODS: ReadonlySet<ProviderAuthMethod> = new Set([
   'iam-azure'
 ])
 
-function readCredentialSnapshot(value: unknown): ProviderCredentialSnapshot | undefined {
+function readCredentialReceipt(value: unknown): ServingCredentialReceipt | undefined {
   if (!value || typeof value !== 'object') return undefined
 
   const snapshot = value as Record<string, unknown>
@@ -140,10 +134,10 @@ function readCredentialSnapshot(value: unknown): ProviderCredentialSnapshot | un
     return { attribution: 'unknown' }
   }
   if (snapshot.attribution === 'auth') {
-    if (typeof snapshot.method !== 'string' || !AUTH_METHODS.has(snapshot.method as ProviderAuthMethod)) {
+    if (typeof snapshot.method !== 'string' || !AUTH_METHODS.has(snapshot.method as ServingAuthMethod)) {
       return undefined
     }
-    return { attribution: 'auth', method: snapshot.method as ProviderAuthMethod }
+    return { attribution: 'auth', method: snapshot.method as ServingAuthMethod }
   }
   if (snapshot.attribution !== 'explicit' && snapshot.attribution !== 'matched') return undefined
   if (typeof snapshot.id !== 'string' || typeof snapshot.masked !== 'string') return undefined

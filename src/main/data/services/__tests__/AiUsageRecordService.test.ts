@@ -230,26 +230,19 @@ describe('AiUsageRecordService', () => {
       expect(await dbh.db.select().from(aiUsageRecordTable)).toHaveLength(0)
     })
 
-    it('preserves a compatibility fallback attribution on re-persists while updating usage', async () => {
-      // First persist: single enabled key → compatibility fallback attribution.
+    it('does not infer a serving key from current provider state', async () => {
       await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'Main', isEnabled: true }])
       await aiUsageRecordService.recordFromMessage(makeMessage({ stats: { inputTokens: 10, outputTokens: 5 } }))
-
-      // Second persist resolves to unknown (simulates provider state lost on restart):
-      // wipe the provider so attribution degrades.
-      await dbh.db.delete(userProviderTable)
       await aiUsageRecordService.recordFromMessage(makeMessage({ stats: { inputTokens: 40, outputTokens: 20 } }))
 
       const rows = await dbh.db.select().from(aiUsageRecordTable)
       expect(rows).toHaveLength(1)
-      // Persistence usage is last-write-wins; key identity keeps the original fallback snapshot.
       expect(rows[0]).toMatchObject({
         inputTokens: 40,
         outputTokens: 20,
         providerName: 'Test Provider',
-        apiKeyId: 'key-a',
-        apiKeyLabel: 'Main',
-        apiKeyAttribution: 'fallback'
+        apiKeyId: null,
+        apiKeyAttribution: 'unknown'
       })
     })
 
@@ -384,17 +377,16 @@ describe('AiUsageRecordService', () => {
       ])
       MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'key-b')
 
-      // A persistence-only writer lands first and can only infer key B from
-      // mutable provider state.
+      // A persistence-only writer lands first without a request-owned receipt.
       await aiUsageRecordService.recordFromMessage(makeMessage({ id: 'req-key-race', stats: { inputTokens: 10 } }))
 
       // The billing pipeline carries the actual serving key A and must replace
-      // the lower-confidence fallback attribution even though it lands second.
+      // unknown attribution even though the rotation pointer currently names B.
       await aiUsageRecordService.recordRequest({
         requestId: 'req-key-race',
         modelId: 'openai::gpt-4o',
         modality: 'language',
-        credentialSnapshot: {
+        credentialReceipt: {
           attribution: 'explicit',
           id: 'key-a',
           label: 'A',
@@ -713,112 +705,66 @@ describe('AiUsageRecordService', () => {
   })
 
   describe('resolveKeyAttribution', () => {
-    it('uses a compatibility fallback for a single currently enabled key', async () => {
+    it('returns unknown without a request-owned receipt even when a key is configured', async () => {
       await seedProvider([
         { id: 'key-a', key: 'sk-test-1234567890abcdefgh', label: 'Main', isEnabled: true },
         { id: 'key-b', key: 'sk-disabled', label: 'Off', isEnabled: false }
       ])
 
-      const result = await aiUsageRecordService.resolveKeyAttribution('openai')
+      expect(aiUsageRecordService.resolveKeyAttribution('openai')).toEqual({
+        attribution: 'unknown',
+        providerName: 'Test Provider'
+      })
+    })
+
+    it('uses the request-owned key receipt without exposing the secret', async () => {
+      await seedProvider([{ id: 'key-a', key: 'sk-test-1234567890abcdefgh', label: 'Main', isEnabled: true }])
+
+      const result = aiUsageRecordService.resolveKeyAttribution('openai', {
+        attribution: 'explicit',
+        id: 'key-a',
+        label: 'Main',
+        masked: 'sk-t****efgh'
+      })
       expect(result).toEqual({
-        attribution: 'fallback',
+        attribution: 'explicit',
         providerName: 'Test Provider',
         keyId: 'key-a',
         label: 'Main',
-        masked: expect.stringContaining('****')
+        masked: 'sk-t****efgh'
       })
       expect(result.masked).not.toContain('sk-test-1234567890abcdefgh')
     })
 
-    it('uses the compatibility fallback pointer with multiple enabled keys', async () => {
-      await seedProvider([
-        { id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'A', isEnabled: true },
-        { id: 'key-b', key: 'sk-bbbbbbbbbbbbbbbbbbbbbbbbbbbb', label: 'B', isEnabled: true }
-      ])
-      MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'key-b')
-
-      const result = await aiUsageRecordService.resolveKeyAttribution('openai')
-      expect(result).toMatchObject({
-        attribution: 'fallback',
-        providerName: 'Test Provider',
-        keyId: 'key-b',
-        label: 'B'
-      })
-    })
-
-    it('returns unknown with multiple keys but no fallback pointer', async () => {
-      await seedProvider([
-        { id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true },
-        { id: 'key-b', key: 'sk-bbbbbbbbbbbbbbbbbbbbbbbbbbbb', isEnabled: true }
-      ])
-
-      expect(await aiUsageRecordService.resolveKeyAttribution('openai')).toEqual({
-        attribution: 'unknown',
-        providerName: 'Test Provider'
-      })
-    })
-
-    it('returns unknown when the pointed-at fallback key was deleted', async () => {
-      await seedProvider([
-        { id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true },
-        { id: 'key-b', key: 'sk-bbbbbbbbbbbbbbbbbbbbbbbbbbbb', isEnabled: true }
-      ])
-      MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'deleted-key')
-
-      expect(await aiUsageRecordService.resolveKeyAttribution('openai')).toEqual({
-        attribution: 'unknown',
-        providerName: 'Test Provider'
-      })
-    })
-
-    it('attributes IAM providers to auth, not a key', async () => {
+    it('uses the request-owned provider-auth receipt', async () => {
       await seedProvider([], { providerId: 'bedrock', authConfig: { type: 'iam-aws', region: 'us-east-1' } })
 
-      expect(await aiUsageRecordService.resolveKeyAttribution('bedrock')).toEqual({
+      expect(
+        aiUsageRecordService.resolveKeyAttribution('bedrock', {
+          attribution: 'auth',
+          method: 'iam-aws'
+        })
+      ).toEqual({
         attribution: 'auth',
         providerName: 'Test Provider',
         authMethod: 'iam-aws'
       })
     })
 
-    it('attributes keyless OAuth providers to auth', async () => {
-      await seedProvider([], { providerId: 'claude-oauth', authConfig: { type: 'oauth' } })
-
-      expect(await aiUsageRecordService.resolveKeyAttribution('claude-oauth')).toEqual({
-        attribution: 'auth',
-        providerName: 'Test Provider',
-        authMethod: 'oauth'
+    it('retains a request-owned receipt even after the provider is deleted', () => {
+      expect(
+        aiUsageRecordService.resolveKeyAttribution('ghost', {
+          attribution: 'matched',
+          id: 'deleted-key',
+          label: 'Deleted',
+          masked: '****'
+        })
+      ).toEqual({
+        attribution: 'matched',
+        keyId: 'deleted-key',
+        label: 'Deleted',
+        masked: '****'
       })
-    })
-
-    it.each([
-      ['openai-codex', 'oauth'],
-      ['claude-code', 'external-cli']
-    ] as const)('uses registry authMethods for %s', async (providerId, authMethod) => {
-      await seedProvider([], { providerId })
-
-      expect(await aiUsageRecordService.resolveKeyAttribution(providerId)).toEqual({
-        attribution: 'auth',
-        providerName: 'Test Provider',
-        authMethod
-      })
-    })
-
-    it('returns unknown for api-key providers without keys and for missing providers', async () => {
-      await seedProvider([], { providerId: 'ollama' })
-
-      expect(await aiUsageRecordService.resolveKeyAttribution('ollama')).toEqual({
-        attribution: 'unknown',
-        providerName: 'Test Provider'
-      })
-      expect(await aiUsageRecordService.resolveKeyAttribution('ghost')).toEqual({ attribution: 'unknown' })
-    })
-
-    it('never stores a short key raw — masked snapshot is clamped to ****', async () => {
-      await seedProvider([{ id: 'key-a', key: 'token123', label: 'Short', isEnabled: true }])
-
-      const result = await aiUsageRecordService.resolveKeyAttribution('openai')
-      expect(result.masked).toBe('****')
     })
   })
 
@@ -1196,7 +1142,7 @@ describe('AiUsageRecordService', () => {
       expect(buckets[0]).toMatchObject({ apiKeyId: 'key-a', costCurrency: 'USD', totalCost: 2 })
     })
 
-    it('reports the least confident attribution for a bucket mixing explicit and fallback rows', async () => {
+    it('keeps explicit selection and matched overrides in separate key buckets', async () => {
       const base = {
         providerId: 'openai',
         modelId: 'openai::gpt-4o',
@@ -1216,8 +1162,8 @@ describe('AiUsageRecordService', () => {
         },
         {
           ...base,
-          requestId: 'm-fallback',
-          apiKeyAttribution: 'fallback',
+          requestId: 'm-matched',
+          apiKeyAttribution: 'matched',
           cost: 2,
           createdAt: 2000,
           updatedAt: 2000
@@ -1226,8 +1172,13 @@ describe('AiUsageRecordService', () => {
 
       const { buckets } = await aiUsageRecordService.stats({ ...DEFAULT_AGGREGATE_QUERY, groupBy: 'apiKey' })
 
-      expect(buckets).toHaveLength(1)
-      expect(buckets[0]).toMatchObject({ apiKeyId: 'key-a', apiKeyAttribution: 'fallback', entryCount: 2 })
+      expect(buckets).toHaveLength(2)
+      expect(buckets).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ apiKeyId: 'key-a', apiKeyAttribution: 'explicit', entryCount: 1 }),
+          expect.objectContaining({ apiKeyId: 'key-a', apiKeyAttribution: 'matched', entryCount: 1 })
+        ])
+      )
     })
 
     it('keeps provider authentication separate from unattributed requests', async () => {
