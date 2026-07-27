@@ -584,12 +584,6 @@ export class AgentSessionService {
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {
     applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id })
   }
-
-  exists(id: string): boolean {
-    const db = application.get('DbService').getDb()
-    const [row] = db.select({ id: sessionsTable.id }).from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1).all()
-    return !!row
-  }
 }
 
 export const agentSessionService = new AgentSessionService()

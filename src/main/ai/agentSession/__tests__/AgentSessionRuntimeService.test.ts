@@ -1,7 +1,3 @@
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
-
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -22,18 +18,14 @@ const mocks = vi.hoisted(() => ({
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
   getSessionById: vi.fn(),
-  sessionExists: vi.fn(),
-  getReferencedRuntimeResumeTokens: vi.fn(),
   getAgent: vi.fn(),
-  ensureTraceId: vi.fn(),
-  applicationGetPath: vi.fn()
+  ensureTraceId: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
-    ensureTraceId: mocks.ensureTraceId,
-    exists: mocks.sessionExists
+    ensureTraceId: mocks.ensureTraceId
   }
 }))
 
@@ -46,8 +38,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     saveMessage: mocks.saveMessage,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     findPendingAssistantMessageIds: mocks.findPendingAssistantMessageIds,
-    markMessagesError: mocks.markMessagesError,
-    getReferencedRuntimeResumeTokens: mocks.getReferencedRuntimeResumeTokens
+    markMessagesError: mocks.markMessagesError
   }
 }))
 
@@ -56,7 +47,7 @@ vi.mock('@main/services/TopicNamingService', () => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet, getPath: mocks.applicationGetPath }
+  application: { get: mocks.applicationGet }
 }))
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
@@ -150,8 +141,6 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.findPendingAssistantMessageIds.mockReturnValue([])
     mocks.markMessagesError.mockReturnValue(undefined)
-    mocks.sessionExists.mockReturnValue(false)
-    mocks.getReferencedRuntimeResumeTokens.mockReturnValue(new Set())
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
@@ -168,29 +157,6 @@ describe('AgentSessionRuntimeService', () => {
       }
       if (name === 'CacheService') return { setShared: mocks.cacheSetShared, deleteShared: mocks.cacheDeleteShared }
       throw new Error(`Unexpected application.get(${name})`)
-    })
-  })
-
-  describe('external session file sweep', () => {
-    it('leaves workspace directory ownership to the shared filesystem GC', async () => {
-      const root = await mkdtemp(path.join(os.tmpdir(), 'agent-system-workspace-sweep-'))
-      const sessionId = '11111111-1111-4111-8111-111111111111'
-      const datedSessionPath = path.join(root, '2026-07-27', sessionId)
-      const prefixCollisionPath = path.join(root, 'system-backup', sessionId)
-      await mkdir(datedSessionPath, { recursive: true })
-      await mkdir(prefixCollisionPath, { recursive: true })
-      await writeFile(path.join(prefixCollisionPath, 'keep.txt'), 'user content')
-      mocks.applicationGetPath.mockReturnValue(root)
-
-      try {
-        const service = new AgentSessionRuntimeService()
-        await (service as any).sweepExternalSessionFiles()
-
-        await expect(access(datedSessionPath)).resolves.toBeUndefined()
-        await expect(access(path.join(prefixCollisionPath, 'keep.txt'))).resolves.toBeUndefined()
-      } finally {
-        await rm(root, { recursive: true, force: true })
-      }
     })
   })
 

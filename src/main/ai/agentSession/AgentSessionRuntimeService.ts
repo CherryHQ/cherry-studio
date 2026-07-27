@@ -38,8 +38,7 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeUserInput,
-  AgentSessionLiveIndex
+  AgentRuntimeUserInput
 } from '../runtime/types'
 import {
   PersistenceListener,
@@ -53,7 +52,6 @@ import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } 
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
-const SESSION_FILE_SWEEP_INTERVAL_MS = 30 * 60 * 1000
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = 'success' | 'paused' | 'error'
@@ -222,53 +220,6 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
-
-    // Session deletion and message edits are plain DB writes with no side-effect hooks — the
-    // external session stores (transcripts etc.) are reconciled against the DB by a periodic
-    // sweep instead: boot catches residue from prior runs, the interval catches this run's.
-    this.registerInterval(() => void this.sweepExternalSessionFiles(), SESSION_FILE_SWEEP_INTERVAL_MS)
-    void this.sweepExternalSessionFiles()
-  }
-
-  /**
-   * Garbage-collect runtime-owned session residue keyed by resume token. Workspace directories
-   * are deliberately excluded: their directory shape does not prove ownership, so the shared
-   * filesystem GC owns those app-managed paths. Best-effort — failures only log.
-   */
-  private sweeping = false
-  private async sweepExternalSessionFiles(): Promise<void> {
-    if (this.sweeping) return
-    this.sweeping = true
-    try {
-      const liveEntryTokens = new Set<string>()
-      for (const entry of this.entries.values()) {
-        if (entry.lastResumeToken) liveEntryTokens.add(entry.lastResumeToken)
-      }
-      // Snapshot the persisted resume tokens once — `runtime_resume_token` is unindexed, so probing
-      // it per on-disk token would turn each sweep into many full-table scans on the synchronous main
-      // thread. The 24h age guard still protects tokens minted after this snapshot; at worst a
-      // concurrent deletion is reclaimed on the next sweep.
-      const persistedTokens = agentSessionMessageService.getReferencedRuntimeResumeTokens()
-      const live: AgentSessionLiveIndex = {
-        isSessionLive: (sessionId) => this.entries.has(sessionId) || agentSessionService.exists(sessionId),
-        isResumeTokenLive: (token) => liveEntryTokens.has(token) || persistedTokens.has(token)
-      }
-
-      // Drivers release session resources they still hold for dead sessions (e.g. Claude's
-      // prewarmed queries) before sweeping their runtime-owned files.
-      for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) {
-        if (!driver.sweepSessionFiles) continue
-        try {
-          await driver.sweepSessionFiles(live)
-        } catch (error) {
-          logger.warn('Runtime session file sweep failed', { driver: driver.type, error })
-        }
-      }
-    } catch (error) {
-      logger.warn('Session file sweep failed', { error })
-    } finally {
-      this.sweeping = false
-    }
   }
 
   private reconcileStalePendingMessages(): void {
