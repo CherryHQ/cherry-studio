@@ -1,7 +1,6 @@
 import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
-import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { buildSidebarAppOpenMetadata, getSidebarApp } from '@renderer/utils/sidebar'
 import { useMemo } from 'react'
@@ -25,11 +24,6 @@ export interface ConversationNavigation {
   openConversationWindow: (key: string, title?: string) => void
 }
 
-// Only conversation apps that own a resource sidebar emit a reveal on open.
-function resolveRevealSource(appId: SidebarAppId): ResourceListRevealSource | null {
-  return appId === 'assistants' || appId === 'agents' ? appId : null
-}
-
 function openConversationTabImpl(
   tabs: TabsContextValue | null,
   appId: SidebarAppId,
@@ -40,8 +34,6 @@ function openConversationTabImpl(
   if (!tabs || !app?.instanceKey) return
   const metadata = buildSidebarAppOpenMetadata(app, key)
   const openedId = tabs.openTab(app.routePrefix, { forceNew: true, title, ...(metadata && { metadata }) })
-  const source = resolveRevealSource(appId)
-  if (openedId && source) emitResourceListReveal({ source, tabId: openedId })
   return openedId
 }
 
