@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { application } from '@application'
 import { snapshotTo } from '@data/db/restore/snapshot'
@@ -17,17 +17,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { admitArchive } from '../admission/admitArchive'
 import { diskProbe } from '../diskPreflight'
 import { InsufficientDiskSpaceError, OutputPathExistsError } from '../errors'
-import { exportLiteArchive } from '../exportArchive'
+import { exportArchive } from '../exportArchive'
 
 /**
- * End-to-end proof for the Lite export path: a real migrated database in, a
+ * End-to-end proof for the export path: a real migrated database in, a
  * `.cherrybackup` out, and the same archive back through the Phase 1b-ii
  * admission gate unchanged. The round trip is the point — it is the only check
  * that proves the producer and the hostile-input consumer still agree on layout,
  * hashes, chain identity, and manifest shape.
  */
 
-describe('exportLiteArchive', () => {
+describe('exportArchive', () => {
   const dbh = setupTestDatabase()
   let workDir: string
   let userData: string
@@ -85,6 +85,12 @@ describe('exportLiteArchive', () => {
     }
   }
 
+  /** Create a file's parent directories and hand the path back for writing. */
+  function mkFile(absPath: string): string {
+    mkdirSync(dirname(absPath), { recursive: true })
+    return absPath
+  }
+
   function seedResources(): void {
     dbh.db
       .insert(fileEntryTable)
@@ -107,7 +113,7 @@ describe('exportLiteArchive', () => {
   it('publishes a Lite archive that admission accepts unchanged', async () => {
     seedResources()
 
-    const result = await exportLiteArchive({ outPath })
+    const result = await exportArchive({ outPath, preset: 'lite' })
 
     expect(existsSync(outPath)).toBe(true)
     expect(result.manifest.preset).toBe('lite')
@@ -129,10 +135,67 @@ describe('exportLiteArchive', () => {
     }
   })
 
+  it('publishes a Full archive whose payloads admission re-verifies byte for byte', async () => {
+    seedResources()
+    writeFileSync(mkFile(join(userData, 'Data', 'Files', '11111111-1111-4111-8111-111111111111.pdf')), 'BLOB')
+    writeFileSync(mkFile(join(userData, 'Data', 'KnowledgeBase', 'kb-1', 'raw', 'doc.txt')), 'SOURCE')
+    // Derived state export drops on purpose (§6.7) — it is rebuilt after restore.
+    writeFileSync(mkFile(join(userData, 'Data', 'KnowledgeBase', 'kb-1', '.cherry', 'index.sqlite')), 'INDEX')
+    writeFileSync(mkFile(join(userData, 'Data', 'Notes', 'a.md')), '# note')
+    // Declared by a row but not present here: a degraded archive, not a failure.
+    expect(existsSync(join(userData, 'Data', 'Agents', 's-1'))).toBe(false)
+
+    const result = await exportArchive({ outPath, preset: 'full' })
+
+    expect(result.manifest.preset).toBe('full')
+    const payloads = result.manifest.preset === 'full' ? result.manifest.resourcePayloads : []
+    expect(payloads.map((p) => p.livePath).sort()).toEqual([
+      'Data/Files/11111111-1111-4111-8111-111111111111.pdf',
+      'Data/KnowledgeBase/kb-1',
+      'Data/Notes'
+    ])
+    expect(result.manifest.degradations).toContainEqual({
+      kind: 'resource:agent-workspace',
+      livePath: 'Data/Agents/s-1',
+      reason: 'absent at snapshot time'
+    })
+
+    const stagingParent = await mkdtemp(join(tmpdir(), 'cs-admit-'))
+    const admitted = await admitArchive({
+      archivePath: outPath,
+      stagingParent,
+      migrationsFolder: resolveMigrationsPath()
+    })
+    try {
+      // Admission recomputes every hash from the extracted bytes; agreement here
+      // is the producer/consumer contract for directory units as well as files.
+      expect(admitted.resources.map((r) => r.livePath).sort()).toEqual(payloads.map((p) => p.livePath).sort())
+      const kb = admitted.resources.find((r) => r.livePath === 'Data/KnowledgeBase/kb-1')
+      expect(kb?.hash).toBe(payloads.find((p) => p.livePath === 'Data/KnowledgeBase/kb-1')?.hash)
+      expect(existsSync(join(kb!.stagedPath, '.cherry', 'index.sqlite'))).toBe(false)
+      expect(readFileSync(join(kb!.stagedPath, 'raw', 'doc.txt'), 'utf8')).toBe('SOURCE')
+    } finally {
+      await admitted.cleanup()
+      rmSync(stagingParent, { recursive: true, force: true })
+    }
+  })
+
+  it('publishes a Full archive with no payloads when this device holds none', async () => {
+    seedResources()
+
+    const { manifest } = await exportArchive({ outPath, preset: 'full' })
+
+    expect(manifest.preset === 'full' && manifest.resourcePayloads).toEqual([])
+    // Every requirement is still declared, so the restoring device can report
+    // exactly what this archive could not carry.
+    expect(manifest.resourceRequirements).toHaveLength(4)
+    expect(manifest.degradations).toHaveLength(4)
+  })
+
   it('carries the producer roots and requirement inventory a cross-device restore needs', async () => {
     seedResources()
 
-    const { manifest } = await exportLiteArchive({ outPath })
+    const { manifest } = await exportArchive({ outPath, preset: 'lite' })
 
     // Without these two roots the materializer cannot rebase note.rootPath or
     // agent_workspace.path on another machine.
@@ -156,22 +219,22 @@ describe('exportLiteArchive', () => {
     // empty inventory here.
     expect(existsSync(join(userData, 'Data'))).toBe(false)
 
-    const { manifest } = await exportLiteArchive({ outPath })
+    const { manifest } = await exportArchive({ outPath, preset: 'lite' })
 
     expect(manifest.resourceRequirements).toHaveLength(4)
   })
 
   it('leaves no staging tree behind on success', async () => {
-    await exportLiteArchive({ outPath })
+    await exportArchive({ outPath, preset: 'lite' })
 
     expect(readdirSync(join(userData, 'backup-temp'))).toEqual([])
   })
 
   it('removes its staging tree and writes nothing when publication fails', async () => {
-    await exportLiteArchive({ outPath })
+    await exportArchive({ outPath, preset: 'lite' })
     const before = readFileSync(outPath)
 
-    await expect(exportLiteArchive({ outPath })).rejects.toBeInstanceOf(OutputPathExistsError)
+    await expect(exportArchive({ outPath, preset: 'lite' })).rejects.toBeInstanceOf(OutputPathExistsError)
 
     // The prior good backup survives byte-for-byte, and nothing is left staged.
     expect(readFileSync(outPath)).toEqual(before)
@@ -180,7 +243,7 @@ describe('exportLiteArchive', () => {
 
   it('fails before snapshotting when the staging volume has no headroom', async () => {
     vi.spyOn(diskProbe, 'statfs').mockResolvedValue({ bavail: 0n, bsize: 4096n } as never)
-    await expect(exportLiteArchive({ outPath })).rejects.toBeInstanceOf(InsufficientDiskSpaceError)
+    await expect(exportArchive({ outPath, preset: 'lite' })).rejects.toBeInstanceOf(InsufficientDiskSpaceError)
 
     expect(snapshotMock()).not.toHaveBeenCalled()
     expect(existsSync(outPath)).toBe(false)
@@ -191,7 +254,7 @@ describe('exportLiteArchive', () => {
     const controller = new AbortController()
     controller.abort()
 
-    await expect(exportLiteArchive({ outPath, signal: controller.signal })).rejects.toThrow(/cancel/i)
+    await expect(exportArchive({ outPath, preset: 'lite', signal: controller.signal })).rejects.toThrow(/cancel/i)
 
     expect(existsSync(outPath)).toBe(false)
   })

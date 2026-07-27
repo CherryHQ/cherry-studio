@@ -14,7 +14,7 @@ import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { exportLiteArchive } from '../exportArchive'
+import { exportArchive } from '../exportArchive'
 import { armPreparedRestore, cancelPreparedRestore, prepareLiteRestore } from '../prepareRestore'
 
 /**
@@ -50,7 +50,7 @@ describe('restore preparation', () => {
     snapshotMock().mockImplementation((target: string) => snapshotTo(dbh.sqlite, target))
 
     seedResources()
-    await exportLiteArchive({ outPath: archivePath })
+    await exportArchive({ outPath: archivePath, preset: 'lite' })
   })
 
   afterEach(() => {

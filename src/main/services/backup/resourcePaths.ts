@@ -157,9 +157,23 @@ export function validateResourcePaths(
     }
   }
 
+  return validateResourcePathSet(candidates.map((candidate) => candidate.livePath))
+}
+
+/**
+ * The set-level half of the contract: collision-aware distinctness and no
+ * ancestor overlap, over destination paths alone.
+ *
+ * Split out because the EXPORT producer needs exactly this and nothing else — it
+ * is choosing archive payload paths, so there is no target to `lstat` and no
+ * trusted fact to supply. Sharing the algorithm is the point: an archive whose
+ * payloads overlap would be rejected by admission on the restoring device, which
+ * is far too late to learn the producer had a different idea of distinctness.
+ */
+export function validateResourcePathSet(livePaths: readonly string[]): ResourcePathValidation {
   const seen = new Set<string>()
-  for (let index = 0; index < candidates.length; index++) {
-    const { livePath } = candidates[index]
+  for (let index = 0; index < livePaths.length; index++) {
+    const livePath = livePaths[index]
     const collisionKey = portableCollisionKey(livePath)
     if (seen.has(collisionKey)) {
       return { ok: false, violation: { code: 'duplicate', index, livePath } }
@@ -170,10 +184,10 @@ export function validateResourcePaths(
   // Ancestor overlap over collision-key segments: sort by segments so any
   // ancestor precedes its descendants and remains a prefix on the stack.
   // Exact (collision-key) duplicates are already rejected above.
-  const indexed = candidates.map((candidate, index) => ({
+  const indexed = livePaths.map((livePath, index) => ({
     index,
-    livePath: candidate.livePath,
-    segments: toRelativeSegments(portableCollisionKey(candidate.livePath))
+    livePath,
+    segments: toRelativeSegments(portableCollisionKey(livePath))
   }))
   indexed.sort((a, b) => compareSegments(a.segments, b.segments))
 
