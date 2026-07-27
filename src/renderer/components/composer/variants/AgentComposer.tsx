@@ -658,6 +658,7 @@ const AgentComposerInner = ({
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter(agent?.type)
   const isModelUnavailable = Boolean(agent) && !model && !modelPending
+  const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const pinnedLauncherIds = useMemo(
     () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
@@ -1273,9 +1274,11 @@ const AgentComposerInner = ({
           sendDisabled={
             sendDisabled ||
             hasPendingReference ||
+            modelPending ||
+            !!missingModelMessage ||
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
-          sendBlockedReason={sendDisabled || hasPendingReference ? t('common.loading') : undefined}
+          sendBlockedReason={sendDisabled || hasPendingReference ? t('common.loading') : missingModelMessage}
           isLoading={isStreaming}
           onSendDraft={handleSendDraft}
           onPause={abortAgentSession}
