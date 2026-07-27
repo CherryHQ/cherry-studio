@@ -125,9 +125,6 @@ export interface ToolComposerContribution<
   S extends readonly ToolStateKey[] = readonly ToolStateKey[],
   A extends readonly ToolActionKey[] = readonly ToolActionKey[]
 > {
-  /** Stable fallback used to render pinned shortcuts before runtime launchers register. */
-  toolbar?: ToolComposerToolbarContribution
-
   // Composer-native "+" popover and "/" root suggestion entries.
   menuItems?: ToolComposerMenuContribution<S, A>
 

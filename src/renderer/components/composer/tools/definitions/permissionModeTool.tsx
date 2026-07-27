@@ -96,7 +96,6 @@ const permissionModeTool = defineTool({
   visibleInScopes: PERMISSION_MODE_TOOLBAR_MANIFEST.visibleInScopes,
 
   composer: {
-    toolbar: PERMISSION_MODE_TOOLBAR_MANIFEST.toolbar,
     runtime: ({ context }) => <PermissionModeComposerRuntime context={context} />
   }
 })

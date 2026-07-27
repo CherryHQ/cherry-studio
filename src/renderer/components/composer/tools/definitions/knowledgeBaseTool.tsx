@@ -58,7 +58,6 @@ const knowledgeBaseTool = defineTool({
   },
 
   composer: {
-    toolbar: KNOWLEDGE_BASE_TOOLBAR_MANIFEST.toolbar,
     runtime: ({ context }) => <KnowledgeBaseComposerRuntime context={context} />,
     // Editor→state: prune deselected knowledge bases and re-add ones whose marker was pasted,
     // resolved against the scope's selectable knowledge bases.

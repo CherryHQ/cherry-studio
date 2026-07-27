@@ -13,7 +13,6 @@ const quickPhrasesTool = defineTool({
   },
 
   composer: {
-    toolbar: QUICK_PHRASES_TOOLBAR_MANIFEST.toolbar,
     runtime: ({ context }) => {
       const { actions, launcher } = context
 

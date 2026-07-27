@@ -7,7 +7,6 @@ const thinkingTool = defineTool({
   label: THINKING_TOOLBAR_MANIFEST.label,
   visibleInScopes: THINKING_TOOLBAR_MANIFEST.visibleInScopes,
   composer: {
-    toolbar: THINKING_TOOLBAR_MANIFEST.toolbar,
     runtime: ({ context: { assistant, model, launcher, reasoning } }) => (
       <ThinkingToolRuntime
         launcher={launcher}

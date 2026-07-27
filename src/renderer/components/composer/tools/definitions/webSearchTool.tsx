@@ -18,7 +18,6 @@ const webSearchTool = defineTool({
   visibleInScopes: WEB_SEARCH_TOOLBAR_MANIFEST.visibleInScopes,
 
   composer: {
-    toolbar: WEB_SEARCH_TOOLBAR_MANIFEST.toolbar,
     runtime: ({ context }) => <WebSearchToolRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
   }
 })

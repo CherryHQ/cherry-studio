@@ -61,7 +61,6 @@ const generateImageTool = defineTool({
   label: GENERATE_IMAGE_TOOLBAR_MANIFEST.label,
   visibleInScopes: GENERATE_IMAGE_TOOLBAR_MANIFEST.visibleInScopes,
   composer: {
-    toolbar: GENERATE_IMAGE_TOOLBAR_MANIFEST.toolbar,
     runtime: ({ context }) => (
       <GenerateImageComposerRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
     )

@@ -16,7 +16,6 @@ const attachmentTool = defineTool({
   },
 
   composer: {
-    toolbar: ATTACHMENT_TOOLBAR_MANIFEST.toolbar,
     runtime: ({ context }) => {
       const { state, actions, launcher } = context
 
