@@ -27,8 +27,8 @@ Cherry gives you two built-in tools for skills — use them, and do NOT shell ou
   opaque `install_source` value.
 - **`install_skill(install_source)`** — install ONE skill into Cherry's managed
   library and enable it for this agent. Cherry clones the repo, installs just that one skill,
-  and registers it in a single deterministic step. Cherry requires explicit user approval
-  independently of the active Claude permission mode (Step 6).
+  and registers it in a single deterministic step. Permission handling follows the active Claude
+  permission mode (Step 6).
 
 **Browse skills at:** https://skills.sh/
 
@@ -91,7 +91,7 @@ I can install it into Cherry's skill library for you — want me to go ahead?
 Learn more: https://skills.sh/vercel-labs/agent-skills/react-best-practices
 ```
 
-### Step 6: Install (Requires Explicit Confirmation)
+### Step 6: Install (Uses the Active Permission Mode)
 
 **⚠️ Security:** Skills are third-party code that runs with full agent
 permissions. A malicious skill could read, modify, or delete files on your
@@ -103,12 +103,13 @@ Before installing any skill:
    code and will run with full agent permissions.
 2. **Provide a review link** — the skills.sh page (or source repository) so
    the user can review the skill's SKILL.md and any scripts it contains.
-3. **Ask for explicit confirmation** — call `install_skill` only after the user accepts the
-   security warning and review link. A search-only request must not mutate the skill library.
+3. **Require install intent** — call `install_skill` only when the user asked to install the skill
+   or accepted a presented option. A search-only request must not mutate the skill library.
 
-Once the user confirms, call `install_skill` with the exact `install_source` from the search result.
-Cherry enforces the approval boundary even when the agent otherwise runs in bypass-permissions mode;
-channel and scheduled turns cannot install third-party skills.
+Once the user has expressed install intent, call `install_skill` with the exact `install_source`
+from the search result. Do not add another model-level confirmation step: Claude's active permission
+mode is the authority. Default and accept-edits modes may prompt through the SDK; bypass-permissions
+mode runs directly.
 
 - `install_skill("claude-plugins:vercel-labs/agent-skills/skills/react-best-practices")`
 

@@ -43,6 +43,10 @@ const MAX_FOLDER_NAME_LENGTH = 80
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
 
+function isOutsidePath(relativePath: string): boolean {
+  return relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)
+}
+
 /**
  * Skill management service.
  *
@@ -204,11 +208,12 @@ export class SkillService {
     logger.info('Installing skill from ZIP', { zipFilePath })
 
     await this.validateZipFile(zipFilePath)
-    const sourceUrl = pathToFileURL(path.resolve(zipFilePath)).href
+    const canonicalZipPath = await fs.promises.realpath(zipFilePath)
+    const sourceUrl = pathToFileURL(canonicalZipPath).href
     const tempDir = await this.createTempDir('zip-install')
 
     try {
-      await this.extractZip(zipFilePath, tempDir)
+      await this.extractZip(canonicalZipPath, tempDir)
       const skillDir = await this.locateSkillDir(tempDir)
       return await this.installSkillDir(skillDir, 'zip', sourceUrl)
     } finally {
@@ -434,7 +439,18 @@ export class SkillService {
     const directoryPath = directoryParts.join('/')
     const skillName = directoryParts[directoryParts.length - 1] ?? ''
 
-    if (!owner || !repo || !directoryPath || !skillName || directoryParts.some((part) => !part.trim())) {
+    const invalidRepositoryPart = (part: string) =>
+      !part || part === '.' || part === '..' || !/^[a-zA-Z0-9_.-]+$/.test(part)
+    const invalidDirectoryPart = (part: string) =>
+      !part || part !== part.trim() || part === '.' || part === '..' || part.includes('\\') || part.includes('\0')
+
+    if (
+      invalidRepositoryPart(owner) ||
+      invalidRepositoryPart(repo) ||
+      !directoryPath ||
+      !skillName ||
+      directoryParts.some(invalidDirectoryPart)
+    ) {
       throw new Error(`Invalid claude-plugins identifier: ${identifier}`)
     }
 
@@ -740,7 +756,7 @@ export class SkillService {
       // Reject a directoryPath that escapes the clone root — a crafted identifier could otherwise
       // point install at an arbitrary local directory (path traversal).
       const relative = path.relative(repoDir, resolved)
-      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      if (isOutsidePath(relative)) {
         throw new Error(`Skill directory path escapes the repository: ${directoryPath}`)
       }
       const skillMdPath = await findSkillMdPath(resolved)
@@ -797,7 +813,7 @@ export class SkillService {
       fs.promises.realpath(skillDir)
     ])
     const relativeSkillPath = path.relative(repoRealPath, skillRealPath)
-    if (relativeSkillPath.startsWith('..') || path.isAbsolute(relativeSkillPath)) {
+    if (isOutsidePath(relativeSkillPath)) {
       throw new Error(`Skill directory resolves outside the repository: ${skillDir}`)
     }
 
@@ -805,7 +821,7 @@ export class SkillService {
     if (!skillMdPath) throw new Error(`No SKILL.md found in ${skillDir}`)
     const skillMdRealPath = await fs.promises.realpath(skillMdPath)
     const relativeDescriptorPath = path.relative(repoRealPath, skillMdRealPath)
-    if (relativeDescriptorPath.startsWith('..') || path.isAbsolute(relativeDescriptorPath)) {
+    if (isOutsidePath(relativeDescriptorPath)) {
       throw new Error(`Skill descriptor resolves outside the repository: ${skillMdPath}`)
     }
     return skillRealPath
@@ -910,9 +926,9 @@ export class SkillService {
    * CLAUDE_CONFIG_DIR/skills mirror. The filesystem is the source of truth;
    * `agent_global_skill` is a cache reconciled from disk — so a skill an agent
    * authored via native file tools (or one whose files were removed out-of-band) is
-   * picked up without any "register" call. Agents write to the authoring inbox exposed
-   * by CHERRY_STUDIO_SKILLS_DIR; reconcile publishes valid, non-conflicting drafts into
-   * the managed library before projecting that library into the mirror.
+   * picked up without any "register" call. Agents write directly to the managed library
+   * exposed by CHERRY_STUDIO_SKILLS_DIR; reconcile projects that library into the catalog
+   * and the read-only Claude config mirror.
    *
    * 1. library → DB: adopt newly-present library skills, refresh changed ones, and
    *    prune non-builtin rows whose files have vanished. Pruning is gated on a
@@ -932,7 +948,6 @@ export class SkillService {
       .runExclusive(async () => {
         const storageRoot = application.getPath('feature.agents.skills')
         await this.installer.recoverInterruptedInstalls(storageRoot)
-        await this.publishAuthoredSkills()
         try {
           await this.ensureSkillPluginManifest()
         } catch (error) {
@@ -971,7 +986,24 @@ export class SkillService {
     }
 
     const dbSkills = agentGlobalSkillService.listAll()
-    const dbByFolder = new Map(dbSkills.map((skill) => [this.normalizeFolderKey(skill.folderName), skill]))
+    const dbGroups = new Map<string, InstalledSkill[]>()
+    for (const skill of dbSkills) {
+      const key = this.normalizeFolderKey(skill.folderName)
+      const group = dbGroups.get(key)
+      if (group) group.push(skill)
+      else dbGroups.set(key, [skill])
+    }
+    const dbByFolder = new Map(
+      [...dbGroups.entries()].flatMap(([key, group]) => (group.length === 1 ? [[key, group[0]] as const] : []))
+    )
+    for (const [folderKey, group] of dbGroups) {
+      if (group.length > 1) {
+        logger.warn('Rejected case-colliding skill catalog rows during reconcile', {
+          folderKey,
+          folderNames: group.map((skill) => skill.folderName)
+        })
+      }
+    }
     const onDisk = new Map<string, string>()
     // Every skill folder physically enumerated on disk, regardless of whether its descriptor is
     // currently readable. Pruning keys off THIS set, not off a successful descriptor read: an editor
@@ -979,21 +1011,39 @@ export class SkillService {
     // window must not be mistaken for the skill being deleted — which would cascade-delete the
     // catalog row and every agent's enablement via the agent_skill FK.
     const presentFolders = new Set<string>()
+    const directoryGroups = new Map<string, fs.Dirent[]>()
     for (const entry of entries) {
-      // Hidden entries (an install's `.<name>.bak` backup, staging dirs, …) are bookkeeping, never
+      // Hidden entries (an install's `.<name>.bak` backup, temporary dirs, …) are bookkeeping, never
       // skills — skip them so a backup can't be adopted as a phantom skill.
       if (entry.name.startsWith('.')) continue
       if (entry.isSymbolicLink()) {
         logger.warn('Rejected symlink in managed skill library', { folderName: entry.name })
+        try {
+          await fs.promises.unlink(path.join(storageRoot, entry.name))
+        } catch (error) {
+          logger.warn('Failed to remove rejected managed-library symlink', {
+            folderName: entry.name,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
         continue
       }
       if (!entry.isDirectory()) continue
       const folderKey = this.normalizeFolderKey(entry.name)
-      if (presentFolders.has(folderKey)) {
-        logger.warn('Rejected case-colliding skill library folder', { folderName: entry.name })
+      const group = directoryGroups.get(folderKey)
+      if (group) group.push(entry)
+      else directoryGroups.set(folderKey, [entry])
+    }
+
+    for (const [folderKey, group] of directoryGroups) {
+      presentFolders.add(folderKey)
+      if (group.length > 1) {
+        logger.warn('Rejected case-colliding skill library folders', {
+          folderNames: group.map((entry) => entry.name)
+        })
         continue
       }
-      presentFolders.add(folderKey)
+      const [entry] = group
       const dir = path.join(storageRoot, entry.name)
       // The scanner/parser accept lowercase `skill.md`, but the mirror + SDK load `SKILL.md`, so
       // normalize first — else a lowercase-only skill enters the catalog yet never loads.
@@ -1098,40 +1148,6 @@ export class SkillService {
   }
 
   /**
-   * Publish agent-authored drafts through the same mutation lock as every other library write.
-   * Conflicts stay in the inbox for the author to resolve; canonical content is never overwritten.
-   */
-  private async publishAuthoredSkills(): Promise<void> {
-    const authoringRoot = application.getPath('feature.agents.skills.authoring')
-    let entries: fs.Dirent[]
-    try {
-      entries = await fs.promises.readdir(authoringRoot, { withFileTypes: true })
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.warn('Failed to scan authored skill inbox', {
-          error: error instanceof Error ? error.message : String(error)
-        })
-      }
-      return
-    }
-
-    for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-      if (entry.name.startsWith('.') || !entry.isDirectory() || entry.isSymbolicLink()) continue
-      const draftPath = path.join(authoringRoot, entry.name)
-      try {
-        await this.installSkillDirLocked(draftPath, 'local', `cherry-authoring:${this.normalizeFolderKey(entry.name)}`)
-        await this.installer.uninstall(draftPath)
-        logger.info('Published authored skill from inbox', { folderName: entry.name })
-      } catch (error) {
-        logger.warn('Failed to publish authored skill; keeping draft', {
-          folderName: entry.name,
-          error: error instanceof Error ? error.message : String(error)
-        })
-      }
-    }
-  }
-
-  /**
    * Read a skill descriptor with a three-state result so a transient read failure is not mistaken
    * for deletion: `found` (content), `missing` (no SKILL.md at all — ENOENT for both casings), or
    * `error` (a descriptor exists but reading it threw — EACCES / EIO / atomic-replace window).
@@ -1185,7 +1201,15 @@ export class SkillService {
 
   private findCatalogSkillCaseInsensitive(folderName: string): InstalledSkill | null {
     const key = this.normalizeFolderKey(folderName)
-    return agentGlobalSkillService.listAll().find((skill) => this.normalizeFolderKey(skill.folderName) === key) ?? null
+    const matches = agentGlobalSkillService
+      .listAll()
+      .filter((skill) => this.normalizeFolderKey(skill.folderName) === key)
+    if (matches.length > 1) {
+      throw new Error(
+        `Multiple catalog skills conflict by case for "${folderName}": ${matches.map((skill) => skill.folderName).join(', ')}`
+      )
+    }
+    return matches[0] ?? null
   }
 
   private async findStorageFolderCaseInsensitive(folderName: string): Promise<string | null> {
@@ -1198,9 +1222,15 @@ export class SkillService {
       throw error
     }
     const key = this.normalizeFolderKey(folderName)
-    return (
-      entries.find((entry) => !entry.name.startsWith('.') && this.normalizeFolderKey(entry.name) === key)?.name ?? null
+    const matches = entries.filter(
+      (entry) => !entry.name.startsWith('.') && this.normalizeFolderKey(entry.name) === key
     )
+    if (matches.length > 1) {
+      throw new Error(
+        `Multiple library directories conflict by case for "${folderName}": ${matches.map((entry) => entry.name).join(', ')}`
+      )
+    }
+    return matches[0]?.name ?? null
   }
 
   private sanitizeFolderName(folderName: string): string {

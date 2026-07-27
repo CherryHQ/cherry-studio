@@ -105,7 +105,7 @@ export function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
     stars: 0,
     downloads: skill.installs,
     sourceRegistry: 'skills.sh',
-    sourceUrl: skill.source ? `https://github.com/${skill.source}` : null,
+    sourceUrl: `https://skills.sh/${skill.id}`,
     installSource: `skills.sh:${skill.id}`
   }))
 }

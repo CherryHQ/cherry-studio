@@ -681,15 +681,15 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it.each([
-    { permissionMode: 'default', headless: false, expectedDecision: 'ask' },
-    { permissionMode: 'acceptEdits', headless: false, expectedDecision: 'ask' },
-    { permissionMode: 'bypassPermissions', headless: false, expectedDecision: 'ask' },
-    { permissionMode: 'default', headless: true, expectedDecision: 'deny' },
-    { permissionMode: 'acceptEdits', headless: true, expectedDecision: 'deny' },
-    { permissionMode: 'bypassPermissions', headless: true, expectedDecision: 'deny' }
+    { permissionMode: 'default', headless: false, shouldDeny: false },
+    { permissionMode: 'acceptEdits', headless: false, shouldDeny: false },
+    { permissionMode: 'bypassPermissions', headless: false, shouldDeny: false },
+    { permissionMode: 'default', headless: true, shouldDeny: true },
+    { permissionMode: 'acceptEdits', headless: true, shouldDeny: true },
+    { permissionMode: 'bypassPermissions', headless: true, shouldDeny: false }
   ])(
-    'requires an explicit skill-install decision ($permissionMode, headless=$headless)',
-    async ({ permissionMode, headless, expectedDecision }) => {
+    'applies SDK skill-install permission semantics ($permissionMode, headless=$headless)',
+    async ({ permissionMode, headless, shouldDeny }) => {
       const isCurrentTurnHeadless = vi.fn(() => headless)
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
@@ -724,15 +724,19 @@ describe('buildClaudeCodeSessionSettings', () => {
           )
         )
       )
-      const decision = expect.objectContaining({
-        hookSpecificOutput: expect.objectContaining({ permissionDecision: expectedDecision })
+      const denial = expect.objectContaining({
+        hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' })
       })
 
-      expect(results).toContainEqual(decision)
+      if (shouldDeny) {
+        expect(results).toContainEqual(denial)
+      } else {
+        expect(results).not.toContainEqual(denial)
+      }
     }
   )
 
-  it('still denies headless installation when a warm session switches to bypassPermissions', async () => {
+  it('uses the live permission mode when a warm session switches to bypassPermissions', async () => {
     let permissionMode = 'default'
     const isCurrentTurnHeadless = vi.fn(() => true)
     mocks.applicationGet.mockImplementation((name: string) => {
@@ -770,7 +774,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       )
     )
 
-    expect(results).toContainEqual(
+    expect(results).not.toContainEqual(
       expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
     )
   })
@@ -1293,8 +1297,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.env!.CLAUDE_CODE_USE_VERTEX).toBe('0')
       // Non-mac (platform mock has no isMac): reuse the user's real config dir from the login shell.
       expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/home/me/.claude')
-      // The authoring inbox is injected unconditionally, so it survives external-CLI stripping.
-      expect(settings.env!.CHERRY_STUDIO_SKILLS_DIR).toBe('/app/feature.agents.skills.authoring')
+      // The managed library is injected unconditionally, so it survives external-CLI stripping.
+      expect(settings.env!.CHERRY_STUDIO_SKILLS_DIR).toBe('/app/feature.agents.skills')
     })
 
     it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell does not set it', async () => {
@@ -1333,8 +1337,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       )
 
       expect(settings.env).not.toHaveProperty('CLAUDE_CONFIG_DIR')
-      // CLAUDE_CONFIG_DIR is dropped on macOS login, but the Cherry authoring inbox stays injected.
-      expect(settings.env!.CHERRY_STUDIO_SKILLS_DIR).toBe('/app/feature.agents.skills.authoring')
+      // CLAUDE_CONFIG_DIR is dropped on macOS login, but the Cherry managed library stays injected.
+      expect(settings.env!.CHERRY_STUDIO_SKILLS_DIR).toBe('/app/feature.agents.skills')
     })
 
     it('blocks a reserved agent env_var override but passes through non-reserved keys', async () => {

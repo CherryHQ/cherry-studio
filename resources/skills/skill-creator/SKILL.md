@@ -10,17 +10,16 @@ keeps in sync with the filesystem automatically — there is **no** install or r
 tool to call, and you should **ignore** any `package_skill.py` / `.skill` packaging
 steps mentioned later in this file (they apply to Claude Code / Claude.ai, not here).
 
-**To create a new skill, write it into Cherry's authoring inbox:**
+**To create a new skill, write it straight into Cherry's managed skills directory:**
 
 1. Resolve the directory once by running `echo "$CHERRY_STUDIO_SKILLS_DIR"` in Bash.
-   That folder is Cherry's staging inbox, not the executable skill library.
+   That folder is Cherry's managed skill library.
 2. Create `$CHERRY_STUDIO_SKILLS_DIR/<skill-folder-name>/` and write `SKILL.md` plus any
    supporting files (`scripts/`, `references/`, `assets/`) into it with your normal file
    tools.
-3. That's it. Cherry's skill sync validates and atomically publishes the staged directory,
-   registers it in the catalog, and lists it in the app — no register step. If the folder
-   collides with a builtin, marketplace, or differently-authored skill, Cherry keeps the
-   draft in staging and refuses to overwrite the installed content.
+3. That's it. Cherry's skill sync detects the new directory, registers it in the catalog,
+   and lists it in the app — no register step. You can re-edit the files in place at any
+   time and the changes are picked up on the next sync.
 
 Use a lowercase, hyphenated `<skill-folder-name>` (e.g. `my-cool-skill`). The `name:`
 field inside your `SKILL.md` frontmatter is the display name and may differ from the

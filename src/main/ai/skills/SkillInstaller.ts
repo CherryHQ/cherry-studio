@@ -28,6 +28,7 @@ export class SkillInstaller {
       return
     }
 
+    const sourceHash = await this.computeContentHash(sourceDir)
     await this.recoverInterruptedInstall(destPath)
 
     const backupPath = this.getBackupPath(destPath)
@@ -41,14 +42,21 @@ export class SkillInstaller {
       }
 
       await copyDirectoryRecursive(sourceDir, destPath)
+      // Do not commit the replacement until its required descriptor can be resolved and read.
+      // A copy helper may return after a partial write (for example after an interrupted filesystem
+      // operation); in that case keep the backup marker and restore the complete old directory.
+      const installedHash = await this.computeContentHash(destPath)
+      if (installedHash !== sourceHash) {
+        throw new Error(`Installed skill content did not match the source: ${destPath}`)
+      }
       logger.debug('Skill folder copied to destination', { destPath })
 
       if (hasBackup) {
         await deleteDirectoryRecursive(backupPath)
       }
     } catch (error) {
+      await this.safeRemoveDirectory(destPath, 'partial skill folder')
       if (hasBackup) {
-        await this.safeRemoveDirectory(destPath, 'partial skill folder')
         await this.safeRename(backupPath, destPath, 'skill folder backup')
       }
       throw error

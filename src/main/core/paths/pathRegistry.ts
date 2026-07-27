@@ -126,7 +126,6 @@ export function buildPathRegistry() {
     // Agents
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
-    'feature.agents.skills.authoring': path.join(appUserDataData, 'SkillDrafts'), // agent-authored staging inbox
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
     'feature.agents.claude.root': path.join(appUserData, '.claude'), // Claude Code config (relocated from ~/.claude for Windows compat)
     'feature.agents.claude.skills': path.join(appUserData, '.claude', 'skills'), // symlinks → feature.agents.skills

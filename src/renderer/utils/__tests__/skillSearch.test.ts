@@ -4,7 +4,7 @@ import {
   ClawhubSkillDetailSchema,
   SkillsShSearchResponseSchema
 } from '@shared/types/skill'
-import { normalizeClaudePlugins } from '@shared/utils/skillMarketplace'
+import { normalizeClaudePlugins, normalizeSkillsSh } from '@shared/utils/skillMarketplace'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
@@ -242,23 +242,14 @@ describe('Skill search normalizers', () => {
 
   describe('normalizeSkillsSh', () => {
     it('should normalize fixture to unified results', () => {
-      const parsed = SkillsShSearchResponseSchema.parse(skillsShFixture)
-      const results = parsed.skills.map((s) => ({
-        slug: s.id,
-        name: s.name,
-        description: null,
-        author: s.source.split('/')[0] ?? null,
-        stars: 0,
-        downloads: s.installs,
-        sourceRegistry: 'skills.sh' as const,
-        installSource: `skills.sh:${s.id}`
-      }))
+      const results = normalizeSkillsSh(skillsShFixture)
 
       expect(results).toHaveLength(3)
       expect(results).toMatchSnapshot()
 
       expect(results[0].author).toBe('vercel-labs')
       expect(results[0].description).toBeNull()
+      expect(results[0].sourceUrl).toBe('https://skills.sh/vercel-labs/skills/find-skills')
       expect(results[1].downloads).toBe(263730)
       expect(results[2].installSource).toBe('skills.sh:vercel-labs/agent-skills/vercel-composition-patterns')
     })

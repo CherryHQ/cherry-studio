@@ -13,7 +13,7 @@ const REQUEST_TIMEOUT_MS = 15_000
 const SEARCH_TOOL: Tool = {
   name: 'search_skills',
   description:
-    'Search the skill marketplace for installable skills by keyword. Returns matches, each with an opaque `install_source` string you pass verbatim to install_skill. Use this when the user wants a capability that might already exist as a skill.',
+    'Search supported skill marketplaces for installable skills by keyword. Returns quality/source metadata, a review URL, and an opaque `install_source` string you pass verbatim to install_skill. Use this when the user wants a capability that might already exist as a skill.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -29,7 +29,7 @@ const SEARCH_TOOL: Tool = {
 const INSTALL_TOOL: Tool = {
   name: 'install_skill',
   description:
-    "Install ONE marketplace skill into Cherry Studio's managed library and enable it for the current agent. Pass the exact `install_source` string from a search_skills result — do NOT construct it yourself, and do NOT run `npx skills add`, `git clone`, or any shell command. Cherry clones the repo, installs just that single skill, and registers it. Call this only after the user explicitly confirms the installation; Cherry enforces that confirmation independently of the agent permission mode.",
+    "Install ONE marketplace skill into Cherry Studio's managed library and enable it for the current agent. Pass the exact `install_source` string from a search_skills result — do NOT construct it yourself, and do NOT run `npx skills add`, `git clone`, or any shell command. Cherry clones the repo, installs just that single skill, and registers it. Call this only when the user intends to install the skill; the active Claude permission mode controls whether execution prompts or runs directly.",
   inputSchema: {
     type: 'object',
     properties: {

@@ -222,6 +222,7 @@ exports[`Skill search normalizers > normalizeSkillsSh > should normalize fixture
     "name": "find-skills",
     "slug": "vercel-labs/skills/find-skills",
     "sourceRegistry": "skills.sh",
+    "sourceUrl": "https://skills.sh/vercel-labs/skills/find-skills",
     "stars": 0,
   },
   {
@@ -232,6 +233,7 @@ exports[`Skill search normalizers > normalizeSkillsSh > should normalize fixture
     "name": "vercel-react-best-practices",
     "slug": "vercel-labs/agent-skills/vercel-react-best-practices",
     "sourceRegistry": "skills.sh",
+    "sourceUrl": "https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices",
     "stars": 0,
   },
   {
@@ -242,6 +244,7 @@ exports[`Skill search normalizers > normalizeSkillsSh > should normalize fixture
     "name": "vercel-composition-patterns",
     "slug": "vercel-labs/agent-skills/vercel-composition-patterns",
     "sourceRegistry": "skills.sh",
+    "sourceUrl": "https://skills.sh/vercel-labs/agent-skills/vercel-composition-patterns",
     "stars": 0,
   },
 ]
