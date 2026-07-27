@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { BackupBusyError } from './errors'
+import { type ExportArchiveResult, exportLiteArchive } from './exportArchive'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -84,6 +85,14 @@ export class BackupService extends BaseService {
 
   public getStatus(): BackupStatus {
     return { operation: this.operation, restore: this.getRestoreStatus() }
+  }
+
+  /**
+   * Export a Lite archive to `outPath`. The destination must not exist — this
+   * never overwrites a prior backup.
+   */
+  public exportLite(outPath: string, signal?: AbortSignal): Promise<ExportArchiveResult> {
+    return this.runExclusive('export', () => exportLiteArchive({ outPath, signal }))
   }
 
   /**
