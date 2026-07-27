@@ -7,6 +7,12 @@
 > inventory and selection rules are in
 > [`packages/ui/docs/variable-catalog.md`](./packages/ui/docs/variable-catalog.md).
 
+> **Semantic DOM contract:** Variables remain the preferred theming surface. When a structural target cannot be
+> expressed by a variable, use the maintained `data-ui` protocol documented in
+> [`docs/references/ui-semantic-contract.md`](./docs/references/ui-semantic-contract.md). Explicit semantic roles and
+> `part:*` tokens are stable public selectors; compiler-inferred roles are discovery aids and may change with source
+> ownership.
+
 > **Usage notation:** Tailwind examples use semantic utilities such as `bg-background` and `text-foreground`.
 > Authored CSS examples use the unprefixed public runtime contract directly, whether the role is official Shadcn
 > (`var(--background)`) or a Cherry Studio product extension (`var(--success)`). Shared `--cs-*` variables are
@@ -48,7 +54,10 @@ The color system follows one consistent rule:
 
 When you reach for a value:
 1. If the role is "tint of the surface" (text, divider, soft fill, hover), use an approved public neutral role (`--foreground`, `--muted-foreground`, `--border`, `--secondary`, `--accent`, `--background-subtle`, `--border-subtle`, `--border-strong`). A one-off visual treatment stays private to its owner. Do not invent shared `oklch(0 0 0 / 0.x)` aliases.
-2. If the role is "this exact intent regardless of surface" (primary action, error, success), use `--primary`, `--destructive`, or the corresponding `--{success,warning,info,error}` product role. For feedback surfaces, use the stable surface/foreground pair and border. Primitive scales are reserved for reviewed visualization palettes beyond the default chart contract, not ordinary component state.
+2. If the role is "this exact intent regardless of surface" (primary action, error, success), use `--primary`,
+   `--destructive`, or the corresponding `--{success,warning,info,error}` product role. For feedback surfaces, use the
+   stable surface/foreground pair and border. A reviewed visualization palette beyond the default chart contract may
+   map primitive foundations into owner-local roles; ordinary components do not consume primitive variables directly.
 
 ### Primary
 - **Primary**: `var(--primary)` — public semantic output for true page actions, selected states, links, and component accents. It is currently fed by the registered runtime primary input, but components depend on this semantic role rather than that host input. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
@@ -128,12 +137,15 @@ No dedicated public glass or overlay product role is exported today. `--color-*`
 - If a reusable translucent surface is needed, add/export a real token first and document it here in the same change.
 
 ### Chart Colors
-Use `--chart-1` through `--chart-5` in authored CSS (or `bg-chart-1` through `bg-chart-5` utilities) for default categorical series. Primitive scales remain building
-blocks for visualizations that require a reviewed palette beyond five series; do not use primitives for ordinary
-component state.
+Use `--chart-1` through `--chart-5` in authored CSS (or `bg-chart-1` through `bg-chart-5` utilities) for default
+categorical series. Visualizations that require a reviewed palette beyond five series should map primitive foundations
+to owner-local roles; do not consume primitives directly for ordinary component state.
 
 ### Primitive Color Families
-Available primitive scales in `tokens/colors/primitive.css` (each has 11 shades, `*-50` through `*-950`): neutral / stone / zinc / slate / gray / red / orange / amber / yellow / lime / green / emerald / teal / cyan / sky / blue / indigo / violet / purple / fuchsia / pink / rose. Use these as raw building blocks; prefer semantic tokens for UI surfaces.
+The internal foundation inventory in `tokens/colors/primitive.css` contains 11-step scales (`*-50` through `*-950`)
+for neutral / stone / zinc / slate / gray / red / orange / amber / yellow / lime / green / emerald / teal / cyan / sky
+/ blue / indigo / violet / purple / fuchsia / pink / rose. Design-system adapters may map these values into reviewed
+semantic or owner-local roles; regular application components do not consume the primitive variables directly.
 
 ## 3. Typography Rules
 
@@ -757,7 +769,32 @@ Use Tailwind border-width utilities (`border`, `border-0`, `border-2`, etc.) wit
 
 Use icon-library defaults unless a component has a documented reason to override SVG `stroke-width`.
 
-## 8. Do's and Don'ts
+## 8. Semantic DOM Contract
+
+Use design variables for reusable visual roles. Use `data-ui` only when Custom CSS, tests, inspectors, or controlled
+automation need a meaningful DOM boundary that variables cannot express.
+
+- Match whitespace-separated tokens with `[data-ui~='token']`; never use substring matching.
+- Prefer explicit business roles such as `chat.message` for compatibility-sensitive application surfaces.
+- Prefer maintained `part:*` tokens for reusable component structure. Static `data-slot` markers are preserved and
+  contribute matching `part:*` tokens in the Cherry Studio application build.
+- Treat compiler-inferred roles as best-effort discovery coordinates. Moving or renaming source ownership may change
+  them, so they are not long-lived theme or test API.
+- A semantic role describes a set, not a unique DOM node. Multiple render branches may intentionally share one role;
+  tests and automation should scope from the nearest stable role and then use accessible roles for the interaction.
+- Use `pnpm ui:contract:query <semantic-prefix>` to discover current source matches. The complete protocol and
+  maintained anchor inventory live in
+  [`docs/references/ui-semantic-contract.md`](./docs/references/ui-semantic-contract.md).
+
+Example:
+
+```css
+[data-ui~='chat.message'] [data-ui~='part:message-content'] {
+  color: var(--foreground);
+}
+```
+
+## 9. Do's and Don'ts
 
 ### Do
 - Use calm, low-saturation chrome — reserve `var(--primary)` for true primary actions/selected states and semantic colors for feedback
@@ -785,15 +822,18 @@ Use icon-library defaults unless a component has a documented reason to override
 - Don't use font weights below `var(--font-weight-regular)` for functional UI text — thin/light/extralight weights are display-only
 - Don't apply `var(--destructive)` to non-dangerous actions or error feedback — it is reserved for dangerous user actions such as delete and reset
 - Don't use `var(--success)` / `var(--warning)` / `var(--info)` for decorative purposes — they carry semantic meaning
-- Don't introduce a page-local chromatic brand color — use semantic tokens; for ordinary charts use `--chart-1` through `--chart-5`, and use primitives only for a reviewed palette beyond five series
+- Don't introduce a page-local chromatic brand color — use semantic tokens; for ordinary charts use `--chart-1`
+  through `--chart-5`, and map any reviewed palette beyond five series into owner-local roles
 - Don't darken the sidebar to match the main background — its distinct surface via `var(--sidebar)` and dedicated palette creates spatial separation
 - Don't use `var(--popover)` background for cards or vice versa — each elevation level has its specific token
 - **Don't hard-code hex / rgba / oklch values** — always reference semantic tokens so light/dark mode works automatically
 - Don't use `border-border/60`, `border-border/40`, `border-border/30`, or `border-border/15` — choose a semantic border token instead
 - Don't apply `var(--shadow-xl)` or `var(--shadow-2xl)` to standard UI elements — reserve `var(--shadow-xl)` for Dialogs, PageSidePanel, and full-screen overlays, and `var(--shadow-2xl)` for peak display emphasis
 - Don't author `--color-*` variables; that namespace belongs to the generated Tailwind adapter. Do not invent other token-looking aliases such as `--cs-glass`, `--blur-md`, `--opacity-50`, or `--border-width-2` without adding a reviewed shared contract in the same change
+- Don't promote a compiler-inferred `data-ui` role into a long-lived theme or test dependency; author an explicit role
+  or maintained `part:*` first
 
-## 9. Responsive Behavior
+## 10. Responsive Behavior
 
 ### Breakpoints
 | Name | Width | Key Changes |
@@ -811,7 +851,7 @@ Use icon-library defaults unless a component has a documented reason to override
 - Spacing: section gaps compress from 48–96px to 24–48px on mobile
 - Navigation: horizontal tabs → bottom bar or hamburger menu
 
-## 10. Agent Prompt Guide
+## 11. Agent Prompt Guide
 
 ### Quick Token Reference
 | Role | Token | Notes |

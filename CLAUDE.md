@@ -130,7 +130,13 @@ logger.error("message", error);
 
 ### UI Design
 
-For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and follow its colors, fonts, spacing, and component specs strictly.
+For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and follow its visual and component
+guidance. For variable selection or theme-contract changes, also read
+[Design Token System](packages/ui/docs/design-token-system.md) and
+[Variable Catalog](packages/ui/docs/variable-catalog.md); their machine-readable contract and current style sources
+take precedence over descriptive examples. For Custom CSS, stable DOM selectors, UI-contract tests, or automation,
+read [UI Semantic Contract](docs/references/ui-semantic-contract.md); prefer variables for ordinary theming and use
+explicit `data-ui` / maintained `part:*` selectors only when a structural target is required.
 
 ## Architecture
 
