@@ -86,7 +86,7 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mockGetAgent }
 }))
 
-vi.mock('@main/ai/mcp/servers/workspaceMemory', () => ({
+vi.mock('@main/ai/mcp/servers/agentMemory', () => ({
   default: class {
     mcpServer = {}
 

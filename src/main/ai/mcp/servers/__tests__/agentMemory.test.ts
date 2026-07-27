@@ -12,24 +12,24 @@ vi.mock('@data/services/AgentService', () => ({
   }
 }))
 
-const { default: WorkspaceMemoryServer } = await import('../workspaceMemory')
-type WorkspaceMemoryServerInstance = InstanceType<typeof WorkspaceMemoryServer>
+const { default: AgentMemoryServer } = await import('../agentMemory')
+type AgentMemoryServerInstance = InstanceType<typeof AgentMemoryServer>
 
-async function callTool(server: WorkspaceMemoryServerInstance, args: Record<string, unknown>) {
+async function callTool(server: AgentMemoryServerInstance, args: Record<string, unknown>) {
   const handlers = (server.mcpServer.server as any)._requestHandlers
   const callToolHandler = handlers?.get('tools/call')
   if (!callToolHandler) throw new Error('No tools/call handler registered')
   return callToolHandler({ method: 'tools/call', params: { name: 'memory', arguments: args } }, {})
 }
 
-async function listTools(server: WorkspaceMemoryServerInstance) {
+async function listTools(server: AgentMemoryServerInstance) {
   const handlers = (server.mcpServer.server as any)._requestHandlers
   const listHandler = handlers?.get('tools/list')
   if (!listHandler) throw new Error('No tools/list handler registered')
   return listHandler({ method: 'tools/list', params: {} }, {})
 }
 
-describe('WorkspaceMemoryServer', () => {
+describe('AgentMemoryServer', () => {
   const agentId = 'agent_1'
   let agentsDataRoot: string
   let agentDataPath: string
@@ -51,7 +51,7 @@ describe('WorkspaceMemoryServer', () => {
   })
 
   function createServer() {
-    return new WorkspaceMemoryServer(agentId, agentDataPath)
+    return new AgentMemoryServer(agentId, agentDataPath)
   }
 
   it('exposes only the memory tool', async () => {

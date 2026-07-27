@@ -4,8 +4,8 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
+import { systemWorkspacePath } from '@data/services/agentWorkspacePath'
 import { loggerService } from '@logger'
-import { systemWorkspacePath } from '@main/utils/agentWorkspacePath'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { MessageData, MessageRole, MessageStatus } from '@shared/data/types/message'
@@ -16,11 +16,10 @@ import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
+import { replacePendingAgentFilesFinalization } from './agentFilesFinalization'
 import {
   type AgentFileSessionPlan,
-  cleanupLegacyAgentFiles,
   isManagedLegacyAgentWorkspace,
-  type LegacyAgentFilesCleanupPlan,
   legacyAgentWorkspacePath,
   stageLegacyAgentFiles
 } from './agentsFilesystemMigration'
@@ -38,42 +37,6 @@ import { type ChatMappingDeps, normalizeStatus, transformBlocksToParts } from '.
 import { AGENT_TABLES, type AgentPrefixIdRemap, remapAgentPrefixIds } from './remapAgentPrefixIds'
 
 const DERIVED_SESSION_WORKSPACES_KEY = 'agentsMigrator.derivedSessionWorkspaces'
-let pendingFilesCleanupPlan: LegacyAgentFilesCleanupPlan | null = null
-
-function rememberFilesCleanupPlan(nextPlan: LegacyAgentFilesCleanupPlan): void {
-  if (!pendingFilesCleanupPlan || pendingFilesCleanupPlan.agentsDataRoot !== nextPlan.agentsDataRoot) {
-    pendingFilesCleanupPlan = nextPlan
-    return
-  }
-
-  const entriesByWorkspace = new Map(
-    pendingFilesCleanupPlan.workspaces.map(({ workspacePath, entryNames }) => [workspacePath, new Set(entryNames)])
-  )
-  for (const { workspacePath, entryNames } of nextPlan.workspaces) {
-    const entries = entriesByWorkspace.get(workspacePath) ?? new Set<string>()
-    for (const entryName of entryNames) entries.add(entryName)
-    entriesByWorkspace.set(workspacePath, entries)
-  }
-  pendingFilesCleanupPlan = {
-    agentsDataRoot: nextPlan.agentsDataRoot,
-    workspaces: Array.from(entriesByWorkspace, ([workspacePath, entryNames]) => ({
-      workspacePath,
-      entryNames: Array.from(entryNames)
-    }))
-  }
-}
-
-/**
- * Finalize only the filesystem work staged by AgentsMigrator.
- * The migration IPC orchestration calls this after MigrationEngine reports
- * success, which means every migrator, FK validation, and markCompleted passed.
- */
-export async function cleanupMigratedAgentFilesAfterSuccess(): Promise<void> {
-  const plan = pendingFilesCleanupPlan
-  if (!plan) return
-  await cleanupLegacyAgentFiles(plan)
-  pendingFilesCleanupPlan = null
-}
 
 type V1ScheduledTaskRow = {
   id: string
@@ -187,12 +150,18 @@ export class AgentsMigrator extends BaseMigrator {
     try {
       ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
       isAttached = true
+      const derivedSessionWorkspaces = await deriveSessionWorkspaces(ctx, this.sourceSchemaInfo)
+      const preparedSessionMessages = await prepareLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
+        db: ctx.db,
+        filesDataDir: ctx.paths.filesDataDir
+      })
+      ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, derivedSessionWorkspaces)
+
       // Foreign keys are already OFF for the whole migration (MigrationDbService sets the
       // PRAGMA once on its single connection), so no per-call toggle here.
       ctx.db.run(sql.raw('BEGIN'))
 
-      const derivedSessionWorkspaces = await stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
-      ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, derivedSessionWorkspaces)
+      insertSessionWorkspaces(ctx.db, derivedSessionWorkspaces)
 
       for (const statement of importStatements) {
         logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
@@ -209,11 +178,8 @@ export class AgentsMigrator extends BaseMigrator {
       //   2. importLegacySessionMessages — generates UUID message ids instead
       //      of preserving legacy integer row ids, and writes final `data.parts`.
       backfillAgentOrderKeys(ctx.db)
-      await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
-        db: ctx.db,
-        filesDataDir: ctx.paths.filesDataDir
-      })
-      await migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
+      insertPreparedLegacySessionMessages(ctx.db, preparedSessionMessages)
+      migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
 
       ctx.db.run(sql.raw('COMMIT'))
       committed = true
@@ -232,7 +198,7 @@ export class AgentsMigrator extends BaseMigrator {
       const legacyAgentIds = ctx.db
         .all<{ id: string }>(sql.raw('SELECT id FROM agent ORDER BY id'))
         .map((row) => row.id)
-      const idRemap = await remapAgentPrefixIds(ctx.db)
+      const idRemap = remapAgentPrefixIds(ctx.db)
       const finalSessionWorkspaces = finalizeSessionWorkspaces(ctx, derivedSessionWorkspaces, idRemap)
       ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, finalSessionWorkspaces)
       const filesCleanupPlan = await stageLegacyAgentFiles({
@@ -243,7 +209,7 @@ export class AgentsMigrator extends BaseMigrator {
         })),
         sessions: toAgentFileSessionPlans(finalSessionWorkspaces)
       })
-      rememberFilesCleanupPlan(filesCleanupPlan)
+      replacePendingAgentFilesFinalization(ctx.db, filesCleanupPlan)
 
       // Self-check agent-domain referential integrity after import + remap. FK is OFF for
       // the whole migration, so violations only surface here (and at the engine's final
@@ -689,6 +655,18 @@ type NormalizedLegacySessionMessage = {
   modelId: string | null
 }
 
+type PreparedLegacySessionMessage = {
+  id: string
+  sessionId: string
+  role: MessageRole
+  data: MessageData
+  status: MessageStatus
+  modelId: string | null
+  runtimeResumeToken: string | null
+  createdAt: number
+  updatedAt: number
+}
+
 function selectLegacySessionColumn(
   schemaInfo: AgentsSchemaInfo,
   column: string,
@@ -855,17 +833,12 @@ async function deriveSessionWorkspaces(
   return { workspaces, mappings }
 }
 
-async function stageSessionWorkspaces(
-  ctx: MigrationContext,
-  schemaInfo: AgentsSchemaInfo
-): Promise<DerivedSessionWorkspaces> {
-  const db = ctx.db
+function insertSessionWorkspaces(db: DbType, derived: DerivedSessionWorkspaces): void {
   db.run(
     sql.raw('CREATE TEMP TABLE IF NOT EXISTS session_workspace_map (session_id TEXT PRIMARY KEY, workspace_id TEXT)')
   )
   db.run(sql.raw('DELETE FROM session_workspace_map'))
 
-  const derived = await deriveSessionWorkspaces(ctx, schemaInfo)
   for (const workspace of derived.workspaces) {
     db.run(
       sql`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
@@ -882,7 +855,6 @@ async function stageSessionWorkspaces(
     workspaces: derived.workspaces.length,
     mappedSessions: derived.mappings.length
   })
-  return derived
 }
 
 function finalizeSessionWorkspaces(
@@ -1000,12 +972,20 @@ function resolveUserModelId(db: DbType, cache: Map<string, string | null>, rawMo
   return resolved
 }
 
-export async function importLegacySessionMessages(
+async function prepareLegacySessionMessages(
   db: DbType,
   schemaInfo: AgentsSchemaInfo,
   deps?: ChatMappingDeps
-): Promise<number> {
-  if (!schemaInfo.session_messages.exists) return 0
+): Promise<PreparedLegacySessionMessage[]> {
+  if (
+    !schemaInfo.session_messages.exists ||
+    !schemaInfo.session_messages.columns.has('session_id') ||
+    !schemaInfo.sessions.exists ||
+    !schemaInfo.sessions.columns.has('agent_id') ||
+    !schemaInfo.agents.exists
+  ) {
+    return []
+  }
 
   const selectColumns = [
     selectLegacyMessageColumn(schemaInfo, 'id', 'legacyId', 'NULL'),
@@ -1027,12 +1007,16 @@ export async function importLegacySessionMessages(
     sql.raw(
       `SELECT ${selectColumns.join(', ')}
        FROM agents_legacy.session_messages
-       WHERE session_id IN (SELECT id FROM agent_session)
+       WHERE session_id IN (
+         SELECT sessions.id
+         FROM agents_legacy.sessions AS sessions
+         WHERE sessions.agent_id IN (SELECT id FROM agents_legacy.agents)
+       )
        ${orderBy ? `ORDER BY ${orderBy}` : ''}`
     )
   )
   const modelCache = new Map<string, string | null>()
-  let imported = 0
+  const prepared: PreparedLegacySessionMessage[] = []
 
   for (const row of rows) {
     if (!row.sessionId) continue
@@ -1056,7 +1040,7 @@ export async function importLegacySessionMessages(
     const now = Date.now()
     const createdAt = legacyTimestampToMs(row.createdAt, now)
     const updatedAt = row.updatedAt == null ? createdAt : legacyTimestampToMs(row.updatedAt, createdAt)
-    await db.insert(agentSessionMessageTable).values({
+    prepared.push({
       id: uuidv7(),
       sessionId: row.sessionId,
       role: normalized.role,
@@ -1067,11 +1051,25 @@ export async function importLegacySessionMessages(
       createdAt,
       updatedAt
     })
-    imported++
   }
 
-  logger.info('Imported legacy agent session messages with UUID ids', { imported })
-  return imported
+  return prepared
+}
+
+function insertPreparedLegacySessionMessages(db: DbType, prepared: PreparedLegacySessionMessage[]): number {
+  for (const message of prepared) {
+    db.insert(agentSessionMessageTable).values(message).run()
+  }
+  logger.info('Imported legacy agent session messages with UUID ids', { imported: prepared.length })
+  return prepared.length
+}
+
+export async function importLegacySessionMessages(
+  db: DbType,
+  schemaInfo: AgentsSchemaInfo,
+  deps?: ChatMappingDeps
+): Promise<number> {
+  return insertPreparedLegacySessionMessages(db, await prepareLegacySessionMessages(db, schemaInfo, deps))
 }
 
 /**
@@ -1083,7 +1081,7 @@ export async function importLegacySessionMessages(
  * attached and BEFORE remapAgentPrefixIds — the inserted `agentId` is the
  * legacy agent id, which that step rewrites alongside `agent.id`.
  */
-export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, string> | undefined): Promise<void> {
+export function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, string> | undefined): void {
   const rows = db.all<{ agentId: string; oldMcpId: string }>(
     sql.raw(
       `SELECT DISTINCT a.id AS agentId, je.value AS oldMcpId
@@ -1116,7 +1114,7 @@ export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<strin
   )
 
   if (values.length === 0) return
-  await db.insert(agentMcpServerTable).values(values).onConflictDoNothing()
+  db.insert(agentMcpServerTable).values(values).onConflictDoNothing().run()
   const dropped = rows.length - values.length
   const summary = { rows: values.length, dropped }
   // A non-zero `dropped` count is FK-mandated data loss (legacy refs to MCP

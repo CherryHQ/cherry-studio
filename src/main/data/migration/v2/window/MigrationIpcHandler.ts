@@ -21,7 +21,6 @@ import path from 'path'
 import * as z from 'zod'
 
 import { migrationEngine } from '../core/MigrationEngine'
-import { cleanupMigratedAgentFilesAfterSuccess } from '../migrators/AgentsMigrator'
 import { isValidLocalDate } from '../utils/localDate'
 import { migrationWindowManager } from './MigrationWindowManager'
 
@@ -231,7 +230,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
 
       if (result.success) {
         try {
-          await cleanupMigratedAgentFilesAfterSuccess()
+          await migrationEngine.finalizeCompletedMigration()
         } catch (error) {
           logger.error(
             'Agent filesystem cleanup failed after migration completed; remaining legacy files were preserved',

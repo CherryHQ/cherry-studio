@@ -37,9 +37,9 @@ import {
   provisionBuiltinAgent
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt'
+import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
-import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -1174,7 +1174,7 @@ export function buildMcpServers(
   // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the agent prompt and the
   // workspace bootstrap drive via `mcp__agent-memory__memory`. Without it the documented
   // "log completion" step (and all memory writes) have no backing server.
-  const memoryServer = new WorkspaceMemoryServer(agent.id, agentDataPath)
+  const memoryServer = new AgentMemoryServer(agent.id, agentDataPath)
   mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
 
   logger.debug('Injected cherry-tools + agent-memory MCP servers', {

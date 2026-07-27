@@ -11,7 +11,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 
-const logger = loggerService.withContext('McpServer:WorkspaceMemory')
+const logger = loggerService.withContext('McpServer:AgentMemory')
 
 function withNoFollow(flags: number): number {
   return isWin ? flags : flags | constants.O_NOFOLLOW
@@ -114,7 +114,7 @@ const MEMORY_TOOL: Tool = {
  * a user-opt-in MCP that stores entity/relation graphs in a global JSON
  * file rather than in the agent's workspace.
  */
-class WorkspaceMemoryServer {
+class AgentMemoryServer {
   public mcpServer: McpServer
   private agentId: string
   private agentDataPath: string
@@ -330,4 +330,4 @@ class WorkspaceMemoryServer {
   }
 }
 
-export default WorkspaceMemoryServer
+export default AgentMemoryServer

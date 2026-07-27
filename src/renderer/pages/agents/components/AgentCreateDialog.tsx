@@ -5,7 +5,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
-import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
 import { useCallback } from 'react'
 
 const logger = loggerService.withContext('AgentCreateDialog')
@@ -23,7 +23,7 @@ export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreate
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
       try {
-        const created = await createAgent(buildCreateAgentDto(values))
+        const created = await createAgent(buildCreateAgentCommand(values))
         onOpenChange(false)
         await onCreated(created.id)
       } catch (error) {

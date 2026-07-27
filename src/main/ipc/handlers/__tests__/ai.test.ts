@@ -1,34 +1,17 @@
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type * as Uuid from 'uuid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  appGetMock,
-  appGetPathMock,
-  agentSessionMessageService,
-  messageService,
-  createAgentDataDirectory,
-  removeAgentDataDirectory,
-  createAgentWithId
-} = vi.hoisted(() => ({
+const { appGetMock, agentSessionMessageService, messageService, createAgent } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  appGetPathMock: vi.fn(() => '/tmp/agents'),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
   messageService: { getById: vi.fn() },
-  createAgentDataDirectory: vi.fn(),
-  removeAgentDataDirectory: vi.fn(),
-  createAgentWithId: vi.fn()
+  createAgent: vi.fn()
 }))
-vi.mock('@application', () => ({ application: { get: appGetMock, getPath: appGetPathMock } }))
+vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
-vi.mock('@data/services/AgentService', () => ({ agentService: { createAgentWithId } }))
-vi.mock('@main/ai/agents/agentDataDirectory', () => ({ createAgentDataDirectory, removeAgentDataDirectory }))
-vi.mock('uuid', async (importOriginal) => ({
-  ...(await importOriginal<typeof Uuid>()),
-  v4: () => 'agent-1'
-}))
+vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
 
 import { aiHandlers } from '../ai'
 
@@ -78,10 +61,7 @@ const windowManager = { getWindow: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  appGetPathMock.mockReturnValue('/tmp/agents')
-  createAgentDataDirectory.mockResolvedValue('/tmp/agents/agent-1')
-  removeAgentDataDirectory.mockResolvedValue(undefined)
-  createAgentWithId.mockImplementation((id: string, request: object) => ({ id, ...request }))
+  createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
   windowManager.getWindow.mockReturnValue({ webContents: fakeWebContents })
   appGetMock.mockImplementation((name: string) => {
     switch (name) {
@@ -307,49 +287,17 @@ describe('aiHandlers — streaming', () => {
 })
 
 describe('aiHandlers — agent sessions & tasks', () => {
-  it('creates an agent through the filesystem-aware command orchestrator', async () => {
+  it('delegates Agent creation to the owning operation', async () => {
     const request = {
       type: 'claude-code' as const,
       name: 'Test',
       model: 'anthropic::claude-sonnet' as const
     }
     const agent = { id: 'agent-1', ...request }
-    createAgentDataDirectory.mockResolvedValue('/tmp/agents/agent-1')
-    createAgentWithId.mockReturnValue(agent)
+    createAgent.mockResolvedValue(agent)
 
     await expect(aiHandlers['ai.agent.create'](request, ctx)).resolves.toBe(agent)
-    expect(createAgentDataDirectory).toHaveBeenCalledWith('/tmp/agents', 'agent-1')
-    expect(createAgentWithId).toHaveBeenCalledWith('agent-1', request)
-    expect(createAgentDataDirectory.mock.invocationCallOrder[0]).toBeLessThan(
-      createAgentWithId.mock.invocationCallOrder[0]
-    )
-  })
-
-  it('removes the provisioned data directory when the database insert fails', async () => {
-    const request = {
-      type: 'claude-code' as const,
-      name: 'Test',
-      model: 'anthropic::claude-sonnet' as const
-    }
-    createAgentDataDirectory.mockResolvedValue('/tmp/agents/agent-1')
-    createAgentWithId.mockImplementation(() => {
-      throw new Error('database failed')
-    })
-
-    await expect(aiHandlers['ai.agent.create'](request, ctx)).rejects.toThrow('database failed')
-    expect(removeAgentDataDirectory).toHaveBeenCalledWith('/tmp/agents', 'agent-1')
-  })
-
-  it('does not write the database when provisioning the data directory fails', async () => {
-    const request = {
-      type: 'claude-code' as const,
-      name: 'Test',
-      model: 'anthropic::claude-sonnet' as const
-    }
-    createAgentDataDirectory.mockRejectedValue(new Error('unsafe path'))
-
-    await expect(aiHandlers['ai.agent.create'](request, ctx)).rejects.toThrow('unsafe path')
-    expect(createAgentWithId).not.toHaveBeenCalled()
+    expect(createAgent).toHaveBeenCalledWith(request, ctx)
   })
 
   it('prewarm_agent_session primes the session connection so commands load before the first turn', async () => {

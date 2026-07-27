@@ -1,5 +1,6 @@
+import path from 'node:path'
+
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import path from 'path'
 
 export function normalizeWorkspacePath(rawPath: string): string {
   const trimmed = rawPath.trim()

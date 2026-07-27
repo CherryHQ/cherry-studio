@@ -50,28 +50,29 @@ export interface AgentPrefixIdRemap {
  * not toggle FK itself; AgentsMigrator asserts agent-domain FK integrity via
  * `assertOwnedForeignKeys(AGENT_TABLES)` after this returns. Idempotent.
  */
-export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<AgentPrefixIdRemap> {
+export function remapAgentPrefixIds(db: MigrationContext['db']): AgentPrefixIdRemap {
   const agentIds = new Map<string, string>()
   const sessionIds = new Map<string, string>()
   let committed = false
   try {
     db.run(sql.raw('BEGIN'))
 
-    const oldAgents = await db
+    const oldAgents = db
       .select({ id: agentTable.id })
       .from(agentTable)
       .where(
         sql`${agentTable.id} GLOB 'agent_*' OR ${agentTable.id} = 'cherry-claw-default' OR ${agentTable.id} = 'cherry-assistant-default'`
       )
+      .all()
 
     for (const { id: oldId } of oldAgents) {
       const newId = migrationUuid('agent', oldId)
       agentIds.set(oldId, newId)
-      await db.update(agentTable).set({ id: newId }).where(eq(agentTable.id, oldId))
-      await db.update(agentSessionTable).set({ agentId: newId }).where(eq(agentSessionTable.agentId, oldId))
-      await db.update(agentSkillTable).set({ agentId: newId }).where(eq(agentSkillTable.agentId, oldId))
-      await db.update(agentChannelTable).set({ agentId: newId }).where(eq(agentChannelTable.agentId, oldId))
-      await db.update(agentMcpServerTable).set({ agentId: newId }).where(eq(agentMcpServerTable.agentId, oldId))
+      db.update(agentTable).set({ id: newId }).where(eq(agentTable.id, oldId)).run()
+      db.update(agentSessionTable).set({ agentId: newId }).where(eq(agentSessionTable.agentId, oldId)).run()
+      db.update(agentSkillTable).set({ agentId: newId }).where(eq(agentSkillTable.agentId, oldId)).run()
+      db.update(agentChannelTable).set({ agentId: newId }).where(eq(agentChannelTable.agentId, oldId)).run()
+      db.update(agentMcpServerTable).set({ agentId: newId }).where(eq(agentMcpServerTable.agentId, oldId)).run()
       // job_schedule.jobInputTemplate is a JSON column carrying the same agent_id
       // for migrated agent.task schedules. json_set rewrites it atomically so
       // post-remap reads see the new id consistently with agent.id above.
@@ -87,20 +88,21 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<A
     // prefix-id remap needed for the schedule rows or the agent_channel_task
     // link rows (the TS-loop populates them with the new schedule ids).
 
-    const oldSessions = await db
+    const oldSessions = db
       .select({ id: agentSessionTable.id })
       .from(agentSessionTable)
       .where(sql`${agentSessionTable.id} GLOB 'session_*'`)
+      .all()
 
     for (const { id: oldId } of oldSessions) {
       const newId = migrationUuid('session', oldId)
       sessionIds.set(oldId, newId)
-      await db.update(agentSessionTable).set({ id: newId }).where(eq(agentSessionTable.id, oldId))
-      await db
-        .update(agentSessionMessageTable)
+      db.update(agentSessionTable).set({ id: newId }).where(eq(agentSessionTable.id, oldId)).run()
+      db.update(agentSessionMessageTable)
         .set({ sessionId: newId })
         .where(eq(agentSessionMessageTable.sessionId, oldId))
-      await db.update(agentChannelTable).set({ sessionId: newId }).where(eq(agentChannelTable.sessionId, oldId))
+        .run()
+      db.update(agentChannelTable).set({ sessionId: newId }).where(eq(agentChannelTable.sessionId, oldId)).run()
     }
 
     db.run(sql.raw('COMMIT'))

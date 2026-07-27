@@ -2,13 +2,14 @@ import { access, lstat, mkdir, mkdtemp, readdir, readFile, readlink, rm, symlink
 import os from 'node:os'
 import path from 'node:path'
 
-import { systemWorkspacePath } from '@main/utils/agentWorkspacePath'
+import { systemWorkspacePath } from '@data/services/agentWorkspacePath'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   type AgentFileSessionPlan,
   cleanupLegacyAgentFiles,
   isManagedLegacyAgentWorkspace,
+  type LegacyAgentFilesCleanupPlan,
   legacyAgentWorkspacePath,
   stageLegacyAgentFiles
 } from '../agentsFilesystemMigration'
@@ -17,6 +18,10 @@ const SOURCE_AGENT_ID = 'agent_1234567890_keykxlx33'
 const FINAL_AGENT_ID = '5f83c9de-f186-5d86-813f-1a19f190c68c'
 const FINAL_OLD_SESSION_ID = '9a075ce3-c42d-545b-a0b5-f39e43e4a917'
 const FINAL_LATEST_SESSION_ID = '01257168-34a7-5ff9-994d-bf78596c777c'
+
+function cleanupEntryNames(plan: LegacyAgentFilesCleanupPlan): string[] {
+  return plan.workspaces.flatMap((workspace) => workspace.entries.map((entry) => entry.entryName))
+}
 
 describe('agentsFilesystemMigration', () => {
   const tempRoots: string[] = []
@@ -72,8 +77,11 @@ describe('agentsFilesystemMigration', () => {
       await writeFile(path.join(legacyWorkspace, 'identity-source.md'), 'agent soul')
       await symlink('identity-source.md', path.join(legacyWorkspace, 'SOUL.md'))
       await writeFile(path.join(legacyWorkspace, 'USER.md'), 'agent user')
+      await symlink('SOUL.md', path.join(legacyWorkspace, 'soul-link'))
+      await symlink(path.join(legacyWorkspace, 'USER.md'), path.join(legacyWorkspace, 'absolute-user-link'))
       await writeFile(path.join(legacyWorkspace, 'fact-source.md'), 'remember this')
       await symlink('../fact-source.md', path.join(legacyWorkspace, 'memory', 'FACT.md'))
+      await symlink('memory/FACT.md', path.join(legacyWorkspace, 'memory-link'))
       await writeFile(path.join(legacyWorkspace, 'ordinary.txt'), 'workspace content')
       await symlink('ordinary.txt', path.join(legacyWorkspace, 'relative-link'))
       const sharedTarget = path.join(agentsDataRoot, 'shared', 'target.txt')
@@ -126,6 +134,11 @@ describe('agentsFilesystemMigration', () => {
       ).toBe('shared target')
       expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'absolute-link'))).toBe(absoluteTarget)
       expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'dangling-link'))).toBe('missing-target')
+      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'soul-link'), 'utf8')).toBe('agent soul')
+      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'absolute-user-link'))).toBe(
+        path.join(agentDataPath, 'USER.md')
+      )
+      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'memory-link'), 'utf8')).toBe('remember this')
       expect((await lstat(oldSession.systemWorkspacePath!)).isDirectory()).toBe(true)
       await expect(access(path.join(oldSession.systemWorkspacePath!, 'ordinary.txt'))).rejects.toThrow()
 
@@ -136,6 +149,11 @@ describe('agentsFilesystemMigration', () => {
 
       await cleanupLegacyAgentFiles(cleanupPlan)
       await expect(access(legacyWorkspace)).rejects.toThrow()
+      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'soul-link'), 'utf8')).toBe('agent soul')
+      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'absolute-user-link'), 'utf8')).toBe(
+        'agent user'
+      )
+      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'memory-link'), 'utf8')).toBe('remember this')
       expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'external-relative-link'), 'utf8')).toBe(
         'shared target'
       )
@@ -174,6 +192,39 @@ describe('agentsFilesystemMigration', () => {
 
     expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('existing soul')
     expect(await readFile(path.join(legacyWorkspace, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+  })
+
+  it('reuses recursively identical identity from an earlier attempt and keeps changed sources out of cleanup', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    await mkdir(path.join(legacyWorkspace, 'memory'), { recursive: true })
+    await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'first soul')
+    await writeFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'first fact')
+
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+    const input = {
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [latestSession]
+    }
+
+    await stageLegacyAgentFiles(input)
+    const identicalRetryPlan = await stageLegacyAgentFiles(input)
+    expect(cleanupEntryNames(identicalRetryPlan)).toEqual(expect.arrayContaining(['SOUL.md', 'memory']))
+
+    await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'newer soul')
+    await writeFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'newer fact')
+    const changedRetryPlan = await stageLegacyAgentFiles(input)
+
+    expect(cleanupEntryNames(changedRetryPlan)).not.toContain('SOUL.md')
+    expect(cleanupEntryNames(changedRetryPlan)).not.toContain('memory')
+    await cleanupLegacyAgentFiles(changedRetryPlan)
+    expect(await readFile(path.join(legacyWorkspace, 'SOUL.md'), 'utf8')).toBe('newer soul')
+    expect(await readFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'utf8')).toBe('newer fact')
   })
 
   it('aborts on an ordinary workspace conflict without overwriting either side', async () => {

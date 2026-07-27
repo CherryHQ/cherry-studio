@@ -6,23 +6,21 @@
  * configuration) lives here, not on sessions.
  */
 
-import { loggerService } from '@logger'
 import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity, CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { createAgentAndRefresh } from './createAgent'
 import { useAgentTools } from './useAgentTools'
-
-const logger = loggerService.withContext('useAgent')
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 
@@ -76,15 +74,7 @@ export const useAgents = () => {
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<AgentEntity>> => {
       try {
-        const result = await ipcApi.request('ai.agent.create', form as unknown as CreateAgentDto)
-        try {
-          await invalidate('/agents')
-        } catch (invalidateError) {
-          logger.warn('Failed to refresh agents cache after IPC creation', {
-            agentId: result.id,
-            error: invalidateError
-          })
-        }
+        const result = await createAgentAndRefresh(form as unknown as CreateAgentCommand, () => invalidate('/agents'))
         toast.success(t('common.add_success'))
         return { success: true, data: result }
       } catch (error) {

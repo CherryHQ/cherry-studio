@@ -56,6 +56,7 @@ import Store from 'electron-store'
 import fs from 'fs/promises'
 import path from 'path'
 
+import { discardPendingAgentFilesFinalization, finalizePendingAgentFiles } from '../migrators/agentFilesFinalization'
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
@@ -143,6 +144,13 @@ export class MigrationEngine {
 
     if (status?.value) {
       const statusValue = status.value as MigrationStatusValue
+      if (statusValue.status === 'completed') {
+        try {
+          await this.finalizeCompletedMigration()
+        } catch (error) {
+          logger.error('Pending Agent files finalization failed; it will be retried on the next launch', error as Error)
+        }
+      }
       return statusValue.status !== 'completed'
     }
 
@@ -514,7 +522,17 @@ export class MigrationEngine {
    */
   async skipMigration(): Promise<void> {
     logger.info('Migration skipped by user (version incompatible, using defaults)')
+    discardPendingAgentFilesFinalization(this.getDb())
     await this.markCompleted()
+  }
+
+  /**
+   * Finalize copy-verified v1 Agent files after the durable completion marker.
+   * The plan lives in app_state so a cleanup failure can be retried by
+   * needsMigration() on every later launch without rerunning data migration.
+   */
+  async finalizeCompletedMigration(): Promise<void> {
+    await finalizePendingAgentFiles(this.getDb(), this.paths.agentsDataDir)
   }
 
   /**

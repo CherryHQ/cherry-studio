@@ -10,8 +10,9 @@ import type {
   StreamErrorPayload
 } from '@shared/ai/transport'
 import {
+  AgentBaseSchema,
   AgentEntitySchema,
-  CreateAgentSchema,
+  AgentSkillIdSetSchema,
   ScheduledTaskEntitySchema,
   TimeoutMinutesAtomSchema
 } from '@shared/data/api/schemas/agents'
@@ -47,6 +48,16 @@ import { defineRoute } from '../define'
  * `output`, and these are built by trusted main, so a field mirror buys nothing
  * (see ipc-migration-guide.md).
  */
+
+export const CreateAgentCommandSchema = AgentBaseSchema.extend({
+  type: z.literal('claude-code'),
+  /**
+   * Create-only: ids of pre-existing global skills to enable for the new
+   * Agent. Join rows are written in the same DB transaction as the Agent.
+   */
+  skillIds: AgentSkillIdSetSchema.optional()
+})
+export type CreateAgentCommand = z.infer<typeof CreateAgentCommandSchema>
 
 /**
  * Agent scheduled-task command DTOs. The task *command* surface lives here on
@@ -227,7 +238,7 @@ export const aiRequestSchemas = {
 
   // ── Agent session warm-connection lifecycle ──
   'ai.agent.create': defineRoute({
-    input: CreateAgentSchema,
+    input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
   'ai.agent.session.prewarm': defineRoute({

@@ -18,9 +18,9 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_MUTABLE_FIELDS,
+  type AgentBase,
   type AgentConfiguration,
   type AgentEntity,
-  type CreateAgentDto,
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
@@ -29,7 +29,6 @@ import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
 
@@ -50,6 +49,10 @@ export interface AgentDeletedEvent {
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
 type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
+type AgentCreateInput = AgentBase & {
+  type: AgentType
+  skillIds?: string[]
+}
 
 function getAgentDescription(description: string, configuration: unknown): string {
   if (description) return description
@@ -182,17 +185,13 @@ export class AgentService {
   private readonly _onAgentDeleted = new Emitter<AgentDeletedEvent>()
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
-  createAgent(req: CreateAgentDto): AgentEntity {
-    return this.createAgentWithId(uuidv4(), req)
-  }
-
   /**
    * DB-only create primitive for main-process command orchestration.
    *
    * The caller owns non-database side effects (for example provisioning the
    * agent data directory) and supplies the already-reserved id.
    */
-  createAgentWithId(id: string, req: CreateAgentDto): AgentEntity {
+  createAgentWithId(id: string, req: AgentCreateInput): AgentEntity {
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
     if (getBuiltinRole(req.configuration) !== undefined) {
       throw DataApiErrorFactory.invalidOperation(

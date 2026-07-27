@@ -1,13 +1,11 @@
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
-import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
+import { createAgentAndRefresh } from '@renderer/hooks/agent/createAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import { AGENTS_MAX_LIMIT, type CreateAgentDto, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import { useCallback, useState } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
-
-const logger = loggerService.withContext('AgentAdapter')
 
 /**
  * List hook for agent resources — mirrors `assistantAdapter.useAssistantList`.
@@ -48,16 +46,10 @@ export function useAgentMutations() {
   const [isCreatingAgent, setIsCreatingAgent] = useState(false)
 
   const createAgent = useCallback(
-    async (dto: CreateAgentDto): Promise<AgentDetail> => {
+    async (dto: CreateAgentCommand): Promise<AgentDetail> => {
       setIsCreatingAgent(true)
       try {
-        const agent = await ipcApi.request('ai.agent.create', dto)
-        try {
-          await invalidate('/agents')
-        } catch (error) {
-          logger.warn('Failed to refresh agents cache after IPC creation', { agentId: agent.id, error })
-        }
-        return agent
+        return await createAgentAndRefresh(dto, () => invalidate('/agents'))
       } finally {
         setIsCreatingAgent(false)
       }

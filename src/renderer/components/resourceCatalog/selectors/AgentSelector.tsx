@@ -11,7 +11,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
-import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -160,7 +160,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     async (values: ResourceCreateWizardValues) => {
       let created: AgentDetail
       try {
-        created = await createAgent(buildCreateAgentDto(values))
+        created = await createAgent(buildCreateAgentCommand(values))
       } catch (error) {
         logger.error('Failed to create agent from selector', error as Error)
         throw error
