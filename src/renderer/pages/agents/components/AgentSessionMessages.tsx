@@ -106,11 +106,11 @@ const AgentSessionMessages = ({
   })
 
   useEffect(() => {
-    void ipcApi.request('ai.prewarm_agent_session', { sessionId }).catch((error) => {
+    void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
       logger.warn('Failed to prewarm agent session', error as Error)
     })
     return () => {
-      void ipcApi.request('ai.close_agent_session_warm', { sessionId }).catch((error) => {
+      void ipcApi.request('ai.agent.session.close_warm', { sessionId }).catch((error) => {
         logger.warn('Failed to close agent session warm query', error as Error)
       })
     }

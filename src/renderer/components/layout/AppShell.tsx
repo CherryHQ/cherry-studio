@@ -1,4 +1,3 @@
-import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useMainWindowNavigation, useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -10,7 +9,7 @@ import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import Sidebar from '../app/Sidebar'
-import { createRecentRouteEntryFromTab, upsertGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
+import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
@@ -32,7 +31,6 @@ export const AppShell = () => {
     detachTab,
     openTab
   } = useTabs()
-  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -67,20 +65,14 @@ export const AppShell = () => {
     }
   })
 
-  const recordRouteVisit = useCallback(
-    (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
-      if (!tab) return
+  const recordRouteVisit = useCallback((tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
+    if (!tab) return
 
-      const entry = createRecentRouteEntryFromTab(tab, lastAccessTime)
-      if (!entry) return
+    const entry = createRecentRouteEntryFromTab(tab, lastAccessTime)
+    if (!entry) return
 
-      // Functional update resolves against the latest persisted value; upsert
-      // returns the same reference when nothing changes, so the CacheService
-      // isEqual short-circuit drops the no-op write.
-      setRecentItems((prev) => upsertGlobalSearchRecentEntry(prev, entry))
-    },
-    [setRecentItems]
-  )
+    recordGlobalSearchRecentEntry(entry)
+  }, [])
 
   useEffect(() => {
     recordRouteVisit(activeTab)

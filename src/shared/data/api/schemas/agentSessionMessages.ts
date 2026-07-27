@@ -27,7 +27,8 @@ export const AGENT_SESSION_MESSAGES_DEFAULT_LIMIT = 50
 export const AgentSessionMessagesListQuerySchema = z.strictObject({
   cursor: z.string().optional(),
   messageId: z.string().min(1).optional(),
-  limit: z.coerce.number().int().positive().max(AGENT_SESSION_MESSAGES_MAX_LIMIT).optional()
+  limit: z.coerce.number().int().positive().max(AGENT_SESSION_MESSAGES_MAX_LIMIT).optional(),
+  deferToolOutputs: z.boolean().optional()
 })
 export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesListQuerySchema>
 
