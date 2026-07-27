@@ -1141,7 +1141,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
       expandCollapsedLiveToolGroups()
       expect(screen.getByText('status text')).toBeInTheDocument()
-      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(5)
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(6)
       expect(screen.getAllByTestId('mock-tool-group-header')).toHaveLength(1)
       expect(screen.getByTestId('live-tool-group')).toHaveTextContent('1 second')
       expect(screen.queryByText('report')).toBeNull()
