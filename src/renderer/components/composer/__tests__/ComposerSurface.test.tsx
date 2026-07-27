@@ -148,7 +148,7 @@ vi.mock('@renderer/components/chat/layout/NarrowLayout', () => ({
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
-  QuickPanelView: () => null,
+  QuickPanelView: () => <div data-testid="quick-panel-view" />,
   useQuickPanel: () => ({
     close: mocks.quickPanelClose,
     dispatchKeyDown: mocks.quickPanelDispatchKeyDown,
@@ -507,7 +507,7 @@ describe('ComposerSurface', () => {
     expect(mocks.editorOptions?.immediatelyRender).toBe(false)
   })
 
-  it('mounts deferred dynamic controls on the first frame after the editor is ready', () => {
+  it('renders controls immediately while mounting the quick panel after the editor is ready', () => {
     mocks.stabilizeEditor = true
     const animationFrames: FrameRequestCallback[] = []
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -525,26 +525,27 @@ describe('ComposerSurface', () => {
       render(
         <ComposerSurface
           {...baseProps}
-          deferDynamicControls
+          quickPanelEnabled
+          deferQuickPanel
           renderLeftControls={() => <button type="button">dynamic control</button>}
         />
       )
 
       expect(screen.getByTestId('editor-content')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
-      expect(document.querySelector('[data-composer-controls-loading]')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
+      expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
 
       act(() => {
         mocks.editorOptions.onCreate({ editor: mocks.editorInstance })
       })
 
-      expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
-      expect(document.querySelector('[data-composer-controls-loading]')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
+      expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
 
       flushAnimationFrame()
-
-      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
-      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
+      expect(screen.getByTestId('quick-panel-view')).toBeInTheDocument()
     } finally {
       requestAnimationFrameSpy.mockRestore()
     }

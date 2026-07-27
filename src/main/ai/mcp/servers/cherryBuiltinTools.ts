@@ -16,6 +16,8 @@
  *   notifies, and self-configures the agent.
  * - {@link CherryKnowledgeTools} (`…__kb_search`, `…__kb_read`, `…__kb_list`,
  *   `…__kb_manage`) — owns knowledge-base exposure and per-call scope authorization.
+ * - {@link CherryCliTools} (`…__cli_list`, `…__cli_search`, `…__cli_install`) —
+ *   delegates live discovery and approved installation to BinaryManager.
  *
  * Both act on the session's agent via the {@link CherryAgentContext} passed at
  * construction.
@@ -60,6 +62,7 @@ import {
 import * as z from 'zod'
 
 import { type CherryAgentContext, CherryAutonomyTools } from './cherryAutonomyTools'
+import { CherryCliTools } from './cherryCliTools'
 import { CherryKnowledgeTools } from './cherryKnowledgeTools'
 
 export type { CherryAgentContext }
@@ -215,12 +218,16 @@ export class CherryBuiltinToolsServer {
   constructor(agentContext: CherryAgentContext) {
     const autonomy = new CherryAutonomyTools(agentContext)
     const knowledge = new CherryKnowledgeTools(agentContext)
+    const cli = agentContext.canManageCli === false ? undefined : new CherryCliTools()
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [...listCherryBuiltinTools(), ...knowledge.tools(), ...autonomy.tools()]
+      tools: [...listCherryBuiltinTools(), ...knowledge.tools(), ...autonomy.tools(), ...(cli?.tools() ?? [])]
     }))
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name } = request.params
+      if (cli?.handles(name)) {
+        return cli.call(name, request.params.arguments)
+      }
       if (autonomy.handles(name)) {
         return autonomy.call(name, (request.params.arguments ?? {}) as Record<string, string | undefined>)
       }
