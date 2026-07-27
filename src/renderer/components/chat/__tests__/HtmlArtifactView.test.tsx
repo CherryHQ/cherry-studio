@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode, Ref, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -343,6 +343,53 @@ describe('HtmlArtifactView', () => {
     const setPreviewContentHeight = createPreviewContentHeightController()
     setPreviewContentHeight(1200)
     expect(surface).toHaveStyle({ height: '350px' })
+  })
+
+  it('paces preview rebuilds while streaming and settles on the exact final HTML', () => {
+    vi.useFakeTimers()
+
+    try {
+      const getRenderedHtml = () => mocks.HtmlPreviewFrame.mock.lastCall?.[0].html
+      const chunkAt = (count: number) => `<div>${'chunk '.repeat(count)}</div>`
+
+      const { rerender } = render(<HtmlArtifactView html={chunkAt(1)} title="Preview" kind="fragment" isStreaming />)
+      expect(getRenderedHtml()).toBe(chunkAt(1))
+
+      // Ten chunks inside one refresh window must not cost ten document rebuilds.
+      const rebuildsBeforeChunks = mocks.HtmlPreviewFrame.mock.calls.length
+      for (let count = 2; count <= 11; count += 1) {
+        rerender(<HtmlArtifactView html={chunkAt(count)} title="Preview" kind="fragment" isStreaming />)
+      }
+      expect(getRenderedHtml()).toBe(chunkAt(1))
+
+      act(() => {
+        vi.advanceTimersByTime(250)
+      })
+      expect(getRenderedHtml()).toBe(chunkAt(11))
+      expect(mocks.HtmlPreviewFrame.mock.calls.length - rebuildsBeforeChunks).toBeLessThan(10)
+
+      // Completion must not wait for the next tick, and must not land on a paced snapshot.
+      rerender(<HtmlArtifactView html={chunkAt(12)} title="Preview" kind="fragment" isStreaming />)
+      rerender(<HtmlArtifactView html={chunkAt(12)} title="Preview" kind="fragment" />)
+      expect(getRenderedHtml()).toBe(chunkAt(12))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stops pacing timers once unmounted', () => {
+    vi.useFakeTimers()
+
+    try {
+      const { unmount } = render(
+        <HtmlArtifactView html="<div>Partial</div>" title="Preview" kind="fragment" isStreaming />
+      )
+      unmount()
+
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps a fragment in the script-less preview once streaming ends, never gating it', () => {

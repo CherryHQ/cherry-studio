@@ -15,7 +15,18 @@ import { htmlArtifactRequiresUserConsent } from '@renderer/utils/htmlArtifact'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import type { ConsoleMessageEvent, WebviewTag } from 'electron'
 import { Code2, DownloadIcon, Eye, LinkIcon, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
-import { lazy, memo, type RefObject, Suspense, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  memo,
+  type RefObject,
+  Suspense,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 const HtmlArtifactsPopup = lazy(() => import('@renderer/components/CodeBlockView/HtmlArtifactsPopup'))
@@ -29,6 +40,7 @@ const ZOOM_STEP = 10
 const INITIAL_PREVIEW_HEIGHT = 240
 const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
 const MAX_STREAMING_PREVIEW_HEIGHT = 350
+const STREAMING_PREVIEW_REFRESH_MS = 250
 
 interface HtmlArtifactViewProps {
   html: string
@@ -162,6 +174,35 @@ function getMaxPreviewHeight(viewport: HTMLElement): number {
   const scrollerHeight = scroller ? Math.max(scroller.clientHeight, scroller.getBoundingClientRect().height) : 0
   const availableHeight = scrollerHeight > 0 ? scrollerHeight : window.innerHeight
   return Math.max(1, Math.floor(availableHeight * MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO))
+}
+
+/**
+ * Paces the HTML handed to the preview frame while generating.
+ *
+ * Any change to it swaps the iframe's `srcDoc`, and the browser answers that by discarding the
+ * preview document and re-parsing it from scratch — which also reloads {@link AdaptiveHtmlPreview}'s
+ * sizing observers and forces a synchronous layout over every body child. Per streamed token that
+ * is a visible flicker and steady main-thread churn, so let the content settle between rebuilds.
+ * Completed HTML is passed through untouched: it must render exactly and immediately.
+ */
+function useStreamingPacedHtml(html: string, isStreaming: boolean): string {
+  const [pacedHtml, setPacedHtml] = useState(html)
+  const latestHtmlRef = useRef(html)
+  latestHtmlRef.current = html
+
+  useEffect(() => {
+    if (!isStreaming) return
+
+    // Show whatever has arrived by the time generation starts, then rebuild on a fixed cadence.
+    setPacedHtml(latestHtmlRef.current)
+    const timer = setInterval(() => {
+      setPacedHtml((current) => (current === latestHtmlRef.current ? current : latestHtmlRef.current))
+    }, STREAMING_PREVIEW_REFRESH_MS)
+
+    return () => clearInterval(timer)
+  }, [isStreaming])
+
+  return isStreaming ? pacedHtml : html
 }
 
 const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
@@ -459,6 +500,7 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({
   const [approvedInteractiveHtml, setApprovedInteractiveHtml] = useState<string | null>(null)
   const [popupHtml, setPopupHtml] = useState<string | null>(null)
   const hasContent = html.trim().length > 0
+  const previewHtml = useStreamingPacedHtml(html, isStreaming)
   const requiresUserConsent = useMemo(() => kind === 'document' && htmlArtifactRequiresUserConsent(html), [html, kind])
   const isInteractivePreviewApproved = requiresUserConsent && approvedInteractiveHtml === html
   const isPreviewBlocked = requiresUserConsent && !isInteractivePreviewApproved
@@ -532,9 +574,10 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({
           <div className="relative h-full min-h-0 overflow-hidden bg-background">
             <div className={cn('h-full min-h-0', showCode && 'hidden')} aria-hidden={showCode || undefined}>
               {requiresUserConsent ? (
+                // Not paced: the webview may only ever load the exact bytes the user consented to.
                 <InteractiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
               ) : (
-                <AdaptiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
+                <AdaptiveHtmlPreview html={previewHtml} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
               )}
             </div>
             {showCode && (
