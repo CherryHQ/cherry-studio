@@ -966,13 +966,16 @@ export class MergeEngine {
   }
 
   /**
-   * Disclose message.data soft refs whose fileEntryId blob was not staged.
-   * DB-only restore passes empty stagedFileEntryIds → every attachment disclosed.
+   * Disclose every declared file-ref JSON soft reference whose blob was not staged.
    *
-   * Scoped to the messages THIS restore imported (identityMap.sourceMap): `stagedFileEntryIds`
-   * describes only this archive, so an attachment on an untouched local message would be
-   * counted "not staged" even though its local blob is perfectly valid. Per-id lookups also
-   * keep a large local history out of memory — only imported rows are read + JSON-parsed.
+   * Driven by the contributor registry (`jsonSoftReferences` with `target: 'file-ref'`), not
+   * by a hard-coded table list: `message.data` and `agent_session_message.data` both carry
+   * attachment refs today, and a domain that declares one tomorrow is covered without
+   * touching the engine. Kind is not filtered — all declared file-ref policies are `tolerant`
+   * today, and a future `required` one must surface here rather than pass unreported (its
+   * stricter fail-closed handling would be a separate decision).
+   *
+   * DB-only restore passes empty stagedFileEntryIds → every attachment disclosed.
    */
   private discloseFileIdSoftRefs(
     workSqlite: Database.Database,
@@ -980,21 +983,46 @@ export class MergeEngine {
     identityMap: IdentityMap,
     degradedToSkips: DegradedSkip[]
   ): void {
-    const importedMessageIds = identityMap.sourceMap.get('message')
-    if (!importedMessageIds || importedMessageIds.size === 0) return
-    const hasMessage =
-      workSqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='message'").get() !== undefined
-    if (!hasMessage) return
+    for (const domain of this.registry.domains) {
+      for (const policy of this.registry.getSchema(domain).jsonSoftReferences) {
+        if (policy.target !== 'file-ref') continue
+        this.discloseTableFileIdSoftRefs(workSqlite, ctx, identityMap, degradedToSkips, policy.table, policy.column)
+      }
+    }
+  }
+
+  /**
+   * Disclose one (table, JSON column) pair's unstaged file refs.
+   *
+   * Scoped to the rows THIS restore imported (identityMap.sourceMap): `stagedFileEntryIds`
+   * describes only this archive, so an attachment on an untouched local row would be counted
+   * "not staged" even though its local blob is perfectly valid. Per-id lookups also keep a
+   * large local history out of memory — only imported rows are read + JSON-parsed.
+   */
+  private discloseTableFileIdSoftRefs(
+    workSqlite: Database.Database,
+    ctx: MergeContext,
+    identityMap: IdentityMap,
+    degradedToSkips: DegradedSkip[],
+    table: DbTableName,
+    column: string
+  ): void {
+    const importedIds = identityMap.sourceMap.get(table)
+    if (!importedIds || importedIds.size === 0) return
+    const hasTable =
+      workSqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table) !== undefined
+    if (!hasTable) return
     const staged = ctx.stagedFileEntryIds
     let missing = 0
-    const pkPhys = physicalColumn(this.registry.getPrimaryKey('message').columns[0])
+    const pkPhys = physicalColumn(this.registry.getPrimaryKey(table).columns[0])
+    const colPhys = physicalColumn(column)
     const selectData = this.prepareCached(
       workSqlite,
-      `sel:message:softref:${pkPhys}`,
-      `SELECT data FROM ${quoteIdent('message')} WHERE ${quoteIdent(pkPhys)} = ?`
+      `sel:${table}:softref:${colPhys}:${pkPhys}`,
+      `SELECT ${quoteIdent(colPhys)} AS data FROM ${quoteIdent(table)} WHERE ${quoteIdent(pkPhys)} = ?`
     )
-    for (const workMessageId of new Set(importedMessageIds.values())) {
-      const row = selectData.get(workMessageId) as { data: string | null } | undefined
+    for (const workRowId of new Set(importedIds.values())) {
+      const row = selectData.get(workRowId) as { data: string | null } | undefined
       if (!row?.data) continue
       let parsed: unknown
       try {
@@ -1026,10 +1054,9 @@ export class MergeEngine {
     if (missing > 0) {
       degradedToSkips.push({
         kind: 'attachment_unavailable',
-        table: 'message',
+        table,
         count: missing,
-        reason:
-          'imported message attachment blob not staged (fileEntryId missing from stagedFileEntryIds — DB-only restore discloses all)'
+        reason: `imported ${table}.${column} attachment blob not staged (fileEntryId missing from stagedFileEntryIds — DB-only restore discloses all)`
       })
     }
   }

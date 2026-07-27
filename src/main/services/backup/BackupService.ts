@@ -578,16 +578,17 @@ export class BackupService extends BaseService {
       return { state: 'none' }
     }
     const state = journal.journal.state
+    const summary = journal.journal.summary ? { summary: journal.journal.summary } : {}
     if (state === 'staged' || state === 'promoting') {
-      return {
-        state: 'pending',
-        ...(journal.journal.summary ? { summary: journal.journal.summary } : {})
-      }
+      return { state: 'pending', ...summary }
     }
     if (state === 'failed' || state === 'expired') {
       return { state, reason: journal.journal.reason }
     }
-    return { state: 'completed' }
+    // The completed journal keeps the summary promotion carried across the relaunch — a
+    // process exit before the pre-relaunch dialog was seen must not turn a degraded restore
+    // into an unqualified success.
+    return { state: 'completed', ...summary }
   }
 
   /**

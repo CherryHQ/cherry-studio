@@ -203,9 +203,14 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       expect(service.getRestoreStatus()).toEqual({ state: 'pending', summary: baseJournal.summary })
     })
 
-    it('maps completed to completed', () => {
+    it('maps completed to completed and keeps the journal summary', () => {
+      // A crash before the pre-relaunch dialog was seen would otherwise report an
+      // unqualified success and drop the durable loss disclosure for good.
       readRestoreJournalMock.mockReturnValue(okJournal('completed', 'integrity-ok'))
-      expect(new BackupService().getRestoreStatus()).toEqual({ state: 'completed' })
+      expect(new BackupService().getRestoreStatus()).toEqual({
+        state: 'completed',
+        summary: baseJournal.summary
+      })
     })
 
     it('carries the journal reason for failed/expired', () => {

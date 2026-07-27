@@ -191,7 +191,6 @@ describe('e2e-restore full resource fixtures (B3)', () => {
       dbCopyPath: backupDbPath,
       files: [
         { id: '4efe0002-0000-4000-8000-000000000002', corrupt: 'missing-blob' },
-        { id: '4efe0003-0000-4000-8000-000000000003', corrupt: 'dir-instead-of-file' },
         { id: '4efe0004-0000-4000-8000-000000000004', content: 'ext-blob' }
       ],
       knowledgeBases: [{ baseId: 'kb-flat', corrupt: 'file-instead-of-dir' }],
@@ -205,13 +204,11 @@ describe('e2e-restore full resource fixtures (B3)', () => {
     // Manifest claims everything…
     expect(ctx.resourceMetadata.fileIds).toEqual([
       '4efe0002-0000-4000-8000-000000000002',
-      '4efe0003-0000-4000-8000-000000000003',
       '4efe0004-0000-4000-8000-000000000004'
     ])
     expect(ctx.resourceMetadata.notePaths).toEqual(['gone.md'])
     // …but the unpacked tree diverges per corruption knob:
     expect(existsSync(join(workDir, 'files', '4efe0002-0000-4000-8000-000000000002'))).toBe(false) // missing blob
-    expect(statSync(join(workDir, 'files', '4efe0003-0000-4000-8000-000000000003')).isDirectory()).toBe(true) // wrong type
     expect(statSync(join(workDir, 'knowledge', 'kb-flat')).isFile()).toBe(true) // wrong type
     expect(existsSync(join(workDir, 'notes', 'gone.md'))).toBe(false) // missing note body
     // …and 4efe0004-0000-4000-8000-000000000004's row is external while the manifest lists it as staged:
@@ -225,6 +222,21 @@ describe('e2e-restore full resource fixtures (B3)', () => {
     } finally {
       backupDb.close()
     }
+  })
+
+  it('rejects a declared file id staged as a tree (files/<id>/child) before extracting it', async () => {
+    // `files/<id>` is a single blob: a tree under a DECLARED id is payload no restore can
+    // use, so admission refuses it instead of letting it bill the staging budget and leaving
+    // planning to reject the staged node afterwards.
+    await buildFullArchive({
+      stageRoot: tmpDir,
+      archivePath,
+      dbCopyPath: backupDbPath,
+      files: [{ id: '4efe0003-0000-4000-8000-000000000003', corrupt: 'dir-instead-of-file' }]
+    })
+
+    await expect(admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)).rejects.toThrow(BackupArchiveCorruptError)
+    expect(existsSync(workDir)).toBe(false)
   })
 
   it('forged full manifest (includeFiles=false with files.ids) is rejected by §9 invariants (A2 assertFull)', async () => {

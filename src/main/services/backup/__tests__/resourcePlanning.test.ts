@@ -404,6 +404,23 @@ describe('planResources', () => {
     ).toThrow(/staging file missing/)
   })
 
+  // Admission now refuses `files/<id>/child` before extraction, so this shape can only come
+  // from tampering with the staging tree — planning stays the layer that names it.
+  it('CORRUPT when staging file is a directory', () => {
+    seedBackupFile('0f100000-0000-4000-8000-000000000001', 'internal', 'txt')
+    mkdirSync(join(workDir, 'files', '0f100000-0000-4000-8000-000000000001'), { recursive: true })
+    expect(() =>
+      planResources(
+        ctx(
+          baseManifest({
+            includeFiles: true,
+            files: { ids: ['0f100000-0000-4000-8000-000000000001'], total: 1, totalBytes: 1 }
+          })
+        )
+      )
+    ).toThrow(/not a regular file/)
+  })
+
   it('CORRUPT when staging file is symlink', () => {
     seedBackupFile('0f100000-0000-4000-8000-000000000001', 'internal', 'txt')
     mkdirSync(join(workDir, 'files'), { recursive: true })

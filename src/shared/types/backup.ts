@@ -214,12 +214,14 @@ export const RestoreResultSummarySchema: z.ZodType<RestoreResultSummary> = z.str
  *   awaits the next boot) — offer restart, not a new restore.
  * - `completed` / `failed` / `expired`: terminal outcome awaiting user
  *   acknowledgement via `backup.restore_acknowledge`; `reason` carries the
- *   journal's raw diagnostic for failed/expired.
+ *   journal's raw diagnostic for failed/expired, and `completed` carries the
+ *   journal's summary so a crash before the pre-relaunch dialog was seen still
+ *   discloses what the restore lost (the journal outlives that window).
  * - `none`: no journal (or corrupt — nothing actionable for the UI).
  */
 export type RestoreStatus =
   | { readonly state: 'none' }
   | { readonly state: 'pending'; readonly summary?: RestoreResultSummary }
-  | { readonly state: 'completed' }
+  | { readonly state: 'completed'; readonly summary?: RestoreResultSummary }
   | { readonly state: 'failed'; readonly reason?: string }
   | { readonly state: 'expired'; readonly reason?: string }

@@ -325,6 +325,32 @@ describe('RestoreV2Popup', () => {
     expect(screen.queryByTestId('v2-restore-outcome')).not.toBeInTheDocument()
   })
 
+  it('discloses degradations of a completed restore before acknowledgement', async () => {
+    // The journal survives the relaunch; if the user never saw the pre-relaunch dialog this
+    // is the only place the loss is ever reported — and acknowledge clears the journal.
+    requestMock.mockImplementation(async (route: string) => {
+      if (route === 'backup.restore_status') {
+        return {
+          state: 'completed',
+          summary: {
+            toRestore: [],
+            toSkip: [],
+            degradations: [{ kind: 'attachment_unavailable', scope: 'message', count: 3, detail: 'blob not staged' }]
+          }
+        }
+      }
+      return { cleared: true }
+    })
+
+    await RestoreV2Popup.show()
+
+    await waitFor(() => expect(screen.getByTestId('v2-restore-degradations')).toBeInTheDocument())
+    expect(screen.getByText('settings.data.backup.v2.restore.summary.degraded')).toBeInTheDocument()
+    expect(
+      screen.getByText('settings.data.backup.v2.restore.summary.degraded_kind.attachment_unavailable')
+    ).toBeInTheDocument()
+  })
+
   it('shows a failed outcome with the journal reason', async () => {
     requestMock.mockImplementation(async (route: string) =>
       route === 'backup.restore_status'

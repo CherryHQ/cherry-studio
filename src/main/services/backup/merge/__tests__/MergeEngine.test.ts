@@ -840,6 +840,41 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     )
   })
 
+  it('discloses agent-session attachments too (disclosure follows registry file-ref policies)', async () => {
+    // AGENTS declares agent_session_message.data as a tolerant file-ref soft reference exactly
+    // like TOPICS declares message.data — a table-specific scan would silently skip it.
+    const now = Date.now()
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('ws-att', 'ws', '/tmp/ws-att', 'user', 'a0', ?, ?)`
+      ).run(now, now)
+      db.prepare(
+        `INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+         VALUES ('agt-att', 'custom', 'agent', 'do things', 'a0', ?, ?)`
+      ).run(now, now)
+      db.prepare(
+        `INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, created_at, updated_at)
+         VALUES ('ses-att', 'agt-att', 'session', 'ws-att', 'a0', ?, ?)`
+      ).run(now, now)
+      db.prepare(
+        `INSERT INTO agent_session_message (id, session_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES ('asm-att', 'ses-att', 'user', ?, '', 'success', ?, ?)`
+      ).run(JSON.stringify({ parts: [{ type: 'file', fileEntryId: 'fe-unstaged-agent' }] }), now, now)
+    })
+
+    const result = (await runMerge({
+      backupDbPath: backupPath,
+      domains: ['AGENTS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })) as { degradedToSkips: { kind: string; table: string; count: number }[] }
+
+    expect(result.degradedToSkips).toContainEqual(
+      expect.objectContaining({ kind: 'attachment_unavailable', table: 'agent_session_message', count: 1 })
+    )
+  })
+
   it('honors an explicit SKIP override on a natural-key domain instead of throwing', async () => {
     // PROVIDERS is natural-key (FIELD_MERGE default). An explicit SKIP opts out → every
     // backup row skipped (local survives), no throw.

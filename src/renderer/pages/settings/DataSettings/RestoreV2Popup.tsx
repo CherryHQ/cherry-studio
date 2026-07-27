@@ -33,6 +33,29 @@ const restoreDegradationI18nKeys = {
   resource_content_missing: 'settings.data.backup.v2.restore.summary.degraded_kind.resource_content_missing'
 } as const satisfies Record<RestoreDegradationKind, string>
 
+/**
+ * Disclosed lossy outcomes of a restore. Rendered both before relaunch (staged journal) and
+ * after it (completed journal) — the same list, because promotion carries the summary across
+ * the relaunch and a user who never saw the first dialog must still see it.
+ */
+const RestoreDegradationList: React.FC<{ degradations: RestoreResultSummary['degradations'] }> = ({ degradations }) => {
+  const { t } = useTranslation()
+  if (degradations.length === 0) return null
+  return (
+    <div data-testid="v2-restore-degradations">
+      <div className="font-medium">{t('settings.data.backup.v2.restore.summary.degraded')}</div>
+      <ul className="mt-1 flex max-h-40 flex-col gap-1 overflow-y-auto">
+        {degradations.map((item) => (
+          <li key={`${item.kind}:${item.scope}:${item.detail ?? ''}`} className="break-all">
+            <span className="text-foreground-secondary">[{item.scope}]</span> {item.count}
+            <div className="text-foreground-secondary text-xs">{t(restoreDegradationI18nKeys[item.kind])}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 type Props = PopupInjectedProps<Record<string, never>>
 
 type RestorePhase =
@@ -303,21 +326,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                     </ul>
                   </div>
                 )}
-                {summary.degradations.length > 0 && (
-                  <div>
-                    <div className="font-medium">{t('settings.data.backup.v2.restore.summary.degraded')}</div>
-                    <ul className="mt-1 flex max-h-40 flex-col gap-1 overflow-y-auto">
-                      {summary.degradations.map((item) => (
-                        <li key={`${item.kind}:${item.scope}:${item.detail ?? ''}`} className="break-all">
-                          <span className="text-foreground-secondary">[{item.scope}]</span> {item.count}
-                          <div className="text-foreground-secondary text-xs">
-                            {t(restoreDegradationI18nKeys[item.kind])}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <RestoreDegradationList degradations={summary.degradations} />
               </>
             ) : (
               <div className="text-foreground-secondary">
@@ -337,6 +346,11 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
             </div>
             {outcome.state !== 'completed' && outcome.reason ? (
               <div className="break-all text-foreground-secondary text-xs">{outcome.reason}</div>
+            ) : null}
+            {/* A completed restore can still have lost data — disclose it BEFORE the
+                acknowledgement clears the journal, or the loss is never reported at all. */}
+            {outcome.state === 'completed' && outcome.summary ? (
+              <RestoreDegradationList degradations={outcome.summary.degradations} />
             ) : null}
           </div>
         )}

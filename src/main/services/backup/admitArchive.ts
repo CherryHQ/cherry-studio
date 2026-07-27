@@ -502,12 +502,14 @@ function isRecognized(name: string): boolean {
  * still fill the target disk with `files/pad-*`. Runs AFTER the manifest gate and BEFORE
  * bulk extraction so no undeclared byte is ever written.
  *
- * This is a DECLARATION check, not a shape check: `files/<id>`, `knowledge/<baseId>/…` and
- * `skills/<folderName>/…` only need their first segment declared, and `notes/<relPath>` must
- * match a declared relPath exactly (note paths are themselves multi-segment). Whether a
- * declared resource unpacked as the right kind of node stays planning's job — its
- * assertStagingFile / assertStagingDir report that divergence precisely. Entry names are
- * always POSIX (both the archiver and the collected note relPaths normalize separators).
+ * Exactness follows what each resource IS on disk: `files/<id>` and `notes/<relPath>` are
+ * single blobs and must match a declared name exactly (a `files/<id>/child` tree is payload
+ * no restore can ever use), while `knowledge/<baseId>/…` and `skills/<folderName>/…` are
+ * directories, so declared-root descendants are allowed. Whether a declared resource then
+ * unpacked as the right KIND of node stays planning's job — its assertStagingFile /
+ * assertStagingDir report that divergence precisely. Entry names are always POSIX (both the
+ * archiver and the collected note relPaths normalize separators) and dot segments are already
+ * rejected by {@link assertWithin}, so a name cannot lie about which prefix it belongs to.
  *
  * @internal
  */
@@ -537,14 +539,14 @@ function isDeclaredResourceEntry(
     skills: ReadonlySet<string>
   }
 ): boolean {
-  if (name.startsWith('files/')) return hasDeclaredRoot(name.slice('files/'.length), declared.files)
+  if (name.startsWith('files/')) return declared.files.has(name.slice('files/'.length))
   if (name.startsWith('notes/')) return declared.notes.has(name.slice('notes/'.length))
   if (name.startsWith('knowledge/')) return hasDeclaredRoot(name.slice('knowledge/'.length), declared.knowledge)
   if (name.startsWith('skills/')) return hasDeclaredRoot(name.slice('skills/'.length), declared.skills)
   return false
 }
 
-/** The entry's first path segment must name a declared resource (see the shape caveat above). */
+/** The entry's first path segment must name a declared directory resource (knowledge / skills). */
 function hasDeclaredRoot(rest: string, declaredRoots: ReadonlySet<string>): boolean {
   const slash = rest.indexOf('/')
   const root = slash === -1 ? rest : rest.slice(0, slash)
@@ -552,15 +554,28 @@ function hasDeclaredRoot(rest: string, declaredRoots: ReadonlySet<string>): bool
 }
 
 /**
- * Reject an entry whose resolved destination escapes workDir (zip-slip). Mirrors
- * assertZipEntriesWithin (McpPackageService) but per-entry; nested subdirs are allowed.
+ * Reject an entry whose name carries dot segments or whose resolved destination escapes
+ * workDir (zip-slip). Mirrors assertZipEntriesWithin (McpPackageService) but per-entry;
+ * nested subdirs are allowed.
  *
- * Exported (marked @internal) so the zip-slip guard has a direct unit test — the archiver
- * the test fixture uses sanitizes `../` out of entry names, so the guard cannot be
- * exercised end-to-end via a forged archive (a real malicious archive would preserve it).
+ * Dot segments are refused even when they normalize back INSIDE workDir: every later gate
+ * classifies an entry by its literal prefix (isRecognized, manifest declaration binding), so
+ * `files/<declared-id>/../pad` would pass those string checks and then land somewhere else
+ * entirely. Requiring literal names keeps prefix classification and the extracted path the
+ * same fact. This is the single path guard every entry passes through — both properties must
+ * live here or a call site will eventually apply only one.
+ *
+ * Exported (marked @internal) so the guard has a direct unit test — the archiver the test
+ * fixture uses sanitizes `../` out of entry names, so it cannot be exercised end-to-end via
+ * a forged archive (a real malicious archive would preserve it).
  * @internal
  */
 export function assertWithin(baseDir: string, name: string): void {
+  // Split on both separators: entry names are POSIX by spec, but a forged `files\..\pad`
+  // is a real dot segment once Windows path resolution sees it.
+  if (name.split(/[\\/]/).some((segment) => segment === '.' || segment === '..')) {
+    throw new BackupArchiveCorruptError(`unsafe entry path (dot segment): ${safeEntryName(name)}`)
+  }
   const root = resolve(baseDir)
   const dest = resolve(baseDir, name)
   if (dest !== root && !dest.startsWith(root + sep)) {

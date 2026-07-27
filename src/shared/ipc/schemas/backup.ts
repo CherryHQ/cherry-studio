@@ -31,7 +31,7 @@ import { defineRoute } from '../define'
 const restoreStatusSchema: z.ZodType<RestoreStatus> = z.discriminatedUnion('state', [
   z.strictObject({ state: z.literal('none') }),
   z.strictObject({ state: z.literal('pending'), summary: RestoreResultSummarySchema.optional() }),
-  z.strictObject({ state: z.literal('completed') }),
+  z.strictObject({ state: z.literal('completed'), summary: RestoreResultSummarySchema.optional() }),
   z.strictObject({ state: z.literal('failed'), reason: z.string().optional() }),
   z.strictObject({ state: z.literal('expired'), reason: z.string().optional() })
 ])

@@ -39,6 +39,7 @@ import {
   type ArchiveAdmissionLimits,
   type ArchiveContext,
   assertCompressionRatio,
+  assertRecognizedEntriesDeclared,
   assertSafeSizeMetadata,
   assertWithin,
   createByteLimitTransform,
@@ -285,9 +286,17 @@ describe('admitArchive', () => {
     expect(() => assertWithin(workDir, '../escape.txt')).toThrow(BackupArchiveCorruptError)
     expect(() => assertWithin(workDir, 'files/../../escape.txt')).toThrow(BackupArchiveCorruptError)
     expect(() => assertWithin(workDir, '/etc/passwd')).toThrow(BackupArchiveCorruptError)
+    // Dot segments that normalize back INSIDE workDir are refused too: every later gate
+    // classifies by literal prefix, so such a name would be admitted as `files/…` and then
+    // written somewhere else.
+    expect(() => assertWithin(workDir, 'files/file-1/../pad')).toThrow(BackupArchiveCorruptError)
+    expect(() => assertWithin(workDir, 'files/./pad')).toThrow(BackupArchiveCorruptError)
+    expect(() => assertWithin(workDir, 'files\\file-1\\..\\pad')).toThrow(BackupArchiveCorruptError)
     // Recognized nested + root entries are allowed (legitimate files/<id> is one level deep).
     expect(() => assertWithin(workDir, 'files/file-1')).not.toThrow()
     expect(() => assertWithin(workDir, 'backup.sqlite')).not.toThrow()
+    // A dot inside a segment is an ordinary name, not a traversal.
+    expect(() => assertWithin(workDir, 'notes/folder/note.v2.md')).not.toThrow()
   })
 
   it('integrity_check failure (corrupted user-table rootpage) → BackupIntegrityError', async () => {
@@ -434,6 +443,32 @@ describe('admitArchive', () => {
     const workDir = join(tmpDir, 'work')
 
     await expect(admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)).rejects.toThrow(BackupArchiveCorruptError)
+  })
+
+  // Exactness follows what the resource IS: blobs (files, notes) must match a declared name
+  // exactly; directories (knowledge, skills) admit declared-root descendants.
+  it('binds blob resources exactly and directory resources by declared root', () => {
+    const manifest: BackupManifest = {
+      ...MANIFEST,
+      includeFiles: true,
+      includeKnowledgeFiles: true,
+      files: { ids: ['file-1'], total: 1, totalBytes: 1 },
+      knowledge: { bases: ['base-1'] },
+      skills: { folders: [{ folderName: 'skill-1', contentHash: 'h1' }] },
+      notes: { paths: ['folder/note.md'] }
+    }
+    const accepts = (name: string) => assertRecognizedEntriesDeclared([{ name }], manifest)
+
+    expect(() => accepts('files/file-1')).not.toThrow()
+    expect(() => accepts('notes/folder/note.md')).not.toThrow()
+    expect(() => accepts('knowledge/base-1/doc.md')).not.toThrow()
+    expect(() => accepts('skills/skill-1/SKILL.md')).not.toThrow()
+
+    // A tree under a declared file id is payload no restore can consume.
+    expect(() => accepts('files/file-1/child')).toThrow(BackupArchiveCorruptError)
+    // A note path is matched whole — a sibling under a declared note is not declared.
+    expect(() => accepts('notes/folder/note.md/child')).toThrow(BackupArchiveCorruptError)
+    expect(() => accepts('files/pad')).toThrow(BackupArchiveCorruptError)
   })
 
   it('succeeds from a nonexistent staging dir (admission self-creates workDir)', async () => {
