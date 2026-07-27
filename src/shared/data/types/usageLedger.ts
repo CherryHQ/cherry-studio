@@ -1,7 +1,7 @@
 /**
  * Usage ledger entity types
  *
- * The ledger is the durable per-message billing record: token usage + cost,
+ * The ledger is a durable best-effort per-request usage record: usage + cost,
  * attributed to a provider/model and (best-effort) an API key. Rows are
  * snapshots — they survive deletion of the message, topic, provider, and key
  * they describe. DTO/Query/API schemas live in `@shared/data/api/schemas/usageLedger`.
@@ -10,6 +10,7 @@
 import * as z from 'zod'
 
 import { CostSourceSchema, MessageStatsSchema } from './message'
+import { CURRENCY, objectValues } from './model'
 
 /**
  * How the API key was attributed at write time:
@@ -45,8 +46,8 @@ export type UsageLedgerSourceType = z.infer<typeof UsageLedgerSourceTypeSchema>
 export const UsageLedgerEntrySchema = z.strictObject({
   /** UUIDv7 (time-ordered), auto-generated */
   id: z.uuidv7(),
-  /** Assistant message this row records (plain snapshot, NOT a FK) */
-  messageId: z.string(),
+  /** Stable per-request idempotency key (plain snapshot, NOT a FK) */
+  requestId: z.string(),
   /** Topic snapshot (null for non-topic sources) */
   topicId: z.string().nullable(),
   /** Provider id snapshot */
@@ -82,7 +83,7 @@ export const UsageLedgerEntrySchema = z.strictObject({
 
   // Cost (mirrors MessageStats cost fields)
   cost: z.number().nullable(),
-  costCurrency: z.string().nullable(),
+  costCurrency: z.enum(objectValues(CURRENCY)).nullable(),
   costSource: CostSourceSchema.nullable(),
   costBreakdown: MessageStatsSchema.shape.costBreakdown.nullable(),
   pricingSnapshot: MessageStatsSchema.shape.pricingSnapshot.nullable(),

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "11f189f4-a567-4b0d-9fa0-e493dffcf15e",
+  "id": "346bb951-43bf-4d0a-a5e3-8154e4f1c987",
   "prevId": "89e1707b-580e-4d39-8c85-9bd812a65a5b",
   "tables": {
     "agent": {
@@ -3695,8 +3695,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "message_id": {
-          "name": "message_id",
+        "request_id": {
+          "name": "request_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -3763,8 +3763,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'language'"
+          "autoincrement": false
         },
         "api_key_id": {
           "name": "api_key_id",
@@ -3792,8 +3791,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'none'"
+          "autoincrement": false
         },
         "input_tokens": {
           "name": "input_tokens",
@@ -3923,9 +3921,9 @@
         }
       },
       "indexes": {
-        "usage_ledger_message_id_idx": {
-          "name": "usage_ledger_message_id_idx",
-          "columns": ["message_id"],
+        "usage_ledger_request_id_idx": {
+          "name": "usage_ledger_request_id_idx",
+          "columns": ["request_id"],
           "isUnique": true
         },
         "usage_ledger_provider_created_idx": {
@@ -3961,17 +3959,29 @@
           "name": "usage_ledger_cost_source_check",
           "value": "\"usage_ledger\".\"cost_source\" IN ('provider', 'computed')"
         },
-        "usage_ledger_cost_pairing_check": {
-          "name": "usage_ledger_cost_pairing_check",
-          "value": "\"usage_ledger\".\"cost_source\" IS NULL OR \"usage_ledger\".\"cost\" IS NOT NULL"
+        "usage_ledger_cost_tuple_check": {
+          "name": "usage_ledger_cost_tuple_check",
+          "value": "(\n        \"usage_ledger\".\"cost\" IS NULL\n        AND \"usage_ledger\".\"cost_currency\" IS NULL\n        AND \"usage_ledger\".\"cost_source\" IS NULL\n        AND \"usage_ledger\".\"cost_breakdown\" IS NULL\n        AND \"usage_ledger\".\"pricing_snapshot\" IS NULL\n      ) OR (\n        \"usage_ledger\".\"cost\" IS NOT NULL\n        AND \"usage_ledger\".\"cost_currency\" IS NOT NULL\n        AND \"usage_ledger\".\"cost_source\" IS NOT NULL\n      )"
         },
         "usage_ledger_api_key_identity_check": {
           "name": "usage_ledger_api_key_identity_check",
-          "value": "\"usage_ledger\".\"api_key_attribution\" NOT IN ('exact', 'rotation', 'backfill') OR \"usage_ledger\".\"api_key_id\" IS NOT NULL"
+          "value": "(\n        \"usage_ledger\".\"api_key_attribution\" IN ('exact', 'rotation', 'backfill')\n        AND \"usage_ledger\".\"api_key_id\" IS NOT NULL\n      ) OR (\n        \"usage_ledger\".\"api_key_attribution\" IN ('auth', 'none')\n        AND \"usage_ledger\".\"api_key_id\" IS NULL\n        AND \"usage_ledger\".\"api_key_label\" IS NULL\n        AND \"usage_ledger\".\"api_key_masked\" IS NULL\n      )"
+        },
+        "usage_ledger_source_identity_check": {
+          "name": "usage_ledger_source_identity_check",
+          "value": "(\n        \"usage_ledger\".\"source_type\" IS NULL\n        AND \"usage_ledger\".\"source_id\" IS NULL\n        AND \"usage_ledger\".\"source_name\" IS NULL\n        AND \"usage_ledger\".\"source_icon\" IS NULL\n      ) OR (\n        \"usage_ledger\".\"source_type\" IS NOT NULL\n        AND \"usage_ledger\".\"source_id\" IS NOT NULL\n      )"
+        },
+        "usage_ledger_source_type_check": {
+          "name": "usage_ledger_source_type_check",
+          "value": "\"usage_ledger\".\"source_type\" IN ('assistant', 'agent')"
         },
         "usage_ledger_modality_check": {
           "name": "usage_ledger_modality_check",
           "value": "\"usage_ledger\".\"modality\" IN ('language', 'embedding', 'image')"
+        },
+        "usage_ledger_image_count_check": {
+          "name": "usage_ledger_image_count_check",
+          "value": "(\n        \"usage_ledger\".\"modality\" = 'image'\n        AND \"usage_ledger\".\"image_count\" IS NOT NULL\n        AND \"usage_ledger\".\"image_count\" > 0\n      ) OR (\n        \"usage_ledger\".\"modality\" <> 'image'\n        AND \"usage_ledger\".\"image_count\" IS NULL\n      )"
         },
         "usage_ledger_cost_currency_check": {
           "name": "usage_ledger_cost_currency_check",

@@ -24,7 +24,7 @@ export function createBillingHook(model: Model, requestMessageId?: string): Part
   let total: LanguageModelUsage = ZERO_USAGE
   let providerCostUsd: number | undefined
   let flushed = false
-  const id = requestMessageId ?? crypto.randomUUID()
+  const requestId = requestMessageId ?? crypto.randomUUID()
 
   /**
    * Writes whatever usage has accrued so far. Wired to every terminal hook —
@@ -39,13 +39,14 @@ export function createBillingHook(model: Model, requestMessageId?: string): Part
     if (!total.inputTokens && !total.outputTokens && !total.totalTokens) return
     void usageLedgerService
       .recordRequest({
-        id,
+        requestId,
         modelId: model.id,
         stats: usageToStats(total),
-        providerCostUsd
+        providerCostUsd,
+        modality: 'language'
       })
       .catch((err) => {
-        logger.warn('usage ledger record failed', { id, modelId: model.id, err })
+        logger.warn('usage ledger record failed', { requestId, modelId: model.id, err })
       })
   }
 
@@ -75,7 +76,7 @@ export async function recordImageUsage(id: string, model: Model, imageCount: num
   const imageCost = model.pricing ? computeImageCost(imageCount, model.pricing) : undefined
   try {
     await usageLedgerService.recordRequest({
-      id,
+      requestId: id,
       modelId: model.id,
       modality: 'image',
       imageCount,

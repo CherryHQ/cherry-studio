@@ -20,8 +20,8 @@ read-only.
 ## 1. Why a ledger
 
 Before the ledger, usage statistics were derived from `message.stats`, the JSON
-blob on persisted chat messages. That model is insufficient for billing and
-analysis.
+blob on persisted chat messages. That model is insufficient for complete usage
+and cost analysis.
 
 ### 1.1 Stateless AI requests are invisible to messages
 
@@ -44,7 +44,8 @@ The billing funnel and direct call-site hooks record these requests into
 `message` rows can disappear with topic cleanup. API keys live inside
 `user_provider.apiKeys` JSON and disappear when users delete or rotate them.
 Provider names, model metadata, and assistant/agent display data can also
-change. A billing record cannot depend on those live objects still existing.
+change. A historical usage record cannot depend on those live objects still
+existing.
 
 The ledger stores plain snapshots with no foreign keys. Deleting a topic,
 provider, model, key, assistant, or agent never deletes the ledger row.
@@ -107,7 +108,7 @@ Design rules:
    generation are captured
    at their `AiService` call sites because they do not construct an Agent.
 2. **Converge chat writes by row key.** Chat requests use the assistant
-   message id as `messageId`, so the live billing funnel and durable
+   message id as `requestId`, so the live billing funnel and durable
    `MessageService.update` hook upsert the same row. Stateless requests use a
    generated request id.
 3. **Keep cost stable.** Cost is persisted with `costBreakdown` and
@@ -122,7 +123,7 @@ Design rules:
 
 | | `message.stats` | `usage_ledger` |
 | --- | --- | --- |
-| Purpose | Per-message source data for UI and persistence | Billing/analytics record with attribution and stable history |
+| Purpose | Per-message source data for UI and persistence | Usage-analysis record with attribution and stable history |
 | Lifecycle | Dies with the message/topic | Survives deletion of messages, topics, providers, keys, assistants, and agents |
 | Writes | Stream persistence and migration | Request hooks, post-commit hooks, migration |
 | Cost | Enriched before message persistence when possible | Stores the persisted/enriched cost snapshot |
@@ -134,11 +135,11 @@ Design rules:
 ## 3. Data model
 
 `usage_ledger` uses a UUIDv7 primary key and epoch-millisecond timestamps.
-`messageId` is unique and acts as the idempotency key.
+`requestId` is unique and acts as the idempotency key.
 
 | Group | Columns | Notes |
 | --- | --- | --- |
-| Identity | `messageId`, `topicId`, `providerId`, `providerName`, `modelId`, `modality` | No FKs. `modelId` is a `UniqueModelId` (`providerId::modelId`) and is required — a request whose model cannot be identified is not billable and is skipped. `modality` is `language`, `embedding`, or `image`. |
+| Identity | `requestId`, `topicId`, `providerId`, `providerName`, `modelId`, `modality` | No FKs. `modelId` is a `UniqueModelId` (`providerId::modelId`) and is required — a request whose model cannot be identified is not billable and is skipped. `modality` is `language`, `embedding`, or `image`. |
 | Source snapshot | `sourceType`, `sourceId`, `sourceName`, `sourceIcon` | User-facing origin of usage. Current values are `assistant` and `agent`; stateless rows may be null. |
 | API-key snapshot | `apiKeyId`, `apiKeyLabel`, `apiKeyMasked`, `apiKeyAttribution` | Denormalized at write time. Raw key secrets are never stored. |
 | Token usage | `inputTokens`, `outputTokens`, `totalTokens`, `reasoningTokens`, `noCacheTokens`, `cacheReadTokens`, `cacheWriteTokens` | Mirrors `MessageStats` / AI SDK v6 usage. `noCacheTokens` is needed for accurate cache-hit denominator. |
@@ -148,20 +149,30 @@ Design rules:
 
 Indexes:
 
-- unique `messageId`;
+- unique `requestId`;
 - `(providerId, createdAt)`;
 - `(apiKeyId, createdAt)`;
 - `(sourceType, sourceId, createdAt)`;
 - `createdAt`.
 
-CHECK constraints (value domains plus the two cross-column invariants):
+CHECK constraints enforce value domains and cross-column invariants:
 
-- `apiKeyAttribution`, `costSource`, `modality`, `costCurrency` are constrained
-  to their enums;
-- a non-null `costSource` requires a non-null `cost` — recording where a number
-  came from without the number would report unpriced usage as priced;
-- `exact` / `rotation` / `backfill` attribution requires a non-null `apiKeyId`;
-  `auth` and `none` deliberately carry no key id.
+- `apiKeyAttribution`, `sourceType`, `costSource`, `modality`, and
+  `costCurrency` are constrained to their shared enums;
+- cost is either wholly absent, or has the required
+  `cost` + `costCurrency` + `costSource` tuple. `costBreakdown` and
+  `pricingSnapshot` are optional audit details but cannot exist without that
+  tuple;
+- `exact` / `rotation` / `backfill` attribution carries an `apiKeyId`;
+  `auth` / `none` carries no key id, label, or masked key;
+- source metadata is either wholly absent, or carries a valid `sourceType` and
+  `sourceId`;
+- image rows carry a positive `imageCount`; non-image rows carry no
+  `imageCount`.
+
+Nullable metrics deliberately have no defaults. Null means unreported,
+unpriced, or not applicable; an explicit `0` remains an observed zero (for
+example, free cost or zero cache-read tokens).
 
 ### API-key attribution
 
@@ -177,10 +188,13 @@ The confidence is persisted in `apiKeyAttribution`.
 | `auth` | Provider-level credential | IAM/keyless/OAuth credential, no API key row |
 | `none` | Unresolvable | No key, lost pointer, deleted key/provider, or missing historical snapshot |
 
-Upsert semantics protect the best attribution seen so far:
+Upsert semantics preserve stable identity snapshots and the best attribution
+seen so far:
 
-- usage, cost, timing, source, and provider display columns are updated by the
-  latest writer;
+- usage and timing columns use the latest non-null value;
+- provider/source display snapshots keep the first non-null value;
+- a provider-reported cost tuple, including its pricing snapshot, is never
+  replaced or filled from a later computed tuple;
 - `topicId` never regresses to null;
 - key identity keeps the earliest non-`none` attribution because that write was
   closest to the actual request time.
@@ -219,7 +233,8 @@ auditable even if model pricing changes later.
 `UsageLedgerMigrator` runs during v2 migration and projects existing assistant
 chat messages plus agent-session messages into `usage_ledger`.
 
-- If old `stats.cost` exists, it is copied as-is.
+- If old `stats.cost` exists without metadata, migration normalizes the legacy
+  OpenRouter contract to `costCurrency = USD` and `costSource = provider`.
 - If cost is missing and the model has current pricing, migration computes a
   `computed` cost and stores the pricing snapshot.
 - If pricing is unavailable, migration still writes usage tokens and leaves
@@ -265,9 +280,9 @@ Query:
 - `sortOrder`: `asc`, `desc`.
 
 Rows sorted by a nullable metric place null values last; ordering is then
-stabilised by `id asc`. Provider display names are resolved from the
-current provider table when the stored snapshot is missing or only equals the
-provider id.
+stabilised by `id asc`. Provider display names come only from the stored
+snapshot; reads never rehydrate historical rows from the current provider
+table.
 
 ### `GET /usage-ledger/stats`
 
@@ -358,6 +373,7 @@ paginated; breakdown rows are aggregate views.
 | Multi-model chat | Yes | One assistant message/ledger row per model response |
 | API Gateway | Yes | Funnel path, generated request id |
 | Translate / topic rename | Yes | Funnel path through `generateText` |
+| Model health checks | Yes | Use the normal `generateText` / `embedMany` paths because probes consume provider usage |
 | Temporary chats kept by user | Yes | Funnel records usage; `persist()` adds durable topic context |
 | Temporary chats discarded by user | Yes | Funnel records usage even if no temp chat is kept |
 | V2-migrated chat history | Yes | `UsageLedgerMigrator` projects assistant message stats |

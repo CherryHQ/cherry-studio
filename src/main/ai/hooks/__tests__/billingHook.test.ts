@@ -43,7 +43,8 @@ describe('createBillingHook', () => {
     expect(mockRecordRequest).toHaveBeenCalledTimes(1)
     expect(mockRecordRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'assistant-abort',
+        requestId: 'assistant-abort',
+        modality: 'language',
         stats: expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
       })
     )
@@ -61,7 +62,8 @@ describe('createBillingHook', () => {
     expect(mockRecordRequest).toHaveBeenCalledTimes(1)
     expect(mockRecordRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'assistant-error',
+        requestId: 'assistant-error',
+        modality: 'language',
         stats: expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
       })
     )

@@ -488,7 +488,7 @@ describe('AiService', () => {
       await service.embedMany({ uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] })
 
       expect(mockRecordRequest).toHaveBeenCalledWith({
-        id: expect.any(String),
+        requestId: expect.any(String),
         modelId: 'test-provider::test-embedding-model',
         modality: 'embedding',
         stats: { inputTokens: 42, totalTokens: 42 }
@@ -508,20 +508,6 @@ describe('AiService', () => {
       // Let the fire-and-forget `.catch(...)` settle — an unattended rejection here
       // would surface as an unhandled rejection failing the test.
       await new Promise((resolve) => setTimeout(resolve, 20))
-    })
-
-    it('does not record usage when recordUsage is disabled (health checks)', async () => {
-      const service = createService()
-      stubEmbedding(service)
-
-      await service.embedMany(
-        { uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] },
-        {
-          recordUsage: false
-        }
-      )
-
-      expect(mockRecordRequest).not.toHaveBeenCalled()
     })
   })
 })
@@ -1006,13 +992,11 @@ describe('AiService tool approval', () => {
         apiKeyOverride: 'sk-selected',
         system: 'test',
         prompt: 'hi'
-      }),
-      [],
-      { recordUsage: false }
+      })
     )
   })
 
-  it('does not record usage for embedding health checks', async () => {
+  it('checks embedding models with the normal embedding path', async () => {
     const service = createService()
     const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
     mockModelGetByKey.mockReturnValue({
@@ -1030,7 +1014,7 @@ describe('AiService tool approval', () => {
       uniqueModelId: 'test-provider::test-embedding'
     })
 
-    expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }), { recordUsage: false })
+    expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }))
   })
 
   it('fails rerank health checks when the probe returns an empty ranking', async () => {
@@ -1376,7 +1360,8 @@ describe('createBillingHook', () => {
     expect(mockRecordRequest).toHaveBeenCalledTimes(1)
     expect(mockRecordRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'assistant-1',
+        requestId: 'assistant-1',
+        modality: 'language',
         modelId: 'test-provider::test-model',
         // usage accumulates across steps; raw.cost is threaded as providerCostUsd
         stats: expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }),
@@ -1402,8 +1387,8 @@ describe('createBillingHook', () => {
 
     expect(mockRecordRequest).toHaveBeenCalledTimes(1)
     const payload = mockRecordRequest.mock.calls[0][0]
-    expect(typeof payload.id).toBe('string')
-    expect(payload.id.length).toBeGreaterThan(0)
+    expect(typeof payload.requestId).toBe('string')
+    expect(payload.requestId.length).toBeGreaterThan(0)
     // No provider cost in the raw blob → providerCostUsd is undefined.
     expect(payload.providerCostUsd).toBeUndefined()
   })

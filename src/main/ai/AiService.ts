@@ -102,10 +102,6 @@ export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
 }
 
-interface UsageRecordingOptions {
-  recordUsage?: boolean
-}
-
 /** Non-streaming text generation request — pure transport data. */
 export interface AiGenerateRequest extends AiBaseRequest {
   system?: string
@@ -430,8 +426,7 @@ export class AiService extends BaseService {
 
   async generateText(
     request: AsInProcess<AiGenerateRequest>,
-    extraFeatures: readonly RequestFeature[] = [],
-    usageOptions: UsageRecordingOptions = {}
+    extraFeatures: readonly RequestFeature[] = []
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
@@ -450,11 +445,7 @@ export class AiService extends BaseService {
       tools,
       system: request.system ?? system,
       options,
-      hookParts: [
-        this.analyticsHookPart(model),
-        ...(usageOptions.recordUsage === false ? [] : [createBillingHook(model)]),
-        ...hookParts
-      ]
+      hookParts: [this.analyticsHookPart(model), createBillingHook(model), ...hookParts]
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
@@ -691,10 +682,7 @@ export class AiService extends BaseService {
 
   // ── Embedding ──
 
-  async embedMany(
-    request: AsInProcess<AiEmbedRequest>,
-    usageOptions: UsageRecordingOptions = {}
-  ): Promise<AiEmbedResult> {
+  async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
@@ -710,11 +698,11 @@ export class AiService extends BaseService {
 
     // Usage ledger: embeddings are token-priced (input rate only); cost is
     // enriched inside recordRequest from the model's pricing.
-    if (usageOptions.recordUsage !== false && result.usage?.tokens) {
+    if (result.usage?.tokens) {
       const tokens = result.usage.tokens
       void usageLedgerService
         .recordRequest({
-          id: crypto.randomUUID(),
+          requestId: crypto.randomUUID(),
           modelId: model.id,
           modality: 'embedding',
           stats: { inputTokens: tokens, totalTokens: tokens }
@@ -828,9 +816,9 @@ export class AiService extends BaseService {
         return result
       })
     } else if (isEmbeddingModel(model)) {
-      probe = this.embedMany({ ...probeRequest, values: ['test'] }, { recordUsage: false })
+      probe = this.embedMany({ ...probeRequest, values: ['test'] })
     } else {
-      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' }, [], { recordUsage: false })
+      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
     }
 
     try {

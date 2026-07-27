@@ -851,7 +851,7 @@ describe('AgentSessionMessageService', () => {
         const rows = await dbh.db.select().from(usageLedgerTable)
         expect(rows).toHaveLength(1)
         expect(rows[0]).toMatchObject({
-          messageId: LEDGER_MSG,
+          requestId: LEDGER_MSG,
           providerId: 'anthropic',
           modelId: 'anthropic::claude-sonnet',
           totalTokens: 15,

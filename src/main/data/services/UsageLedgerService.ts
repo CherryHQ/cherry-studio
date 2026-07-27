@@ -1,16 +1,16 @@
 /**
- * Usage Ledger Service - durable per-message usage/cost records
+ * Usage Ledger Service - durable best-effort per-request usage/cost records
  *
- * The ledger is the billing source of truth: append-only snapshots that
- * survive deletion of the message, topic, provider, and API key they
- * describe (the table has no foreign keys by design).
+ * The ledger is the usage-analysis source of truth: stable snapshots that
+ * survive deletion of the message, topic, provider, and API key they describe
+ * (the table has no foreign keys by design).
  *
  * Rows are recorded from two converging sources: a billing funnel in the AI
  * pipeline (`createBillingHook`, plus the `embedMany`/`generateImage`
  * call sites) fires `recordRequest` per request, and post-commit data-layer
  * hooks (`MessageService.update`, `TemporaryChatService.persist`,
  * `AgentSessionMessageService.saveMessage`) fire `recordFromMessage` /
- * `recordRequest`. Both paths upsert on the same `messageId`.
+ * `recordRequest`. Both paths upsert on the same `requestId`.
  *
  * API key attribution is resolved here, best-effort, from ProviderService
  * state at write time (the pipeline does not thread the chosen key through):
@@ -37,7 +37,6 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { topicTable } from '@data/db/schemas/topic'
 import { type UsageLedgerRow, usageLedgerTable } from '@data/db/schemas/usageLedger'
-import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import type {
   UsageLedgerGroupBy,
@@ -54,12 +53,7 @@ import type {
 } from '@shared/data/api/schemas/usageLedger'
 import type { Message } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type {
-  UsageLedgerAttribution,
-  UsageLedgerEntry,
-  UsageLedgerModality,
-  UsageLedgerSourceType
-} from '@shared/data/types/usageLedger'
+import type { UsageLedgerAttribution, UsageLedgerEntry, UsageLedgerSourceType } from '@shared/data/types/usageLedger'
 import { maskApiKeyForSnapshot } from '@shared/utils/api'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm'
@@ -84,20 +78,20 @@ interface KeyAttribution {
 function rowToEntry(row: UsageLedgerRow): UsageLedgerEntry {
   return {
     id: row.id,
-    messageId: row.messageId,
+    requestId: row.requestId,
     topicId: row.topicId,
     providerId: row.providerId,
     providerName: row.providerName,
-    sourceType: row.sourceType as UsageLedgerSourceType | null,
+    sourceType: row.sourceType,
     sourceId: row.sourceId,
     sourceName: row.sourceName,
     sourceIcon: row.sourceIcon,
     modelId: row.modelId,
-    modality: row.modality as UsageLedgerModality,
+    modality: row.modality,
     apiKeyId: row.apiKeyId,
     apiKeyLabel: row.apiKeyLabel,
     apiKeyMasked: row.apiKeyMasked,
-    apiKeyAttribution: row.apiKeyAttribution as UsageLedgerAttribution,
+    apiKeyAttribution: row.apiKeyAttribution,
     inputTokens: row.inputTokens,
     outputTokens: row.outputTokens,
     totalTokens: row.totalTokens,
@@ -108,37 +102,15 @@ function rowToEntry(row: UsageLedgerRow): UsageLedgerEntry {
     imageCount: row.imageCount,
     cost: row.cost,
     costCurrency: row.costCurrency,
-    costSource: row.costSource as UsageLedgerEntry['costSource'],
-    costBreakdown: row.costBreakdown ?? null,
-    pricingSnapshot: row.pricingSnapshot ?? null,
+    costSource: row.costSource,
+    costBreakdown: row.costBreakdown,
+    pricingSnapshot: row.pricingSnapshot,
     timeFirstTokenMs: row.timeFirstTokenMs,
     timeCompletionMs: row.timeCompletionMs,
     timeThinkingMs: row.timeThinkingMs,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
-}
-
-async function readProviderNameMap(): Promise<Map<string, string>> {
-  const rows = await application
-    .get('DbService')
-    .getDb()
-    .select({ providerId: userProviderTable.providerId, name: userProviderTable.name })
-    .from(userProviderTable)
-
-  return new Map(rows.map((row) => [row.providerId, row.name]))
-}
-
-function resolveProviderNameSnapshot(
-  providerId: string,
-  snapshotName: string | null,
-  providerNames: Map<string, string>
-): string | null {
-  if (snapshotName && snapshotName !== providerId) {
-    return snapshotName
-  }
-
-  return providerNames.get(providerId) ?? snapshotName
 }
 
 /** `undefined` aggregates every row into one group — used by the ungrouped timeline. */
@@ -203,11 +175,7 @@ type GroupIdentityRow = {
   [K in keyof ReturnType<typeof groupIdentitySelect>]: K extends 'apiKeyAttribution' ? string : string | null
 }
 
-function toGroupIdentity(
-  row: GroupIdentityRow,
-  groupBy: GroupDimension,
-  providerNames: Map<string, string>
-): UsageLedgerGroupIdentity {
+function toGroupIdentity(row: GroupIdentityRow, groupBy: GroupDimension): UsageLedgerGroupIdentity {
   if (groupBy === undefined) {
     return {}
   }
@@ -222,7 +190,7 @@ function toGroupIdentity(
         }
       : {
           providerId: row.providerId as string,
-          providerName: resolveProviderNameSnapshot(row.providerId as string, row.providerName, providerNames)
+          providerName: row.providerName
         }),
     ...(groupBy === 'apiKey'
       ? {
@@ -236,23 +204,19 @@ function toGroupIdentity(
   }
 }
 
-function toStatsGroupIdentity(
-  row: GroupIdentityRow,
-  groupBy: UsageLedgerGroupBy,
-  providerNames: Map<string, string>
-): UsageLedgerStatsGroupIdentity {
+function toStatsGroupIdentity(row: GroupIdentityRow, groupBy: UsageLedgerGroupBy): UsageLedgerStatsGroupIdentity {
   switch (groupBy) {
     case 'provider':
       return {
         groupBy,
         providerId: row.providerId as string,
-        providerName: resolveProviderNameSnapshot(row.providerId as string, row.providerName, providerNames)
+        providerName: row.providerName
       }
     case 'apiKey':
       return {
         groupBy,
         providerId: row.providerId as string,
-        providerName: resolveProviderNameSnapshot(row.providerId as string, row.providerName, providerNames),
+        providerName: row.providerName,
         apiKeyId: row.apiKeyId,
         apiKeyLabel: row.apiKeyLabel,
         apiKeyMasked: row.apiKeyMasked,
@@ -262,7 +226,7 @@ function toStatsGroupIdentity(
       return {
         groupBy,
         providerId: row.providerId as string,
-        providerName: resolveProviderNameSnapshot(row.providerId as string, row.providerName, providerNames),
+        providerName: row.providerName,
         modelId: row.modelId as string
       }
     case 'source':
@@ -371,14 +335,14 @@ function statsToColumns(stats: NonNullable<Message['stats']>) {
   }
 }
 
-export interface RecordRequestInput {
+interface RecordRequestBase {
   /**
-   * Ledger row key. For chat requests this is the assistant message id (the
-   * same key the `MessageService.update` hook writes, so the two capture
-   * paths converge on one row); for stateless requests (API gateway,
+   * Stable ledger request key. For chat requests this is the assistant message
+   * id (the same key the `MessageService.update` hook writes, so the two
+   * capture paths converge on one row); for stateless requests (API gateway,
    * translate, rename) it is a per-request id.
    */
-  id: string
+  requestId: string
   topicId?: string | null
   agentSessionId?: string | null
   source?: SourceSnapshot | null
@@ -387,11 +351,14 @@ export interface RecordRequestInput {
   stats: NonNullable<Message['stats']>
   /** Provider-reported cost candidate from raw usage (e.g. OpenRouter). */
   providerCostUsd?: number
-  /** Request kind; defaults to `language`. */
-  modality?: UsageLedgerModality
-  /** Generated image count (modality `image`). */
-  imageCount?: number
 }
+
+export type RecordRequestInput = RecordRequestBase &
+  (
+    | { modality: 'language'; imageCount?: never }
+    | { modality: 'embedding'; imageCount?: never }
+    | { modality: 'image'; imageCount: number }
+  )
 
 export class UsageLedgerService {
   /**
@@ -403,10 +370,11 @@ export class UsageLedgerService {
     if (message.role !== 'assistant') return
     if (!message.stats || !message.modelId) return
     await this.recordRequest({
-      id: message.id,
+      requestId: message.id,
       topicId: message.topicId,
       modelId: message.modelId,
-      stats: message.stats
+      stats: message.stats,
+      modality: 'language'
     })
   }
 
@@ -434,13 +402,12 @@ export class UsageLedgerService {
     try {
       await this.writeRequest(input)
     } catch (err) {
-      logger.error('recordRequest failed', { messageId: input.id, modelId: input.modelId, err })
+      logger.error('recordRequest failed', { requestId: input.requestId, modelId: input.modelId, err })
     }
   }
 
   private async writeRequest(input: RecordRequestInput): Promise<void> {
-    const modality = input.modality ?? 'language'
-    if (!hasUsageSignal(input.stats) && !input.imageCount) return
+    if (input.modality === 'image' ? input.imageCount <= 0 : !hasUsageSignal(input.stats)) return
 
     let providerId: string
     try {
@@ -455,7 +422,7 @@ export class UsageLedgerService {
     // Image requests are priced per image at the call site (the token-based
     // enrichment doesn't apply).
     const stats =
-      input.stats.cost === undefined && modality !== 'image'
+      input.stats.cost === undefined && input.modality !== 'image'
         ? ((await enrichStatsWithCost(input.stats, input.modelId as UniqueModelId, input.providerCostUsd)) ??
           input.stats)
         : input.stats
@@ -467,7 +434,7 @@ export class UsageLedgerService {
       (await resolveAgentSessionSource(input.agentSessionId))
 
     const values = {
-      messageId: input.id,
+      requestId: input.requestId,
       topicId: input.topicId ?? null,
       providerId,
       providerName: key.providerName ?? null,
@@ -476,13 +443,13 @@ export class UsageLedgerService {
       sourceName: source?.name ?? null,
       sourceIcon: source?.icon ?? null,
       modelId: input.modelId,
-      modality,
+      modality: input.modality,
       apiKeyId: key.keyId ?? null,
       apiKeyLabel: key.label ?? null,
       apiKeyMasked: key.masked ?? null,
       apiKeyAttribution: key.attribution,
       ...statsToColumns(stats),
-      imageCount: input.imageCount ?? null
+      imageCount: input.modality === 'image' ? input.imageCount : null
     }
 
     // In the DO UPDATE branch, an unqualified/table-qualified column reads the
@@ -498,47 +465,48 @@ export class UsageLedgerService {
     // together so cost / currency / source / breakdown / pricing snapshot
     // stay consistent.
     const keepProviderCost = sql`${usageLedgerTable.costSource} = 'provider' AND COALESCE(excluded.cost_source, '') <> 'provider'`
-    application.get('DbService').withWriteTx((tx) => {
-      tx.insert(usageLedgerTable)
-        .values(values)
-        .onConflictDoUpdate({
-          target: usageLedgerTable.messageId,
-          set: {
-            ...values,
-            // The billing funnel records without topic context; the
-            // persistence hook records with it. Whichever lands second must
-            // not erase the topic.
-            topicId: sql`COALESCE(excluded.topic_id, ${usageLedgerTable.topicId})`,
-            providerName: sql`COALESCE(${usageLedgerTable.providerName}, excluded.provider_name)`,
-            sourceType: sql`COALESCE(${usageLedgerTable.sourceType}, excluded.source_type)`,
-            sourceId: sql`COALESCE(${usageLedgerTable.sourceId}, excluded.source_id)`,
-            sourceName: sql`COALESCE(${usageLedgerTable.sourceName}, excluded.source_name)`,
-            sourceIcon: sql`COALESCE(${usageLedgerTable.sourceIcon}, excluded.source_icon)`,
-            // Metric columns stay last-write-wins, but a writer that structurally
-            // carries no value must not erase one. The billing funnel records
-            // `usageToStats(total)` — token fields only, never cost or timings —
-            // so an unguarded funnel write landing second would null them out.
-            cost: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.cost} ELSE COALESCE(excluded.cost, ${usageLedgerTable.cost}) END`,
-            costCurrency: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costCurrency} ELSE COALESCE(excluded.cost_currency, ${usageLedgerTable.costCurrency}) END`,
-            costSource: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costSource} ELSE COALESCE(excluded.cost_source, ${usageLedgerTable.costSource}) END`,
-            costBreakdown: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costBreakdown} ELSE COALESCE(excluded.cost_breakdown, ${usageLedgerTable.costBreakdown}) END`,
-            pricingSnapshot: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.pricingSnapshot} ELSE COALESCE(excluded.pricing_snapshot, ${usageLedgerTable.pricingSnapshot}) END`,
-            timeFirstTokenMs: sql`COALESCE(excluded.time_first_token_ms, ${usageLedgerTable.timeFirstTokenMs})`,
-            timeCompletionMs: sql`COALESCE(excluded.time_completion_ms, ${usageLedgerTable.timeCompletionMs})`,
-            timeThinkingMs: sql`COALESCE(excluded.time_thinking_ms, ${usageLedgerTable.timeThinkingMs})`,
-            noCacheTokens: sql`COALESCE(excluded.no_cache_tokens, ${usageLedgerTable.noCacheTokens})`,
-            cacheReadTokens: sql`COALESCE(excluded.cache_read_tokens, ${usageLedgerTable.cacheReadTokens})`,
-            cacheWriteTokens: sql`COALESCE(excluded.cache_write_tokens, ${usageLedgerTable.cacheWriteTokens})`,
-            apiKeyId: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyId} ELSE excluded.api_key_id END`,
-            apiKeyLabel: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyLabel} ELSE excluded.api_key_label END`,
-            apiKeyMasked: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyMasked} ELSE excluded.api_key_masked END`,
-            apiKeyAttribution: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyAttribution} ELSE excluded.api_key_attribution END`,
-            // $onUpdateFn does not fire on conflict-update paths — stamp explicitly.
-            updatedAt: Date.now()
-          }
-        })
-        .run()
-    })
+    application
+      .get('DbService')
+      .getDb()
+      .insert(usageLedgerTable)
+      .values(values)
+      .onConflictDoUpdate({
+        target: usageLedgerTable.requestId,
+        set: {
+          ...values,
+          // The billing funnel records without topic context; the
+          // persistence hook records with it. Whichever lands second must
+          // not erase the topic.
+          topicId: sql`COALESCE(excluded.topic_id, ${usageLedgerTable.topicId})`,
+          providerName: sql`COALESCE(${usageLedgerTable.providerName}, excluded.provider_name)`,
+          sourceType: sql`COALESCE(${usageLedgerTable.sourceType}, excluded.source_type)`,
+          sourceId: sql`COALESCE(${usageLedgerTable.sourceId}, excluded.source_id)`,
+          sourceName: sql`COALESCE(${usageLedgerTable.sourceName}, excluded.source_name)`,
+          sourceIcon: sql`COALESCE(${usageLedgerTable.sourceIcon}, excluded.source_icon)`,
+          // Metric columns stay last-write-wins, but a writer that structurally
+          // carries no value must not erase one. The billing funnel records
+          // `usageToStats(total)` — token fields only, never cost or timings —
+          // so an unguarded funnel write landing second would null them out.
+          cost: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.cost} ELSE COALESCE(excluded.cost, ${usageLedgerTable.cost}) END`,
+          costCurrency: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costCurrency} ELSE COALESCE(excluded.cost_currency, ${usageLedgerTable.costCurrency}) END`,
+          costSource: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costSource} ELSE COALESCE(excluded.cost_source, ${usageLedgerTable.costSource}) END`,
+          costBreakdown: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costBreakdown} ELSE COALESCE(excluded.cost_breakdown, ${usageLedgerTable.costBreakdown}) END`,
+          pricingSnapshot: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.pricingSnapshot} ELSE COALESCE(excluded.pricing_snapshot, ${usageLedgerTable.pricingSnapshot}) END`,
+          timeFirstTokenMs: sql`COALESCE(excluded.time_first_token_ms, ${usageLedgerTable.timeFirstTokenMs})`,
+          timeCompletionMs: sql`COALESCE(excluded.time_completion_ms, ${usageLedgerTable.timeCompletionMs})`,
+          timeThinkingMs: sql`COALESCE(excluded.time_thinking_ms, ${usageLedgerTable.timeThinkingMs})`,
+          noCacheTokens: sql`COALESCE(excluded.no_cache_tokens, ${usageLedgerTable.noCacheTokens})`,
+          cacheReadTokens: sql`COALESCE(excluded.cache_read_tokens, ${usageLedgerTable.cacheReadTokens})`,
+          cacheWriteTokens: sql`COALESCE(excluded.cache_write_tokens, ${usageLedgerTable.cacheWriteTokens})`,
+          apiKeyId: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyId} ELSE excluded.api_key_id END`,
+          apiKeyLabel: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyLabel} ELSE excluded.api_key_label END`,
+          apiKeyMasked: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyMasked} ELSE excluded.api_key_masked END`,
+          apiKeyAttribution: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyAttribution} ELSE excluded.api_key_attribution END`,
+          // $onUpdateFn does not fire on conflict-update paths — stamp explicitly.
+          updatedAt: Date.now()
+        }
+      })
+      .run()
   }
 
   /**
@@ -662,15 +630,8 @@ export class UsageLedgerService {
       db.select({ count: sql<number>`count(*)` }).from(usageLedgerTable).where(where)
     ])
 
-    const providerNames = await readProviderNameMap()
-
     return {
-      items: rows.map((row) =>
-        rowToEntry({
-          ...row,
-          providerName: resolveProviderNameSnapshot(row.providerId, row.providerName, providerNames)
-        })
-      ),
+      items: rows.map(rowToEntry),
       total: count,
       page
     }
@@ -704,9 +665,8 @@ export class UsageLedgerService {
       .groupBy(...groupIdentityColumns(query.groupBy), usageLedgerTable.costCurrency)
       .orderBy(sql`coalesce(sum(${usageLedgerTable.cost}), 0) desc`)
 
-    const providerNames = query.groupBy === 'source' ? new Map<string, string>() : await readProviderNameMap()
     const buckets: UsageLedgerStatsBucket[] = rows.map((row) => ({
-      ...toStatsGroupIdentity(row, query.groupBy, providerNames),
+      ...toStatsGroupIdentity(row, query.groupBy),
       costCurrency: row.costCurrency,
       totalCost: row.totalCost,
       totalInputTokens: row.totalInputTokens,
@@ -753,12 +713,8 @@ export class UsageLedgerService {
       .groupBy(dayBucket, ...groupIdentityColumns(query.groupBy), usageLedgerTable.costCurrency)
       .orderBy(asc(dayBucket), asc(usageLedgerTable.costCurrency))
 
-    const providerNames =
-      query.groupBy === undefined || query.groupBy === 'source'
-        ? new Map<string, string>()
-        : await readProviderNameMap()
     const buckets: UsageLedgerTimelineBucket[] = rows.map((row) => ({
-      ...toGroupIdentity(row, query.groupBy, providerNames),
+      ...toGroupIdentity(row, query.groupBy),
       date: row.date,
       costCurrency: row.costCurrency,
       totalTokens: row.totalTokens,

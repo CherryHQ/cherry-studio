@@ -1,41 +1,54 @@
-import { CostSourceSchema, type MessageStats } from '@shared/data/types/message'
+import { type CostSource, CostSourceSchema, type MessageStats } from '@shared/data/types/message'
+import { CURRENCY, type Currency, objectValues } from '@shared/data/types/model'
+import {
+  type UsageLedgerAttribution,
+  UsageLedgerAttributionSchema,
+  type UsageLedgerModality,
+  UsageLedgerModalitySchema,
+  type UsageLedgerSourceType,
+  UsageLedgerSourceTypeSchema
+} from '@shared/data/types/usageLedger'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
-const costSourceCheckValues = CostSourceSchema.options.map((source) => `'${source}'`).join(', ')
+const sqlEnumValues = (values: readonly string[]) => values.map((value) => `'${value}'`).join(', ')
+const attributionCheckValues = sqlEnumValues(UsageLedgerAttributionSchema.options)
+const costCurrencyCheckValues = sqlEnumValues(objectValues(CURRENCY))
+const costSourceCheckValues = sqlEnumValues(CostSourceSchema.options)
+const modalityCheckValues = sqlEnumValues(UsageLedgerModalitySchema.options)
+const sourceTypeCheckValues = sqlEnumValues(UsageLedgerSourceTypeSchema.options)
 
 /**
- * Usage ledger - append-only record of per-message token usage and cost.
+ * Usage ledger - durable best-effort record of per-request usage and cost.
  *
- * The ledger is the durable billing record: it must survive deletion of the
- * message, topic, provider, model, and API key it describes. Therefore it has
- * NO foreign keys — all references are plain string snapshots taken at write
- * time, and provider/key identity is denormalized (provider name, key label,
- * masked key) so rows stay readable after the referenced provider/key is
- * deleted.
+ * It must survive deletion of the message, topic, provider, model, and API key
+ * it describes. Therefore it has NO foreign keys — all references are plain
+ * string snapshots taken at write time, and provider/key identity is
+ * denormalized (provider name, key label, masked key) so rows stay readable
+ * after the referenced provider/key is deleted.
  *
  * Rows are written by `recordRequest`/`recordFromMessage` from two converging
  * sources: a billing funnel in the AI pipeline (`createBillingHook`,
  * plus the `embedMany`/`generateImage` call sites) and post-commit data-layer
  * hooks (`MessageService.update`, `TemporaryChatService.persist`,
- * `AgentSessionMessageService.saveMessage`). One row per `messageId` (the
- * assistant message id for chat, a per-request id for stateless requests);
- * re-persists upsert with last-write-wins usage/cost and earliest-wins key
- * attribution (see `UsageLedgerService.recordRequest`).
+ * `AgentSessionMessageService.saveMessage`). One row per `requestId` (the
+ * assistant message id for chat, a generated id for stateless requests);
+ * re-persists converge through a guarded upsert (see
+ * `UsageLedgerService.recordRequest`).
  */
 export const usageLedgerTable = sqliteTable(
   'usage_ledger',
   {
     id: uuidPrimaryKeyOrdered(),
-    // Idempotency key: one ledger row per assistant message. Plain string, no FK.
-    messageId: text().notNull(),
+    // Idempotency key: one ledger row per AI request. Plain string, no FK.
+    requestId: text().notNull(),
     topicId: text(),
     providerId: text().notNull(),
     providerName: text(),
     // Usage source snapshot: chat assistant, agent, or null for stateless calls.
-    sourceType: text(),
+    sourceType: text().$type<UsageLedgerSourceType>(),
     sourceId: text(),
     sourceName: text(),
     sourceIcon: text(),
@@ -45,7 +58,7 @@ export const usageLedgerTable = sqliteTable(
     modelId: text().notNull(),
     // What kind of request this row bills: language (chat/gateway/one-shot
     // text), embedding (token-priced, input only), image (per-image priced).
-    modality: text().notNull().default('language'),
+    modality: text().$type<UsageLedgerModality>().notNull(),
 
     // API key attribution snapshot (denormalized — key may be deleted later)
     apiKeyId: text(),
@@ -55,7 +68,7 @@ export const usageLedgerTable = sqliteTable(
     // (best-effort via the round-robin pointer), backfill (legacy/development
     // compatibility), auth (provider-level credential, e.g. IAM), none
     // (unresolvable).
-    apiKeyAttribution: text().notNull().default('none'),
+    apiKeyAttribution: text().$type<UsageLedgerAttribution>().notNull(),
 
     // Token usage (AI SDK v6 names, mirrors MessageStats)
     inputTokens: integer(),
@@ -70,10 +83,10 @@ export const usageLedgerTable = sqliteTable(
 
     // Cost (mirrors MessageStats cost fields)
     cost: real(),
-    costCurrency: text(),
-    costSource: text(),
-    costBreakdown: text({ mode: 'json' }).$type<MessageStats['costBreakdown']>(),
-    pricingSnapshot: text({ mode: 'json' }).$type<MessageStats['pricingSnapshot']>(),
+    costCurrency: text().$type<Currency>(),
+    costSource: text().$type<CostSource>(),
+    costBreakdown: text({ mode: 'json' }).$type<NonNullable<MessageStats['costBreakdown']>>(),
+    pricingSnapshot: text({ mode: 'json' }).$type<NonNullable<MessageStats['pricingSnapshot']>>(),
     // Performance metrics measured locally.
     timeFirstTokenMs: integer(),
     timeCompletionMs: integer(),
@@ -82,31 +95,73 @@ export const usageLedgerTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
-    uniqueIndex('usage_ledger_message_id_idx').on(t.messageId),
+    uniqueIndex('usage_ledger_request_id_idx').on(t.requestId),
     index('usage_ledger_provider_created_idx').on(t.providerId, t.createdAt),
     index('usage_ledger_api_key_created_idx').on(t.apiKeyId, t.createdAt),
     index('usage_ledger_source_created_idx').on(t.sourceType, t.sourceId, t.createdAt),
     index('usage_ledger_created_at_idx').on(t.createdAt),
-    check(
-      'usage_ledger_attribution_check',
-      sql`${t.apiKeyAttribution} IN ('exact', 'rotation', 'backfill', 'auth', 'none')`
-    ),
+    check('usage_ledger_attribution_check', sql`${t.apiKeyAttribution} IN (${sql.raw(attributionCheckValues)})`),
     // NULL passes a CHECK in SQLite, so nullable columns need no IS NULL branch.
     check('usage_ledger_cost_source_check', sql`${t.costSource} IN (${sql.raw(costSourceCheckValues)})`),
-    // A cost source describes a cost: recording where a number came from
-    // without the number itself would report unpriced usage as priced.
-    check('usage_ledger_cost_pairing_check', sql`${t.costSource} IS NULL OR ${t.cost} IS NOT NULL`),
-    // The three key-level attributions name a specific key; `auth` (provider
-    // credential) and `none` (unresolvable) deliberately carry no key id.
+    // A cost is either wholly absent, or has the required amount/currency/source
+    // tuple. Breakdown and pricing snapshots are optional audit detail, but
+    // cannot exist without the core tuple. Explicit cost=0 remains valid.
+    check(
+      'usage_ledger_cost_tuple_check',
+      sql`(
+        ${t.cost} IS NULL
+        AND ${t.costCurrency} IS NULL
+        AND ${t.costSource} IS NULL
+        AND ${t.costBreakdown} IS NULL
+        AND ${t.pricingSnapshot} IS NULL
+      ) OR (
+        ${t.cost} IS NOT NULL
+        AND ${t.costCurrency} IS NOT NULL
+        AND ${t.costSource} IS NOT NULL
+      )`
+    ),
+    // Key-specific attributions carry the complete key snapshot identity;
+    // provider-level or unresolved authentication carries none of it.
     check(
       'usage_ledger_api_key_identity_check',
-      sql`${t.apiKeyAttribution} NOT IN ('exact', 'rotation', 'backfill') OR ${t.apiKeyId} IS NOT NULL`
+      sql`(
+        ${t.apiKeyAttribution} IN ('exact', 'rotation', 'backfill')
+        AND ${t.apiKeyId} IS NOT NULL
+      ) OR (
+        ${t.apiKeyAttribution} IN ('auth', 'none')
+        AND ${t.apiKeyId} IS NULL
+        AND ${t.apiKeyLabel} IS NULL
+        AND ${t.apiKeyMasked} IS NULL
+      )`
     ),
-    check('usage_ledger_modality_check', sql`${t.modality} IN ('language', 'embedding', 'image')`),
-    // Constrain to the CURRENCY enum (keep in sync with provider-registry
-    // `CURRENCY`) so stats() can safely GROUP BY costCurrency without 'USD' vs
-    // 'usd' silently splitting buckets — matches MessageStats.costCurrency's enum.
-    check('usage_ledger_cost_currency_check', sql`${t.costCurrency} IN ('USD', 'CNY')`)
+    check(
+      'usage_ledger_source_identity_check',
+      sql`(
+        ${t.sourceType} IS NULL
+        AND ${t.sourceId} IS NULL
+        AND ${t.sourceName} IS NULL
+        AND ${t.sourceIcon} IS NULL
+      ) OR (
+        ${t.sourceType} IS NOT NULL
+        AND ${t.sourceId} IS NOT NULL
+      )`
+    ),
+    check('usage_ledger_source_type_check', sql`${t.sourceType} IN (${sql.raw(sourceTypeCheckValues)})`),
+    check('usage_ledger_modality_check', sql`${t.modality} IN (${sql.raw(modalityCheckValues)})`),
+    check(
+      'usage_ledger_image_count_check',
+      sql`(
+        ${t.modality} = 'image'
+        AND ${t.imageCount} IS NOT NULL
+        AND ${t.imageCount} > 0
+      ) OR (
+        ${t.modality} <> 'image'
+        AND ${t.imageCount} IS NULL
+      )`
+    ),
+    // Keep in sync with the shared provider-registry currency enum so GROUP BY
+    // cannot silently split equivalent currency spellings.
+    check('usage_ledger_cost_currency_check', sql`${t.costCurrency} IN (${sql.raw(costCurrencyCheckValues)})`)
   ]
 )
 

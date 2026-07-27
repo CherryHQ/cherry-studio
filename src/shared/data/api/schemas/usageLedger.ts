@@ -14,6 +14,7 @@
 
 import * as z from 'zod'
 
+import type { Currency } from '../../types/model'
 import { type UsageLedgerAttribution, type UsageLedgerEntry } from '../../types/usageLedger'
 import type { OffsetPaginationParams, OffsetPaginationResponse } from '../types'
 
@@ -139,7 +140,7 @@ export type UsageLedgerStatsGroupIdentity =
  * so different currencies are never summed together.
  */
 export interface UsageLedgerStatsMetrics {
-  costCurrency: string | null
+  costCurrency: Currency | null
   totalCost: number
   totalInputTokens: number
   totalOutputTokens: number
@@ -165,7 +166,7 @@ export interface UsageLedgerStatsResponse {
 export interface UsageLedgerTimelineBucket extends UsageLedgerGroupIdentity {
   /** Local calendar date, formatted as YYYY-MM-DD. */
   date: string
-  costCurrency: string | null
+  costCurrency: Currency | null
   totalTokens: number
   totalNoCacheTokens: number
   totalCacheReadTokens: number

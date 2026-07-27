@@ -146,7 +146,7 @@ describe('UsageLedgerMigrator', () => {
 
     const rows = await dbh.db.select().from(usageLedgerTable)
     expect(rows).toHaveLength(2)
-    expect(rows.find((row) => row.messageId === 'chat-message-ledger')).toMatchObject({
+    expect(rows.find((row) => row.requestId === 'chat-message-ledger')).toMatchObject({
       topicId: 'topic-ledger',
       providerId: 'openai',
       providerName: 'OpenAI',
@@ -173,7 +173,7 @@ describe('UsageLedgerMigrator', () => {
       createdAt: 1000,
       updatedAt: 1000
     })
-    expect(rows.find((row) => row.messageId === 'agent-message-ledger')).toMatchObject({
+    expect(rows.find((row) => row.requestId === 'agent-message-ledger')).toMatchObject({
       topicId: null,
       providerId: 'openai',
       providerName: 'OpenAI',
@@ -185,17 +185,19 @@ describe('UsageLedgerMigrator', () => {
       apiKeyAttribution: 'backfill',
       totalTokens: 7,
       cost: 0.02,
+      costCurrency: 'USD',
+      costSource: 'provider',
       createdAt: 2000,
       updatedAt: 2000
     })
 
-    // Rerunning the migrator is safe: the unique messageId key and conflict
+    // Rerunning the migrator is safe: the unique requestId key and conflict
     // target converge on the existing records instead of duplicating usage —
     // and the rerun reports 0 processed because nothing new was written.
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 0 })
     const rowsAfterRerun = await dbh.db.select().from(usageLedgerTable)
     expect(rowsAfterRerun).toHaveLength(2)
-    expect(rowsAfterRerun.map((row) => row.messageId).sort()).toEqual(['agent-message-ledger', 'chat-message-ledger'])
+    expect(rowsAfterRerun.map((row) => row.requestId).sort()).toEqual(['agent-message-ledger', 'chat-message-ledger'])
   })
 
   it('attributes backfilled usage only when the provider has exactly one enabled key', async () => {
@@ -283,19 +285,19 @@ describe('UsageLedgerMigrator', () => {
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 3 })
 
     const rows = await dbh.db.select().from(usageLedgerTable)
-    expect(rows.find((row) => row.messageId === 'multi-key-message')).toMatchObject({
+    expect(rows.find((row) => row.requestId === 'multi-key-message')).toMatchObject({
       apiKeyAttribution: 'none',
       apiKeyId: null,
       apiKeyLabel: null,
       apiKeyMasked: null
     })
-    expect(rows.find((row) => row.messageId === 'disabled-key-message')).toMatchObject({
+    expect(rows.find((row) => row.requestId === 'disabled-key-message')).toMatchObject({
       apiKeyAttribution: 'none',
       apiKeyId: null,
       apiKeyLabel: null,
       apiKeyMasked: null
     })
-    expect(rows.find((row) => row.messageId === 'single-key-message')).toMatchObject({
+    expect(rows.find((row) => row.requestId === 'single-key-message')).toMatchObject({
       apiKeyAttribution: 'backfill',
       apiKeyId: 'key-primary',
       apiKeyLabel: 'Primary',
@@ -350,7 +352,7 @@ describe('UsageLedgerMigrator', () => {
       success: true,
       stats: { sourceCount: 2, targetCount: 0, skippedCount: 2 }
     })
-    expect(await dbh.db.select().from(usageLedgerTable).where(eq(usageLedgerTable.messageId, 'timing-only'))).toEqual(
+    expect(await dbh.db.select().from(usageLedgerTable).where(eq(usageLedgerTable.requestId, 'timing-only'))).toEqual(
       []
     )
   })
@@ -392,7 +394,7 @@ describe('UsageLedgerMigrator', () => {
     const [row] = await dbh.db
       .select()
       .from(usageLedgerTable)
-      .where(eq(usageLedgerTable.messageId, 'chat-message-computed-ledger'))
+      .where(eq(usageLedgerTable.requestId, 'chat-message-computed-ledger'))
     expect(row).toMatchObject({
       cost: 18,
       costCurrency: 'USD',
@@ -430,7 +432,7 @@ describe('UsageLedgerMigrator', () => {
     const [row] = await dbh.db
       .select()
       .from(usageLedgerTable)
-      .where(eq(usageLedgerTable.messageId, 'chat-message-unpriced-ledger'))
+      .where(eq(usageLedgerTable.requestId, 'chat-message-unpriced-ledger'))
     expect(row).toMatchObject({
       inputTokens: 1_000_000,
       outputTokens: 1_000_000,
@@ -493,7 +495,7 @@ describe('UsageLedgerMigrator', () => {
     })
 
     const rows = await dbh.db.select().from(usageLedgerTable)
-    expect(rows.map((row) => row.messageId)).toEqual(['agent-message-batch-good'])
+    expect(rows.map((row) => row.requestId)).toEqual(['agent-message-batch-good'])
   })
 
   it('uses agent message model snapshots when modelId cannot be resolved to user_model', async () => {
@@ -526,7 +528,7 @@ describe('UsageLedgerMigrator', () => {
     const [row] = await dbh.db
       .select()
       .from(usageLedgerTable)
-      .where(eq(usageLedgerTable.messageId, 'agent-message-snapshot-ledger'))
+      .where(eq(usageLedgerTable.requestId, 'agent-message-snapshot-ledger'))
     expect(row).toMatchObject({
       topicId: null,
       providerId: 'cherryin',
@@ -611,7 +613,7 @@ describe('UsageLedgerMigrator', () => {
     const migrator = new UsageLedgerMigrator()
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 1 })
 
-    const [row] = await dbh.db.select().from(usageLedgerTable).where(eq(usageLedgerTable.messageId, producedRow.id))
+    const [row] = await dbh.db.select().from(usageLedgerTable).where(eq(usageLedgerTable.requestId, producedRow.id))
     expect(row).toMatchObject({
       sourceType: 'agent',
       sourceId: 'agent-ledger',

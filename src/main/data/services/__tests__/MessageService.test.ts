@@ -2295,7 +2295,14 @@ describe('MessageService', () => {
 
       messageService.update('m-ledger', {
         status: 'success',
-        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15, cost: 0.001, costCurrency: 'USD' }
+        stats: {
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+          cost: 0.001,
+          costCurrency: 'USD',
+          costSource: 'computed'
+        }
       })
 
       // The hook is fire-and-forget — wait for the async write to settle.
@@ -2303,7 +2310,7 @@ describe('MessageService', () => {
         const rows = await dbh.db.select().from(usageLedgerTable)
         expect(rows).toHaveLength(1)
         expect(rows[0]).toMatchObject({
-          messageId: 'm-ledger',
+          requestId: 'm-ledger',
           topicId: 'topic-l',
           providerId: 'provider-a',
           inputTokens: 10,

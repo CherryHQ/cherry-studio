@@ -253,10 +253,11 @@ describe('TemporaryChatService', () => {
       // Simulate the generation-time billing hook. Promotion must enrich this
       // same row with topic attribution instead of inserting a second charge.
       await dbh.db.insert(usageLedgerTable).values({
-        messageId: assistant.id,
+        requestId: assistant.id,
         providerId: 'openai',
         modelId: 'openai::gpt-4o',
         modality: 'language',
+        apiKeyAttribution: 'none',
         inputTokens: 10,
         outputTokens: 5,
         totalTokens: 15,
@@ -270,7 +271,7 @@ describe('TemporaryChatService', () => {
         const rows = await dbh.db.select().from(usageLedgerTable)
         expect(rows).toHaveLength(1)
         expect(rows[0]).toMatchObject({
-          messageId: assistant.id,
+          requestId: assistant.id,
           topicId: topic.id,
           providerId: 'openai',
           inputTokens: 10,
@@ -320,10 +321,11 @@ describe('TemporaryChatService', () => {
 
       // Generation-time billing funnel row for the same message id.
       await dbh.db.insert(usageLedgerTable).values({
-        messageId: assistant.id,
+        requestId: assistant.id,
         providerId: 'openai',
         modelId: 'openai::gpt-4o',
         modality: 'language',
+        apiKeyAttribution: 'none',
         inputTokens: 1_000_000,
         totalTokens: 1_000_000,
         cost: 0.9,
@@ -340,7 +342,7 @@ describe('TemporaryChatService', () => {
         const rows = await dbh.db.select().from(usageLedgerTable)
         expect(rows).toHaveLength(1)
         expect(rows[0]).toMatchObject({
-          messageId: assistant.id,
+          requestId: assistant.id,
           topicId: topic.id,
           cost: 0.9,
           costCurrency: 'USD',

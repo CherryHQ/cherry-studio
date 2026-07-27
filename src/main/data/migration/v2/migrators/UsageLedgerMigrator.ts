@@ -267,12 +267,27 @@ function enrichMissingCostForMigration(
   capturedAt: string
 ): MessageStats {
   if (stats.cost !== undefined) {
-    return stats
+    // Legacy MessageStats only stored OpenRouter's provider-reported USD cost.
+    // Normalize that historical contract into the ledger's required tuple
+    // while preserving any newer explicit metadata already present.
+    return {
+      ...stats,
+      costCurrency: stats.costCurrency ?? 'USD',
+      costSource: stats.costSource ?? 'provider'
+    }
   }
 
   const pricing = pricingSnapshots.get(modelId)
   if (!pricing) {
-    return stats
+    // A legacy partial annotation without an amount is not a cost tuple.
+    // Preserve usage metrics, but keep every cost column absent together.
+    return {
+      ...stats,
+      costCurrency: undefined,
+      costSource: undefined,
+      costBreakdown: undefined,
+      pricingSnapshot: undefined
+    }
   }
 
   const computed = computeStatsCostSnapshot(stats, pricing, capturedAt)
@@ -309,7 +324,7 @@ function toLedgerRow(
       }
 
   return {
-    messageId: source.id,
+    requestId: source.id,
     topicId: source.topicId,
     providerId: model.providerId,
     providerName:
@@ -392,7 +407,7 @@ export class UsageLedgerMigrator extends BaseMigrator {
                 const result = tx
                   .insert(usageLedgerTable)
                   .values(rows.slice(i, i + INSERT_CHUNK_SIZE))
-                  .onConflictDoNothing({ target: usageLedgerTable.messageId })
+                  .onConflictDoNothing({ target: usageLedgerTable.requestId })
                   .run()
                 // Count what SQLite actually wrote: a conflict-skipped re-run
                 // inserts nothing, and reporting it as inserted would hide that.
