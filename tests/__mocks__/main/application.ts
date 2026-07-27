@@ -49,6 +49,7 @@ const mockWindowManager = {
   getWindowIdByWebContents: vi.fn(() => undefined),
   open: vi.fn(() => 'mock-window-id'),
   close: vi.fn(() => true),
+  suspendPool: vi.fn(() => 0),
   show: vi.fn(() => true),
   hide: vi.fn(() => true),
   focus: vi.fn(() => true),

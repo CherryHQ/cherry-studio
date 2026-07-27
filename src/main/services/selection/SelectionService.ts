@@ -287,6 +287,14 @@ export class SelectionService extends BaseService implements Activatable {
         this.reconciler.request()
       })
     })
+
+    // The SelectionAction pool is warmup:'eager' in the registry, so WindowManager.onAllReady()
+    // would pre-create a hidden standby renderer even when the feature is disabled. onInit
+    // completes before allReady fires, so suspending here makes the eager warmup skip the
+    // pool; onActivate()'s resumePool() re-enables it when the feature turns on.
+    if (!preferenceService.get('feature.selection.enabled')) {
+      wm.suspendPool(WindowType.SelectionAction)
+    }
   }
 
   protected onAllReady(): void {

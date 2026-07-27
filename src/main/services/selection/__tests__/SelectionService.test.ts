@@ -1,6 +1,7 @@
 // @application, electron, and @logger are globally mocked in tests/main.setup.ts.
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { WindowType } from '@main/core/window/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { SelectionService } = await import('../SelectionService')
@@ -98,5 +99,43 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
 
     expect(activate).not.toHaveBeenCalled()
     expect(svc.isActivated).toBe(false)
+  })
+})
+
+describe('SelectionService.onInit — SelectionAction pool suspension', () => {
+  let svc: TestableSelectionService
+  let prefGet: ReturnType<typeof vi.spyOn>
+  let suspendPool: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    svc = new SelectionService() as TestableSelectionService
+    prefGet = vi.spyOn(application.get('PreferenceService') as { get: (key: string) => unknown }, 'get')
+    suspendPool = (application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn> }).suspendPool
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it('suspends the SelectionAction pool when the feature is disabled at boot', async () => {
+    // The registry declares the pool warmup:'eager'; without this suspend,
+    // WindowManager.onAllReady() would pre-create a hidden standby renderer
+    // even though the feature is off.
+    prefGet.mockReturnValue(false)
+
+    await svc._doInit()
+
+    expect(suspendPool).toHaveBeenCalledWith(WindowType.SelectionAction)
+  })
+
+  it('leaves the pool warmup untouched when the feature is enabled at boot', async () => {
+    prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
+
+    await svc._doInit()
+
+    expect(suspendPool).not.toHaveBeenCalled()
   })
 })
