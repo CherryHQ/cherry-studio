@@ -79,7 +79,11 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     const parsedOutput = parseAskUserQuestionToolInput(toolResponse.response)
     const parsedOptimisticInput = parseAskUserQuestionToolInput(optimisticInput)
     const questions = parsedInput?.questions ?? parsedOptimisticInput?.questions ?? parsedOutput?.questions ?? []
-    const answers = parsedInput?.answers ?? parsedOutput?.answers ?? parsedOptimisticInput?.answers ?? {}
+    const answers = {
+      ...parsedOutput?.answers,
+      ...parsedInput?.answers,
+      ...parsedOptimisticInput?.answers
+    }
 
     if (!questions.length) {
       logger.debug('AskUserQuestion: no questions parsed', {
@@ -96,10 +100,9 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   const totalQuestions = questions.length
   const isFirstQuestion = currentIndex === 0
   const isLastQuestion = currentIndex === totalQuestions - 1
-
-  if (!currentQuestion) return null
-
   const answeredCount = Object.keys(answers).length
+
+  if (!currentQuestion || answeredCount === 0) return null
 
   const content = (
     <div className="flex flex-col gap-3">
