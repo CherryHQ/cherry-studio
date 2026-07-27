@@ -67,7 +67,7 @@ export function PrivacyPolicyUpdateGate() {
               <Button
                 type="button"
                 variant="link"
-                className="h-auto px-1 py-0 align-baseline"
+                className="h-auto px-1 py-0 align-baseline underline focus-visible:ring-0"
                 onClick={() => setShowPolicy(true)}>
                 {t('privacy_policy_update.policy')}
               </Button>

@@ -59,7 +59,9 @@ describe('PrivacyPolicyUpdateGate', () => {
     expect(screen.getByRole('heading', { name: 'privacy_policy_update.title' })).toBeInTheDocument()
     expect(screen.queryByTestId('full-policy')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'privacy_policy_update.policy' }))
+    const policyButton = screen.getByRole('button', { name: 'privacy_policy_update.policy' })
+    expect(policyButton).toHaveClass('underline', 'focus-visible:ring-0')
+    fireEvent.click(policyButton)
 
     expect(screen.getByTestId('full-policy')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'privacy_policy_update.title' })).not.toBeInTheDocument()
