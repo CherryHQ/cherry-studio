@@ -550,6 +550,9 @@ export class CherryAutonomyTools {
     if (rawConfig !== undefined && (typeof rawConfig !== 'object' || rawConfig === null || Array.isArray(rawConfig))) {
       throw new McpError(ErrorCode.InvalidParams, "'config' must be an object")
     }
+    if (args.auth_mode !== undefined && typeof args.auth_mode !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, "'auth_mode' must be a string")
+    }
     if (args.enabled !== undefined && typeof args.enabled !== 'boolean') {
       throw new McpError(ErrorCode.InvalidParams, "'enabled' must be a boolean")
     }
@@ -574,16 +577,40 @@ export class CherryAutonomyTools {
 
     let cfg: object = rawConfig ?? {}
     if (authMode === 'qr' && type === 'wechat') {
-      cfg = { token_path: '', ...rawConfig }
+      cfg = { ...rawConfig, token_path: '' }
     } else if (authMode === 'qr' && type === 'feishu') {
+      const unverifiedChannels = channelService
+        .listChannels({ agentId: this.agentId, type: 'feishu' })
+        .filter((channel) => channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret))
+
+      if (unverifiedChannels.length > 1) {
+        const channelIds = unverifiedChannels.map((channel) => channel.id).join(', ')
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Multiple unverified Feishu channels already exist (${channelIds}). Use reconnect_channel with the intended channel_id instead of creating another channel.`
+        )
+      }
+
+      const existingChannel = unverifiedChannels[0]
       cfg = {
+        allowed_chat_ids: [],
+        domain: 'feishu',
+        ...existingChannel?.config,
+        ...rawConfig,
         app_id: '',
         app_secret: '',
         encrypt_key: '',
-        verification_token: '',
-        allowed_chat_ids: [],
-        domain: 'feishu',
-        ...rawConfig
+        verification_token: ''
+      }
+
+      if (existingChannel) {
+        const config = ChannelConfigSchema.parse({ type, ...cfg })
+        channelService.updateChannel(existingChannel.id, {
+          name,
+          config,
+          isActive: true
+        })
+        return await this.configReconnectChannel({ channel_id: existingChannel.id })
       }
     }
     if (authMode === 'credentials') {
@@ -743,7 +770,8 @@ export class CherryAutonomyTools {
     if (channel.agentId !== this.agentId)
       throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
-    const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.app_id)
+    const needsQr =
+      channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret))
 
     const channelManager = application.get('ChannelManager')
     if (!needsQr) {

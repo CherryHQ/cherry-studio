@@ -471,6 +471,31 @@ describe('projectCompletedMessageParts', () => {
     expect(indexes(layout.resultEntries)).toEqual([1])
   })
 
+  it('keeps a deferred channel authentication QR tool outside completed history', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'channel-auth',
+          toolName: 'mcp__cherry-tools__config',
+          state: 'output-available',
+          input: { action: 'add_channel', type: 'feishu', auth_mode: 'qr' },
+          output: {
+            $deferredToolResult: {
+              topicId: 'agent-session:session-1',
+              messageId: 'message-1',
+              toolCallId: 'channel-auth'
+            }
+          }
+        }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(layout.resultEntries)).toEqual([1])
+  })
+
   it('preserves an interleaved AskUser boundary inside completed history', () => {
     const layout = projectCompletedMessageParts(
       entries([

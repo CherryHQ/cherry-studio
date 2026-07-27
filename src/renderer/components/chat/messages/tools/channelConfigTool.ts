@@ -1,11 +1,11 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildToolResponseFromPart } from './toolResponse'
 
 const CONFIG_TOOL_NAMES = new Set(['config', 'mcp__cherry-tools__config'])
-const QR_AUTH_ACTIONS = new Set(['add_channel', 'reconnect_channel'])
 
 type ChannelConfigToolResponse = McpToolResponse | NormalToolResponse
 
@@ -16,12 +16,17 @@ function isChannelConfigTool(toolResponse: ChannelConfigToolResponse): boolean {
   return tool.type === 'mcp' && isCherryTools && CONFIG_TOOL_NAMES.has(tool.name)
 }
 
-export function getChannelAuthQrResult(toolResponse: ChannelConfigToolResponse) {
-  if (!isChannelConfigTool(toolResponse) || typeof toolResponse.toolCallId !== 'string') return null
+function isChannelAuthQrRequest(toolResponse: ChannelConfigToolResponse): boolean {
+  if (!isChannelConfigTool(toolResponse)) return false
 
   const args = toolResponse.arguments
-  const action = args && !Array.isArray(args) && typeof args === 'object' ? args.action : undefined
-  if (typeof action !== 'string' || !QR_AUTH_ACTIONS.has(action)) return null
+  if (!args || Array.isArray(args) || typeof args !== 'object') return false
+  if (args.action === 'reconnect_channel') return true
+  return args.action === 'add_channel' && args.auth_mode === 'qr'
+}
+
+export function getChannelAuthQrResult(toolResponse: ChannelConfigToolResponse) {
+  if (!isChannelAuthQrRequest(toolResponse) || typeof toolResponse.toolCallId !== 'string') return null
 
   const result = CallToolResultSchema.safeParse(toolResponse.response)
   if (!result.success) return null
@@ -48,5 +53,6 @@ export function isChannelAuthQrToolResponse(
 
 export function isChannelAuthQrPart(part: CherryMessagePart): boolean {
   const toolResponse = buildToolResponseFromPart(part)
-  return toolResponse !== null && getChannelAuthQrResult(toolResponse) !== null
+  if (!toolResponse || !isChannelAuthQrRequest(toolResponse)) return false
+  return isDeferredToolOutput(toolResponse.response) || getChannelAuthQrResult(toolResponse) !== null
 }
