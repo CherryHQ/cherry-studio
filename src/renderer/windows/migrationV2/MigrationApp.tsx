@@ -51,7 +51,8 @@ import {
   MigrationDiagnosticPanel,
   MigrationWindowControls,
   MigratorProgressList,
-  SkipMigrationDialog
+  SkipMigrationDialog,
+  V1DownloadDialog
 } from './components'
 import { DexieExporter, LocalStorageExporter, ReduxExporter } from './exporters'
 import { useMigrationActions, useMigrationProgress } from './hooks/useMigrationProgress'
@@ -248,6 +249,7 @@ const MigrationApp: React.FC = () => {
   // Retry sends the user back to the introduction screen, so a failure after this flag is set is
   // the "retried and still failing" case that warrants pointing them back to v1.
   const [hasRetried, setHasRetried] = useState(false)
+  const [v1DialogOpen, setV1DialogOpen] = useState(false)
   const [skipOpen, setSkipOpen] = useState(false)
   const [skipMenuOpen, setSkipMenuOpen] = useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
@@ -367,9 +369,12 @@ const MigrationApp: React.FC = () => {
 
   const openDownloadPage = async () => {
     try {
-      if (!(await actions.openDownloadPage())) {
-        showErrorToast(t('migration.error.v1_fallback.open_failed'))
+      if (await actions.openDownloadPage()) {
+        // The offer has served its purpose; the inline entry stays for a second visit.
+        setV1DialogOpen(false)
+        return
       }
+      showErrorToast(t('migration.error.v1_fallback.open_failed'))
     } catch (error) {
       logger.error('Failed to open the v1 download page', error as Error)
       showErrorToast(t('migration.error.v1_fallback.open_failed'))
@@ -384,6 +389,18 @@ const MigrationApp: React.FC = () => {
   }, [progress, t])
 
   const stage = localMigrationError ? 'error' : progress.stage
+
+  // Offer the v1 download when a retried run lands back on the error stage. Keyed on *entering*
+  // the stage so clicking Retry — which sets hasRetried while the error screen is still up —
+  // does not pop it open, and a dismissal stays dismissed until the next failure.
+  const previousStageRef = useRef(stage)
+  useEffect(() => {
+    const enteredError = previousStageRef.current !== 'error' && stage === 'error'
+    previousStageRef.current = stage
+    if (enteredError && hasRetried) {
+      setV1DialogOpen(true)
+    }
+  }, [stage, hasRetried])
 
   const showRail = stage !== 'version_incompatible'
 
@@ -560,7 +577,9 @@ const MigrationApp: React.FC = () => {
                 {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>
             </div>
-            {hasRetried && (
+            {/* Takes over as the entry point once the dialog is dismissed, so the offer survives
+                without duplicating the dialog's copy behind it. */}
+            {hasRetried && !v1DialogOpen && (
               <Alert
                 type="warning"
                 showIcon
@@ -694,6 +713,11 @@ const MigrationApp: React.FC = () => {
         </div>
 
         <SkipMigrationDialog open={skipOpen} onOpenChange={setSkipOpen} onConfirm={() => actions.skipMigration()} />
+        <V1DownloadDialog
+          open={v1DialogOpen}
+          onOpenChange={setV1DialogOpen}
+          onDownload={() => void openDownloadPage()}
+        />
         <CloseMigrationDialog
           open={closeConfirmOpen}
           onOpenChange={(open) => {

@@ -36,11 +36,13 @@ uploads or attaches the bundle; metadata-only fallback is disclosed when logs ca
 successful local-only save, the only support actions reveal the file and copy `support@cherry-ai.com`; no
 mail client or prefilled email is provided.
 
-Once the user has retried and the migration fails again, the error page also surfaces a v1 download alert, so
-nobody is stranded on a version that cannot migrate. The window runs on the `simplest` preload (no shell
-access), so the button asks main to open the page, and main picks the regional site by geolocating the egress
-IP — a lookup `MigrationIpcHandler` duplicates from `RegionService` (whose cache needs services the preboot
-gate does not have) so it is deleted along with migration.
+Once the user has retried and the migration fails again, `V1DownloadDialog` opens over the error page and the
+page keeps an inline alert as a persistent entry, so nobody is stranded on a version that cannot migrate. The
+dialog is keyed on *entering* the error stage — clicking Retry flips the flag while the error screen is still
+up — and a dismissal survives until the next failure. The window runs on the `simplest` preload (no shell
+access), so the download button asks main to open the page, and main picks the regional site by geolocating
+the egress IP — a lookup `MigrationIpcHandler` duplicates from `RegionService` (whose cache needs services the
+preboot gate does not have) so it is deleted along with migration.
 
 ## Implementation Notes
 
