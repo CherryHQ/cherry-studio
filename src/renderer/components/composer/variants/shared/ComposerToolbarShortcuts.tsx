@@ -10,7 +10,7 @@ import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
 import { GripVertical, RotateCcw } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
-import { useId, useMemo, useState } from 'react'
+import { useId, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './ComposerControlScaffolding'
@@ -126,15 +126,38 @@ export const ComposerToolbarShortcuts = ({
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const panelUnavailable = !unifiedPanelControl?.available
+  const toolbarManifests = useMemo(() => getComposerToolbarManifestsForScope(scope, t), [scope, t])
+  const toolbarManifestById = useMemo(
+    () => new Map(toolbarManifests.map((manifest) => [manifest.id, manifest])),
+    [toolbarManifests]
+  )
+  const toolbarLaunchers = useMemo(() => {
+    void toolLaunchersVersion
+    return getLaunchers('popover')
+  }, [getLaunchers, toolLaunchersVersion])
+  // Thinking and permission-mode icons convey live state. Keep the last resolved
+  // icon through launcher handoffs instead of flashing the generic manifest icon.
+  const [lastResolvedIconById, setLastResolvedIconById] = useState<Map<string, ReactNode>>(() => new Map())
+
+  useLayoutEffect(() => {
+    setLastResolvedIconById((current) => {
+      let next: Map<string, ReactNode> | undefined
+      for (const launcher of toolbarLaunchers) {
+        if (!toolbarManifestById.has(launcher.id) || current.get(launcher.id) === launcher.icon) continue
+        next ??= new Map(current)
+        next.set(launcher.id, launcher.icon)
+      }
+      return next ?? current
+    })
+  }, [toolbarLaunchers, toolbarManifestById])
 
   const candidates = useMemo<ShortcutCandidate[]>(() => {
-    void toolLaunchersVersion
-    const manifestCandidates = getComposerToolbarManifestsForScope(scope, t).map((manifest): ShortcutCandidate => {
+    const manifestCandidates = toolbarManifests.map((manifest): ShortcutCandidate => {
       const opensPanel = manifest.kind === 'group' || manifest.kind === 'panel'
       return {
         id: manifest.id,
         label: manifest.label,
-        icon: manifest.icon,
+        icon: lastResolvedIconById.get(manifest.id) ?? manifest.icon,
         active: false,
         disabled: true,
         haspopup: opensPanel ? 'menu' : manifest.kind === 'dialog' ? 'dialog' : undefined,
@@ -143,11 +166,13 @@ export const ComposerToolbarShortcuts = ({
         select: () => undefined
       }
     })
-    const launcherCandidates = getLaunchers('popover').map((launcher): ShortcutCandidate => {
+    const launcherCandidates = toolbarLaunchers.map((launcher): ShortcutCandidate => {
+      const manifest = toolbarManifestById.get(launcher.id)
       // group/panel launchers open the unified panel; dialog launchers open a modal
       // (attachment picker); command launchers are plain on/off toggles.
-      const opensPanel = launcher.kind === 'group' || launcher.kind === 'panel'
-      const label = launcher.label
+      const kind = manifest?.kind ?? launcher.kind
+      const opensPanel = kind === 'group' || kind === 'panel'
+      const label = manifest?.label ?? launcher.label
       return {
         id: launcher.id,
         label,
@@ -156,8 +181,8 @@ export const ComposerToolbarShortcuts = ({
         disabled: Boolean(launcher.disabled) || (opensPanel && panelUnavailable),
         disabledReason: launcher.disabledReason,
         tooltip: launcher.tooltip,
-        haspopup: opensPanel ? 'menu' : launcher.kind === 'dialog' ? 'dialog' : undefined,
-        toggle: launcher.kind === 'command',
+        haspopup: opensPanel ? 'menu' : kind === 'dialog' ? 'dialog' : undefined,
+        toggle: kind === 'command',
         resolved: true,
         select: opensPanel
           ? () =>
@@ -194,12 +219,12 @@ export const ComposerToolbarShortcuts = ({
   }, [
     customTools,
     dispatchLauncher,
-    getLaunchers,
     inputAdapter,
+    lastResolvedIconById,
     panelUnavailable,
-    scope,
-    t,
-    toolLaunchersVersion,
+    toolbarLaunchers,
+    toolbarManifestById,
+    toolbarManifests,
     unifiedPanelControl
   ])
 
@@ -316,7 +341,8 @@ export const ComposerToolbarShortcuts = ({
                   size="icon-sm"
                   className={cn(
                     COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-                    'disabled:pointer-events-none disabled:opacity-40',
+                    'disabled:pointer-events-none',
+                    !shortcut.resolved && 'disabled:opacity-100',
                     shortcut.active && 'bg-accent'
                   )}
                   aria-label={typeof shortcut.label === 'string' ? shortcut.label : undefined}

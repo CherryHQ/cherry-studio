@@ -116,6 +116,14 @@ const attachmentLauncher = {
   sources: ['popover']
 }
 
+const thinkingManifest = {
+  id: 'thinking',
+  kind: 'group',
+  order: 60,
+  label: 'thinking-manifest-label',
+  icon: <span data-testid="icon-thinking-manifest" />
+}
+
 const renderShortcuts = (overrides: Partial<Parameters<typeof ComposerToolbarShortcuts>[0]> = {}) => {
   const props = {
     scope: TopicType.Chat,
@@ -175,8 +183,47 @@ describe('ComposerToolbarShortcuts', () => {
 
     const webSearchButton = screen.getByRole('button', { name: 'web-search-label' })
     expect(webSearchButton).toBeDisabled()
+    expect(webSearchButton).toHaveClass('disabled:opacity-100')
     expect(webSearchButton).not.toHaveAttribute('aria-pressed')
     expect(within(webSearchButton).getByTestId('icon-web-search-fallback')).toBeInTheDocument()
+  })
+
+  it('keeps manifest presentation stable while a launcher is cleared and re-registered', () => {
+    mocks.manifests = [thinkingManifest]
+    mocks.launchers = [thinkingLauncher]
+    const { props, rerender } = renderShortcuts({ pinnedIds: ['thinking'] })
+
+    const getThinkingButton = () => screen.getByRole('button', { name: 'thinking-manifest-label' })
+    expect(getThinkingButton()).toBeEnabled()
+    expect(getThinkingButton()).toHaveAttribute('aria-haspopup', 'menu')
+    expect(within(getThinkingButton()).getByTestId('icon-thinking')).toBeInTheDocument()
+    expect(within(getThinkingButton()).queryByTestId('icon-thinking-manifest')).not.toBeInTheDocument()
+
+    mocks.launchers = []
+    rerender(<ComposerToolbarShortcuts {...props} />)
+
+    expect(getThinkingButton()).toBeDisabled()
+    expect(getThinkingButton()).toHaveClass('disabled:opacity-100')
+    expect(within(getThinkingButton()).getByTestId('icon-thinking')).toBeInTheDocument()
+
+    const nextThinkingLauncher = {
+      ...thinkingLauncher,
+      label: 'next-thinking-label',
+      icon: <span data-testid="icon-thinking-next-runtime" />,
+      active: false
+    }
+    mocks.launchers = [nextThinkingLauncher]
+    rerender(<ComposerToolbarShortcuts {...props} />)
+
+    expect(getThinkingButton()).toBeEnabled()
+    expect(within(getThinkingButton()).getByTestId('icon-thinking-next-runtime')).toBeInTheDocument()
+    expect(within(getThinkingButton()).queryByTestId('icon-thinking')).not.toBeInTheDocument()
+
+    fireEvent.click(getThinkingButton())
+    expect(props.unifiedPanelControl.open).toHaveBeenCalledWith({
+      launcherId: 'thinking',
+      searchText: 'thinking-manifest-label'
+    })
   })
 
   it('announces dialog launchers with aria-haspopup="dialog" and no toggle state', () => {
