@@ -105,7 +105,12 @@ describe('AgentsMigrator', () => {
     // remapAgentPrefixIds calls db.select().from().where() to find old-prefix IDs;
     // mock to return empty arrays so the remap loop is a no-op.
     const select = vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue([]), where: vi.fn().mockResolvedValue([]) })
+      from: vi.fn().mockReturnValue({
+        orderBy: vi.fn().mockResolvedValue([]),
+        where: vi.fn().mockResolvedValue([]),
+        // readSessionAuthors joins agent_session with agent; no sessions in these fixtures.
+        innerJoin: vi.fn().mockResolvedValue([])
+      })
     })
     const update = vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
@@ -343,7 +348,12 @@ describe('AgentsMigrator', () => {
 
     const run = vi.fn().mockReturnValue(undefined)
     const select = vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue([]), where: vi.fn().mockResolvedValue([]) })
+      from: vi.fn().mockReturnValue({
+        orderBy: vi.fn().mockResolvedValue([]),
+        where: vi.fn().mockResolvedValue([]),
+        // readSessionAuthors joins agent_session with agent; no sessions in these fixtures.
+        innerJoin: vi.fn().mockResolvedValue([])
+      })
     })
     const update = vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })

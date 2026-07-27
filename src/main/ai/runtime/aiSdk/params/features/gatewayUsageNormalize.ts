@@ -21,12 +21,22 @@ function isFlatUsage(usage: unknown): usage is FlatGatewayUsage {
   return typeof u.inputTokens !== 'object' || u.inputTokens === null
 }
 
-function normalizeUsage(flat: FlatGatewayUsage): LanguageModelV3Usage {
+export function normalizeGatewayUsage(flat: FlatGatewayUsage): LanguageModelV3Usage {
+  // `inputTokens` is the OpenAI-compatible prompt total, which already contains
+  // `cachedInputTokens`. Deriving the non-cached remainder keeps cost computation
+  // from pricing the cached part twice: it falls back to the total when
+  // `noCache` is missing and then adds the cache-read bucket on top.
+  const cachedInput = flat.cachedInputTokens
+  const noCache =
+    flat.inputTokens !== undefined && cachedInput !== undefined
+      ? Math.max(0, flat.inputTokens - cachedInput)
+      : undefined
+
   return {
     inputTokens: {
       total: flat.inputTokens,
-      noCache: undefined,
-      cacheRead: flat.cachedInputTokens,
+      noCache,
+      cacheRead: cachedInput,
       cacheWrite: undefined
     },
     outputTokens: {
@@ -45,7 +55,7 @@ const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
       new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
         transform(chunk, controller) {
           if (chunk.type === 'finish' && isFlatUsage(chunk.usage)) {
-            controller.enqueue({ ...chunk, usage: normalizeUsage(chunk.usage) })
+            controller.enqueue({ ...chunk, usage: normalizeGatewayUsage(chunk.usage) })
             return
           }
           controller.enqueue(chunk)

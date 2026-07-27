@@ -175,6 +175,13 @@
       "when": 1784860499109,
       "tag": "0024_shallow_chimera",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1785154996058,
+      "tag": "0025_lean_the_renegades",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -79,19 +79,19 @@ export class PersistenceListener implements StreamListener {
 
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    this.persistAssistant(result.finalMessage, 'success', result.timings)
+    await this.persistAssistant(result.finalMessage, 'success', result.timings)
   }
 
   async onPaused(result: StreamPausedResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    this.persistAssistant(result.finalMessage, 'paused', result.timings)
+    await this.persistAssistant(result.finalMessage, 'paused', result.timings)
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
     if (!this.owns(result.modelId)) return
     // Folded once here so backends see a uniform UIMessage shape, not `SerializedError`.
     const withErrorPart = mergeErrorIntoMessage(result.finalMessage, result.error)
-    this.persistAssistant(withErrorPart, 'error', result.timings)
+    await this.persistAssistant(withErrorPart, 'error', result.timings)
   }
 
   isAlive(): boolean {
@@ -102,11 +102,11 @@ export class PersistenceListener implements StreamListener {
     return !modelId || !this.opts.modelId || modelId === this.opts.modelId
   }
 
-  private persistAssistant(
+  private async persistAssistant(
     finalMessage: CherryUIMessage | undefined,
     status: 'success' | 'paused' | 'error',
     transportTimings: TransportTimings | undefined
-  ): void {
+  ): Promise<void> {
     if (!finalMessage && (status === 'success' || !this.opts.backend.canPersistEmptyTerminal)) {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
@@ -134,7 +134,7 @@ export class PersistenceListener implements StreamListener {
     )
 
     try {
-      this.opts.backend.persistAssistant({
+      await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
         status,
         modelId: this.opts.modelId,

@@ -14,6 +14,7 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
+import { maskApiKeyForSnapshot } from '@data/services/utils/apiKeySnapshot'
 import {
   clearSingleFileRefTx,
   getLogoFileId,
@@ -50,6 +51,19 @@ type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
  * passes a `LogoBindInput` here after creating the `file_entry`.
  */
 export type UpdateProviderInput = UpdateProviderDto & { logo?: LogoBindInput }
+
+/** Safe identity snapshot for the API key selected for one provider request. */
+export interface ProviderApiKeySnapshot {
+  id: string
+  label?: string
+  masked: string
+}
+
+/** The serving credential and its non-secret identity, resolved atomically. */
+export interface ResolvedProviderApiKey {
+  value: string
+  snapshot?: ProviderApiKeySnapshot
+}
 
 function assertManagedCherryAiProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
   if (!isManagedCherryAiProviderId(providerId) || Object.keys(dto).length === 0) {
@@ -96,6 +110,19 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
     seenIds.add(normalized.id)
     return normalized
   })
+}
+
+function toResolvedProviderApiKey(value: string, entry?: ApiKeyEntry): ResolvedProviderApiKey {
+  if (!entry) return { value }
+
+  return {
+    value,
+    snapshot: {
+      id: entry.id,
+      ...(entry.label ? { label: entry.label } : {}),
+      masked: maskApiKeyForSnapshot(entry.key)
+    }
+  }
 }
 
 function normalizeEndpointConfigs(
@@ -165,6 +192,11 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     settings,
     isEnabled: row.isEnabled
   }
+}
+
+/** Internal cache key holding the rotation pointer (id of the key last handed out). */
+function rotationCacheKey(providerId: string): string {
+  return `settings.provider.${providerId}.last_used_key_id`
 }
 
 /** The provider logo slot for a given providerId. */
@@ -392,10 +424,22 @@ class ProviderService {
   }
 
   /**
-   * Get a rotated API key for a provider (round-robin across enabled keys).
-   * Returns empty string for providers that don't have keys.
+   * Read-only view of the key-rotation pointer: the id of the key most
+   * recently handed out by {@link getRotatedApiKey} (only written when the
+   * provider has more than one enabled key). In-memory — lost on restart.
+   * ProviderService is the single owner of this cache key; consumers
+   * (e.g. ai-usage-record attribution) must read it through this method.
    */
-  getRotatedApiKey(providerId: string): string {
+  getLastUsedApiKeyId(providerId: string): string | undefined {
+    return application.get('CacheService').get<string>(rotationCacheKey(providerId))
+  }
+
+  /**
+   * Resolve the credential for one provider request and capture the identity
+   * of the exact stored key that will serve it. An explicit override is never
+   * rotated, but is matched back to a stored key when possible.
+   */
+  resolveApiKey(providerId: string, override?: string): ResolvedProviderApiKey {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
@@ -403,24 +447,32 @@ class ProviderService {
       throw DataApiErrorFactory.notFound('Provider', providerId)
     }
 
-    const enabledKeys = (row.apiKeys ?? []).filter((k) => k.isEnabled)
+    const allKeys = row.apiKeys ?? []
+    if (override !== undefined) {
+      return toResolvedProviderApiKey(
+        override,
+        allKeys.find((entry) => entry.key === override)
+      )
+    }
+
+    const enabledKeys = allKeys.filter((k) => k.isEnabled)
 
     if (enabledKeys.length === 0) {
-      return ''
+      return { value: '' }
     }
 
     if (enabledKeys.length === 1) {
-      return enabledKeys[0].key
+      return toResolvedProviderApiKey(enabledKeys[0].key, enabledKeys[0])
     }
 
     // Round-robin using CacheService
     const cache = application.get('CacheService')
-    const cacheKey = `settings.provider.${providerId}.last_used_key_id`
+    const cacheKey = rotationCacheKey(providerId)
     const lastUsedKeyId = cache.get<string>(cacheKey)
 
     if (!lastUsedKeyId) {
       cache.set(cacheKey, enabledKeys[0].id)
-      return enabledKeys[0].key
+      return toResolvedProviderApiKey(enabledKeys[0].key, enabledKeys[0])
     }
 
     const currentIndex = enabledKeys.findIndex((k) => k.id === lastUsedKeyId)
@@ -428,7 +480,15 @@ class ProviderService {
     const nextKey = enabledKeys[nextIndex]
     cache.set(cacheKey, nextKey.id)
 
-    return nextKey.key
+    return toResolvedProviderApiKey(nextKey.key, nextKey)
+  }
+
+  /**
+   * Compatibility wrapper for consumers that only need the credential value.
+   * Billing-aware callers should use {@link resolveApiKey}.
+   */
+  getRotatedApiKey(providerId: string): string {
+    return this.resolveApiKey(providerId).value
   }
 
   /**

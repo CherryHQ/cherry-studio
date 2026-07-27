@@ -10,6 +10,7 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { aiUsageRecordService, type SourceSnapshot } from '@main/data/services/aiUsageRecord'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -32,6 +33,8 @@ import {
 } from 'ai'
 
 import { isAgentSessionTopic } from './agentSession/topic'
+import { createAnalyticsHook } from './hooks/analyticsHook'
+import { createBillingRecorder, recordImageUsage } from './hooks/billingHook'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities } from './messages/messageCapabilities'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
@@ -41,7 +44,7 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
-import { Agent, buildAgentParams, mergeUsage, ZERO_USAGE } from './runtime/aiSdk'
+import { Agent, buildAgentParams } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { WebContentsListener } from './streamManager'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
@@ -71,6 +74,17 @@ function bareModelKey(apiModelId: string | undefined): string {
   const id = apiModelId ?? ''
   const afterSlash = id.includes('/') ? id.slice(id.lastIndexOf('/') + 1) : id
   return afterSlash.toLowerCase()
+}
+
+function sourceSnapshotForAssistant(assistant: Assistant | undefined): SourceSnapshot | undefined {
+  return assistant
+    ? {
+        type: 'assistant',
+        id: assistant.id,
+        name: assistant.name,
+        icon: assistant.emoji
+      }
+    : undefined
 }
 
 /**
@@ -387,8 +401,27 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
     }
 
-    const { sdkConfig, tools, plugins, system, options, model, hookParts, nativeFileSupport, fileAttachments } =
-      await this.buildAgentParamsFor(request, signal, extraFeatures)
+    const repairUsageSink: { current?: (usage: LanguageModelUsage) => void } = {}
+    const {
+      sdkConfig,
+      apiKeySnapshot,
+      tools,
+      plugins,
+      system,
+      options,
+      model,
+      assistant,
+      hookParts,
+      nativeFileSupport,
+      fileAttachments
+    } = await this.buildAgentParamsFor(request, signal, extraFeatures, (usage) => repairUsageSink.current?.(usage))
+    const billing = createBillingRecorder(
+      model,
+      request.messageId,
+      apiKeySnapshot,
+      sourceSnapshotForAssistant(assistant)
+    )
+    repairUsageSink.current = billing.recordUsage
 
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file).
@@ -408,7 +441,7 @@ export class AiService extends BaseService {
       tools,
       system,
       options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts],
+      hookParts: [this.analyticsHookPart(model), billing.hook, ...hookParts],
       mediaCapabilities: resolveMediaCapabilities(model)
     })
 
@@ -416,25 +449,7 @@ export class AiService extends BaseService {
   }
 
   private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
-    let total: LanguageModelUsage = ZERO_USAGE
-    let flushed = false
-    const flush = () => {
-      if (flushed) return
-      flushed = true
-      this.trackUsage(model, total)
-    }
-
-    return {
-      onStepFinish: (step) => {
-        if (step.usage) total = mergeUsage(total, step.usage)
-      },
-      onFinish: flush,
-      onAbort: flush,
-      onError: () => {
-        flush()
-        return 'abort'
-      }
-    }
+    return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage))
   }
 
   // ── Non-streaming text generation (agent.generate) ──
@@ -446,11 +461,11 @@ export class AiService extends BaseService {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
-      request,
-      signal,
-      extraFeatures
-    )
+    const repairUsageSink: { current?: (usage: LanguageModelUsage) => void } = {}
+    const { sdkConfig, apiKeySnapshot, tools, plugins, system, options, model, assistant, hookParts } =
+      await this.buildAgentParamsFor(request, signal, extraFeatures, (usage) => repairUsageSink.current?.(usage))
+    const billing = createBillingRecorder(model, undefined, apiKeySnapshot, sourceSnapshotForAssistant(assistant))
+    repairUsageSink.current = billing.recordUsage
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
@@ -460,7 +475,7 @@ export class AiService extends BaseService {
       tools,
       system: request.system ?? system,
       options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts]
+      hookParts: [this.analyticsHookPart(model), billing.hook, ...hookParts]
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
@@ -496,7 +511,8 @@ export class AiService extends BaseService {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, apiKeySnapshot, model, assistant } = await this.buildAgentParamsFor(request, signal)
+    const source = sourceSnapshotForAssistant(assistant)
 
     const promptParam = request.inputImages
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
@@ -527,7 +543,7 @@ export class AiService extends BaseService {
       request.uniqueModelId &&
       resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
     ) {
-      return await this.generateImageViaJob(request, structured, vendorBag, signal)
+      return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
     }
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
@@ -564,11 +580,13 @@ export class AiService extends BaseService {
       }
     }
 
+    const usageRecordId = crypto.randomUUID()
     const result = await aiCoreGenerateImage<AppProviderSettingsMap>(
       sdkConfig.providerId,
       sdkConfig.providerSettings,
       imageParams
     )
+    await recordImageUsage(usageRecordId, model, result.images?.length ?? 0, apiKeySnapshot, source)
 
     const dataUrls: Base64String[] = []
     let filteredCount = 0
@@ -606,7 +624,8 @@ export class AiService extends BaseService {
     request: AsInProcess<AiImageRequest>,
     structured: SplitImageParams['structured'],
     providerParams: Record<string, unknown>,
-    signal: AbortSignal | undefined
+    signal: AbortSignal | undefined,
+    source: SourceSnapshot | undefined
   ): Promise<AiImageResult> {
     const uniqueModelId = request.uniqueModelId
     if (!uniqueModelId) throw new Error('generateImageViaJob requires a uniqueModelId')
@@ -655,6 +674,7 @@ export class AiService extends BaseService {
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
         ...(modelDescriptor && { modelDescriptor }),
+        ...(source && { source }),
         providerParams
       }
       handle = jobManager.enqueue('image-generation.generate', payload)
@@ -699,7 +719,7 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, model } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, apiKeySnapshot, model, assistant } = await this.buildAgentParamsFor(request, signal)
 
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
@@ -708,6 +728,25 @@ export class AiService extends BaseService {
     })
 
     this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
+
+    // Embeddings are token-priced (input rate only); cost is
+    // enriched inside recordRequest from the model's pricing.
+    if (result.usage?.tokens !== undefined) {
+      const tokens = result.usage.tokens
+      void aiUsageRecordService
+        .recordRequest({
+          requestId: crypto.randomUUID(),
+          modelId: model.id,
+          apiKeySnapshot,
+          source: sourceSnapshotForAssistant(assistant),
+          modality: 'embedding',
+          stats: { inputTokens: tokens, totalTokens: tokens }
+        })
+        .catch((err) => {
+          logger.warn('AI usage record failed', { modelId: model.id, err })
+        })
+    }
+
     return { embeddings: result.embeddings, usage: result.usage }
   }
 
@@ -830,10 +869,19 @@ export class AiService extends BaseService {
   private async buildAgentParamsFor(
     request: AsInProcess<AiBaseRequest> & { chatId?: string },
     signal: AbortSignal | undefined,
-    extraFeatures: readonly RequestFeature[] = []
+    extraFeatures: readonly RequestFeature[] = [],
+    onRepairUsage?: (usage: LanguageModelUsage) => void
   ) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
-    const built = await buildAgentParams({ request, signal, provider, model, assistant, extraFeatures })
+    const built = await buildAgentParams({
+      request,
+      signal,
+      provider,
+      model,
+      assistant,
+      extraFeatures,
+      onRepairUsage
+    })
     return { ...built, provider, model, assistant }
   }
 

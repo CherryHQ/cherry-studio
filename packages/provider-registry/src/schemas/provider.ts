@@ -32,7 +32,12 @@ export const ApiFeaturesSchema = z.object({
   /** Whether the provider supports service tier selection (OpenAI/Groq-specific) */
   serviceTier: z.boolean().default(false),
   /** Whether the provider supports verbosity settings (OpenAI-specific) */
-  verbosity: z.boolean().default(false)
+  verbosity: z.boolean().default(false),
+
+  // --- Response feature flags ---
+
+  /** Whether the provider returns the actual billed cost in its usage response */
+  reportsActualCost: z.boolean().default(false)
 })
 
 // ═══════════════════════════════════════════════════════════════════════════════

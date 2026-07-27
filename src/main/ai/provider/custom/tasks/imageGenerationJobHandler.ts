@@ -3,12 +3,13 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
-import { providerService } from '@main/data/services/ProviderService'
+import { type ProviderApiKeySnapshot, providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
-import { providerToAiSdkConfig } from '../../config'
+import { recordImageUsage } from '../../../hooks/billingHook'
+import { resolveProviderAiSdkConfig } from '../../config'
 import type {
   ImageGenerationSubmitInput,
   ImageGenerationTransport,
@@ -29,7 +30,7 @@ const logger = loggerService.withContext('ImageGenerationJobHandler')
  * same task instead of re-submitting.
  *
  * Secrets are never persisted — the apiKey is re-read from provider config on
- * every attempt via `providerToAiSdkConfig`. Input images / mask are referenced
+ * every attempt via `resolveProviderAiSdkConfig`. Input images / mask are referenced
  * by FileEntry id and read back from FileManager (keeps the payload under the
  * 1MB job cap and restart-safe).
  */
@@ -51,7 +52,9 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       const model = modelService.getByKey(providerId, modelId)
       if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-      const sdkConfig = { ...(await providerToAiSdkConfig(provider, model)), modelId: model.apiModelId ?? model.id }
+      const { config, apiKeySnapshot: selectedApiKeySnapshot } = await resolveProviderAiSdkConfig(provider, model)
+      const sdkConfig = { ...config, modelId: model.apiModelId ?? model.id }
+      const billingApiKeySnapshot = readApiKeySnapshot(ctx.metadata.apiKeySnapshot) ?? selectedApiKeySnapshot
       const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
       if (!transport) {
         throw new Error(
@@ -72,7 +75,10 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
         } else if (submit.taskId) {
           // CRITICAL: persist before polling — without this, restart-recovery
           // re-submits, wasting the user's vendor quota.
-          await ctx.patchMetadata({ taskId: submit.taskId })
+          await ctx.patchMetadata({
+            taskId: submit.taskId,
+            ...(selectedApiKeySnapshot && { apiKeySnapshot: selectedApiKeySnapshot })
+          })
           urls = await pollUntilDone(transport, submit.taskId, ctx)
         } else {
           // A malformed submit response (neither URLs nor a task id) must fail the
@@ -89,6 +95,13 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
         throw new Error(`Image generation for '${sdkConfig.modelId}' completed but returned no image URLs`)
       }
 
+      // Bill here, not after the download: non-empty URLs mean the vendor already
+      // generated (and charged for) every image, so a partial or total local
+      // download failure must not under-bill. `ctx.jobId` is stable across
+      // retries/restart-resume, so the record upsert stays idempotent.
+      // Fire-and-forget — recording must never fail a paid generation.
+      void recordImageUsage(ctx.jobId, model, urls.length, billingApiKeySnapshot, input.source)
+
       const files = await downloadAndPersistImageUrls(urls, ctx.signal)
       ctx.reportProgress(100, { stage: 'done' })
       return { files } satisfies ImageGenerationJobOutput
@@ -99,6 +112,20 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       // taskId and never re-reads these ids.
       await deleteImageInputEntries([...(input.inputFileIds ?? []), input.maskFileId])
     }
+  }
+}
+
+function readApiKeySnapshot(value: unknown): ProviderApiKeySnapshot | undefined {
+  if (!value || typeof value !== 'object') return undefined
+
+  const snapshot = value as Partial<ProviderApiKeySnapshot>
+  if (typeof snapshot.id !== 'string' || typeof snapshot.masked !== 'string') return undefined
+  if (snapshot.label !== undefined && typeof snapshot.label !== 'string') return undefined
+
+  return {
+    id: snapshot.id,
+    ...(snapshot.label ? { label: snapshot.label } : {}),
+    masked: snapshot.masked
   }
 }
 

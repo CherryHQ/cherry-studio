@@ -19,11 +19,11 @@ import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { customFetch } from '../../utils/customFetch'
 
-// providerToAiSdkConfig reads the rotated API key and (for Vertex/Bedrock) the
+// providerToAiSdkConfig resolves the serving API key and (for Vertex/Bedrock) the
 // auth config off the direct-import ProviderService singleton. Mock both at the
 // module boundary so the dispatch builders run without touching the DB.
-const { getRotatedApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
-  getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
+const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
+  resolveApiKeyMock: vi.fn(),
   getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
   getByProviderIdMock: vi.fn()
 }))
@@ -33,7 +33,7 @@ const { generateSignatureMock } = vi.hoisted(() => ({
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
-    getRotatedApiKey: getRotatedApiKeyMock,
+    resolveApiKey: resolveApiKeyMock,
     getAuthConfig: getAuthConfigMock,
     getByProviderId: getByProviderIdMock
   }
@@ -44,11 +44,13 @@ vi.mock('@main/ai/provider/cherryai', () => ({
 }))
 
 // Import the SUT after the mock is declared.
-const { providerToAiSdkConfig } = await import('../config')
+const { providerToAiSdkConfig, resolveProviderAiSdkConfig } = await import('../config')
 
 beforeEach(() => {
   vi.clearAllMocks()
-  getRotatedApiKeyMock.mockReturnValue('sk-test-key')
+  resolveApiKeyMock.mockImplementation((_providerId: string, override?: string) => ({
+    value: override ?? 'sk-test-key'
+  }))
   getAuthConfigMock.mockReturnValue(null)
 })
 
@@ -63,8 +65,20 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
     const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'sk-selected' })
 
-    expect(getRotatedApiKeyMock).not.toHaveBeenCalled()
+    expect(resolveApiKeyMock).toHaveBeenCalledWith('openai', 'sk-selected')
     expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
+  })
+
+  it('returns the safe identity captured with the serving key', async () => {
+    const apiKeySnapshot = { id: 'key-a', label: 'Primary', masked: 'sk-a****aaaa' }
+    resolveApiKeyMock.mockReturnValue({ value: 'sk-selected', snapshot: apiKeySnapshot })
+    const provider = makeProvider({ id: 'openai' })
+    const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })
+
+    const resolved = await resolveProviderAiSdkConfig(provider, model)
+
+    expect((resolved.config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
+    expect(resolved.apiKeySnapshot).toEqual(apiKeySnapshot)
   })
 
   describe('Vertex routing (google-vertex AND google-vertex-anthropic → buildVertexConfig)', () => {
@@ -561,7 +575,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
   describe('CherryAI routing', () => {
     it('uses custom fetch to sign chat completions requests', async () => {
-      getRotatedApiKeyMock.mockReturnValue('')
+      resolveApiKeyMock.mockReturnValue({ value: '' })
       generateSignatureMock.mockReturnValue({
         'X-Client-ID': 'cherry-studio',
         'X-Timestamp': '1700000000',

@@ -1,8 +1,13 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { LanguageModelUsage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AgentLoopHooks } from '../runtime/aiSdk'
+
 const mockGenerateImage = vi.fn()
+const mockCreateAgent = vi.fn()
+const mockEmbedMany = vi.fn()
 const mockRerank = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
@@ -19,6 +24,7 @@ const mockInstallBuiltinSkills = vi.fn()
 const mockReconcileSkills = vi.fn()
 const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
+const mockRecordRequest = vi.fn()
 
 vi.mock('@application', () => ({
   application: {
@@ -80,14 +86,21 @@ vi.mock('@main/data/services/MessageService', () => ({
 }))
 
 vi.mock('@cherrystudio/ai-core', () => ({
-  createAgent: vi.fn(),
-  embedMany: vi.fn(),
+  createAgent: (...args: unknown[]) => mockCreateAgent(...args),
+  embedMany: (...args: unknown[]) => mockEmbedMany(...args),
   generateImage: (...args: unknown[]) => mockGenerateImage(...args),
   rerank: (...args: unknown[]) => mockRerank(...args)
 }))
 
+vi.mock('@main/data/services/aiUsageRecord', () => ({
+  aiUsageRecordService: {
+    recordRequest: (...args: unknown[]) => mockRecordRequest(...args)
+  }
+}))
+
 const { AiService, imageInputEntryParams } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
+const { createBillingHook } = await import('../hooks/billingHook')
 
 /**
  * Instantiate `AiService` directly (without going through the lifecycle
@@ -101,6 +114,7 @@ function createService(): InstanceType<typeof AiService> {
 describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCreateAgent.mockReset()
     mockProviderGetRotatedApiKey.mockReturnValue('test-key')
     mockProviderGetByProviderId.mockReturnValue({
       id: 'test-provider',
@@ -127,6 +141,9 @@ describe('AiService', () => {
       isEnabled: true,
       isHidden: false
     })
+    // Default: resolve, like the real usage-record store's best-effort contract. Individual
+    // tests override with mockRejectedValueOnce to exercise the failure path.
+    mockRecordRequest.mockResolvedValue(undefined)
   })
 
   it('routes agent-session runtime requests directly to the runtime service', async () => {
@@ -232,6 +249,43 @@ describe('AiService', () => {
     })
   })
 
+  it('records language usage with the key and assistant snapshots captured for that request', async () => {
+    const service = createService()
+    const apiKeySnapshot = { id: 'key-a', label: 'Primary', masked: 'sk-a****aaaa' }
+    const assistant = { id: 'assistant-1', name: 'Research', emoji: '🔎' }
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      apiKeySnapshot,
+      model: { id: 'test-provider::test-model', providerId: 'test-provider' },
+      assistant,
+      tools: {},
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: []
+    } as never)
+    const usage = { inputTokens: 8, outputTokens: 3, totalTokens: 11 }
+    mockCreateAgent.mockImplementation(
+      ({ agentSettings }: { agentSettings: { onStepFinish?: (step: unknown) => Promise<void> } }) => ({
+        generate: async () => {
+          await agentSettings.onStepFinish?.({ usage })
+          return { text: 'done', usage, steps: [] }
+        }
+      })
+    )
+
+    await service.generateText({ uniqueModelId: 'test-provider::test-model', prompt: 'hello' })
+
+    expect(mockRecordRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'test-provider::test-model',
+        apiKeySnapshot,
+        source: { type: 'assistant', id: 'assistant-1', name: 'Research', icon: '🔎' },
+        stats: expect.objectContaining(usage)
+      })
+    )
+  })
+
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
@@ -239,6 +293,12 @@ describe('AiService', () => {
         providerId: 'test-provider',
         providerSettings: {},
         modelId: 'test-model'
+      },
+      model: {
+        id: 'test-provider::test-model',
+        providerId: 'test-provider',
+        modelId: 'test-model',
+        pricing: { input: { perMillionTokens: null }, output: { perMillionTokens: null }, perImage: { price: 0.05 } }
       }
     } as never)
 
@@ -395,6 +455,156 @@ describe('AiService', () => {
         }
       })
     )
+  })
+
+  // The direct (non-job) image path bills through `recordImageUsage` (billingHook.ts).
+  // These tests pin both the usage payload and the fact that local persistence
+  // happens after the provider output has been recorded.
+  describe('generateImage — AI usage record (direct path)', () => {
+    function stubDirectImage(service: InstanceType<typeof AiService>) {
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
+      const fileEntry = { id: 'file-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue(fileEntry) } : undefined
+      )
+      return fileEntry
+    }
+
+    it('records the provider output count with modality "image"', async () => {
+      const service = createService()
+      stubDirectImage(service)
+
+      await service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+
+      expect(mockRecordRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ modelId: 'test-provider::test-model', modality: 'image', imageCount: 1 })
+      )
+    })
+
+    it('records the provider output before local file persistence can fail', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' },
+        assistant: { id: 'assistant-1', name: 'Image Assistant', emoji: '🎨' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({
+        images: [
+          { base64: 'first', mediaType: 'image/png' },
+          { base64: 'second', mediaType: 'image/png' }
+        ]
+      })
+      const createInternalEntry = vi.fn().mockRejectedValue(new Error('disk full'))
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          paramValues: {}
+        })
+      ).rejects.toThrow('disk full')
+
+      expect(mockRecordRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modality: 'image',
+          imageCount: 2,
+          source: { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' }
+        })
+      )
+      expect(mockRecordRequest.mock.invocationCallOrder[0]).toBeLessThan(
+        createInternalEntry.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('still returns the generated files when the usage-record write rejects', async () => {
+      const service = createService()
+      const fileEntry = stubDirectImage(service)
+      mockRecordRequest.mockRejectedValueOnce(new Error('usage record unavailable'))
+
+      const result = await service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+
+      expect(result).toEqual({ files: [fileEntry] })
+      expect(mockRecordRequest).toHaveBeenCalledTimes(1)
+      // Let recordImageUsage's internal try/catch settle — an unattended rejection
+      // here would surface as an unhandled rejection failing the test.
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+  })
+
+  // `embedMany`'s usage-record write had zero coverage before this: neither the payload
+  // shape (modality/token count) nor the failure-must-not-disrupt-the-request
+  // contract was tested.
+  describe('embedMany — AI usage record', () => {
+    function stubEmbedding(service: InstanceType<typeof AiService>) {
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embedding-model' },
+        apiKeySnapshot: { id: 'key-a', label: 'Primary', masked: 'sk-a****aaaa' },
+        model: { id: 'test-provider::test-embedding-model', providerId: 'test-provider' },
+        assistant: { id: 'assistant-1', name: 'Embedding Assistant', emoji: '📚' }
+      } as never)
+      mockEmbedMany.mockResolvedValue({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
+    }
+
+    it('records the usage entry with modality "embedding" and the token count', async () => {
+      const service = createService()
+      stubEmbedding(service)
+
+      await service.embedMany({ uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] })
+
+      expect(mockRecordRequest).toHaveBeenCalledWith({
+        requestId: expect.any(String),
+        modelId: 'test-provider::test-embedding-model',
+        apiKeySnapshot: { id: 'key-a', label: 'Primary', masked: 'sk-a****aaaa' },
+        source: { type: 'assistant', id: 'assistant-1', name: 'Embedding Assistant', icon: '📚' },
+        modality: 'embedding',
+        stats: { inputTokens: 42, totalTokens: 42 }
+      })
+    })
+
+    it('records an embedding request when the provider explicitly reports zero tokens', async () => {
+      const service = createService()
+      stubEmbedding(service)
+      mockEmbedMany.mockResolvedValue({ embeddings: [[0.1, 0.2]], usage: { tokens: 0 } })
+
+      await service.embedMany({ uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] })
+
+      expect(mockRecordRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modality: 'embedding',
+          stats: { inputTokens: 0, totalTokens: 0 }
+        })
+      )
+    })
+
+    it('still returns the embeddings when the usage-record write rejects', async () => {
+      const service = createService()
+      stubEmbedding(service)
+      mockRecordRequest.mockRejectedValueOnce(new Error('usage record unavailable'))
+
+      await expect(
+        service.embedMany({ uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] })
+      ).resolves.toEqual({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
+
+      expect(mockRecordRequest).toHaveBeenCalledTimes(1)
+      // Let the fire-and-forget `.catch(...)` settle — an unattended rejection here
+      // would surface as an unhandled rejection failing the test.
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
   })
 })
 
@@ -820,6 +1030,10 @@ describe('AiService tool approval', () => {
         abortSignal: abortController.signal
       })
     )
+    // AI SDK v6 rerank results expose ranking/provider metadata but no usage
+    // or cost. Do not fabricate a usage record until the upstream result can
+    // supply a billable signal (pinned by the operation coverage contract).
+    expect(mockRecordRequest).not.toHaveBeenCalled()
   })
 
   it('checks rerank models with rerank before embedding or text generation', async () => {
@@ -882,6 +1096,27 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('checks embedding models with the normal embedding path', async () => {
+    const service = createService()
+    const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-embedding',
+      providerId: 'test-provider',
+      apiModelId: 'test-embedding',
+      name: 'Test Embedding',
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({
+      uniqueModelId: 'test-provider::test-embedding'
+    })
+
+    expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }))
+  })
+
   it('fails rerank health checks when the probe returns an empty ranking', async () => {
     const service = createService()
     vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [] })
@@ -927,7 +1162,8 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
   // through generateImageViaJob.
   function stubResolution(service: InstanceType<typeof AiService>) {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'ppio', providerSettings: {}, modelId: 'qwen-image' }
+      sdkConfig: { providerId: 'ppio', providerSettings: {}, modelId: 'qwen-image' },
+      assistant: { id: 'assistant-1', name: 'Image Assistant', emoji: '🎨' }
     } as never)
   }
 
@@ -959,7 +1195,12 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
     expect(enqueue).toHaveBeenCalledWith(
       'image-generation.generate',
-      expect.objectContaining({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', inputFileIds: ['in-1'] })
+      expect.objectContaining({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        inputFileIds: ['in-1'],
+        source: { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' }
+      })
     )
     expect(result).toEqual({ files: outputFiles })
     expect(permanentDelete).toHaveBeenCalledWith('in-1')
@@ -1197,5 +1438,64 @@ describe('AiService.listModels', () => {
     const result = await service.listModels({ providerId: 'ppio' })
 
     expect(result.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
+  })
+})
+
+// The request collector is one of the two converging usage-record sources. These
+// tests pin the wiring (id threading, provider-cost extraction, zero-guard);
+// `recordRequest` itself is covered by AiUsageRecordService.test.
+describe('createBillingHook', () => {
+  const model = { id: 'test-provider::test-model', providerId: 'test-provider' } as any
+  // The hook only reads `step.usage`; build a minimal fake step (a full
+  // StepResult has 20+ fields we don't need here).
+  const fakeStep = (usage: Partial<LanguageModelUsage>) =>
+    ({ usage }) as unknown as Parameters<NonNullable<AgentLoopHooks['onStepFinish']>>[0]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockRecordRequest.mockResolvedValue(undefined)
+  })
+
+  it('records the accumulated usage with the request message id and provider-reported cost', () => {
+    const hook = createBillingHook(model, 'assistant-1')
+
+    void hook.onStepFinish?.(fakeStep({ inputTokens: 6, outputTokens: 3, totalTokens: 9 }))
+    void hook.onStepFinish?.(fakeStep({ inputTokens: 4, outputTokens: 2, totalTokens: 6, raw: { cost: 0.42 } }))
+    void hook.onFinish?.()
+
+    expect(mockRecordRequest).toHaveBeenCalledTimes(1)
+    expect(mockRecordRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: 'assistant-1',
+        modality: 'language',
+        modelId: 'test-provider::test-model',
+        // usage accumulates across steps; raw.cost is threaded as providerCostUsd
+        stats: expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }),
+        providerCostUsd: 0.42
+      })
+    )
+  })
+
+  it('skips recording when no tokens accumulated (zero-guard)', () => {
+    const hook = createBillingHook(model, 'assistant-2')
+
+    // A finish with no observed provider call must not write a synthetic row.
+    void hook.onFinish?.()
+
+    expect(mockRecordRequest).not.toHaveBeenCalled()
+  })
+
+  it('falls back to a generated per-request id when no requestMessageId is given', () => {
+    const hook = createBillingHook(model)
+
+    void hook.onStepFinish?.(fakeStep({ inputTokens: 1, outputTokens: 0, totalTokens: 1 }))
+    void hook.onFinish?.()
+
+    expect(mockRecordRequest).toHaveBeenCalledTimes(1)
+    const payload = mockRecordRequest.mock.calls[0][0]
+    expect(typeof payload.requestId).toBe('string')
+    expect(payload.requestId.length).toBeGreaterThan(0)
+    // No provider cost in the raw blob → providerCostUsd is undefined.
+    expect(payload.providerCostUsd).toBeUndefined()
   })
 })

@@ -91,6 +91,7 @@ src/main/data/migration/v2/
 - Current migrators (see `migrators/README-<name>.md` for detailed documentation):
   - `PreferencesMigrator` (implemented): maps ElectronStore + Redux settings to the `preference` table using `mappings/PreferencesMappings.ts`.
   - `ChatMigrator` (implemented): migrates topics and messages from Dexie to SQLite. See [`README-ChatMigrator.md`](../../../src/main/data/migration/v2/migrators/README-ChatMigrator.md).
+  - `AiUsageRecordMigrator` (implemented): projects usage-bearing migrated chat and agent-session messages into the best-effort AI usage read model. See [`README-AiUsageRecordMigrator.md`](../../../src/main/data/migration/v2/migrators/README-AiUsageRecordMigrator.md).
   - `BootConfigMigrator` (implemented, file-target): migrates early-boot settings into the file-based `bootConfigService` (`~/.cherrystudio/boot-config.json`) rather than a SQLite table. Reads from Redux (`disableHardwareAcceleration`) and from the v1 home config file (`~/.cherrystudio/config/config.json`'s `appDataPath` → `app.user_data_path`) via a `'configfile'` source kind. See [`README-BootConfigMigrator.md`](../../../src/main/data/migration/v2/migrators/README-BootConfigMigrator.md).
   - `AssistantMigrator`, `KnowledgeMigrator` (placeholders): scaffolding and TODO notes for future tables.
 - Conventions:

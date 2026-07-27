@@ -67,6 +67,31 @@ describe('createAiRepair', () => {
     expect(params.output).toBeDefined()
   })
 
+  it('reports the nested provider usage to the parent request collector', async () => {
+    const onUsage = vi.fn()
+    const repairWithUsage = createAiRepair({
+      providerId: 'openai',
+      providerSettings: { apiKey: 'test' },
+      modelId: 'gpt-4o-mini',
+      onUsage
+    })
+    const usage = { inputTokens: 12, outputTokens: 4, totalTokens: 16 }
+    generateText.mockResolvedValue({ output: { query: 'hello world' }, usage })
+
+    const repaired = await repairWithUsage({
+      system: undefined,
+      messages: [],
+      toolCall: makeToolCall(KB_SEARCH_TOOL_NAME, { q: 'hello world' }),
+      tools: {} as never,
+      inputSchema: async () => ({ type: 'object', properties: { query: { type: 'string' } } }) as never,
+      error: inputErr
+    })
+
+    expect(repaired).not.toBeNull()
+    expect(onUsage).toHaveBeenCalledOnce()
+    expect(onUsage).toHaveBeenCalledWith(usage)
+  })
+
   it('returns null when generateText returns no structured output', async () => {
     generateText.mockResolvedValue({ output: undefined, text: 'sorry, cannot fix' })
     expect(await callRepair(makeToolCall(KB_SEARCH_TOOL_NAME, {}))).toBeNull()

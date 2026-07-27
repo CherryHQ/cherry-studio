@@ -4,16 +4,24 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
+import type { ProviderApiKeySnapshot } from '@main/data/services/ProviderService'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+import {
+  type JSONValue,
+  type LanguageModelUsage,
+  stepCountIs,
+  type StopCondition,
+  type ToolSet,
+  type UIMessage
+} from 'ai'
 
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { createHttpTraceFetch } from '../../../observability'
-import { providerToAiSdkConfig } from '../../../provider/config'
+import { resolveProviderAiSdkConfig } from '../../../provider/config'
 import {
   resolveAiSdkProviderId,
   type ResolvedEndpoint,
@@ -63,10 +71,14 @@ export interface BuildAgentParamsInput {
   assistant?: Assistant
   /** Caller-supplied features merged after `INTERNAL_FEATURES`. */
   extraFeatures?: readonly RequestFeature[]
+  /** Request-scoped sink for nested tool-repair provider usage. */
+  onRepairUsage?: (usage: LanguageModelUsage) => void
 }
 
 export interface BuiltAgentParams {
   sdkConfig: SdkConfig
+  /** Exact non-secret identity of the stored key selected for this request. */
+  apiKeySnapshot?: ProviderApiKeySnapshot
   tools: ToolSet | undefined
   plugins: AiPlugin<any, any>[]
   system: string | undefined
@@ -82,7 +94,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
-  const sdkConfig = await resolveSdkConfig(provider, model, resolvedEndpoint, request.apiKeyOverride)
+  const { sdkConfig, apiKeySnapshot } = await resolveSdkConfig(
+    provider,
+    model,
+    resolvedEndpoint,
+    request.apiKeyOverride
+  )
   applyHttpTrace(sdkConfig, request.chatId, model)
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
@@ -142,10 +159,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const contributions = collectFromFeatures(scope, features)
 
   const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
-  const options = buildAgentOptions(scope, contributions.stopConditions)
+  const options = buildAgentOptions(scope, contributions.stopConditions, input.onRepairUsage)
 
   return {
     sdkConfig,
+    apiKeySnapshot,
     tools,
     plugins: contributions.modelAdapters,
     system,
@@ -174,16 +192,22 @@ async function resolveSdkConfig(
   model: Model,
   resolvedEndpoint: ResolvedEndpoint,
   apiKeyOverride?: string
-): Promise<SdkConfig> {
-  const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride, resolvedEndpoint })
+): Promise<{ sdkConfig: SdkConfig; apiKeySnapshot?: ProviderApiKeySnapshot }> {
+  const { config, apiKeySnapshot } = await resolveProviderAiSdkConfig(provider, model, {
+    apiKeyOverride,
+    resolvedEndpoint
+  })
   return {
-    ...config,
-    providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
-      actualProviderId: provider.id,
-      endpointType: resolvedEndpoint.endpointType,
-      gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
-    }),
-    modelId: model.apiModelId ?? model.id
+    sdkConfig: {
+      ...config,
+      providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
+        actualProviderId: provider.id,
+        endpointType: resolvedEndpoint.endpointType,
+        gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
+      }),
+      modelId: model.apiModelId ?? model.id
+    },
+    apiKeySnapshot
   }
 }
 
@@ -304,7 +328,11 @@ export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, reques
  * provider-scoped params), per-call headers/maxRetries, stop-after-N-tools,
  * and the tool-call repair function.
  */
-function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondition<ToolSet>[]): AgentOptions {
+function buildAgentOptions(
+  scope: RequestScope,
+  featureStopConditions: StopCondition<ToolSet>[],
+  onRepairUsage?: (usage: LanguageModelUsage) => void
+): AgentOptions {
   const {
     assistant,
     capabilities,
@@ -377,7 +405,8 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
     repairToolCall: createAiRepair({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
-      modelId: sdkConfig.modelId
+      modelId: sdkConfig.modelId,
+      onUsage: onRepairUsage
     })
   }
 }

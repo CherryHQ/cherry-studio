@@ -13,6 +13,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
+import { Route as SettingsUsageRouteImport } from './routes/settings/usage'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
@@ -75,6 +76,11 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
 const SettingsWebsearchRoute = SettingsWebsearchRouteImport.update({
   id: '/websearch',
   path: '/websearch',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsUsageRoute = SettingsUsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsSystemRoute = SettingsSystemRouteImport.update({
@@ -329,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/system': typeof SettingsSystemRoute
+  '/settings/usage': typeof SettingsUsageRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -375,6 +382,7 @@ export interface FileRoutesByTo {
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/system': typeof SettingsSystemRoute
+  '/settings/usage': typeof SettingsUsageRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -425,6 +433,7 @@ export interface FileRoutesById {
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/system': typeof SettingsSystemRoute
+  '/settings/usage': typeof SettingsUsageRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -476,6 +485,7 @@ export interface FileRouteTypes {
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings/system'
+    | '/settings/usage'
     | '/settings/websearch'
     | '/settings/'
     | '/app/mini-app/$appId'
@@ -522,6 +532,7 @@ export interface FileRouteTypes {
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings/system'
+    | '/settings/usage'
     | '/settings/websearch'
     | '/settings'
     | '/app/mini-app/$appId'
@@ -571,6 +582,7 @@ export interface FileRouteTypes {
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings/system'
+    | '/settings/usage'
     | '/settings/websearch'
     | '/settings/'
     | '/app/mini-app/$appId'
@@ -622,6 +634,13 @@ declare module '@tanstack/react-router' {
       path: '/websearch'
       fullPath: '/settings/websearch'
       preLoaderRoute: typeof SettingsWebsearchRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/usage': {
+      id: '/settings/usage'
+      path: '/usage'
+      fullPath: '/settings/usage'
+      preLoaderRoute: typeof SettingsUsageRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/system': {
@@ -1025,6 +1044,7 @@ interface SettingsRouteChildren {
   SettingsShortcutRoute: typeof SettingsShortcutRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
   SettingsSystemRoute: typeof SettingsSystemRoute
+  SettingsUsageRoute: typeof SettingsUsageRoute
   SettingsWebsearchRoute: typeof SettingsWebsearchRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
@@ -1050,6 +1070,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsShortcutRoute: SettingsShortcutRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
   SettingsSystemRoute: SettingsSystemRoute,
+  SettingsUsageRoute: SettingsUsageRoute,
   SettingsWebsearchRoute: SettingsWebsearchRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }

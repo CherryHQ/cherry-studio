@@ -123,7 +123,7 @@ export interface PersistenceBackend {
    */
   readonly canPersistEmptyTerminal?: boolean
 
-  persistAssistant(input: PersistAssistantInput): void
+  persistAssistant(input: PersistAssistantInput): void | Promise<void>
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing
@@ -138,29 +138,21 @@ export interface PersistenceBackend {
 }
 
 /**
- * Token counts come from `finalMessage.metadata` (populated by
- * agentLoop's `messageMetadata` on the `finish` chunk). Request durations
+ * Token counts come from the nested `finalMessage.metadata.stats` snapshot
+ * (populated by the usage writers' `message-metadata` chunks — the single
+ * carrier; there are no flat metadata mirrors). Request durations
  * come from the merged `StatsTimings`; thinking duration is the sum of the
  * stabilized per-reasoning-part metadata. We deliberately do not subtract
  * `reasoningStartedAt` from `reasoningEndedAt`, because that wall-clock can
- * include interleaved tool execution.
+ * include interleaved tool execution. Cost is added later by the async
+ * `MessageServiceBackend` because it requires a DB pricing read.
  */
 export function statsFromTerminal(
   finalMessage: CherryUIMessage | undefined,
   timings: StatsTimings | undefined
 ): MessageStats | undefined {
-  const stats: MessageStats = {}
-
-  const meta = finalMessage?.metadata
-  if (meta && typeof meta === 'object') {
-    if (typeof meta.totalTokens === 'number') stats.totalTokens = meta.totalTokens
-    if (typeof meta.promptTokens === 'number') stats.promptTokens = meta.promptTokens
-    if (typeof meta.completionTokens === 'number') stats.completionTokens = meta.completionTokens
-    if (typeof meta.thoughtsTokens === 'number') stats.thoughtsTokens = meta.thoughtsTokens
-    if (typeof meta.noCacheTokens === 'number') stats.noCacheTokens = meta.noCacheTokens
-    if (typeof meta.cacheReadTokens === 'number') stats.cacheReadTokens = meta.cacheReadTokens
-    if (typeof meta.cacheWriteTokens === 'number') stats.cacheWriteTokens = meta.cacheWriteTokens
-  }
+  const metaStats = finalMessage?.metadata?.stats
+  const stats: MessageStats = metaStats ? structuredClone(metaStats) : {}
 
   let thinkingDurationMs = 0
   let hasThinkingDuration = false

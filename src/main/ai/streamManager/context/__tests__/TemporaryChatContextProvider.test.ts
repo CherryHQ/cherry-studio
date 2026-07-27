@@ -215,8 +215,9 @@ describe('TemporaryChatContextProvider', () => {
     expect(request.messages).toBeDefined()
     expect(request.messages!).toHaveLength(1)
     expect(request.messages![0].role).toBe('user')
-    // No pre-allocated messageId: AI SDK generates it for the streaming UIMessage
-    expect(request.messageId).toBeUndefined()
+    // The stream and persistence backend share one stable id so billing and
+    // later temporary-chat promotion converge on the same usage record.
+    expect(request.messageId).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   it('reads the knowledge scope from the submitted user-message parts', async () => {

@@ -132,8 +132,8 @@ describe('MessageTokens', () => {
   it('shows the compact total when throughput is unavailable', () => {
     renderWithProvider(
       createMessage('assistant', {
-        promptTokens: 1234,
-        completionTokens: 2048,
+        inputTokens: 1234,
+        outputTokens: 2048,
         totalTokens: 3282
       })
     )
@@ -170,9 +170,9 @@ describe('MessageTokens', () => {
   it('folds reasoning into output usage and reveals exact values on the matching segment', () => {
     renderWithProvider(
       createMessage('assistant', {
-        promptTokens: 100,
-        completionTokens: 100,
-        thoughtsTokens: 25,
+        inputTokens: 100,
+        outputTokens: 100,
+        outputTokenDetails: { reasoningTokens: 25 },
         totalTokens: 200
       })
     )
@@ -192,12 +192,10 @@ describe('MessageTokens', () => {
   it('visualizes uncached, cache-read, and cache-write input details', () => {
     renderWithProvider(
       createMessage('assistant', {
-        promptTokens: 100,
-        completionTokens: 20,
+        inputTokens: 100,
+        outputTokens: 20,
         totalTokens: 120,
-        noCacheTokens: 10,
-        cacheReadTokens: 70,
-        cacheWriteTokens: 20
+        inputTokenDetails: { noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 }
       })
     )
 
@@ -210,8 +208,8 @@ describe('MessageTokens', () => {
   it('shows throughput outside the card and splits waiting, reasoning, and text generation timing', () => {
     renderWithProvider(
       createMessage('assistant', {
-        promptTokens: 100,
-        completionTokens: 100,
+        inputTokens: 100,
+        outputTokens: 100,
         totalTokens: 200,
         timeFirstTokenMs: 4000,
         timeThinkingMs: 3000,
@@ -233,7 +231,7 @@ describe('MessageTokens', () => {
   })
 
   it('omits unavailable performance measurements instead of rendering zero values', () => {
-    renderWithProvider(createMessage('assistant', { promptTokens: 10, completionTokens: 2, totalTokens: 12 }))
+    renderWithProvider(createMessage('assistant', { inputTokens: 10, outputTokens: 2, totalTokens: 12 }))
 
     const trigger = screen.getByRole('button', { name: '12 Tokens' })
     expect(trigger).toHaveClass('message-tokens')
@@ -246,9 +244,9 @@ describe('MessageTokens', () => {
   it('exposes exact read-only values when the hover-card trigger receives keyboard focus', () => {
     renderWithProvider(
       createMessage('assistant', {
-        promptTokens: 100,
-        completionTokens: 100,
-        thoughtsTokens: 25,
+        inputTokens: 100,
+        outputTokens: 100,
+        outputTokenDetails: { reasoningTokens: 25 },
         totalTokens: 200
       })
     )

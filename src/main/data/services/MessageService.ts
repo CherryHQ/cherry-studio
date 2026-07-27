@@ -43,6 +43,7 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
+import { aiUsageRecordService } from './aiUsageRecord'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { timestampToISO } from './utils/rowMappers'
@@ -1180,7 +1181,7 @@ export class MessageService {
       }
     }
 
-    return application.get('DbService').withWriteTx((tx) => {
+    const message = application.get('DbService').withWriteTx((tx) => {
       // Get existing message within transaction
       const [existingRow] = tx.select().from(messageTable).where(eq(messageTable.id, id)).limit(1).all()
 
@@ -1235,6 +1236,17 @@ export class MessageService {
 
       return rowToMessage(row)
     })
+
+    // An assistant message landing token stats is a usage event. Record it
+    // post-commit and fire-and-forget: the analytical read model is
+    // best-effort and must never disrupt message persistence.
+    if (dto.stats !== undefined && message.role === 'assistant') {
+      void aiUsageRecordService.recordFromMessage(message).catch((err) => {
+        logger.warn('AI usage record failed', { id, err })
+      })
+    }
+
+    return message
   }
 
   /**

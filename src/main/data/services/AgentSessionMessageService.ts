@@ -28,6 +28,7 @@ import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/da
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
+import { aiUsageRecordService } from './aiUsageRecord'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -445,22 +446,50 @@ export class AgentSessionMessageService {
     db?: DbOrTx
   ): AgentSessionMessageEntity {
     const timestampMs = Date.now()
+    // Caller-managed tx: skip the usage-record hook — we can't observe its commit,
+    // and recording from a transaction that may roll back would ghost-write.
     if (db) return this.saveMessageTx(db, params, timestampMs)
-    return application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    const saved = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    this.recordAiUsageRecord(saved)
+    return saved
   }
 
   saveMessages(params: CreateAgentSessionMessagesDto): AgentSessionMessageEntity[] {
     const { sessionId, runtimeResumeToken, messages } = params
 
-    return application.get('DbService').withWriteTx((tx) => {
+    const saved = application.get('DbService').withWriteTx((tx) => {
       const timestampMs = Date.now()
-      const saved: AgentSessionMessageEntity[] = []
+      const result: AgentSessionMessageEntity[] = []
       for (const message of messages) {
-        saved.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
+        result.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
       }
       agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
-      return saved
+      return result
     })
+    for (const entity of saved) this.recordAiUsageRecord(entity)
+    return saved
+  }
+
+  /**
+   * An agent-session assistant message landing token stats is a usage event.
+   * Agent sessions bypass the AiService request collector (their
+   * runtime never constructs an aiSdk Agent) and the `message`-table hook
+   * (separate table), so this is their only capture point. Post-commit and
+   * fire-and-forget: best-effort, never disrupts session persistence.
+   */
+  private recordAiUsageRecord(saved: AgentSessionMessageEntity): void {
+    if (saved.role !== 'assistant' || !saved.stats || !saved.modelId) return
+    void aiUsageRecordService
+      .recordRequest({
+        requestId: saved.id,
+        agentSessionId: saved.sessionId,
+        modelId: saved.modelId,
+        stats: saved.stats,
+        modality: 'language'
+      })
+      .catch((err) => {
+        logger.warn('AI usage record failed', { id: saved.id, err })
+      })
   }
 }
 

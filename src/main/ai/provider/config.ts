@@ -1,12 +1,17 @@
 /**
  * `Provider + Model` → `ProviderConfig` for `@cherrystudio/ai-core`.
- * Always async because `providerService.getRotatedApiKey` is async.
+ * Resolves the serving credential and its safe identity in one step so billing
+ * can attribute the request without consulting mutable rotation state later.
  */
 
 import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
-import { providerService } from '@main/data/services/ProviderService'
+import {
+  type ProviderApiKeySnapshot,
+  providerService,
+  type ResolvedProviderApiKey
+} from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
@@ -51,6 +56,11 @@ interface BuilderContext {
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
   resolvedEndpoint?: ResolvedEndpoint
+}
+
+export interface ResolvedProviderAiSdkConfig {
+  config: ProviderConfig
+  apiKeySnapshot?: ProviderApiKeySnapshot
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
@@ -101,18 +111,27 @@ export async function providerToAiSdkConfig(
   model: Model,
   options?: ProviderToAiSdkConfigOptions
 ): Promise<ProviderConfig> {
+  return (await resolveProviderAiSdkConfig(provider, model, options)).config
+}
+
+/** Resolve SDK configuration plus the exact non-secret API-key identity used. */
+export async function resolveProviderAiSdkConfig(
+  provider: Provider,
+  model: Model,
+  options?: ProviderToAiSdkConfigOptions
+): Promise<ResolvedProviderAiSdkConfig> {
   const { endpointType, baseUrl } = options?.resolvedEndpoint ?? resolveEffectiveEndpoint(provider, model)
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
-  const apiKey = options?.apiKeyOverride ?? providerService.getRotatedApiKey(provider.id)
+  const resolvedApiKey: ResolvedProviderApiKey = providerService.resolveApiKey(provider.id, options?.apiKeyOverride)
 
   const ctx: BuilderContext = {
     actualProvider: provider,
     model,
-    baseConfig: { baseURL, apiKey },
+    baseConfig: { baseURL, apiKey: resolvedApiKey.value },
     endpointType,
     endpoint,
     aiSdkProviderId
@@ -196,7 +215,15 @@ export async function providerToAiSdkConfig(
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
 
-  return config
+  // Some builders replace the base API key with provider-level auth (Copilot,
+  // Codex OAuth, IAM). Only carry a stored-key identity when the final SDK
+  // config will actually serve with that selected value.
+  const usesSelectedApiKey =
+    'apiKey' in config.providerSettings && config.providerSettings.apiKey === resolvedApiKey.value
+  return {
+    config,
+    apiKeySnapshot: usesSelectedApiKey ? resolvedApiKey.snapshot : undefined
+  }
 }
 
 // ── Config Builders ──

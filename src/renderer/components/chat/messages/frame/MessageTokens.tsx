@@ -13,11 +13,11 @@ interface MessageTokensProps {
 }
 
 function getTotalTokens(stats: MessageStats): number {
-  return stats.totalTokens ?? (stats.promptTokens ?? 0) + (stats.completionTokens ?? 0)
+  return stats.totalTokens ?? (stats.inputTokens ?? 0) + (stats.outputTokens ?? 0)
 }
 
 function getTokensPerSecond(stats: MessageStats): number | undefined {
-  if (!stats.completionTokens || stats.timeCompletionMs === undefined) {
+  if (!stats.outputTokens || stats.timeCompletionMs === undefined) {
     return undefined
   }
 
@@ -26,7 +26,7 @@ function getTokensPerSecond(stats: MessageStats): number | undefined {
     return undefined
   }
 
-  return stats.completionTokens / (textGenerationDurationMs / 1000)
+  return stats.outputTokens / (textGenerationDurationMs / 1000)
 }
 
 function UserMessageTokens({ label, onLocate }: { label: string; onLocate: () => void }) {

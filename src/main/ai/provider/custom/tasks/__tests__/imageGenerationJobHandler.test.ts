@@ -25,7 +25,8 @@ const {
   downloadMock,
   getByProviderIdMock,
   getByKeyMock,
-  providerToAiSdkConfigMock
+  resolveProviderAiSdkConfigMock,
+  recordRequestMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   readMock: vi.fn(),
@@ -38,14 +39,18 @@ const {
   downloadMock: vi.fn(),
   getByProviderIdMock: vi.fn(),
   getByKeyMock: vi.fn(),
-  providerToAiSdkConfigMock: vi.fn()
+  resolveProviderAiSdkConfigMock: vi.fn(),
+  recordRequestMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('../../imageTransportRegistry', () => ({ resolveImageTransport: resolveImageTransportMock }))
-vi.mock('../../../config', () => ({ providerToAiSdkConfig: providerToAiSdkConfigMock }))
+vi.mock('../../../config', () => ({ resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock }))
 vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: getByProviderIdMock } }))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: getByKeyMock } }))
+vi.mock('@main/data/services/aiUsageRecord', () => ({
+  aiUsageRecordService: { recordRequest: recordRequestMock }
+}))
 vi.mock('@main/utils/downloadAsBase64', () => ({ downloadImageAsBase64: downloadMock }))
 
 const { imageGenerationJobHandler } = await import('../imageGenerationJobHandler')
@@ -82,9 +87,16 @@ beforeEach(() => {
     }
     throw new Error(`Unexpected application.get(${name})`)
   })
-  getByProviderIdMock.mockResolvedValue({ id: 'ppio' })
-  getByKeyMock.mockResolvedValue({ id: 'qwen-image', apiModelId: 'qwen-image' })
-  providerToAiSdkConfigMock.mockResolvedValue({ providerId: 'ppio', providerSettings: { apiKey: 'k' } })
+  getByProviderIdMock.mockReturnValue({ id: 'ppio' })
+  getByKeyMock.mockReturnValue({
+    id: 'ppio::qwen-image',
+    apiModelId: 'qwen-image',
+    pricing: { perImage: { price: 0.02 } }
+  })
+  resolveProviderAiSdkConfigMock.mockResolvedValue({
+    config: { providerId: 'ppio', providerSettings: { apiKey: 'k' } }
+  })
+  recordRequestMock.mockResolvedValue(undefined)
   cancelMock.mockResolvedValue(undefined)
   permanentDeleteMock.mockResolvedValue(undefined)
   resolveImageTransportMock.mockReturnValue({ submit: submitMock, poll: pollMock, cancel: cancelMock })
@@ -115,6 +127,12 @@ describe('imageGenerationJobHandler contract', () => {
 
 describe('imageGenerationJobHandler.execute', () => {
   it('async: submit(taskId) → patchMetadata → poll → download/persist', async () => {
+    const apiKeySnapshot = { id: 'key-a', label: 'Primary', masked: 'sk-a****aaaa' }
+    const source = { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' } as const
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ppio', providerSettings: { apiKey: 'k' } },
+      apiKeySnapshot
+    })
     submitMock.mockResolvedValue({ taskId: 'task-xyz' })
     pollMock.mockImplementation(async (_taskId: string, opts: { onProgress?: (p: number) => void }) => {
       opts.onProgress?.(50)
@@ -122,10 +140,11 @@ describe('imageGenerationJobHandler.execute', () => {
     })
 
     const ctx = createCtx()
+    ctx.input.source = source
     const result = (await imageGenerationJobHandler.execute(ctx)) as { files: Array<{ id: string }> }
 
     expect(result.files).toEqual([{ id: 'file-1' }])
-    expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz' })
+    expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz', apiKeySnapshot })
     expect(pollMock).toHaveBeenCalledWith(
       'task-xyz',
       expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
@@ -133,12 +152,31 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(ctx.reportProgress).toHaveBeenCalledWith(50, { stage: 'polling' })
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
     expect(downloadMock).toHaveBeenCalledWith('https://cdn.example.com/a.png')
+    expect(recordRequestMock).toHaveBeenCalledWith({
+      requestId: 'img-job-1',
+      modelId: 'ppio::qwen-image',
+      apiKeySnapshot,
+      source,
+      modality: 'image',
+      imageCount: 1,
+      stats: {
+        cost: 0.02,
+        costSource: 'computed',
+        costCurrency: 'USD',
+        costBreakdown: { image: 0.02 }
+      }
+    })
   })
 
-  it('resume: metadata.taskId present → skips submit, polls the persisted task', async () => {
+  it('resume: keeps the submit key identity even if config rotation selects another key', async () => {
+    const submitApiKeySnapshot = { id: 'key-a', label: 'Primary', masked: 'sk-a****aaaa' }
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ppio', providerSettings: { apiKey: 'new-key' } },
+      apiKeySnapshot: { id: 'key-b', label: 'Secondary', masked: 'sk-b****bbbb' }
+    })
     pollMock.mockResolvedValue(['https://cdn.example.com/b.png'])
 
-    const ctx = createCtx({ metadata: { taskId: 'resumed-task' } })
+    const ctx = createCtx({ metadata: { taskId: 'resumed-task', apiKeySnapshot: submitApiKeySnapshot } })
     await imageGenerationJobHandler.execute(ctx)
 
     expect(submitMock).not.toHaveBeenCalled()
@@ -149,6 +187,7 @@ describe('imageGenerationJobHandler.execute', () => {
       'resumed-task',
       expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
     )
+    expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ apiKeySnapshot: submitApiKeySnapshot }))
   })
 
   it('legacy submit: falls back to providerParams.modelDescriptor when the typed field is absent', async () => {
@@ -309,9 +348,14 @@ describe('imageGenerationJobHandler.execute', () => {
   })
 
   it('fails when the remote returned URLs but every download fails (paid no-op guard)', async () => {
-    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png'] })
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'] })
     downloadMock.mockResolvedValue(null)
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/all downloads failed/i)
+    // The vendor generated (and charged for) both images before the download step,
+    // so the usage record must still carry them even though the job surfaces an error.
+    expect(recordRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 'img-job-1', modality: 'image', imageCount: 2 })
+    )
   })
 
   it('returns the subset (does not throw) when only some downloads fail', async () => {
@@ -323,6 +367,10 @@ describe('imageGenerationJobHandler.execute', () => {
 
     const result = (await imageGenerationJobHandler.execute(createCtx())) as { files: Array<{ id: string }> }
     expect(result.files).toEqual([{ id: 'file-a' }])
+    // Bills the generated URL count, not the persisted file count.
+    expect(recordRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 'img-job-1', modality: 'image', imageCount: 2 })
+    )
   })
 
   it('fails when submit returns an empty imageUrls array (paid no-op guard)', async () => {
