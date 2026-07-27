@@ -27,5 +27,11 @@ export const MessagesContainer = ({
   ...props
 }: ComponentPropsWithoutRef<'div'> & ContainerProps) => {
   void $right
-  return <div className={cn('relative flex h-full flex-col overflow-hidden', className)} {...props} />
+  return (
+    <div
+      data-ui="chat.message-list"
+      className={cn('relative flex h-full flex-col overflow-hidden', className)}
+      {...props}
+    />
+  )
 }

@@ -46,6 +46,7 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
   return (
     <div
       className="group relative cursor-pointer rounded-lg border border-border-subtle bg-card transition-[border-color,box-shadow] hover:border-border-muted hover:shadow-sm"
+      style={r.type === 'skill' ? { backgroundColor: 'var(--settings-group-background, var(--card))' } : undefined}
       role="button"
       tabIndex={0}
       aria-label={r.name}

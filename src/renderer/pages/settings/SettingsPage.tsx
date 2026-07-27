@@ -33,7 +33,7 @@ import {
   TextCursorInput,
   ToolCase
 } from 'lucide-react'
-import type { FC } from 'react'
+import type { CSSProperties, FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const SettingsPage: FC = () => {
@@ -48,12 +48,16 @@ const SettingsPage: FC = () => {
 
   return (
     <div
+      style={isMacTransparentWindow ? ({ '--settings-group-background': 'transparent' } as CSSProperties) : undefined}
+      data-ui="settings.view"
       className={cn(
-        'flex min-h-0 flex-1 flex-col',
+        'flex min-h-0 flex-1 flex-col dark:[--settings-group-background:var(--background-subtle)]',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
       )}>
       <div className="flex min-h-0 flex-1 flex-row">
-        <div className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
+        <div
+          data-ui="settings.navigation"
+          className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
           <PageHeader title={t('title.settings')} className="mb-1" />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
@@ -237,7 +241,7 @@ const SettingsPage: FC = () => {
           </Scrollbar>
         </div>
         <div className="flex h-full min-h-0 min-w-0 flex-1">
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden text-foreground">
+          <div data-ui="settings.content" className="flex min-h-0 min-w-0 flex-1 overflow-hidden text-foreground">
             <Outlet />
           </div>
         </div>

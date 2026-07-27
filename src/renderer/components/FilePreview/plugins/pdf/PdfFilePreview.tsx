@@ -1,4 +1,4 @@
-import 'pdfjs-dist/web/pdf_viewer.css'
+import '@renderer/assets/styles/vendor/pdf-viewer.css'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
