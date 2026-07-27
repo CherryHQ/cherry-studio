@@ -19,7 +19,11 @@ import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
-import { matchesModelPricingBaseline, synthesizePresetFromOverride } from '@data/services/ProviderRegistryService'
+import {
+  diffApiFeatures,
+  matchesModelPricingBaseline,
+  synthesizePresetFromOverride
+} from '@data/services/ProviderRegistryService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
@@ -74,6 +78,9 @@ interface V1ProviderBaseline {
   type: LegacyProvider['type']
   apiHost?: string
   anthropicApiHost?: string
+  isNotSupportArrayContent: boolean
+  isNotSupportDeveloperRole: boolean
+  isNotSupportStreamOptions: boolean
   models: Record<string, V1ModelBaseline>
 }
 
@@ -229,6 +236,9 @@ export class ProviderModelMigrator extends BaseMigrator {
       apiKey: '',
       apiHost: baseline.apiHost ?? '',
       anthropicApiHost: baseline.anthropicApiHost,
+      isNotSupportArrayContent: baseline.isNotSupportArrayContent,
+      isNotSupportDeveloperRole: baseline.isNotSupportDeveloperRole,
+      isNotSupportStreamOptions: baseline.isNotSupportStreamOptions,
       models: Object.values(baseline.models).map((model) => ({
         ...model,
         provider: providerId,
@@ -277,7 +287,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       endpointConfigs: Object.keys(endpointConfigs).length > 0 ? endpointConfigs : null,
       defaultChatEndpoint:
         v1Row && row.defaultChatEndpoint === v1Row.defaultChatEndpoint ? null : row.defaultChatEndpoint,
-      apiFeatures: v1Row && isEqual(row.apiFeatures, v1Row.apiFeatures) ? null : row.apiFeatures
+      apiFeatures: v1Row ? diffApiFeatures(row.apiFeatures, v1Row.apiFeatures ?? {}) : row.apiFeatures
     }
   }
 

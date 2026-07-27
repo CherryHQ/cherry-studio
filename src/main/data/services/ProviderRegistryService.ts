@@ -96,12 +96,12 @@ export function buildApiFeaturesBaseline(presetApiFeatures: ApiFeatures | null |
  */
 export function diffApiFeatures(
   merged: ApiFeatures | null | undefined,
-  baseline: RuntimeApiFeatures
+  baseline: Readonly<ApiFeatures>
 ): ApiFeatures | null {
   if (!merged) return null
   const delta: Record<string, boolean> = {}
   for (const [key, value] of Object.entries(merged)) {
-    if (value !== undefined && value !== baseline[key as keyof RuntimeApiFeatures]) {
+    if (value !== undefined && value !== baseline[key as keyof ApiFeatures]) {
       delta[key] = value
     }
   }
@@ -424,7 +424,7 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
     ? [...presetModel.outputModalities]
     : undefined
   let endpointTypes: EndpointType[] | undefined = undefined
-  const name = presetModel.name ?? presetModel.id
+  const name = catalogOverride?.name ?? presetModel.name ?? presetModel.id
   const description = presetModel.description
   let contextWindow = presetModel.contextWindow
   let maxOutputTokens = presetModel.maxOutputTokens

@@ -27,8 +27,10 @@ registry, because the current registry may already have changed.
 was extracted from v1 revision
 `d316ec5345680f1de511fd6df3a7fbdb3edad151` (v1.9.12) and contains only
 fields used by provider/model projection. `sourceRevision` records that
-provenance. Do not replace this comparison with current `providers.json`,
-`models.json`, or `provider-models.json` values.
+provenance. Its provider API flags represent the post-migration-127/129 Redux
+shape: the three compatibility flags remain on system-provider top-level rows
+after `apiOptions` is cleared. Do not replace this comparison with current
+`providers.json`, `models.json`, or `provider-models.json` values.
 
 Projection rules:
 
@@ -37,8 +39,9 @@ Projection rules:
 - A preset provider is resolved by `providerId` first, then
   `presetProviderId`. The second lookup is required for custom IDs backed by a
   known provider type, such as Azure OpenAI.
-- Provider fields equal to the final-v1 baseline become null/absent. Different
-  values remain row-owned deltas.
+- Provider fields equal to the final-v1 baseline become null/absent. API
+  features are compared per key, so one changed feature does not freeze
+  baseline-equal sibling flags. Different values remain row-owned deltas.
 - A preset model is resolved with the effective provider's
   provider-model override. If the override has no global `models.json` entry,
   the migrator synthesizes the same provider-exclusive preset used at runtime.

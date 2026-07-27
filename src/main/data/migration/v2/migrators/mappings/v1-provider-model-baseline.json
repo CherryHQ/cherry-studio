@@ -5,12 +5,18 @@
       "type": "openai",
       "apiHost": "https://open.cherryin.net",
       "anthropicApiHost": "https://open.cherryin.net",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "silicon": {
       "type": "openai",
       "apiHost": "https://api.siliconflow.cn",
       "anthropicApiHost": "https://api.siliconflow.cn",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "deepseek-ai/DeepSeek-V3.2": {
           "id": "deepseek-ai/DeepSeek-V3.2",
@@ -33,6 +39,9 @@
       "type": "openai",
       "apiHost": "https://aihubmix.com",
       "anthropicApiHost": "https://aihubmix.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "gpt-5": {
           "id": "gpt-5",
@@ -139,11 +148,17 @@
     "ovms": {
       "type": "openai",
       "apiHost": "http://localhost:8000/v3/",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "ocoolai": {
       "type": "openai",
       "apiHost": "https://api.ocoolai.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "deepseek-chat": {
           "id": "deepseek-chat",
@@ -276,6 +291,9 @@
       "type": "openai",
       "apiHost": "https://open.bigmodel.cn/api/paas/v4/",
       "anthropicApiHost": "https://open.bigmodel.cn/api/anthropic",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "glm-5": {
           "id": "glm-5",
@@ -348,6 +366,9 @@
       "type": "openai",
       "apiHost": "https://api.z.ai/api/paas/v4/",
       "anthropicApiHost": "https://api.z.ai/api/anthropic",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "glm-5": {
           "id": "glm-5",
@@ -400,6 +421,9 @@
       "type": "openai",
       "apiHost": "https://api.deepseek.com",
       "anthropicApiHost": "https://api.deepseek.com/anthropic",
+      "isNotSupportArrayContent": true,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "deepseek-v4-flash": {
           "id": "deepseek-v4-flash",
@@ -416,12 +440,18 @@
     "alayanew": {
       "type": "openai",
       "apiHost": "https://deepseek.alayanew.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "dmxapi": {
       "type": "openai",
       "apiHost": "https://www.dmxapi.cn",
       "anthropicApiHost": "https://www.dmxapi.cn",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "Qwen/Qwen2.5-7B-Instruct": {
           "id": "Qwen/Qwen2.5-7B-Instruct",
@@ -468,6 +498,9 @@
     "aionly": {
       "type": "openai",
       "apiHost": "https://api.aiionly.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "claude-opus-4-6": {
           "id": "claude-opus-4-6",
@@ -524,6 +557,9 @@
     "burncloud": {
       "type": "openai",
       "apiHost": "https://ai.burncloud.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "claude-opus-4-5-20251101": {
           "id": "claude-opus-4-5-20251101",
@@ -586,6 +622,9 @@
       "type": "openai",
       "apiHost": "https://api.tokenflux.ai/openai/v1",
       "anthropicApiHost": "https://api.tokenflux.ai/anthropic",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "gpt-4.1": {
           "id": "gpt-4.1",
@@ -643,6 +682,9 @@
       "type": "openai",
       "apiHost": "https://api.302.ai",
       "anthropicApiHost": "https://api.302.ai",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "deepseek-chat": {
           "id": "deepseek-chat",
@@ -714,6 +756,9 @@
     "cephalon": {
       "type": "openai",
       "apiHost": "https://cephalon.cloud/user-center/v1/model",
+      "isNotSupportArrayContent": true,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "DeepSeek-R1": {
           "id": "DeepSeek-R1",
@@ -730,6 +775,9 @@
     "lanyun": {
       "type": "openai",
       "apiHost": "https://maas-api.lanyun.net",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "/maas/deepseek-ai/DeepSeek-R1-0528": {
           "id": "/maas/deepseek-ai/DeepSeek-R1-0528",
@@ -766,6 +814,9 @@
     "ph8": {
       "type": "openai",
       "apiHost": "https://ph8.co",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "deepseek-v3-241226": {
           "id": "deepseek-v3-241226",
@@ -782,11 +833,17 @@
     "sophnet": {
       "type": "openai",
       "apiHost": "https://www.sophnet.com/api/open-apis/v1",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "ppio": {
       "type": "openai",
       "apiHost": "https://api.ppinfra.com/v3/openai/",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "deepseek/deepseek-v3.2": {
           "id": "deepseek/deepseek-v3.2",
@@ -824,6 +881,9 @@
       "type": "openai",
       "apiHost": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
       "anthropicApiHost": "https://dashscope.aliyuncs.com/apps/anthropic",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "qwen3.5-plus": {
           "id": "qwen3.5-plus",
@@ -866,6 +926,9 @@
       "type": "openai",
       "apiHost": "https://api.minimaxi.com/v1/",
       "anthropicApiHost": "https://api.minimaxi.com/anthropic",
+      "isNotSupportArrayContent": true,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "MiniMax-M3": {
           "id": "MiniMax-M3",
@@ -888,6 +951,9 @@
       "type": "openai",
       "apiHost": "https://api.minimax.io/v1/",
       "anthropicApiHost": "https://api.minimax.io/anthropic",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "MiniMax-M3": {
           "id": "MiniMax-M3",
@@ -910,6 +976,9 @@
       "type": "openai",
       "apiHost": "https://api.moonshot.cn",
       "anthropicApiHost": "https://api.moonshot.cn/anthropic",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "kimi-k2.5": {
           "id": "kimi-k2.5",
@@ -965,6 +1034,9 @@
       "type": "openai",
       "apiHost": "https://api.qnaigc.com",
       "anthropicApiHost": "https://api.qnaigc.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": true,
+      "isNotSupportStreamOptions": false,
       "models": {
         "deepseek-r1": {
           "id": "deepseek-r1",
@@ -1012,6 +1084,9 @@
       "type": "openai",
       "apiHost": "https://openrouter.ai/api/v1/",
       "anthropicApiHost": "https://openrouter.ai/api",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "google/gemini-2.5-flash-image-preview": {
           "id": "google/gemini-2.5-flash-image-preview",
@@ -1044,23 +1119,35 @@
       "type": "new-api",
       "apiHost": "http://localhost:3000",
       "anthropicApiHost": "http://localhost:3000",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "ollama": {
       "type": "ollama",
       "apiHost": "http://localhost:11434",
       "anthropicApiHost": "http://localhost:11434",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "lmstudio": {
       "type": "openai",
       "apiHost": "http://localhost:1234",
       "anthropicApiHost": "http://localhost:1234",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "anthropic": {
       "type": "anthropic",
       "apiHost": "https://api.anthropic.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "claude-opus-4-7": {
           "id": "claude-opus-4-7",
@@ -1097,6 +1184,9 @@
     "openai": {
       "type": "openai-response",
       "apiHost": "https://api.openai.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "gpt-5.4": {
           "id": "gpt-5.4",
@@ -1148,6 +1238,9 @@
     "azure-openai": {
       "type": "azure-openai",
       "apiHost": "",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "gpt-4o": {
           "id": "gpt-4o",
@@ -1164,6 +1257,9 @@
     "gemini": {
       "type": "gemini",
       "apiHost": "https://generativelanguage.googleapis.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "gemini-2.5-flash": {
           "id": "gemini-2.5-flash",
@@ -1200,11 +1296,17 @@
     "vertexai": {
       "type": "vertexai",
       "apiHost": "",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "github": {
       "type": "openai",
       "apiHost": "https://models.github.ai/inference",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "gpt-4o": {
           "id": "gpt-4o",
@@ -1216,6 +1318,9 @@
     "copilot": {
       "type": "openai",
       "apiHost": "https://api.githubcopilot.com/",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "gpt-5-mini": {
           "id": "gpt-5-mini",
@@ -1227,6 +1332,9 @@
     "doubao": {
       "type": "openai",
       "apiHost": "https://ark.cn-beijing.volces.com/api/v3/",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "doubao-seed-1-8-251228": {
           "id": "doubao-seed-1-8-251228",
@@ -1363,6 +1471,9 @@
     "baichuan": {
       "type": "openai",
       "apiHost": "https://api.baichuan-ai.com",
+      "isNotSupportArrayContent": true,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "Baichuan4": {
           "id": "Baichuan4",
@@ -1415,6 +1526,9 @@
       "type": "openai",
       "apiHost": "https://api.stepfun.com",
       "anthropicApiHost": "https://api.stepfun.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "step-1-8k": {
           "id": "step-1-8k",
@@ -1431,6 +1545,9 @@
     "yi": {
       "type": "openai",
       "apiHost": "https://api.lingyiwanwu.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "yi-lightning": {
           "id": "yi-lightning",
@@ -1447,6 +1564,9 @@
     "infini": {
       "type": "openai",
       "apiHost": "https://cloud.infini-ai.com/maas",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "deepseek-r1": {
           "id": "deepseek-r1",
@@ -1528,6 +1648,9 @@
     "groq": {
       "type": "openai",
       "apiHost": "https://api.groq.com/openai",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "llama3-8b-8192": {
           "id": "llama3-8b-8192",
@@ -1554,6 +1677,9 @@
     "together": {
       "type": "openai",
       "apiHost": "https://api.together.xyz",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo": {
           "id": "meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo",
@@ -1580,6 +1706,9 @@
     "fireworks": {
       "type": "openai",
       "apiHost": "https://api.fireworks.ai/inference",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "accounts/fireworks/models/mythomax-l2-13b": {
           "id": "accounts/fireworks/models/mythomax-l2-13b",
@@ -1596,6 +1725,9 @@
     "nvidia": {
       "type": "openai",
       "apiHost": "https://integrate.api.nvidia.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "01-ai/yi-large": {
           "id": "01-ai/yi-large",
@@ -1612,6 +1744,9 @@
     "grok": {
       "type": "openai",
       "apiHost": "https://api.x.ai",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "grok-4.3": {
           "id": "grok-4.3",
@@ -1648,6 +1783,9 @@
     "hyperbolic": {
       "type": "openai",
       "apiHost": "https://api.hyperbolic.xyz",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "Qwen/Qwen2-VL-72B-Instruct": {
           "id": "Qwen/Qwen2-VL-72B-Instruct",
@@ -1674,6 +1812,9 @@
     "mistral": {
       "type": "openai",
       "apiHost": "https://api.mistral.ai",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": true,
       "models": {
         "pixtral-12b-2409": {
           "id": "pixtral-12b-2409",
@@ -1725,6 +1866,9 @@
     "jina": {
       "type": "openai",
       "apiHost": "https://api.jina.ai",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "jina-clip-v1": {
           "id": "jina-clip-v1",
@@ -1771,6 +1915,9 @@
     "perplexity": {
       "type": "openai",
       "apiHost": "https://api.perplexity.ai/",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "sonar-reasoning-pro": {
           "id": "sonar-reasoning-pro",
@@ -1803,6 +1950,9 @@
       "type": "openai",
       "apiHost": "https://api-inference.modelscope.cn/v1/",
       "anthropicApiHost": "https://api-inference.modelscope.cn",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "Qwen/Qwen2.5-72B-Instruct": {
           "id": "Qwen/Qwen2.5-72B-Instruct",
@@ -1834,11 +1984,17 @@
     "xirang": {
       "type": "openai",
       "apiHost": "https://wishub-x1.ctyun.cn",
+      "isNotSupportArrayContent": true,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "hunyuan": {
       "type": "openai",
       "apiHost": "https://api.hunyuan.cloud.tencent.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "hunyuan-pro": {
           "id": "hunyuan-pro",
@@ -1895,6 +2051,9 @@
     "tencent-cloud-ti": {
       "type": "openai",
       "apiHost": "https://api.lkeap.cloud.tencent.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "deepseek-r1": {
           "id": "deepseek-r1",
@@ -1911,6 +2070,9 @@
     "baidu-cloud": {
       "type": "openai",
       "apiHost": "https://qianfan.baidubce.com/v2/",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "deepseek-r1": {
           "id": "deepseek-r1",
@@ -1957,11 +2119,17 @@
     "gpustack": {
       "type": "openai",
       "apiHost": "",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "voyageai": {
       "type": "openai",
       "apiHost": "https://api.voyageai.com",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "voyage-3-large": {
           "id": "voyage-3-large",
@@ -2013,11 +2181,17 @@
     "aws-bedrock": {
       "type": "aws-bedrock",
       "apiHost": "",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "poe": {
       "type": "openai",
       "apiHost": "https://api.poe.com/v1/",
+      "isNotSupportArrayContent": true,
+      "isNotSupportDeveloperRole": true,
+      "isNotSupportStreamOptions": false,
       "models": {
         "Claude-Opus-4.6": {
           "id": "Claude-Opus-4.6",
@@ -2090,6 +2264,9 @@
       "type": "openai",
       "apiHost": "https://api.longcat.chat/openai",
       "anthropicApiHost": "https://api.longcat.chat/anthropic",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "LongCat-2.0": {
           "id": "LongCat-2.0",
@@ -2112,16 +2289,25 @@
     "huggingface": {
       "type": "openai-response",
       "apiHost": "https://router.huggingface.co/v1/",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "gateway": {
       "type": "gateway",
       "apiHost": "https://ai-gateway.vercel.sh/v1/ai",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {}
     },
     "cerebras": {
       "type": "openai",
       "apiHost": "https://api.cerebras.ai/v1",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "gpt-oss-120b": {
           "id": "gpt-oss-120b",
@@ -2144,6 +2330,9 @@
       "type": "openai",
       "apiHost": "https://api.xiaomimimo.com",
       "anthropicApiHost": "https://api.xiaomimimo.com/anthropic",
+      "isNotSupportArrayContent": false,
+      "isNotSupportDeveloperRole": false,
+      "isNotSupportStreamOptions": false,
       "models": {
         "mimo-v2.5": {
           "id": "mimo-v2.5",

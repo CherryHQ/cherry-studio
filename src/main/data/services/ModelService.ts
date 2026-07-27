@@ -116,34 +116,6 @@ function assertManagedCherryAiDefaultModelMutationAllowed(
 }
 
 /**
- * Resolve the effective capability set for a Model row at query-time.
- *
- * Custom rows remain row-owned, but can still receive the image-generation
- * capability and metadata when the registry recognizes the model id. Preset-
- * backed rows use the complete baseline merge below instead.
- */
-function resolveCapabilities(
-  presetCapabilities: readonly ModelCapability[] | undefined,
-  overrideCapabilities: { force?: ModelCapability[]; add?: ModelCapability[]; remove?: ModelCapability[] } | undefined,
-  userCapabilities: readonly ModelCapability[]
-): ModelCapability[] {
-  if (overrideCapabilities?.force) {
-    return [...overrideCapabilities.force]
-  }
-  const set = new Set<ModelCapability>(userCapabilities)
-  if (presetCapabilities?.includes(MODEL_CAPABILITY.IMAGE_GENERATION)) {
-    set.add(MODEL_CAPABILITY.IMAGE_GENERATION)
-  }
-  if (overrideCapabilities?.add) {
-    for (const c of overrideCapabilities.add) set.add(c)
-  }
-  if (overrideCapabilities?.remove) {
-    for (const c of overrideCapabilities.remove) set.delete(c)
-  }
-  return [...set]
-}
-
-/**
  * Registry data for model creation.
  * Must stay in sync with the return type of {@link ProviderRegistryService.lookupModel}.
  * Defined explicitly (not via ReturnType) to avoid a circular import.
@@ -470,13 +442,12 @@ function createPresetFallback(row: UserModelRow, profile?: ResolvedReasoningProf
 class ModelService {
   private getRegistryBaseline(
     providerId: string,
-    presetModelId: string | null,
+    modelId: string,
     reasoningConfigCache?: Map<string, ReasoningProviderContext>
   ): Model | null {
-    if (!presetModelId) return null
     const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
       providerId,
-      presetModelId,
+      modelId,
       reasoningConfigCache
     )
     if (!presetModel) return null
@@ -521,7 +492,7 @@ class ModelService {
     let baseline: Model | null = null
     if (existing.presetModelId && hasPresetDeltaField) {
       try {
-        baseline = this.getRegistryBaseline(existing.providerId, existing.presetModelId)
+        baseline = this.getRegistryBaseline(existing.providerId, existing.modelId)
       } catch (error) {
         logger.warn('Registry baseline lookup failed; preserving model fields as user overrides', {
           providerId: existing.providerId,
@@ -664,9 +635,9 @@ class ModelService {
   /**
    * Registry resolution shared by every row-serving path. Preset-backed rows
    * use the current registry as their baseline and apply every non-null sparse
-   * config column. Custom rows remain row-owned and keep the narrow metadata
-   * enrichment used for recognized image/reasoning models. Nothing is written
-   * back.
+   * config column. Complete custom rows keep their row-owned capabilities and
+   * receive only the narrow metadata/reasoning enrichment used for recognized
+   * models. Nothing is written back.
    */
   private enrichRowsFromRegistry(rows: UserModelRow[]): Model[] {
     const reasoningConfigCache = new Map<string, ReasoningProviderContext>()
@@ -675,7 +646,7 @@ class ModelService {
         try {
           const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
             row.providerId,
-            row.presetModelId,
+            row.modelId,
             reasoningConfigCache
           )
           if (!presetModel) {
@@ -695,7 +666,7 @@ class ModelService {
         } catch (error) {
           logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
             providerId: row.providerId,
-            modelId: row.presetModelId,
+            modelId: row.modelId,
             error
           })
           return createPresetFallback(row)
@@ -717,14 +688,6 @@ class ModelService {
         if (imageGeneration) updates.imageGeneration = imageGeneration
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
-        if (row.capabilities === null) {
-          updates.capabilities = resolveCapabilities(
-            presetModel?.capabilities,
-            registryOverride?.capabilities,
-            model.capabilities
-          )
-        }
-        const capabilities = updates.capabilities ?? model.capabilities
         let reasoning: RuntimeReasoning | undefined
         if (presetModel) {
           reasoning = mergePresetModel(
@@ -738,7 +701,7 @@ class ModelService {
           reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
         } else {
           reasoning = inferCustomModelReasoning(modelId, reasoningProfile.wire, {
-            declaredReasoning: capabilities.includes(MODEL_CAPABILITY.REASONING)
+            declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
           })
         }
         if (reasoning) updates.reasoning = reasoning

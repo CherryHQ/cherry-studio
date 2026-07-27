@@ -401,6 +401,9 @@ describe('ProviderModelMigrator', () => {
               type: 'openai-response',
               enabled: true,
               apiHost: 'https://my-proxy.com/v1',
+              isNotSupportArrayContent: false,
+              isNotSupportDeveloperRole: false,
+              isNotSupportStreamOptions: false,
               models: []
             }
           ]
@@ -432,6 +435,46 @@ describe('ProviderModelMigrator', () => {
       expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl).toBe('https://my-proxy.com/v1')
       expect(runtime.apiFeatures.serviceTier).toBe(false)
       expect(runtime.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    })
+
+    it('stores only a changed API feature from a post-migration v1 provider snapshot', async () => {
+      registryFixtures.providers = [
+        {
+          id: 'openai',
+          name: 'OpenAI',
+          endpointConfigs: {},
+          defaultChatEndpoint: 'openai-responses'
+        }
+      ]
+
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: 'openai',
+              name: 'OpenAI',
+              type: 'openai-response',
+              enabled: true,
+              apiHost: 'https://api.openai.com',
+              isNotSupportArrayContent: true,
+              isNotSupportDeveloperRole: false,
+              isNotSupportStreamOptions: false,
+              models: []
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [providerRow] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'openai'))
+
+      expect(providerRow.apiFeatures).toEqual({ arrayContent: false })
     })
 
     it('leaves custom provider rows untouched when registry has no matching preset', async () => {

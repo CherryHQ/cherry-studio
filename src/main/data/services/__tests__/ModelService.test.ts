@@ -285,6 +285,40 @@ describe('ModelService.update', () => {
     expect(modelService.getByKey('openai', 'gpt-4o').name).toBe('GPT-4o (2026)')
   })
 
+  it('compares same-canonical variants against the exact API model baseline', async () => {
+    const apiModelId = 'deepseek-v4-flash-202605'
+    await dbh.db.insert(userProviderTable).values(providerRow('tokenhub', 'TokenHub'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('tokenhub', apiModelId, {
+        presetModelId: 'deepseek-v4-flash',
+        name: 'My DeepSeek Flash'
+      })
+    )
+    lookupModelMock.mockImplementation((_providerId: string, modelId: string) => {
+      const isDatedVariant = modelId === apiModelId
+      return {
+        presetModel: { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+        registryOverride: {
+          providerId: 'tokenhub',
+          modelId: 'deepseek-v4-flash',
+          apiModelId: isDatedVariant ? apiModelId : 'deepseek-v4-flash',
+          ...(isDatedVariant ? { name: 'DeepSeek-V4-Flash 原厂直供' } : {})
+        },
+        reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+      }
+    })
+
+    const updated = modelService.update('tokenhub', apiModelId, { name: 'DeepSeek-V4-Flash 原厂直供' })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, createUniqueModelId('tokenhub', apiModelId)))
+    expect(row.name).toBeNull()
+    expect(updated.name).toBe('DeepSeek-V4-Flash 原厂直供')
+    expect(lookupModelMock).toHaveBeenCalledWith('tokenhub', apiModelId)
+  })
+
   it('does not freeze the edit drawer empty-pricing echo when the registry has no pricing', async () => {
     await seedExistingModel()
     lookupModelMock.mockReturnValue({
@@ -955,6 +989,47 @@ describe('ModelService.list — registry enrichment', () => {
       contextWindow: 128_000,
       supportsStreaming: true
     })
+  })
+
+  it('hydrates same-canonical variants through their exact API model ID', async () => {
+    const apiModelId = 'deepseek-v4-flash-202605'
+    await dbh.db.insert(userProviderTable).values(providerRow('tokenhub', 'TokenHub'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('tokenhub', apiModelId, {
+        presetModelId: 'deepseek-v4-flash',
+        name: null,
+        capabilities: null,
+        supportsStreaming: null
+      })
+    )
+    lookupModelMock.mockImplementation((_providerId: string, modelId: string) => {
+      const isDatedVariant = modelId === apiModelId
+      return {
+        presetModel: { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+        registryOverride: {
+          providerId: 'tokenhub',
+          modelId: 'deepseek-v4-flash',
+          apiModelId: isDatedVariant ? apiModelId : 'deepseek-v4-flash',
+          ...(isDatedVariant
+            ? {
+                name: 'DeepSeek-V4-Flash 原厂直供',
+                limits: { contextWindow: 131_072 }
+              }
+            : {})
+        },
+        reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+      }
+    })
+
+    const [model] = modelService.list({ providerId: 'tokenhub' })
+
+    expect(model).toMatchObject({
+      apiModelId,
+      presetModelId: 'deepseek-v4-flash',
+      name: 'DeepSeek-V4-Flash 原厂直供',
+      contextWindow: 131_072
+    })
+    expect(lookupModelMock).toHaveBeenCalledWith('tokenhub', apiModelId, expect.any(Map))
   })
 
   it('inherits registry fields added after row creation without updating the stored delta', async () => {
