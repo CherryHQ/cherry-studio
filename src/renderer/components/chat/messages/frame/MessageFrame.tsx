@@ -12,7 +12,6 @@ import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getMessageEnterMotionAttributes, getMessageEnterMotionVariant } from '../../motion/messageEnterMotion'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
@@ -50,7 +49,6 @@ interface Props {
   isLatestAssistantMessage?: boolean
   showModelIdentity?: boolean
   lockedMentionedModels?: Model[]
-  enterMotionActive?: boolean
 }
 
 const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
@@ -65,8 +63,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   isHorizontalMultiModelLayout = false,
   isLatestAssistantMessage = false,
   showModelIdentity = false,
-  lockedMentionedModels,
-  enterMotionActive = false
+  lockedMentionedModels
 }) => {
   const { t } = useTranslation()
   const actions = useMessageListActions()
@@ -114,13 +111,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isApprovalAnchor = activityState?.isApprovalAnchor ?? false
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
-  const enterMotionVariant = getMessageEnterMotionVariant({
-    active: enterMotionActive,
-    role: message.role,
-    messageStyle,
-    isMultiSelectMode
-  })
-  const enterMotionAttributes = getMessageEnterMotionAttributes(enterMotionVariant)
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
@@ -260,7 +250,6 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   return (
     <div
       key={message.id}
-      data-message-enter-motion={enterMotionAttributes?.motion}
       className={cn(
         classNames({
           'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
@@ -268,8 +257,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           'message-user': !isAssistantMessage,
           'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
           'cursor-pointer': isMultiSelectMode
-        }),
-        enterMotionAttributes?.className
+        })
       )}
       aria-disabled={isEditing ? true : undefined}
       ref={messageContainerRef}
