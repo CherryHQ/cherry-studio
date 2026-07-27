@@ -538,28 +538,6 @@ function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
-function useComposerDynamicControlsReady(deferDynamicControls: boolean) {
-  const [controlsReady, setControlsReady] = useState(!deferDynamicControls)
-
-  useLayoutEffect(() => {
-    if (!deferDynamicControls || controlsReady) return
-
-    let controlsFrame = 0
-    const editorFrame = window.requestAnimationFrame(() => {
-      controlsFrame = window.requestAnimationFrame(() => {
-        startTransition(() => setControlsReady(true))
-      })
-    })
-
-    return () => {
-      window.cancelAnimationFrame(editorFrame)
-      if (controlsFrame) window.cancelAnimationFrame(controlsFrame)
-    }
-  }, [controlsReady, deferDynamicControls])
-
-  return !deferDynamicControls || controlsReady
-}
-
 export default function ComposerSurface({
   text,
   onTextChange,
@@ -609,7 +587,8 @@ export default function ComposerSurface({
   sendAccessory,
   deferDynamicControls = false
 }: ComposerSurfaceProps) {
-  const dynamicControlsReady = useComposerDynamicControlsReady(deferDynamicControls)
+  const [editorReady, setEditorReady] = useState(!deferDynamicControls)
+  const dynamicControlsReady = !deferDynamicControls || editorReady
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -1807,6 +1786,9 @@ export default function ComposerSurface({
       }
     },
     onCreate: ({ editor: createdEditor }) => {
+      window.requestAnimationFrame(() => {
+        startTransition(() => setEditorReady(true))
+      })
       const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
       setTimeoutTimer(
         'composerSurfaceFocus',
