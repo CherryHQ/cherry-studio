@@ -57,6 +57,7 @@ const INSTALL_TOOL: Tool = {
 class SkillsServer {
   public mcpServer: McpServer
   private agentId: string
+  private readonly issuedInstallSources = new Set<string>()
 
   constructor(agentId: string) {
     this.agentId = agentId
@@ -133,6 +134,9 @@ class SkillsServer {
       source_url: r.sourceUrl,
       install_source: r.installSource
     }))
+    for (const result of results) {
+      this.issuedInstallSources.add(result.installSource)
+    }
 
     logger.info('Skills search via tool', { agentId: this.agentId, query, resultCount: view.length })
     return {
@@ -165,6 +169,12 @@ class SkillsServer {
       throw new McpError(
         ErrorCode.InvalidParams,
         "'install_source' is required — use the value from a search_skills result"
+      )
+    }
+    if (!this.issuedInstallSources.has(installSource)) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        "'install_source' was not returned by search_skills in this session; search again and use the exact result"
       )
     }
 

@@ -972,9 +972,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     // headlessInteractiveToolHook + headlessConfigMutationHook + headlessSkillInstallHook + disabledToolHook + workspacePathHook + dependencyIsolationHook + rtkRewriteHook + steerHook
     expect(preToolUse).toHaveLength(8)
 
-    const steerHook = preToolUse![7] as unknown as (input: {
+    const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
+    expect(steerHook).toBeDefined()
 
     // No queued steer → the hook no-ops.
     expect(await steerHook({ hook_event_name: 'PreToolUse' })).toEqual({})
@@ -1004,9 +1005,10 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse![6] as unknown as (input: {
+    const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
+    expect(steerHook).toBeDefined()
     const onInjected = vi.fn()
     settings.steerHolder!.onInjected = onInjected
     const emptySteer = { message: { data: { parts: [{ type: 'text', text: '   ' }] } } } as never

@@ -183,6 +183,19 @@ describe('SkillsServer', () => {
 
   describe('install_skill', () => {
     it('installs the exact install_source via SkillService and enables it for the current agent', async () => {
+      const server = createServer('agent-42')
+      mockMarketplace([
+        {
+          id: 'react',
+          name: 'React Best Practices',
+          namespace: 'vercel-labs',
+          metadata: {
+            repoOwner: 'vercel-labs',
+            repoName: 'agent-skills',
+            directoryPath: 'skills/react-best-practices'
+          }
+        }
+      ])
       installMock.mockResolvedValue({
         id: 'skill-1',
         name: 'React Best Practices',
@@ -192,12 +205,23 @@ describe('SkillsServer', () => {
       toggleMock.mockReturnValue({ id: 'skill-1', isEnabled: true })
 
       const installSource = 'claude-plugins:vercel-labs/agent-skills/skills/react-best-practices'
-      const result = await callTool(createServer('agent-42'), 'install_skill', { install_source: installSource })
+      await callTool(server, 'search_skills', { query: 'react' })
+      const result = await callTool(server, 'install_skill', { install_source: installSource })
 
       expect(installMock).toHaveBeenCalledWith({ installSource })
       expect(toggleMock).toHaveBeenCalledWith({ skillId: 'skill-1', agentId: 'agent-42', isEnabled: true })
       expect(result.isError).toBeFalsy()
       expect(result.content[0].text).toContain('installed and enabled for this agent')
+    })
+
+    it('rejects an install_source that was not returned by this server session', async () => {
+      const result = await callTool(createServer(), 'install_skill', {
+        install_source: 'skills.sh:owner/repo/unreviewed'
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('was not returned by search_skills in this session')
+      expect(installMock).not.toHaveBeenCalled()
     })
 
     it('errors when install_source is missing (never touches SkillService)', async () => {
@@ -207,8 +231,18 @@ describe('SkillsServer', () => {
     })
 
     it('surfaces an install failure as an error result, not a throw', async () => {
+      const server = createServer()
+      mockMarketplace([
+        {
+          id: 'c',
+          name: 'C',
+          namespace: 'a',
+          metadata: { repoOwner: 'a', repoName: 'b', directoryPath: 'c' }
+        }
+      ])
       installMock.mockRejectedValue(new Error('clone failed'))
-      const result = await callTool(createServer(), 'install_skill', { install_source: 'claude-plugins:a/b/c' })
+      await callTool(server, 'search_skills', { query: 'c' })
+      const result = await callTool(server, 'install_skill', { install_source: 'claude-plugins:a/b/c' })
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('clone failed')
     })

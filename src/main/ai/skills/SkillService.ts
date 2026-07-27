@@ -391,8 +391,8 @@ export class SkillService {
    * live under `.claude/skills/`. Those entries can be real directories or
    * user-created symlinks to directories.
    *
-   * Cherry-managed skills also appear under `.claude/skills/` as symlinks when
-   * enabled for Claude SDK discovery, but their source of truth is
+   * Cherry-managed skills also appear under `.claude/skills/` as app-owned mirror
+   * entries when enabled for Claude SDK discovery, but their source of truth is
    * `agent_global_skill` and they are rendered by `list({ agentId })`. Keep
    * them out of this local-only list.
    */
@@ -475,14 +475,14 @@ export class SkillService {
 
   private async installFromSkillsSh(identifier: string): Promise<InstalledSkill> {
     const parts = identifier.split('/')
-    if (parts.length < 2) {
+    if (parts.length !== 3 || parts.some((part) => !part)) {
       throw new Error(`Invalid skills.sh identifier: ${identifier}`)
     }
     logger.info('Installing from skills.sh', { identifier })
 
     const owner = parts[0]
     const repo = parts[1]
-    const skillName = parts.length > 2 ? parts.slice(2).join('/') : null
+    const skillName = parts[2]
     const repoUrl = `https://github.com/${owner}/${repo}`
     const tempDir = await this.createTempDir('skills-sh')
 
@@ -772,19 +772,11 @@ export class SkillService {
     if (skillName) {
       const matched = candidates.find((c) => path.basename(c.folderPath) === skillName)
       if (matched) return this.validateRepositorySkillDirectory(repoDir, matched.folderPath)
+      throw new Error(`No SKILL.md found for the specified skill: ${skillName}`)
     }
 
     if (candidates.length === 1) {
       return this.validateRepositorySkillDirectory(repoDir, candidates[0].folderPath)
-    }
-
-    if (candidates.length > 1 && skillName) {
-      const lowerName = skillName.toLowerCase()
-      const fuzzy = candidates.find((c) => {
-        const base = path.basename(c.folderPath).toLowerCase()
-        return base.includes(lowerName) || lowerName.includes(base)
-      })
-      if (fuzzy) return this.validateRepositorySkillDirectory(repoDir, fuzzy.folderPath)
     }
 
     if (candidates.length > 0) {
@@ -871,6 +863,18 @@ export class SkillService {
       return
     }
 
+    let catalogSkill: InstalledSkill | null
+    try {
+      catalogSkill = this.findCatalogSkillCaseInsensitive(folderName)
+    } catch (error) {
+      await this.unlinkMirror(folderName)
+      logger.warn('Refusing to mirror a case-ambiguous catalog skill', {
+        folderName,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return
+    }
+
     // Accept either casing so a lowercase-only skill still mirrors (reconcile normalizes to
     // SKILL.md, but install paths may not have run yet) — otherwise it would be in the catalog
     // but absent from the mirror the SDK loads.
@@ -885,10 +889,32 @@ export class SkillService {
       return
     }
 
+    const builtinSkill = catalogSkill?.source === 'builtin' ? catalogSkill : null
+    const isBuiltin = builtinSkill !== null
+    if (builtinSkill) {
+      try {
+        const actualHash = await this.computeBuiltinDirectoryHash(sourceDir)
+        if (actualHash !== builtinSkill.contentHash) {
+          await this.unlinkMirror(folderName)
+          logger.warn('Refusing to mirror modified built-in skill content', { folderName })
+          return
+        }
+      } catch (error) {
+        await this.unlinkMirror(folderName)
+        logger.warn('Failed to verify built-in skill content; removed mirror', {
+          folderName,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        return
+      }
+    }
+
     try {
       await fs.promises.mkdir(rootDir, { recursive: true })
 
-      if (!isWin) {
+      // Builtins are copied even on POSIX. A symlink would expose direct writes to the canonical
+      // authoring root immediately to every other agent before reconcile can reject the change.
+      if (!isWin && !isBuiltin) {
         const stat = await fs.promises.lstat(targetDir).catch(() => null)
         if (stat?.isSymbolicLink()) {
           const [targetRealPath, sourceRealPath] = await Promise.all([
@@ -900,8 +926,9 @@ export class SkillService {
       }
 
       await fs.promises.rm(targetDir, { recursive: true, force: true })
-      if (isWin) {
-        // Windows uses a real copy instead of symlink/junction (privilege/packaging quirks).
+      if (isWin || isBuiltin) {
+        // Windows avoids symlink/junction privilege quirks; builtins use a verified copy so
+        // out-of-band writes to the authoring root cannot change another agent's loaded instructions.
         await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true })
       } else {
         await fs.promises.symlink(sourceDir, targetDir, 'dir')
@@ -923,17 +950,16 @@ export class SkillService {
 
   /**
    * Reconcile the managed skill library (Data/Skills) with the DB catalog and the
-   * CLAUDE_CONFIG_DIR/skills mirror. The filesystem is the source of truth;
-   * `agent_global_skill` is a cache reconciled from disk — so a skill an agent
-   * authored via native file tools (or one whose files were removed out-of-band) is
-   * picked up without any "register" call. Agents write directly to the managed library
-   * exposed by CHERRY_STUDIO_SKILLS_DIR; reconcile projects that library into the catalog
-   * and the read-only Claude config mirror.
+   * CLAUDE_CONFIG_DIR/skills mirror. The filesystem is the source of truth for
+   * user-authored skills; builtins remain owned by the bundled source and are never
+   * reclassified from direct filesystem writes. Agents write new skills directly to the
+   * managed library exposed by CHERRY_STUDIO_SKILLS_DIR; reconcile projects that library
+   * into the catalog and the read-only Claude config mirror.
    *
    * 1. library → DB: adopt newly-present library skills, refresh changed ones, and
    *    prune non-builtin rows whose files have vanished. Pruning is gated on a
    *    successful library scan so a transient read error can't wipe the catalog.
-   * 2. DB → mirror: heal every catalog skill's symlink and drop managed orphans.
+   * 2. DB → mirror: heal every trusted catalog mirror entry and drop managed orphans.
    *
    * Idempotent. Mutations never happen at session build, so concurrent session
    * builds only read these directories.
@@ -964,10 +990,10 @@ export class SkillService {
 
   /**
    * Reconcile the managed library (Data/Skills) with the `agent_global_skill`
-   * catalog: adopt skills present on disk but missing a row, refresh rows whose
-   * SKILL.md changed, and prune non-builtin rows whose files are gone. Builtins are
-   * owned by `installBuiltinSkills` and never pruned here. Presence and change
-   * detection read SKILL.md directly, so the catalog converges to what is on disk.
+   * catalog: adopt skills present on disk but missing a row, refresh non-builtin rows
+   * whose SKILL.md changed, and prune non-builtin rows whose files are gone. Builtins
+   * are owned by `installBuiltinSkills`; direct changes are not adopted and fail mirror
+   * integrity checks. Presence and authored-skill change detection read SKILL.md directly.
    */
   private async reconcileLibraryToDb(): Promise<void> {
     const storageRoot = application.getPath('feature.agents.skills')
@@ -996,8 +1022,10 @@ export class SkillService {
     const dbByFolder = new Map(
       [...dbGroups.entries()].flatMap(([key, group]) => (group.length === 1 ? [[key, group[0]] as const] : []))
     )
+    const conflictingDbKeys = new Set<string>()
     for (const [folderKey, group] of dbGroups) {
       if (group.length > 1) {
+        conflictingDbKeys.add(folderKey)
         logger.warn('Rejected case-colliding skill catalog rows during reconcile', {
           folderKey,
           folderNames: group.map((skill) => skill.folderName)
@@ -1061,7 +1089,16 @@ export class SkillService {
     }
 
     for (const [folderName, contentHash] of onDisk) {
-      const existing = dbByFolder.get(this.normalizeFolderKey(folderName))
+      const folderKey = this.normalizeFolderKey(folderName)
+      if (conflictingDbKeys.has(folderKey)) continue
+
+      const existing = dbByFolder.get(folderKey)
+      if (existing?.source === 'builtin') {
+        // Builtins are owned by the bundled source and synchronized before reconcile. Never adopt
+        // out-of-band writes as new trusted builtin metadata; linkMirror verifies the full directory
+        // hash and removes the mirror when canonical content no longer matches the trusted DB hash.
+        continue
+      }
       if (existing && existing.contentHash === contentHash) continue
 
       let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
@@ -1107,6 +1144,21 @@ export class SkillService {
       // Prune ONLY when the whole folder is gone from disk. A present folder whose descriptor is
       // momentarily missing/unreadable (atomic save, EACCES) keeps its row — see presentFolders.
       if (presentFolders.has(this.normalizeFolderKey(skill.folderName))) continue
+      // Agent file tools write outside mutationLock. Recheck the canonical path immediately before
+      // deleting so a folder recreated after the initial readdir snapshot keeps its row and all
+      // agent_skill enablement.
+      try {
+        await fs.promises.lstat(this.getSkillStoragePath(skill.folderName))
+        continue
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          logger.warn('Failed to verify missing skill folder; keeping catalog row', {
+            folderName: skill.folderName,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          continue
+        }
+      }
       agentGlobalSkillService.deleteById(skill.id)
       await this.unlinkMirror(skill.folderName)
       logger.info('Pruned skill whose library folder was removed', { folderName: skill.folderName })
@@ -1114,16 +1166,32 @@ export class SkillService {
   }
 
   /**
-   * Heal the CLAUDE_CONFIG_DIR/skills mirror: symlink every catalog skill into it and
-   * drop managed mirror entries whose DB row is gone. Non-managed real dirs are
-   * absorbed earlier, so anything left here without a DB row is a managed orphan.
+   * Heal the app-owned CLAUDE_CONFIG_DIR/skills mirror and drop entries whose DB row
+   * is gone. POSIX authored skills use symlinks; Windows skills and builtins use copies.
    */
   private async reconcileMirror(): Promise<void> {
     const all = agentGlobalSkillService.listAll()
     const known = new Set(all.map((s) => this.normalizeFolderKey(s.folderName)))
-
+    const groups = new Map<string, InstalledSkill[]>()
     for (const skill of all) {
-      await this.linkMirror(skill.folderName)
+      const key = this.normalizeFolderKey(skill.folderName)
+      const group = groups.get(key)
+      if (group) group.push(skill)
+      else groups.set(key, [skill])
+    }
+
+    for (const [folderKey, group] of groups) {
+      if (group.length > 1) {
+        logger.warn('Removed mirrors for case-ambiguous catalog skills', {
+          folderKey,
+          folderNames: group.map((skill) => skill.folderName)
+        })
+        for (const skill of group) {
+          await this.unlinkMirror(skill.folderName)
+        }
+        continue
+      }
+      await this.linkMirror(group[0].folderName)
     }
 
     const root = this.getMirrorRoot()
@@ -1139,11 +1207,9 @@ export class SkillService {
       const folderName = entry.name
       if (known.has(this.normalizeFolderKey(folderName))) continue
 
-      const entryPath = path.join(root, folderName)
-      // Managed mirror left behind by an uninstalled skill — drop it.
-      if (await this.isManagedSkillSymlinkTarget(entryPath)) {
-        await this.unlinkMirror(folderName)
-      }
+      // This is an app-owned one-way projection. Unknown entries are either stale POSIX symlinks,
+      // stale Windows directory copies, or out-of-band writes; none belong in the SDK discovery root.
+      await this.unlinkMirror(folderName)
     }
   }
 
@@ -1197,6 +1263,12 @@ export class SkillService {
 
   private normalizeFolderKey(folderName: string): string {
     return folderName.toLowerCase()
+  }
+
+  private computeBuiltinDirectoryHash(skillDir: string): Promise<string> {
+    return this.installer.computeDirectoryHash(skillDir, {
+      ignoredRelativePaths: [BUILTIN_VERSION_FILE]
+    })
   }
 
   private findCatalogSkillCaseInsensitive(folderName: string): InstalledSkill | null {
@@ -1304,12 +1376,35 @@ export class SkillService {
   async syncBuiltinSkill(folderName: string, sourcePath: string, appVersion: string): Promise<boolean> {
     return this.mutationLock.runExclusive(async () => {
       const existing = this.findCatalogSkillCaseInsensitive(folderName)
-      const destFolderName = existing?.folderName ?? folderName
+      if (existing && existing.source !== 'builtin') {
+        throw new Error(
+          `Folder name "${folderName}" is already used by a ${existing.source} skill; refusing to overwrite it with a builtin.`
+        )
+      }
+
+      const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
+      const destFolderName = existing?.folderName ?? storageEntry ?? folderName
       const destPath = this.getSkillStoragePath(destFolderName)
+      const sourceHash = await this.computeBuiltinDirectoryHash(sourcePath)
+      if (!existing && storageEntry) {
+        try {
+          await fs.promises.access(path.join(destPath, BUILTIN_VERSION_FILE))
+          const installedHash = await this.computeBuiltinDirectoryHash(destPath)
+          if (installedHash !== sourceHash) {
+            throw new Error('content does not match the bundled builtin')
+          }
+        } catch {
+          throw new Error(
+            `Folder name "${folderName}" conflicts with an existing user-authored library directory "${storageEntry}".`
+          )
+        }
+      }
+
       let filesUpdated = true
       try {
         const installedVersion = (await fs.promises.readFile(path.join(destPath, BUILTIN_VERSION_FILE), 'utf-8')).trim()
-        filesUpdated = installedVersion !== appVersion
+        const installedHash = await this.computeBuiltinDirectoryHash(destPath)
+        filesUpdated = installedVersion !== appVersion || installedHash !== sourceHash
       } catch {
         filesUpdated = true
       }
@@ -1319,12 +1414,11 @@ export class SkillService {
         await fs.promises.writeFile(path.join(destPath, BUILTIN_VERSION_FILE), appVersion, 'utf-8')
       }
 
-      // Skip only when the row is already a correctly-sourced builtin and its files are unchanged.
-      // A row a concurrent reconcile race-adopted as `local` still needs its source reclaimed below.
-      if (existing && existing.source === 'builtin' && !filesUpdated) return false
+      // Builtin contentHash is the trusted full-directory hash (excluding Cherry's version marker),
+      // unlike authored skills whose hash tracks SKILL.md metadata changes.
+      if (existing && !filesUpdated && existing.contentHash === sourceHash) return false
 
       const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
-      const contentHash = await this.installer.computeContentHash(destPath)
       const tags = metadata.tags ?? []
 
       if (existing) {
@@ -1333,10 +1427,7 @@ export class SkillService {
           description: metadata.description ?? null,
           author: metadata.author ?? null,
           tags,
-          contentHash,
-          // Reclaim a row a concurrent reconcile adopted as `local` before this sync ran, so the
-          // builtin defaults back to enabled-for-all-agents.
-          ...(existing.source !== 'builtin' ? { source: 'builtin' } : {})
+          contentHash: sourceHash
         })
       } else {
         agentGlobalSkillService.insert({
@@ -1348,7 +1439,7 @@ export class SkillService {
           namespace: null,
           author: metadata.author ?? null,
           tags,
-          contentHash,
+          contentHash: sourceHash,
           isEnabled: false
         })
       }

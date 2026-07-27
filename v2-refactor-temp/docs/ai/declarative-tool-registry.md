@@ -11,7 +11,8 @@
 > **Update (skill-install-visibility-sync):** the `skills` MCP server is now **wired
 > into every session** by `buildMcpServers()`, exposing two tools — `search_skills`
 > (read-only marketplace search, auto-approved) and `install_skill` (clones + installs
-> exactly one skill via `SkillService.install`, from a validated `install_source`).
+> exactly one skill via `SkillService.install`, from an `install_source` returned by
+> `search_skills` in the same MCP server session).
 > `install_skill` is not in the explicit auto-approve list: the Claude Agent SDK applies the
 > configured permission mode, so default / `acceptEdits` can request approval and
 > `bypassPermissions` runs directly. A PreToolUse hook only denies headless turns whose mode still
