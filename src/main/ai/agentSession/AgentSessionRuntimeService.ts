@@ -146,6 +146,8 @@ type AgentSessionRuntimeEntry = {
   pendingTurns: PendingAgentSessionTurn[]
   connection?: AgentRuntimeConnection
   connectionLoop?: Promise<void>
+  /** Per-CLI-process aggregate level. Non-empty means the connection still owns live background work. */
+  backgroundTasks: AgentSessionBackgroundTasks
   /** In-flight {@link ensureConnection} promise — shared by concurrent callers so only one connect runs. */
   connecting?: Promise<boolean>
   currentTurn?: AgentSessionTurn
@@ -177,7 +179,7 @@ type AgentSessionRuntimeEntry = {
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
   /** Single-flight marker for context-usage reads on the current connection. */
-  contextUsageRefresh?: { connection: AgentRuntimeConnection }
+  contextUsageRefresh?: { connection: AgentRuntimeConnection; pending: boolean }
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -374,6 +376,7 @@ export class AgentSessionRuntimeService extends BaseService {
       messageSnapshot: input.messageSnapshot,
       status: 'active',
       pendingTurns: [],
+      backgroundTasks: [],
       currentTurn: turn
     }
     this.entries.set(input.sessionId, entry)
@@ -438,7 +441,8 @@ export class AgentSessionRuntimeService extends BaseService {
         agentType: agent.type,
         modelId: agent.model,
         status: 'idle',
-        pendingTurns: []
+        pendingTurns: [],
+        backgroundTasks: []
       }
       this.entries.set(sessionId, entry)
 
@@ -705,6 +709,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.startingNextTurn === true ||
       entry.rolling === true ||
       entry.compacting === true ||
+      entry.backgroundTasks.length > 0 ||
       entry.pendingTurns.length > 0 ||
       (entry.currentTurn !== undefined && entry.currentTurn.terminalStatus === undefined)
     )
@@ -912,17 +917,20 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.connection = connection
+    this.resetConnectionTaskState(entry, connection)
     // Priming opens an idle connection only to populate connection-local metadata such as slash
     // commands. Context usage is expensive (the SDK issues multiple token-count probes), so defer it
     // until a real turn, a runtime event, or an explicit UI refresh needs a reading.
     if (entry.status === 'active') this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
-    entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
+    const connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (entry.connection === connection) {
+        this.resetConnectionTaskState(entry, connection)
         entry.connection = undefined
       }
-      if (entry.connectionLoop) entry.connectionLoop = undefined
+      if (entry.connectionLoop === connectionLoop) entry.connectionLoop = undefined
     })
+    entry.connectionLoop = connectionLoop
     return true
   }
 
@@ -935,14 +943,21 @@ export class AgentSessionRuntimeService extends BaseService {
   private async runConnectionLoop(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): Promise<void> {
     try {
       for await (const event of connection.events) {
-        this.handleRuntimeEvent(entry, event)
+        this.handleRuntimeEvent(entry, event, connection)
       }
     } catch (error) {
-      this.handleRuntimeError(entry, error)
+      if (this.isCurrentEntry(entry) && entry.connection === connection) {
+        this.handleRuntimeError(entry, error)
+      }
     }
   }
 
-  private handleRuntimeEvent(entry: AgentSessionRuntimeEntry, event: AgentRuntimeEvent): void {
+  private handleRuntimeEvent(
+    entry: AgentSessionRuntimeEntry,
+    event: AgentRuntimeEvent,
+    connection?: AgentRuntimeConnection
+  ): void {
+    if (connection && (!this.isCurrentEntry(entry) || entry.connection !== connection)) return
     switch (event.type) {
       case 'resume-token':
         entry.lastResumeToken = event.token
@@ -1016,11 +1031,24 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'background-wake': {
         // The SDK woke the main agent after background work completed; its response is already
-        // streaming. Reuse the roll buffer so those chunks wait for the wake turn's stream, exactly
-        // as post-steer chunks wait for A2. Ignore if a turn is live or a roll is in flight — then
-        // the content already has (or will have) a stream to land in.
-        const turnLive = entry.currentTurn !== undefined && entry.currentTurn.terminalStatus === undefined
-        if (turnLive || entry.rolling) break
+        // streaming. If a user turn exists but has not been admitted yet, the wake owns this
+        // generation: repurpose its already-open stream as receive-only and queue the user input for
+        // the next turn. This prevents wake chunks from landing in the user's assistant row or the
+        // user prompt from being sent into the middle of the wake generation.
+        const turn = entry.currentTurn
+        if (turn && !turn.terminalStatus) {
+          if (turn.admitted) break
+          entry.pendingTurns.unshift({ message: turn.userMessage, reasoningEffort: turn.reasoningEffort })
+          if (turn.headless) (entry.headlessMessageIds ??= new Set()).add(turn.userMessage.id)
+          if (entry.messageSnapshot) {
+            ;(entry.pendingSnapshots ??= new Map()).set(turn.userMessage.id, entry.messageSnapshot)
+          }
+          turn.userMessage = createSyntheticUserMessage(entry.sessionId)
+          turn.admitted = true
+          turn.headless = true
+          break
+        }
+        if (entry.rolling) break
         entry.rolling = true
         entry.rollBuffer = []
         this.scheduleWakeTurn(entry)
@@ -1103,9 +1131,12 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private refreshContextUsage(entry: AgentSessionRuntimeEntry, connection = entry.connection): void {
     if (!connection?.getContextUsage) return
-    if (entry.contextUsageRefresh?.connection === connection) return
+    if (entry.contextUsageRefresh?.connection === connection) {
+      entry.contextUsageRefresh.pending = true
+      return
+    }
 
-    const refresh = { connection }
+    const refresh = { connection, pending: false }
     entry.contextUsageRefresh = refresh
     void (async () => {
       const usage = await connection.getContextUsage?.()
@@ -1117,7 +1148,11 @@ export class AgentSessionRuntimeService extends BaseService {
         logger.warn('Failed to refresh agent session context usage', { sessionId: entry.sessionId, error })
       })
       .finally(() => {
-        if (entry.contextUsageRefresh === refresh) entry.contextUsageRefresh = undefined
+        if (entry.contextUsageRefresh !== refresh) return
+        entry.contextUsageRefresh = undefined
+        if (refresh.pending && this.isCurrentEntry(entry) && entry.connection === connection) {
+          this.refreshContextUsage(entry, connection)
+        }
       })
   }
 
@@ -1172,13 +1207,19 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private publishBackgroundTasks(entry: AgentSessionRuntimeEntry, tasks: AgentSessionBackgroundTasks): void {
     if (!this.isCurrentEntry(entry)) return
+    entry.backgroundTasks = tasks
     application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
+    if (tasks.length > 0) {
+      this.clearIdleTimer(entry)
+    } else if (!this.isSessionBusy(entry.sessionId)) {
+      this.refreshIdleTimer(entry)
+    }
   }
 
   /**
-   * Keep the latest lifecycle event per task. These arrive once the spawning turn's message stream
-   * is closed, so unlike in-turn events they cannot become message parts; the renderer merges them
-   * onto the part-derived rows by task id.
+   * Keep the latest lifecycle event per task for the current CLI process. In-turn events also remain
+   * message parts for transcript history; this process-scoped edge map is the authoritative source
+   * for per-task liveness and stop IDs after the turn boundary.
    */
   private publishBackgroundTaskEvent(entry: AgentSessionRuntimeEntry, data: AgentTaskEventPartData): void {
     if (!this.isCurrentEntry(entry)) return
@@ -1687,6 +1728,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
+    if (entry.backgroundTasks.length > 0) return
     entry.idleTimer = setTimeout(() => {
       const { sessionId, agentType, lastResumeToken } = entry
       this.closeSession(sessionId)
@@ -1731,6 +1773,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // The background-task level is per CLI process, so the closing process's set must not outlive it.
     application.get('CacheService').deleteShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
     application.get('CacheService').deleteShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId))
+    entry.backgroundTasks = []
 
     const connection = this.closeConnection(entry)
     entry.currentTurn = undefined
@@ -1754,9 +1797,23 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private closeConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {
     const connection = entry.connection
+    if (connection) this.resetConnectionTaskState(entry, connection)
     entry.connection = undefined
     entry.connectionLoop = undefined
     return connection
+  }
+
+  /**
+   * The SDK's background level and task-edge map belong to one CLI process. Reset both whenever a
+   * connection attaches or detaches; the identity guard prevents a stale loop from clearing the
+   * state of a replacement connection.
+   */
+  private resetConnectionTaskState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
+    if (!this.isCurrentEntry(entry) || entry.connection !== connection) return
+    entry.backgroundTasks = []
+    const cache = application.get('CacheService')
+    cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
+    cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }
 
   private closeConnectionAsync(entry: AgentSessionRuntimeEntry): void {

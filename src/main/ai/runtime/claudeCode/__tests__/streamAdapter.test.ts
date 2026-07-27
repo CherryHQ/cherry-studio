@@ -1057,8 +1057,14 @@ describe('ClaudeCodeStreamAdapter', () => {
         description: 'Audit the codebase'
       } as any)
 
-      // In-turn events stay parts so the transcript keeps the history.
-      expect(statusEvents).toEqual([])
+      // The transcript keeps the history, while the session-scoped edge map provides authoritative
+      // per-task liveness and stop IDs without correlating the unrelated background-task level.
+      expect(statusEvents).toEqual([
+        {
+          type: 'background-task-event',
+          data: expect.objectContaining({ taskId: 'bg-1', event: 'started', status: 'in_progress' })
+        }
+      ])
       expect(parts).toEqual([expect.objectContaining({ type: 'data-agent-task-event' })])
     })
 
