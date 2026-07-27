@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -395,8 +395,10 @@ describe('admitArchive', () => {
     await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
     const admitted = await admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
 
-    // Replace the owned root with a symlink to a foreign directory (guaranteed a
-    // different dev/ino than the original directory inode).
+    // Replace the owned root with a symlink to a foreign directory. Note the
+    // replacement may inherit the freed directory's dev/ino — inode recycling is
+    // real and platform-dependent — so the type check, not the numbers, is what
+    // has to hold this case up.
     const foreign = path.join(work, 'foreign-real')
     await mkdir(foreign)
     await writeFile(path.join(foreign, 'keep.txt'), 'FOREIGN')
@@ -408,6 +410,25 @@ describe('admitArchive', () => {
     await expect(admitted.cleanup()).rejects.toMatchObject({ reason: 'staging-escape' })
     expect(existsSync(path.join(foreign, 'keep.txt'))).toBe(true)
     expect((await lstat(admitted.stagingDir)).isSymbolicLink()).toBe(true)
+  })
+
+  it('returned cleanup rejects when a real directory of another identity took the root', async () => {
+    const dbPath = await snapshotDbAt()
+    const meta = await dbMeta(dbPath)
+    const outPath = path.join(work, 'ownership-dir.cherrybackup')
+    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+    const admitted = await admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
+
+    // A directory of the right TYPE but the wrong inode: the identity half of
+    // the check is what refuses this one.
+    const replacement = path.join(work, 'replacement-dir')
+    await mkdir(replacement)
+    await writeFile(path.join(replacement, 'keep.txt'), 'REPLACEMENT')
+    await rm(admitted.stagingDir, { recursive: true, force: true })
+    await rename(replacement, admitted.stagingDir)
+
+    await expect(admitted.cleanup()).rejects.toMatchObject({ reason: 'staging-escape' })
+    expect(existsSync(path.join(admitted.stagingDir, 'keep.txt'))).toBe(true)
   })
 })
 

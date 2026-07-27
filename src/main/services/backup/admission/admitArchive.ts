@@ -128,9 +128,10 @@ async function resolveStagingParent(stagingParent: string): Promise<string> {
 }
 
 /**
- * Remove the owned staging tree — but ONLY if its on-disk identity still matches
- * the one snapshotted at creation. Idempotent: an already-absent root is a no-op.
- * A replacement root (different dev/ino, or a symlink swapped in) is left
+ * Remove the owned staging tree — but ONLY if its on-disk type AND identity
+ * still match the one snapshotted at creation. Idempotent: an already-absent
+ * root is a no-op. A replacement root (different dev/ino, or a symlink or other
+ * non-directory swapped in — including one that recycled the freed inode) is left
  * untouched AND reported: the returned `cleanup()` must NOT silently resolve as
  * if it removed the sensitive staging DB (a caller could then wrongly clear
  * dependent state). Internal failure cleanup suppresses the throw to preserve the
@@ -144,7 +145,13 @@ async function safeRemoveOwned(stagingDir: string, identity: OwnedIdentity): Pro
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
     throw err
   }
-  if (st.dev !== identity.dev || st.ino !== identity.ino) {
+  // Type FIRST, then identity. `(dev, ino)` alone is not proof of sameness: a
+  // freed directory inode can be recycled for whatever is created in its place,
+  // so a symlink swapped in immediately after an `rm` can inherit the exact
+  // numbers snapshotted at creation (observed on CI's Linux filesystem, never on
+  // APFS). The owned root was created as a real directory and nothing legitimate
+  // changes its type.
+  if (st.isSymbolicLink() || !st.isDirectory() || st.dev !== identity.dev || st.ino !== identity.ino) {
     throw new ArchiveAdmissionError('staging-escape', 'owned staging root was replaced; refusing to remove it')
   }
   await rm(stagingDir, { recursive: true, force: true })
