@@ -5,8 +5,10 @@ maintained selector interface for user themes, end-to-end tests, inspectors, and
 classes, incidental DOM ancestry, and unmarked implementation wrappers are not part of this contract.
 
 The primary consumer is advanced Custom CSS. Structured theme variables remain the preferred surface for common
-theming; `data-ui` is the semantic escape hatch for rules that variables cannot express. Tests and automation can reuse
-the same coordinates instead of introducing another selector protocol.
+theming; select public variables through the
+[`@cherrystudio/ui` variable catalog](../../packages/ui/docs/variable-catalog.md). `data-ui` is the semantic escape
+hatch for structural rules that variables cannot express. Tests and automation can reuse the same coordinates instead
+of introducing another selector protocol.
 
 ## Token protocol
 
@@ -16,6 +18,9 @@ the same coordinates instead of introducing another selector protocol.
 | --- | --- | --- |
 | `chat.message` | Business or component role | Explicit roles are stable; inferred roles are best-effort |
 | `part:message-content` | Reusable component structure | Maintained public API |
+
+Tokens describe roles, not unique node identities. Multiple messages, reusable parts, or alternative render branches
+may intentionally share one token.
 
 ```html
 <article data-ui="chat.message">
@@ -105,7 +110,9 @@ pnpm ui:contract:query chat.message
 ```
 
 The command scans current source and returns matching semantic roles, element/component names, and source locations.
-There is no persistent node registry or generated exact-node ID.
+It can return multiple matches and includes both explicit and inferred roles; inspect the owning markup for an authored
+`data-ui` or `data-slot` before treating a result as stable. There is no persistent node registry or generated
+exact-node ID.
 
 ## Selector helpers
 
@@ -157,9 +164,13 @@ falls back to ordinary specificity.
 
 ```css
 :root {
-  --color-primary: hotpink;
+  --primary: hotpink;
+  --primary-foreground: black;
 }
 ```
+
+Override the public semantic pair, not generated `--color-*` adapter output. Component and page styling should continue
+to consume semantic utilities or the matching unprefixed variables.
 
 Electron renderer windows are separate documents, so a stylesheet injected into one cannot leak into another. CSS
 cannot cross a Shadow DOM or iframe boundary; an app-owned isolated root must expose its own semantic boundary if it is
@@ -168,6 +179,7 @@ made public.
 ## Compatibility rules
 
 - Semantic roles are lowercase dot-separated identifiers, not descriptions of current copy or appearance.
+- Semantic roles are set-valued coordinates, not unique IDs; selectors and locators may match multiple nodes.
 - Explicit semantic roles and `part:*` tokens are maintained public API. Rename them only with a compatibility alias and
   a breaking-change entry.
 - Inferred roles are deterministic but best-effort and may change when files, components, or DOM responsibilities move.
