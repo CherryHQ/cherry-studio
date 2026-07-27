@@ -128,6 +128,37 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     expect(activate).not.toHaveBeenCalled()
     expect(suspendPool).toHaveBeenCalledWith(WindowType.SelectionAction)
   })
+
+  it('resumes the pool after a rapid disable→enable on an already-active service', async () => {
+    // false and true delivered back-to-back in one synchronous task: the reconciler's next
+    // pass sees desired=true/actual=true and settles without re-running onActivate(), so its
+    // resumePool never fires — only the direct resume in the subscription undoes the direct
+    // suspend, otherwise action windows would silently bypass the pool from then on.
+    prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
+    const activate = wireActivation()
+    const wm = application.get('WindowManager') as unknown as {
+      suspendPool: ReturnType<typeof vi.fn>
+      resumePool: ReturnType<typeof vi.fn>
+    }
+
+    await svc._doInit()
+    svc.onAllReady()
+    await flushImmediate() // deferred warm-up activates the service
+    expect(svc.isActivated).toBe(true)
+
+    const enabledHandler = getEnabledChangeHandler()
+    enabledHandler(false)
+    expect(wm.suspendPool).toHaveBeenCalledWith(WindowType.SelectionAction)
+    enabledHandler(true)
+    expect(wm.resumePool).toHaveBeenCalledWith(WindowType.SelectionAction)
+
+    await flushImmediate()
+
+    // The reconciler settled without a deactivate/activate cycle — which is exactly
+    // why the subscription itself had to restore the pool.
+    expect(activate).toHaveBeenCalledTimes(1)
+    expect(svc.isActivated).toBe(true)
+  })
 })
 
 describe('SelectionService.onInit — SelectionAction pool suspension', () => {

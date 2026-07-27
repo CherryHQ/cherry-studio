@@ -291,6 +291,13 @@ export class SelectionService extends BaseService implements Activatable {
         // releaseActivationResources() on the activated path.
         if (!enabled) {
           wm.suspendPool(WindowType.SelectionAction)
+        } else if (this.isActivated) {
+          // Mirror of the direct suspend above: a false→true delivered with no yield in
+          // between settles the reconciler at desired=true/actual=true, so onActivate()
+          // (and its resumePool) never re-runs and the suspend above would stick. No-op
+          // when the pool isn't suspended; the not-yet-activated path still resumes via
+          // onActivate().
+          wm.resumePool(WindowType.SelectionAction)
         }
         this.reconciler.request()
       })

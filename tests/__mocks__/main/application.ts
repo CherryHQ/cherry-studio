@@ -50,6 +50,7 @@ const mockWindowManager = {
   open: vi.fn(() => 'mock-window-id'),
   close: vi.fn(() => true),
   suspendPool: vi.fn(() => 0),
+  resumePool: vi.fn(),
   show: vi.fn(() => true),
   hide: vi.fn(() => true),
   focus: vi.fn(() => true),
