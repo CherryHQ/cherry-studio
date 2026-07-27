@@ -78,12 +78,14 @@ interface HomeMessageListParams {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
+  localSendGeneration?: number
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   loadOlder?: () => void
   hasOlder?: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   imageActionConsumer?: 'capture'
+  onBindRuntime?: MessageListActions['bindRuntime']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
   onComponentUpdate?(): void
   onFirstUpdate?(): void
@@ -95,12 +97,14 @@ export function useHomeMessageListProviderValue({
   messages,
   partsByMessageId,
   streamingLayers,
+  localSendGeneration,
   isInitialLoading = false,
   isMessagesStale = false,
   loadOlder,
   hasOlder = false,
   openCitationsPanel,
   imageActionConsumer,
+  onBindRuntime,
   onStartBranchDraft,
   onComponentUpdate,
   onFirstUpdate
@@ -315,8 +319,9 @@ export function useHomeMessageListProviderValue({
 
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
+      const unbindExternalRuntime = onBindRuntime?.(runtime)
       if (imageActionConsumer === 'capture') {
-        return bindCaptureMessageImageRuntime({
+        const unbindCaptureRuntime = bindCaptureMessageImageRuntime({
           cancelMessage: 'Topic image export was cancelled',
           consumePendingActions: consumePendingTopicImageActions,
           rejectPendingActions: rejectPendingTopicImageActions,
@@ -324,6 +329,12 @@ export function useHomeMessageListProviderValue({
           settleActionRequest: settleTopicImageActionRequest,
           targetId: topic.id
         })
+        return () => {
+          unbindCaptureRuntime()
+          if (typeof unbindExternalRuntime === 'function') {
+            unbindExternalRuntime()
+          }
+        }
       }
 
       flushPendingTopicImageActions(runtime)
@@ -337,9 +348,14 @@ export function useHomeMessageListProviderValue({
         )
       ]
 
-      return () => unsubscribes.forEach((unsub) => unsub())
+      return () => {
+        unsubscribes.forEach((unsub) => unsub())
+        if (typeof unbindExternalRuntime === 'function') {
+          unbindExternalRuntime()
+        }
+      }
     },
-    [consumeTopicImageAction, flushPendingTopicImageActions, imageActionConsumer, topic.id]
+    [consumeTopicImageAction, flushPendingTopicImageActions, imageActionConsumer, onBindRuntime, topic.id]
   )
 
   const bindMessageRuntime = useCallback(
@@ -746,6 +762,7 @@ export function useHomeMessageListProviderValue({
       loadOlderDelayMs: 300,
       loadingResetDelayMs: 300,
       listKey: assistant?.id ?? topic.assistantId,
+      localSendGeneration,
       readonly: false,
       renderConfig,
       menuConfig,
@@ -770,6 +787,7 @@ export function useHomeMessageListProviderValue({
       isInitialLoading,
       isMessagesStale,
       leafCapabilities,
+      localSendGeneration,
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageItems,

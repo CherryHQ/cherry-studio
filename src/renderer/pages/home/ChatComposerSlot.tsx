@@ -22,6 +22,7 @@ interface ChatComposerSlotBaseProps {
       userMessageParts?: CherryMessagePart[]
     }
   ) => Promise<void>
+  captureLocalSendScrollEligibility?: () => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   composerContext?: ComposerContextValue
@@ -38,6 +39,7 @@ export default function ChatComposerSlot({
   placement,
   topic,
   onSend,
+  captureLocalSendScrollEligibility,
   onNewTopic,
   onCreateEmptyTopic,
   sendDisabled,
@@ -54,6 +56,7 @@ export default function ChatComposerSlot({
         topicId={topic.id}
         assistantId={topic.assistantId}
         onSend={onSend}
+        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
         onNewTopic={onNewTopic}
         onCreateEmptyTopic={onCreateEmptyTopic}
         resolvedContext={assistantContext}
@@ -68,6 +71,7 @@ export default function ChatComposerSlot({
         topicId={topic.id}
         assistantId={topic.assistantId}
         onSend={onSend}
+        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
         onNewTopic={onNewTopic}
         onCreateEmptyTopic={onCreateEmptyTopic}
         sendDisabled={sendDisabled}
