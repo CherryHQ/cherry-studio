@@ -51,6 +51,7 @@ export interface RightPanelComposition<TScopeProps, TViewportProps, TShortcutsPr
   Shortcuts: ComponentType<TShortcutsProps>
 }
 
+/** Type-only helper for a consistent compound surface; it performs no runtime registration. */
 export function defineRightPanelComposition<TScopeProps, TViewportProps, TShortcutsProps>(
   composition: RightPanelComposition<TScopeProps, TViewportProps, TShortcutsProps>
 ): RightPanelComposition<TScopeProps, TViewportProps, TShortcutsProps> {

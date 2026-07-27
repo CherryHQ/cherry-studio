@@ -1,5 +1,5 @@
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { createContext, type ReactNode, use, useEffect, useRef } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 
 import { type RightPanelCapability, type RightPanelComponentProps, useRightPanelActions } from './RightPanel'
 
@@ -21,15 +21,18 @@ interface ResourcePaneCapabilityScope {
   resourcePane: ResourcePaneConfig | null
 }
 
+function ResourcePaneRightPanel<TScope extends ResourcePaneCapabilityScope>({
+  scope
+}: RightPanelComponentProps<TScope>) {
+  return scope.resourcePane?.node ?? null
+}
+
+/** Create once at module scope so the capability catalog keeps a stable identity. */
 export function createResourcePaneCapability<TScope extends ResourcePaneCapabilityScope>({
   instanceKey = RESOURCE_PANE_TAB
 }: {
   instanceKey?: string
 } = {}): RightPanelCapability<TScope> {
-  function ResourcePaneRightPanel({ scope }: RightPanelComponentProps<TScope>) {
-    return scope.resourcePane?.node ?? null
-  }
-
   return {
     component: ResourcePaneRightPanel,
     resolve: (scope) => ({
@@ -41,17 +44,6 @@ export function createResourcePaneCapability<TScope extends ResourcePaneCapabili
   }
 }
 
-const ResourcePaneContext = createContext<ResourcePaneConfig | null>(null)
-
-export function ResourcePaneProvider({ value, children }: { value: ResourcePaneConfig | null; children: ReactNode }) {
-  return <ResourcePaneContext value={value}>{children}</ResourcePaneContext>
-}
-
-/** Returns the active resource-pane config, or null when the page is in left (sidebar) mode. */
-export function useResourcePane(): ResourcePaneConfig | null {
-  return use(ResourcePaneContext)
-}
-
 /**
  * Opens the right resource pane when a *locate* request arrives (history records / global search),
  * so the located topic/session is actually visible. Passive "reveal current" requests don't set
@@ -60,16 +52,15 @@ export function useResourcePane(): ResourcePaneConfig | null {
  */
 export function ResourcePaneLocateOpener({ revealRequest }: { revealRequest?: ResourceListRevealRequest }) {
   const actions = useRightPanelActions()
-  const resourcePane = useResourcePane()
   const handledRequestIdRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (!resourcePane || !revealRequest?.clearFilters) return
+    if (!revealRequest?.clearFilters) return
     if (!actions.canOpen(RESOURCE_PANE_TAB)) return
     if (handledRequestIdRef.current === revealRequest.requestId) return
     handledRequestIdRef.current = revealRequest.requestId
     actions.tryOpen(RESOURCE_PANE_TAB)
-  }, [actions, resourcePane, revealRequest])
+  }, [actions, revealRequest])
 
   return null
 }

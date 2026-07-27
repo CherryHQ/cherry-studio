@@ -187,7 +187,7 @@ const AgentPage = () => {
     shellPaneOpen,
     paneManualToggle,
     setShellPaneOpen,
-    markManualPaneToggle,
+    setShellPaneOpenManually,
     toggleShellPane,
     handlePaneAutoCollapseChange
   } = useConversationShellPaneState({
@@ -1053,7 +1053,7 @@ const AgentPage = () => {
           lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
           paneOpen={shellPaneOpen}
           panePosition="left"
-          onPaneCollapse={() => markManualPaneToggle(false)}
+          onPaneCollapse={() => setShellPaneOpenManually(false)}
           onPaneAutoCollapseChange={handlePaneAutoCollapseChange}
           onFileNavigationRequestChange={handleFileNavigationRequestChange}
           requestFileNavigation={requestFileNavigation}

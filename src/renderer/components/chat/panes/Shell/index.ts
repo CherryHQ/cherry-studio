@@ -2,9 +2,7 @@ export {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
-  ResourcePaneLocateOpener,
-  ResourcePaneProvider,
-  useResourcePane
+  ResourcePaneLocateOpener
 } from './resourcePane'
 export { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from './ResourcePaneCountButton'
 export {
@@ -26,4 +24,3 @@ export {
   useRightPanelActions,
   useRightPanelState
 } from './RightPanel'
-export { TRACE_PANE_TAB } from './tracePane'

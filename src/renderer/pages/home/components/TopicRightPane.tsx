@@ -5,13 +5,11 @@ import {
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
-  ResourcePaneProvider,
   type RightPanelCapability,
   type RightPanelComponentProps,
   RightPanelProvider,
   RightPanelShortcut,
   RightPanelViewport,
-  TRACE_PANE_TAB,
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
@@ -151,11 +149,12 @@ function TopicTraceRightPanel({ scope }: RightPanelComponentProps<TopicRightPane
 }
 
 /** Stable capability declarations; catalog order is the fallback order. */
+const TRACE_PANE_ID = 'trace'
 const TOPIC_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<TopicRightPanelScope>()
 const TOPIC_TRACE_PANE_CAPABILITY = {
   component: TopicTraceRightPanel,
   resolve: (scope: TopicRightPanelScope) => ({
-    id: TRACE_PANE_TAB,
+    id: TRACE_PANE_ID,
     instanceKey: `trace:${scope.topicId ?? 'unavailable'}:${scope.traceId ?? ''}`,
     title: scope.traceTitle,
     readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
@@ -215,19 +214,17 @@ function TopicRightPaneProvider({
   )
 
   return (
-    <ResourcePaneProvider value={resourcePane ?? null}>
-      <RightPanelProvider
-        capabilities={TOPIC_RIGHT_PANEL_CAPABILITIES}
-        scope={scope}
-        defaultPanelId={RESOURCE_PANE_TAB}
-        defaultOpen={defaultOpen}
-        onOpenChange={onOpenChange}
-        userOpenIntentSeq={userOpenIntentSeq}
-        present={present}>
-        <ResourcePaneLocateOpener revealRequest={revealRequest} />
-        <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
-      </RightPanelProvider>
-    </ResourcePaneProvider>
+    <RightPanelProvider
+      capabilities={TOPIC_RIGHT_PANEL_CAPABILITIES}
+      scope={scope}
+      defaultPanelId={RESOURCE_PANE_TAB}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      userOpenIntentSeq={userOpenIntentSeq}
+      present={present}>
+      <ResourcePaneLocateOpener revealRequest={revealRequest} />
+      <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
+    </RightPanelProvider>
   )
 }
 
@@ -254,7 +251,7 @@ function TopicRightPaneShortcuts() {
   return (
     <>
       <RightPanelShortcut tab="branch" label={t('chat.message.flow.title')} icon={<GitBranch className="size-3.5" />} />
-      <RightPanelShortcut tab={TRACE_PANE_TAB} label={t('trace.label')} icon={<Activity className="size-3.5" />} />
+      <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Activity className="size-3.5" />} />
     </>
   )
 }

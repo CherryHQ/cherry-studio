@@ -167,7 +167,7 @@ const HomePage: FC = () => {
     shellPaneOpen,
     paneManualToggle,
     setShellPaneOpen,
-    markManualPaneToggle,
+    setShellPaneOpenManually,
     toggleShellPane,
     handlePaneAutoCollapseChange
   } = useConversationShellPaneState({
@@ -919,7 +919,7 @@ const HomePage: FC = () => {
             pane={pane}
             paneOpen={shellPaneOpen}
             panePosition="left"
-            onPaneCollapse={() => markManualPaneToggle(false)}
+            onPaneCollapse={() => setShellPaneOpenManually(false)}
             onPaneAutoCollapseChange={handlePaneAutoCollapseChange}
             paneManualToggle={paneManualToggle}
             onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
