@@ -625,7 +625,7 @@ describe('app Sidebar', () => {
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
-  it('reuses the active tab even when another sidebar app tab exists', () => {
+  it('reuses the active tab without revealing its resource list', () => {
     mocks.sidebarFavorites = [appFavorite('agents')]
     mocks.activeTab = {
       id: 'chat',
@@ -644,7 +644,7 @@ describe('app Sidebar', () => {
       icon: undefined,
       metadata: undefined
     })
-    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'chat' })
+    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
@@ -694,7 +694,7 @@ describe('app Sidebar', () => {
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
-  it('opens a forced tab when the active tab is pinned', () => {
+  it('opens a forced tab without revealing its resource list when the active tab is pinned', () => {
     mocks.sidebarFavorites = [appFavorite('agents')]
     mocks.activeTab = {
       id: 'chat',
@@ -709,7 +709,7 @@ describe('app Sidebar', () => {
     fireEvent.click(screen.getByTestId('sidebar-item-agents'))
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', { forceNew: true, title: 'Work' })
-    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'agents-new' })
+    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
     expect(mocks.updateTab).not.toHaveBeenCalled()
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
   })
