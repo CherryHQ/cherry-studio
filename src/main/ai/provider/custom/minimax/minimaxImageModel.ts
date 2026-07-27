@@ -1,6 +1,8 @@
 import { APICallError, type ImageModelV3, type ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { combineHeaders, type FetchFunction, removeUndefinedEntries } from '@ai-sdk/provider-utils'
 
+import { fileToDataUrl } from '../transportUtils'
+
 export interface MinimaxImageModelConfig {
   provider: string
   url: (options: { modelId: string; path: string }) => string
@@ -49,7 +51,7 @@ export class MinimaxImageModel implements ImageModelV3 {
   ) {}
 
   async doGenerate(options: ImageModelV3CallOptions): Promise<Awaited<ReturnType<ImageModelV3['doGenerate']>>> {
-    const { prompt, n, size, seed, aspectRatio, providerOptions, headers, abortSignal } = options
+    const { prompt, n, size, seed, aspectRatio, files, providerOptions, headers, abortSignal } = options
     const bag = (providerOptions?.minimax ?? {}) as Record<string, unknown>
     const body: Record<string, unknown> = {
       model: this.modelId,
@@ -60,6 +62,12 @@ export class MinimaxImageModel implements ImageModelV3 {
 
     if (aspectRatio) body.aspect_ratio = aspectRatio
     if (typeof seed === 'number') body.seed = seed
+    if (files?.length) {
+      body.subject_reference = files.map((file) => ({
+        type: 'character',
+        image_file: fileToDataUrl(file)
+      }))
+    }
 
     for (const key of ['aigc_watermark', 'prompt_optimizer', 'response_format'] as const) {
       const value = bag[key]

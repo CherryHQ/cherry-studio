@@ -68,6 +68,39 @@ describe('createMinimaxProvider', () => {
     expect(result.images).toEqual([imageUrl])
   })
 
+  it('uploads image inputs as MiniMax character subject references', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: { image_urls: ['https://cdn.example.com/result.png'] },
+          base_resp: { status_code: 0, status_msg: 'success' }
+        }),
+        { headers: { 'content-type': 'application/json' }, status: 200 }
+      )
+    )
+    const provider = createMinimaxProvider({ apiKey: 'sk-test', baseURL: 'https://api.minimaxi.com/v1', fetch })
+
+    await provider.imageModel('image-01').doGenerate({
+      prompt: 'keep both characters',
+      n: 1,
+      size: undefined,
+      aspectRatio: undefined,
+      seed: undefined,
+      files: [
+        { type: 'url', url: 'https://cdn.example.com/character.jpg' },
+        { type: 'file', mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }
+      ],
+      mask: undefined,
+      providerOptions: {}
+    })
+
+    const sent = JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)
+    expect(sent.subject_reference).toEqual([
+      { type: 'character', image_file: 'https://cdn.example.com/character.jpg' },
+      { type: 'character', image_file: 'data:image/png;base64,AQID' }
+    ])
+  })
+
   it('parses base64 output from the China endpoint', async () => {
     const image = 'aGVsbG8='
     const fetch = vi.fn().mockResolvedValue(
