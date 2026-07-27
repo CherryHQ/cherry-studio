@@ -1301,6 +1301,71 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
+    it('waits for background work to release before rebuilding for a fresh turn', async () => {
+      const firstConnection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('rebuild')
+      }
+      const secondConnection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connect = vi.fn().mockResolvedValue(secondConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = firstConnection
+      service.markTurnTerminal('session-1', 'success')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, firstConnection)
+
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        modelId: switchedModelId,
+        userMessage: userMessage('user-2')
+      })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() =>
+        expect(firstConnection.reconcile).toHaveBeenCalledWith({
+          modelId: switchedModelId,
+          reasoningEffort: 'default'
+        })
+      )
+
+      // Connection A is still owned by background work. The fresh B turn must remain unadmitted
+      // until that ownership is released; otherwise its input would execute with A's frozen config.
+      expect(entry.currentTurn.admitted).toBe(false)
+      expect(firstConnection.send).not.toHaveBeenCalled()
+      expect(firstConnection.close).not.toHaveBeenCalled()
+      expect(connect).not.toHaveBeenCalled()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false }, firstConnection)
+
+      await vi.waitFor(() =>
+        expect(secondConnection.send).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-2') }))
+      )
+      expect(firstConnection.close).toHaveBeenCalledOnce()
+      expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
+
+      await reader.cancel().catch(() => undefined)
+    })
+
     it('never reconciles under an admitted streaming turn', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })

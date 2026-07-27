@@ -180,6 +180,12 @@ type AgentSessionRuntimeEntry = {
   retrying?: boolean
   /** Work outliving the current turn still needs the runtime connection kept alive. */
   backgroundWorkActive?: boolean
+  /** Fresh-turn rebuild waiting for connection-local background work to release. */
+  backgroundWorkRelease?: {
+    connection: AgentRuntimeConnection
+    promise: Promise<void>
+    resolve: () => void
+  }
   /** The connected runtime currently owns a generation that the host did not admit. */
   autonomousGenerationActive?: boolean
   /** A receive-only result arrived while its renderer stream was still opening. */
@@ -874,12 +880,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // #16796's steer-window edge case: the continuation always reuses the rolling connection.)
         // A fresh, unadmitted turn DOES reconcile — it must run on the latest config.
         const turn = entry.currentTurn
-        if (
-          entry.backgroundWorkActive ||
-          entry.autonomousGenerationActive ||
-          entry.rolling ||
-          (turn && turn.admitted && !turn.terminalStatus)
-        ) {
+        if (entry.autonomousGenerationActive || entry.rolling || (turn && turn.admitted && !turn.terminalStatus)) {
           return true
         }
 
@@ -900,7 +901,6 @@ export class AgentSessionRuntimeService extends BaseService {
         // reused the connection) — its stream now rides this connection, so stop touching it.
         const turnAfter = entry.currentTurn
         if (
-          entry.backgroundWorkActive ||
           entry.autonomousGenerationActive ||
           entry.rolling ||
           (turnAfter && turnAfter.admitted && !turnAfter.terminalStatus)
@@ -912,7 +912,17 @@ export class AgentSessionRuntimeService extends BaseService {
           case 'current':
           case 'patched':
             return true
-          case 'rebuild':
+          case 'rebuild': {
+            // Background work may keep the old connection alive, but it cannot make a spawn-frozen
+            // mismatch safe. Hold this fresh turn until the driver releases that work, then loop,
+            // close A, connect B, and only then admit the user input.
+            if (entry.backgroundWorkActive) {
+              await this.waitForBackgroundWorkRelease(entry, connection)
+              continue
+            }
+            this.closeConnectionAsync(entry)
+            continue
+          }
           case 'failed':
             // 'failed' pre-turn is recoverable: the suspect connection is torn down (fail closed)
             // and the loop reconnects from the latest config.
@@ -1294,9 +1304,34 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.backgroundWorkActive = active
     if (active) {
       this.clearIdleTimer(entry)
-    } else if (!this.isSessionBusy(entry.sessionId)) {
-      this.refreshIdleTimer(entry)
+    } else {
+      this.releaseBackgroundWorkWaiter(entry, connection)
+      if (!this.isSessionBusy(entry.sessionId)) this.refreshIdleTimer(entry)
     }
+  }
+
+  private waitForBackgroundWorkRelease(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection
+  ): Promise<void> {
+    if (!this.isCurrentEntry(entry) || entry.connection !== connection || !entry.backgroundWorkActive) {
+      return Promise.resolve()
+    }
+    if (entry.backgroundWorkRelease?.connection === connection) return entry.backgroundWorkRelease.promise
+
+    let resolve!: () => void
+    const promise = new Promise<void>((done) => {
+      resolve = done
+    })
+    entry.backgroundWorkRelease = { connection, promise, resolve }
+    return promise
+  }
+
+  private releaseBackgroundWorkWaiter(entry: AgentSessionRuntimeEntry, connection?: AgentRuntimeConnection): void {
+    const waiter = entry.backgroundWorkRelease
+    if (!waiter || (connection && waiter.connection !== connection)) return
+    entry.backgroundWorkRelease = undefined
+    waiter.resolve()
   }
 
   private handleAutonomousGenerationState(
@@ -1353,6 +1388,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || entry.connection !== connection) return
+    this.releaseBackgroundWorkWaiter(entry, connection)
     entry.backgroundWorkActive = false
     entry.autonomousGenerationActive = false
     entry.receiveOnlyTurnCompleted = false
@@ -1998,6 +2034,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.rollBuffer = undefined
     entry.rollSteerInputs = undefined
     entry.rollHeadless = undefined
+    this.releaseBackgroundWorkWaiter(entry)
     entry.backgroundWorkActive = false
     entry.autonomousGenerationActive = false
     entry.receiveOnlyTurnCompleted = false
