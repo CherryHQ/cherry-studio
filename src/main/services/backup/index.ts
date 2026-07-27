@@ -19,7 +19,7 @@ export { type PostPromotionOutcome, runPostPromotionWork } from './postPromotion
 export {
   armPreparedRestore,
   cancelPreparedRestore,
-  prepareLiteRestore,
+  prepareRestore,
   type PrepareRestoreInputs,
   type RestorePreview
 } from './prepareRestore'

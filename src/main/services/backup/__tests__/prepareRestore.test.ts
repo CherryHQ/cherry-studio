@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -15,7 +24,7 @@ import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { exportArchive } from '../exportArchive'
-import { armPreparedRestore, cancelPreparedRestore, prepareLiteRestore } from '../prepareRestore'
+import { armPreparedRestore, cancelPreparedRestore, prepareRestore } from '../prepareRestore'
 
 /**
  * Prepare/cancel/arm, driven with archives this repository's own producer made.
@@ -124,14 +133,14 @@ describe('restore preparation', () => {
     it('reports every resource available on the device that produced the archive', async () => {
       createTargetResources()
 
-      const preview = await prepareLiteRestore({ archivePath })
+      const preview = await prepareRestore({ archivePath })
 
       expect(preview.coverage).toEqual({ available: 4, missing: 0, unverifiable: 0 })
       expect(preview.preset).toBe('lite')
     })
 
     it('reports resources missing on an empty device without creating any of them', async () => {
-      const preview = await prepareLiteRestore({ archivePath })
+      const preview = await prepareRestore({ archivePath })
 
       expect(preview.coverage).toEqual({ available: 0, missing: 4, unverifiable: 0 })
       // Diagnostic only: a coverage probe must never conjure the content it
@@ -145,13 +154,13 @@ describe('restore preparation', () => {
       rmSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1'), { recursive: true })
       writeFileSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1'), 'not a directory')
 
-      const preview = await prepareLiteRestore({ archivePath })
+      const preview = await prepareRestore({ archivePath })
 
       expect(preview.coverage).toEqual({ available: 3, missing: 1, unverifiable: 0 })
     })
 
     it('writes a prepared journal pointing at a staged database that exists', async () => {
-      const preview = await prepareLiteRestore({ archivePath })
+      const preview = await prepareRestore({ archivePath })
 
       const read = readRestoreJournalV2()
       expect(read.kind).toBe('ok')
@@ -170,21 +179,110 @@ describe('restore preparation', () => {
     })
 
     it('leaves no admission staging tree behind beyond the prepared restore', async () => {
-      const preview = await prepareLiteRestore({ archivePath })
+      const preview = await prepareRestore({ archivePath })
 
       expect(readdirSync(join(userData, 'restore-staging'))).toEqual([preview.restoreId])
     })
 
     it('does not touch the live database', async () => {
-      await prepareLiteRestore({ archivePath })
+      await prepareRestore({ archivePath })
 
+      expect(readFileSync(join(userData, 'cherrystudio.sqlite'), 'utf8')).toBe('LIVE-DB')
+    })
+  })
+
+  describe('prepare full', () => {
+    /** Export a Full archive from this device's own resources, then clear them. */
+    async function exportFull(): Promise<string> {
+      const out = join(workDir, 'out', 'full.cherrybackup')
+      createTargetResources()
+      writeFileSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'SOURCE')
+      writeFileSync(join(userData, 'Data', 'Notes', 'a.md'), '# note')
+      await exportArchive({ outPath: out, preset: 'full' })
+      return out
+    }
+
+    it('seals an install entry per payload and stages the bytes the journal names', async () => {
+      const full = await exportFull()
+      rmSync(join(userData, 'Data'), { recursive: true })
+
+      const preview = await prepareRestore({ archivePath: full })
+
+      expect(preview.preset).toBe('full')
+      expect(preview.resources).toEqual({ install: 4, replace: 0 })
+      const read = readRestoreJournalV2()
+      if (read.kind !== 'ok') throw new Error('expected a prepared journal')
+      expect(read.journal.resourceInstalls.map((entry) => entry.live).sort()).toEqual([
+        'Data/Agents/s-1',
+        'Data/Files/11111111-1111-4111-8111-111111111111.pdf',
+        'Data/KnowledgeBase/kb-1',
+        'Data/Notes'
+      ])
+      for (const entry of read.journal.resourceInstalls) {
+        expect(entry.staging).toBe(`restore-staging/${preview.restoreId}/resources/${entry.live}`)
+        // Relocation-safe: everything the gate will rename is userData-relative.
+        expect(existsSync(join(userData, entry.staging))).toBe(true)
+        expect(entry.aside.startsWith(`restore-aside/${preview.restoreId}/`)).toBe(true)
+      }
+      expect(
+        readFileSync(join(userData, 'restore-staging', preview.restoreId, 'resources', 'Data', 'Notes', 'a.md'), 'utf8')
+      ).toBe('# note')
+    })
+
+    it('counts the targets it would park aside rather than create', async () => {
+      const full = await exportFull()
+
+      const preview = await prepareRestore({ archivePath: full })
+
+      // Same-device restore: every declared target still exists, so every unit
+      // replaces rather than installs.
+      expect(preview.resources).toEqual({ install: 0, replace: 4 })
+    })
+
+    it.each([
+      [
+        'a symlinked target',
+        () => {
+          const target = join(userData, 'Data', 'Files', '11111111-1111-4111-8111-111111111111.pdf')
+          rmSync(target)
+          writeFileSync(join(workDir, 'elsewhere.pdf'), 'ELSEWHERE')
+          symlinkSync(join(workDir, 'elsewhere.pdf'), target)
+        },
+        /target-not-installable/
+      ],
+      [
+        'a symlinked ancestor',
+        () => {
+          rmSync(join(userData, 'Data', 'Files'), { recursive: true })
+          mkdirSync(join(workDir, 'files-elsewhere'))
+          symlinkSync(join(workDir, 'files-elsewhere'), join(userData, 'Data', 'Files'))
+        },
+        /unsafe-ancestor/
+      ],
+      [
+        'a target of the wrong type',
+        () => {
+          rmSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1'), { recursive: true })
+          writeFileSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1'), 'not a base')
+        },
+        /target-type-mismatch/
+      ]
+    ])('refuses the whole restore over %s', async (_label, breakTarget, expected) => {
+      const full = await exportFull()
+      breakTarget()
+
+      // Fail closed, and fail ENTIRELY: a partial plan would promote a database
+      // referencing resources nobody promised to deliver.
+      await expect(prepareRestore({ archivePath: full })).rejects.toThrow(expected)
+      expect(readRestoreJournalV2().kind).toBe('none')
+      expect(readdirSync(join(userData, 'restore-staging'))).toEqual([])
       expect(readFileSync(join(userData, 'cherrystudio.sqlite'), 'utf8')).toBe('LIVE-DB')
     })
   })
 
   describe('cancel', () => {
     it('removes the staged tree and the journal, and is idempotent', async () => {
-      const preview = await prepareLiteRestore({ archivePath })
+      const preview = await prepareRestore({ archivePath })
 
       cancelPreparedRestore()
 
@@ -195,7 +293,7 @@ describe('restore preparation', () => {
     })
 
     it('refuses to cancel a restore the user already confirmed', async () => {
-      await prepareLiteRestore({ archivePath })
+      await prepareRestore({ archivePath })
       armPreparedRestore()
 
       expect(() => cancelPreparedRestore()).toThrow(/only a prepared restore/i)
@@ -205,7 +303,7 @@ describe('restore preparation', () => {
 
   describe('arm', () => {
     it('writes armed durably before relaunch is initiated', async () => {
-      await prepareLiteRestore({ archivePath })
+      await prepareRestore({ archivePath })
       let stateAtRelaunch: string | undefined
       vi.mocked(application.relaunch).mockImplementation(() => {
         const read = readRestoreJournalV2()
@@ -220,7 +318,7 @@ describe('restore preparation', () => {
     })
 
     it('rolls the arm back to prepared when relaunch initiation fails', async () => {
-      await prepareLiteRestore({ archivePath })
+      await prepareRestore({ archivePath })
       vi.mocked(application.relaunch).mockImplementation(() => {
         throw new Error('relaunch refused')
       })
