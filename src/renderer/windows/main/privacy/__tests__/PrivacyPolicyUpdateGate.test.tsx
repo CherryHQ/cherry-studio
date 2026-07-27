@@ -19,11 +19,24 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('../PrivacyPolicyDialog', () => ({
-  PrivacyPolicyDialog: ({ open, onAccept }: { open: boolean; onAccept: () => void }) =>
+  PrivacyPolicyDialog: ({
+    open,
+    onAccept,
+    onDecline
+  }: {
+    open: boolean
+    onAccept: () => void
+    onDecline: () => void
+  }) =>
     open ? (
-      <button type="button" data-testid="full-policy" onClick={onAccept}>
-        full-policy
-      </button>
+      <div data-testid="full-policy">
+        <button type="button" onClick={onAccept}>
+          accept-policy
+        </button>
+        <button type="button" onClick={onDecline}>
+          decline-policy
+        </button>
+      </div>
     ) : null
 }))
 
@@ -37,6 +50,7 @@ describe('PrivacyPolicyUpdateGate', () => {
     }
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', '')
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
   })
 
   it('shows an acknowledgement notice and opens the full policy', () => {
@@ -59,25 +73,34 @@ describe('PrivacyPolicyUpdateGate', () => {
     expect(screen.queryByRole('heading', { name: 'privacy_policy_update.title' })).not.toBeInTheDocument()
   })
 
-  it('acknowledges the update from the notice without changing data collection', async () => {
+  it('does not block the app when data collection is already disabled', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+
     render(<PrivacyPolicyUpdateGate />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.i_know' }))
+    expect(screen.queryByRole('heading', { name: 'privacy_policy_update.title' })).not.toBeInTheDocument()
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe('')
+  })
+
+  it('acknowledges the update from the notice without changing data collection', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
+    render(<PrivacyPolicyUpdateGate />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'onboarding.privacy.accept_and_continue' }))
 
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe(
         LATEST_PRIVACY_POLICY_VERSION
       )
     )
-    expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(true)
   })
 
   it('keeps the gate open and reports an error when acknowledgement fails', async () => {
     MockUsePreferenceUtils.mockPreferenceError('app.privacy.policy_version', new Error('write failed'))
     render(<PrivacyPolicyUpdateGate />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.i_know' }))
+    fireEvent.click(screen.getByRole('button', { name: 'onboarding.privacy.accept_and_continue' }))
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('privacy_policy_update.acknowledge_failed'))
     expect(screen.getByRole('heading', { name: 'privacy_policy_update.title' })).toBeInTheDocument()
@@ -93,16 +116,51 @@ describe('PrivacyPolicyUpdateGate', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe('')
   })
 
+  it('continues without consent after disabling data collection', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
+    render(<PrivacyPolicyUpdateGate />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.decline' }))
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
+    )
+    expect(screen.queryByRole('heading', { name: 'privacy_policy_update.title' })).not.toBeInTheDocument()
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe('')
+  })
+
+  it('keeps the notice open when data collection cannot be disabled', async () => {
+    MockUsePreferenceUtils.mockPreferenceError('app.privacy.data_collection.enabled', new Error('write failed'))
+    render(<PrivacyPolicyUpdateGate />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.decline' }))
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('privacy_policy_update.acknowledge_failed'))
+    expect(screen.getByRole('heading', { name: 'privacy_policy_update.title' })).toBeInTheDocument()
+  })
+
   it('acknowledges the update after reviewing the full policy', async () => {
     render(<PrivacyPolicyUpdateGate />)
 
     fireEvent.click(screen.getByRole('button', { name: 'privacy_policy_update.policy' }))
-    fireEvent.click(screen.getByTestId('full-policy'))
+    fireEvent.click(screen.getByRole('button', { name: 'accept-policy' }))
 
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe(
         LATEST_PRIVACY_POLICY_VERSION
       )
     )
+  })
+
+  it('continues without consent after reviewing the full policy', async () => {
+    render(<PrivacyPolicyUpdateGate />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'privacy_policy_update.policy' }))
+    fireEvent.click(screen.getByRole('button', { name: 'decline-policy' }))
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
+    )
+    expect(screen.queryByTestId('full-policy')).not.toBeInTheDocument()
   })
 })
