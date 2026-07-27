@@ -259,8 +259,20 @@ write:
 - Incompatible format, or a migration chain **ahead of** / **forked from** the app's chain.
 - Corrupt SQLite or an invalid staged migration result.
 
-A valid **older-chain** staged DB migrates forward and passes integrity checks (it is not
-rejected). A **downgraded binary** reading a v2 journal fails safely through strict-version
+The ZIP catalog preserves every central-directory record instead of using a name-keyed
+map, so duplicate entries cannot hide one another. Central-directory sizes and compression
+ratios are advisory gates only: extraction streams each regular entry into an exclusively
+created file and proves actual bytes equal the declared size while enforcing shared
+per-entry and cumulative actual-byte budgets. Extraction occurs only under an
+identity-tracked, operation-owned staging root after disk preflight; cancellation and
+failure clean that root without touching siblings.
+
+A valid **older-chain** staged DB migrates forward with the production migrations and
+passes integrity checks (it is not rejected). The staged DB's actual complete chain must
+first equal the manifest chain, which must be an exact prefix of the bundled chain. After
+migration, admission checkpoint-seals the DB into one main file, requires both WAL/SHM
+sidecars to be absent, and returns final hash/size/chain separately from the unchanged
+original manifest. A **downgraded binary** reading a v2 journal fails safely through strict-version
 quarantine without touching live data (the journal schema is a `strictObject` with a
 literal version — an unrecognized version parses as corrupt, so the gate cleans up rather
 than misinterpreting; see `RestoreJournalSchema`).
