@@ -82,7 +82,10 @@ describe('popupService / createPopup', () => {
     expect(popupService.getSnapshot()[0].open).toBe(false)
     await expect(result).resolves.toBe('answer')
 
-    vi.advanceTimersByTime(POPUP_EXIT_MS)
+    vi.advanceTimersByTime(POPUP_EXIT_MS - 1)
+    expect(popupService.getSnapshot()).toHaveLength(1)
+
+    vi.advanceTimersByTime(1)
     expect(popupService.getSnapshot()).toHaveLength(0)
   })
 
