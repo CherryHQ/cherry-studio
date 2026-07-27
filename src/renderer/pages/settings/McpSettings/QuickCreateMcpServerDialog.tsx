@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import {
   buildMcpSchema,
   MCP_FORM_DEFAULT_VALUES,
+  McpArgsField,
   McpEndpointField,
   type McpFormValues,
   McpIdentityFields,
@@ -107,6 +108,7 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
             <form className="flex flex-col gap-7" id="mcp-quick-create-form">
               <McpIdentityFields {...fieldsProps} />
               <McpEndpointField {...fieldsProps} />
+              {serverType === 'stdio' && <McpArgsField form={form} />}
 
               <Accordion
                 type="single"
@@ -116,7 +118,7 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
                 <AccordionItem value="advanced" className="border-t border-b-0 pt-1">
                   <AccordionTrigger className="py-3">{t('settings.mcp.addServer.advanced')}</AccordionTrigger>
                   <AccordionContent contentClassName="text-foreground" className="flex flex-col gap-6 pt-1 pb-1">
-                    <McpTransportFields {...fieldsProps} />
+                    <McpTransportFields {...fieldsProps} includeArgs={false} />
                     <McpRuntimeFields {...fieldsProps} inlineCards={false} />
                   </AccordionContent>
                 </AccordionItem>

@@ -1426,7 +1426,7 @@ const TasksSettings: FC = () => {
 
   return (
     <SettingsContentColumn theme={theme} innerClassName="flex min-h-full flex-col">
-      <SettingGroup theme={theme} className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col">
         <SettingTitle>
           <span>{t('settings.scheduledTasks.title')}</span>
           <DropdownMenu>
@@ -1593,7 +1593,7 @@ const TasksSettings: FC = () => {
             )}
           </>
         )}
-      </SettingGroup>
+      </div>
 
       <TaskFormDialog
         open={createOpen}

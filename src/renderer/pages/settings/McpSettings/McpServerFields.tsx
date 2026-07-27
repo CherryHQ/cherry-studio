@@ -218,6 +218,8 @@ interface FieldsProps {
   isInMemory?: boolean
   /** Single-column layout for the quick-create dialog. */
   singleColumn?: boolean
+  /** Allows quick-create to render args before the advanced section. */
+  includeArgs?: boolean
   /** Render the runtime toggles as bordered cards (detail page) instead of plain rows (dialog). */
   inlineCards?: boolean
 }
@@ -233,9 +235,9 @@ export function McpIdentityFields({ form, onServerTypeChange, isInMemory, single
         name="name"
         render={({ field }) => (
           <FormItem className="min-w-0 gap-3">
-            <FormLabel>{t('settings.mcp.name')}</FormLabel>
+            <FormLabel required>{t('settings.mcp.name')}</FormLabel>
             <FormControl>
-              <Input placeholder={t('common.name')} disabled={isInMemory} {...field} />
+              <Input required placeholder={t('common.name')} disabled={isInMemory} {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -247,9 +249,10 @@ export function McpIdentityFields({ form, onServerTypeChange, isInMemory, single
           name="serverType"
           render={({ field }) => (
             <FormItem className="min-w-0 gap-3">
-              <FormLabel>{t('settings.mcp.type')}</FormLabel>
+              <FormLabel required>{t('settings.mcp.type')}</FormLabel>
               <FormControl>
                 <Select
+                  required
                   value={field.value}
                   onValueChange={(value) => {
                     field.onChange(value)
@@ -305,9 +308,10 @@ export function McpEndpointField({ form, serverType, registryState, singleColumn
           name="command"
           render={({ field }) => (
             <FormItem className="min-w-0 gap-3">
-              <FormLabel>{t('settings.mcp.command')}</FormLabel>
+              <FormLabel required>{t('settings.mcp.command')}</FormLabel>
               <FormControl>
                 <Input
+                  required
                   placeholder="uvx or npx"
                   {...field}
                   onChange={(e) => {
@@ -326,12 +330,13 @@ export function McpEndpointField({ form, serverType, registryState, singleColumn
           name="baseUrl"
           render={({ field }) => (
             <FormItem className="min-w-0 gap-3">
-              <FormLabel className="flex items-center gap-1">
+              <FormLabel required className="flex items-center gap-1">
                 {t('settings.mcp.url')}
                 <InfoTooltip content={t('settings.mcp.baseUrlTooltip')} />
               </FormLabel>
               <FormControl>
                 <Input
+                  required
                   placeholder={serverType === 'sse' ? 'http://localhost:3000/sse' : 'http://localhost:3000/mcp'}
                   {...field}
                 />
@@ -345,8 +350,30 @@ export function McpEndpointField({ form, serverType, registryState, singleColumn
   )
 }
 
+export function McpArgsField({ form }: Pick<FieldsProps, 'form'>) {
+  const { t } = useTranslation()
+
+  return (
+    <FormField
+      control={form.control}
+      name="args"
+      render={({ field }) => (
+        <FormItem className="min-w-0 gap-3">
+          <FormLabel className="flex items-center gap-1">
+            {t('settings.mcp.args')}
+            <InfoTooltip content={t('settings.mcp.argsTooltip')} />
+          </FormLabel>
+          <FormControl>
+            <Textarea.Input rows={3} placeholder={`arg1\narg2`} className={codeAreaClassName} {...field} />
+          </FormControl>
+        </FormItem>
+      )}
+    />
+  )
+}
+
 /** Transport details: headers for remote servers, registry / args / env for stdio. */
-export function McpTransportFields({ form, serverType, registryState, singleColumn }: FieldsProps) {
+export function McpTransportFields({ form, serverType, registryState, singleColumn, includeArgs = true }: FieldsProps) {
   const { t } = useTranslation()
   const { registry, selectedRegistryType, customRegistryUrl, onSelectRegistry, onCustomRegistryChange } = registryState
 
@@ -415,21 +442,7 @@ export function McpTransportFields({ form, serverType, registryState, singleColu
       )}
       {(serverType === 'stdio' || serverType === 'inMemory') && (
         <>
-          <FormField
-            control={form.control}
-            name="args"
-            render={({ field }) => (
-              <FormItem className="min-w-0 gap-3">
-                <FormLabel className="flex items-center gap-1">
-                  {t('settings.mcp.args')}
-                  <InfoTooltip content={t('settings.mcp.argsTooltip')} />
-                </FormLabel>
-                <FormControl>
-                  <Textarea.Input rows={3} placeholder={`arg1\narg2`} className={codeAreaClassName} {...field} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+          {includeArgs && <McpArgsField form={form} />}
           <FormField
             control={form.control}
             name="env"

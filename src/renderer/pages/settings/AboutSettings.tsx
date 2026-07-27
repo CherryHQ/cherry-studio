@@ -19,7 +19,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'es-toolkit/compat'
-import { BadgeQuestionMark, Briefcase, Bug, Building2, ExternalLink, Github, Globe, Mail, Rss } from 'lucide-react'
+import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -306,7 +306,6 @@ const AboutSettings: FC = () => {
           title={t('docs.title')}
           actionLabel={t('settings.about.website.button')}
           onAction={onOpenDocs}
-          external
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -321,7 +320,6 @@ const AboutSettings: FC = () => {
           title={t('settings.about.website.title')}
           actionLabel={t('settings.about.website.button')}
           onAction={() => onOpenWebsite('https://cherry-ai.com')}
-          external
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -329,7 +327,6 @@ const AboutSettings: FC = () => {
           title={t('settings.about.feedback.title')}
           actionLabel={t('settings.about.feedback.button')}
           onAction={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}
-          external
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -337,7 +334,6 @@ const AboutSettings: FC = () => {
           title={t('settings.about.enterprise.title')}
           actionLabel={t('settings.about.website.button')}
           onAction={showEnterprise}
-          external
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -352,7 +348,6 @@ const AboutSettings: FC = () => {
           title={t('settings.about.careers.title')}
           actionLabel={t('settings.about.careers.button')}
           onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
-          external
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -368,14 +363,11 @@ const AboutSettings: FC = () => {
 
 function AboutActionRow({
   actionLabel,
-  external,
   icon,
   onAction,
   title
 }: {
   actionLabel: string
-  /** Marks actions that leave the app for the browser. */
-  external?: boolean
   icon: ReactNode
   onAction: () => void | Promise<void>
   title: string
@@ -388,7 +380,6 @@ function AboutActionRow({
       </SettingRowTitle>
       <Button size="sm" onClick={() => void onAction()} variant="outline">
         {actionLabel}
-        {external ? <ExternalLink size={13} /> : null}
       </Button>
     </SettingRow>
   )

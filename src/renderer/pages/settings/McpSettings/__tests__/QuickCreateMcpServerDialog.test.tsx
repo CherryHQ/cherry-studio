@@ -39,6 +39,21 @@ function setup(onCreate = vi.fn().mockResolvedValue(undefined)) {
 const submit = () => screen.getByRole('button', { name: 'common.add' })
 
 describe('QuickCreateMcpServerDialog', () => {
+  it('marks the current required fields', async () => {
+    const { user } = setup()
+
+    expect(screen.getByLabelText('settings.mcp.name')).toBeRequired()
+    expect(screen.getByLabelText('settings.mcp.command')).toBeRequired()
+    expect(screen.getByText('settings.mcp.name').closest('label')).toHaveAttribute('required')
+    expect(screen.getByText('settings.mcp.type').closest('label')).toHaveAttribute('required')
+    expect(screen.getByText('settings.mcp.command').closest('label')).toHaveAttribute('required')
+
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.sse' }))
+
+    expect(screen.getByLabelText('settings.mcp.url')).toBeRequired()
+    expect(screen.getByText('settings.mcp.url').closest('label')).toHaveAttribute('required')
+  })
+
   it('blocks submission until the required fields are filled', async () => {
     const { onCreate, user } = setup()
 
@@ -48,14 +63,12 @@ describe('QuickCreateMcpServerDialog', () => {
     expect(onCreate).not.toHaveBeenCalled()
   })
 
-  it('creates a stdio server, splitting args from the advanced section', async () => {
+  it('creates a stdio server with args available before the advanced section', async () => {
     const { onCreate, onOpenChange, user } = setup()
 
     await user.type(screen.getByLabelText('settings.mcp.name'), 'my-server')
     await user.type(screen.getByLabelText('settings.mcp.command'), 'npx')
-
-    await user.click(screen.getByText('settings.mcp.addServer.advanced'))
-    await user.type(await screen.findByLabelText('settings.mcp.args'), '-y{enter}mcp-server-example')
+    await user.type(screen.getByLabelText('settings.mcp.args'), '-y{enter}mcp-server-example')
 
     await user.click(submit())
 
