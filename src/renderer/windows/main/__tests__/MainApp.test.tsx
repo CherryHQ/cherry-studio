@@ -30,6 +30,7 @@ vi.mock('@renderer/hooks/useStorageMonitorNotification', () => ({ useStorageMoni
 vi.mock('../hooks/useAutoBackupEvents', () => ({ useAutoBackupEvents: () => {} }))
 vi.mock('../hooks/useTopicNamingErrorNotification', () => ({ useTopicNamingErrorNotification: () => {} }))
 vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }))
+vi.mock('../hooks/useBackupRestoreNotice', () => ({ useBackupRestoreNotice: () => {} }))
 vi.mock('@renderer/components/PopupHost', () => ({ PopupHost: () => null }))
 vi.mock('@renderer/components/ToastHost', () => ({ default: () => null }))
 vi.mock('@renderer/components/ThemeProvider', () => ({
