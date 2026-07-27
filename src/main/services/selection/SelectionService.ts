@@ -284,29 +284,20 @@ export class SelectionService extends BaseService implements Activatable {
     this.registerDisposable({
       dispose: preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean) => {
         this.desiredEnabled = enabled
-        // Suspend the action pool directly on disable instead of relying on deactivate(): a
-        // disable landing before the deferred warm-up ever activated (see onAllReady) settles
-        // the reconciler at desired=false/actual=false without running deactivate, which would
-        // leave the eager-warmed pool alive. Idempotent with the suspend in
-        // releaseActivationResources() on the activated path.
+        // The reconciler can settle without running deactivate()/onActivate() (disable while
+        // never activated; rapid false→true), so keep the pool in sync directly here.
+        // Both calls are idempotent.
         if (!enabled) {
           wm.suspendPool(WindowType.SelectionAction)
         } else if (this.isActivated) {
-          // Mirror of the direct suspend above: a false→true delivered with no yield in
-          // between settles the reconciler at desired=true/actual=true, so onActivate()
-          // (and its resumePool) never re-runs and the suspend above would stick. No-op
-          // when the pool isn't suspended; the not-yet-activated path still resumes via
-          // onActivate().
           wm.resumePool(WindowType.SelectionAction)
         }
         this.reconciler.request()
       })
     })
 
-    // The SelectionAction pool is warmup:'eager' in the registry, so WindowManager.onAllReady()
-    // would pre-create a hidden standby renderer even when the feature is disabled. onInit
-    // completes before allReady fires, so suspending here makes the eager warmup skip the
-    // pool; onActivate()'s resumePool() re-enables it when the feature turns on.
+    // The pool is warmup:'eager' — suspend before allReady so the warmup skips it while the
+    // feature is off; onActivate()'s resumePool() re-enables it.
     if (!preferenceService.get('feature.selection.enabled')) {
       wm.suspendPool(WindowType.SelectionAction)
     }

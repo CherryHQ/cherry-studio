@@ -108,10 +108,8 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
   })
 
   it('suspends the SelectionAction pool when disabled before the deferred warm-up activates', async () => {
-    // Enabled at boot: onInit leaves the pool warm for the eager warmup. A disable landing in
-    // the deferred gap settles the reconciler at desired=false/actual=false, so deactivate()
-    // (whose releaseActivationResources() suspends the pool) never runs — only the direct
-    // suspend in the subscription keeps the standby renderer from surviving with the feature off.
+    // Disable before the warm-up ever activated: the reconciler settles without deactivate(),
+    // so only the subscription's direct suspend stops the eager warmup.
     prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
     const activate = wireActivation()
     const suspendPool = (application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn> })
@@ -130,10 +128,8 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
   })
 
   it('resumes the pool after a rapid disable→enable on an already-active service', async () => {
-    // false and true delivered back-to-back in one synchronous task: the reconciler's next
-    // pass sees desired=true/actual=true and settles without re-running onActivate(), so its
-    // resumePool never fires — only the direct resume in the subscription undoes the direct
-    // suspend, otherwise action windows would silently bypass the pool from then on.
+    // false→true with no yield in between: the reconciler settles without re-running
+    // onActivate(), so only the subscription's direct resume undoes the direct suspend.
     prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
     const activate = wireActivation()
     const wm = application.get('WindowManager') as unknown as {
@@ -154,8 +150,7 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
 
     await flushImmediate()
 
-    // The reconciler settled without a deactivate/activate cycle — which is exactly
-    // why the subscription itself had to restore the pool.
+    // No deactivate/activate cycle ran — the subscription itself restored the pool.
     expect(activate).toHaveBeenCalledTimes(1)
     expect(svc.isActivated).toBe(true)
   })
@@ -180,9 +175,7 @@ describe('SelectionService.onInit — SelectionAction pool suspension', () => {
   })
 
   it('suspends the SelectionAction pool when the feature is disabled at boot', async () => {
-    // The registry declares the pool warmup:'eager'; without this suspend,
-    // WindowManager.onAllReady() would pre-create a hidden standby renderer
-    // even though the feature is off.
+    // Without the onInit suspend, the eager warmup would pre-create a standby renderer.
     prefGet.mockReturnValue(false)
 
     await svc._doInit()
