@@ -1587,11 +1587,14 @@ describe('ChatComposer', () => {
     } as KnowledgeBase
     mocks.topicPending = true
     mocks.knowledgeBases = [knowledgeBase]
-    mocks.selectedKnowledgeBases = [knowledgeBase]
 
-    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    mocks.selectedKnowledgeBases = [knowledgeBase]
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     const [knowledgeToken] = mocks.surfaceProps?.tokens ?? []
+    expect(knowledgeToken).toMatchObject({ id: 'knowledge:kb-1', kind: 'knowledge' })
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({
         text: 'queued knowledge question',
