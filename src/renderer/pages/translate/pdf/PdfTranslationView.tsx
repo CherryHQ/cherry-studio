@@ -11,7 +11,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import type { PdfTranslationProgressStage } from '@shared/ipc/schemas/translate'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import type { TFunction } from 'i18next'
 import { AlertCircle, Download, Languages, X } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -22,7 +22,7 @@ const logger = loggerService.withContext('PdfTranslationView')
 
 export interface PdfTranslationFile {
   name: string
-  path: string
+  path: AbsoluteFilePath
 }
 
 type PdfTranslationPhase = 'idle' | 'preparing' | 'downloading_assets' | 'translating' | 'success' | 'error'
@@ -162,7 +162,7 @@ const PdfTranslationView = ({
           jobId,
           modelId,
           sourceLangCode,
-          sourcePath: AbsoluteFilePathSchema.parse(file.path),
+          sourcePath: file.path,
           targetLangCode
         })
         .then((result) => {
