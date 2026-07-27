@@ -357,12 +357,11 @@ Converts `undefined` to `null` at API boundaries.
 
 ### DIALOG_CLOSE_DURATION_MS
 
-Duration of the Dialog CSS close animation: 220 ms.
+Duration of the Dialog CSS close animation: 200 ms.
 
 ### DIALOG_UNMOUNT_DELAY_MS
 
-Delay for imperative Dialog hosts before unmounting: 250 ms. This leaves a 30 ms paint buffer after the close
-animation so the compositor can present the final transparent frame.
+Delay for imperative Dialog hosts before unmounting: 200 ms.
 
 ## License
 

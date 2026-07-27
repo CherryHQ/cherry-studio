@@ -39,7 +39,7 @@ export const MockPopup = {
   createPopup: mockCreatePopup,
   popupService: mockPopupService,
   // Mirrors DIALOG_UNMOUNT_DELAY_MS from @cherrystudio/ui/utils.
-  POPUP_EXIT_MS: 250
+  POPUP_EXIT_MS: 200
 }
 
 export const resetPopupMocks = () => {

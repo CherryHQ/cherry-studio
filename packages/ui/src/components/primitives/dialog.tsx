@@ -31,7 +31,7 @@ function DialogOverlay({ className, onPointerDown, ...props }: React.ComponentPr
       className={cn(
         'fixed inset-0 z-[80] bg-black/50',
         'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:animation-duration-[220ms] data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
-        'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:animation-duration-[220ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
+        'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:animation-duration-[200ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
         'fill-mode-both motion-reduce:animate-none',
         className
       )}
@@ -63,10 +63,10 @@ type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> &
 
 /**
  * Close-animation duration (ms) of DialogContent. The literal
- * `data-[state=closed]:animation-duration-[220ms]` class below cannot be interpolated
+ * `data-[state=closed]:animation-duration-[200ms]` class below cannot be interpolated
  * (Tailwind needs to discover the whole class name), so this constant mirrors it and a
- * co-located test asserts they stay equal. Imperative hosts use the longer shared
- * DIALOG_UNMOUNT_DELAY_MS so the final transparent frame can be painted before unmount.
+ * co-located test asserts they stay equal. Imperative host removal timing is defined
+ * separately by DIALOG_UNMOUNT_DELAY_MS.
  */
 export { DIALOG_CLOSE_DURATION_MS }
 
@@ -112,8 +112,8 @@ function DialogContent({
         content element as their portal target from the provider inside Content.
 
         The closed-state animation duration below must equal DIALOG_CLOSE_DURATION_MS
-        (above); a test enforces it. Imperative hosts use a longer unmount delay with a
-        final-frame paint buffer (see renderer services/popup POPUP_EXIT_MS).
+        (above); a test enforces it. Imperative host removal timing is defined separately
+        by DIALOG_UNMOUNT_DELAY_MS.
       */}
       <DialogPrimitive.Content
         ref={handleRef}
@@ -121,7 +121,7 @@ function DialogContent({
         className={cn(
           'bg-card text-card-foreground fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 p-6 shadow-xl',
           'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-99 data-[state=open]:animation-duration-[260ms] data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
-          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-99 data-[state=closed]:animation-duration-[220ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
+          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-99 data-[state=closed]:animation-duration-[200ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
           motion === 'directional' &&
             'data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4',
           'fill-mode-both motion-reduce:animate-none',

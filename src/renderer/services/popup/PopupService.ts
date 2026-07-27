@@ -6,8 +6,7 @@ import type { ComponentPopupEntry, ConfirmPopupProps, ConfirmPopupType, PopupCom
 const logger = loggerService.withContext('PopupService')
 
 /**
- * Exit-phase duration: keep a closing popup mounted beyond the CSS animation so the
- * compositor can paint its final transparent frame before removal.
+ * Exit-phase duration before a closing popup is removed from the store.
  */
 export const POPUP_EXIT_MS = DIALOG_UNMOUNT_DELAY_MS
 

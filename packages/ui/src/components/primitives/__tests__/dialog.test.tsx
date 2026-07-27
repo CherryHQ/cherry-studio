@@ -78,9 +78,7 @@ describe('Dialog primitive', () => {
     pagePortalContainer.remove()
   })
 
-  it('keeps the close duration synchronized and reserves a final-frame paint buffer', () => {
-    // The CSS class and duration constant must agree, while imperative hosts must
-    // outlive both so the compositor gets a final transparent frame to present.
+  it('keeps the declared close and imperative-unmount durations synchronized', () => {
     render(
       <Dialog open>
         <DialogContent aria-describedby={undefined}>
@@ -92,7 +90,8 @@ describe('Dialog primitive', () => {
     const content = document.querySelector('[data-slot="dialog-content"]')
     expect(content).not.toBeNull()
     expect(content?.className).toContain(`data-[state=closed]:animation-duration-[${DIALOG_CLOSE_DURATION_MS}ms]`)
-    expect(DIALOG_UNMOUNT_DELAY_MS).toBeGreaterThan(DIALOG_CLOSE_DURATION_MS)
+    expect(DIALOG_CLOSE_DURATION_MS).toBe(200)
+    expect(DIALOG_UNMOUNT_DELAY_MS).toBe(DIALOG_CLOSE_DURATION_MS)
   })
 
   it('uses asymmetric directional motion and disables it when reduced motion is requested', () => {
@@ -110,7 +109,7 @@ describe('Dialog primitive', () => {
     expect(overlay).toHaveClass(
       'data-[state=open]:animation-duration-[220ms]',
       'data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
-      'data-[state=closed]:animation-duration-[220ms]',
+      'data-[state=closed]:animation-duration-[200ms]',
       'data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
       'motion-reduce:animate-none'
     )
@@ -119,7 +118,7 @@ describe('Dialog primitive', () => {
       'data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
       'data-[state=open]:zoom-in-99',
       'data-[state=open]:slide-in-from-bottom-4',
-      'data-[state=closed]:animation-duration-[220ms]',
+      'data-[state=closed]:animation-duration-[200ms]',
       'data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
       'data-[state=closed]:zoom-out-99',
       'data-[state=closed]:slide-out-to-bottom-4',

@@ -1,4 +1,4 @@
-import { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -188,7 +188,7 @@ describe('ResourceEditDialogHost', () => {
     expect(mocks.onSaved).not.toHaveBeenCalled()
   })
 
-  it('keeps the target mounted until the shared close animation finishes', async () => {
+  it('keeps the target mounted until the shared unmount delay expires', async () => {
     vi.useFakeTimers()
 
     render(<ResourceEditDialogHost target={{ kind: 'agent', id: 'agent-1' }} onOpenChange={mocks.onOpenChange} />)
@@ -198,10 +198,10 @@ describe('ResourceEditDialogHost', () => {
     expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'false')
     expect(mocks.onOpenChange).not.toHaveBeenCalled()
 
-    await act(() => vi.advanceTimersByTime(DIALOG_CLOSE_DURATION_MS))
+    await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS - 1))
     expect(mocks.onOpenChange).not.toHaveBeenCalled()
 
-    await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS - DIALOG_CLOSE_DURATION_MS))
+    await act(() => vi.advanceTimersByTime(1))
     expect(mocks.onOpenChange).toHaveBeenCalledWith(false)
   })
 
@@ -215,7 +215,7 @@ describe('ResourceEditDialogHost', () => {
     fireEvent.click(screen.getByRole('button', { name: 'close' }))
     expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'false')
 
-    await act(() => vi.advanceTimersByTime(DIALOG_CLOSE_DURATION_MS))
+    await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS - 1))
     rerender(<ResourceEditDialogHost target={{ kind: 'agent', id: 'agent-1' }} onOpenChange={mocks.onOpenChange} />)
 
     expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'true')

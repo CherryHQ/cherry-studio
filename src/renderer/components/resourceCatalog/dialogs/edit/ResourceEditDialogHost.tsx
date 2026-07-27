@@ -53,7 +53,7 @@ export function ResourceEditDialogHost({ target, onOpenChange, onSaved }: Resour
         return
       }
 
-      // Keep the target mounted through the close animation and its final paint frame.
+      // Keep the target mounted until the shared close delay expires.
       closeTimerRef.current = setTimeout(() => {
         closeTimerRef.current = null
         onOpenChange(false)
