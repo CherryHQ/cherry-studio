@@ -145,7 +145,7 @@ export function useConversationGreeting(fallbackGreeting: string, conversationId
           userName
         })
         const requestGreeting = async (prompt: string) => {
-          const result = await ipcApi.request('ai.generate_text', {
+          const result = await ipcApi.request('ai.text.generate', {
             prompt,
             system,
             uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID

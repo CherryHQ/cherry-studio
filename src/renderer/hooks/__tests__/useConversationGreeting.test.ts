@@ -27,7 +27,7 @@ describe('useConversationGreeting', () => {
       if (route === 'system.get_ip_country') {
         return Promise.resolve('US')
       }
-      if (route === 'ai.generate_text') {
+      if (route === 'ai.text.generate') {
         return Promise.resolve({ text: '晚上好，Siin！想聊点什么？' })
       }
       return Promise.reject(new Error(`Unexpected route: ${route}`))
@@ -40,14 +40,14 @@ describe('useConversationGreeting', () => {
 
     expect(mocks.request).toHaveBeenCalledWith('system.get_ip_country')
     expect(mocks.request).toHaveBeenCalledWith(
-      'ai.generate_text',
+      'ai.text.generate',
       expect.objectContaining({
         prompt: 'Generate the greeting now.',
         uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
     )
 
-    const generateRequest = mocks.request.mock.calls.find(([route]) => route === 'ai.generate_text')?.[1]
+    const generateRequest = mocks.request.mock.calls.find(([route]) => route === 'ai.text.generate')?.[1]
     expect(generateRequest.system).toContain('"userName": "Siin"')
     expect(generateRequest.system).toContain('"language": "zh-cn"')
     expect(generateRequest.system).toContain('"countryOrRegion": "US"')
@@ -64,7 +64,7 @@ describe('useConversationGreeting', () => {
 
     const { result } = renderHook(() => useConversationGreeting('今天想聊点什么？'))
 
-    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('ai.generate_text', expect.any(Object)))
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('ai.text.generate', expect.any(Object)))
     expect(result.current).toBe('今天想聊点什么？')
   })
 
@@ -73,7 +73,7 @@ describe('useConversationGreeting', () => {
       if (route === 'system.get_ip_country') {
         return Promise.reject(new Error('region unavailable'))
       }
-      if (route === 'ai.generate_text') {
+      if (route === 'ai.text.generate') {
         return Promise.resolve({ text: '周末愉快，要来玩个游戏吗？' })
       }
       return Promise.reject(new Error(`Unexpected route: ${route}`))
@@ -82,7 +82,7 @@ describe('useConversationGreeting', () => {
     const { result } = renderHook(() => useConversationGreeting('今天想聊点什么？'))
 
     await waitFor(() => expect(result.current).toBe('周末愉快，要来玩个游戏吗？'))
-    const generateRequest = mocks.request.mock.calls.find(([route]) => route === 'ai.generate_text')?.[1]
+    const generateRequest = mocks.request.mock.calls.find(([route]) => route === 'ai.text.generate')?.[1]
     expect(generateRequest.system).toContain('"countryOrRegion": "CN"')
   })
 
@@ -96,7 +96,7 @@ describe('useConversationGreeting', () => {
       if (route === 'system.get_ip_country') {
         return Promise.resolve('CN')
       }
-      if (route === 'ai.generate_text') {
+      if (route === 'ai.text.generate') {
         generationCount += 1
         return generationCount === 1 ? firstGreeting : Promise.resolve({ text: '第二个会话的问候' })
       }
@@ -127,7 +127,7 @@ describe('useConversationGreeting', () => {
       if (route === 'system.get_ip_country') {
         return Promise.resolve('CN')
       }
-      if (route === 'ai.generate_text') {
+      if (route === 'ai.text.generate') {
         const text = generatedGreetings[generationCount]
         generationCount += 1
         return Promise.resolve({ text })
@@ -142,7 +142,7 @@ describe('useConversationGreeting', () => {
     const refreshedRender = renderHook(() => useConversationGreeting('今天想聊点什么？', 'conversation-1'))
     await waitFor(() => expect(refreshedRender.result.current).toBe('周末愉快，要来玩个游戏吗？'))
 
-    const generationRequests = mocks.request.mock.calls.filter(([route]) => route === 'ai.generate_text')
+    const generationRequests = mocks.request.mock.calls.filter(([route]) => route === 'ai.text.generate')
     expect(generationRequests).toHaveLength(3)
     expect(generationRequests[1][1].system).toContain('"previousGreeting": "晚上好，想聊点什么？"')
     expect(generationRequests[2][1].prompt).toBe('Generate a different greeting now.')
