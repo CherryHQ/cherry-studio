@@ -710,6 +710,12 @@ const ChatComposerInner = ({
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
+  const isModelUnavailable =
+    !missingAssistantMessage &&
+    !runtimeModelPending &&
+    !runtimeModel &&
+    !selectedModelForMissingAssistantDefault &&
+    !selectedModelForUnlinkedHome
 
   useEffect(() => {
     if (isPending) setIsSending(false)
@@ -1253,12 +1259,14 @@ const ChatComposerInner = ({
         customTools={toolbarCustomTools}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
+        isModelUnavailable={isModelUnavailable}
         inputAdapter={inputAdapter}
         unifiedPanelControl={unifiedPanelControl}
       />
     ),
     [
       customizeToolbarOpen,
+      isModelUnavailable,
       pinnedToolIds,
       pinnedToolsAtDefault,
       resetPinnedToolIds,

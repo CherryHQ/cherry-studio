@@ -7,6 +7,7 @@ import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/
 import { getComposerToolbarManifestsForScope } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ComposerToolScope } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { GripVertical, RotateCcw } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
@@ -60,6 +61,8 @@ interface ComposerToolbarShortcutsProps {
   customTools?: readonly ComposerToolbarCustomTool[]
   customizeOpen: boolean
   onCustomizeOpenChange: (open: boolean) => void
+  /** True only after model resolution has completed without an available model. */
+  isModelUnavailable?: boolean
   inputAdapter?: QuickPanelInputAdapter
   unifiedPanelControl?: ComposerUnifiedPanelControl
 }
@@ -119,6 +122,7 @@ export const ComposerToolbarShortcuts = ({
   customTools,
   customizeOpen,
   onCustomizeOpenChange,
+  isModelUnavailable,
   inputAdapter,
   unifiedPanelControl
 }: ComposerToolbarShortcutsProps) => {
@@ -299,6 +303,7 @@ export const ComposerToolbarShortcuts = ({
     setCustomizeOrderState({ preferredOrder: [], syncedPinnedIds: pinnedIds, pendingPinnedIds: null })
     onResetPinnedIds()
   }
+  const showModelRequiredToast = () => toast.error(t('code.model_required'))
 
   // Localized drag feedback so screen readers announce tool names, not internal ids (e.g. "web-search").
   const dragAccessibility = useMemo(() => {
@@ -329,7 +334,7 @@ export const ComposerToolbarShortcuts = ({
                 ? shortcut.disabledReason
                 : (shortcut.tooltip ?? shortcut.label)
             return (
-              <Tooltip key={shortcut.id} content={tooltip} placement="top">
+              <Tooltip key={shortcut.id} content={tooltip} placement="top" isDisabled={isModelUnavailable}>
                 <Button
                   type="button"
                   variant="ghost"
@@ -341,11 +346,13 @@ export const ComposerToolbarShortcuts = ({
                     shortcut.active && 'bg-accent'
                   )}
                   aria-label={typeof shortcut.label === 'string' ? shortcut.label : undefined}
-                  aria-haspopup={shortcut.haspopup}
-                  aria-pressed={shortcut.toggle && shortcut.resolved ? shortcut.active : undefined}
-                  disabled={shortcut.disabled}
+                  aria-haspopup={isModelUnavailable ? undefined : shortcut.haspopup}
+                  aria-pressed={
+                    !isModelUnavailable && shortcut.toggle && shortcut.resolved ? shortcut.active : undefined
+                  }
+                  disabled={!isModelUnavailable && shortcut.disabled}
                   data-active={shortcut.active || undefined}
-                  onClick={shortcut.select}>
+                  onClick={isModelUnavailable ? showModelRequiredToast : shortcut.select}>
                   {shortcut.icon}
                 </Button>
               </Tooltip>

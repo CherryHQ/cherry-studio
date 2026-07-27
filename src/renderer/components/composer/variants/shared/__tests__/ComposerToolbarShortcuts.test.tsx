@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   manifests: [] as any[],
   resolveLaunchers: vi.fn(),
   dispatchLauncher: vi.fn(),
+  toastError: vi.fn(),
   reorderableProps: null as any,
   committedCustomizeOrders: [] as string[][]
 }))
@@ -30,14 +31,22 @@ vi.mock('@renderer/components/composer/tools/toolbarManifests', () => ({
   getComposerToolbarManifestsForScope: () => mocks.manifests
 }))
 
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
+}))
+
 // Local override of the global @cherrystudio/ui mock: exposes ReorderableList props
 // for reorder assertions and gives Switch the real checked/onCheckedChange API.
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   return {
     Button: ({ children, ...props }: any) => React.createElement('button', props, children),
-    Tooltip: ({ children, content }: any) =>
-      React.createElement('span', { 'data-tooltip': typeof content === 'string' ? content : undefined }, children),
+    Tooltip: ({ children, content, isDisabled }: any) =>
+      React.createElement(
+        'span',
+        { 'data-tooltip': !isDisabled && typeof content === 'string' ? content : undefined },
+        children
+      ),
     Popover: ({ children, open }: any) =>
       React.createElement('div', { 'data-testid': 'popover', 'data-open': String(open) }, children),
     PopoverAnchor: ({ children }: { children: ReactNode }) => children,
@@ -148,6 +157,7 @@ describe('ComposerToolbarShortcuts', () => {
     mocks.resolveLaunchers.mockReset()
     mocks.resolveLaunchers.mockImplementation(() => mocks.launchers)
     mocks.dispatchLauncher.mockClear()
+    mocks.toastError.mockClear()
     mocks.reorderableProps = null
     mocks.committedCustomizeOrders = []
   })
@@ -189,6 +199,50 @@ describe('ComposerToolbarShortcuts', () => {
     expect(webSearchButton).toHaveClass('disabled:opacity-100')
     expect(webSearchButton).not.toHaveAttribute('aria-pressed')
     expect(within(webSearchButton).getByTestId('icon-web-search-fallback')).toBeInTheDocument()
+  })
+
+  it('routes every shortcut click to the shared model-required toast when no model is available', () => {
+    const onCustomSelect = vi.fn()
+    mocks.launchers = []
+    mocks.manifests = [
+      thinkingManifest,
+      {
+        id: 'quick-phrases',
+        kind: 'panel',
+        order: 70,
+        label: 'quick-phrases-label',
+        icon: <span />
+      }
+    ]
+
+    renderShortcuts({
+      pinnedIds: ['thinking', 'quick-phrases', 'new-conversation'],
+      customTools: [
+        {
+          id: 'new-conversation',
+          label: 'new-conversation-label',
+          icon: <span />,
+          requiresPanel: false,
+          onSelect: onCustomSelect
+        }
+      ],
+      isModelUnavailable: true
+    })
+
+    const buttons = [
+      screen.getByRole('button', { name: 'thinking-manifest-label' }),
+      screen.getByRole('button', { name: 'quick-phrases-label' }),
+      screen.getByRole('button', { name: 'new-conversation-label' })
+    ]
+    buttons.forEach((button) => {
+      expect(button).toBeEnabled()
+      expect(button.closest('[data-tooltip]')).toBeNull()
+      fireEvent.click(button)
+    })
+
+    expect(mocks.toastError).toHaveBeenCalledTimes(3)
+    expect(mocks.toastError).toHaveBeenCalledWith('code.model_required')
+    expect(onCustomSelect).not.toHaveBeenCalled()
   })
 
   it('keeps manifest presentation stable while a launcher is cleared and re-registered', () => {
