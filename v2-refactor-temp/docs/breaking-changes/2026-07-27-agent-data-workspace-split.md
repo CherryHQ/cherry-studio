@@ -11,8 +11,9 @@ date: 2026-07-27
 Agent identity files (`SOUL.md`, `USER.md`) and persistent memory now live with
 the Agent instead of inside a Session workspace. App-managed Sessions receive
 separate system workspaces. During v1 migration, ordinary files from the former
-shared managed workspace move to the most recently used Session; older managed
-Sessions start with empty workspaces.
+shared managed workspace are copied to the most recently used Session; older
+managed Sessions start with empty workspaces. The complete v1 workspace remains
+in its legacy location so downgrading to v1 continues to work.
 
 ## Why this matters to the user
 
@@ -27,7 +28,7 @@ directly.
 ## What the user should do
 
 Nothing — migration is automatic. If an older Session needs files that were
-moved to the most recently used Session workspace, copy or select those files
+copied to the most recently used Session workspace, copy or select those files
 explicitly after upgrading.
 
 ## Notes for release manager
@@ -35,4 +36,5 @@ explicitly after upgrading.
 v1 did not store a historical workspace snapshot per Session, so copying its
 last shared state into every migrated Session would invent duplicate history.
 The migration preserves one copy under the most recently used Session and
-documents the intentional change in historical Session context.
+documents the intentional change in historical Session context. It also retains
+the complete v1 workspace for downgrade compatibility.

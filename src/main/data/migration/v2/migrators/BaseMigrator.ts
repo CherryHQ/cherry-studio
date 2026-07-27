@@ -111,12 +111,4 @@ export abstract class BaseMigrator {
    * Must include count validation
    */
   abstract validate(ctx: MigrationContext): Promise<ValidateResult>
-
-  /**
-   * Finalize non-database side effects after all validation succeeds, but
-   * before MigrationEngine records the durable completed status.
-   */
-  async finalize(ctx: MigrationContext): Promise<void> {
-    void ctx
-  }
 }

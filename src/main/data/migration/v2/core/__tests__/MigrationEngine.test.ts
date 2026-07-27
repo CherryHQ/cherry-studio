@@ -65,9 +65,6 @@ function createTestMigrator(id: string, order: number, events: string[]) {
         errors: [],
         stats: { sourceCount: 0, targetCount: 0, skippedCount: 0 }
       }
-    }),
-    finalize: vi.fn(async () => {
-      events.push(`${id}:finalize`)
     })
   }
 }
@@ -112,8 +109,6 @@ describe('MigrationEngine', () => {
       'chat:prepare',
       'chat:execute',
       'chat:validate',
-      'boot:finalize',
-      'chat:finalize',
       'boot:reset',
       'chat:reset',
       'boot:prepare',
@@ -121,9 +116,7 @@ describe('MigrationEngine', () => {
       'boot:validate',
       'chat:prepare',
       'chat:execute',
-      'chat:validate',
-      'boot:finalize',
-      'chat:finalize'
+      'chat:validate'
     ])
   })
 
@@ -248,7 +241,7 @@ describe('MigrationEngine', () => {
     expect(markSpy).toHaveBeenCalledOnce()
   })
 
-  it('runs every finalizer after global validation and before marking completed', async () => {
+  it('marks completed after global validation succeeds', async () => {
     const events: string[] = []
     const migrator = createTestMigrator('agents', 1, events)
     vi.mocked((engine as any).verifyForeignKeys).mockImplementation(() => {
@@ -261,20 +254,7 @@ describe('MigrationEngine', () => {
 
     await expect(engine.run({}, '/tmp/dexie_export')).resolves.toMatchObject({ success: true })
 
-    expect(events.slice(-3)).toEqual(['foreign-keys', 'agents:finalize', 'completed'])
-  })
-
-  it('keeps migration retryable when a finalizer fails', async () => {
-    const events: string[] = []
-    const migrator = createTestMigrator('agents', 1, events)
-    migrator.finalize.mockRejectedValueOnce(new Error('filesystem cleanup failed'))
-    engine.registerMigrators([migrator as any])
-
-    const result = await engine.run({}, '/tmp/dexie_export')
-
-    expect(result).toMatchObject({ success: false, error: 'filesystem cleanup failed' })
-    expect((engine as any).markCompleted).not.toHaveBeenCalled()
-    expect((engine as any).markFailed).toHaveBeenCalledWith('filesystem cleanup failed')
+    expect(events.slice(-2)).toEqual(['foreign-keys', 'completed'])
   })
 
   it('clears new architecture tables inside one transaction', async () => {

@@ -70,7 +70,7 @@ src/main/data/migration/v2/
 
 ## Core Contracts
 
-- `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and uses `app_state.key = 'migration_v2_status'` as the only durable migration marker. It clears new-schema tables before running and aborts on validation, global foreign-key, or finalization failure.
+- `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and uses `app_state.key = 'migration_v2_status'` as the only durable migration marker. It clears new-schema tables before running and aborts on validation or global foreign-key failure.
 - `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `~/.cherrystudio/config/config.json`. Called once at the migration gate entry, before engine initialization. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
 - `core/MigrationContext.ts` builds the shared context passed to every migrator:
   - `sources`: `ConfigManager` (ElectronStore), `ReduxStateReader` (parsed Redux Persist data), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
@@ -87,7 +87,6 @@ src/main/data/migration/v2/
   - `prepare(ctx)`: dry-run checks, counts, and staging data; return `PrepareResult`
   - `execute(ctx)`: perform inserts/updates; manage your own transactions; report progress via `reportProgress`; self-check FK integrity of owned tables via `assertOwnedForeignKeys` (see Conventions → Foreign keys)
   - `validate(ctx)`: verify counts and integrity; return `ValidateResult` with stats (`sourceCount`, `targetCount`, `skippedCount`) and any `errors`
-  - `finalize(ctx)`: optional non-database cleanup after all migrators and the global foreign-key check succeed. The engine runs finalizers before recording completion, so a failure remains retryable.
 - Registration: list migrators (in order) in `migrators/migratorRegistry.ts` so the engine can sort and run them.
 - Current migrators (see `migrators/README-<name>.md` for detailed documentation):
   - `PreferencesMigrator` (implemented): maps ElectronStore + Redux settings to the `preference` table using `mappings/PreferencesMappings.ts`.
@@ -103,6 +102,7 @@ src/main/data/migration/v2/
     - **Self-check scope**: pass only tables whose FKs are fully resolved when *your* migrator finishes. **Exclude** refs a later migrator resolves — e.g. `assistant_knowledge_base.knowledgeBaseId` is written by `AssistantMigrator` but only becomes valid after `KnowledgeMigrator` remaps/prunes it, so `KnowledgeMigrator` self-checks that table, not `AssistantMigrator`. Dedicated file association tables (for example `chat_message_file_ref`) may be self-checked by the migrator that owns both the source rows and ref rows.
   - Count validation is mandatory; engine will fail the run if `targetCount < sourceCount - skippedCount` or if `ValidateResult.errors` is non-empty.
   - Keep migrations idempotent per run—engine clears target tables before it starts, but each migrator should tolerate retries within the same run.
+  - Preserve v1 sources required for downgrade compatibility. `AgentsMigrator` copies legacy Agent files into the v2 layout but never deletes `agents.db` or legacy short-ID workspaces.
   - **Path safety**: All filesystem paths MUST come from `ctx.paths` (the `MigrationPaths` object). NEVER call `app.getPath('userData')` or construct paths with `path.join` from scratch. Doing so bypasses the v1 legacy userData detection and may cause data loss for users with custom `appDataPath` configurations. If you need a path not yet in `MigrationPaths`, add it to the interface — do not inline it.
 
 ## Utilities

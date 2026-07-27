@@ -59,45 +59,40 @@ For each migrated Agent:
   Session workspace; external and dangling targets retain their meaning.
 
 Existing identity targets are never overwritten. Identical files from a prior
-attempt are accepted recursively and remain eligible for source cleanup;
-different files keep the v1 source in place.
+attempt are accepted recursively; different files keep both the existing v2
+target and the v1 source in place.
 
-## Finalization and retry contract
+## Copy-only and downgrade contract
 
-Filesystem staging is copy-only. Each entry records its source content and
-metadata before copying, verifies that the source metadata is unchanged after
-the copy, and requires the staging entry and published destination to match the
-same copied-content fingerprint. A source that changes inside that window
-aborts the migration instead of producing a cleanup candidate.
+The filesystem migration is additive. It never removes or rewrites the v1
+`agents.db` or `Data/Agents/{legacyAgentId suffix}` workspace because those
+paths remain the source of truth when a user downgrades to v1.
 
-`AgentsMigrator` keeps the cleanup plan in run-local state. After every
-migrator validates and the global foreign-key check succeeds, the engine calls
-each migrator's `finalize()` hook. Only after finalization succeeds does it
-write `app_state.key = 'migration_v2_status'` as completed. A finalization
-failure marks the migration failed, so retry reruns the idempotent migration;
-there is no second durable migration marker.
+Each entry records its source metadata before copying, verifies that the source
+metadata is unchanged after the copy, and requires the private staging entry
+and published destination to match the same copied-content fingerprint. A
+source that changes inside that window aborts the migration. UUID staging paths
+keep partial copies out of the final workspace and only the current run's
+staging path is removed; the migration never sweeps other prefix-matching
+entries.
 
-Cleanup removes only entry names that the same run copied or verified as
-identical. Every managed root is checked with `lstat` and physical containment
-before removal; links are removed as link objects and never followed. It checks
-the destination first and the source second. Unchanged metadata takes the fast
-path; metadata changes fall back to content fingerprints, and any content
-change preserves the source.
+`app_state.key = 'migration_v2_status'` records that the v2 database and file
+copies are ready. It does not mean the v1-compatible source layout was removed,
+and there is no cleanup plan or filesystem finalization state.
 
 ## Deferred Agent directory GC
 
-This migrator removes only copy-verified v1 entries. General orphan cleanup for
-`Data/Agents` is intentionally deferred until the File GC lifecycle in #16727
-is available. The database already provides lossless ownership:
+General orphan cleanup for v2-owned `Data/Agents` paths is intentionally
+deferred until the File GC lifecycle in #16727 is available. The database
+provides ownership for the v2 layout:
 
 - `agent.id` owns `Data/Agents/{agentId}`.
 - `agent_workspace` rows own managed system-workspace paths.
 
-That means the later GC can derive live roots from committed rows and remove
-only unowned directories through the shared scan/retry/idle lifecycle.
-Deferring it retains possible residue but does not discard owned data; adding a
-second migration-specific scanner now would duplicate lifecycle and retry
-semantics.
+The later GC can derive live v2 roots from committed rows and remove only
+unowned v2 directories through the shared scan/retry/idle lifecycle. Legacy
+short-ID workspaces are downgrade-compatibility data, not v2 orphans, and must
+remain excluded for as long as v1 downgrade support exists.
 
 ## Important field mappings
 
@@ -126,5 +121,5 @@ Related user-visible behavior is recorded under
 
 - `AgentsMigrator.ts` — database preparation, import, validation, and ID remap orchestration.
 - `mappings/AgentsDbMappings.ts` — v1 schema inspection and SQL mapping definitions.
-- `agentsFilesystemMigration.ts` — copy-only identity/workspace staging and safe cleanup.
+- `agentsFilesystemMigration.ts` — copy-only identity/workspace staging and verified publication.
 - `remapAgentPrefixIds.ts` — deterministic ID and foreign-key remapping.

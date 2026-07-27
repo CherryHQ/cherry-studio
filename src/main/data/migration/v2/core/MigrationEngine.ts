@@ -287,12 +287,6 @@ export class MigrationEngine {
       // Verify FK integrity after all inserts (FK was off during bulk inserts)
       this.verifyForeignKeys()
 
-      // Finalize non-database side effects while the migration is still
-      // retryable. A finalizer failure must not leave a completed status.
-      for (const migrator of this.migrators) {
-        await migrator.finalize(context)
-      }
-
       // Mark migration completed
       await this.markCompleted()
 

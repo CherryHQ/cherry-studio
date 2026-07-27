@@ -17,9 +17,7 @@ import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import {
   type AgentFileSessionPlan,
-  cleanupLegacyAgentFiles,
   isManagedLegacyAgentWorkspace,
-  type LegacyAgentFilesCleanupPlan,
   legacyAgentWorkspacePath,
   stageLegacyAgentFiles
 } from './agentsFilesystemMigration'
@@ -70,14 +68,12 @@ export class AgentsMigrator extends BaseMigrator {
   private sourceDbPath: string | null | undefined = undefined
   private sourceSchemaInfo: AgentsSchemaInfo = createEmptyAgentsSchemaInfo()
   private reader: LegacyAgentsDbReader | null = null
-  private filesCleanupPlan: LegacyAgentFilesCleanupPlan | null = null
 
   override reset(): void {
     this.sourceCounts = this.createEmptyCounts()
     this.sourceDbPath = undefined
     this.sourceSchemaInfo = createEmptyAgentsSchemaInfo()
     this.reader = null
-    this.filesCleanupPlan = null
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -203,7 +199,7 @@ export class AgentsMigrator extends BaseMigrator {
       const idRemap = remapAgentPrefixIds(ctx.db)
       const finalSessionWorkspaces = finalizeSessionWorkspaces(ctx, derivedSessionWorkspaces, idRemap)
       ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, finalSessionWorkspaces)
-      this.filesCleanupPlan = await stageLegacyAgentFiles({
+      await stageLegacyAgentFiles({
         agentsDataRoot: ctx.paths.agentsDataDir,
         agents: legacyAgentIds.map((sourceAgentId) => ({
           sourceAgentId,
@@ -420,12 +416,6 @@ export class AgentsMigrator extends BaseMigrator {
         mismatchReason: errors.length > 0 ? 'One or more agent_* tables did not match expected row counts' : undefined
       }
     }
-  }
-
-  override async finalize(): Promise<void> {
-    if (!this.filesCleanupPlan) return
-    await cleanupLegacyAgentFiles(this.filesCleanupPlan)
-    this.filesCleanupPlan = null
   }
 
   private createReader(ctx: MigrationContext): LegacyAgentsDbReader {
