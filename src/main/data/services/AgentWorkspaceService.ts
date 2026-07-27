@@ -135,9 +135,9 @@ export class AgentWorkspaceService {
     return { row, created: true }
   }
 
-  createSystemWorkspaceForSessionTx(tx: DbOrTx, input: { sessionId: string }): AgentWorkspaceEntity {
+  createSystemWorkspaceForSessionTx(tx: DbOrTx, input: { sessionId: string; createdAt: number }): AgentWorkspaceEntity {
     const workspacePath = normalizeWorkspacePath(
-      systemWorkspacePath(application.getPath('feature.agents.system_workspaces'), input.sessionId)
+      systemWorkspacePath(application.getPath('feature.agents.system_workspaces'), input.sessionId, input.createdAt)
     )
     const row = withSqliteErrors(
       () =>

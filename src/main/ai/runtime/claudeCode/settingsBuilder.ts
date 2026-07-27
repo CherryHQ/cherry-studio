@@ -488,17 +488,23 @@ async function resolveRealOrNearestExistingPath(targetPath: string): Promise<str
   }
 }
 
-async function isPathWithinWorkspace(cwd: string, requestedPath: string): Promise<boolean> {
+async function isPathWithinAllowedRoots(cwd: string, agentDataPath: string, requestedPath: string): Promise<boolean> {
   if (requestedPath === '~' || requestedPath.startsWith('~/') || requestedPath.startsWith('~\\')) {
     return false
   }
 
   const absoluteTarget = path.isAbsolute(requestedPath) ? path.resolve(requestedPath) : path.resolve(cwd, requestedPath)
-  const [resolvedWorkspace, resolvedTarget] = await Promise.all([
+  const [resolvedWorkspace, resolvedAgentDataPath, resolvedTarget] = await Promise.all([
     resolveRealOrNearestExistingPath(path.resolve(cwd)),
+    resolveRealOrNearestExistingPath(path.resolve(agentDataPath)),
     resolveRealOrNearestExistingPath(absoluteTarget)
   ])
-  return resolvedTarget === resolvedWorkspace || isPathInside(resolvedTarget, resolvedWorkspace)
+  return (
+    resolvedTarget === resolvedWorkspace ||
+    isPathInside(resolvedTarget, resolvedWorkspace) ||
+    resolvedTarget === resolvedAgentDataPath ||
+    isPathInside(resolvedTarget, resolvedAgentDataPath)
+  )
 }
 
 export async function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
@@ -904,10 +910,7 @@ async function buildToolPermissions(
     // Glob/Grep intentionally omit `path` to search from cwd. Let the SDK validate missing or
     // malformed required fields for the other tools rather than duplicating their schemas here.
     if (typeof requestedPath !== 'string' || !requestedPath.trim()) return {}
-    if (
-      (await isPathWithinWorkspace(cwd, requestedPath)) ||
-      (await isPathWithinWorkspace(agentDataPath, requestedPath))
-    ) {
+    if (await isPathWithinAllowedRoots(cwd, agentDataPath, requestedPath)) {
       return {}
     }
 

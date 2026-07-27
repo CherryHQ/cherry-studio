@@ -120,6 +120,7 @@ export class AgentSessionService {
    */
   createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
     this.assertAgentExistsTx(tx, dto.agentId)
+    const createdAt = Date.now()
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -135,7 +136,7 @@ export class AgentSessionService {
         break
       }
       case AGENT_WORKSPACE_TYPE.SYSTEM: {
-        workspaceId = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id }).id
+        workspaceId = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id, createdAt }).id
         break
       }
       default: {
@@ -152,7 +153,9 @@ export class AgentSessionService {
       agentId: dto.agentId,
       name: dto.name,
       description: dto.description,
-      workspaceId
+      workspaceId,
+      createdAt,
+      updatedAt: createdAt
     })
   }
 
@@ -381,7 +384,10 @@ export class AgentSessionService {
 
     // Target is a system workspace; an existing system workspace is already correct.
     if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) return
-    const workspace = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })
+    const workspace = agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+      sessionId: id,
+      createdAt: current.session.createdAt
+    })
     tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
   }
 
@@ -420,6 +426,8 @@ export class AgentSessionService {
       name: string
       description?: string
       workspaceId: string
+      createdAt: number
+      updatedAt: number
     }
   ): void {
     insertWithOrderKey(tx, sessionsTable, values, { pkColumn: sessionsTable.id, position: 'first' })

@@ -174,11 +174,9 @@ export class PromptBuilder {
       logger.info('Bootstrap mode active — injecting onboarding instructions')
     }
 
-    // Memories section (always included so the agent knows file locations)
-    const memoriesContent = await this.buildMemoriesSection(agentDataPath)
-    if (memoriesContent) {
-      parts.push(memoriesContent)
-    }
+    // Always include the storage contract and absolute identity paths. Only the
+    // loaded file-content blocks inside the section are conditional.
+    parts.push(await this.buildMemoriesSection(agentDataPath))
 
     return parts.join('\n\n')
   }
@@ -255,7 +253,7 @@ ${content}
     return true
   }
 
-  private async buildMemoriesSection(agentDataPath: string): Promise<string | undefined> {
+  private async buildMemoriesSection(agentDataPath: string): Promise<string> {
     const memoryDir = path.join(agentDataPath, 'memory')
     const hasRealMemoryDirectory = await isRealDirectory(memoryDir)
 
@@ -270,10 +268,6 @@ ${content}
       userPath ? this.readCachedFile(userPath, agentDataPath) : Promise.resolve(undefined),
       factPath ? this.readCachedFile(factPath, agentDataPath) : Promise.resolve(undefined)
     ])
-
-    if (!soulContent && !userContent && !factContent) {
-      return undefined
-    }
 
     const sections = [
       soulContent ? `<soul>\n${soulContent}\n</soul>` : '',

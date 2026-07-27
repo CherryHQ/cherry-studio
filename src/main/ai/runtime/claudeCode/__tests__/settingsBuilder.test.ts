@@ -1,4 +1,6 @@
+import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
 import type * as NodeModule from 'node:module'
+import os from 'node:os'
 import path from 'node:path'
 
 import {
@@ -471,6 +473,56 @@ describe('buildClaudeCodeSessionSettings', () => {
     await expect(permissionDecisions('Glob', {})).resolves.not.toContain('ask')
     await expect(permissionDecisions('Bash', { command: 'cat /outside/read.txt' })).resolves.not.toContain('ask')
   })
+
+  it.runIf(process.platform !== 'win32')(
+    'does not reinterpret a workspace-relative path against the agent data directory',
+    async () => {
+      const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'settings-path-hook-'))
+      const workspacePath = path.join(tempRoot, 'workspace')
+      const agentDataPath = path.join(tempRoot, 'agent-data')
+      const outsidePath = path.join(tempRoot, 'outside')
+      await Promise.all([
+        mkdir(workspacePath),
+        mkdir(path.join(agentDataPath, 'memory'), { recursive: true }),
+        mkdir(outsidePath)
+      ])
+      await symlink(outsidePath, path.join(workspacePath, 'memory'))
+      mocks.ensureAgentDataDirectory.mockResolvedValue(agentDataPath)
+
+      try {
+        const session = {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: workspacePath }
+        }
+        const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+        const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+        const decisions = await Promise.all(
+          hooks.map((hook) =>
+            hook(
+              {
+                hook_event_name: 'PreToolUse',
+                tool_name: 'Read',
+                tool_input: { file_path: 'memory/passwd' }
+              } as never,
+              'tool-use-1',
+              {} as never
+            )
+          )
+        )
+
+        expect(
+          decisions.map(
+            (output) =>
+              (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput
+                ?.permissionDecision
+          )
+        ).toContain('ask')
+      } finally {
+        await rm(tempRoot, { recursive: true, force: true })
+      }
+    }
+  )
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
     mocks.getAgent.mockReturnValue({

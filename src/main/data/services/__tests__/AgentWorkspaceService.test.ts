@@ -9,6 +9,8 @@ import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+const SYSTEM_WORKSPACE_CREATED_AT = Date.parse('2026-07-27T10:00:00Z')
+
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
 // can assert on its shape.
@@ -86,7 +88,10 @@ describe('AgentWorkspaceService', () => {
   it('hides system workspaces from the default list and get APIs', async () => {
     const userWorkspace = await findOrCreateWorkspace(workspacePath('user-project'))
     const systemWorkspace = dbh.db.transaction((tx) =>
-      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-hidden-session' })
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+        sessionId: 'system-hidden-session',
+        createdAt: SYSTEM_WORKSPACE_CREATED_AT
+      })
     )
 
     expect(captureError(() => agentWorkspaceService.getById(systemWorkspace.id))).toMatchObject({
@@ -101,7 +106,10 @@ describe('AgentWorkspaceService', () => {
 
   it('does not return a system workspace from findOrCreateByPath', async () => {
     const systemWorkspace = dbh.db.transaction((tx) =>
-      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-path-session' })
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+        sessionId: 'system-path-session',
+        createdAt: SYSTEM_WORKSPACE_CREATED_AT
+      })
     )
 
     expect(captureError(() => agentWorkspaceService.findOrCreateByPath(systemWorkspace.path))).toMatchObject({
@@ -132,7 +140,10 @@ describe('AgentWorkspaceService', () => {
 
   it('rejects updates to hidden system workspaces without mutating the row', async () => {
     const systemWorkspace = dbh.db.transaction((tx) =>
-      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-update-session' })
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+        sessionId: 'system-update-session',
+        createdAt: SYSTEM_WORKSPACE_CREATED_AT
+      })
     )
 
     expect(captureError(() => agentWorkspaceService.update(systemWorkspace.id, { name: 'Renamed' }))).toMatchObject({
@@ -156,7 +167,10 @@ describe('AgentWorkspaceService', () => {
     })
 
     const workspace = dbh.db.transaction((tx) =>
-      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'session-system' })
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+        sessionId: 'session-system',
+        createdAt: SYSTEM_WORKSPACE_CREATED_AT
+      })
     )
 
     expect(workspace).toMatchObject({
@@ -204,7 +218,10 @@ describe('AgentWorkspaceService', () => {
 
   it('rejects findOrCreateByPathTx when the existing path belongs to a system workspace', async () => {
     const workspace = dbh.db.transaction((tx) =>
-      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'session-system-collision' })
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+        sessionId: 'session-system-collision',
+        createdAt: SYSTEM_WORKSPACE_CREATED_AT
+      })
     )
 
     // better-sqlite3 transactions run synchronously, so the conflict thrown by
@@ -255,7 +272,10 @@ describe('AgentWorkspaceService', () => {
     const first = await findOrCreateWorkspace(workspacePath('first'))
     const second = await findOrCreateWorkspace(workspacePath('second'))
     const systemWorkspace = dbh.db.transaction((tx) =>
-      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-anchor-session' })
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+        sessionId: 'system-anchor-session',
+        createdAt: SYSTEM_WORKSPACE_CREATED_AT
+      })
     )
 
     expect(captureError(() => agentWorkspaceService.reorder(first.id, { before: systemWorkspace.id }))).toMatchObject({

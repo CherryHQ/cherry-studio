@@ -216,7 +216,10 @@ describe('AgentSessionService', () => {
 
   it('rejects a user workspace source that points at a system workspace row', async () => {
     const systemWorkspace = dbh.db.transaction((tx) =>
-      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-owned-session' })
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+        sessionId: 'system-owned-session',
+        createdAt: Date.parse('2026-07-27T10:00:00Z')
+      })
     )
 
     expect(
@@ -274,7 +277,11 @@ describe('AgentSessionService', () => {
     expect(session.workspaceId).toBeTruthy()
     expect(session.workspace.type).toBe('system')
     expect(session.workspace.path).toBe(
-      systemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id)
+      systemWorkspacePath(
+        application.getPath('feature.agents.system_workspaces'),
+        session.id,
+        Date.parse(session.createdAt)
+      )
     )
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(1)
@@ -390,7 +397,11 @@ describe('AgentSessionService', () => {
     expect(updated.workspaceId).not.toBe(userWorkspace.id)
     expect(updated.workspace.type).toBe('system')
     expect(updated.workspace.path).toBe(
-      systemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id)
+      systemWorkspacePath(
+        application.getPath('feature.agents.system_workspaces'),
+        session.id,
+        Date.parse(session.createdAt)
+      )
     )
     const [systemWorkspaceRow] = await dbh.db
       .select()
@@ -404,6 +415,36 @@ describe('AgentSessionService', () => {
       id: userWorkspace.id,
       type: 'user'
     })
+  })
+
+  it('keeps the system workspace path stable across a cross-day system to user to system switch', async () => {
+    const firstDay = Date.parse('2026-07-27T10:00:00Z')
+    const secondDay = Date.parse('2026-07-28T10:00:00Z')
+    const now = vi.spyOn(Date, 'now').mockReturnValue(firstDay)
+
+    try {
+      const userWorkspace = await createWorkspace('cross-day-system-roundtrip')
+      const session = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'Cross-day system roundtrip',
+        workspace: { type: 'system' }
+      })
+      const originalSystemPath = session.workspace.path
+
+      agentSessionService.setWorkspace(session.id, {
+        type: 'user',
+        workspaceId: userWorkspace.id
+      })
+      now.mockReturnValue(secondDay)
+      const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
+
+      expect(restored.workspace.path).toBe(originalSystemPath)
+      expect(restored.workspace.path).toBe(
+        systemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id, firstDay)
+      )
+    } finally {
+      now.mockRestore()
+    }
   })
 
   it('is a no-op when re-setting an empty system session to a system workspace', async () => {

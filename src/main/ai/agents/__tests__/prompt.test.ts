@@ -111,7 +111,8 @@ describe('PromptBuilder', () => {
 
     expect(result).toContain('You are a personal assistant running inside Cherry Studio')
     expect(result).toContain('## Autonomy Tools')
-    expect(result).not.toContain('## Memories')
+    expect(result).toContain('## Memories')
+    expect(result).toContain('`/workspace/SOUL.md`')
   })
 
   it('embeds tool guidance sections in order (autonomy, memory, web)', async () => {
@@ -229,6 +230,18 @@ describe('PromptBuilder', () => {
     expect(result).toContain('`/agent-data/`')
     expect(result).toContain('`/agent-data/SOUL.md`')
     expect(result).toContain('current working directory is the session workspace')
+  })
+
+  it('always identifies the agent data directory when identity files are empty and bootstrap is skipped', async () => {
+    setupFiles({})
+
+    const result = await builder.buildSystemPrompt('/workspace', baseConfig, true, '/agent-data')
+
+    expect(result).not.toContain('## Bootstrap Mode')
+    expect(result).toContain('## Memories')
+    expect(result).toContain('`/agent-data/SOUL.md`')
+    expect(result).toContain('`/agent-data/USER.md`')
+    expect(result).toContain('`/agent-data/memory/FACT.md`')
   })
 
   it('ignores symbolic-link persona files', async () => {

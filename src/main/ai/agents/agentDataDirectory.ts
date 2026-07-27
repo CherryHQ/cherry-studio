@@ -108,8 +108,17 @@ async function ensureEmptyFile(filePath: string): Promise<void> {
     }
     return
   }
-  const handle = await open(filePath, 'wx', 0o600)
-  await handle.close()
+  try {
+    const handle = await open(filePath, 'wx', 0o600)
+    await handle.close()
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+
+    const racedFile = await lstatIfExists(filePath)
+    if (!racedFile?.isFile || racedFile.isSymbolicLink) {
+      throw new Error(`Agent data file must be a real file: ${filePath}`)
+    }
+  }
 }
 
 export async function ensureAgentDataDirectory(

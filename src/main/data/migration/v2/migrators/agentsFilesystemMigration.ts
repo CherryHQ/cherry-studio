@@ -1,5 +1,21 @@
+import { createHash, randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
-import { copyFile, cp, lstat, mkdir, readdir, readlink, realpath, rmdir, stat, symlink, unlink } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import {
+  copyFile,
+  cp,
+  link,
+  lstat,
+  mkdir,
+  readdir,
+  readlink,
+  realpath,
+  rename,
+  rmdir,
+  stat,
+  symlink,
+  unlink
+} from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -214,7 +230,32 @@ async function removeTreeWithoutFollowing(targetPath: string): Promise<void> {
   await rmdir(targetPath)
 }
 
-async function copyWorkspaceEntryPreservingLinks(sourcePath: string, destinationPath: string): Promise<void> {
+function migratedLinkTarget(
+  sourceLinkPath: string,
+  destinationLinkPath: string,
+  linkTarget: string,
+  sourceWorkspaceRoot: string,
+  destinationWorkspaceRoot: string
+): string {
+  const sourceTarget = path.isAbsolute(linkTarget)
+    ? path.normalize(linkTarget)
+    : path.resolve(path.dirname(sourceLinkPath), linkTarget)
+  const migratedTarget = isPathInsideOrEqual(sourceTarget, sourceWorkspaceRoot)
+    ? path.join(destinationWorkspaceRoot, path.relative(sourceWorkspaceRoot, sourceTarget))
+    : sourceTarget
+
+  if (path.isAbsolute(linkTarget)) return migratedTarget
+  const relativeTarget = path.relative(path.dirname(destinationLinkPath), migratedTarget)
+  return path.isAbsolute(relativeTarget) ? migratedTarget : relativeTarget || '.'
+}
+
+async function rewriteCopiedWorkspaceLinks(
+  sourcePath: string,
+  copiedPath: string,
+  finalDestinationPath: string,
+  sourceWorkspaceRoot: string,
+  destinationWorkspaceRoot: string
+): Promise<void> {
   const sourceStat = await lstat(sourcePath)
   if (sourceStat.isSymbolicLink()) {
     const linkTarget = await readlink(sourcePath)
@@ -224,46 +265,165 @@ async function copyWorkspaceEntryPreservingLinks(sourcePath: string, destination
     } catch {
       // Dangling links retain their text and use the file default on Windows.
     }
-    await symlink(linkTarget, destinationPath, linkType)
+    await unlink(copiedPath)
+    await symlink(
+      migratedLinkTarget(sourcePath, finalDestinationPath, linkTarget, sourceWorkspaceRoot, destinationWorkspaceRoot),
+      copiedPath,
+      linkType
+    )
     return
   }
   if (sourceStat.isDirectory()) {
-    await cp(sourcePath, destinationPath, {
-      recursive: true,
-      force: false,
-      errorOnExist: true,
-      dereference: false,
-      verbatimSymlinks: true
-    })
-    return
+    for (const entry of await readdir(sourcePath)) {
+      await rewriteCopiedWorkspaceLinks(
+        path.join(sourcePath, entry),
+        path.join(copiedPath, entry),
+        path.join(finalDestinationPath, entry),
+        sourceWorkspaceRoot,
+        destinationWorkspaceRoot
+      )
+    }
   }
-  if (sourceStat.isFile()) {
-    await copyFile(sourcePath, destinationPath, constants.COPYFILE_EXCL)
-    return
-  }
-  throw new Error(`Unsupported workspace entry: ${sourcePath}`)
 }
 
-async function copyWorkspaceEntry(sourcePath: string, destinationPath: string): Promise<boolean> {
-  if (await lstatIfExists(destinationPath)) {
-    logger.warn('Leaving legacy workspace entry in place because the target exists', {
-      sourcePath,
-      destinationPath
-    })
+async function copyWorkspaceEntryPreservingLinks(
+  sourcePath: string,
+  destinationPath: string,
+  finalDestinationPath: string,
+  sourceWorkspaceRoot: string,
+  destinationWorkspaceRoot: string
+): Promise<void> {
+  await cp(sourcePath, destinationPath, {
+    recursive: true,
+    force: false,
+    errorOnExist: true,
+    dereference: false,
+    verbatimSymlinks: true
+  })
+  await rewriteCopiedWorkspaceLinks(
+    sourcePath,
+    destinationPath,
+    finalDestinationPath,
+    sourceWorkspaceRoot,
+    destinationWorkspaceRoot
+  )
+}
+
+async function fileDigest(filePath: string): Promise<string> {
+  const hash = createHash('sha256')
+  for await (const chunk of createReadStream(filePath)) {
+    hash.update(chunk)
+  }
+  return hash.digest('hex')
+}
+
+async function workspaceEntriesEqual(leftPath: string, rightPath: string): Promise<boolean> {
+  const [leftStat, rightStat] = await Promise.all([lstatIfExists(leftPath), lstatIfExists(rightPath)])
+  if (!leftStat || !rightStat) return false
+
+  if (leftStat.isSymbolicLink() || rightStat.isSymbolicLink()) {
+    return (
+      leftStat.isSymbolicLink() &&
+      rightStat.isSymbolicLink() &&
+      (await readlink(leftPath)) === (await readlink(rightPath))
+    )
+  }
+  if (leftStat.isFile() || rightStat.isFile()) {
+    if (!leftStat.isFile() || !rightStat.isFile() || leftStat.size !== rightStat.size) return false
+    const [leftDigest, rightDigest] = await Promise.all([fileDigest(leftPath), fileDigest(rightPath)])
+    return leftDigest === rightDigest
+  }
+  if (!leftStat.isDirectory() || !rightStat.isDirectory()) return false
+
+  const [leftEntries, rightEntries] = await Promise.all([readdir(leftPath), readdir(rightPath)])
+  leftEntries.sort()
+  rightEntries.sort()
+  if (leftEntries.length !== rightEntries.length || leftEntries.some((entry, index) => entry !== rightEntries[index])) {
     return false
   }
+  for (const entry of leftEntries) {
+    if (!(await workspaceEntriesEqual(path.join(leftPath, entry), path.join(rightPath, entry)))) return false
+  }
+  return true
+}
 
+async function removeStaleWorkspaceStagingEntries(destinationWorkspaceRoot: string): Promise<void> {
+  const stagingParent = path.dirname(destinationWorkspaceRoot)
+  const stagingPrefix = `.${path.basename(destinationWorkspaceRoot)}.migration-`
+  for (const entry of await readdir(stagingParent)) {
+    if (entry.startsWith(stagingPrefix)) {
+      await removeTreeWithoutFollowing(path.join(stagingParent, entry))
+    }
+  }
+}
+
+async function publishStagedWorkspaceEntry(stagingPath: string, destinationPath: string): Promise<void> {
+  const stagingStat = await lstat(stagingPath)
+  if (stagingStat.isSymbolicLink()) {
+    let linkType: 'dir' | 'file' = 'file'
+    try {
+      if ((await stat(stagingPath)).isDirectory()) linkType = 'dir'
+    } catch {
+      // Dangling links use the file default on Windows.
+    }
+    await symlink(await readlink(stagingPath), destinationPath, linkType)
+    return
+  }
+  if (stagingStat.isFile()) {
+    // A hard-link publish is atomic and fails if the target appears concurrently.
+    // The staging entry is on the same managed volume and is unlinked in `finally`.
+    await link(stagingPath, destinationPath)
+    return
+  }
+  if (stagingStat.isDirectory()) {
+    // Renaming a directory fails rather than replacing an existing destination directory.
+    await rename(stagingPath, destinationPath)
+    return
+  }
+  throw new Error(`Unsupported staged workspace entry: ${stagingPath}`)
+}
+
+async function copyWorkspaceEntry(
+  sourcePath: string,
+  destinationPath: string,
+  sourceWorkspaceRoot: string,
+  destinationWorkspaceRoot: string
+): Promise<void> {
+  await removeStaleWorkspaceStagingEntries(destinationWorkspaceRoot)
+  const stagingPath = path.join(
+    path.dirname(destinationWorkspaceRoot),
+    `.${path.basename(destinationWorkspaceRoot)}.migration-${randomUUID()}`
+  )
   try {
-    await copyWorkspaceEntryPreservingLinks(sourcePath, destinationPath)
-    return true
-  } catch (error) {
-    await removeTreeWithoutFollowing(destinationPath).catch(() => undefined)
-    logger.warn('Failed to copy legacy workspace entry; source was preserved', {
+    await copyWorkspaceEntryPreservingLinks(
       sourcePath,
+      stagingPath,
       destinationPath,
-      error
-    })
-    return false
+      sourceWorkspaceRoot,
+      destinationWorkspaceRoot
+    )
+
+    if (await lstatIfExists(destinationPath)) {
+      if (await workspaceEntriesEqual(stagingPath, destinationPath)) {
+        logger.info('Reusing identical workspace entry from an earlier migration attempt', {
+          sourcePath,
+          destinationPath
+        })
+        return
+      }
+      throw new Error(`Legacy workspace migration conflict at ${destinationPath}`)
+    }
+
+    try {
+      await publishStagedWorkspaceEntry(stagingPath, destinationPath)
+    } catch (error) {
+      if ((await lstatIfExists(destinationPath)) && (await workspaceEntriesEqual(stagingPath, destinationPath))) {
+        return
+      }
+      throw error
+    }
+  } finally {
+    await removeTreeWithoutFollowing(stagingPath).catch(() => undefined)
   }
 }
 
@@ -279,11 +439,13 @@ async function copyOrdinaryWorkspaceContent(
   const cleanupEntryNames: string[] = []
   for (const entry of await readdir(sourceWorkspacePath)) {
     if (IDENTITY_ENTRY_NAMES.has(entry.toLowerCase())) continue
-    const copied = await copyWorkspaceEntry(
+    await copyWorkspaceEntry(
       path.join(sourceWorkspacePath, entry),
-      path.join(destinationWorkspacePath, entry)
+      path.join(destinationWorkspacePath, entry),
+      sourceWorkspacePath,
+      destinationWorkspacePath
     )
-    if (copied) cleanupEntryNames.push(entry)
+    cleanupEntryNames.push(entry)
   }
   return cleanupEntryNames
 }

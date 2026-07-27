@@ -24,7 +24,7 @@ function formatLocalDate(timestampMs: number): string {
   return `${year}-${month}-${day}`
 }
 
-export function systemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt = Date.now()): string {
+export function systemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
   if (!sessionId || sessionId === '.' || sessionId === '..' || /[\\/]/.test(sessionId)) {
     throw new Error(`Invalid agent session id for system workspace: ${sessionId}`)
   }
