@@ -123,7 +123,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
   const [inputPrice, setInputPrice] = useState('0')
   const [outputPrice, setOutputPrice] = useState('0')
-  const [cacheReadPrice, setCacheReadPrice] = useState('0')
+  const [cacheReadPrice, setCacheReadPrice] = useState('')
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
@@ -162,7 +162,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setCurrencySymbol(nextCurrencySymbol ?? '$')
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
     setOutputPrice(String(model.pricing?.output?.perMillionTokens ?? 0))
-    setCacheReadPrice(String(model.pricing?.cacheRead?.perMillionTokens ?? 0))
+    const cacheReadRate = model.pricing?.cacheRead?.perMillionTokens
+    setCacheReadPrice(cacheReadRate == null ? '' : String(cacheReadRate))
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
@@ -198,11 +199,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         symbolToCurrency(nextCurrencySymbol) ?? symbolToCurrency(readCurrency(model)) ?? CURRENCY.USD
       const nextName = overrides?.name ?? name
       const nextGroup = overrides?.group ?? group
-      // An empty or zero field means "no dedicated cache-read rate", not "cache reads are free":
-      // cost computation falls back to the input rate only when the bucket is absent, so the
-      // bucket is omitted instead of persisting a literal 0. Omitting also clears a rate the
-      // user has wiped, since `pricing` is written as a whole object.
-      const nextCacheReadPrice = Number(overrides?.cacheReadPrice ?? cacheReadPrice) || 0
+      const nextCacheReadPriceValue = overrides?.cacheReadPrice ?? cacheReadPrice
+      // Empty means no dedicated rate (fall back to input); literal zero means cache reads are free.
+      const nextCacheReadPrice = nextCacheReadPriceValue.trim() === '' ? undefined : Number(nextCacheReadPriceValue)
+      const hasCacheReadPrice =
+        nextCacheReadPrice !== undefined && Number.isFinite(nextCacheReadPrice) && nextCacheReadPrice >= 0
       const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
       const hasPurposeFieldsOverride = overrides != null && Object.hasOwn(overrides, 'purposeFields')
       const nextPurposeFields = overrides?.purposeFields ?? purposeFields
@@ -270,7 +271,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
             perMillionTokens: Number(overrides?.outputPrice ?? outputPrice) || 0,
             currency: finalCurrency
           },
-          ...(nextCacheReadPrice > 0
+          ...(hasCacheReadPrice
             ? { cacheRead: { perMillionTokens: nextCacheReadPrice, currency: finalCurrency } }
             : {}),
           // Cache-write has no field in this drawer, but it must follow the selected currency:

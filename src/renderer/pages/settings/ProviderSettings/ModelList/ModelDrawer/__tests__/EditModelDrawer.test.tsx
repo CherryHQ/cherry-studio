@@ -98,20 +98,26 @@ vi.mock('../../../primitives/ProviderSettingsDrawer', () => ({
     ) : null
 }))
 
-const modelWithFullPricing = {
-  id: 'openai::claude-4-sonnet',
-  providerId: 'openai',
-  name: 'claude-4-sonnet',
-  group: 'Anthropic',
-  capabilities: [],
-  supportsStreaming: true,
-  pricing: {
-    input: { perMillionTokens: 3, currency: CURRENCY.USD },
-    output: { perMillionTokens: 15, currency: CURRENCY.USD },
-    cacheRead: { perMillionTokens: 0.3, currency: CURRENCY.USD },
-    cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD }
-  }
-} as unknown as Model
+function makePricingModel(cacheReadPrice?: number): Model {
+  return {
+    id: 'openai::claude-4-sonnet',
+    providerId: 'openai',
+    name: 'claude-4-sonnet',
+    group: 'Anthropic',
+    capabilities: [],
+    supportsStreaming: true,
+    pricing: {
+      input: { perMillionTokens: 3, currency: CURRENCY.USD },
+      output: { perMillionTokens: 15, currency: CURRENCY.USD },
+      ...(cacheReadPrice !== undefined
+        ? { cacheRead: { perMillionTokens: cacheReadPrice, currency: CURRENCY.USD } }
+        : {}),
+      cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD }
+    }
+  } as unknown as Model
+}
+
+const modelWithFullPricing = makePricingModel(0.3)
 
 describe('EditModelDrawer pricing currency', () => {
   beforeEach(() => {
@@ -137,6 +143,49 @@ describe('EditModelDrawer pricing currency', () => {
           input: { perMillionTokens: 3, currency: CURRENCY.USD },
           output: { perMillionTokens: 15, currency: CURRENCY.USD },
           cacheRead: { perMillionTokens: 0.3, currency: CURRENCY.USD },
+          cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD }
+        }
+      })
+    )
+  })
+
+  it('preserves an explicit zero cache-read rate when an unrelated field is edited', async () => {
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makePricingModel(0)} />)
+
+    await act(async () => {
+      const modelName = screen.getByLabelText('settings.models.add.model_name.label')
+      fireEvent.change(modelName, { target: { value: 'Claude 4 Sonnet Renamed' } })
+      fireEvent.blur(modelName)
+    })
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual(
+      expect.objectContaining({
+        pricing: {
+          input: { perMillionTokens: 3, currency: CURRENCY.USD },
+          output: { perMillionTokens: 15, currency: CURRENCY.USD },
+          cacheRead: { perMillionTokens: 0, currency: CURRENCY.USD },
+          cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD }
+        }
+      })
+    )
+  })
+
+  it('keeps an absent cache-read rate absent when an unrelated field is edited', async () => {
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makePricingModel()} />)
+
+    await act(async () => {
+      const modelName = screen.getByLabelText('settings.models.add.model_name.label')
+      fireEvent.change(modelName, { target: { value: 'Claude 4 Sonnet Renamed' } })
+      fireEvent.blur(modelName)
+    })
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual(
+      expect.objectContaining({
+        pricing: {
+          input: { perMillionTokens: 3, currency: CURRENCY.USD },
+          output: { perMillionTokens: 15, currency: CURRENCY.USD },
           cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD }
         }
       })

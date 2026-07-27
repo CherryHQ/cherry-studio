@@ -495,7 +495,8 @@ export class UsageLedgerService {
     // must never replace it (a re-record without the raw usage blob — e.g. a
     // kept temporary chat re-recording from the promoted message — would
     // otherwise silently rewrite the charge). Guard the whole cost tuple
-    // together so cost / currency / source / breakdown stay consistent.
+    // together so cost / currency / source / breakdown / pricing snapshot
+    // stay consistent.
     const keepProviderCost = sql`${usageLedgerTable.costSource} = 'provider' AND COALESCE(excluded.cost_source, '') <> 'provider'`
     application.get('DbService').withWriteTx((tx) => {
       tx.insert(usageLedgerTable)
@@ -521,7 +522,7 @@ export class UsageLedgerService {
             costCurrency: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costCurrency} ELSE COALESCE(excluded.cost_currency, ${usageLedgerTable.costCurrency}) END`,
             costSource: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costSource} ELSE COALESCE(excluded.cost_source, ${usageLedgerTable.costSource}) END`,
             costBreakdown: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costBreakdown} ELSE COALESCE(excluded.cost_breakdown, ${usageLedgerTable.costBreakdown}) END`,
-            pricingSnapshot: sql`COALESCE(excluded.pricing_snapshot, ${usageLedgerTable.pricingSnapshot})`,
+            pricingSnapshot: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.pricingSnapshot} ELSE COALESCE(excluded.pricing_snapshot, ${usageLedgerTable.pricingSnapshot}) END`,
             timeFirstTokenMs: sql`COALESCE(excluded.time_first_token_ms, ${usageLedgerTable.timeFirstTokenMs})`,
             timeCompletionMs: sql`COALESCE(excluded.time_completion_ms, ${usageLedgerTable.timeCompletionMs})`,
             timeThinkingMs: sql`COALESCE(excluded.time_thinking_ms, ${usageLedgerTable.timeThinkingMs})`,

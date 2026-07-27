@@ -409,6 +409,13 @@ describe('UsageLedgerService', () => {
     it('never downgrades a provider-reported cost to a locally computed one', async () => {
       await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
 
+      const providerBreakdown = { input: 0.3, output: 0.6 }
+      const providerPricingSnapshot = {
+        input: 3,
+        output: 15,
+        capturedAt: '2026-06-11T00:00:00.000Z'
+      }
+
       // The billing funnel lands the provider-billed charge (e.g. OpenRouter)…
       await usageLedgerService.recordRequest({
         id: 'msg-provider-cost',
@@ -419,11 +426,31 @@ describe('UsageLedgerService', () => {
           totalTokens: 150,
           cost: 0.9,
           costCurrency: 'USD',
-          costSource: 'provider'
+          costSource: 'provider',
+          costBreakdown: providerBreakdown,
+          pricingSnapshot: providerPricingSnapshot
         }
       })
-      // …then a re-record carrying only a local estimate lands second.
-      await usageLedgerService.recordFromMessage(makeMessage({ id: 'msg-provider-cost' } as never))
+      // …then a re-record carrying a different local estimate lands second.
+      await usageLedgerService.recordFromMessage(
+        makeMessage({
+          id: 'msg-provider-cost',
+          stats: {
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150,
+            cost: 0.0042,
+            costCurrency: 'USD',
+            costSource: 'computed',
+            costBreakdown: { input: 0.003, output: 0.0012 },
+            pricingSnapshot: {
+              input: 30,
+              output: 40,
+              capturedAt: '2026-06-12T00:00:00.000Z'
+            }
+          }
+        } as never)
+      )
 
       const [row] = await dbh.db.select().from(usageLedgerTable)
       expect(row).toMatchObject({
@@ -433,7 +460,53 @@ describe('UsageLedgerService', () => {
         // …but the authoritative charge survives.
         cost: 0.9,
         costCurrency: 'USD',
-        costSource: 'provider'
+        costSource: 'provider',
+        costBreakdown: providerBreakdown,
+        pricingSnapshot: providerPricingSnapshot
+      })
+    })
+
+    it('does not backfill a missing provider pricing snapshot from a later computed write', async () => {
+      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+
+      await usageLedgerService.recordRequest({
+        id: 'msg-provider-cost-without-snapshot',
+        modelId: 'openai::gpt-4o',
+        stats: {
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150,
+          cost: 0.9,
+          costCurrency: 'USD',
+          costSource: 'provider'
+        }
+      })
+      await usageLedgerService.recordFromMessage(
+        makeMessage({
+          id: 'msg-provider-cost-without-snapshot',
+          stats: {
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150,
+            cost: 0.0042,
+            costCurrency: 'USD',
+            costSource: 'computed',
+            pricingSnapshot: {
+              input: 30,
+              output: 40,
+              capturedAt: '2026-06-12T00:00:00.000Z'
+            }
+          }
+        } as never)
+      )
+
+      const rows = await dbh.db.select().from(usageLedgerTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        cost: 0.9,
+        costCurrency: 'USD',
+        costSource: 'provider',
+        pricingSnapshot: null
       })
     })
 
