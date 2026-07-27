@@ -815,7 +815,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   describe('saveMessage — AI usage record hook', () => {
-    const LEDGER_MSG = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d301'
+    const USAGE_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d301'
 
     async function seedModel() {
       await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic', orderKey: 'p0' })
@@ -837,7 +837,7 @@ describe('AgentSessionMessageService', () => {
       agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
         message: {
-          id: LEDGER_MSG,
+          id: USAGE_MESSAGE_ID,
           role: 'assistant',
           status: 'success',
           data: { parts: [] },
@@ -851,7 +851,7 @@ describe('AgentSessionMessageService', () => {
         const rows = await dbh.db.select().from(aiUsageRecordTable)
         expect(rows).toHaveLength(1)
         expect(rows[0]).toMatchObject({
-          requestId: LEDGER_MSG,
+          requestId: USAGE_MESSAGE_ID,
           providerId: 'anthropic',
           modelId: 'anthropic::claude-sonnet',
           totalTokens: 15,

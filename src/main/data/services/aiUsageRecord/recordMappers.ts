@@ -17,7 +17,7 @@ export type GroupDimension = AiUsageRecordGroupBy | undefined
 
 const nullKeyAttributionClass = sql<string | null>`CASE
   WHEN ${aiUsageRecordTable.apiKeyId} IS NULL
-  THEN ${aiUsageRecordTable.apiKeyAttribution}
+  THEN ${aiUsageRecordTable.apiKeyAttribution} || ':' || coalesce(${aiUsageRecordTable.authMethod}, '')
   ELSE NULL
 END`
 
@@ -38,6 +38,7 @@ export function rowToRecord(row: AiUsageRecordRow): AiUsageRecordEntry {
     apiKeyLabel: row.apiKeyLabel,
     apiKeyMasked: row.apiKeyMasked,
     apiKeyAttribution: row.apiKeyAttribution,
+    authMethod: row.authMethod,
     inputTokens: row.inputTokens,
     outputTokens: row.outputTokens,
     totalTokens: row.totalTokens,
@@ -64,8 +65,8 @@ export function groupIdentityColumns(groupBy: GroupDimension) {
     case 'provider':
       return [aiUsageRecordTable.providerId]
     case 'apiKey':
-      // `auth` and `none` both have a NULL key id but are distinct buckets.
-      // Exact/rotation rows for one concrete key still collapse together.
+      // `auth` and `unknown` both have a NULL key id but are distinct buckets.
+      // Key-bearing provenance states for one concrete key still collapse.
       return [aiUsageRecordTable.providerId, aiUsageRecordTable.apiKeyId, nullKeyAttributionClass]
     case 'model':
       return [aiUsageRecordTable.providerId, aiUsageRecordTable.modelId]
@@ -97,16 +98,19 @@ export function groupIdentitySelect(groupBy: GroupDimension) {
           WHEN ${aiUsageRecordTable.apiKeyId} IS NULL
           THEN max(${aiUsageRecordTable.apiKeyAttribution})
           ELSE CASE min(CASE ${aiUsageRecordTable.apiKeyAttribution}
-            WHEN 'exact' THEN 4
-            WHEN 'rotation' THEN 3
+            WHEN 'explicit' THEN 4
+            WHEN 'matched' THEN 3
+            WHEN 'fallback' THEN 2
             ELSE 1
           END)
-            WHEN 4 THEN 'exact'
-            WHEN 3 THEN 'rotation'
-            ELSE 'none'
+            WHEN 4 THEN 'explicit'
+            WHEN 3 THEN 'matched'
+            WHEN 2 THEN 'fallback'
+            ELSE 'unknown'
           END
         END`
-      : sql<string | null>`NULL`
+      : sql<string | null>`NULL`,
+    authMethod: byApiKey ? sql<string | null>`max(${aiUsageRecordTable.authMethod})` : sql<string | null>`NULL`
   }
 }
 
@@ -136,7 +140,8 @@ export function toGroupIdentity(row: GroupIdentityRow, groupBy: GroupDimension):
           apiKeyId: row.apiKeyId,
           apiKeyLabel: row.apiKeyLabel,
           apiKeyMasked: row.apiKeyMasked,
-          apiKeyAttribution: row.apiKeyAttribution as AiUsageRecordAttribution
+          apiKeyAttribution: row.apiKeyAttribution as AiUsageRecordAttribution,
+          authMethod: row.authMethod as AiUsageRecordEntry['authMethod']
         }
       : {}),
     ...(groupBy === 'model' ? { modelId: row.modelId } : {})
@@ -162,7 +167,8 @@ export function toStatsGroupIdentity(
         apiKeyId: row.apiKeyId,
         apiKeyLabel: row.apiKeyLabel,
         apiKeyMasked: row.apiKeyMasked,
-        apiKeyAttribution: row.apiKeyAttribution as AiUsageRecordAttribution
+        apiKeyAttribution: row.apiKeyAttribution as AiUsageRecordAttribution,
+        authMethod: row.authMethod as AiUsageRecordEntry['authMethod']
       }
     case 'model':
       return {

@@ -1,6 +1,7 @@
 CREATE TABLE `ai_usage_record` (
 	`id` text PRIMARY KEY NOT NULL,
 	`request_id` text NOT NULL,
+	`capture_source` text DEFAULT 'runtime' NOT NULL,
 	`topic_id` text,
 	`provider_id` text NOT NULL,
 	`provider_name` text,
@@ -14,6 +15,7 @@ CREATE TABLE `ai_usage_record` (
 	`api_key_label` text,
 	`api_key_masked` text,
 	`api_key_attribution` text NOT NULL,
+	`auth_method` text,
 	`input_tokens` integer,
 	`output_tokens` integer,
 	`total_tokens` integer,
@@ -32,7 +34,9 @@ CREATE TABLE `ai_usage_record` (
 	`time_thinking_ms` integer,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	CONSTRAINT "ai_usage_record_attribution_check" CHECK("ai_usage_record"."api_key_attribution" IN ('exact', 'rotation', 'auth', 'none')),
+	CONSTRAINT "ai_usage_record_attribution_check" CHECK("ai_usage_record"."api_key_attribution" IN ('explicit', 'matched', 'fallback', 'auth', 'unknown')),
+	CONSTRAINT "ai_usage_record_auth_method_check" CHECK("ai_usage_record"."auth_method" IN ('oauth', 'external-cli', 'iam-aws', 'api-key-aws', 'iam-gcp', 'iam-azure')),
+	CONSTRAINT "ai_usage_record_capture_source_check" CHECK("ai_usage_record"."capture_source" IN ('runtime', 'persistence', 'migration')),
 	CONSTRAINT "ai_usage_record_cost_source_check" CHECK("ai_usage_record"."cost_source" IN ('provider', 'computed')),
 	CONSTRAINT "ai_usage_record_cost_tuple_check" CHECK((
         "ai_usage_record"."cost" IS NULL
@@ -46,13 +50,21 @@ CREATE TABLE `ai_usage_record` (
         AND "ai_usage_record"."cost_source" IS NOT NULL
       )),
 	CONSTRAINT "ai_usage_record_api_key_identity_check" CHECK((
-        "ai_usage_record"."api_key_attribution" IN ('exact', 'rotation')
+        "ai_usage_record"."api_key_attribution" IN ('explicit', 'matched', 'fallback')
         AND "ai_usage_record"."api_key_id" IS NOT NULL
+        AND "ai_usage_record"."auth_method" IS NULL
       ) OR (
-        "ai_usage_record"."api_key_attribution" IN ('auth', 'none')
+        "ai_usage_record"."api_key_attribution" = 'auth'
         AND "ai_usage_record"."api_key_id" IS NULL
         AND "ai_usage_record"."api_key_label" IS NULL
         AND "ai_usage_record"."api_key_masked" IS NULL
+        AND "ai_usage_record"."auth_method" IS NOT NULL
+      ) OR (
+        "ai_usage_record"."api_key_attribution" = 'unknown'
+        AND "ai_usage_record"."api_key_id" IS NULL
+        AND "ai_usage_record"."api_key_label" IS NULL
+        AND "ai_usage_record"."api_key_masked" IS NULL
+        AND "ai_usage_record"."auth_method" IS NULL
       )),
 	CONSTRAINT "ai_usage_record_source_identity_check" CHECK((
         "ai_usage_record"."source_type" IS NULL

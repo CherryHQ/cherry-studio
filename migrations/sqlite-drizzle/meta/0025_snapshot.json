@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f10832eb-4b3b-4363-aaeb-4949111cfe72",
+  "id": "d8848fa2-39d6-41ae-8fa5-41a03372147b",
   "prevId": "89e1707b-580e-4d39-8c85-9bd812a65a5b",
   "tables": {
     "agent": {
@@ -909,6 +909,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "capture_source": {
+          "name": "capture_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'runtime'"
+        },
         "topic_id": {
           "name": "topic_id",
           "type": "text",
@@ -998,6 +1006,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "auth_method": {
+          "name": "auth_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "input_tokens": {
@@ -1160,7 +1175,15 @@
       "checkConstraints": {
         "ai_usage_record_attribution_check": {
           "name": "ai_usage_record_attribution_check",
-          "value": "\"ai_usage_record\".\"api_key_attribution\" IN ('exact', 'rotation', 'auth', 'none')"
+          "value": "\"ai_usage_record\".\"api_key_attribution\" IN ('explicit', 'matched', 'fallback', 'auth', 'unknown')"
+        },
+        "ai_usage_record_auth_method_check": {
+          "name": "ai_usage_record_auth_method_check",
+          "value": "\"ai_usage_record\".\"auth_method\" IN ('oauth', 'external-cli', 'iam-aws', 'api-key-aws', 'iam-gcp', 'iam-azure')"
+        },
+        "ai_usage_record_capture_source_check": {
+          "name": "ai_usage_record_capture_source_check",
+          "value": "\"ai_usage_record\".\"capture_source\" IN ('runtime', 'persistence', 'migration')"
         },
         "ai_usage_record_cost_source_check": {
           "name": "ai_usage_record_cost_source_check",
@@ -1172,7 +1195,7 @@
         },
         "ai_usage_record_api_key_identity_check": {
           "name": "ai_usage_record_api_key_identity_check",
-          "value": "(\n        \"ai_usage_record\".\"api_key_attribution\" IN ('exact', 'rotation')\n        AND \"ai_usage_record\".\"api_key_id\" IS NOT NULL\n      ) OR (\n        \"ai_usage_record\".\"api_key_attribution\" IN ('auth', 'none')\n        AND \"ai_usage_record\".\"api_key_id\" IS NULL\n        AND \"ai_usage_record\".\"api_key_label\" IS NULL\n        AND \"ai_usage_record\".\"api_key_masked\" IS NULL\n      )"
+          "value": "(\n        \"ai_usage_record\".\"api_key_attribution\" IN ('explicit', 'matched', 'fallback')\n        AND \"ai_usage_record\".\"api_key_id\" IS NOT NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NULL\n      ) OR (\n        \"ai_usage_record\".\"api_key_attribution\" = 'auth'\n        AND \"ai_usage_record\".\"api_key_id\" IS NULL\n        AND \"ai_usage_record\".\"api_key_label\" IS NULL\n        AND \"ai_usage_record\".\"api_key_masked\" IS NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NOT NULL\n      ) OR (\n        \"ai_usage_record\".\"api_key_attribution\" = 'unknown'\n        AND \"ai_usage_record\".\"api_key_id\" IS NULL\n        AND \"ai_usage_record\".\"api_key_label\" IS NULL\n        AND \"ai_usage_record\".\"api_key_masked\" IS NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NULL\n      )"
         },
         "ai_usage_record_source_identity_check": {
           "name": "ai_usage_record_source_identity_check",

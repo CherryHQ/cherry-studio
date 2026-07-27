@@ -24,7 +24,7 @@ describe('TemporaryChatBackend.persistAssistant', () => {
     // Without this, keeping the chat re-records the usage row from stats that
     // carry no cost — the promotion write would downgrade the provider charge
     // to a locally computed estimate.
-    enrichStatsWithCostMock.mockResolvedValue({
+    enrichStatsWithCostMock.mockReturnValue({
       totalTokens: 15,
       cost: 0.9,
       costCurrency: 'USD',

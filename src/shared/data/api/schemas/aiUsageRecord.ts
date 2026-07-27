@@ -119,6 +119,7 @@ export interface AiUsageRecordGroupIdentity {
   apiKeyLabel?: string | null
   apiKeyMasked?: string | null
   apiKeyAttribution?: AiUsageRecordAttribution
+  authMethod?: AiUsageRecordEntry['authMethod']
   modelId?: string | null
 }
 
@@ -136,6 +137,7 @@ export type AiUsageRecordStatsGroupIdentity =
       apiKeyLabel: string | null
       apiKeyMasked: string | null
       apiKeyAttribution: AiUsageRecordAttribution
+      authMethod: AiUsageRecordEntry['authMethod']
     }
   | {
       groupBy: 'model'

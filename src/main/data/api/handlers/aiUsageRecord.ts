@@ -13,21 +13,21 @@ export const aiUsageRecordHandlers: HandlersFor<AiUsageRecordSchemas> = {
   '/ai-usage-records': {
     GET: async ({ query }) => {
       const parsed = AiUsageRecordListQuerySchema.parse(query ?? {})
-      return await aiUsageRecordService.list(parsed)
+      return aiUsageRecordService.list(parsed)
     }
   },
 
   '/ai-usage-records/stats': {
     GET: async ({ query }) => {
       const parsed = AiUsageRecordStatsQuerySchema.parse(query)
-      return await aiUsageRecordService.stats(parsed)
+      return aiUsageRecordService.stats(parsed)
     }
   },
 
   '/ai-usage-records/timeline': {
     GET: async ({ query }) => {
       const parsed = AiUsageRecordTimelineQuerySchema.parse(query)
-      return await aiUsageRecordService.timeline(parsed)
+      return aiUsageRecordService.timeline(parsed)
     }
   }
 }

@@ -257,7 +257,7 @@ describe('TemporaryChatService', () => {
         providerId: 'openai',
         modelId: 'openai::gpt-4o',
         modality: 'language',
-        apiKeyAttribution: 'none',
+        apiKeyAttribution: 'unknown',
         inputTokens: 10,
         outputTokens: 5,
         totalTokens: 15,
@@ -266,7 +266,7 @@ describe('TemporaryChatService', () => {
 
       service.persist(topic.id)
 
-      // The ledger write is post-commit fire-and-forget.
+      // The usage-record write is post-commit fire-and-forget.
       await vi.waitFor(async () => {
         const rows = await dbh.db.select().from(aiUsageRecordTable)
         expect(rows).toHaveLength(1)
@@ -325,7 +325,7 @@ describe('TemporaryChatService', () => {
         providerId: 'openai',
         modelId: 'openai::gpt-4o',
         modality: 'language',
-        apiKeyAttribution: 'none',
+        apiKeyAttribution: 'unknown',
         inputTokens: 1_000_000,
         totalTokens: 1_000_000,
         cost: 0.9,
@@ -336,7 +336,7 @@ describe('TemporaryChatService', () => {
 
       service.persist(topic.id)
 
-      // The ledger write is post-commit fire-and-forget; `topicId` proves the
+      // The usage-record write is post-commit fire-and-forget; `topicId` proves the
       // re-record landed, so the cost assertions can't pass vacuously.
       await vi.waitFor(async () => {
         const rows = await dbh.db.select().from(aiUsageRecordTable)

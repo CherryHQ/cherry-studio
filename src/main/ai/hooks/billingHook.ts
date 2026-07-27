@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { aiUsageRecordService, type SourceSnapshot } from '@main/data/services/aiUsageRecord'
-import type { ProviderApiKeySnapshot } from '@main/data/services/ProviderService'
+import type { ProviderCredentialSnapshot } from '@main/data/services/ProviderService'
 import type { Model } from '@shared/data/types/model'
 import type { LanguageModelUsage } from 'ai'
 
@@ -46,7 +46,7 @@ export interface BillingRecorder {
 export function createBillingRecorder(
   model: Model,
   requestMessageId?: string,
-  apiKeySnapshot?: ProviderApiKeySnapshot,
+  credentialSnapshot?: ProviderCredentialSnapshot,
   source?: SourceSnapshot
 ): BillingRecorder {
   let total: LanguageModelUsage = ZERO_USAGE
@@ -71,7 +71,7 @@ export function createBillingRecorder(
       .recordRequest({
         requestId,
         modelId: model.id,
-        apiKeySnapshot,
+        credentialSnapshot,
         source,
         stats: usageToStats(total),
         providerCostUsd,
@@ -102,17 +102,17 @@ export function createBillingRecorder(
 export function createBillingHook(
   model: Model,
   requestMessageId?: string,
-  apiKeySnapshot?: ProviderApiKeySnapshot,
+  credentialSnapshot?: ProviderCredentialSnapshot,
   source?: SourceSnapshot
 ): Partial<AgentLoopHooks> {
-  return createBillingRecorder(model, requestMessageId, apiKeySnapshot, source).hook
+  return createBillingRecorder(model, requestMessageId, credentialSnapshot, source).hook
 }
 
 export async function recordImageUsage(
   id: string,
   model: Model,
   imageCount: number,
-  apiKeySnapshot?: ProviderApiKeySnapshot,
+  credentialSnapshot?: ProviderCredentialSnapshot,
   source?: SourceSnapshot
 ): Promise<void> {
   if (imageCount <= 0) return
@@ -122,7 +122,7 @@ export async function recordImageUsage(
     await aiUsageRecordService.recordRequest({
       requestId: id,
       modelId: model.id,
-      apiKeySnapshot,
+      credentialSnapshot,
       source,
       modality: 'image',
       imageCount,

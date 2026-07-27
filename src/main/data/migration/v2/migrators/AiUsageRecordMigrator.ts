@@ -29,7 +29,7 @@ type AiUsageRecordSourceRow = {
   sourceType: AiUsageRecordSourceType | null
   sourceId: string | null
   sourceName: string | null
-  sourceIcon: unknown
+  sourceIcon: string | null
   modelId: string | null
   modelSnapshot: ModelSnapshot | null
   stats: MessageStats | null
@@ -54,10 +54,16 @@ function hasUsageSignal(stats: MessageStats): boolean {
 }
 
 function statsToColumns(stats: MessageStats) {
+  const derivedTotalTokens =
+    stats.totalTokens ??
+    (stats.inputTokens !== undefined || stats.outputTokens !== undefined
+      ? (stats.inputTokens ?? 0) + (stats.outputTokens ?? 0)
+      : null)
+
   return {
     inputTokens: stats.inputTokens ?? null,
     outputTokens: stats.outputTokens ?? null,
-    totalTokens: stats.totalTokens ?? null,
+    totalTokens: derivedTotalTokens,
     reasoningTokens: stats.outputTokenDetails?.reasoningTokens ?? null,
     noCacheTokens: stats.inputTokenDetails?.noCacheTokens ?? null,
     cacheReadTokens: stats.inputTokenDetails?.cacheReadTokens ?? null,
@@ -93,49 +99,35 @@ function getAgentAvatar(configuration: unknown): string | undefined {
   return AgentConfigurationSchema.safeParse(configuration).data?.avatar
 }
 
-function resolveSourceIcon(source: AiUsageRecordSourceRow): string | null {
-  if (source.sourceType === 'agent') {
-    return getAgentAvatar(source.sourceIcon) ?? null
-  }
-
-  return typeof source.sourceIcon === 'string' ? source.sourceIcon : null
-}
-
-async function countCandidateRows(db: DbType): Promise<number> {
-  const [chat, agentSession] = await Promise.all([
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(messageTable)
-      .where(
-        and(
-          eq(messageTable.role, 'assistant'),
-          isNotNull(messageTable.stats),
-          or(isNotNull(messageTable.modelId), isNotNull(messageTable.messageSnapshot))
-        )
+function countCandidateRows(db: DbType): number {
+  const chat = db
+    .select({ count: sql<number>`count(*)` })
+    .from(messageTable)
+    .where(
+      and(
+        eq(messageTable.role, 'assistant'),
+        isNotNull(messageTable.stats),
+        or(isNotNull(messageTable.modelId), isNotNull(messageTable.messageSnapshot))
       )
-      .get(),
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(agentSessionMessageTable)
-      .where(
-        and(
-          eq(agentSessionMessageTable.role, 'assistant'),
-          isNotNull(agentSessionMessageTable.stats),
-          or(isNotNull(agentSessionMessageTable.modelId), isNotNull(agentSessionMessageTable.messageSnapshot))
-        )
+    )
+    .get()
+  const agentSession = db
+    .select({ count: sql<number>`count(*)` })
+    .from(agentSessionMessageTable)
+    .where(
+      and(
+        eq(agentSessionMessageTable.role, 'assistant'),
+        isNotNull(agentSessionMessageTable.stats),
+        or(isNotNull(agentSessionMessageTable.modelId), isNotNull(agentSessionMessageTable.messageSnapshot))
       )
-      .get()
-  ])
+    )
+    .get()
 
   return (chat?.count ?? 0) + (agentSession?.count ?? 0)
 }
 
-async function readChatCandidateRows(
-  db: DbType,
-  afterId: string | undefined,
-  limit: number
-): Promise<AiUsageRecordSourceRow[]> {
-  const rows = await db
+function readChatCandidateRows(db: DbType, afterId: string | undefined, limit: number): AiUsageRecordSourceRow[] {
+  const rows = db
     .select({
       id: messageTable.id,
       topicId: messageTable.topicId,
@@ -161,26 +153,31 @@ async function readChatCandidateRows(
     )
     .orderBy(asc(messageTable.id))
     .limit(limit)
+    .all()
 
   return rows.map(({ messageSnapshot, ...rest }) => ({
     ...rest,
+    sourceType: messageSnapshot ? 'assistant' : rest.sourceType,
+    sourceId: messageSnapshot?.id ?? rest.sourceId,
+    sourceName: messageSnapshot?.name ?? rest.sourceName,
+    sourceIcon: messageSnapshot?.emoji ?? rest.sourceIcon,
     modelSnapshot: messageSnapshot?.model ?? null
   }))
 }
 
-async function readAgentSessionCandidateRows(
+function readAgentSessionCandidateRows(
   db: DbType,
   afterId: string | undefined,
   limit: number
-): Promise<AiUsageRecordSourceRow[]> {
-  const rows = await db
+): AiUsageRecordSourceRow[] {
+  const rows = db
     .select({
       id: agentSessionMessageTable.id,
       topicId: sql<string | null>`NULL`,
       sourceType: sql<AiUsageRecordSourceType | null>`CASE WHEN ${agentSessionTable.agentId} IS NOT NULL THEN 'agent' ELSE NULL END`,
       sourceId: agentSessionTable.agentId,
       sourceName: agentTable.name,
-      sourceIcon: agentTable.configuration,
+      agentConfiguration: agentTable.configuration,
       modelId: agentSessionMessageTable.modelId,
       messageSnapshot: agentSessionMessageTable.messageSnapshot,
       stats: agentSessionMessageTable.stats,
@@ -199,24 +196,28 @@ async function readAgentSessionCandidateRows(
     )
     .orderBy(asc(agentSessionMessageTable.id))
     .limit(limit)
+    .all()
 
-  // The producing author's snapshot nests the model it ran. Project that
-  // identity onto the common source-row shape used by this migrator.
-  return rows.map(({ messageSnapshot, ...rest }) => ({
+  return rows.map(({ messageSnapshot, agentConfiguration, ...rest }) => ({
     ...rest,
+    sourceType: messageSnapshot ? 'agent' : rest.sourceType,
+    sourceId: messageSnapshot?.id ?? rest.sourceId,
+    sourceName: messageSnapshot?.name ?? rest.sourceName,
+    sourceIcon: messageSnapshot?.emoji ?? getAgentAvatar(agentConfiguration) ?? null,
     modelSnapshot: messageSnapshot?.model ?? null
   }))
 }
 
-async function readProviderSnapshots(db: DbType): Promise<Map<string, ProviderSnapshot>> {
-  const rows = await db
+function readProviderSnapshots(db: DbType): Map<string, ProviderSnapshot> {
+  const rows = db
     .select({ providerId: userProviderTable.providerId, name: userProviderTable.name })
     .from(userProviderTable)
+    .all()
   return new Map(rows.map((row) => [row.providerId, { name: row.name }]))
 }
 
-async function readModelPricingSnapshots(db: DbType): Promise<Map<UniqueModelId, RuntimeModelPricing>> {
-  const rows = await db.select({ id: userModelTable.id, pricing: userModelTable.pricing }).from(userModelTable)
+function readModelPricingSnapshots(db: DbType): Map<UniqueModelId, RuntimeModelPricing> {
+  const rows = db.select({ id: userModelTable.id, pricing: userModelTable.pricing }).from(userModelTable).all()
   return new Map(
     rows
       .filter((row): row is { id: UniqueModelId; pricing: RuntimeModelPricing } => row.pricing !== null)
@@ -278,6 +279,7 @@ function toRecordRow(
 
   return {
     requestId: source.id,
+    captureSource: 'migration',
     topicId: source.topicId,
     providerId: model.providerId,
     providerName:
@@ -289,10 +291,10 @@ function toRecordRow(
     sourceType: source.sourceType,
     sourceId: source.sourceId,
     sourceName: source.sourceName,
-    sourceIcon: resolveSourceIcon(source),
+    sourceIcon: source.sourceIcon,
     modelId: model.modelId,
     modality: 'language',
-    apiKeyAttribution: 'none',
+    apiKeyAttribution: 'unknown',
     ...statsToColumns(stats),
     createdAt: source.createdAt,
     updatedAt: source.createdAt
@@ -318,18 +320,16 @@ export class AiUsageRecordMigrator extends BaseMigrator {
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
-    this.preparedCount = await countCandidateRows(ctx.db)
+    this.preparedCount = countCandidateRows(ctx.db)
     return { success: true, itemCount: this.preparedCount }
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
-    const [providerSnapshots, pricingSnapshots] = await Promise.all([
-      readProviderSnapshots(ctx.db),
-      readModelPricingSnapshots(ctx.db)
-    ])
+    const providerSnapshots = readProviderSnapshots(ctx.db)
+    const pricingSnapshots = readModelPricingSnapshots(ctx.db)
     const capturedAt = new Date().toISOString()
     if (this.preparedCount === 0) {
-      this.preparedCount = await countCandidateRows(ctx.db)
+      this.preparedCount = countCandidateRows(ctx.db)
     }
     this.sourceCount = 0
     this.skippedCount = 0
@@ -343,7 +343,7 @@ export class AiUsageRecordMigrator extends BaseMigrator {
     for (const readBatch of readers) {
       let afterId: string | undefined
       while (true) {
-        const candidates = await readBatch(ctx.db, afterId, CANDIDATE_BATCH_SIZE)
+        const candidates = readBatch(ctx.db, afterId, CANDIDATE_BATCH_SIZE)
         if (candidates.length === 0) break
 
         this.sourceCount += candidates.length

@@ -4,7 +4,7 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
-import type { ProviderApiKeySnapshot } from '@main/data/services/ProviderService'
+import type { ProviderCredentialSnapshot } from '@main/data/services/ProviderService'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -77,8 +77,8 @@ export interface BuildAgentParamsInput {
 
 export interface BuiltAgentParams {
   sdkConfig: SdkConfig
-  /** Exact non-secret identity of the stored key selected for this request. */
-  apiKeySnapshot?: ProviderApiKeySnapshot
+  /** Non-secret provenance of the credential selected for this request. */
+  credentialSnapshot: ProviderCredentialSnapshot
   tools: ToolSet | undefined
   plugins: AiPlugin<any, any>[]
   system: string | undefined
@@ -94,7 +94,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
-  const { sdkConfig, apiKeySnapshot } = await resolveSdkConfig(
+  const { sdkConfig, credentialSnapshot } = await resolveSdkConfig(
     provider,
     model,
     resolvedEndpoint,
@@ -163,7 +163,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   return {
     sdkConfig,
-    apiKeySnapshot,
+    credentialSnapshot,
     tools,
     plugins: contributions.modelAdapters,
     system,
@@ -192,8 +192,8 @@ async function resolveSdkConfig(
   model: Model,
   resolvedEndpoint: ResolvedEndpoint,
   apiKeyOverride?: string
-): Promise<{ sdkConfig: SdkConfig; apiKeySnapshot?: ProviderApiKeySnapshot }> {
-  const { config, apiKeySnapshot } = await resolveProviderAiSdkConfig(provider, model, {
+): Promise<{ sdkConfig: SdkConfig; credentialSnapshot: ProviderCredentialSnapshot }> {
+  const { config, credentialSnapshot } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
     resolvedEndpoint
   })
@@ -207,7 +207,7 @@ async function resolveSdkConfig(
       }),
       modelId: model.apiModelId ?? model.id
     },
-    apiKeySnapshot
+    credentialSnapshot
   }
 }
 

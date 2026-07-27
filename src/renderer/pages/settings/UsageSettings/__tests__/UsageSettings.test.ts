@@ -1,7 +1,7 @@
 import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecord'
 import { describe, expect, it } from 'vitest'
 
-import { buildChartSeries, getTimelinePoints, toPeriodKey } from '../UsageSettings'
+import { buildChartSeries, getTimelinePoints, selectCostTotal, toPeriodKey } from '../usageAnalytics'
 
 function bucket(date: string, totalTokens: number, overrides: Partial<AiUsageRecordTimelineBucket> = {}) {
   return {
@@ -53,6 +53,12 @@ describe('getTimelinePoints', () => {
 
   it('has no axis to draw without buckets or bounds', () => {
     expect(getTimelinePoints([], {}, getTokens)).toEqual([])
+  })
+})
+
+describe('selectCostTotal', () => {
+  it('keeps an explicit zero-cost currency selectable in the UI', () => {
+    expect(selectCostTotal([{ currency: 'USD', total: 0 }])).toEqual({ currency: 'USD', total: 0 })
   })
 })
 

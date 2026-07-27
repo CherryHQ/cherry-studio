@@ -66,7 +66,7 @@ declared to report actual per-request charges.
 **Example:**
 
 ```ts
-await enrichStatsWithCost(stats, 'provider-id::model-id', providerCostUsd)
+enrichStatsWithCost(stats, 'provider-id::model-id', providerCostUsd)
 ```
 
 ### `rowMappers.ts` — Row → Entity mapping utilities

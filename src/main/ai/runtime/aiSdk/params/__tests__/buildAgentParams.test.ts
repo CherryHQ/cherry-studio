@@ -47,7 +47,7 @@ describe('buildAgentParams provider resolution', () => {
         providerId: 'google-vertex-maas',
         providerSettings: { project: 'my-project', location: 'global' }
       },
-      apiKeySnapshot: { id: 'key-a', label: 'Primary', masked: 'sk-a****aaaa' }
+      credentialSnapshot: { attribution: 'auth', method: 'iam-gcp' }
     })
     const provider = makeProvider({
       id: 'vertex',
@@ -89,7 +89,7 @@ describe('buildAgentParams provider resolution', () => {
     })
 
     expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
-    expect(result.apiKeySnapshot).toEqual({ id: 'key-a', label: 'Primary', masked: 'sk-a****aaaa' })
+    expect(result.credentialSnapshot).toEqual({ attribution: 'auth', method: 'iam-gcp' })
     expect(result.options.providerOptions).toMatchObject({
       vertex: {
         reasoningEffort: 'high',
@@ -106,7 +106,8 @@ describe('buildAgentParams assistant-less reasoning', () => {
       config: {
         providerId: 'anthropic',
         providerSettings: {}
-      }
+      },
+      credentialSnapshot: { attribution: 'unknown' }
     })
     const provider = makeProvider({
       id: 'custom-claude',
@@ -169,7 +170,8 @@ describe('buildAgentParams assistant-less reasoning', () => {
       config: {
         providerId: 'aihubmix',
         providerSettings: {}
-      }
+      },
+      credentialSnapshot: { attribution: 'unknown' }
     })
     const provider = makeProvider({
       id: 'aihubmix',

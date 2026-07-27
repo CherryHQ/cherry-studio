@@ -480,12 +480,13 @@ export class AgentSessionMessageService {
   private recordAiUsageRecord(saved: AgentSessionMessageEntity): void {
     if (saved.role !== 'assistant' || !saved.stats || !saved.modelId) return
     void aiUsageRecordService
-      .recordRequest({
-        requestId: saved.id,
+      .recordFromMessage({
+        id: saved.id,
         agentSessionId: saved.sessionId,
+        role: saved.role,
         modelId: saved.modelId,
-        stats: saved.stats,
-        modality: 'language'
+        messageSnapshot: saved.messageSnapshot,
+        stats: saved.stats
       })
       .catch((err) => {
         logger.warn('AI usage record failed', { id: saved.id, err })

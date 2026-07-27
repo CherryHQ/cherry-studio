@@ -30,10 +30,10 @@ export class MessageServiceBackend implements PersistenceBackend {
     const baseStats = this.opts.stats ?? stats
     let enrichedStats = baseStats
     try {
-      enrichedStats = await enrichStatsWithCost(baseStats, modelId, finalMessage?.metadata?.providerCostUsd)
+      enrichedStats = enrichStatsWithCost(baseStats, modelId, finalMessage?.metadata?.providerCostUsd)
     } catch (err) {
       // Cost is optional annotation. Even if the enrichment helper regresses
-      // and rejects, a successful generation must still persist its content
+      // and throws, a successful generation must still persist its content
       // and raw usage instead of becoming an error bubble.
       logger.error('Cost enrichment failed before message persistence', {
         assistantMessageId: this.opts.assistantMessageId,

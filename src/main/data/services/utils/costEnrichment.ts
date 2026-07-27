@@ -65,13 +65,13 @@ export function computeStatsCostSnapshot(
  * failures leave the token stats untouched (no cost). Returns a new object;
  * never mutates the input.
  */
-export async function enrichStatsWithCost(
+export function enrichStatsWithCost(
   stats: MessageStats | undefined,
   modelId: UniqueModelId | undefined,
   providerCostUsd: number | undefined
-): Promise<MessageStats | undefined> {
+): MessageStats | undefined {
   try {
-    return await computeEnrichedStats(stats, modelId, providerCostUsd)
+    return computeEnrichedStats(stats, modelId, providerCostUsd)
   } catch (err) {
     // Cost is an annotation on usage, never a reason to lose it: both callers
     // enrich on the persistence path, where a throw would fail the message save
@@ -81,11 +81,11 @@ export async function enrichStatsWithCost(
   }
 }
 
-async function computeEnrichedStats(
+function computeEnrichedStats(
   stats: MessageStats | undefined,
   modelId: UniqueModelId | undefined,
   providerCostUsd: number | undefined
-): Promise<MessageStats | undefined> {
+): MessageStats | undefined {
   if (!stats || !modelId) return stats
 
   let providerId: string

@@ -237,7 +237,14 @@ export class TemporaryChatService {
     for (const m of msgs) {
       if (m.role !== 'assistant' || !m.stats) continue
       void aiUsageRecordService
-        .recordFromMessage({ id: m.id, topicId: topic.id, role: m.role, modelId: m.modelId ?? null, stats: m.stats })
+        .recordFromMessage({
+          id: m.id,
+          topicId: topic.id,
+          role: m.role,
+          modelId: m.modelId ?? null,
+          messageSnapshot: m.messageSnapshot,
+          stats: m.stats
+        })
         .catch((err) => {
           logger.warn('AI usage record failed for persisted temporary message', { messageId: m.id, err })
         })

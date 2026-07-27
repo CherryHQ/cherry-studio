@@ -27,16 +27,18 @@ an explicit currency; the UI does not compare, convert, or sum CNY and USD.
 
 Credential attribution shows its confidence:
 
-- `exact`: the request carried the selected key identity;
-- `rotation`: a compatibility writer used current rotation state;
-- `auth`: provider-level authentication such as OAuth or IAM;
-- `none`: no serving credential could be determined.
+- `explicit`: the provider service selected this configured key;
+- `matched`: a caller override matched a configured key;
+- `fallback`: a compatibility writer used current provider state;
+- `auth`: provider-level authentication, with its OAuth/IAM/external-CLI
+  mechanism retained;
+- `unknown`: no trustworthy serving credential identity is available.
 
 ## Boundaries
 
-- Normal language, embedding, and image request construction carries the
-  selected non-secret key snapshot and assistant/source snapshot into the usage
-  event.
+- Normal language, embedding, and image request construction carries
+  non-secret credential provenance and assistant/source snapshots into the
+  usage event.
 - Nested AI tool-input repair usage is merged into its parent language request.
 - Image output count is captured after provider success and before local file
   persistence.
@@ -44,8 +46,15 @@ Credential attribution shows its confidence:
   nor cost. The operation coverage contract marks it `usage-unavailable`
   instead of inventing a zero-cost row.
 - Migrated v1 assistant-message usage is projected once by
-  `AiUsageRecordMigrator`. Historical API-key attribution is always `none`;
-  current rotation state is never used to guess an old serving key.
+  `AiUsageRecordMigrator`. Immutable message author snapshots are preferred,
+  partial input/output counters derive total tokens, and historical API-key
+  attribution is always `unknown`; current provider state is never used to
+  guess an old serving key.
+- When runtime capture and message persistence converge, the runtime
+  repair-inclusive usage remains authoritative and persistence only fills
+  fields it did not observe.
+- Explicit zero-cost currency buckets remain visible instead of being treated
+  as unpriced data.
 - A crash can still lose a best-effort stateless record between provider
   completion and the SQLite write.
 

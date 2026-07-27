@@ -21,12 +21,15 @@ ledger and is not a payment-system source of truth.
 
 - Resolves the canonical `providerId::modelId` from the migrated model id or its
   message snapshot.
-- Snapshots assistant or agent identity and presentation metadata.
-- Copies token, latency, and existing cost fields.
+- Uses the immutable message author snapshot for assistant or agent identity
+  and presentation metadata, with current joins only as a compatibility
+  fallback.
+- Copies token, latency, and existing cost fields; derives `totalTokens` from
+  input/output counters when the source omitted it.
 - Computes a historical cost snapshot when the source has usage and a compatible
   model-pricing snapshot but no stored cost.
-- Marks all historical key attribution as `none`; it never infers a serving key
-  from the provider's current rotation state.
+- Marks all historical credential attribution as `unknown`; it never infers a
+  serving key from the provider's current state.
 - Reads candidates with an ascending id keyset cursor. Each batch starts after
   the last processed id, avoiding offset scans on large message tables.
 
@@ -38,7 +41,7 @@ ledger and is not a payment-system source of truth.
 | topic id | `topicId` |
 | canonical model identity | `providerId`, `modelId` |
 | provider row / message snapshot | `providerName` |
-| topic assistant or agent session owner | `sourceType`, `sourceId`, `sourceName`, `sourceIcon` |
+| message author snapshot, then current owner fallback | `sourceType`, `sourceId`, `sourceName`, `sourceIcon` |
 | message stats | token, latency, and cost columns |
 | message timestamps | `createdAt`, `updatedAt` |
 

@@ -2278,7 +2278,7 @@ describe('MessageService', () => {
       await dbh.db.insert(messageTable).values(
         withRoot('topic-l', [
           {
-            id: 'm-ledger',
+            id: 'm-usage',
             parentId: null,
             topicId: 'topic-l',
             role,
@@ -2293,7 +2293,7 @@ describe('MessageService', () => {
     it('records AI usage when an assistant message lands stats', async () => {
       await seedAssistantMessage()
 
-      messageService.update('m-ledger', {
+      messageService.update('m-usage', {
         status: 'success',
         stats: {
           inputTokens: 10,
@@ -2310,7 +2310,7 @@ describe('MessageService', () => {
         const rows = await dbh.db.select().from(aiUsageRecordTable)
         expect(rows).toHaveLength(1)
         expect(rows[0]).toMatchObject({
-          requestId: 'm-ledger',
+          requestId: 'm-usage',
           topicId: 'topic-l',
           providerId: 'provider-a',
           inputTokens: 10,
@@ -2324,10 +2324,10 @@ describe('MessageService', () => {
     it('does not record for updates without stats or for non-assistant roles', async () => {
       await seedAssistantMessage('user')
 
-      messageService.update('m-ledger', {
+      messageService.update('m-usage', {
         stats: { inputTokens: 10, outputTokens: 5 }
       })
-      messageService.update('m-ledger', { status: 'success' })
+      messageService.update('m-usage', { status: 'success' })
 
       // Give any (erroneous) async hook a tick to run before asserting.
       await new Promise((resolve) => setTimeout(resolve, 20))

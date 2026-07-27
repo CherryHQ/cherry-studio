@@ -259,11 +259,16 @@ describe('AiService', () => {
 
   it('records language usage with the key and assistant snapshots captured for that request', async () => {
     const service = createService()
-    const apiKeySnapshot = { id: 'key-a', label: 'Primary', masked: 'sk-a****aaaa' }
+    const credentialSnapshot = {
+      attribution: 'explicit',
+      id: 'key-a',
+      label: 'Primary',
+      masked: 'sk-a****aaaa'
+    } as const
     const assistant = { id: 'assistant-1', name: 'Research', emoji: '🔎' }
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
-      apiKeySnapshot,
+      credentialSnapshot,
       model: { id: 'test-provider::test-model', providerId: 'test-provider' },
       assistant,
       tools: {},
@@ -287,7 +292,7 @@ describe('AiService', () => {
     expect(mockRecordRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         modelId: 'test-provider::test-model',
-        apiKeySnapshot,
+        credentialSnapshot,
         source: { type: 'assistant', id: 'assistant-1', name: 'Research', icon: '🔎' },
         stats: expect.objectContaining(usage)
       })
@@ -567,7 +572,12 @@ describe('AiService', () => {
     function stubEmbedding(service: InstanceType<typeof AiService>) {
       vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embedding-model' },
-        apiKeySnapshot: { id: 'key-a', label: 'Primary', masked: 'sk-a****aaaa' },
+        credentialSnapshot: {
+          attribution: 'explicit',
+          id: 'key-a',
+          label: 'Primary',
+          masked: 'sk-a****aaaa'
+        },
         model: { id: 'test-provider::test-embedding-model', providerId: 'test-provider' },
         assistant: { id: 'assistant-1', name: 'Embedding Assistant', emoji: '📚' }
       } as never)
@@ -583,7 +593,12 @@ describe('AiService', () => {
       expect(mockRecordRequest).toHaveBeenCalledWith({
         requestId: expect.any(String),
         modelId: 'test-provider::test-embedding-model',
-        apiKeySnapshot: { id: 'key-a', label: 'Primary', masked: 'sk-a****aaaa' },
+        credentialSnapshot: {
+          attribution: 'explicit',
+          id: 'key-a',
+          label: 'Primary',
+          masked: 'sk-a****aaaa'
+        },
         source: { type: 'assistant', id: 'assistant-1', name: 'Embedding Assistant', icon: '📚' },
         modality: 'embedding',
         stats: { inputTokens: 42, totalTokens: 42 }

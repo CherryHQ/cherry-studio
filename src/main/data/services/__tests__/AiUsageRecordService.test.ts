@@ -128,6 +128,7 @@ async function seedProvider(
   apiKeys: Array<{ id: string; key: string; label?: string; isEnabled: boolean }>,
   opts?: {
     providerId?: string
+    presetProviderId?: string
     authConfig?: { type: string } & Record<string, unknown>
     reportsActualCost?: boolean
   }
@@ -138,6 +139,7 @@ async function seedProvider(
     .insert(userProviderTable)
     .values({
       providerId: opts?.providerId ?? 'openai',
+      presetProviderId: opts?.presetProviderId,
       name: 'Test Provider',
       orderKey: generateOrderKeyBetween(null, null),
       apiKeys,
@@ -228,31 +230,31 @@ describe('AiUsageRecordService', () => {
       expect(await dbh.db.select().from(aiUsageRecordTable)).toHaveLength(0)
     })
 
-    it('preserves an exact key attribution on re-persists while updating usage', async () => {
-      // First persist: single enabled key → exact attribution.
+    it('preserves a compatibility fallback attribution on re-persists while updating usage', async () => {
+      // First persist: single enabled key → compatibility fallback attribution.
       await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'Main', isEnabled: true }])
       await aiUsageRecordService.recordFromMessage(makeMessage({ stats: { inputTokens: 10, outputTokens: 5 } }))
 
-      // Second persist resolves to 'none' (simulates pointer lost on restart):
+      // Second persist resolves to unknown (simulates provider state lost on restart):
       // wipe the provider so attribution degrades.
       await dbh.db.delete(userProviderTable)
       await aiUsageRecordService.recordFromMessage(makeMessage({ stats: { inputTokens: 40, outputTokens: 20 } }))
 
       const rows = await dbh.db.select().from(aiUsageRecordTable)
       expect(rows).toHaveLength(1)
-      // Usage is last-write-wins; key identity keeps the original exact snapshot.
+      // Persistence usage is last-write-wins; key identity keeps the original fallback snapshot.
       expect(rows[0]).toMatchObject({
         inputTokens: 40,
         outputTokens: 20,
         providerName: 'Test Provider',
         apiKeyId: 'key-a',
         apiKeyLabel: 'Main',
-        apiKeyAttribution: 'exact'
+        apiKeyAttribution: 'fallback'
       })
     })
 
-    it('upgrades a none attribution when a later persist resolves a key', async () => {
-      // First persist with no provider → none.
+    it('does not rewrite unknown historical provenance from later provider state', async () => {
+      // First persist with no provider → unknown.
       await aiUsageRecordService.recordFromMessage(makeMessage({ stats: { inputTokens: 10 } }))
       // Provider appears (e.g. attribution was unresolvable mid-restart).
       await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'Main', isEnabled: true }])
@@ -263,14 +265,14 @@ describe('AiUsageRecordService', () => {
       expect(rows[0]).toMatchObject({
         inputTokens: 20,
         providerName: 'Test Provider',
-        apiKeyId: 'key-a',
-        apiKeyAttribution: 'exact'
+        apiKeyId: null,
+        apiKeyAttribution: 'unknown'
       })
     })
   })
 
   describe('recordRequest (request collector)', () => {
-    it('never rejects when a ledger write fails', async () => {
+    it('never rejects when a usage-record write fails', async () => {
       await expect(
         aiUsageRecordService.recordRequest({
           requestId: 'req-invalid-cost-pair',
@@ -363,6 +365,18 @@ describe('AiUsageRecordService', () => {
       })
     })
 
+    it('derives total tokens when the provider reports only input and output counters', async () => {
+      await aiUsageRecordService.recordRequest({
+        requestId: 'req-derived-total',
+        modelId: 'openai::gpt-4o',
+        modality: 'language',
+        stats: { inputTokens: 12, outputTokens: 8 }
+      })
+
+      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      expect(row).toMatchObject({ inputTokens: 12, outputTokens: 8, totalTokens: 20 })
+    })
+
     it('uses the selection-point key snapshot even when the rotation pointer has moved', async () => {
       await seedProvider([
         { id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'A', isEnabled: true },
@@ -371,16 +385,21 @@ describe('AiUsageRecordService', () => {
       MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'key-b')
 
       // A persistence-only writer lands first and can only infer key B from
-      // mutable rotation state.
+      // mutable provider state.
       await aiUsageRecordService.recordFromMessage(makeMessage({ id: 'req-key-race', stats: { inputTokens: 10 } }))
 
-      // The billing pipeline carries the actual serving key A and must upgrade
-      // the lower-confidence rotation attribution even though it lands second.
+      // The billing pipeline carries the actual serving key A and must replace
+      // the lower-confidence fallback attribution even though it lands second.
       await aiUsageRecordService.recordRequest({
         requestId: 'req-key-race',
         modelId: 'openai::gpt-4o',
         modality: 'language',
-        apiKeySnapshot: { id: 'key-a', label: 'A', masked: 'sk-a****aaaa' },
+        credentialSnapshot: {
+          attribution: 'explicit',
+          id: 'key-a',
+          label: 'A',
+          masked: 'sk-a****aaaa'
+        },
         stats: { inputTokens: 20 }
       })
 
@@ -391,7 +410,43 @@ describe('AiUsageRecordService', () => {
         apiKeyId: 'key-a',
         apiKeyLabel: 'A',
         apiKeyMasked: 'sk-a****aaaa',
-        apiKeyAttribution: 'exact'
+        apiKeyAttribution: 'explicit'
+      })
+    })
+
+    it('keeps runtime repair usage authoritative when message persistence lands later', async () => {
+      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+
+      await aiUsageRecordService.recordRequest({
+        requestId: 'msg-runtime-repair',
+        modelId: 'openai::gpt-4o',
+        modality: 'language',
+        stats: {
+          inputTokens: 60,
+          outputTokens: 30,
+          totalTokens: 90,
+          reasoningTokens: 5,
+          cost: 0.9,
+          costCurrency: 'USD',
+          costSource: 'provider'
+        } as never
+      })
+      await aiUsageRecordService.recordFromMessage(
+        makeMessage({
+          id: 'msg-runtime-repair',
+          stats: { inputTokens: 40, outputTokens: 20, totalTokens: 60, timeCompletionMs: 1200 }
+        })
+      )
+
+      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      expect(row).toMatchObject({
+        captureSource: 'runtime',
+        inputTokens: 60,
+        outputTokens: 30,
+        totalTokens: 90,
+        cost: 0.9,
+        costSource: 'provider',
+        timeCompletionMs: 1200
       })
     })
 
@@ -631,10 +686,34 @@ describe('AiUsageRecordService', () => {
         sourceIcon: '🧠'
       })
     })
+
+    it('uses the immutable message author snapshot instead of current assistant state', async () => {
+      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      await seedAssistantTopic()
+
+      await aiUsageRecordService.recordFromMessage(
+        makeMessage({
+          messageSnapshot: {
+            id: 'assistant-original',
+            name: 'Original Assistant',
+            emoji: '🕰️',
+            model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
+          }
+        })
+      )
+
+      const [row] = await dbh.db.select().from(aiUsageRecordTable)
+      expect(row).toMatchObject({
+        sourceType: 'assistant',
+        sourceId: 'assistant-original',
+        sourceName: 'Original Assistant',
+        sourceIcon: '🕰️'
+      })
+    })
   })
 
   describe('resolveKeyAttribution', () => {
-    it('is exact with a single enabled key, with label and masked key snapshot', async () => {
+    it('uses a compatibility fallback for a single currently enabled key', async () => {
       await seedProvider([
         { id: 'key-a', key: 'sk-test-1234567890abcdefgh', label: 'Main', isEnabled: true },
         { id: 'key-b', key: 'sk-disabled', label: 'Off', isEnabled: false }
@@ -642,7 +721,7 @@ describe('AiUsageRecordService', () => {
 
       const result = await aiUsageRecordService.resolveKeyAttribution('openai')
       expect(result).toEqual({
-        attribution: 'exact',
+        attribution: 'fallback',
         providerName: 'Test Provider',
         keyId: 'key-a',
         label: 'Main',
@@ -651,7 +730,7 @@ describe('AiUsageRecordService', () => {
       expect(result.masked).not.toContain('sk-test-1234567890abcdefgh')
     })
 
-    it('uses the rotation pointer with multiple enabled keys', async () => {
+    it('uses the compatibility fallback pointer with multiple enabled keys', async () => {
       await seedProvider([
         { id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'A', isEnabled: true },
         { id: 'key-b', key: 'sk-bbbbbbbbbbbbbbbbbbbbbbbbbbbb', label: 'B', isEnabled: true }
@@ -660,26 +739,26 @@ describe('AiUsageRecordService', () => {
 
       const result = await aiUsageRecordService.resolveKeyAttribution('openai')
       expect(result).toMatchObject({
-        attribution: 'rotation',
+        attribution: 'fallback',
         providerName: 'Test Provider',
         keyId: 'key-b',
         label: 'B'
       })
     })
 
-    it('returns none with multiple keys but no rotation pointer (e.g. after restart)', async () => {
+    it('returns unknown with multiple keys but no fallback pointer', async () => {
       await seedProvider([
         { id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true },
         { id: 'key-b', key: 'sk-bbbbbbbbbbbbbbbbbbbbbbbbbbbb', isEnabled: true }
       ])
 
       expect(await aiUsageRecordService.resolveKeyAttribution('openai')).toEqual({
-        attribution: 'none',
+        attribution: 'unknown',
         providerName: 'Test Provider'
       })
     })
 
-    it('returns none when the pointed-at key was deleted', async () => {
+    it('returns unknown when the pointed-at fallback key was deleted', async () => {
       await seedProvider([
         { id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true },
         { id: 'key-b', key: 'sk-bbbbbbbbbbbbbbbbbbbbbbbbbbbb', isEnabled: true }
@@ -687,7 +766,7 @@ describe('AiUsageRecordService', () => {
       MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'deleted-key')
 
       expect(await aiUsageRecordService.resolveKeyAttribution('openai')).toEqual({
-        attribution: 'none',
+        attribution: 'unknown',
         providerName: 'Test Provider'
       })
     })
@@ -697,7 +776,8 @@ describe('AiUsageRecordService', () => {
 
       expect(await aiUsageRecordService.resolveKeyAttribution('bedrock')).toEqual({
         attribution: 'auth',
-        providerName: 'Test Provider'
+        providerName: 'Test Provider',
+        authMethod: 'iam-aws'
       })
     })
 
@@ -706,18 +786,32 @@ describe('AiUsageRecordService', () => {
 
       expect(await aiUsageRecordService.resolveKeyAttribution('claude-oauth')).toEqual({
         attribution: 'auth',
-        providerName: 'Test Provider'
+        providerName: 'Test Provider',
+        authMethod: 'oauth'
       })
     })
 
-    it('returns none for api-key providers without keys and for missing providers', async () => {
+    it.each([
+      ['openai-codex', 'oauth'],
+      ['claude-code', 'external-cli']
+    ] as const)('uses registry authMethods for %s', async (providerId, authMethod) => {
+      await seedProvider([], { providerId })
+
+      expect(await aiUsageRecordService.resolveKeyAttribution(providerId)).toEqual({
+        attribution: 'auth',
+        providerName: 'Test Provider',
+        authMethod
+      })
+    })
+
+    it('returns unknown for api-key providers without keys and for missing providers', async () => {
       await seedProvider([], { providerId: 'ollama' })
 
       expect(await aiUsageRecordService.resolveKeyAttribution('ollama')).toEqual({
-        attribution: 'none',
+        attribution: 'unknown',
         providerName: 'Test Provider'
       })
-      expect(await aiUsageRecordService.resolveKeyAttribution('ghost')).toEqual({ attribution: 'none' })
+      expect(await aiUsageRecordService.resolveKeyAttribution('ghost')).toEqual({ attribution: 'unknown' })
     })
 
     it('never stores a short key raw — masked snapshot is clamped to ****', async () => {
@@ -733,7 +827,7 @@ describe('AiUsageRecordService', () => {
       const base = {
         modelId: 'p::m',
         modality: 'language',
-        apiKeyAttribution: 'exact',
+        apiKeyAttribution: 'explicit',
         inputTokens: 1,
         outputTokens: 1,
         totalTokens: 2,
@@ -766,7 +860,7 @@ describe('AiUsageRecordService', () => {
         providerId: 'openai',
         modelId: 'openai::gpt-4o',
         modality: 'language',
-        apiKeyAttribution: 'none',
+        apiKeyAttribution: 'unknown',
         costCurrency: 'USD',
         costSource: 'computed'
       } as const
@@ -806,14 +900,12 @@ describe('AiUsageRecordService', () => {
         }
       ])
 
-      await expect(aiUsageRecordService.list({ limit: 3, sortBy: 'totalTokens' })).resolves.toMatchObject({
+      expect(aiUsageRecordService.list({ limit: 3, sortBy: 'totalTokens' })).toMatchObject({
         items: [{ requestId: 'fast' }, { requestId: 'expensive' }, { requestId: 'slow' }]
       })
-      await expect(aiUsageRecordService.list({ limit: 3, sortBy: 'cost', costCurrency: 'USD' })).resolves.toMatchObject(
-        {
-          items: [{ requestId: 'expensive' }, { requestId: 'slow' }, { requestId: 'fast' }]
-        }
-      )
+      expect(aiUsageRecordService.list({ limit: 3, sortBy: 'cost', costCurrency: 'USD' })).toMatchObject({
+        items: [{ requestId: 'expensive' }, { requestId: 'slow' }, { requestId: 'fast' }]
+      })
       const ttftPage1 = await aiUsageRecordService.list({
         limit: 2,
         sortBy: 'timeFirstTokenMs',
@@ -822,14 +914,14 @@ describe('AiUsageRecordService', () => {
       expect(ttftPage1).toMatchObject({
         items: [{ requestId: 'fast' }, { requestId: 'expensive' }]
       })
-      await expect(
+      expect(
         aiUsageRecordService.list({
           cursor: ttftPage1.nextCursor,
           limit: 2,
           sortBy: 'timeFirstTokenMs',
           sortOrder: 'asc'
         })
-      ).resolves.toMatchObject({
+      ).toMatchObject({
         items: [{ requestId: 'slow' }],
         nextCursor: undefined
       })
@@ -855,7 +947,7 @@ describe('AiUsageRecordService', () => {
         providerId: 'openai',
         modelId: 'openai::gpt-4o',
         modality: 'language',
-        apiKeyAttribution: 'none'
+        apiKeyAttribution: 'unknown'
       } as const
       await dbh.db.insert(aiUsageRecordTable).values([
         {
@@ -891,7 +983,7 @@ describe('AiUsageRecordService', () => {
       const base = {
         modelId: 'openai::gpt-4o',
         modality: 'language',
-        apiKeyAttribution: 'none',
+        apiKeyAttribution: 'unknown',
         costSource: 'computed'
       } as const
       await dbh.db.insert(aiUsageRecordTable).values([
@@ -915,15 +1007,11 @@ describe('AiUsageRecordService', () => {
         }
       ])
 
-      await expect(
-        aiUsageRecordService.list({ limit: 10, sortBy: 'cost', costCurrency: 'USD' })
-      ).resolves.toMatchObject({
+      expect(aiUsageRecordService.list({ limit: 10, sortBy: 'cost', costCurrency: 'USD' })).toMatchObject({
         items: [{ requestId: 'usd' }],
         total: 1
       })
-      await expect(
-        aiUsageRecordService.list({ limit: 10, sortBy: 'cost', costCurrency: 'CNY' })
-      ).resolves.toMatchObject({
+      expect(aiUsageRecordService.list({ limit: 10, sortBy: 'cost', costCurrency: 'CNY' })).toMatchObject({
         items: [{ requestId: 'cny' }],
         total: 1
       })
@@ -935,7 +1023,7 @@ describe('AiUsageRecordService', () => {
       providerId: 'openai',
       modelId: 'openai::gpt-4o',
       modality: 'language',
-      apiKeyAttribution: 'none',
+      apiKeyAttribution: 'unknown',
       createdAt: 1000,
       updatedAt: 1000
     } as const
@@ -971,7 +1059,7 @@ describe('AiUsageRecordService', () => {
       expect(() =>
         dbh.db
           .insert(aiUsageRecordTable)
-          .values({ ...base, requestId: 'invalid-key-pair', apiKeyAttribution: 'exact' })
+          .values({ ...base, requestId: 'invalid-key-pair', apiKeyAttribution: 'explicit' })
           .run()
       ).toThrow('ai_usage_record_api_key_identity_check')
     })
@@ -984,8 +1072,18 @@ describe('AiUsageRecordService', () => {
             ...base,
             requestId: 'invalid-auth-key',
             apiKeyAttribution: 'auth',
+            authMethod: 'oauth',
             apiKeyId: 'key-a'
           })
+          .run()
+      ).toThrow('ai_usage_record_api_key_identity_check')
+    })
+
+    it('rejects provider auth attribution without its mechanism', () => {
+      expect(() =>
+        dbh.db
+          .insert(aiUsageRecordTable)
+          .values({ ...base, requestId: 'invalid-auth-method', apiKeyAttribution: 'auth' })
           .run()
       ).toThrow('ai_usage_record_api_key_identity_check')
     })
@@ -1018,7 +1116,7 @@ describe('AiUsageRecordService', () => {
         providerId: 'openai',
         modelId: 'openai::gpt-4o',
         modality: 'language',
-        apiKeyAttribution: 'exact',
+        apiKeyAttribution: 'explicit',
         costSource: 'computed'
       } as const
       await dbh.db.insert(aiUsageRecordTable).values([
@@ -1098,7 +1196,7 @@ describe('AiUsageRecordService', () => {
       expect(buckets[0]).toMatchObject({ apiKeyId: 'key-a', costCurrency: 'USD', totalCost: 2 })
     })
 
-    it('reports the least confident attribution for a bucket mixing exact and rotation rows', async () => {
+    it('reports the least confident attribution for a bucket mixing explicit and fallback rows', async () => {
       const base = {
         providerId: 'openai',
         modelId: 'openai::gpt-4o',
@@ -1108,14 +1206,28 @@ describe('AiUsageRecordService', () => {
         costSource: 'computed'
       } as const
       await dbh.db.insert(aiUsageRecordTable).values([
-        { ...base, requestId: 'm-exact', apiKeyAttribution: 'exact', cost: 1, createdAt: 1000, updatedAt: 1000 },
-        { ...base, requestId: 'm-rotation', apiKeyAttribution: 'rotation', cost: 2, createdAt: 2000, updatedAt: 2000 }
+        {
+          ...base,
+          requestId: 'm-explicit',
+          apiKeyAttribution: 'explicit',
+          cost: 1,
+          createdAt: 1000,
+          updatedAt: 1000
+        },
+        {
+          ...base,
+          requestId: 'm-fallback',
+          apiKeyAttribution: 'fallback',
+          cost: 2,
+          createdAt: 2000,
+          updatedAt: 2000
+        }
       ])
 
       const { buckets } = await aiUsageRecordService.stats({ ...DEFAULT_AGGREGATE_QUERY, groupBy: 'apiKey' })
 
       expect(buckets).toHaveLength(1)
-      expect(buckets[0]).toMatchObject({ apiKeyId: 'key-a', apiKeyAttribution: 'rotation', entryCount: 2 })
+      expect(buckets[0]).toMatchObject({ apiKeyId: 'key-a', apiKeyAttribution: 'fallback', entryCount: 2 })
     })
 
     it('keeps provider authentication separate from unattributed requests', async () => {
@@ -1129,6 +1241,7 @@ describe('AiUsageRecordService', () => {
           ...base,
           requestId: 'provider-auth',
           apiKeyAttribution: 'auth',
+          authMethod: 'oauth',
           totalTokens: 20,
           createdAt: 1000,
           updatedAt: 1000
@@ -1136,10 +1249,19 @@ describe('AiUsageRecordService', () => {
         {
           ...base,
           requestId: 'unattributed',
-          apiKeyAttribution: 'none',
+          apiKeyAttribution: 'unknown',
           totalTokens: 10,
           createdAt: 2000,
           updatedAt: 2000
+        },
+        {
+          ...base,
+          requestId: 'provider-auth-external',
+          apiKeyAttribution: 'auth',
+          authMethod: 'external-cli',
+          totalTokens: 5,
+          createdAt: 3000,
+          updatedAt: 3000
         }
       ])
 
@@ -1148,11 +1270,22 @@ describe('AiUsageRecordService', () => {
         groupBy: 'apiKey'
       })
 
-      expect(buckets).toHaveLength(2)
+      expect(buckets).toHaveLength(3)
       expect(buckets).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ apiKeyId: null, apiKeyAttribution: 'auth', totalTokens: 20 }),
-          expect.objectContaining({ apiKeyId: null, apiKeyAttribution: 'none', totalTokens: 10 })
+          expect.objectContaining({
+            apiKeyId: null,
+            apiKeyAttribution: 'auth',
+            authMethod: 'oauth',
+            totalTokens: 20
+          }),
+          expect.objectContaining({
+            apiKeyId: null,
+            apiKeyAttribution: 'auth',
+            authMethod: 'external-cli',
+            totalTokens: 5
+          }),
+          expect.objectContaining({ apiKeyId: null, apiKeyAttribution: 'unknown', totalTokens: 10 })
         ])
       )
     })
@@ -1165,7 +1298,7 @@ describe('AiUsageRecordService', () => {
         providerName: 'custom-provider',
         modelId: 'custom-provider::model-a',
         modality: 'language',
-        apiKeyAttribution: 'none',
+        apiKeyAttribution: 'unknown',
         totalTokens: 12,
         cost: 0.1,
         costCurrency: 'USD',
@@ -1194,7 +1327,7 @@ describe('AiUsageRecordService', () => {
           providerId: 'openai',
           modelId: 'openai::gpt-4o',
           modality: 'language',
-          apiKeyAttribution: 'none',
+          apiKeyAttribution: 'unknown',
           cost: 1,
           costCurrency: 'USD',
           costSource: 'computed',
@@ -1206,7 +1339,7 @@ describe('AiUsageRecordService', () => {
           providerId: 'openai',
           modelId: 'openai::gpt-4o',
           modality: 'language',
-          apiKeyAttribution: 'none',
+          apiKeyAttribution: 'unknown',
           cost: 2,
           costCurrency: 'USD',
           costSource: 'computed',
@@ -1237,7 +1370,7 @@ describe('AiUsageRecordService', () => {
           sourceId: 'assistant-1',
           sourceName: 'Assistant One',
           sourceIcon: '✨',
-          apiKeyAttribution: 'none',
+          apiKeyAttribution: 'unknown',
           noCacheTokens: 50,
           cacheReadTokens: 25,
           cacheWriteTokens: 25,
@@ -1257,7 +1390,7 @@ describe('AiUsageRecordService', () => {
           sourceId: 'assistant-1',
           sourceName: 'Assistant One',
           sourceIcon: '✨',
-          apiKeyAttribution: 'none',
+          apiKeyAttribution: 'unknown',
           noCacheTokens: 10,
           cacheReadTokens: 5,
           cacheWriteTokens: 5,
@@ -1277,7 +1410,7 @@ describe('AiUsageRecordService', () => {
           sourceId: 'agent-1',
           sourceName: 'Agent One',
           sourceIcon: '🧠',
-          apiKeyAttribution: 'none',
+          apiKeyAttribution: 'unknown',
           noCacheTokens: 100,
           cacheReadTokens: 0,
           cacheWriteTokens: 0,
@@ -1325,7 +1458,7 @@ describe('AiUsageRecordService', () => {
       const base = {
         modelId: 'shared::model',
         modality: 'language',
-        apiKeyAttribution: 'none'
+        apiKeyAttribution: 'unknown'
       } as const
       await dbh.db.insert(aiUsageRecordTable).values([
         {
@@ -1374,7 +1507,7 @@ describe('AiUsageRecordService', () => {
       providerId: 'openai',
       modelId: 'openai::gpt-4o',
       modality: 'language',
-      apiKeyAttribution: 'none'
+      apiKeyAttribution: 'unknown'
     } as const
     const usdBase = { ...base, costCurrency: 'USD', costSource: 'computed' } as const
 
@@ -1453,6 +1586,37 @@ describe('AiUsageRecordService', () => {
         { date: localDateKey(at), currency: 'CNY', total: 3 },
         { date: localDateKey(at), currency: 'USD', total: 0.75 }
       ])
+    })
+
+    it('retains a zero-cost currency bucket so free usage is distinguishable from unpriced usage', async () => {
+      const at = new Date(2026, 0, 2, 9).getTime()
+      await dbh.db.insert(aiUsageRecordTable).values([
+        {
+          ...usdBase,
+          requestId: 'free-priced',
+          totalTokens: 10,
+          cost: 0,
+          createdAt: at,
+          updatedAt: at
+        },
+        {
+          ...base,
+          requestId: 'unpriced',
+          totalTokens: 5,
+          createdAt: at,
+          updatedAt: at
+        }
+      ])
+
+      const result = aiUsageRecordService.timeline({
+        ...DEFAULT_AGGREGATE_QUERY,
+        metric: 'cost',
+        currency: 'USD'
+      })
+
+      expect(result.costTotals).toEqual([{ currency: 'USD', total: 0 }])
+      expect(result.dailyCosts).toEqual([{ date: localDateKey(at), currency: 'USD', total: 0 }])
+      expect(result.buckets[0]).toMatchObject({ totalTokens: 15, totalCost: 0, entryCount: 2 })
     })
 
     it('returns multi-day buckets in ascending order without empty-day gaps', async () => {

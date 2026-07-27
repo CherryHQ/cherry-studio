@@ -42,12 +42,19 @@ function scopedCostSum(currency: Currency | undefined): SQL<number> {
     : sql<number>`0`
 }
 
+function totalTokensSum(): SQL<number> {
+  return sql<number>`coalesce(sum(coalesce(
+    ${aiUsageRecordTable.totalTokens},
+    coalesce(${aiUsageRecordTable.inputTokens}, 0) + coalesce(${aiUsageRecordTable.outputTokens}, 0)
+  )), 0)`
+}
+
 function metricsSelect(currency: Currency | undefined) {
   return {
     totalCost: scopedCostSum(currency),
     totalInputTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.inputTokens}), 0)`,
     totalOutputTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.outputTokens}), 0)`,
-    totalTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.totalTokens}), 0)`,
+    totalTokens: totalTokensSum(),
     totalNoCacheTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.noCacheTokens}), 0)`,
     totalCacheReadTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.cacheReadTokens}), 0)`,
     totalCacheWriteTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.cacheWriteTokens}), 0)`,
@@ -99,11 +106,11 @@ function aggregateOrder(metric: AiUsageRecordMetric, currency: Currency | undefi
     case 'cost':
       return scopedCostSum(currency)
     case 'tokens':
-      return sql<number>`coalesce(sum(${aiUsageRecordTable.totalTokens}), 0)`
+      return totalTokensSum()
   }
 }
 
-export async function listAiUsageRecords(query: AiUsageRecordListServiceQuery): Promise<AiUsageRecordListResponse> {
+export function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecordListResponse {
   const db = application.get('DbService').getDb()
   const { limit } = query
   const sortBy = query.sortBy ?? 'createdAt'
@@ -160,15 +167,15 @@ export async function listAiUsageRecords(query: AiUsageRecordListServiceQuery): 
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined
 
-  const [rows, [{ count }]] = await Promise.all([
-    db
-      .select()
-      .from(aiUsageRecordTable)
-      .where(where)
-      .orderBy(...orderTerms)
-      .limit(limit + 1),
-    db.select({ count: sql<number>`count(*)` }).from(aiUsageRecordTable).where(filterWhere)
-  ])
+  const rows = db
+    .select()
+    .from(aiUsageRecordTable)
+    .where(where)
+    .orderBy(...orderTerms)
+    .limit(limit + 1)
+    .all()
+  const count =
+    db.select({ count: sql<number>`count(*)` }).from(aiUsageRecordTable).where(filterWhere).get()?.count ?? 0
   const pageRows = rows.slice(0, limit)
   const tail = pageRows.at(-1)
 
@@ -188,23 +195,22 @@ export async function listAiUsageRecords(query: AiUsageRecordListServiceQuery): 
   }
 }
 
-export async function getAiUsageRecordStats(query: AiUsageRecordStatsQuery): Promise<AiUsageRecordStatsResponse> {
+export function getAiUsageRecordStats(query: AiUsageRecordStatsQuery): AiUsageRecordStatsResponse {
   const db = application.get('DbService').getDb()
   const where = and(...rangeConditions(query))
 
-  const [rows, [totalRow]] = await Promise.all([
-    db
-      .select({
-        ...groupIdentitySelect(query.groupBy),
-        ...metricsSelect(query.currency)
-      })
-      .from(aiUsageRecordTable)
-      .where(where)
-      .groupBy(...groupIdentityColumns(query.groupBy))
-      .orderBy(desc(aggregateOrder(query.metric, query.currency)))
-      .limit(query.limit),
-    db.select(metricsSelect(query.currency)).from(aiUsageRecordTable).where(where)
-  ])
+  const rows = db
+    .select({
+      ...groupIdentitySelect(query.groupBy),
+      ...metricsSelect(query.currency)
+    })
+    .from(aiUsageRecordTable)
+    .where(where)
+    .groupBy(...groupIdentityColumns(query.groupBy))
+    .orderBy(desc(aggregateOrder(query.metric, query.currency)))
+    .limit(query.limit)
+    .all()
+  const [totalRow] = db.select(metricsSelect(query.currency)).from(aiUsageRecordTable).where(where).all()
 
   const buckets: AiUsageRecordStatsBucket[] = rows.map((row) => ({
     ...toStatsGroupIdentity(row, query.groupBy),
@@ -248,7 +254,12 @@ function topGroupCondition(groupBy: AiUsageRecordGroupBy, buckets: AiUsageRecord
           and(
             eq(aiUsageRecordTable.providerId, bucket.providerId),
             nullableIdentity(aiUsageRecordTable.apiKeyId, bucket.apiKeyId),
-            ...(bucket.apiKeyId === null ? [eq(aiUsageRecordTable.apiKeyAttribution, bucket.apiKeyAttribution)] : [])
+            ...(bucket.apiKeyId === null
+              ? [
+                  eq(aiUsageRecordTable.apiKeyAttribution, bucket.apiKeyAttribution),
+                  nullableIdentity(aiUsageRecordTable.authMethod, bucket.authMethod)
+                ]
+              : [])
           )!
         ]
     }
@@ -279,43 +290,41 @@ function toTimelineMetrics(
   }
 }
 
-export async function getAiUsageRecordTimeline(
-  query: AiUsageRecordTimelineQuery
-): Promise<AiUsageRecordTimelineResponse> {
+export function getAiUsageRecordTimeline(query: AiUsageRecordTimelineQuery): AiUsageRecordTimelineResponse {
   const db = application.get('DbService').getDb()
   const baseConditions = rangeConditions(query)
   const where = and(...baseConditions)
   const dayBucket = sql<string>`date(${aiUsageRecordTable.createdAt} / 1000, 'unixepoch', 'localtime')`
   const timelineMetrics = {
     totalCost: scopedCostSum(query.currency),
-    totalTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.totalTokens}), 0)`,
+    totalTokens: totalTokensSum(),
     totalNoCacheTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.noCacheTokens}), 0)`,
     totalCacheReadTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.cacheReadTokens}), 0)`,
     totalCacheWriteTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.cacheWriteTokens}), 0)`,
     entryCount: sql<number>`count(*)`
   }
 
-  const [dailyTotals, dailyCostRows] = await Promise.all([
-    db
-      .select({ date: dayBucket, ...timelineMetrics })
-      .from(aiUsageRecordTable)
-      .where(where)
-      .groupBy(dayBucket)
-      .orderBy(asc(dayBucket)),
-    db
-      .select({
-        date: dayBucket,
-        currency: aiUsageRecordTable.costCurrency,
-        total: sql<number>`coalesce(sum(${aiUsageRecordTable.cost}), 0)`
-      })
-      .from(aiUsageRecordTable)
-      .where(and(where, isNotNull(aiUsageRecordTable.costCurrency)))
-      .groupBy(dayBucket, aiUsageRecordTable.costCurrency)
-      .orderBy(asc(dayBucket), asc(aiUsageRecordTable.costCurrency))
-  ])
+  const dailyTotals = db
+    .select({ date: dayBucket, ...timelineMetrics })
+    .from(aiUsageRecordTable)
+    .where(where)
+    .groupBy(dayBucket)
+    .orderBy(asc(dayBucket))
+    .all()
+  const dailyCostRows = db
+    .select({
+      date: dayBucket,
+      currency: aiUsageRecordTable.costCurrency,
+      total: sql<number>`coalesce(sum(${aiUsageRecordTable.cost}), 0)`
+    })
+    .from(aiUsageRecordTable)
+    .where(and(where, isNotNull(aiUsageRecordTable.costCurrency)))
+    .groupBy(dayBucket, aiUsageRecordTable.costCurrency)
+    .orderBy(asc(dayBucket), asc(aiUsageRecordTable.costCurrency))
+    .all()
 
   const dailyCosts = dailyCostRows.flatMap((row) =>
-    row.currency === null || row.total <= 0 ? [] : [{ date: row.date, currency: row.currency, total: row.total }]
+    row.currency === null ? [] : [{ date: row.date, currency: row.currency, total: row.total }]
   )
   const costTotals = Array.from(
     dailyCosts.reduce((totals, item) => {
@@ -335,7 +344,7 @@ export async function getAiUsageRecordTimeline(
     return { buckets: ungrouped, costTotals, dailyCosts }
   }
 
-  const top = await getAiUsageRecordStats({
+  const top = getAiUsageRecordStats({
     groupBy: query.groupBy,
     metric: query.metric,
     currency: query.currency,
@@ -348,7 +357,7 @@ export async function getAiUsageRecordTimeline(
     return { buckets: [], costTotals, dailyCosts }
   }
 
-  const selectedRows = await db
+  const selectedRows = db
     .select({
       date: dayBucket,
       ...groupIdentitySelect(query.groupBy),
@@ -358,6 +367,7 @@ export async function getAiUsageRecordTimeline(
     .where(and(...baseConditions, identityWhere))
     .groupBy(dayBucket, ...groupIdentityColumns(query.groupBy))
     .orderBy(asc(dayBucket))
+    .all()
 
   const selected = selectedRows.map(
     (row): AiUsageRecordTimelineBucket => ({

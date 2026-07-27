@@ -8,9 +8,10 @@ import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import {
-  type ProviderApiKeySnapshot,
+  type ProviderCredentialSnapshot,
   providerService,
-  type ResolvedProviderApiKey
+  type ResolvedProviderApiKey,
+  resolveProviderAuthCredential
 } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
@@ -60,7 +61,7 @@ interface ProviderToAiSdkConfigOptions {
 
 export interface ResolvedProviderAiSdkConfig {
   config: ProviderConfig
-  apiKeySnapshot?: ProviderApiKeySnapshot
+  credentialSnapshot: ProviderCredentialSnapshot
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
@@ -219,10 +220,14 @@ export async function resolveProviderAiSdkConfig(
   // Codex OAuth, IAM). Only carry a stored-key identity when the final SDK
   // config will actually serve with that selected value.
   const usesSelectedApiKey =
-    'apiKey' in config.providerSettings && config.providerSettings.apiKey === resolvedApiKey.value
+    resolvedApiKey.value.length > 0 &&
+    'apiKey' in config.providerSettings &&
+    config.providerSettings.apiKey === resolvedApiKey.value
   return {
     config,
-    apiKeySnapshot: usesSelectedApiKey ? resolvedApiKey.snapshot : undefined
+    credentialSnapshot: usesSelectedApiKey
+      ? resolvedApiKey.credentialSnapshot
+      : (resolveProviderAuthCredential(provider) ?? { attribution: 'unknown' })
   }
 }
 

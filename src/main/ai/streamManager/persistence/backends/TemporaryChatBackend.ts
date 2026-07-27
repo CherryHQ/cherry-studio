@@ -34,7 +34,7 @@ export class TemporaryChatBackend implements PersistenceBackend {
     // provider-reported cost so that keeping the chat (which re-records the
     // usage record from the promoted message) cannot downgrade it to a local
     // estimate.
-    const enrichedStats = await enrichStatsWithCost(baseStats, modelId, finalMessage?.metadata?.providerCostUsd)
+    const enrichedStats = enrichStatsWithCost(baseStats, modelId, finalMessage?.metadata?.providerCostUsd)
     temporaryChatService.appendMessage(
       this.opts.topicId,
       {

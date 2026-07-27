@@ -19,7 +19,7 @@ const messageUpdateMock = vi.fn()
 // to assert the success-path wiring (args in, enriched stats out) without
 // re-testing its internals (covered by costEnrichment.test.ts). Default is a
 // pass-through so the other backends' tests see stats unchanged.
-const enrichStatsWithCostMock = vi.fn((...args: unknown[]) => Promise.resolve(args[0]))
+const enrichStatsWithCostMock = vi.fn((...args: unknown[]) => args[0])
 
 vi.mock('@main/data/services/utils/costEnrichment', () => ({
   enrichStatsWithCost: (...args: unknown[]) => enrichStatsWithCostMock(...args)
@@ -529,7 +529,7 @@ describe('PersistenceListener + MessageServiceBackend — success-path cost enri
     messageUpdateMock.mockReset()
     messageUpdateMock.mockReturnValue({ id: 'assistant-1' })
     enrichStatsWithCostMock.mockClear()
-    enrichStatsWithCostMock.mockImplementation(async (stats: unknown) => stats)
+    enrichStatsWithCostMock.mockImplementation((stats: unknown) => stats)
   })
 
   it('enriches persisted stats with cost and threads providerCostUsd into the DB update', async () => {
@@ -541,7 +541,7 @@ describe('PersistenceListener + MessageServiceBackend — success-path cost enri
       costSource: 'provider',
       costCurrency: 'USD'
     }
-    enrichStatsWithCostMock.mockResolvedValue(enriched)
+    enrichStatsWithCostMock.mockReturnValue(enriched)
 
     const finalMessage = {
       id: 'msg-x',
@@ -576,9 +576,11 @@ describe('PersistenceListener + MessageServiceBackend — success-path cost enri
     )
   })
 
-  it('persists raw stats when cost enrichment rejects', async () => {
+  it('persists raw stats when cost enrichment throws', async () => {
     const rawStats = { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
-    enrichStatsWithCostMock.mockRejectedValueOnce(new Error('pricing unavailable'))
+    enrichStatsWithCostMock.mockImplementationOnce(() => {
+      throw new Error('pricing unavailable')
+    })
     const finalMessage = {
       id: 'msg-x',
       role: 'assistant',

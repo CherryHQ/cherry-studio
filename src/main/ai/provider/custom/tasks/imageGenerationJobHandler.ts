@@ -3,7 +3,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
-import { type ProviderApiKeySnapshot, providerService } from '@main/data/services/ProviderService'
+import {
+  type ProviderAuthMethod,
+  type ProviderCredentialSnapshot,
+  providerService
+} from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -52,9 +56,13 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       const model = modelService.getByKey(providerId, modelId)
       if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-      const { config, apiKeySnapshot: selectedApiKeySnapshot } = await resolveProviderAiSdkConfig(provider, model)
+      const { config, credentialSnapshot: selectedCredentialSnapshot } = await resolveProviderAiSdkConfig(
+        provider,
+        model
+      )
       const sdkConfig = { ...config, modelId: model.apiModelId ?? model.id }
-      const billingApiKeySnapshot = readApiKeySnapshot(ctx.metadata.apiKeySnapshot) ?? selectedApiKeySnapshot
+      const billingCredentialSnapshot =
+        readCredentialSnapshot(ctx.metadata.credentialSnapshot) ?? selectedCredentialSnapshot
       const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
       if (!transport) {
         throw new Error(
@@ -77,7 +85,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
           // re-submits, wasting the user's vendor quota.
           await ctx.patchMetadata({
             taskId: submit.taskId,
-            ...(selectedApiKeySnapshot && { apiKeySnapshot: selectedApiKeySnapshot })
+            credentialSnapshot: selectedCredentialSnapshot
           })
           urls = await pollUntilDone(transport, submit.taskId, ctx)
         } else {
@@ -100,7 +108,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       // download failure must not under-bill. `ctx.jobId` is stable across
       // retries/restart-resume, so the record upsert stays idempotent.
       // Fire-and-forget — recording must never fail a paid generation.
-      void recordImageUsage(ctx.jobId, model, urls.length, billingApiKeySnapshot, input.source)
+      void recordImageUsage(ctx.jobId, model, urls.length, billingCredentialSnapshot, input.source)
 
       const files = await downloadAndPersistImageUrls(urls, ctx.signal)
       ctx.reportProgress(100, { stage: 'done' })
@@ -115,16 +123,36 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
   }
 }
 
-function readApiKeySnapshot(value: unknown): ProviderApiKeySnapshot | undefined {
+const AUTH_METHODS: ReadonlySet<ProviderAuthMethod> = new Set([
+  'oauth',
+  'external-cli',
+  'iam-aws',
+  'api-key-aws',
+  'iam-gcp',
+  'iam-azure'
+])
+
+function readCredentialSnapshot(value: unknown): ProviderCredentialSnapshot | undefined {
   if (!value || typeof value !== 'object') return undefined
 
-  const snapshot = value as Partial<ProviderApiKeySnapshot>
+  const snapshot = value as Record<string, unknown>
+  if (snapshot.attribution === 'unknown') {
+    return { attribution: 'unknown' }
+  }
+  if (snapshot.attribution === 'auth') {
+    if (typeof snapshot.method !== 'string' || !AUTH_METHODS.has(snapshot.method as ProviderAuthMethod)) {
+      return undefined
+    }
+    return { attribution: 'auth', method: snapshot.method as ProviderAuthMethod }
+  }
+  if (snapshot.attribution !== 'explicit' && snapshot.attribution !== 'matched') return undefined
   if (typeof snapshot.id !== 'string' || typeof snapshot.masked !== 'string') return undefined
   if (snapshot.label !== undefined && typeof snapshot.label !== 'string') return undefined
 
   return {
+    attribution: snapshot.attribution,
     id: snapshot.id,
-    ...(snapshot.label ? { label: snapshot.label } : {}),
+    ...(typeof snapshot.label === 'string' ? { label: snapshot.label } : {}),
     masked: snapshot.masked
   }
 }

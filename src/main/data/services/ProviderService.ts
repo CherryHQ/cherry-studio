@@ -28,6 +28,7 @@ import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/e
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
+import type { AiUsageRecordAuthMethod } from '@shared/data/types/aiUsageRecord'
 import { providerLogoRef } from '@shared/data/types/file'
 import type {
   ApiKeyEntry,
@@ -59,10 +60,24 @@ export interface ProviderApiKeySnapshot {
   masked: string
 }
 
-/** The serving credential and its non-secret identity, resolved atomically. */
+export type ProviderAuthMethod = AiUsageRecordAuthMethod
+
+/**
+ * Non-secret provenance of the credential that actually served one request.
+ *
+ * `explicit` is a configured key selected by ProviderService, `matched` is an
+ * explicit override matched back to a configured key, and `unknown` records
+ * that the serving credential identity cannot be safely attributed.
+ */
+export type ProviderCredentialSnapshot =
+  | ({ attribution: 'explicit' | 'matched' } & ProviderApiKeySnapshot)
+  | { attribution: 'auth'; method: ProviderAuthMethod }
+  | { attribution: 'unknown' }
+
+/** The serving credential and its non-secret provenance, resolved atomically. */
 export interface ResolvedProviderApiKey {
   value: string
-  snapshot?: ProviderApiKeySnapshot
+  credentialSnapshot: ProviderCredentialSnapshot
 }
 
 function assertManagedCherryAiProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
@@ -112,16 +127,49 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
   })
 }
 
-function toResolvedProviderApiKey(value: string, entry?: ApiKeyEntry): ResolvedProviderApiKey {
-  if (!entry) return { value }
-
+function toResolvedProviderApiKey(
+  value: string,
+  attribution: 'explicit' | 'matched',
+  entry: ApiKeyEntry
+): ResolvedProviderApiKey {
   return {
     value,
-    snapshot: {
+    credentialSnapshot: {
+      attribution,
       id: entry.id,
       ...(entry.label ? { label: entry.label } : {}),
       masked: maskApiKeyForSnapshot(entry.key)
     }
+  }
+}
+
+export function resolveProviderAuthCredential(provider: Provider): ProviderCredentialSnapshot | undefined {
+  const registryMethod = provider.authMethods?.includes('api-key')
+    ? undefined
+    : provider.authMethods?.find(
+        (method): method is Extract<ProviderAuthMethod, 'oauth' | 'external-cli'> => method !== 'api-key'
+      )
+  if (registryMethod) {
+    return { attribution: 'auth', method: registryMethod }
+  }
+
+  if (
+    provider.authType === 'oauth' ||
+    provider.authType === 'iam-aws' ||
+    provider.authType === 'api-key-aws' ||
+    provider.authType === 'iam-gcp' ||
+    provider.authType === 'iam-azure'
+  ) {
+    return { attribution: 'auth', method: provider.authType }
+  }
+
+  return undefined
+}
+
+function unknownCredential(value: string): ResolvedProviderApiKey {
+  return {
+    value,
+    credentialSnapshot: { attribution: 'unknown' }
   }
 }
 
@@ -449,20 +497,18 @@ class ProviderService {
 
     const allKeys = row.apiKeys ?? []
     if (override !== undefined) {
-      return toResolvedProviderApiKey(
-        override,
-        allKeys.find((entry) => entry.key === override)
-      )
+      const matched = allKeys.find((entry) => entry.key === override)
+      return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
     }
 
     const enabledKeys = allKeys.filter((k) => k.isEnabled)
 
     if (enabledKeys.length === 0) {
-      return { value: '' }
+      return unknownCredential('')
     }
 
     if (enabledKeys.length === 1) {
-      return toResolvedProviderApiKey(enabledKeys[0].key, enabledKeys[0])
+      return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
     }
 
     // Round-robin using CacheService
@@ -472,7 +518,7 @@ class ProviderService {
 
     if (!lastUsedKeyId) {
       cache.set(cacheKey, enabledKeys[0].id)
-      return toResolvedProviderApiKey(enabledKeys[0].key, enabledKeys[0])
+      return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
     }
 
     const currentIndex = enabledKeys.findIndex((k) => k.id === lastUsedKeyId)
@@ -480,7 +526,7 @@ class ProviderService {
     const nextKey = enabledKeys[nextIndex]
     cache.set(cacheKey, nextKey.id)
 
-    return toResolvedProviderApiKey(nextKey.key, nextKey)
+    return toResolvedProviderApiKey(nextKey.key, 'explicit', nextKey)
   }
 
   /**

@@ -74,14 +74,14 @@ describe('computeStatsCostSnapshot', () => {
 })
 
 describe('enrichStatsWithCost', () => {
-  it('returns input unchanged when stats or modelId is missing', async () => {
-    expect(await enrichStatsWithCost(undefined, 'openai::gpt-4o' as UniqueModelId, undefined)).toBeUndefined()
-    expect(await enrichStatsWithCost(tokenStats, undefined, undefined)).toBe(tokenStats)
+  it('returns input unchanged when stats or modelId is missing', () => {
+    expect(enrichStatsWithCost(undefined, 'openai::gpt-4o' as UniqueModelId, undefined)).toBeUndefined()
+    expect(enrichStatsWithCost(tokenStats, undefined, undefined)).toBe(tokenStats)
   })
 
-  it('computes cost from pricing when the provider is not flagged reliable', async () => {
+  it('computes cost from pricing when the provider is not flagged reliable', () => {
     getByKeyMock.mockReturnValue(usdModel)
-    const result = await enrichStatsWithCost(tokenStats, 'openai::gpt-4o' as UniqueModelId, undefined)
+    const result = enrichStatsWithCost(tokenStats, 'openai::gpt-4o' as UniqueModelId, undefined)
     expect(result?.costSource).toBe('computed')
     expect(result?.costCurrency).toBe('USD')
     expect(result?.cost).toBeGreaterThan(0)
@@ -92,10 +92,10 @@ describe('enrichStatsWithCost', () => {
     expect(tokenStats).not.toHaveProperty('cost')
   })
 
-  it('trusts provider-reported cost when reportsActualCost is set', async () => {
+  it('trusts provider-reported cost when reportsActualCost is set', () => {
     getByKeyMock.mockReturnValue(usdModel)
     getByProviderIdMock.mockReturnValue({ apiFeatures: { reportsActualCost: true } })
-    const result = await enrichStatsWithCost(tokenStats, 'openrouter::x' as UniqueModelId, 0.99)
+    const result = enrichStatsWithCost(tokenStats, 'openrouter::x' as UniqueModelId, 0.99)
     expect(result?.cost).toBe(0.99)
     expect(result?.costSource).toBe('provider')
     expect(result?.costCurrency).toBe('USD')
@@ -104,41 +104,41 @@ describe('enrichStatsWithCost', () => {
     expect(result?.pricingSnapshot?.capturedAt).toBeTruthy()
   })
 
-  it('computes (not provider) when flagged reliable but no providerCostUsd is present', async () => {
+  it('computes (not provider) when flagged reliable but no providerCostUsd is present', () => {
     getByKeyMock.mockReturnValue(usdModel)
     getByProviderIdMock.mockReturnValue({ apiFeatures: { reportsActualCost: true } })
-    const result = await enrichStatsWithCost(tokenStats, 'openrouter::x' as UniqueModelId, undefined)
+    const result = enrichStatsWithCost(tokenStats, 'openrouter::x' as UniqueModelId, undefined)
     expect(result?.costSource).toBe('computed')
   })
 
-  it('leaves cost unset when the model has no pricing', async () => {
+  it('leaves cost unset when the model has no pricing', () => {
     getByKeyMock.mockReturnValue({ pricing: undefined })
-    const result = await enrichStatsWithCost(tokenStats, 'openai::gpt-4o' as UniqueModelId, undefined)
+    const result = enrichStatsWithCost(tokenStats, 'openai::gpt-4o' as UniqueModelId, undefined)
     expect(result).toBe(tokenStats)
     expect(result?.costSource).toBeUndefined()
   })
 
-  it('is best-effort: a model lookup failure leaves token stats untouched', async () => {
+  it('is best-effort: a model lookup failure leaves token stats untouched', () => {
     getByKeyMock.mockImplementation(() => {
       throw new Error('not found')
     })
-    const result = await enrichStatsWithCost(tokenStats, 'openai::gpt-4o' as UniqueModelId, undefined)
+    const result = enrichStatsWithCost(tokenStats, 'openai::gpt-4o' as UniqueModelId, undefined)
     expect(result).toBe(tokenStats)
   })
 
-  it('never rejects: an unexpected failure returns the unpriced stats', async () => {
-    // Both callers enrich on the message-persistence path, where a rejection
+  it('returns the unpriced stats after an unexpected synchronous lookup failure', () => {
+    // Both callers enrich on the message-persistence path, where a throw
     // would fail the save and show an error bubble for a successful generation.
     getByKeyMock.mockReturnValue({
       get pricing(): RuntimeModelPricing {
         throw new Error('corrupt model row')
       }
     })
-    await expect(enrichStatsWithCost(tokenStats, 'openai::gpt-4o' as UniqueModelId, 1)).resolves.toBe(tokenStats)
+    expect(enrichStatsWithCost(tokenStats, 'openai::gpt-4o' as UniqueModelId, 1)).toBe(tokenStats)
   })
 
-  it('returns the stats unpriced when the model id cannot be parsed', async () => {
-    const result = await enrichStatsWithCost(tokenStats, 'not-a-unique-id' as UniqueModelId, undefined)
+  it('returns the stats unpriced when the model id cannot be parsed', () => {
+    const result = enrichStatsWithCost(tokenStats, 'not-a-unique-id' as UniqueModelId, undefined)
     expect(result).toBe(tokenStats)
     expect(getByKeyMock).not.toHaveBeenCalled()
   })

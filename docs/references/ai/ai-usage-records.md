@@ -40,7 +40,7 @@ Stateless operations use a generated stable request id.
 
 ```text
 Provider selection
-  -> serving key + non-secret key snapshot
+  -> serving credential + non-secret provenance snapshot
   -> request construction + assistant/source snapshot
   -> provider operation
        Agent text step -----------+
@@ -104,36 +104,45 @@ base64 validation or FileManager persistence happens afterward, so a paid
 generation is not lost merely because local persistence fails.
 
 The async job path uses the stable job id and records the non-empty provider URL
-count before download/persistence. Restarted jobs retain the selected key
-snapshot in job metadata and the request source in the non-secret job payload.
+count before download/persistence. Restarted jobs retain the selected credential
+provenance in job metadata and the request source in the non-secret job payload.
 
 ## Identity snapshots
 
-`ProviderService` resolves the secret credential and a non-secret snapshot in
-one selection step:
+`ProviderService` resolves the secret credential and non-secret provenance in
+one selection step. Key-backed requests carry one of:
 
 ```ts
-{ id, label?, masked }
+{ attribution: 'explicit' | 'matched', id, label?, masked }
 ```
 
-The raw key is passed only to provider configuration. The snapshot and the
-assistant/source snapshot are carried with the request into the usage event.
-This makes concurrent multi-key requests deterministic without storing a
-secret.
+Provider-level credentials instead carry the actual non-secret mechanism:
+
+```ts
+{ attribution: 'auth', method: 'oauth' | 'external-cli' | 'iam-aws' | 'api-key-aws' | 'iam-gcp' | 'iam-azure' }
+```
+
+An unmatched caller override carries `{ attribution: 'unknown' }`; it is never
+misrepresented as the configured rotation key. The raw credential is passed
+only to provider configuration. Provenance and the assistant/source snapshot
+travel with the request into the usage event, making concurrent multi-key
+requests deterministic without storing a secret.
 
 Compatibility writers that do not own request construction can fall back to
 current provider state. Confidence is explicit:
 
 | Attribution | Meaning |
 | --- | --- |
-| `exact` | The request carried the selected key, or a single enabled key was deterministically resolved |
-| `rotation` | Compatibility fallback read the current rotation pointer |
-| `auth` | Provider-level OAuth/IAM/keyless authentication |
-| `none` | No serving credential can be identified |
+| `explicit` | `ProviderService` selected this configured key for the request |
+| `matched` | A caller override matched this configured key |
+| `fallback` | A compatibility writer inferred a key from current provider state |
+| `auth` | Provider-level authentication; `authMethod` records the mechanism |
+| `unknown` | No trustworthy serving-credential identity is available |
 
-`auth` and `none` are distinct aggregation buckets even though both have a null
-`apiKeyId`. Historical migration always uses `none`; it never guesses an old
-serving key from current provider configuration.
+`auth` mechanisms and `unknown` remain distinct aggregation buckets even
+though they have a null `apiKeyId`. Historical migration always uses
+`unknown`; it never guesses an old serving key from current provider
+configuration.
 
 ## Data model and upsert rules
 
@@ -141,9 +150,9 @@ serving key from current provider configuration.
 
 | Group | Fields |
 | --- | --- |
-| Request identity | `requestId`, `topicId`, `providerId`, `providerName`, `modelId`, `modality` |
+| Request identity | `requestId`, `captureSource`, `topicId`, `providerId`, `providerName`, `modelId`, `modality` |
 | Source snapshot | `sourceType`, `sourceId`, `sourceName`, `sourceIcon` |
-| Key snapshot | `apiKeyId`, `apiKeyLabel`, `apiKeyMasked`, `apiKeyAttribution` |
+| Credential snapshot | `apiKeyId`, `apiKeyLabel`, `apiKeyMasked`, `apiKeyAttribution`, `authMethod` |
 | Usage | input/output/total/reasoning/cache token fields and `imageCount` |
 | Cost | `cost`, `costCurrency`, `costSource`, `costBreakdown`, `pricingSnapshot` |
 | Performance | `timeFirstTokenMs`, `timeCompletionMs`, `timeThinkingMs` |
@@ -152,7 +161,8 @@ Database checks enforce:
 
 - supported modality, attribution, source type, cost source, and currency;
 - a cost is either wholly absent or has amount, currency, and source;
-- `exact`/`rotation` requires a key id; `auth`/`none` forbids key identity;
+- `explicit`/`matched`/`fallback` requires a key id and no auth mechanism;
+- `auth` requires an auth mechanism and forbids key identity; `unknown` has neither;
 - source metadata is absent together or includes source type and id;
 - image rows have a positive `imageCount`; non-image rows have none.
 
@@ -162,10 +172,14 @@ value.
 When request capture and persistence converge:
 
 - topic, source, and presentation snapshots do not regress to null;
-- exact key attribution is never replaced by a lower-confidence fallback;
+- runtime collector usage is authoritative; later persistence only fills
+  missing usage/timing fields and cannot overwrite repair-inclusive totals;
+- runtime credential provenance replaces compatibility inference, while
+  persistence never rewrites stored provenance from mutable provider state;
+- a persisted `messageSnapshot` may replace a current-database source fallback;
 - a provider-reported cost is never replaced or completed with a later local
   estimate;
-- token and timing fields accept later non-null enrichment.
+- input/output totals derive `totalTokens` when the provider omits it.
 
 ## Cost semantics
 
@@ -208,7 +222,9 @@ migrators.
 - Progress: reported after every batch.
 - Cost: existing legacy cost is normalized; compatible model pricing may fill a
   missing cost; otherwise usage remains unpriced.
-- Key attribution: always `none`.
+- Source: immutable `messageSnapshot` author identity wins over current
+  assistant/agent joins.
+- Key attribution: always `unknown`.
 - Validation: candidate, skipped, inserted, and target counts are checked; the
   owned table receives the standard foreign-key self-check.
 
@@ -270,7 +286,8 @@ The response contains:
 
 Token/request metrics are never duplicated into per-currency buckets. The
 renderer chooses a stable currency and reads its monetary series from
-`dailyCosts`.
+`dailyCosts`. Explicit zero-cost currency rows remain present, so a priced-free
+request is distinguishable from an unpriced request.
 
 ## Usage page freshness
 
@@ -287,8 +304,8 @@ disabled for DataApi IPC queries.
 ## Known limitations
 
 - Rerank is not recorded until its provider result exposes usage or cost.
-- Rotation attribution is a compatibility fallback and can be wrong under
-  concurrency; request-owned capture should always carry the exact snapshot.
+- `fallback` attribution reads mutable current provider state and can be wrong
+  under concurrency; request-owned capture should carry explicit provenance.
 - Historical rows cannot identify the serving key.
 - A crash between a stateless request finishing and its best-effort write can
   lose the record.
@@ -309,4 +326,7 @@ disabled for DataApi IPC queries.
 | `src/main/ai/tools/adapters/aiSdk/repair.ts` | Nested repair usage callback |
 | `src/main/data/migration/v2/migrators/AiUsageRecordMigrator.ts` | Historical projection |
 | `src/renderer/pages/settings/UsageSettings/index.ts` | Page export |
-| `src/renderer/pages/settings/UsageSettings/UsageSettings.tsx` | Analytics UI and freshness subscription |
+| `src/renderer/pages/settings/UsageSettings/UsageSettings.tsx` | Page composition |
+| `src/renderer/pages/settings/UsageSettings/useUsageData.ts` | Queries, pagination, and freshness subscription |
+| `src/renderer/pages/settings/UsageSettings/usageAnalytics.ts` | Date, metric, and chart-series utilities |
+| `src/renderer/pages/settings/UsageSettings/UsageSettingsPrimitives.tsx` | Private presentation components |

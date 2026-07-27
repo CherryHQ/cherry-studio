@@ -1,6 +1,8 @@
 import {
   type AiUsageRecordAttribution,
   AiUsageRecordAttributionSchema,
+  type AiUsageRecordAuthMethod,
+  AiUsageRecordAuthMethodSchema,
   type AiUsageRecordModality,
   AiUsageRecordModalitySchema,
   type AiUsageRecordSourceType,
@@ -15,10 +17,14 @@ import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
 const sqlEnumValues = (values: readonly string[]) => values.map((value) => `'${value}'`).join(', ')
 const attributionCheckValues = sqlEnumValues(AiUsageRecordAttributionSchema.options)
+const authMethodCheckValues = sqlEnumValues(AiUsageRecordAuthMethodSchema.options)
 const costCurrencyCheckValues = sqlEnumValues(objectValues(CURRENCY))
 const costSourceCheckValues = sqlEnumValues(CostSourceSchema.options)
 const modalityCheckValues = sqlEnumValues(AiUsageRecordModalitySchema.options)
 const sourceTypeCheckValues = sqlEnumValues(AiUsageRecordSourceTypeSchema.options)
+const captureSourceCheckValues = sqlEnumValues(['runtime', 'persistence', 'migration'])
+
+export type AiUsageRecordCaptureSource = 'runtime' | 'persistence' | 'migration'
 
 /**
  * Durable best-effort analytical record of per-request AI usage and cost.
@@ -44,6 +50,9 @@ export const aiUsageRecordTable = sqliteTable(
     id: uuidPrimaryKeyOrdered(),
     // Idempotency key: one usage record per AI request. Plain string, no FK.
     requestId: text().notNull(),
+    // Writer precedence: runtime capture owns observed request usage;
+    // persistence may fill missing columns but cannot overwrite it.
+    captureSource: text().$type<AiUsageRecordCaptureSource>().notNull().default('runtime'),
     topicId: text(),
     providerId: text().notNull(),
     providerName: text(),
@@ -64,11 +73,11 @@ export const aiUsageRecordTable = sqliteTable(
     apiKeyId: text(),
     apiKeyLabel: text(),
     apiKeyMasked: text(),
-    // How the key was attributed: exact (selection-point snapshot or
-    // deterministic single-key fallback), rotation (compatibility fallback via
-    // the round-robin pointer), auth (provider-level credential, e.g. IAM),
-    // none (unresolvable).
+    // How the credential was attributed: explicit selection, matched override,
+    // compatibility fallback, provider-level auth, or unknown.
     apiKeyAttribution: text().$type<AiUsageRecordAttribution>().notNull(),
+    // Provider-level mechanism for `auth`; never contains a token or secret.
+    authMethod: text().$type<AiUsageRecordAuthMethod>(),
 
     // Token usage (AI SDK v6 names, mirrors MessageStats)
     inputTokens: integer(),
@@ -101,6 +110,8 @@ export const aiUsageRecordTable = sqliteTable(
     index('ai_usage_record_source_created_idx').on(t.sourceType, t.sourceId, t.createdAt),
     index('ai_usage_record_created_at_idx').on(t.createdAt),
     check('ai_usage_record_attribution_check', sql`${t.apiKeyAttribution} IN (${sql.raw(attributionCheckValues)})`),
+    check('ai_usage_record_auth_method_check', sql`${t.authMethod} IN (${sql.raw(authMethodCheckValues)})`),
+    check('ai_usage_record_capture_source_check', sql`${t.captureSource} IN (${sql.raw(captureSourceCheckValues)})`),
     // NULL passes a CHECK in SQLite, so nullable columns need no IS NULL branch.
     check('ai_usage_record_cost_source_check', sql`${t.costSource} IN (${sql.raw(costSourceCheckValues)})`),
     // A cost is either wholly absent, or has the required amount/currency/source
@@ -125,13 +136,21 @@ export const aiUsageRecordTable = sqliteTable(
     check(
       'ai_usage_record_api_key_identity_check',
       sql`(
-        ${t.apiKeyAttribution} IN ('exact', 'rotation')
+        ${t.apiKeyAttribution} IN ('explicit', 'matched', 'fallback')
         AND ${t.apiKeyId} IS NOT NULL
+        AND ${t.authMethod} IS NULL
       ) OR (
-        ${t.apiKeyAttribution} IN ('auth', 'none')
+        ${t.apiKeyAttribution} = 'auth'
         AND ${t.apiKeyId} IS NULL
         AND ${t.apiKeyLabel} IS NULL
         AND ${t.apiKeyMasked} IS NULL
+        AND ${t.authMethod} IS NOT NULL
+      ) OR (
+        ${t.apiKeyAttribution} = 'unknown'
+        AND ${t.apiKeyId} IS NULL
+        AND ${t.apiKeyLabel} IS NULL
+        AND ${t.apiKeyMasked} IS NULL
+        AND ${t.authMethod} IS NULL
       )`
     ),
     check(
