@@ -281,6 +281,12 @@ describe('MessageList', () => {
     messageGroupRenderCounts.clear()
   })
 
+  it('exposes a stable message-list boundary', () => {
+    const { container } = renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(container.querySelector('[data-ui~="chat.message-list"]')).toHaveAttribute('id', 'messages')
+  })
+
   it('keeps historical groups sealed while only the live tail changes', () => {
     const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
     const historyUser = createMessage('user-history', 'user')
