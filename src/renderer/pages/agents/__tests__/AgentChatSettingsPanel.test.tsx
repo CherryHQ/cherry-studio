@@ -653,7 +653,7 @@ describe('AgentChat settings panel', () => {
 
     renderAgentChat()
 
-    expect(screen.getByRole('heading', { name: 'CustomTool' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'message.processing' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.toolPermission.button.allow' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.toolPermission.button.deny' })).toBeInTheDocument()
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()

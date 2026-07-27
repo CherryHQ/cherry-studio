@@ -21,7 +21,11 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
         'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
-        'message.tools.labels.bash': 'Run task',
+        'message.processing': 'Processing',
+        'message.tools.activity.checking': 'Checking',
+        'message.tools.activity.projectChecks': 'project checks',
+        'message.tools.activity.relatedContent': 'related content',
+        'message.tools.activity.searching': 'Searching',
         'message.tools.labels.mcpServerTool': 'MCP Server Tool',
         'message.tools.labels.tool': 'Tool',
         'message.tools.sections.input': 'Input'
@@ -93,7 +97,7 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    expect(screen.getByRole('heading', { name: 'CustomTool' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Processing' })).toBeInTheDocument()
     expect(screen.getByText('Allow CustomTool to run focused tests?')).toBeInTheDocument()
     expect(screen.queryByText('Tool input preview')).not.toBeInTheDocument()
 
@@ -145,7 +149,7 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    expect(screen.getByRole('heading', { name: 'lookup_docs' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Searching related content' })).toBeInTheDocument()
     expect(screen.getByText('Search project documentation.')).toBeInTheDocument()
     expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
     expect(screen.getByTestId('permission-mcp-args-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
@@ -195,7 +199,7 @@ describe('PermissionRequestComposer', () => {
     expect(screen.queryByTestId('permission-builtin-body-scroll')).not.toBeInTheDocument()
   })
 
-  it('uses the tool icon and readable title for the approval header', () => {
+  it('uses the streaming tool icon and semantic title for the approval header', () => {
     render(
       <PermissionRequestComposer
         request={makeRequest({
@@ -216,15 +220,15 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    const heading = screen.getByRole('heading', { name: 'Run task' })
-    expect(heading.querySelector('.lucide-terminal')).toBeInTheDocument()
+    const heading = screen.getByRole('heading', { name: 'Checking project checks' })
+    expect(heading.querySelector('.lucide-square-terminal')).toBeInTheDocument()
     expect(screen.queryByText('Allow tool call?')).not.toBeInTheDocument()
   })
 
   it('hides the request subtitle when it only repeats the tool name', () => {
     render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 
-    const heading = screen.getByRole('heading', { name: 'CustomTool' })
+    const heading = screen.getByRole('heading', { name: 'Processing' })
     expect(heading.parentElement?.children).toHaveLength(1)
   })
 
