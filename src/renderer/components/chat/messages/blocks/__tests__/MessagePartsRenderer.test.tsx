@@ -1069,6 +1069,32 @@ describe('MessagePartsRenderer', () => {
 
       expect(screen.getByText('report.md')).toBeInTheDocument()
     })
+
+    it('keeps the usingTools placeholder when report_artifacts is the only active part, then shows the card', () => {
+      activateTurn('streaming')
+      const pendingMessage = msg({ status: 'pending' })
+      const parts = [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'report',
+          toolName: 'report_artifacts',
+          state: 'output-available',
+          input: { artifacts: [{ path: 'dist/report.md', description: 'Report' }] },
+          output: {}
+        }
+      ] as unknown as CherryMessagePart[]
+      const { rerender } = renderParts(parts, pendingMessage)
+
+      expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
+      expect(screen.queryByText('report.md')).toBeNull()
+
+      mockIsActiveTurnTarget.mockReturnValue(false)
+      mockTopicStreamState.status = 'done'
+      rerender(renderPartsTree(parts, msg({ status: 'success' })))
+
+      expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+      expect(screen.getByText('report.md')).toBeInTheDocument()
+    })
   })
 
   describe('active layout', () => {

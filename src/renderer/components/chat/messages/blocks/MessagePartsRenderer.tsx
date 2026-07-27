@@ -1374,8 +1374,11 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => getDisplayEntries(partEntries, message, visibleComposerFileTokens),
     [message, partEntries, visibleComposerFileTokens]
   )
-  const hasVisibleEntry = useMemo(
-    () => displayEntries.some((entry) => isPotentiallyVisibleEntry(entry, message.id)),
+  const hasVisibleNonArtifactEntry = useMemo(
+    () =>
+      displayEntries.some(
+        (entry) => isPotentiallyVisibleEntry(entry, message.id) && !isReportArtifactEntry(entry, message.id)
+      ),
     [displayEntries, message.id]
   )
   const renderOptions = useMemo(
@@ -1391,8 +1394,11 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     !isActiveTurnProcessing && unsettledTextPlayoutPartIds.size === 0 && reportArtifactToolResponses.length > 0
 
   // No parts to render — normal for user messages (content is in message text, not parts)
-  // But if the message is processing (pending/streaming), show the loading placeholder
-  if (partEntries.length === 0 || (!hasVisibleEntry && reportArtifactToolResponses.length === 0)) {
+  // But if the message is processing (pending/streaming), show the loading placeholder.
+  // Report-artifact entries don't count as renderable here: the live layout filters
+  // them out and the card itself is gated on canRenderReportArtifacts, so a message
+  // whose only content is report_artifacts must keep its placeholder until the card can show.
+  if (partEntries.length === 0 || (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts)) {
     if (isActiveTurnProcessing) {
       const placeholder = (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
