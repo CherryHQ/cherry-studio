@@ -141,8 +141,8 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
   orderKey: z.string(),
   model: UniqueModelIdSchema.nullable(),
   /**
-   * Human-readable primary model name resolved from `user_model.name` at read
-   * time. Edits still go through the `model` UniqueModelId field.
+   * Human-readable primary model name resolved from the current runtime Model
+   * at read time. Edits still go through the `model` UniqueModelId field.
    */
   modelName: z.string().nullable()
 })
