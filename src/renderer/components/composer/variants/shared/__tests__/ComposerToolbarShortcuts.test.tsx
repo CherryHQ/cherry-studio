@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   launchers: [] as any[],
   manifests: [] as any[],
+  resolveLaunchers: vi.fn(),
   dispatchLauncher: vi.fn(),
   reorderableProps: null as any,
   committedCustomizeOrders: [] as string[][]
@@ -19,7 +20,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherController: () => ({
-    getLaunchers: vi.fn(() => mocks.launchers),
+    getLaunchers: vi.fn(() => mocks.resolveLaunchers()),
     dispatchLauncher: mocks.dispatchLauncher
   }),
   useComposerToolLauncherVersion: () => 1
@@ -144,6 +145,8 @@ describe('ComposerToolbarShortcuts', () => {
   beforeEach(() => {
     mocks.launchers = [thinkingLauncher, webSearchLauncher, knowledgeLauncher]
     mocks.manifests = []
+    mocks.resolveLaunchers.mockReset()
+    mocks.resolveLaunchers.mockImplementation(() => mocks.launchers)
     mocks.dispatchLauncher.mockClear()
     mocks.reorderableProps = null
     mocks.committedCustomizeOrders = []
@@ -224,6 +227,19 @@ describe('ComposerToolbarShortcuts', () => {
       launcherId: 'thinking',
       searchText: 'thinking-manifest-label'
     })
+  })
+
+  it('does not loop when launcher icons are recreated during render', () => {
+    mocks.manifests = [thinkingManifest]
+    mocks.resolveLaunchers.mockImplementation(() => [
+      {
+        ...thinkingLauncher,
+        icon: <span data-testid="icon-thinking-live" />
+      }
+    ])
+
+    expect(() => renderShortcuts({ pinnedIds: ['thinking'] })).not.toThrow()
+    expect(screen.getByTestId('icon-thinking-live')).toBeInTheDocument()
   })
 
   it('announces dialog launchers with aria-haspopup="dialog" and no toggle state', () => {

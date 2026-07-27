@@ -10,7 +10,7 @@ import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
 import { GripVertical, RotateCcw } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
-import { useId, useLayoutEffect, useMemo, useState } from 'react'
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './ComposerControlScaffolding'
@@ -137,18 +137,14 @@ export const ComposerToolbarShortcuts = ({
   }, [getLaunchers, toolLaunchersVersion])
   // Thinking and permission-mode icons convey live state. Keep the last resolved
   // icon through launcher handoffs instead of flashing the generic manifest icon.
-  const [lastResolvedIconById, setLastResolvedIconById] = useState<Map<string, ReactNode>>(() => new Map())
+  const lastResolvedIconById = useRef<Map<string, ReactNode>>(new Map())
 
   useLayoutEffect(() => {
-    setLastResolvedIconById((current) => {
-      let next: Map<string, ReactNode> | undefined
-      for (const launcher of toolbarLaunchers) {
-        if (!toolbarManifestById.has(launcher.id) || current.get(launcher.id) === launcher.icon) continue
-        next ??= new Map(current)
-        next.set(launcher.id, launcher.icon)
+    for (const launcher of toolbarLaunchers) {
+      if (toolbarManifestById.has(launcher.id)) {
+        lastResolvedIconById.current.set(launcher.id, launcher.icon)
       }
-      return next ?? current
-    })
+    }
   }, [toolbarLaunchers, toolbarManifestById])
 
   const candidates = useMemo<ShortcutCandidate[]>(() => {
@@ -157,7 +153,7 @@ export const ComposerToolbarShortcuts = ({
       return {
         id: manifest.id,
         label: manifest.label,
-        icon: lastResolvedIconById.get(manifest.id) ?? manifest.icon,
+        icon: lastResolvedIconById.current.get(manifest.id) ?? manifest.icon,
         active: false,
         disabled: true,
         haspopup: opensPanel ? 'menu' : manifest.kind === 'dialog' ? 'dialog' : undefined,
@@ -220,7 +216,6 @@ export const ComposerToolbarShortcuts = ({
     customTools,
     dispatchLauncher,
     inputAdapter,
-    lastResolvedIconById,
     panelUnavailable,
     toolbarLaunchers,
     toolbarManifestById,
