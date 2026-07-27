@@ -301,7 +301,7 @@ export function useAgentChatRuntimeState({
 
       let result: AiToolApprovalRespondResponse
       try {
-        result = await ipcApi.request('ai.respond_tool_approval', {
+        result = await ipcApi.request('ai.tool.respond_approval', {
           approvalId,
           approved,
           reason,

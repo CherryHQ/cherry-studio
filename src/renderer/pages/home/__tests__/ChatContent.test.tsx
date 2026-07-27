@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatContent from '../ChatContent'
 
-// The send path calls ipcApi.request('ai.stream_open', …); route it to the per-test
+// The send path calls ipcApi.request('ai.stream.open', …); route it to the per-test
 // `streamOpen` spy (a describe-level var asserted directly). `ipcMock.request` is
 // re-pointed in beforeEach (hoisted so the vi.mock factory can capture it).
 const { ipcMock } = vi.hoisted(() => ({
@@ -255,9 +255,9 @@ describe('ChatContent', () => {
 
   beforeEach(() => {
     streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
-    // Route ai.stream_open through the spy; other stream routes/events are inert here
+    // Route ai.stream.open through the spy; other stream routes/events are inert here
     // (useChatWithHistory is mocked, so the real transport never runs).
-    ipcMock.request = (route, input) => (route === 'ai.stream_open' ? streamOpen(input) : Promise.resolve(undefined))
+    ipcMock.request = (route, input) => (route === 'ai.stream.open' ? streamOpen(input) : Promise.resolve(undefined))
     ipcMock.on = () => () => {}
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockUseMutation.mockImplementation((method: string) => ({

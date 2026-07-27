@@ -9,11 +9,11 @@ const mocks = vi.hoisted(() => ({
   respondToolApproval: vi.fn()
 }))
 
-// The bridge now delivers decisions via ipcApi.request('ai.respond_tool_approval', …).
+// The bridge now delivers decisions via ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.respond_tool_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))

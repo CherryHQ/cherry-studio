@@ -21,10 +21,10 @@ describe('image file preview plugin', () => {
   it('renders a local image through a safe file URL', async () => {
     render(<FilePreview filePath={'/tmp/photos/drafts/../summer holiday.png' as AbsoluteFilePath} />)
 
-    expect(await screen.findByRole('img', { name: 'summer holiday.png' })).toHaveAttribute(
-      'src',
-      'file:///tmp/photos/summer%20holiday.png'
-    )
+    const image = await screen.findByRole('img', { name: 'summer holiday.png' })
+
+    expect(image).toHaveAttribute('src', 'file:///tmp/photos/summer%20holiday.png')
+    expect(image.parentElement).toHaveClass('p-4')
   })
 
   it('shows loading feedback until the image loads', async () => {

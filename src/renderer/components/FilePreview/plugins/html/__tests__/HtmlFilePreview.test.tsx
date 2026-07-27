@@ -113,6 +113,7 @@ describe('HtmlFilePreview', () => {
     const frame = await screen.findByTestId('html-frame')
     expect(frame).toHaveAttribute('srcdoc', '<h1>Hello</h1>')
     expect(frame.getAttribute('data-base-url')).toMatch(/^file:\/\/.*index\.html$/)
+    expect(frame.parentElement).toHaveClass('h-full', 'bg-white')
     expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: filePath })
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
   })

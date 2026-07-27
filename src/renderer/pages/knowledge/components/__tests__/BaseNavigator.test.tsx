@@ -188,6 +188,12 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    PageHeader: ({ title, action }: { title: ReactNode; action?: ReactNode }) => (
+      <div>
+        <h2>{title}</h2>
+        {action}
+      </div>
+    ),
     Popover: ({
       children,
       open,
@@ -1303,14 +1309,14 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Alpha/ }).parentElement).toHaveClass('bg-secondary')
+    expect(screen.getByRole('button', { name: /Alpha/ }).parentElement).toHaveClass('bg-muted', 'text-foreground')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta/ }))
 
     expect(onSelectBase).toHaveBeenCalledWith('base-2')
   })
 
-  it('creates a knowledge base from the full-width action below search', () => {
+  it('creates a knowledge base from the compact page-header action', () => {
     const onCreateBase = vi.fn()
     const onCreateGroup = vi.fn()
 
@@ -1335,9 +1341,9 @@ describe('BaseNavigator', () => {
     const searchInput = screen.getByPlaceholderText('搜索知识库...')
     const createButton = screen.getByRole('button', { name: '新建知识库' })
 
-    expect(createButton.parentElement).toHaveClass('flex-col', 'px-2.5')
-    expect(createButton).toHaveClass('h-8', 'w-full', 'justify-start')
-    expect(searchInput.compareDocumentPosition(createButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '知识库' })).toBeInTheDocument()
+    expect(createButton).toHaveClass('size-6')
+    expect(createButton.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(createButton)
 

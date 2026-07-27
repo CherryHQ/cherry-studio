@@ -75,23 +75,23 @@ function createMockAiApi() {
   // ipcApi-shaped dispatchers wired to the spies above (so per-method assertions still work).
   const request = (route: string, input: unknown): unknown => {
     switch (route) {
-      case 'ai.stream_open':
+      case 'ai.stream.open':
         return mockApi.streamOpen(input)
-      case 'ai.stream_attach':
+      case 'ai.stream.attach':
         return mockApi.streamAttach(input)
-      case 'ai.stream_abort':
+      case 'ai.stream.abort':
         return mockApi.streamAbort(input)
       default:
-        return Promise.resolve(undefined) // ai.stream_detach — not asserted here
+        return Promise.resolve(undefined) // ai.stream.detach — not asserted here
     }
   }
   const on = (event: string, cb: (p: unknown) => void): (() => void) => {
     switch (event) {
-      case 'ai.stream_chunk':
+      case 'ai.stream.chunk':
         return mockApi.onStreamChunk(cb)
-      case 'ai.stream_done':
+      case 'ai.stream.done':
         return mockApi.onStreamDone(cb)
-      case 'ai.stream_error':
+      case 'ai.stream.error':
         return mockApi.onStreamError(cb)
       default:
         return () => {}

@@ -115,11 +115,9 @@ vi.mock('../list/MessageAnchorLine', () => ({
 vi.mock('../list/MessageGroup', () => {
   const MockMessageGroup = ({
     messages,
-    enteringMessageIds,
     registerMessageElement
   }: {
     messages: MessageListItem[]
-    enteringMessageIds?: ReadonlySet<string>
     registerMessageElement?: (id: string, element: HTMLElement | null) => void
   }) => {
     const groupId = messages.map((message) => message.id).join(',')
@@ -137,11 +135,8 @@ vi.mock('../list/MessageGroup', () => {
               key={message.id}
               ref={setRef}
               className="fold"
-              data-testid={`message-node-${message.id}`}>
-              <span data-testid={`message-enter-${message.id}`}>
-                {String(enteringMessageIds?.has(message.id) ?? false)}
-              </span>
-            </div>
+              data-testid={`message-node-${message.id}`}
+            />
           )
         })}
         {groupId}
@@ -279,6 +274,12 @@ describe('MessageList', () => {
     messageVirtualListMocks.readyCallbacks = []
     messageVirtualListMocks.scrollElement = document.createElement('div')
     messageGroupRenderCounts.clear()
+  })
+
+  it('exposes a stable message-list boundary', () => {
+    const { container } = renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(container.querySelector('[data-ui~="chat.message-list"]')).toHaveAttribute('id', 'messages')
   })
 
   it('keeps historical groups sealed while only the live tail changes', () => {
@@ -421,29 +422,6 @@ describe('MessageList', () => {
 
     expect(screen.getByTestId('message-list-loading')).toBeInTheDocument()
     expect(screen.queryByTestId('virtual-list')).toBeNull()
-  })
-
-  it('marks newly appended user and assistant messages for enter motion', () => {
-    const view = renderMessageList([createMessage('user-1', 'user')])
-
-    expect(screen.getByTestId('message-enter-user-1')).toHaveTextContent('false')
-
-    act(() => {
-      view.rerender(
-        <MessageListProvider
-          value={createValue([
-            createMessage('user-1', 'user'),
-            createMessage('user-2', 'user'),
-            createMessage('assistant-placeholder', 'assistant')
-          ])}>
-          <MessageList />
-        </MessageListProvider>
-      )
-    })
-
-    expect(screen.getByTestId('message-enter-user-1')).toHaveTextContent('false')
-    expect(screen.getByTestId('message-enter-user-2')).toHaveTextContent('true')
-    expect(screen.getByTestId('message-enter-assistant-placeholder')).toHaveTextContent('true')
   })
 
   it('marks the message list container while multi-select mode is active', () => {
