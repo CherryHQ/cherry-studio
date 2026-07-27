@@ -23,6 +23,7 @@ import type {
   PdfTranslationProgressStage,
   PdfTranslationStage
 } from '@shared/ipc/schemas/translate'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { stringify as stringifyToml } from 'smol-toml'
 import * as z from 'zod'
@@ -109,14 +110,14 @@ const createOcrRequiredError = (): IpcError =>
 
 interface PdfTranslationRequest {
   jobId: string
-  sourcePath: string
+  sourcePath: AbsoluteFilePath
   sourceLangCode: TranslateSourceLanguage
   targetLangCode: TranslateLangCode
   modelId: UniqueModelId
 }
 
 interface PdfTranslationResult {
-  outputPath: string
+  outputPath: AbsoluteFilePath
   fileName: string
 }
 
@@ -268,7 +269,7 @@ export class PdfTranslationService extends BaseService {
       // watermark mode is not `watermarked` (we pass `--watermark-output-mode no_watermark`), e.g.
       // `paper.no_watermark.zh-CN.mono.pdf`. Omitting it would ENOENT here and delete the artifact.
       const fileName = `${path.parse(request.sourcePath).name}.no_watermark.${normalizeLanguageCode(request.targetLangCode)}.mono.pdf`
-      const outputPath = path.join(outputDir, fileName)
+      const outputPath = AbsoluteFilePathSchema.parse(path.join(outputDir, fileName))
       await fs.promises.access(outputPath, fs.constants.R_OK)
       this.reportProgress(job, { stage: 'rendering', progress: 100 }, onProgress)
       completed = true

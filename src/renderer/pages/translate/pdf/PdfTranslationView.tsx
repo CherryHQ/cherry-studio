@@ -11,6 +11,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import type { PdfTranslationProgressStage } from '@shared/ipc/schemas/translate'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { TFunction } from 'i18next'
 import { AlertCircle, Download, Languages, X } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -161,7 +162,7 @@ const PdfTranslationView = ({
           jobId,
           modelId,
           sourceLangCode,
-          sourcePath: file.path,
+          sourcePath: AbsoluteFilePathSchema.parse(file.path),
           targetLangCode
         })
         .then((result) => {

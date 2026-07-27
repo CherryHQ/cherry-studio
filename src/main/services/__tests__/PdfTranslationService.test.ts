@@ -5,6 +5,7 @@ import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,7 +49,7 @@ vi.mock('@main/core/lifecycle', () => {
 })
 
 const TEST_ROOT = path.join(os.tmpdir(), 'cherry-pdf-translation-service-test')
-const SOURCE_PATH = path.join(TEST_ROOT, 'source', 'research paper.pdf')
+const SOURCE_PATH = path.join(TEST_ROOT, 'source', 'research paper.pdf') as AbsoluteFilePath
 const MANAGED_BINARY = path.join(TEST_ROOT, 'managed', 'babeldoc')
 
 const binaryManager = { getState: vi.fn() }

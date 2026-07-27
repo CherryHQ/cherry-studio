@@ -1,6 +1,6 @@
 import { type TranslateLangCode, TranslateLangCodeSchema } from '@shared/data/preference/preferenceTypes'
-import { AbsolutePathSchema } from '@shared/data/types/file'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -27,14 +27,14 @@ export const translateRequestSchemas = {
   }),
   'translate.pdf.start': defineRoute({
     input: pdfJobInputSchema.extend({
-      sourcePath: AbsolutePathSchema,
+      sourcePath: AbsoluteFilePathSchema,
       sourceLangCode: z.union([z.literal('auto'), TranslateLangCodeSchema]),
       targetLangCode: TranslateLangCodeSchema.refine((code) => code !== 'unknown', {
         message: 'targetLangCode must be a concrete language, not "unknown"'
       }),
       modelId: UniqueModelIdSchema
     }),
-    output: z.strictObject({ outputPath: AbsolutePathSchema, fileName: z.string().min(1) })
+    output: z.strictObject({ outputPath: AbsoluteFilePathSchema, fileName: z.string().min(1) })
   }),
   'translate.pdf.cancel': defineRoute({ input: pdfJobInputSchema, output: z.void() }),
   'translate.pdf.cleanup': defineRoute({ input: pdfJobInputSchema, output: z.void() })
