@@ -114,8 +114,6 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
  */
 export interface MessageData {
   parts?: CherryMessagePart[]
-  /** Composer-selected knowledge bases for this turn; restored for retries and continuation requests. */
-  knowledgeBaseIds?: string[]
 }
 
 // ── Cherry-specific UI message types ────────────────────────────────
@@ -360,20 +358,15 @@ export interface SerializedErrorData {
 }
 
 /**
- * Runtime schema for `MessageData`. Fields are optional on the TS interface
- * and the DB column, so the runtime check mirrors that. Part entry types stay
- * runtime-opaque for now; tighten with per-entry schemas in a follow-up.
+ * Runtime schema for `MessageData`. `parts` is optional on the TS interface
+ * and the DB column, so the runtime check mirrors that: accept any object,
+ * reject only if `parts` is present and the wrong shape. Part entry types
+ * stay runtime-opaque for now; tighten with per-entry schemas in a follow-up.
  */
 export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
-  if (
-    v.knowledgeBaseIds !== undefined &&
-    (!Array.isArray(v.knowledgeBaseIds) || v.knowledgeBaseIds.some((id) => typeof id !== 'string'))
-  ) {
-    return false
-  }
   return true
 })
 

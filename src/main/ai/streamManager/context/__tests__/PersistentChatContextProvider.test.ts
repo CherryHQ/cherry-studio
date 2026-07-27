@@ -7,6 +7,7 @@ import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -133,22 +134,25 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'submit-message',
         topicId: 'topic-1',
         parentAnchorId: 'a1',
-        userMessageParts: [{ type: 'text', text: 'search my selected knowledge base' }],
-        knowledgeBaseIds
+        userMessageParts: [
+          { type: 'text', text: 'search my selected knowledge base' },
+          { type: 'data-knowledge-scope', data: { baseIds: knowledgeBaseIds } }
+        ]
       },
       { hasLiveStream: false }
     )
     const userMessageId = submitted.userMessageId!
 
-    expect(messageService.getById(userMessageId).data.knowledgeBaseIds).toEqual(knowledgeBaseIds)
+    expect(getKnowledgeBaseIdsFromParts(messageService.getById(userMessageId).data.parts ?? [])).toEqual(
+      knowledgeBaseIds
+    )
 
     const regenerated = await provider.prepareDispatch(
       makeSubscriber(),
       {
         trigger: 'regenerate-message',
         topicId: 'topic-1',
-        parentAnchorId: userMessageId,
-        knowledgeBaseIds: []
+        parentAnchorId: userMessageId
       },
       { hasLiveStream: false }
     )
@@ -164,8 +168,10 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       topicId: 'topic-1',
       role: 'user',
       data: {
-        parts: [{ type: 'text', text: 'actually do X instead' }],
-        knowledgeBaseIds: ['kb-selected-for-steer']
+        parts: [
+          { type: 'text', text: 'actually do X instead' },
+          { type: 'data-knowledge-scope', data: { baseIds: ['kb-selected-for-steer'] } }
+        ]
       },
       status: 'success',
       siblingsGroupId: 0,
@@ -407,8 +413,10 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
           topicId: 'topic-1',
           role: 'user',
           data: {
-            parts: [{ type: 'text', text: 'run the tool' }],
-            knowledgeBaseIds: ['kb-selected-for-approved-tool']
+            parts: [
+              { type: 'text', text: 'run the tool' },
+              { type: 'data-knowledge-scope', data: { baseIds: ['kb-selected-for-approved-tool'] } }
+            ]
           },
           status: 'success',
           siblingsGroupId: 0,

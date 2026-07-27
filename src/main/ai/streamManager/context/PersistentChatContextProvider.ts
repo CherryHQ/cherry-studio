@@ -15,6 +15,7 @@ import { applyApprovalDecisions } from '@shared/ai/transport'
 import { type Message as SharedMessage, type MessageSnapshot, toContentRole } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
@@ -172,7 +173,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const userMessage = messageService.create(req.topicId, {
         role: 'user',
         parentId: req.parentAnchorId,
-        data: { parts: req.userMessageParts, knowledgeBaseIds: req.knowledgeBaseIds },
+        data: { parts: req.userMessageParts },
         status: 'success',
         // User rows carry only `modelId` (read by steer-continuation); the author snapshot
         // lives on the assistant reply, which is what the header renders.
@@ -220,7 +221,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             dto: {
               role: 'user' as const,
               parentId: req.parentAnchorId,
-              data: { parts: req.userMessageParts, knowledgeBaseIds: req.knowledgeBaseIds },
+              data: { parts: req.userMessageParts },
               status: 'success' as const,
               modelId: defaultModelId
             }
@@ -289,10 +290,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
       const history = this.buildHistory(userMessage.id)
-      const knowledgeBaseIds =
-        req.trigger === 'regenerate-message'
-          ? (userMessage.data.knowledgeBaseIds ?? req.knowledgeBaseIds)
-          : req.knowledgeBaseIds
+      const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
         request: this.buildStreamRequest(
@@ -350,7 +348,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     if (anchor.topicId !== req.topicId) {
       throw new Error(`'continue-conversation' anchor does not belong to topic ${req.topicId}`)
     }
-    const knowledgeBaseIds = anchor.parentId ? messageService.getById(anchor.parentId).data.knowledgeBaseIds : undefined
+    const knowledgeBaseIds = anchor.parentId
+      ? getKnowledgeBaseIdsFromParts(messageService.getById(anchor.parentId).data.parts ?? [])
+      : undefined
 
     // Apply decisions to DB parts and flip status to `pending` so buildHistory sees the approved state.
     const beforeParts = anchor.data.parts ?? []
@@ -470,7 +470,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               model.id,
               history,
               placeholder.id,
-              userMessage.data.knowledgeBaseIds,
+              getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
               req.reasoningEffort
             ),
             rootSpan
