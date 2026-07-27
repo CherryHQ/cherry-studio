@@ -34,7 +34,6 @@ import { CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucid
 import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ComposerControlsLoading from './ComposerControlsLoading'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
 import {
   getComposerClipboardPasteOverride,
@@ -188,7 +187,7 @@ export interface ComposerSurfaceProps {
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
   sendAccessory?: React.ReactNode | ComposerSurfaceSendAccessoryRenderer
-  deferDynamicControls?: boolean
+  deferQuickPanel?: boolean
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -538,28 +537,6 @@ function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
-function useComposerDynamicControlsReady(deferDynamicControls: boolean) {
-  const [controlsReady, setControlsReady] = useState(!deferDynamicControls)
-
-  useLayoutEffect(() => {
-    if (!deferDynamicControls || controlsReady) return
-
-    let controlsFrame = 0
-    const editorFrame = window.requestAnimationFrame(() => {
-      controlsFrame = window.requestAnimationFrame(() => {
-        startTransition(() => setControlsReady(true))
-      })
-    })
-
-    return () => {
-      window.cancelAnimationFrame(editorFrame)
-      if (controlsFrame) window.cancelAnimationFrame(controlsFrame)
-    }
-  }, [controlsReady, deferDynamicControls])
-
-  return !deferDynamicControls || controlsReady
-}
-
 export default function ComposerSurface({
   text,
   onTextChange,
@@ -607,9 +584,10 @@ export default function ComposerSurface({
   compactWhenSingleLine = false,
   renderCompactControls,
   sendAccessory,
-  deferDynamicControls = false
+  deferQuickPanel = false
 }: ComposerSurfaceProps) {
-  const dynamicControlsReady = useComposerDynamicControlsReady(deferDynamicControls)
+  const [editorReady, setEditorReady] = useState(!deferQuickPanel)
+  const quickPanelReady = !deferQuickPanel || editorReady
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -1807,6 +1785,9 @@ export default function ComposerSurface({
       }
     },
     onCreate: ({ editor: createdEditor }) => {
+      window.requestAnimationFrame(() => {
+        startTransition(() => setEditorReady(true))
+      })
       const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
       setTimeoutTimer(
         'composerSurfaceFocus',
@@ -2029,15 +2010,15 @@ export default function ComposerSurface({
   const unifiedPanelAvailable = useMemo(() => {
     // Recompute when runtime launchers register or unregister.
     void toolLaunchersVersion
-    if (!dynamicControlsReady || !quickPanelEnabled) return false
+    if (!quickPanelReady || !quickPanelEnabled) return false
 
     return hasUnifiedQuickPanelRootContent(getToolLaunchers?.() ?? [], {
       leadingItems: rootPanelLeadingItems,
       additionalItems: rootPanelAdditionalItems
     })
   }, [
-    dynamicControlsReady,
     getToolLaunchers,
+    quickPanelReady,
     quickPanelEnabled,
     rootPanelAdditionalItems,
     rootPanelLeadingItems,
@@ -2106,36 +2087,18 @@ export default function ComposerSurface({
     ]
   )
 
-  const quickPanelElement =
-    dynamicControlsReady && quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
+  const quickPanelElement = quickPanelReady && quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
-  const leftControls = dynamicControlsReady ? (
-    renderLeftControls?.(inputAdapter, unifiedPanelControl)
-  ) : renderLeftControls ? (
-    <ComposerControlsLoading />
-  ) : null
-  const belowControls = dynamicControlsReady ? (
-    renderBelowControls?.(inputAdapter, unifiedPanelControl)
-  ) : renderBelowControls ? (
-    <ComposerControlsLoading />
-  ) : undefined
-  // No placeholder here: `sendAccessory` is always a truthy element but usually
-  // renders nothing (the context ring needs a live session), so reserving space
-  // for it would flash a skeleton dot that then disappears.
-  const sendAccessoryElement = dynamicControlsReady
-    ? typeof sendAccessory === 'function'
-      ? sendAccessory(inputAdapter, unifiedPanelControl)
-      : sendAccessory
-    : undefined
-  const compactControls = dynamicControlsReady ? (
-    renderCompactControls?.(inputAdapter, unifiedPanelControl)
-  ) : renderCompactControls ? (
-    <ComposerControlsLoading compact />
-  ) : null
+  const leftControls = renderLeftControls?.(inputAdapter, unifiedPanelControl)
+  const belowControls = renderBelowControls?.(inputAdapter, unifiedPanelControl)
+  const sendAccessoryElement =
+    typeof sendAccessory === 'function' ? sendAccessory(inputAdapter, unifiedPanelControl) : sendAccessory
+  const compactControls = renderCompactControls?.(inputAdapter, unifiedPanelControl)
   const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
   const sendAction = showPauseButton ? (
     <Tooltip content={t('chat.input.pause')} placement="top">
       <button
+        data-ui="chat.composer.action.pause"
         type="button"
         className="flex size-7.5 items-center justify-center rounded-full text-error-base hover:bg-accent"
         aria-label={t('chat.input.pause')}
@@ -2188,6 +2151,7 @@ export default function ComposerSurface({
   const inputbarElement = (
     <div
       id="inputbar"
+      data-ui="chat.composer"
       data-composer-inputbar=""
       data-composer-presentation={isCompact ? 'compact' : 'regular'}
       className={cn(
@@ -2248,16 +2212,11 @@ export default function ComposerSurface({
               ? 'flex items-start'
               : 'contents'
         }>
-        {isCompact ? (
-          dynamicControlsReady ? (
-            <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
-          ) : (
-            <ComposerControlsLoading compact />
-          )
-        ) : null}
+        {isCompact ? <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} /> : null}
         {leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{leadingContent}</div> : null}
         <div
           ref={frameRef}
+          data-ui="part:composer-input"
           data-composer-editor-frame=""
           className={cn('min-w-0 flex-1 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
           onTransitionEnd={handleTransitionEnd}
@@ -2272,7 +2231,7 @@ export default function ComposerSurface({
           />
         </div>
         {isCompact ? (
-          <div className="flex shrink-0 flex-row items-center gap-1.5">
+          <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
             {compactControls}
             {sendAccessoryElement}
             {sendAction}
@@ -2282,6 +2241,7 @@ export default function ComposerSurface({
 
       {!isCompact ? (
         <div
+          data-ui="part:composer-actions"
           data-composer-toolbar=""
           className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
           <div className="flex min-w-0 flex-1 items-center overflow-hidden">{leftControls}</div>

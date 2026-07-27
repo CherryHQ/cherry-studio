@@ -11,6 +11,10 @@ const conversationShellProps = vi.hoisted(() => ({
 const chatContentProps = vi.hoisted(() => ({
   current: null as any
 }))
+const assistantContextMock = vi.hoisted(() => ({
+  isLoading: false,
+  isModelPending: false
+}))
 
 const topic: Topic = {
   id: 'topic-1',
@@ -85,14 +89,14 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
       modelId: 'provider::model',
       settings: {}
     },
-    isLoading: false,
+    isLoading: assistantContextMock.isLoading,
     model: {
       id: 'provider::model',
       providerId: 'provider',
       apiModelId: 'model',
       name: 'Model'
     },
-    isModelPending: false,
+    isModelPending: assistantContextMock.isModelPending,
     isModelMissing: false,
     setModel: vi.fn(),
     updateAssistantSettings: vi.fn()
@@ -150,6 +154,8 @@ describe('Chat', () => {
     vi.clearAllMocks()
     conversationShellProps.current = null
     chatContentProps.current = null
+    assistantContextMock.isLoading = false
+    assistantContextMock.isModelPending = false
   })
 
   it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
@@ -161,7 +167,6 @@ describe('Chat', () => {
     expect(screen.getByTestId('topic-right-shortcuts')).toBeInTheDocument()
     expect(screen.getByTestId('chat-conversation-controls')).toHaveTextContent('Assistant')
     expect(chatContentProps.current?.assistantContext?.assistant?.id).toBe('assistant-1')
-    expect(chatContentProps.current?.assistantContextLoading).toBe(false)
   })
 
   it('keeps the navbar mounted while disabling sidebar controls', () => {
@@ -170,6 +175,16 @@ describe('Chat', () => {
     expect(screen.getByTestId('chat-navbar')).toHaveAttribute('data-show-sidebar-controls', 'false')
     expect(conversationShellProps.current?.topBar).toBeTruthy()
     expect(conversationShellProps.current?.topRightTool).toBeTruthy()
+  })
+
+  it('keeps the composer context available while the assistant and model are resolving', () => {
+    assistantContextMock.isLoading = true
+    assistantContextMock.isModelPending = true
+
+    render(<Chat activeTopic={topic} />)
+
+    expect(chatContentProps.current?.assistantContext?.isLoading).toBe(true)
+    expect(chatContentProps.current?.assistantContext?.isModelPending).toBe(true)
   })
 
   it('renders the navbar while the active topic is still resolving', () => {

@@ -15,14 +15,17 @@ interface LocalEmbeddingDownloadButtonProps {
 
 /**
  * Inline entry point to download — then select — the optional local embedding
- * model, rendered only while the base has no embedding model set. The local
- * provider is hidden from the general model lists, so this button is the sole
- * way to pick it from the RAG config: downloading registers it in `user_model`
- * and selects it. Wraps the shared `local_model.*` IPC the settings cards use.
+ * model, rendered by the RAG config panel and the create-base dialog while no
+ * embedding model is set. The model only enters `user_model` when it is
+ * downloaded, so until then no picker can list it and this button is the sole
+ * way to reach it: downloading registers it and selects it. Wraps the shared
+ * `local_model.*` IPC the settings cards use.
  */
 const LocalEmbeddingDownloadButton = ({ onSelected }: LocalEmbeddingDownloadButtonProps) => {
   const { t } = useTranslation()
-  const { refetch } = useModels()
+  // Must match the query the model pickers use: a bare useModels() warms a
+  // different SWR key, leaving them to render the raw id until reopened.
+  const { refetch } = useModels({ enabled: true })
   const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')
   const [percent, setPercent] = useState(0)
   const mountedRef = useRef(true)

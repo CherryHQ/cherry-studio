@@ -148,7 +148,7 @@ vi.mock('@renderer/components/chat/layout/NarrowLayout', () => ({
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
-  QuickPanelView: () => null,
+  QuickPanelView: () => <div data-testid="quick-panel-view" />,
   useQuickPanel: () => ({
     close: mocks.quickPanelClose,
     dispatchKeyDown: mocks.quickPanelDispatchKeyDown,
@@ -272,10 +272,6 @@ vi.mock('@tiptap/react', () => ({
       />
     </div>
   )
-}))
-
-vi.mock('@renderer/components/SendMessageButton', () => ({
-  default: () => <button type="button">send</button>
 }))
 
 vi.mock('../ComposerToolRuntime', () => ({
@@ -511,13 +507,13 @@ describe('ComposerSurface', () => {
     expect(mocks.editorOptions?.immediatelyRender).toBe(false)
   })
 
-  it('mounts the editor before deferred dynamic controls', () => {
+  it('renders controls immediately while mounting the quick panel after the editor is ready', () => {
+    mocks.stabilizeEditor = true
     const animationFrames: FrameRequestCallback[] = []
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       animationFrames.push(callback)
       return animationFrames.length
     })
-    const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
     const flushAnimationFrame = () => {
       act(() => {
         const callbacks = animationFrames.splice(0)
@@ -529,24 +525,29 @@ describe('ComposerSurface', () => {
       render(
         <ComposerSurface
           {...baseProps}
-          deferDynamicControls
+          quickPanelEnabled
+          deferQuickPanel
           renderLeftControls={() => <button type="button">dynamic control</button>}
         />
       )
 
       expect(screen.getByTestId('editor-content')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
-      expect(document.querySelector('[data-composer-controls-loading]')).toBeInTheDocument()
-
-      flushAnimationFrame()
-      expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
-
-      flushAnimationFrame()
       expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
+      expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
       expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
+
+      act(() => {
+        mocks.editorOptions.onCreate({ editor: mocks.editorInstance })
+      })
+
+      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
+      expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
+
+      flushAnimationFrame()
+      expect(screen.getByTestId('quick-panel-view')).toBeInTheDocument()
     } finally {
       requestAnimationFrameSpy.mockRestore()
-      cancelAnimationFrameSpy.mockRestore()
     }
   })
 
@@ -561,6 +562,30 @@ describe('ComposerSurface', () => {
 
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-narrow-mode', 'true')
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-with-side-padding', 'true')
+  })
+
+  it('exposes stable UI contract anchors', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    const composer = document.querySelector('[data-ui~="chat.composer"]')
+
+    expect(composer).toHaveAttribute('id', 'inputbar')
+    expect(composer?.querySelector('[data-ui~="part:composer-input"]')).not.toBeNull()
+    expect(composer?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute(
+      'data-ui',
+      'chat.composer.action.send'
+    )
+  })
+
+  it('exposes the pause anchor while a response is streaming', () => {
+    render(<ComposerSurface {...baseProps} isLoading sendDisabled />)
+
+    expect(screen.getByRole('button', { name: 'chat.input.pause' })).toHaveAttribute(
+      'data-ui',
+      'chat.composer.action.pause'
+    )
+    expect(screen.queryByRole('button', { name: 'chat.input.send' })).not.toBeInTheDocument()
   })
 
   it('uses the compact single-row presentation when eligible content fits', async () => {
@@ -578,6 +603,7 @@ describe('ComposerSurface', () => {
 
     expect(inputbar?.querySelector('[data-composer-compact-row]')).not.toBeNull()
     expect(inputbar?.querySelector('[data-composer-toolbar]')).toBeNull()
+    expect(inputbar?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'pinned tool' })).toBeInTheDocument()
     expect(screen.getByTestId('editor-content').parentElement).toHaveStyle({ minHeight: '26px' })
     const editorContent = screen.getByTestId('editor-content')
@@ -591,7 +617,7 @@ describe('ComposerSurface', () => {
     const addToolButton = screen.getByRole('button', { name: 'add tool' })
     const pinnedToolButton = screen.getByRole('button', { name: 'pinned tool' })
     const contextUsage = screen.getByLabelText('context usage')
-    const sendButton = screen.getByRole('button', { name: 'send' })
+    const sendButton = screen.getByRole('button', { name: 'chat.input.send' })
     expect(addToolButton.compareDocumentPosition(pinnedToolButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(pinnedToolButton.compareDocumentPosition(contextUsage)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(contextUsage.compareDocumentPosition(sendButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
@@ -867,7 +893,7 @@ describe('ComposerSurface', () => {
     const cornerLine = inputbar?.querySelector('[data-composer-expand-corner-line]') as HTMLElement | null
 
     expect(screen.queryByRole('button', { name: 'translate' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'send' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toBeInTheDocument()
     expect(inputbar).not.toBeNull()
     expect(corner).not.toBeNull()
     expect(resizeHandle.closest('#inputbar')).toBe(inputbar)

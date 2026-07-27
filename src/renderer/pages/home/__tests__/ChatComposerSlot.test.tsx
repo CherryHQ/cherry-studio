@@ -9,33 +9,15 @@ import ChatComposerSlot from '../ChatComposerSlot'
 const chatPlacementProps = vi.hoisted(() => ({ current: null as any }))
 
 vi.mock('@renderer/components/composer/ConversationComposerSlot', () => ({
-  default: ({
-    composerContext,
-    fallback,
-    forceNarrowLayout
-  }: {
-    composerContext?: ComposerContextValue
-    fallback?: ReactNode
-    forceNarrowLayout?: boolean
-  }) => {
+  default: ({ composerContext, fallback }: { composerContext?: ComposerContextValue; fallback?: ReactNode }) => {
     let activeOverride: NonNullable<ComposerContextValue['overrides']>[number] | undefined
     for (const candidate of composerContext?.overrides ?? []) {
       if (!activeOverride || (candidate.priority ?? 0) > (activeOverride.priority ?? 0)) {
         activeOverride = candidate
       }
     }
-    return (
-      <div data-testid="conversation-composer-slot" data-force-narrow-layout={forceNarrowLayout || undefined}>
-        {activeOverride ? activeOverride.render({}) : fallback}
-      </div>
-    )
+    return <div data-testid="conversation-composer-slot">{activeOverride ? activeOverride.render({}) : fallback}</div>
   }
-}))
-
-vi.mock('@renderer/components/composer/ConversationComposerLoading', () => ({
-  default: ({ forceNarrowLayout }: { forceNarrowLayout?: boolean }) => (
-    <div data-force-narrow-layout={forceNarrowLayout || undefined} data-testid="conversation-composer-loading" />
-  )
 }))
 
 // The real fallback composer pulls in the whole input toolbar; swap it for a
@@ -70,7 +52,8 @@ const topic = { id: 'topic-1' } as Topic
 const baseProps = {
   placement: 'docked' as const,
   topic,
-  onSend: vi.fn()
+  onSend: vi.fn(),
+  captureLocalSendScrollEligibility: vi.fn()
 }
 
 describe('ChatComposerSlot', () => {
@@ -96,6 +79,7 @@ describe('ChatComposerSlot', () => {
         resolvedContext: assistantContext,
         resolvedProviders: providers,
         externalContextControls: true,
+        captureLocalSendScrollEligibility: baseProps.captureLocalSendScrollEligibility,
         onConversationControlsChange
       })
     )
@@ -117,20 +101,14 @@ describe('ChatComposerSlot', () => {
     const composer = await screen.findByTestId('chat-fallback-composer')
     expect(composer).toHaveAttribute('data-placement', 'home')
     expect(composer).not.toBeDisabled()
-    expect(screen.getByTestId('conversation-composer-slot')).toHaveAttribute('data-force-narrow-layout', 'true')
   })
 
-  it('lets docked loading follow the global width preference', () => {
-    render(<ChatComposerSlot {...baseProps} composerContext={{ overrides: [] }} />)
+  it('mounts the composer while the page-owned assistant context is loading', async () => {
+    const assistantContext = { isLoading: true, isModelPending: true } as any
+    render(<ChatComposerSlot {...baseProps} assistantContext={assistantContext} composerContext={{ overrides: [] }} />)
 
-    expect(screen.getByTestId('conversation-composer-slot')).not.toHaveAttribute('data-force-narrow-layout')
-  })
-
-  it('waits for the page-owned assistant context before mounting the composer', () => {
-    render(<ChatComposerSlot {...baseProps} assistantContextLoading composerContext={{ overrides: [] }} />)
-
-    expect(screen.getByTestId('conversation-composer-loading')).toBeInTheDocument()
-    expect(screen.queryByTestId('chat-fallback-composer')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('chat-fallback-composer')).toBeInTheDocument()
+    expect(chatPlacementProps.current?.resolvedContext).toBe(assistantContext)
   })
 
   it('surfaces an active composer override (tool-approval card) in place of the input', () => {
