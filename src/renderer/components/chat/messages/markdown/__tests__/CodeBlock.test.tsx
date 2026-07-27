@@ -308,6 +308,7 @@ describe('CodeBlock', () => {
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
       expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
         expect.objectContaining({
+          artifactId: 'test-msg-block-id:test-code-block-id',
           editable: true,
           html: '<h1>Hello</h1>',
           kind: 'fragment',

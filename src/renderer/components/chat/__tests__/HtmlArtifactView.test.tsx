@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode, Ref, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { HtmlArtifactView } from '../HtmlArtifactView'
+import { HtmlArtifactPopupHost, HtmlArtifactView } from '../HtmlArtifactView'
 
 const mocks = vi.hoisted(() => ({
   createTempFile: vi.fn(),
@@ -17,16 +17,29 @@ const mocks = vi.hoisted(() => ({
   HtmlArtifactsPopup: vi.fn(
     ({
       open,
+      html,
+      onSave,
       renderPreview,
       onClose
     }: {
       open: boolean
+      html: string
+      onSave?: (html: string) => void
       renderPreview?: (iframeRef: RefObject<HTMLIFrameElement | null>) => ReactNode
       onClose: () => void
     }) =>
       open ? (
         <div data-testid="html-artifacts-popup">
           {renderPreview?.({ current: null })}
+          {onSave ? (
+            <button
+              type="button"
+              data-testid="html-artifacts-popup-save"
+              onClick={() => onSave('<script>updated()</script>')}>
+              Save
+            </button>
+          ) : null}
+          <span data-testid="html-artifacts-popup-html">{html}</span>
           <button type="button" data-testid="html-artifacts-popup-close" onClick={onClose}>
             Close
           </button>
@@ -253,6 +266,80 @@ describe('HtmlArtifactView', () => {
     )
   })
 
+  it('keeps the popup open and requires consent again when changed interactive HTML is written back', async () => {
+    const html = '<script>original()</script>'
+    const updatedHtml = '<script>updated()</script>'
+    const onSave = vi.fn()
+    const { rerender } = render(
+      <HtmlArtifactPopupHost>
+        <HtmlArtifactView
+          key="before-save"
+          artifactId="artifact"
+          html={html}
+          title="Preview"
+          onSave={onSave}
+          editable
+        />
+      </HtmlArtifactPopupHost>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('html-artifacts-popup-save'))
+
+    expect(onSave).toHaveBeenCalledWith(updatedHtml)
+    expect(screen.getByTestId('html-artifacts-popup')).toBeInTheDocument()
+    expect(screen.getByTestId('html-artifacts-popup-html')).toHaveTextContent(html)
+
+    rerender(
+      <HtmlArtifactPopupHost>
+        <HtmlArtifactView
+          key="after-save"
+          artifactId="artifact"
+          html={updatedHtml}
+          title="Preview"
+          onSave={onSave}
+          editable
+        />
+      </HtmlArtifactPopupHost>
+    )
+
+    expect(screen.getByTestId('html-artifacts-popup')).toBeInTheDocument()
+    expect(screen.getByTestId('html-artifacts-popup-html')).toHaveTextContent(updatedHtml)
+    expect(screen.getByTestId('html-artifact-consent-card')).toBeInTheDocument()
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
+
+    expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('html-artifacts-popup-close'))
+
+    expect(screen.queryByTestId('html-artifacts-popup')).not.toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+  })
+
+  it('keeps the existing approval when a popup save is not written back', async () => {
+    const html = '<script>original()</script>'
+    const onSave = vi.fn()
+
+    render(<HtmlArtifactView html={html} title="Preview" onSave={onSave} editable />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('html-artifacts-popup-save'))
+    fireEvent.click(screen.getByTestId('html-artifacts-popup-close'))
+
+    expect(onSave).toHaveBeenCalledWith('<script>updated()</script>')
+    expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+  })
+
   it('installs the guest bridge before page scripts and accepts only trusted wheel events', () => {
     const html = '<script>console.debug = () => {}; window.pageScriptRan = true</script>'
 
@@ -268,6 +355,9 @@ describe('HtmlArtifactView', () => {
     )
     expect(instrumentedHtml).toContain('document.currentScript?.remove()')
     expect(instrumentedHtml).toContain('!event.isTrusted')
+    expect(instrumentedHtml).toContain('const scrollActivationDelay = 300')
+    expect(instrumentedHtml).toContain('event.preventDefault()')
+    expect(instrumentedHtml).toContain('passive: false')
   })
 
   it('renders static inline HTML immediately in the restricted iframe', () => {
@@ -466,6 +556,51 @@ describe('HtmlArtifactView', () => {
     frameDocument.body.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true }))
 
     expect(scrollerWheels).toEqual([-120])
+  })
+
+  it('delays iframe scrolling after hover and locks it again on mouse leave', () => {
+    vi.useFakeTimers()
+
+    try {
+      const { container } = render(
+        <div data-message-virtual-list-scroller>
+          <HtmlArtifactView html="<main>Page</main>" title="Preview" />
+        </div>
+      )
+      const scroller = container.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
+      if (!scroller) throw new Error('Expected scroller')
+      const scrollBy = vi.fn()
+      scroller.scrollBy = scrollBy
+
+      const viewport = screen.getByTestId('adaptive-html-preview')
+      const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+      fireEvent.load(iframe)
+      const frameDocument = iframe.contentDocument
+      if (!frameDocument) throw new Error('Expected iframe document')
+
+      fireEvent.mouseEnter(viewport)
+      const lockedWheel = new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true })
+      frameDocument.body.dispatchEvent(lockedWheel)
+
+      expect(lockedWheel.defaultPrevented).toBe(true)
+      expect(scrollBy).toHaveBeenLastCalledWith({ top: 120 })
+
+      void act(() => vi.advanceTimersByTime(300))
+      const activeWheel = new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true })
+      frameDocument.body.dispatchEvent(activeWheel)
+
+      expect(activeWheel.defaultPrevented).toBe(false)
+      expect(scrollBy).toHaveBeenCalledTimes(1)
+
+      fireEvent.mouseLeave(viewport)
+      const relockedWheel = new WheelEvent('wheel', { deltaY: -120, bubbles: true, cancelable: true })
+      frameDocument.body.dispatchEvent(relockedWheel)
+
+      expect(relockedWheel.defaultPrevented).toBe(true)
+      expect(scrollBy).toHaveBeenLastCalledWith({ top: -120 })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('survives an iframe preview rendered outside any message scroller', () => {

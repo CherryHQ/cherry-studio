@@ -116,6 +116,7 @@ const CodeBlock: React.FC<Props> = ({
 
           return (
             <MessageHtmlArtifact
+              artifactId={`${blockId}:${id}`}
               html={children}
               onSave={handleSave}
               editable={canSaveCodeBlock}

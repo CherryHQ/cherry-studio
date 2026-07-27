@@ -5,6 +5,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface MessageHtmlArtifactProps {
+  artifactId: string
   html: string
   onSave?: (html: string) => void
   editable?: boolean
@@ -14,6 +15,7 @@ interface MessageHtmlArtifactProps {
 }
 
 export const MessageHtmlArtifact = memo(function MessageHtmlArtifact({
+  artifactId,
   html,
   onSave,
   editable = false,
@@ -28,6 +30,7 @@ export const MessageHtmlArtifact = memo(function MessageHtmlArtifact({
       data-testid="message-html-artifact"
       className="message-html-artifact special-preview mt-0 mb-2.5 w-full min-w-0 max-w-full">
       <HtmlArtifactView
+        artifactId={artifactId}
         html={html}
         title={extractHtmlTitle(html) || t('common.html_preview')}
         onSave={onSave}

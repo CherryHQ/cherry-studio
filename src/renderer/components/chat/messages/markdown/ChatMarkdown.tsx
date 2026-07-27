@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 import type { Pluggable } from 'unified'
 
+import { HtmlArtifactPopupHost } from '../../HtmlArtifactView'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
 import { useChatMarkdownComponents } from './useChatMarkdownComponents'
 
@@ -67,21 +68,18 @@ const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, cl
 
   // Keep the renderer type stable when an active text tail is sealed by a
   // later process part. Historical markdown still mounts the static renderer.
-  if (hasStreamedRef.current) {
-    return (
-      <StreamingMarkdown
-        id={block.id}
-        plugins={plugins}
-        remarkPlugins={remarkPlugins}
-        components={mergedComponents}
-        footnoteLabel={footnoteLabel}
-        animated={isStreaming ? undefined : false}
-        parseIncompleteMarkdown={isStreaming}>
-        {content}
-      </StreamingMarkdown>
-    )
-  }
-  return (
+  const renderer = hasStreamedRef.current ? (
+    <StreamingMarkdown
+      id={block.id}
+      plugins={plugins}
+      remarkPlugins={remarkPlugins}
+      components={mergedComponents}
+      footnoteLabel={footnoteLabel}
+      animated={isStreaming ? undefined : false}
+      parseIncompleteMarkdown={isStreaming}>
+      {content}
+    </StreamingMarkdown>
+  ) : (
     <Markdown
       id={block.id}
       plugins={plugins}
@@ -92,6 +90,8 @@ const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, cl
       {content}
     </Markdown>
   )
+
+  return inlineHtmlPreviewMode ? <HtmlArtifactPopupHost>{renderer}</HtmlArtifactPopupHost> : renderer
 }
 
 export default ChatMarkdown

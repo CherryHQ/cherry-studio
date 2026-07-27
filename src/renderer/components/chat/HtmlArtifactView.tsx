@@ -16,10 +16,14 @@ import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION 
 import type { ConsoleMessageEvent, WebviewTag } from 'electron'
 import { Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
 import {
+  createContext,
   lazy,
   memo,
+  type ReactNode,
   type RefObject,
   Suspense,
+  use,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -41,8 +45,11 @@ const INITIAL_PREVIEW_HEIGHT = 240
 const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
 const MAX_STREAMING_PREVIEW_HEIGHT = 350
 const STREAMING_PREVIEW_REFRESH_MS = 250
+const SCROLL_ACTIVATION_DELAY_MS = 300
 
 interface HtmlArtifactViewProps {
+  /** Stable Markdown-node identity used only to preserve an open popup across renderer remounts. */
+  artifactId?: string
   html: string
   title: string
   onSave?: (html: string) => void
@@ -58,6 +65,37 @@ interface HtmlArtifactViewProps {
   isStreaming?: boolean
 }
 
+interface HtmlArtifactPopupSession {
+  artifactId: string
+  html: string
+  title: string
+  onSave?: (html: string) => void
+  editable: boolean
+  kind: HtmlArtifactKind
+  zoom: number
+}
+
+type HtmlArtifactPopupUpdate = Omit<HtmlArtifactPopupSession, 'zoom'>
+
+interface HtmlArtifactPopupContextValue {
+  approvedInteractiveHtmlById: Readonly<Record<string, string>>
+  popupSession: HtmlArtifactPopupSession | null
+  approveInteractiveHtml: (artifactId: string, html: string) => void
+  openPopup: (session: HtmlArtifactPopupSession) => void
+  syncPopup: (update: HtmlArtifactPopupUpdate) => void
+  closePopup: () => void
+}
+
+const HtmlArtifactPopupContext = createContext<HtmlArtifactPopupContextValue | null>(null)
+
+function useHtmlArtifactPopupContext(): HtmlArtifactPopupContextValue {
+  const popupContext = use(HtmlArtifactPopupContext)
+  if (!popupContext) {
+    throw new Error('HTML artifact popup components must be rendered within HtmlArtifactPopupHost')
+  }
+  return popupContext
+}
+
 type HtmlArtifactBridgeMessage =
   | { type: 'height'; value: number }
   | {
@@ -65,7 +103,7 @@ type HtmlArtifactBridgeMessage =
       value: number
     }
 
-function getHtmlArtifactBridgeScript(messagePrefix: string): string {
+function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDelay: number): string {
   return `(() => {
     const sendConsoleMessage = console.debug.bind(console)
     document.currentScript?.remove()
@@ -91,8 +129,31 @@ function getHtmlArtifactBridgeScript(messagePrefix: string): string {
       if (deltaY < 0) return element.scrollTop > 0
       return element.scrollTop + element.clientHeight < element.scrollHeight - 1
     }
+    const scrollActivationDelay = ${scrollActivationDelay}
+    let isScrollActive = true
+    let scrollActivationTimer = null
+    const lockScroll = () => {
+      if (scrollActivationTimer !== null) {
+        clearTimeout(scrollActivationTimer)
+        scrollActivationTimer = null
+      }
+      isScrollActive = false
+    }
+    const scheduleScrollActivation = () => {
+      if (scrollActivationDelay === 0) return
+      lockScroll()
+      scrollActivationTimer = setTimeout(() => {
+        scrollActivationTimer = null
+        isScrollActive = true
+      }, scrollActivationDelay)
+    }
     const handleWheel = (event) => {
       if (!event.isTrusted || !Number.isFinite(event.deltaY) || event.deltaY === 0) return
+      if (!isScrollActive) {
+        event.preventDefault()
+        send('wheel', event.deltaY)
+        return
+      }
 
       let element = event.target instanceof Element ? event.target : event.target?.parentElement
       while (element && element !== document.documentElement) {
@@ -111,7 +172,12 @@ function getHtmlArtifactBridgeScript(messagePrefix: string): string {
     }
     window.addEventListener('load', reportHeight, true)
     window.addEventListener('resize', reportHeight)
-    window.addEventListener('wheel', handleWheel, true)
+    window.addEventListener('wheel', handleWheel, { capture: true, passive: false })
+    if (scrollActivationDelay > 0) {
+      document.documentElement.addEventListener('mouseenter', scheduleScrollActivation)
+      document.documentElement.addEventListener('mouseleave', lockScroll)
+      if (document.documentElement.matches(':hover')) scheduleScrollActivation()
+    }
     reportHeight()
   })()`
 }
@@ -192,6 +258,55 @@ function replayWheelIntentOnScroller(viewport: HTMLElement, deltaY: number): voi
   scroller.dispatchEvent(new view.WheelEvent('wheel', { deltaY, bubbles: true }))
 }
 
+function forwardWheelToPage(viewport: HTMLElement, deltaY: number): void {
+  const boundedDeltaY = Math.max(-200, Math.min(200, deltaY))
+  const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
+  if (scroller) {
+    // Must precede the write: an unannounced `scrollBy` reads as drift and gets undone.
+    replayWheelIntentOnScroller(viewport, boundedDeltaY)
+    scroller.scrollBy({ top: boundedDeltaY })
+  } else {
+    window.scrollBy({ top: boundedDeltaY })
+  }
+}
+
+function useDelayedScrollActivation<T extends HTMLElement>(viewportRef: RefObject<T | null>) {
+  const isScrollActiveRef = useRef(true)
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+
+    let activationTimer: ReturnType<typeof setTimeout> | undefined
+    const lockScroll = () => {
+      if (activationTimer !== undefined) {
+        clearTimeout(activationTimer)
+        activationTimer = undefined
+      }
+      isScrollActiveRef.current = false
+    }
+    const scheduleScrollActivation = () => {
+      lockScroll()
+      activationTimer = setTimeout(() => {
+        activationTimer = undefined
+        isScrollActiveRef.current = true
+      }, SCROLL_ACTIVATION_DELAY_MS)
+    }
+
+    viewport.addEventListener('mouseenter', scheduleScrollActivation)
+    viewport.addEventListener('mouseleave', lockScroll)
+    if (viewport.matches(':hover')) scheduleScrollActivation()
+
+    return () => {
+      viewport.removeEventListener('mouseenter', scheduleScrollActivation)
+      viewport.removeEventListener('mouseleave', lockScroll)
+      if (activationTimer !== undefined) clearTimeout(activationTimer)
+    }
+  }, [viewportRef])
+
+  return isScrollActiveRef
+}
+
 function getMaxPreviewHeight(viewport: HTMLElement): number {
   const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
   const scrollerHeight = scroller ? Math.max(scroller.clientHeight, scroller.getBoundingClientRect().height) : 0
@@ -241,6 +356,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const isScrollActiveRef = useDelayedScrollActivation(viewportRef)
   const zoomScale = zoom / 100
 
   useLayoutEffect(() => {
@@ -262,7 +378,14 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
     }
 
     const forwardWheelIntent = (event: Event) => {
-      replayWheelIntentOnScroller(viewport, (event as WheelEvent).deltaY)
+      const wheelEvent = event as WheelEvent
+      if (!isScrollActiveRef.current) {
+        wheelEvent.preventDefault()
+        forwardWheelToPage(viewport, wheelEvent.deltaY)
+        return
+      }
+
+      replayWheelIntentOnScroller(viewport, wheelEvent.deltaY)
     }
 
     const observeDocument = () => {
@@ -277,7 +400,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       observedDocument = frameDocument
 
       // Capture phase: the frame's own content must not be able to swallow the signal.
-      frameDocument.addEventListener('wheel', forwardWheelIntent, true)
+      frameDocument.addEventListener('wheel', forwardWheelIntent, { capture: true, passive: false })
 
       syncHeight()
 
@@ -321,7 +444,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       iframe.removeEventListener('load', observeDocument)
       window.removeEventListener('resize', syncHeight)
     }
-  }, [html, onHeightChange, zoomScale])
+  }, [html, isScrollActiveRef, onHeightChange, zoomScale])
 
   return (
     <div ref={viewportRef} data-testid="adaptive-html-preview" className="relative h-full w-full overflow-hidden">
@@ -399,10 +522,11 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   const zoomScale = zoom / 100
   const [messagePrefix] = useState(() => `__cherry_html_artifact_${crypto.randomUUID()}:`)
   const src = useMemo(() => {
-    const bridgeScript = `<script>${getHtmlArtifactBridgeScript(messagePrefix)}</script>`
+    const scrollActivationDelay = forwardBoundaryWheel ? SCROLL_ACTIVATION_DELAY_MS : 0
+    const bridgeScript = `<script>${getHtmlArtifactBridgeScript(messagePrefix, scrollActivationDelay)}</script>`
     const instrumentedHtml = injectHtmlPreviewHeadElement(html, bridgeScript)
     return `${HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX}${encodeURIComponent(instrumentedHtml)}`
-  }, [html, messagePrefix])
+  }, [forwardBoundaryWheel, html, messagePrefix])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -424,15 +548,7 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
 
       if (!forwardBoundaryWheel) return
 
-      const deltaY = Math.max(-200, Math.min(200, message.value))
-      const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
-      if (scroller) {
-        // Must precede the write: an unannounced `scrollBy` reads as drift and gets undone.
-        replayWheelIntentOnScroller(viewport, deltaY)
-        scroller.scrollBy({ top: deltaY })
-      } else {
-        window.scrollBy({ top: deltaY })
-      }
+      forwardWheelToPage(viewport, message.value)
     }
 
     webview.addEventListener('console-message', handleConsoleMessage)
@@ -518,26 +634,128 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
   )
 })
 
-export const HtmlArtifactView = memo(function HtmlArtifactView({
+function HtmlArtifactPopupOutlet() {
+  const popupContext = useHtmlArtifactPopupContext()
+  const { t } = useTranslation()
+  const popupSession = popupContext.popupSession
+  if (!popupSession) return null
+
+  const requiresUserConsent = popupSession.kind === 'document' && htmlArtifactRequiresUserConsent(popupSession.html)
+  const isPreviewBlocked =
+    requiresUserConsent && popupContext.approvedInteractiveHtmlById[popupSession.artifactId] !== popupSession.html
+
+  return (
+    <Suspense fallback={null}>
+      <HtmlArtifactsPopup
+        open
+        title={popupSession.title}
+        html={popupSession.html}
+        onSave={popupSession.onSave}
+        editable={popupSession.editable}
+        canCapturePreview={!requiresUserConsent}
+        renderPreview={(iframeRef) =>
+          isPreviewBlocked ? (
+            <div className="flex h-full w-full items-center justify-center p-6">
+              <HtmlArtifactConsentCard
+                title={popupSession.title}
+                description={t('html_artifacts.interactive_preview.description')}
+                actionLabel={t('html_artifacts.interactive_preview.action')}
+                onAccept={() => popupContext.approveInteractiveHtml(popupSession.artifactId, popupSession.html)}
+              />
+            </div>
+          ) : requiresUserConsent ? (
+            <InteractiveHtmlPreview
+              html={popupSession.html}
+              title={popupSession.title}
+              zoom={popupSession.zoom}
+              forwardBoundaryWheel={false}
+            />
+          ) : (
+            <StaticHtmlPopupPreview
+              html={popupSession.html}
+              title={popupSession.title}
+              zoom={popupSession.zoom}
+              iframeRef={iframeRef}
+            />
+          )
+        }
+        onClose={popupContext.closePopup}
+      />
+    </Suspense>
+  )
+}
+
+export function HtmlArtifactPopupHost({ children }: { children: ReactNode }) {
+  const [approvedInteractiveHtmlById, setApprovedInteractiveHtmlById] = useState<Record<string, string>>({})
+  const [popupSession, setPopupSession] = useState<HtmlArtifactPopupSession | null>(null)
+  const approveInteractiveHtml = useCallback((artifactId: string, html: string) => {
+    setApprovedInteractiveHtmlById((current) =>
+      current[artifactId] === html ? current : { ...current, [artifactId]: html }
+    )
+  }, [])
+  const openPopup = useCallback((session: HtmlArtifactPopupSession) => {
+    setPopupSession(session)
+  }, [])
+  const syncPopup = useCallback((update: HtmlArtifactPopupUpdate) => {
+    setPopupSession((current) => {
+      if (!current || current.artifactId !== update.artifactId) return current
+      if (
+        current.html === update.html &&
+        current.title === update.title &&
+        current.onSave === update.onSave &&
+        current.editable === update.editable &&
+        current.kind === update.kind
+      ) {
+        return current
+      }
+      return { ...current, ...update }
+    })
+  }, [])
+  const closePopup = useCallback(() => {
+    setPopupSession(null)
+  }, [])
+  const contextValue = useMemo<HtmlArtifactPopupContextValue>(
+    () => ({
+      approvedInteractiveHtmlById,
+      popupSession,
+      approveInteractiveHtml,
+      openPopup,
+      syncPopup,
+      closePopup
+    }),
+    [approvedInteractiveHtmlById, approveInteractiveHtml, closePopup, openPopup, popupSession, syncPopup]
+  )
+
+  return (
+    <HtmlArtifactPopupContext value={contextValue}>
+      {children}
+      <HtmlArtifactPopupOutlet />
+    </HtmlArtifactPopupContext>
+  )
+}
+
+const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
+  artifactId,
   html,
   title,
   onSave,
   editable = false,
   kind = 'document',
   isStreaming = false
-}: HtmlArtifactViewProps) {
+}: HtmlArtifactViewProps & { artifactId: string }) {
   const { t } = useTranslation()
+  const popupContext = useHtmlArtifactPopupContext()
+  const { syncPopup } = popupContext
   const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview')
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [previewHeight, setPreviewHeight] = useState(INITIAL_PREVIEW_HEIGHT)
-  const [approvedInteractiveHtml, setApprovedInteractiveHtml] = useState<string | null>(null)
-  const [popupHtml, setPopupHtml] = useState<string | null>(null)
   const hasContent = html.trim().length > 0
   const previewHtml = useStreamingPacedHtml(html, isStreaming)
   const requiresUserConsent = useMemo(() => kind === 'document' && htmlArtifactRequiresUserConsent(html), [html, kind])
+  const approvedInteractiveHtml = popupContext.approvedInteractiveHtmlById[artifactId]
   const isInteractivePreviewApproved = requiresUserConsent && approvedInteractiveHtml === html
   const isPreviewBlocked = requiresUserConsent && !isInteractivePreviewApproved
-  const isPopupOpen = !isStreaming && popupHtml === html && !isPreviewBlocked
+  const isPopupOpen = !isStreaming && popupContext.popupSession?.artifactId === artifactId
   const showCode = !isStreaming && viewMode === 'code'
   const completedSurfaceHeight = showCode ? Math.max(INITIAL_PREVIEW_HEIGHT, previewHeight) : previewHeight
   const surfaceHeight = isStreaming
@@ -557,9 +775,19 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({
     setZoom(DEFAULT_ZOOM)
   }
   const handleApproveInteractivePreview = () => {
-    setApprovedInteractiveHtml(html)
+    popupContext.approveInteractiveHtml(artifactId, html)
     setViewMode('preview')
-    setPopupHtml(null)
+  }
+  const handleOpenPopup = () => {
+    popupContext.openPopup({
+      artifactId,
+      html,
+      title,
+      onSave,
+      editable,
+      kind,
+      zoom
+    })
   }
   const handleOpenExternal = async () => {
     try {
@@ -584,7 +812,18 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({
     }
   }
 
-  if (isPreviewBlocked) {
+  useLayoutEffect(() => {
+    syncPopup({
+      artifactId,
+      html,
+      title,
+      onSave,
+      editable,
+      kind
+    })
+  }, [artifactId, editable, html, kind, onSave, syncPopup, title])
+
+  if (isPreviewBlocked && !isPopupOpen) {
     return (
       <div data-testid="html-artifact-view" className="w-full">
         <HtmlArtifactConsentCard
@@ -697,7 +936,7 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({
                     size="icon-sm"
                     className="size-6"
                     aria-label={t('common.maximize')}
-                    onClick={() => setPopupHtml(html)}>
+                    onClick={handleOpenPopup}>
                     <Maximize2 className="size-3" />
                   </Button>
                 </Tooltip>
@@ -719,27 +958,20 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({
           </div>
         </div>
       ) : null}
-
-      {isPopupOpen ? (
-        <Suspense fallback={null}>
-          <HtmlArtifactsPopup
-            open={isPopupOpen}
-            title={title}
-            html={html}
-            onSave={onSave}
-            editable={editable}
-            canCapturePreview={!requiresUserConsent}
-            renderPreview={(iframeRef) =>
-              requiresUserConsent ? (
-                <InteractiveHtmlPreview html={html} title={title} zoom={zoom} forwardBoundaryWheel={false} />
-              ) : (
-                <StaticHtmlPopupPreview html={html} title={title} zoom={zoom} iframeRef={iframeRef} />
-              )
-            }
-            onClose={() => setPopupHtml(null)}
-          />
-        </Suspense>
-      ) : null}
     </div>
+  )
+})
+
+export const HtmlArtifactView = memo(function HtmlArtifactView(props: HtmlArtifactViewProps) {
+  const popupContext = use(HtmlArtifactPopupContext)
+  const generatedArtifactId = useId()
+  const artifactId = props.artifactId ?? generatedArtifactId
+
+  return popupContext ? (
+    <HtmlArtifactViewContent {...props} artifactId={artifactId} />
+  ) : (
+    <HtmlArtifactPopupHost>
+      <HtmlArtifactViewContent {...props} artifactId={artifactId} />
+    </HtmlArtifactPopupHost>
   )
 })
