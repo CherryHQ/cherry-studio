@@ -32,10 +32,13 @@ const mocks = vi.hoisted(() => {
         </button>
       </div>
     )),
-    MessageHtmlArtifact: vi.fn(({ html, isStreaming }) => (
+    MessageHtmlArtifact: vi.fn(({ html, onSave, editable, isStreaming }) => (
       <div data-testid="message-html-artifact">
         <span>{html}</span>
         <span data-testid="message-html-streaming-state">{String(isStreaming)}</span>
+        <button type="button" disabled={!editable} onClick={() => onSave('new inline html content')}>
+          Save Inline HTML
+        </button>
       </div>
     ))
   }
@@ -304,7 +307,13 @@ describe('CodeBlock', () => {
 
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
       expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
-        expect.objectContaining({ html: '<h1>Hello</h1>', kind: 'fragment', isStreaming: false }),
+        expect.objectContaining({
+          editable: true,
+          html: '<h1>Hello</h1>',
+          kind: 'fragment',
+          isStreaming: false,
+          onSave: expect.any(Function)
+        }),
         undefined
       )
     })
@@ -375,6 +384,25 @@ describe('CodeBlock', () => {
         msgBlockId: 'test-msg-block-id',
         codeBlockId: 'test-code-block-id',
         newContent: 'new html content'
+      })
+    })
+
+    it('should call saveCodeBlock when saving an inline HTML artifact', () => {
+      render(
+        <CodeBlock
+          {...defaultProps}
+          className="language-html"
+          children="<h1>Hello</h1>"
+          inlineHtmlPreviewMode="ready"
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save Inline HTML' }))
+
+      expect(mocks.saveCodeBlock).toHaveBeenCalledWith({
+        msgBlockId: 'test-msg-block-id',
+        codeBlockId: 'test-code-block-id',
+        newContent: 'new inline html content'
       })
     })
 

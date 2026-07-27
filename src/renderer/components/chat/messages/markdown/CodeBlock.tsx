@@ -115,7 +115,13 @@ const CodeBlock: React.FC<Props> = ({
           }
 
           return (
-            <MessageHtmlArtifact html={children} kind={htmlKind ?? 'fragment'} isStreaming={isHtmlArtifactStreaming} />
+            <MessageHtmlArtifact
+              html={children}
+              onSave={handleSave}
+              editable={canSaveCodeBlock}
+              kind={htmlKind ?? 'fragment'}
+              isStreaming={isHtmlArtifactStreaming}
+            />
           )
         }
 

@@ -14,7 +14,7 @@ import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { htmlArtifactRequiresUserConsent } from '@renderer/utils/htmlArtifact'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import type { ConsoleMessageEvent, WebviewTag } from 'electron'
-import { Code2, DownloadIcon, Eye, LinkIcon, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
+import { Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   lazy,
   memo,
@@ -45,6 +45,8 @@ const STREAMING_PREVIEW_REFRESH_MS = 250
 interface HtmlArtifactViewProps {
   html: string
   title: string
+  onSave?: (html: string) => void
+  editable?: boolean
   /**
    * Drives the safety gate: only a whole `document` can be promoted to an interactive webview,
    * and only after consent. A `fragment` embedded in prose always stays in the script-less
@@ -486,42 +488,41 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
   const descriptionId = useId()
 
   return (
-    <div
-      data-testid="html-artifact-consent-card"
-      className="flex w-full max-w-xl items-center overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle font-[var(--font-family-body)]">
-      <div className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
-          <Icon icon="material-icon-theme:html" className="text-[20px]" />
+    <Tooltip content={description} delay={300} fullWidthTrigger>
+      <Button
+        type="button"
+        variant="ghost"
+        data-testid="html-artifact-consent-card"
+        className="h-auto w-full max-w-xl justify-start gap-0 overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle p-0 font-[var(--font-family-body)] text-foreground hover:bg-accent"
+        aria-label={actionLabel}
+        aria-describedby={descriptionId}
+        onClick={onAccept}>
+        <span className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
+            <Icon icon="material-icon-theme:html" className="text-[20px]" />
+          </span>
+          <span className="truncate font-medium text-[13px] text-foreground leading-5">{title}</span>
+          <span className="shrink-0 rounded-sm bg-background px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground leading-4">
+            HTML
+          </span>
         </span>
-        <span className="truncate font-medium text-[13px] text-foreground leading-5">{title}</span>
-        <span className="shrink-0 rounded-sm bg-background px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground leading-4">
-          HTML
+        <span className="mr-2 flex shrink-0 items-center gap-1.5 px-2 text-muted-foreground">
+          <ShieldAlert className="lucide-custom size-3.5 text-warning" />
+          {actionLabel}
         </span>
-      </div>
-      <div className="mr-2 flex shrink-0 items-center gap-0.5">
-        <Tooltip content={description} delay={300}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 min-h-7 shrink-0 px-2 text-muted-foreground opacity-70 hover:bg-background hover:text-foreground hover:opacity-100"
-            aria-describedby={descriptionId}
-            onClick={onAccept}>
-            <ShieldAlert className="size-3.5" />
-            {actionLabel}
-          </Button>
-        </Tooltip>
         <span id={descriptionId} className="sr-only">
           {description}
         </span>
-      </div>
-    </div>
+      </Button>
+    </Tooltip>
   )
 })
 
 export const HtmlArtifactView = memo(function HtmlArtifactView({
   html,
   title,
+  onSave,
+  editable = false,
   kind = 'document',
   isStreaming = false
 }: HtmlArtifactViewProps) {
@@ -673,7 +674,7 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({
                   aria-label={t('chat.artifacts.button.openExternal')}
                   disabled={!hasContent}
                   onClick={handleOpenExternal}>
-                  <LinkIcon className="size-3" />
+                  <Compass className="size-3" />
                 </Button>
               </Tooltip>
               <Tooltip content={t('code_block.download.label')} delay={500}>
@@ -725,7 +726,8 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({
             open={isPopupOpen}
             title={title}
             html={html}
-            editable={false}
+            onSave={onSave}
+            editable={editable}
             canCapturePreview={!requiresUserConsent}
             renderPreview={(iframeRef) =>
               requiresUserConsent ? (

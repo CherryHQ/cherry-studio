@@ -170,7 +170,11 @@ describe('HtmlArtifactView', () => {
 
     render(<HtmlArtifactView html={html} title="Preview" />)
 
-    expect(screen.getByTestId('html-artifact-consent-card')).toHaveClass('font-[var(--font-family-body)]')
+    const consentCard = screen.getByTestId('html-artifact-consent-card')
+    expect(consentCard).toHaveClass('font-[var(--font-family-body)]')
+    expect(consentCard.tagName).toBe('BUTTON')
+    expect(consentCard).toHaveAccessibleName('html_artifacts.interactive_preview.action')
+    expect(consentCard.querySelector('.lucide-shield-alert')).toHaveClass('lucide-custom', 'text-warning')
     expect(screen.getByText('Preview')).toBeInTheDocument()
     expect(screen.getByText('html_artifacts.interactive_preview.description')).toHaveClass('sr-only')
     expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
@@ -218,8 +222,9 @@ describe('HtmlArtifactView', () => {
 
   it('opens static HTML in the existing artifacts popup with a restricted iframe', async () => {
     const html = '<main><style>h1 { color: red; }</style><h1>Hello</h1></main>'
+    const onSave = vi.fn()
 
-    render(<HtmlArtifactView html={html} title="Preview" />)
+    render(<HtmlArtifactView html={html} title="Preview" onSave={onSave} editable />)
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
@@ -238,8 +243,9 @@ describe('HtmlArtifactView', () => {
     expect(mocks.HtmlArtifactsPopup).toHaveBeenLastCalledWith(
       expect.objectContaining({
         canCapturePreview: true,
-        editable: false,
+        editable: true,
         html,
+        onSave,
         open: true,
         title: 'Preview'
       }),

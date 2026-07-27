@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { MessageHtmlArtifact } from '../MessageHtmlArtifact'
@@ -7,16 +7,28 @@ vi.mock('@renderer/components/chat/HtmlArtifactView', () => ({
   HtmlArtifactView: ({
     html,
     title,
+    onSave,
+    editable,
     kind,
     isStreaming
   }: {
     html: string
     title: string
+    onSave?: (html: string) => void
+    editable: boolean
     kind: string
     isStreaming: boolean
   }) => (
-    <div data-testid="html-artifact-view" data-title={title} data-kind={kind} data-streaming={isStreaming}>
+    <div
+      data-testid="html-artifact-view"
+      data-title={title}
+      data-editable={editable}
+      data-kind={kind}
+      data-streaming={isStreaming}>
       {html}
+      <button type="button" onClick={() => onSave?.('updated html')}>
+        Save
+      </button>
     </div>
   )
 }))
@@ -45,6 +57,16 @@ describe('MessageHtmlArtifact', () => {
     render(<MessageHtmlArtifact html="<main>Partial</main>" />)
 
     expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-kind', 'document')
+  })
+
+  it('forwards editing and save support to the artifact view', () => {
+    const onSave = vi.fn()
+
+    render(<MessageHtmlArtifact html="<main>Page</main>" onSave={onSave} editable />)
+
+    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-editable', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith('updated html')
   })
 
   it('inherits the message content width in every layout', () => {

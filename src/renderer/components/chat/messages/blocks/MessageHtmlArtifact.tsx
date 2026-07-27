@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next'
 
 interface MessageHtmlArtifactProps {
   html: string
+  onSave?: (html: string) => void
+  editable?: boolean
   /** Defaults to the gated `document` path so a missing classification can never open the preview up. */
   kind?: HtmlArtifactKind
   isStreaming?: boolean
@@ -13,6 +15,8 @@ interface MessageHtmlArtifactProps {
 
 export const MessageHtmlArtifact = memo(function MessageHtmlArtifact({
   html,
+  onSave,
+  editable = false,
   kind = 'document',
   isStreaming = false
 }: MessageHtmlArtifactProps) {
@@ -26,6 +30,8 @@ export const MessageHtmlArtifact = memo(function MessageHtmlArtifact({
       <HtmlArtifactView
         html={html}
         title={extractHtmlTitle(html) || t('common.html_preview')}
+        onSave={onSave}
+        editable={editable}
         kind={kind}
         isStreaming={isStreaming}
       />
