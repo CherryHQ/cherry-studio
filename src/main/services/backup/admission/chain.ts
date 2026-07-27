@@ -1,14 +1,13 @@
-import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 
 import { applyMigrations } from '@data/db/applyMigrations'
 import { type AppliedMigration, readAppliedChain } from '@data/db/restore/appliedChain'
-import { checkpointTruncateAssert } from '@data/db/restore/checkpoint'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 
-import { ArchiveAdmissionError, BackupCancelledError } from '../errors'
+import { assertDbIntegrity, assertNoDbSidecars, sealDetachedDb } from '../dbSeal'
+import { ArchiveAdmissionError, BackupCancelledError, DbSealError } from '../errors'
 import { sha256FileCancellable } from '../hashing'
 import type { BackupManifest } from '../manifest'
 
@@ -86,42 +85,21 @@ function readActualChain(sqlite: Database.Database): AppliedMigration[] {
   }
 }
 
-function assertIntegrity(sqlite: Database.Database, when: string): void {
-  let result: unknown
-  try {
-    result = sqlite.pragma('integrity_check', { simple: true })
-  } catch {
-    throw new ArchiveAdmissionError('db-corrupt', `integrity_check (${when}) failed to run`)
-  }
-  if (String(result) !== 'ok') {
-    throw new ArchiveAdmissionError('db-corrupt', `integrity_check (${when}) not ok`)
-  }
-}
-
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new BackupCancelledError()
 }
 
 /**
- * Fold any WAL frames into the main file and drop WAL mode so the sealed artifact
- * is a clean single file with NO `-wal`/`-shm` sidecars — a hostile archive could
- * ship a WAL-mode DB (or migrate-forward could write through WAL), leaving
- * committed rows in the sidecar where a bare main-file hash would miss them. This
- * mirrors the "checkpoint then hash" invariant in
- * `src/main/data/db/restore/README.md`.
+ * Run a shared seal primitive under admission's own taxonomy: every way a staged
+ * database can fail to be sound and single-file is a `db-corrupt` rejection here,
+ * regardless of which step detected it.
  */
-function sealDbFile(sqlite: Database.Database): void {
+function asAdmissionRejection<T>(step: () => T): T {
   try {
-    checkpointTruncateAssert(sqlite)
-    const mode = String(sqlite.pragma('journal_mode = DELETE', { simple: true }))
-    if (mode !== 'delete') {
-      throw new ArchiveAdmissionError('db-corrupt', `could not seal staged database journal mode (got ${mode})`)
-    }
+    return step()
   } catch (err) {
-    if (err instanceof ArchiveAdmissionError) throw err
-    // An unexpected checkpoint/journal-mode failure (e.g. a busy assertion) is
-    // wrapped content-free rather than leaking the raw SQLite message.
-    throw new ArchiveAdmissionError('db-corrupt', 'failed to seal staged database')
+    if (err instanceof DbSealError) throw new ArchiveAdmissionError('db-corrupt', err.detail)
+    throw err
   }
 }
 
@@ -152,7 +130,7 @@ export async function admitStagedDatabase(
   let finalChain: readonly AppliedMigration[] = []
   try {
     sqlite.pragma('trusted_schema = OFF')
-    assertIntegrity(sqlite, 'pre')
+    asAdmissionRejection(() => assertDbIntegrity(sqlite, 'pre'))
 
     const actual = readActualChain(sqlite)
     if (!chainsEqual(actual, manifest.migrationChain)) {
@@ -176,7 +154,7 @@ export async function admitStagedDatabase(
         throw new ArchiveAdmissionError('chain-incompatible', 'migrate-forward failed to apply the bundled chain')
       }
       throwIfAborted(signal) // after the synchronous migration
-      assertIntegrity(sqlite, 'post')
+      asAdmissionRejection(() => assertDbIntegrity(sqlite, 'post'))
       const migrated = readActualChain(sqlite)
       if (!chainsEqual(migrated, bundled)) {
         throw new ArchiveAdmissionError('chain-incompatible', 'migrate-forward did not reach the bundled chain')
@@ -187,16 +165,12 @@ export async function admitStagedDatabase(
       finalChain = actual
     }
 
-    sealDbFile(sqlite)
+    asAdmissionRejection(() => sealDetachedDb(sqlite))
   } finally {
     sqlite.close()
   }
 
-  // The sealed file must carry NEITHER sidecar before it is hashed — either one
-  // would mean committed data lives outside the main file (§ restore README).
-  if (existsSync(`${dbPath}-wal`) || existsSync(`${dbPath}-shm`)) {
-    throw new ArchiveAdmissionError('db-corrupt', 'staged database retained a WAL/SHM sidecar after sealing')
-  }
+  asAdmissionRejection(() => assertNoDbSidecars(dbPath))
 
   throwIfAborted(signal)
   const hash = await sha256FileCancellable(dbPath, signal)

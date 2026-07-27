@@ -164,18 +164,23 @@ describe('row predicates ↔ declared domain values', () => {
   )
 
   it('rewrites only the auto-executing knowledge_item status', () => {
-    expect(resetKnowledgeItemStatus('deleting')).toBe('failed')
+    expect(resetKnowledgeItemStatus('deleting')?.status).toBe('failed')
     for (const status of ['idle', 'preparing', 'processing', 'reading', 'embedding', 'completed', 'failed']) {
       expect(resetKnowledgeItemStatus(status), status).toBeNull()
     }
     expect(resetKnowledgeItemStatus(null)).toBeNull()
   })
 
-  it('produces a status the knowledge_item CHECK constraint accepts', () => {
-    // The literal is pinned to KnowledgeItemStatus at compile time; this asserts
-    // the CHECK constraint in the migration agrees with it.
+  it('pairs the reset status with the non-blank error its CHECK constraint demands', () => {
+    // `knowledge_item_status_error_check` admits `failed` only alongside a
+    // non-blank error, so a status-only reset would abort materialization and make
+    // any archive holding a `deleting` item unrestorable.
+    const reset = resetKnowledgeItemStatus('deleting')
+    expect(reset?.error.trim().length ?? 0).toBeGreaterThan(0)
+
     const source = fs.readFileSync(path.resolve(__dirname, '../../../../data/db/schemas/knowledge.ts'), 'utf8')
     expect(source).toMatch(/knowledge_item_status_check/)
+    expect(source).toMatch(/knowledge_item_status_error_check/)
     expect(source).toMatch(/'failed'/)
   })
 })
@@ -304,13 +309,27 @@ describe('module purity', () => {
     return null
   }
 
-  const shippedFiles = fs
-    .readdirSync(PORTABILITY_DIR)
-    .filter((name) => name.endsWith('.ts'))
-    .map((name) => path.join(PORTABILITY_DIR, name))
+  /**
+   * The POLICY modules, which decide what materialization does and must stay
+   * pure, listed separately from the EFFECTFUL module that carries those
+   * decisions out against a real database file.
+   *
+   * Explicit lists rather than a directory glob: a new file in this directory
+   * must be consciously classified, and a new policy module cannot quietly
+   * escape the purity walk by simply not being pure.
+   */
+  const POLICY_MODULES = ['managedPathRebase.ts', 'capabilityReset.ts', 'preferenceResetPolicy.ts', 'tablePolicy.ts']
+  const EFFECTFUL_MODULES = ['materializeDatabase.ts']
 
-  it('ships the policy modules under one directory', () => {
-    expect(shippedFiles.length).toBeGreaterThan(0)
+  const shippedFiles = POLICY_MODULES.map((name) => path.join(PORTABILITY_DIR, name))
+
+  it('classifies every shipped module as either policy or effectful', () => {
+    const actual = fs
+      .readdirSync(PORTABILITY_DIR)
+      .filter((name) => name.endsWith('.ts'))
+      .sort()
+    expect(actual).toEqual([...POLICY_MODULES, ...EFFECTFUL_MODULES].sort())
+    for (const file of shippedFiles) expect(fs.existsSync(file)).toBe(true)
   })
 
   it('performs no filesystem, database, or host-path I/O anywhere in its module graph', () => {
