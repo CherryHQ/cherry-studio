@@ -77,8 +77,10 @@ Rerank is intentionally absent because the current AI SDK result exposes
 neither usage nor provider cost. The architecture does not claim that every AI
 request is recorded and does not fabricate a zero-cost rerank row.
 
-The operation list is closed and covered by tests. Adding a provider-backed
-operation requires choosing one of the two explicit states:
+The operation list is closed by behavior tests plus a main-process-wide raw
+provider import boundary test that fails when a new request owner appears.
+Adding a provider-backed operation requires choosing one of the two explicit
+states:
 
 - `recorded`, with a defined modality and capture owner; or
 - `usage-unavailable`, with a reason.

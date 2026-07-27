@@ -1,5 +1,10 @@
+import { globSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import type { Model } from '@shared/data/types/model'
 import type { LanguageModelUsage } from 'ai'
+import ts from 'typescript'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentLoopHooks } from '../../runtime/aiSdk'
@@ -17,6 +22,97 @@ const { BILLABLE_AI_OPERATIONS, createBillingHook, createBillingRecorder, AI_USA
 
 const model = { id: 'test-provider::test-model' } as unknown as Model
 
+interface ProviderRequestCallSite {
+  file: string
+  module: string
+  exportName: string
+  callCount: number
+}
+
+// These exports only build schemas, tools, middleware, or inspect errors and
+// cannot issue a provider request. Every other value import is review-required
+// by default so a newly added SDK inference API cannot silently bypass billing.
+const AI_SDK_NON_REQUEST_EXPORTS = new Set([
+  'APICallError',
+  'InvalidToolInputError',
+  'Output',
+  'asSchema',
+  'convertToModelMessages',
+  'dynamicTool',
+  'extractReasoningMiddleware',
+  'isToolUIPart',
+  'jsonSchema',
+  'readUIMessageStream',
+  'simulateStreamingMiddleware',
+  'stepCountIs',
+  'tool',
+  'zodSchema'
+])
+const AI_CORE_NON_REQUEST_EXPORTS = new Set(['definePlugin'])
+
+function scanProviderRequestCallSites(): ProviderRequestCallSite[] {
+  const mainRoot = fileURLToPath(new URL('../../..', import.meta.url))
+  const result: ProviderRequestCallSite[] = []
+
+  for (const relativePath of globSync('**/*.ts', { cwd: mainRoot, exclude: ['**/__tests__/**'] })) {
+    const source = ts.createSourceFile(
+      relativePath,
+      readFileSync(join(mainRoot, relativePath), 'utf8'),
+      ts.ScriptTarget.Latest,
+      true
+    )
+    const requestImports = new Map<string, { module: string; exportName: string }>()
+
+    for (const statement of source.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier) ||
+        statement.importClause?.isTypeOnly
+      ) {
+        continue
+      }
+
+      const module = statement.moduleSpecifier.text
+      if (module !== '@cherrystudio/ai-core' && module !== 'ai') continue
+
+      const bindings = statement.importClause?.namedBindings
+      if (!bindings || !ts.isNamedImports(bindings)) {
+        requestImports.set('*', { module, exportName: '*' })
+        continue
+      }
+
+      for (const element of bindings.elements) {
+        if (element.isTypeOnly) continue
+        const exportName = (element.propertyName ?? element.name).text
+        const isRequest =
+          module === '@cherrystudio/ai-core'
+            ? !AI_CORE_NON_REQUEST_EXPORTS.has(exportName)
+            : !AI_SDK_NON_REQUEST_EXPORTS.has(exportName)
+        if (isRequest) requestImports.set(element.name.text, { module, exportName })
+      }
+    }
+
+    const callCounts = new Map<string, number>()
+    const visit = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && requestImports.has(node.expression.text)) {
+        callCounts.set(node.expression.text, (callCounts.get(node.expression.text) ?? 0) + 1)
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(source)
+
+    for (const [localName, requestImport] of requestImports) {
+      result.push({
+        file: relativePath.replaceAll('\\', '/'),
+        ...requestImport,
+        callCount: callCounts.get(localName) ?? 0
+      })
+    }
+  }
+
+  return result.toSorted((a, b) => a.file.localeCompare(b.file) || a.exportName.localeCompare(b.exportName))
+}
+
 // The hook only reads `step.usage`; build a minimal fake step (a full
 // StepResult has 20+ fields we don't need here).
 const fakeStep = (usage: Partial<LanguageModelUsage>) =>
@@ -32,6 +128,41 @@ describe('AI usage record operation coverage', () => {
       generateImage: { status: 'recorded', modality: 'image', capture: 'direct' },
       rerank: { status: 'usage-unavailable', reason: 'ai-sdk-rerank-result-has-no-usage-or-cost' }
     })
+  })
+
+  it('allows raw provider requests only through reviewed capture owners', () => {
+    expect(scanProviderRequestCallSites()).toEqual([
+      {
+        file: 'ai/AiService.ts',
+        module: '@cherrystudio/ai-core',
+        exportName: 'embedMany',
+        callCount: 1
+      },
+      {
+        file: 'ai/AiService.ts',
+        module: '@cherrystudio/ai-core',
+        exportName: 'generateImage',
+        callCount: 1
+      },
+      {
+        file: 'ai/AiService.ts',
+        module: '@cherrystudio/ai-core',
+        exportName: 'rerank',
+        callCount: 1
+      },
+      {
+        file: 'ai/runtime/aiSdk/Agent.ts',
+        module: '@cherrystudio/ai-core',
+        exportName: 'createAgent',
+        callCount: 1
+      },
+      {
+        file: 'ai/tools/adapters/aiSdk/repair.ts',
+        module: '@cherrystudio/ai-core',
+        exportName: 'generateText',
+        callCount: 1
+      }
+    ])
   })
 })
 

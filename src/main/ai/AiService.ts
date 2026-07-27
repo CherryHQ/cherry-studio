@@ -37,7 +37,7 @@ import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createBillingRecorder, recordImageUsage } from './hooks/billingHook'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities } from './messages/messageCapabilities'
-import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
+import { hasImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
@@ -511,12 +511,8 @@ export class AiService extends BaseService {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, apiKeySnapshot, model, assistant } = await this.buildAgentParamsFor(request, signal)
+    const { provider, model, assistant } = this.getProviderAndModel(request)
     const source = sourceSnapshotForAssistant(assistant)
-
-    const promptParam = request.inputImages
-      ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
-      : request.prompt
 
     // `request.paramValues` is already a strict, coerced `ParamValues` — the
     // `ai.image.generate` IPC validated it via the catalog `imageParamsSchema` at
@@ -527,24 +523,28 @@ export class AiService extends BaseService {
     const params = request.paramValues
     const { structured, vendorBag } = splitParamValues(params)
 
+    // Async custom-provider transports (ppio / dashscope / modelscope /
+    // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
+    // a restart. Decide this before `buildAgentParamsFor` selects a serving key:
+    // the job handler is the single selection owner for this path. A transport
+    // builds its own request envelope per model, so it receives the canonical
+    // camelCase `vendorBag` directly (native n/size/seed travel via the job
+    // payload → `input.*`). No wire-naming, no casing probes.
+    if (request.uniqueModelId && hasImageTransport(provider.id, model.apiModelId ?? model.id)) {
+      return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
+    }
+
+    const { sdkConfig, apiKeySnapshot } = await this.buildAgentParamsFor(request, signal)
+    const promptParam = request.inputImages
+      ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
+      : request.prompt
+
     // Vendor body (`providerOptions[providerId]`): the WireProfile engine maps the
     // canonical bag to each provider's wire — a registered profile for the
     // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
     // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
     const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
     const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
-    // Async custom-provider transports (ppio / dashscope / modelscope /
-    // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
-    // a restart. Unlike the in-SDK path (whose `providerOptions[id]` IS the wire
-    // body), a transport builds its own request envelope per model, so it receives
-    // the canonical camelCase `vendorBag` directly (native n/size/seed travel via
-    // the job payload → `input.*`). No wire-naming, no casing probes.
-    if (
-      request.uniqueModelId &&
-      resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
-    ) {
-      return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
-    }
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
     // native binding's `map` (in `splitParamValues`).

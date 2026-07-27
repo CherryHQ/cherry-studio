@@ -11,6 +11,7 @@ const mockEmbedMany = vi.fn()
 const mockRerank = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
+const mockAssistantGetById = vi.fn()
 const mockMessageGetById = vi.fn()
 const mockMessageUpdate = vi.fn()
 const mockMessageApplyApproval = vi.fn()
@@ -29,6 +30,12 @@ const mockRecordRequest = vi.fn()
 vi.mock('@application', () => ({
   application: {
     get: mockApplicationGet
+  }
+}))
+
+vi.mock('@data/services/AssistantService', () => ({
+  assistantDataService: {
+    getById: (...args: unknown[]) => mockAssistantGetById(...args)
   }
 }))
 
@@ -115,6 +122,7 @@ describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCreateAgent.mockReset()
+    mockAssistantGetById.mockReturnValue(undefined)
     mockProviderGetRotatedApiKey.mockReturnValue('test-key')
     mockProviderGetByProviderId.mockReturnValue({
       id: 'test-provider',
@@ -491,6 +499,11 @@ describe('AiService', () => {
 
     it('records the provider output before local file persistence can fail', async () => {
       const service = createService()
+      mockAssistantGetById.mockReturnValue({
+        id: 'assistant-1',
+        name: 'Image Assistant',
+        emoji: '🎨'
+      })
       vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' },
@@ -510,6 +523,7 @@ describe('AiService', () => {
       await expect(
         service.generateImage({
           uniqueModelId: 'test-provider::test-model',
+          assistantId: 'assistant-1',
           prompt: 'draw a cat',
           paramValues: {}
         })
@@ -1158,18 +1172,28 @@ describe('imageInputEntryParams', () => {
 
 describe('AiService.generateImage — custom async transport (job path)', () => {
   // Force the job branch by resolving to a custom-transport provider id; real
-  // resolveImageTransport('ppio', …) returns a transport, so generateImage routes
-  // through generateImageViaJob.
+  // hasImageTransport('ppio', …) routes through generateImageViaJob before
+  // buildAgentParamsFor can select and rotate a serving key.
   function stubResolution(service: InstanceType<typeof AiService>) {
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'ppio', providerSettings: {}, modelId: 'qwen-image' },
-      assistant: { id: 'assistant-1', name: 'Image Assistant', emoji: '🎨' }
-    } as never)
+    mockProviderGetByProviderId.mockReturnValue({ id: 'ppio' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'ppio::qwen-image',
+      providerId: 'ppio',
+      apiModelId: 'qwen-image'
+    })
+    mockAssistantGetById.mockReturnValue({
+      id: 'assistant-1',
+      name: 'Image Assistant',
+      emoji: '🎨'
+    })
+    return vi
+      .spyOn(service as never, 'buildAgentParamsFor')
+      .mockRejectedValue(new Error('job path must not select a serving key before execution'))
   }
 
   it('enqueues the job, returns its output files, and cleans up the temp input copies', async () => {
     const service = createService()
-    stubResolution(service)
+    const buildAgentParamsFor = stubResolution(service)
 
     const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
     const permanentDelete = vi.fn().mockResolvedValue(undefined)
@@ -1187,6 +1211,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
     const result = await service.generateImage({
       uniqueModelId: 'ppio::qwen-image',
+      assistantId: 'assistant-1',
       prompt: 'a cat',
       paramValues: {},
       inputImages: ['data:image/png;base64,AAAA'],
@@ -1204,6 +1229,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     )
     expect(result).toEqual({ files: outputFiles })
     expect(permanentDelete).toHaveBeenCalledWith('in-1')
+    expect(buildAgentParamsFor).not.toHaveBeenCalled()
   })
 
   it('forwards the vendor knobs to the transport via providerParams (camelCase)', async () => {

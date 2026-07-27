@@ -1591,7 +1591,7 @@ function UsageSettings() {
                     aria-label={t('settings.usage.currency')}
                     options={currencyOptions}
                     value={costCurrency}
-                    onValueChange={(value) => setSelectedCurrency(value as Currency)}
+                    onValueChange={setSelectedCurrency}
                     size="sm"
                   />
                 </div>

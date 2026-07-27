@@ -54,6 +54,7 @@ export async function resolveSourceSnapshot(
       .leftJoin(assistantTable, eq(topicTable.assistantId, assistantTable.id))
       .where(eq(topicTable.id, topicId))
       .limit(1)
+      .all()
 
     if (row?.assistantId) {
       return {
@@ -76,6 +77,7 @@ export async function resolveSourceSnapshot(
       .leftJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
       .where(eq(agentSessionTable.id, sessionId))
       .limit(1)
+      .all()
 
     if (row?.agentId) {
       return {
