@@ -44,4 +44,22 @@ describe('DMXAPI chat boundary', () => {
 
     expect(req.url).toMatch(/^https:\/\/www\.dmxapi\.cn\/v1beta\/models\/gemini-2\.5-pro/)
   })
+
+  it('uses the resolved Gemini endpoint when Chat and Gemini point at different proxies', async () => {
+    const req = await captureWithFetch((fetch) =>
+      createDmxapiProvider({
+        apiKey: 'sk',
+        baseURL: 'https://gemini.dmx.example/custom/v1beta',
+        endpointBaseURLs: {
+          'google-generate-content': 'https://gemini.dmx.example/custom/v1beta',
+          'openai-chat-completions': 'https://chat.dmx.example/v1'
+        },
+        fetch
+      })
+        .languageModel('gemini-2.5-pro')
+        .doGenerate({ prompt: PROMPT } as LanguageModelV3CallOptions)
+    )
+
+    expect(req.url).toMatch(/^https:\/\/gemini\.dmx\.example\/custom\/v1beta\/models\/gemini-2\.5-pro/)
+  })
 })

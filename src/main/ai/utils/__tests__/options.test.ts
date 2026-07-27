@@ -212,6 +212,7 @@ describe('buildCapabilityProviderOptions', () => {
       {
         aiSdkProviderId: 'openai',
         runtimeProviderId: 'openai',
+        providerOptionsKey: 'openai',
         endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
         reasoning: {
           kind: 'effort',
@@ -251,6 +252,7 @@ describe('buildCapabilityProviderOptions', () => {
       {
         aiSdkProviderId: 'openai-compatible',
         runtimeProviderId: 'openai-compatible',
+        providerOptionsKey: 'minimax',
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         reasoning: {
           kind: 'auto',
@@ -286,6 +288,7 @@ describe('buildCapabilityProviderOptions', () => {
       {
         aiSdkProviderId: 'openai-compatible',
         runtimeProviderId: 'openai-compatible',
+        providerOptionsKey: 'dashscope',
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         reasoning: {
           kind: 'effort',
@@ -316,6 +319,7 @@ describe('buildCapabilityProviderOptions', () => {
         // providerOptionsName is `copilot` (= actualProvider.id passed as `name`).
         aiSdkProviderId: 'github-copilot-openai-compatible',
         runtimeProviderId: 'github-copilot-openai-compatible',
+        providerOptionsKey: 'copilot',
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         reasoning: {
           kind: 'effort',
@@ -350,6 +354,7 @@ describe('buildCapabilityProviderOptions', () => {
       {
         aiSdkProviderId: 'dmxapi',
         runtimeProviderId: 'dmxapi',
+        providerOptionsKey: key,
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         reasoning: {
           kind: 'effort',
@@ -387,6 +392,7 @@ describe('buildCapabilityProviderOptions', () => {
       {
         aiSdkProviderId: 'openai-compatible',
         runtimeProviderId: 'openai-compatible',
+        providerOptionsKey: 'nvidia',
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         reasoning: {
           kind: 'budget',
@@ -431,6 +437,7 @@ describe('buildCapabilityProviderOptions', () => {
         {
           aiSdkProviderId: runtimeProviderId,
           runtimeProviderId,
+          providerOptionsKey: 'vertex',
           endpointType,
           reasoning: {
             kind: 'omit',

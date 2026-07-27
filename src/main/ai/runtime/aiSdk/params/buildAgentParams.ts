@@ -14,7 +14,12 @@ import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { createHttpTraceFetch } from '../../../observability'
 import { providerToAiSdkConfig } from '../../../provider/config'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import {
+  resolveAiSdkProviderId,
+  type ResolvedEndpoint,
+  resolveEffectiveEndpoint,
+  resolveProviderOptionsKey
+} from '../../../provider/endpoint'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
@@ -76,7 +81,8 @@ export interface BuiltAgentParams {
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
-  const sdkConfig = await resolveSdkConfig(provider, model, request.apiKeyOverride)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const sdkConfig = await resolveSdkConfig(provider, model, resolvedEndpoint, request.apiKeyOverride)
   applyHttpTrace(sdkConfig, request.chatId, model)
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
@@ -86,7 +92,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
-  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  const { endpointType } = resolvedEndpoint
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
   const runtimeProviderId = sdkConfig.providerId
   const reasoningEndpointType =
@@ -163,9 +169,20 @@ export function resolveReasoningMaxTokens(
   return model.maxOutputTokens
 }
 
-async function resolveSdkConfig(provider: Provider, model: Model, apiKeyOverride?: string): Promise<SdkConfig> {
+async function resolveSdkConfig(
+  provider: Provider,
+  model: Model,
+  resolvedEndpoint: ResolvedEndpoint,
+  apiKeyOverride?: string
+): Promise<SdkConfig> {
+  const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride, resolvedEndpoint })
   return {
-    ...(await providerToAiSdkConfig(provider, model, { apiKeyOverride })),
+    ...config,
+    providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
+      actualProviderId: provider.id,
+      endpointType: resolvedEndpoint.endpointType,
+      gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
+    }),
     modelId: model.apiModelId ?? model.id
   }
 }
@@ -306,6 +323,7 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
       ? buildCapabilityProviderOptions(assistant, model, provider, capabilities, {
           aiSdkProviderId,
           runtimeProviderId: sdkConfig.providerId,
+          providerOptionsKey: sdkConfig.providerOptionsKey,
           endpointType,
           reasoning
         })
@@ -315,10 +333,9 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
         request.reasoningEffort !== undefined
         ? (buildResolvedReasoningProviderOptions({
             aiSdkProviderId: sdkConfig.providerId,
+            providerOptionsKey: sdkConfig.providerOptionsKey,
             endpointType,
-            reasoning,
-            actualProviderId: provider.id,
-            modelId: model.apiModelId ?? model.id
+            reasoning
           }) as Record<string, Record<string, JSONValue>>)
         : {}
   let standardParams: Partial<Record<string, unknown>> = {}

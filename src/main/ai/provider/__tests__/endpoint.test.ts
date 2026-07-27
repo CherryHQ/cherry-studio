@@ -29,6 +29,25 @@ describe('resolveProviderOptionsKey', () => {
   it('preserves provider ids whose runtime namespace matches their registration', () => {
     expect(resolveProviderOptionsKey('openai')).toBe('openai')
   })
+
+  it('uses the resolved gateway route instead of re-detecting the model in the encoder', () => {
+    expect(
+      resolveProviderOptionsKey('aihubmix', {
+        actualProviderId: 'aihubmix',
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        gatewayProviderOptionsKey: 'google'
+      })
+    ).toBe('google')
+  })
+
+  it('uses the concrete provider namespace for openai-compatible adapters', () => {
+    expect(
+      resolveProviderOptionsKey('openai-compatible', {
+        actualProviderId: 'custom-relay',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      })
+    ).toBe('custom-relay')
+  })
 })
 
 describe('resolveAiSdkProviderId', () => {
@@ -323,12 +342,15 @@ describe('resolveEffectiveEndpoint', () => {
     })
 
     it.each([
-      ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-      ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
-      ['gpt-4o', ENDPOINT_TYPE.OPENAI_RESPONSES],
-      ['glm-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    ] as const)('resolves %s → %s from the model id', (id, expected) => {
-      expect(resolveEffectiveEndpoint(aihubmix, { id } as never).endpointType).toBe(expected)
+      ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+      ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+      ['gpt-4o', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai'],
+      ['glm-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'aihubmix']
+    ] as const)('resolves %s → %s / %s from the model id', (id, endpointType, providerOptionsKey) => {
+      expect(resolveEffectiveEndpoint(aihubmix, { id } as never)).toMatchObject({
+        endpointType,
+        providerOptionsKey
+      })
     })
 
     it('routes by apiModelId when present (renamed/user-added ids)', () => {
@@ -338,7 +360,10 @@ describe('resolveEffectiveEndpoint', () => {
 
     it('lets an explicit model.endpointTypes hint win over the gateway route', () => {
       const model = { id: 'claude-opus-4-6', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] } as never
-      expect(resolveEffectiveEndpoint(aihubmix, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      expect(resolveEffectiveEndpoint(aihubmix, model)).toMatchObject({
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        providerOptionsKey: undefined
+      })
     })
 
     it('does NOT route to an endpoint the provider row does not declare (stale insert-only seed)', () => {
@@ -358,6 +383,9 @@ describe('resolveEffectiveEndpoint', () => {
       expect(resolveEffectiveEndpoint(staleAihubmix, { id: 'gemini-2.5-pro' } as never).endpointType).toBe(
         ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       )
+      expect(
+        resolveEffectiveEndpoint(staleAihubmix, { id: 'gemini-2.5-pro' } as never).providerOptionsKey
+      ).toBeUndefined()
       expect(resolveEffectiveEndpoint(staleAihubmix, { id: 'gpt-4o' } as never).endpointType).toBe(
         ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       )
@@ -388,12 +416,15 @@ describe('resolveEffectiveEndpoint', () => {
     })
 
     it.each([
-      ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-      ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
-      ['gpt-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
-      ['qwen3.5-plus', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    ] as const)('resolves %s → %s from the model id', (id, expected) => {
-      expect(resolveEffectiveEndpoint(dmxapi, { id } as never).endpointType).toBe(expected)
+      ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+      ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+      ['gpt-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai'],
+      ['qwen3.5-plus', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'dmxapi']
+    ] as const)('resolves %s → %s / %s from the model id', (id, endpointType, providerOptionsKey) => {
+      expect(resolveEffectiveEndpoint(dmxapi, { id } as never)).toMatchObject({
+        endpointType,
+        providerOptionsKey
+      })
     })
 
     it('keeps a stale row without the Google endpoint on its existing chat route', () => {

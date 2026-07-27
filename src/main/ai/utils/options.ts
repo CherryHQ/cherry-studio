@@ -29,8 +29,6 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { JSONValue } from 'ai'
 import { merge } from 'es-toolkit/compat'
 
-import { resolveProviderOptionsKey } from '../provider/endpoint'
-import { resolveGatewayProviderOptionsKey } from '../provider/gatewayRouting'
 import type { AppProviderId } from '../types'
 import type { ProviderCapabilities } from '../types'
 import { addAnthropicHeaders } from './anthropicHeaders'
@@ -121,17 +119,17 @@ export function buildCapabilityProviderOptions(
   context: {
     aiSdkProviderId: AppProviderId
     runtimeProviderId: AppProviderId
+    providerOptionsKey: string
     endpointType: EndpointType | undefined
     reasoning: ResolvedReasoningInvocation
   }
 ): Record<string, Record<string, JSONValue>> {
   const rawProviderId = context.runtimeProviderId
-  const modelId = model.apiModelId ?? model.id
-  const providerOptionsKey = resolveProviderOptionsKey(rawProviderId)
+  const providerOptionsKey = context.providerOptionsKey
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model, actualProvider)
   const resolvedReasoningOptions = capabilities.enableReasoning
-    ? encodeReasoningOptions(rawProviderId, context.endpointType, context.reasoning, actualProvider.id, modelId)
+    ? encodeReasoningOptions(providerOptionsKey, context.reasoning)
     : {
         providerId: rawProviderId === 'openai-compatible' ? actualProvider.id : providerOptionsKey,
         options: {}
@@ -232,92 +230,20 @@ export function buildCapabilityProviderOptions(
 }
 
 function encodeReasoningOptions(
-  aiSdkProviderId: AppProviderId,
-  endpointType: EndpointType | undefined,
-  invocation: ResolvedReasoningInvocation,
-  actualProviderId?: string,
-  modelId?: string
+  providerOptionsKey: string,
+  invocation: ResolvedReasoningInvocation
 ): { providerId: string; options: Record<string, unknown> } {
-  let providerId: string
-  switch (aiSdkProviderId) {
-    case 'openai':
-    case 'openai-chat':
-    case 'azure':
-    case 'azure-responses':
-    case 'huggingface':
-      providerId = 'openai'
-      break
-    case 'anthropic':
-    case 'azure-anthropic':
-      providerId = 'anthropic'
-      break
-    case 'google-vertex-anthropic':
-      providerId = resolveProviderOptionsKey(aiSdkProviderId)
-      break
-    case 'google':
-      providerId = 'google'
-      break
-    case 'google-vertex':
-    case 'google-vertex-maas':
-      providerId = resolveProviderOptionsKey(aiSdkProviderId)
-      break
-    case 'xai':
-    case 'xai-responses':
-      providerId = 'xai'
-      break
-    case 'bedrock':
-      providerId = 'bedrock'
-      break
-    case SystemProviderIds.ollama:
-      providerId = 'ollama'
-      break
-    case 'cherryin':
-    case 'cherryin-chat':
-    case 'newapi':
-    case 'aihubmix':
-    case SystemProviderIds.dmxapi:
-    case SystemProviderIds.gateway:
-      const routedProviderOptionsKey = modelId ? resolveGatewayProviderOptionsKey(aiSdkProviderId, modelId) : undefined
-      if (routedProviderOptionsKey) {
-        providerId = routedProviderOptionsKey
-      } else if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
-        providerId = 'anthropic'
-      } else if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
-        providerId = 'google'
-      } else if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
-        providerId = 'openai'
-      } else {
-        providerId = aiSdkProviderId
-      }
-      break
-    case 'github-copilot-openai-compatible':
-    case 'openai-compatible':
-      // createOpenAICompatible() names the language model after the concrete
-      // provider. Unknown compatible fields are forwarded only from that
-      // namespace; the canonical openai-compatible namespace is schema-stripped.
-      providerId = actualProviderId ?? aiSdkProviderId
-      break
-    default:
-      providerId = aiSdkProviderId
-  }
-  return { providerId, options: encodeReasoningInvocation(invocation) }
+  return { providerId: providerOptionsKey, options: encodeReasoningInvocation(invocation) }
 }
 
 /** Build the single providerOptions namespace that owns reasoning for this endpoint adapter. */
 export function buildResolvedReasoningProviderOptions(context: {
   aiSdkProviderId: AppProviderId
+  providerOptionsKey: string
   endpointType: EndpointType | undefined
   reasoning: ResolvedReasoningInvocation
-  actualProviderId?: string
-  modelId?: string
 }): Record<string, Record<string, unknown>> {
-  const encoded = encodeReasoningOptions(
-    context.aiSdkProviderId,
-    context.endpointType,
-    context.reasoning,
-    context.actualProviderId,
-    context.modelId
-  )
+  const encoded = encodeReasoningOptions(context.providerOptionsKey, context.reasoning)
   const options =
     context.aiSdkProviderId === 'openai-compatible' ||
     context.aiSdkProviderId === 'github-copilot-openai-compatible' ||

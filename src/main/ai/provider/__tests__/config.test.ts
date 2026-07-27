@@ -806,24 +806,25 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('dmxapi')
     })
 
-    it('routes a declared DMXAPI Gemini endpoint through the DMXAPI factory with a shared /v1 base', async () => {
+    it('preserves a declared DMXAPI Gemini endpoint instead of replacing it with the Chat host', async () => {
       const provider = makeProvider({
-        id: 'dmxapi',
+        id: 'my-dmxapi',
+        presetProviderId: 'dmxapi',
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-            baseUrl: 'https://www.dmxapi.cn',
+            baseUrl: 'https://chat.dmx.example',
             adapterFamily: 'dmxapi'
           },
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
-            baseUrl: 'https://www.dmxapi.cn/v1beta/',
+            baseUrl: 'https://gemini.dmx.example/custom/v1beta/',
             adapterFamily: 'dmxapi'
           }
         }
       })
       const model = makeModel({
-        id: 'dmxapi::gemini-2.5-pro',
-        providerId: 'dmxapi',
+        id: 'my-dmxapi::gemini-2.5-pro',
+        providerId: 'my-dmxapi',
         apiModelId: 'gemini-2.5-pro'
       })
 
@@ -831,8 +832,54 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const settings = config.providerSettings as Record<string, unknown>
 
       expect(config.providerId).toBe('dmxapi')
-      // The factory derives /v1beta itself; its shared input remains the chat-compatible /v1 base.
-      expect(settings.baseURL).toBe('https://www.dmxapi.cn/v1')
+      expect(settings.baseURL).toBe('https://gemini.dmx.example/custom/v1beta')
+      expect(settings.endpointBaseURLs).toMatchObject({
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: 'https://chat.dmx.example/v1',
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'https://gemini.dmx.example/custom/v1beta'
+      })
+    })
+
+    it('preserves separate AiHubMix Chat, Responses, Anthropic, and Gemini endpoint URLs', async () => {
+      const provider = makeProvider({
+        id: 'my-aihubmix',
+        presetProviderId: 'aihubmix',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://chat.aihubmix.example/v1',
+            adapterFamily: 'aihubmix'
+          },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://responses.aihubmix.example/v1',
+            adapterFamily: 'aihubmix'
+          },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            baseUrl: 'https://anthropic.aihubmix.example/v1',
+            adapterFamily: 'aihubmix'
+          },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: 'https://gemini.aihubmix.example/custom/v1beta',
+            adapterFamily: 'aihubmix'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'my-aihubmix::gemini-2.5-flash',
+        providerId: 'my-aihubmix',
+        apiModelId: 'gemini-2.5-flash'
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('aihubmix')
+      expect(settings.baseURL).toBe('https://gemini.aihubmix.example/custom/v1beta')
+      expect(settings.endpointBaseURLs).toEqual({
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: 'https://anthropic.aihubmix.example/v1',
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'https://gemini.aihubmix.example/custom/v1beta',
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: 'https://chat.aihubmix.example/v1',
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'https://responses.aihubmix.example/v1'
+      })
     })
 
     it('keeps DMXAPI native IMAGE models (gpt-image / dall-e / imagen) on openai-compatible (unchanged path)', async () => {

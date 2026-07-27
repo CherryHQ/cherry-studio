@@ -11,6 +11,7 @@ import {
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 
 import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
@@ -21,11 +22,11 @@ export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
 
 export interface DmxapiProviderSettings {
   apiKey?: string
-  /** Chat / embedding baseURL — typically `https://www.dmxapi.cn/v1` or a
-   *  user-configured proxy. The factory derives the native-API origin (host
-   *  root) from this by stripping the OpenAI-compat path suffix, so callers
-   *  only need to configure one URL. */
+  /** Base URL selected for this request. When `endpointBaseURLs` is absent, the
+   *  factory retains the legacy behavior of deriving every protocol from it. */
   baseURL?: string
+  /** Explicit per-protocol URLs for providers whose endpoints use different hosts. */
+  endpointBaseURLs?: Partial<Record<EndpointType, string>>
   headers?: Record<string, string>
   fetch?: FetchFunction
 }
@@ -91,14 +92,15 @@ export function dmxapiUsesCustomTransport(modelId: string): boolean {
  * re-resolved provider settings.
  */
 export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGenerationTransport {
-  if (!settings.baseURL) {
+  const chatBaseURL = settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? settings.baseURL
+  if (!chatBaseURL) {
     throw new Error('DMXAPI provider requires a non-empty `baseURL` to build the image transport.')
   }
   return createDmxapiTransport({
     apiKey: settings.apiKey ?? '',
     // The transport POSTs to host-root paths (`/v1/images/...`), so strip the
     // OpenAI-compat version suffix from the chat baseURL to avoid a double `/v1`.
-    baseURL: withoutTrailingApiVersion(settings.baseURL)
+    baseURL: withoutTrailingApiVersion(chatBaseURL)
   })
 }
 
@@ -118,12 +120,19 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     ...settings.headers
   })
 
-  const compatUrl = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
+  const chatBaseURL = settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? baseURL
+  const compatUrl = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(chatBaseURL)}${path}`
   const nativeBaseURL = withoutTrailingApiVersion(baseURL)
+  const anthropicBaseURL =
+    settings.endpointBaseURLs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ?? formatApiHost(nativeBaseURL, true)
+  const geminiBaseURL =
+    settings.endpointBaseURLs?.[ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] ?? formatApiHost(nativeBaseURL, true, 'v1beta')
+  const openaiBaseURL =
+    settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? formatApiHost(nativeBaseURL, true)
 
   const googleProvider = () =>
     createGoogleGenerativeAI({
-      baseURL: formatApiHost(nativeBaseURL, true, 'v1beta'),
+      baseURL: geminiBaseURL,
       apiKey: resolveApiKey(),
       headers: settings.headers,
       fetch: customFetch
@@ -134,7 +143,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
 
   const openaiChatModel = (modelId: string) =>
     createOpenAI({
-      baseURL: formatApiHost(nativeBaseURL, true),
+      baseURL: openaiBaseURL,
       apiKey: resolveApiKey(),
       headers: settings.headers,
       fetch: customFetch
@@ -147,7 +156,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       case 'anthropic':
         return new AnthropicMessagesLanguageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.anthropic`,
-          baseURL: formatApiHost(nativeBaseURL, true),
+          baseURL: anthropicBaseURL,
           headers: () => ({ 'x-api-key': resolveApiKey(), ...settings.headers }),
           fetch: customFetch,
           supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] }),
@@ -156,7 +165,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       case 'gemini':
         return new GoogleGenerativeAILanguageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.google`,
-          baseURL: formatApiHost(nativeBaseURL, true, 'v1beta'),
+          baseURL: geminiBaseURL,
           headers: () => ({ 'x-goog-api-key': resolveApiKey(), ...settings.headers }),
           fetch: customFetch,
           generateId: () => `${DMXAPI_PROVIDER_NAME}-${Date.now()}`,

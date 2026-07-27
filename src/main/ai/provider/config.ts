@@ -30,7 +30,7 @@ import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
+import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 
@@ -50,6 +50,7 @@ interface BuilderContext {
 
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
+  resolvedEndpoint?: ResolvedEndpoint
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
@@ -100,7 +101,7 @@ export async function providerToAiSdkConfig(
   model: Model,
   options?: ProviderToAiSdkConfigOptions
 ): Promise<ProviderConfig> {
-  const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
+  const { endpointType, baseUrl } = options?.resolvedEndpoint ?? resolveEffectiveEndpoint(provider, model)
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
@@ -597,39 +598,34 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
   }
 }
 
+function buildEndpointBaseURLs(provider: Provider): Partial<Record<EndpointType, string>> {
+  const entries = Object.entries(provider.endpointConfigs ?? {}).flatMap(([endpointType, config]) => {
+    if (!config?.baseUrl) return []
+    const formatted = formatBaseURL(config.baseUrl, provider, endpointType as EndpointType)
+    return [[endpointType, routeToEndpoint(formatted).baseURL] as const]
+  })
+  return Object.fromEntries(entries)
+}
+
 function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
-  const { baseURL, endpoint } = routeToEndpoint(
-    formatBaseURL(
-      getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS),
-      ctx.actualProvider,
-      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    )
-  )
   return {
     providerId: 'aihubmix',
-    endpoint,
+    endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      baseURL,
+      endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
     }
   }
 }
 
 function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
-  const { baseURL, endpoint } = routeToEndpoint(
-    formatBaseURL(
-      getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS),
-      ctx.actualProvider,
-      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    )
-  )
   return {
     providerId: 'dmxapi',
-    endpoint,
+    endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      baseURL,
+      endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
     }
   }
