@@ -19,13 +19,20 @@ export type ResourceCatalogViewProps = {
   onOpenAssistantChat?: (assistantId: string) => void
   resourceType: ResourceCatalogViewType
   toolbarLeading?: ReactNode
+  /** `settings` swaps the full-bleed toolbar for a settings page header (title + add button + search row). */
+  variant?: 'library' | 'settings'
+  title?: ReactNode
+  description?: ReactNode
 }
 
 export function ResourceCatalogView({
   className,
   onOpenAssistantChat,
   resourceType,
-  toolbarLeading
+  toolbarLeading,
+  variant = 'library',
+  title,
+  description
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
@@ -49,7 +56,11 @@ export function ResourceCatalogView({
 
   return (
     <div
-      className={cn('flex min-h-0 flex-1', resourceType === 'skill' ? 'bg-transparent' : 'bg-background', className)}>
+      className={cn(
+        'flex min-h-0 flex-1',
+        resourceType === 'skill' ? 'bg-transparent' : variant === 'library' && 'bg-background',
+        className
+      )}>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {resourceError ? (
           <>
@@ -78,6 +89,9 @@ export function ResourceCatalogView({
             {...gridProps}
             onOpenSystemSkills={resourceType === 'skill' ? gridProps.onOpenSystemSkills : undefined}
             toolbarLeading={toolbarLeading}
+            variant={variant}
+            title={title}
+            description={description}
           />
         )}
       </div>

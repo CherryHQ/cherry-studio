@@ -5,7 +5,7 @@ import {
   type TranslationOverlayEntry,
   type TranslationOverlaySetter
 } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import type { MessageListRuntime, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -111,6 +111,18 @@ export function useChatRuntimeState({
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const messages = uiMessages
   const invalidateCache = useInvalidateCache()
+  const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
+  const bindMessageListRuntime = useCallback((runtime: MessageListRuntime) => {
+    messageListRuntimeRef.current = runtime
+    return () => {
+      if (messageListRuntimeRef.current === runtime) {
+        messageListRuntimeRef.current = null
+      }
+    }
+  }, [])
+  const captureLocalSendScrollEligibility = useCallback(() => {
+    messageListRuntimeRef.current?.captureLocalSendScrollEligibility()
+  }, [])
 
   // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after
   // every terminal render was the user's banned anti-pattern (effect-driven
@@ -366,6 +378,8 @@ export function useChatRuntimeState({
     refresh,
     cache,
     seedReservedMessages,
+    captureLocalSendScrollEligibility,
+    onLocalSendStarted: turnController.markLocalSendStarted,
     assistant
   })
 
@@ -390,7 +404,10 @@ export function useChatRuntimeState({
     streamingLayers,
     shouldRenderHomeComposer,
     chatWriteActions,
+    bindMessageListRuntime,
+    captureLocalSendScrollEligibility,
     sendMessage,
+    localSendGeneration: turnController.localSendGeneration,
     composerContext,
     translationOverlay,
     setTranslationOverlay

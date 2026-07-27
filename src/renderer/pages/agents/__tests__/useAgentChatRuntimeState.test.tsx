@@ -1,3 +1,4 @@
+import type { MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -42,6 +43,7 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   useConversationTurnController: () => ({
+    localSendGeneration: 7,
     send: mocks.sendTurn
   })
 }))
@@ -164,7 +166,7 @@ describe('useAgentChatRuntimeState', () => {
   })
 
   it('does not wire per-overlay finish refresh for agent sessions', () => {
-    renderHook(() =>
+    const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
         sessionMessagesEnabled: true,
@@ -173,8 +175,37 @@ describe('useAgentChatRuntimeState', () => {
     )
 
     expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
+    expect(result.current.localSendGeneration).toBe(7)
     expect(mocks.refresh).not.toHaveBeenCalled()
     expect(mocks.disposeOverlay).not.toHaveBeenCalled()
+  })
+
+  it('forwards pre-send scroll sampling only while the current message list runtime is bound', () => {
+    const captureLocalSendScrollEligibility = vi.fn()
+    const runtime: MessageListRuntime = {
+      captureLocalSendScrollEligibility,
+      scrollToBottom: vi.fn(),
+      locateMessage: vi.fn(),
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn()
+    }
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    const unbind = result.current.bindMessageListRuntime(runtime)
+    result.current.captureLocalSendScrollEligibility()
+
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
+
+    unbind?.()
+    result.current.captureLocalSendScrollEligibility()
+
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
   })
 
   it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {

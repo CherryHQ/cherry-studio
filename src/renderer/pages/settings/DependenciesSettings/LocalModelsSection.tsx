@@ -139,7 +139,7 @@ const ModelCard: FC<ModelCardProps> = ({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-medium text-foreground text-sm">{name}</span>
+            <span className="truncate text-foreground text-sm">{name}</span>
             {ready && (
               <Badge variant="secondary" className="px-1.5 py-0 text-[11px] leading-4">
                 {t('settings.dependencies.localModels.status.ready')}
@@ -180,12 +180,12 @@ const ModelCard: FC<ModelCardProps> = ({
       {!ready && (
         <div className="mt-3 border-border border-t pt-3">
           {downloading ? (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 font-medium text-xs" onClick={onCancel}>
+            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onCancel}>
               <X className="size-3.5" />
               {t('settings.dependencies.localModels.cancel')}
             </Button>
           ) : (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 font-medium text-xs" onClick={onDownload}>
+            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onDownload}>
               <Download className="size-3.5" />
               {t('settings.dependencies.localModels.download')}
             </Button>

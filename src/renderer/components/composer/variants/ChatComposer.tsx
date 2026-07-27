@@ -132,6 +132,7 @@ export interface ChatComposerProps {
       reasoningEffort?: ReasoningEffortOption
     }
   ) => void | Promise<void>
+  captureLocalSendScrollEligibility?: () => void
   sendDisabled?: boolean
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
@@ -292,7 +293,7 @@ const renderChatHomeInputControls: ChatComposerControlsRenderer = (props) => ({
 type ChatComposerRootProps = ChatComposerProps & {
   renderControls: ChatComposerControlsRenderer
   forceNarrowLayout?: boolean
-  deferDynamicControls?: boolean
+  deferQuickPanel?: boolean
 }
 
 type ChatPlacementDockedProps = Omit<ChatComposerProps, 'onDraftAssistantChange'>
@@ -310,6 +311,7 @@ const ChatComposerRoot = ({
   externalContextControls,
   onConversationControlsChange,
   onSend,
+  captureLocalSendScrollEligibility,
   sendDisabled,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -317,7 +319,7 @@ const ChatComposerRoot = ({
   onCreateEmptyTopic,
   renderControls,
   forceNarrowLayout = false,
-  deferDynamicControls = false
+  deferQuickPanel = false
 }: ChatComposerRootProps) => {
   const resolvedScopeKey = scopeKey ?? topic?.id
   const resolvedTopicId = topicId ?? topic?.id
@@ -363,6 +365,7 @@ const ChatComposerRoot = ({
             initialDraft={initialDraft}
             actionsRef={actionsRef}
             onSend={onSend}
+            captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
             sendDisabled={sendDisabled}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
@@ -370,7 +373,7 @@ const ChatComposerRoot = ({
             onCreateEmptyTopic={onCreateEmptyTopic}
             renderControls={renderControls}
             forceNarrowLayout={forceNarrowLayout}
-            deferDynamicControls={deferDynamicControls}
+            deferQuickPanel={deferQuickPanel}
           />
         ) : null}
       </ComposerToolRuntimeProvider>
@@ -384,7 +387,7 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
   actionsRef: React.RefObject<ProviderActionHandlers>
   renderControls: ChatComposerControlsRenderer
   forceNarrowLayout?: boolean
-  deferDynamicControls?: boolean
+  deferQuickPanel?: boolean
 }
 
 const ChatComposerInner = ({
@@ -398,6 +401,7 @@ const ChatComposerInner = ({
   initialDraft,
   actionsRef,
   onSend,
+  captureLocalSendScrollEligibility,
   sendDisabled = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -405,7 +409,7 @@ const ChatComposerInner = ({
   onCreateEmptyTopic,
   renderControls,
   forceNarrowLayout = false,
-  deferDynamicControls = false
+  deferQuickPanel = false
 }: ChatComposerInnerProps) => {
   const streamScopeKey = topicId ?? scopeKey
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
@@ -706,6 +710,12 @@ const ChatComposerInner = ({
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
+  const isModelUnavailable =
+    !missingAssistantMessage &&
+    !runtimeModelPending &&
+    !runtimeModel &&
+    !selectedModelForMissingAssistantDefault &&
+    !selectedModelForUnlinkedHome
 
   useEffect(() => {
     if (isPending) setIsSending(false)
@@ -987,7 +997,8 @@ const ChatComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload) => {
+    async (payload: ComposerQueuedMessagePayload, scrollEligibilityCaptured = false) => {
+      if (!scrollEligibilityCaptured) captureLocalSendScrollEligibility?.()
       setIsSending(true)
 
       try {
@@ -1008,7 +1019,7 @@ const ChatComposerInner = ({
         setIsSending(false)
       }
     },
-    [onSend, saveHistory]
+    [captureLocalSendScrollEligibility, onSend, saveHistory]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1175,6 +1186,7 @@ const ChatComposerInner = ({
         return
       }
 
+      captureLocalSendScrollEligibility?.()
       if (selectedModelForMissingAssistantDefault) {
         await handleModelSelect(selectedModelForMissingAssistantDefault)
       }
@@ -1188,7 +1200,7 @@ const ChatComposerInner = ({
       const previousKnowledgeBases = selectedKnowledgeBases
 
       clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload)
+      const sent = await sendQueuedPayload(payload, true)
       if (!sent) {
         setText(previousText)
         setFiles(previousFiles)
@@ -1200,6 +1212,7 @@ const ChatComposerInner = ({
       buildQueuedPayload,
       buildEditedMessageParts,
       canSteer,
+      captureLocalSendScrollEligibility,
       chatWrite,
       clearCurrentDraft,
       editingMessageForCurrentTopic,
@@ -1238,6 +1251,7 @@ const ChatComposerInner = ({
       unifiedPanelControl?: ComposerUnifiedPanelControl
     }) => (
       <ComposerToolbarShortcuts
+        scope={TopicType.Chat}
         pinnedIds={pinnedToolIds}
         onPinnedIdsChange={setPinnedToolIds}
         onResetPinnedIds={resetPinnedToolIds}
@@ -1245,12 +1259,14 @@ const ChatComposerInner = ({
         customTools={toolbarCustomTools}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
+        isModelUnavailable={isModelUnavailable}
         inputAdapter={inputAdapter}
         unifiedPanelControl={unifiedPanelControl}
       />
     ),
     [
       customizeToolbarOpen,
+      isModelUnavailable,
       pinnedToolIds,
       pinnedToolsAtDefault,
       resetPinnedToolIds,
@@ -1386,7 +1402,7 @@ const ChatComposerInner = ({
           rootPanelLeadingItems={rootPanelLeadingItems}
           rootPanelAdditionalItems={rootPanelCustomizeItems}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-          deferDynamicControls={deferDynamicControls}
+          deferQuickPanel={deferQuickPanel}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>
@@ -1423,7 +1439,7 @@ export const ChatPlacementComposer = (props: ChatPlacementComposerProps) => {
         {...composerProps}
         useMentionedModelSelector
         forceNarrowLayout
-        deferDynamicControls
+        deferQuickPanel
         renderControls={composerProps.externalContextControls ? renderChatHomeInputControls : renderChatHomeControls}
       />
     )
@@ -1433,7 +1449,7 @@ export const ChatPlacementComposer = (props: ChatPlacementComposerProps) => {
     <ChatComposerRoot
       {...composerProps}
       useMentionedModelSelector
-      deferDynamicControls
+      deferQuickPanel
       renderControls={composerProps.externalContextControls ? renderChatInputControls : renderChatToolbarControls}
     />
   )
