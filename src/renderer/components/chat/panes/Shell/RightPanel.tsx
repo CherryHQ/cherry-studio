@@ -45,17 +45,11 @@ export interface RightPanelCapability<TScope> {
   resolve: (scope: TScope) => RightPanelInstance | null
 }
 
-interface RightPanelComposition<TScopeProps, TViewportProps, TShortcutsProps> {
-  Scope: ComponentType<TScopeProps>
-  Viewport: ComponentType<TViewportProps>
-  Shortcuts: ComponentType<TShortcutsProps>
-}
-
-/** Identity helper that infers and enforces a consistent compound surface. */
-export function defineRightPanelComposition<TScopeProps, TViewportProps, TShortcutsProps>(
-  composition: RightPanelComposition<TScopeProps, TViewportProps, TShortcutsProps>
-): RightPanelComposition<TScopeProps, TViewportProps, TShortcutsProps> {
-  return composition
+/** Shape every right-pane module exposes; apply with `satisfies` to keep component types precise. */
+export interface RightPanelComposition {
+  Scope: ComponentType<any>
+  Viewport: ComponentType<any>
+  Shortcuts: ComponentType<any>
 }
 
 interface ResolvedRightPanelEntry<TScope = unknown> extends RightPanelInstance {

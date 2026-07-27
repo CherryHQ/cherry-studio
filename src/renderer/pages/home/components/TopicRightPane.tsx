@@ -1,12 +1,12 @@
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
   createResourcePaneCapability,
-  defineRightPanelComposition,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
   type RightPanelCapability,
   type RightPanelComponentProps,
+  type RightPanelComposition,
   RightPanelProvider,
   RightPanelShortcut,
   RightPanelViewport,
@@ -256,8 +256,8 @@ function TopicRightPaneShortcuts() {
   )
 }
 
-export const TopicRightPane = defineRightPanelComposition({
+export const TopicRightPane = {
   Scope: TopicRightPaneProvider,
   Viewport: TopicRightPaneViewport,
   Shortcuts: TopicRightPaneShortcuts
-})
+} satisfies RightPanelComposition

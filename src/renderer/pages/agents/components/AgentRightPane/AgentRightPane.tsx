@@ -10,12 +10,12 @@ import {
 } from '@renderer/components/chat/panes/ArtifactPane'
 import {
   createResourcePaneCapability,
-  defineRightPanelComposition,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
   type RightPanelCapability,
   type RightPanelComponentProps,
+  type RightPanelComposition,
   RightPanelHeaderControls,
   RightPanelProvider,
   type RightPanelReadiness,
@@ -1096,10 +1096,10 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
   )
 })
 
-export const AgentRightPane = defineRightPanelComposition({
+export const AgentRightPane = {
   Scope: AgentRightPaneStateProvider,
   Viewport: AgentRightPaneViewport,
   Shortcuts: AgentRightPaneShortcuts
-})
+} satisfies RightPanelComposition
 
 export type { AgentToolFlowOpenInput }

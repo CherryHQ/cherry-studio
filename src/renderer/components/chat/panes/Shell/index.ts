@@ -6,11 +6,11 @@ export {
 } from './resourcePane'
 export { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from './ResourcePaneCountButton'
 export {
-  defineRightPanelComposition,
   RightPanel,
   type RightPanelActions,
   type RightPanelCapability,
   type RightPanelComponentProps,
+  type RightPanelComposition,
   RightPanelHeaderControls,
   type RightPanelInstance,
   RightPanelProvider,
