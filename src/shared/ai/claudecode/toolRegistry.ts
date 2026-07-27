@@ -37,6 +37,8 @@ export interface ClaudeToolDescriptorDef {
   dependsOn?: readonly string[]
   /** Set for in-process MCP tools — the server hosting this tool (drives injection). */
   mcpServer?: 'cherry-tools' | 'agent-memory' | 'skills'
+  /** Tool is unavailable unless the agent has at least one bound knowledge base. */
+  requiresKnowledgeScope?: true
 }
 
 /**
@@ -278,7 +280,8 @@ const CLAUDE_TOOL_REGISTRY = {
     category: 'context',
     exposure: 'user',
     description: 'Searches your knowledge bases',
-    mcpServer: 'cherry-tools'
+    mcpServer: 'cherry-tools',
+    requiresKnowledgeScope: true
   },
   // Lists the bases, or outlines one base's structure when given a baseId. No separate toggle, but it
   // follows the visible "Knowledge Search" toggle (dependsOn kb_search): disabling search also revokes
@@ -289,7 +292,8 @@ const CLAUDE_TOOL_REGISTRY = {
     exposure: 'internal',
     description: 'Lists your knowledge bases, or outlines one base’s structure',
     dependsOn: ['mcp__cherry-tools__kb_search'],
-    mcpServer: 'cherry-tools'
+    mcpServer: 'cherry-tools',
+    requiresKnowledgeScope: true
   },
   // Deep-read tool (infrastructure the agent reaches for after a search) — internal, no separate
   // toggle. It returns whole documents (more than kb_search's chunks), so it follows the visible
@@ -300,7 +304,8 @@ const CLAUDE_TOOL_REGISTRY = {
     exposure: 'internal',
     description: 'Reads a knowledge base document, or greps within it',
     dependsOn: ['mcp__cherry-tools__kb_search'],
-    mcpServer: 'cherry-tools'
+    mcpServer: 'cherry-tools',
+    requiresKnowledgeScope: true
   },
   // The one mutating KB tool (add/delete/refresh sources) — exposed as its own toggle so the user
   // can see and disable write access; it still requires per-call approval at runtime.
@@ -309,7 +314,8 @@ const CLAUDE_TOOL_REGISTRY = {
     category: 'context',
     exposure: 'user',
     description: 'Adds, deletes, or refreshes knowledge base documents',
-    mcpServer: 'cherry-tools'
+    mcpServer: 'cherry-tools',
+    requiresKnowledgeScope: true
   },
   // agent autonomy / channels (hosted by cherry-tools). notify needs a connected channel to do anything.
   CherryCron: {
@@ -369,6 +375,15 @@ export const CLAUDE_TOOL_DEFS: readonly ClaudeToolDescriptorDef[] = Object.value
 
 /** A tool is an in-process MCP tool iff it declares a hosting server. */
 export const isMcpTool = (def: ClaudeToolDescriptorDef): boolean => def.mcpServer !== undefined
+
+/**
+ * MCP wire names of the in-process knowledge-base tools (kb_search / kb_read / kb_list /
+ * kb_manage). The edit-dialog catalog uses this set; cherryKnowledgeTools maintains the
+ * corresponding bare runtime names, with a drift test keeping the two surfaces aligned.
+ */
+export const CLAUDE_KNOWLEDGE_TOOL_NAMES: ReadonlySet<string> = new Set(
+  CLAUDE_TOOL_DEFS.filter((def) => def.requiresKnowledgeScope).map((def) => def.name)
+)
 
 /**
  * Descriptors for the canUseTool / catalog policy layer: every non-disabled SDK tool.

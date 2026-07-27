@@ -199,7 +199,7 @@
       "type": "智能体图标"
     },
     "input": {
-      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令"
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令，输入 @ 引用文件或会话"
     },
     "list": {
       "error": {
@@ -377,6 +377,11 @@
         "helper": "选择预先授权的工具，未选中的工具在使用时需要手动审批。",
         "label": "预先授权工具",
         "placeholder": "选择预先授权的工具"
+      },
+      "api_retry": {
+        "reason": "请求失败（{{error}}，HTTP {{status}}），正在重试",
+        "retrying": "正在重试 {{attempt}}/{{max}}…",
+        "retrying_in": "{{seconds}} 秒后重试 {{attempt}}/{{max}}"
       },
       "auto_rename": "生成任务名",
       "create": {
@@ -678,6 +683,7 @@
         "deleteFailed": "删除任务失败",
         "loadFailed": "加载任务失败",
         "runFailed": "运行任务失败",
+        "triggerInvalid": "定时设置无效：请检查表达式、时区或间隔范围",
         "updateFailed": "更新任务失败"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "运行",
       "runTriggered": "任务已触发",
       "save": "保存",
+      "schedule": {
+        "custom": "自定义计划",
+        "daily": "每天",
+        "hour": "小时",
+        "hourly": "每小时",
+        "interval": "自定义间隔",
+        "intervalMinutes": "间隔时长",
+        "invalid": "请填写有效的执行频率。",
+        "minute": "分钟",
+        "once": "一次性",
+        "runAt": "执行时间",
+        "summary": {
+          "daily": "每天 {{time}}",
+          "hourly": "每小时整点",
+          "interval": "每 {{count}} 分钟",
+          "weekdays": "工作日 {{time}}",
+          "weekly": "每{{weekday}} {{time}}"
+        },
+        "time": "时间",
+        "weekday": "星期",
+        "weekdays": {
+          "friday": "周五",
+          "monday": "周一",
+          "saturday": "周六",
+          "sunday": "周日",
+          "thursday": "周四",
+          "tuesday": "周二",
+          "wednesday": "周三"
+        },
+        "weekdaysOnly": "工作日",
+        "weekly": "每周"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "间隔",
@@ -1424,8 +1462,26 @@
       "paste_text_file": "粘贴到输入框",
       "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
-      "placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作",
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作，输入 @ 引用话题",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
+      "reference_panel": {
+        "load_failed": "加载引用内容失败",
+        "no_room": "输入框剩余长度不足，无法插入该会话",
+        "session": {
+          "no_results": {
+            "description": "没有名称匹配的会话",
+            "label": "无匹配会话"
+          },
+          "title": "会话"
+        },
+        "topic": {
+          "no_results": {
+            "description": "没有名称匹配的话题",
+            "label": "无匹配话题"
+          },
+          "title": "话题"
+        }
+      },
       "resize_height": "调整输入框高度",
       "resource_panel": {
         "categories": {
@@ -1443,7 +1499,7 @@
           "description": "没有可用的文件、Agents 或 Skills",
           "label": "未找到项目"
         },
-        "title": "资源"
+        "title": "文件与会话"
       },
       "restore": "还原",
       "send": "发送",
@@ -2275,6 +2331,7 @@
     "provider": "提供商",
     "reasoning_content": "已深度思考",
     "refresh": "刷新",
+    "refresh_failed": "无法刷新列表，正在显示上次加载的内容。",
     "regenerate": "重新生成",
     "remove_image": "移除图片",
     "rename": "重命名",
@@ -3762,6 +3819,8 @@
         "title": "删除确认"
       },
       "failed": "删除失败",
+      "first_turn_not_supported": "不能删除第一条用户消息。",
+      "root_unavailable": "消息仍在加载，暂时无法删除。",
       "success": "删除成功"
     },
     "dialog": {
@@ -3904,18 +3963,6 @@
     "processing": "正在处理...",
     "regenerate": {
       "confirm": "重新生成会覆盖当前消息"
-    },
-    "reset": {
-      "confirm": {
-        "content": "确定要重置所有数据吗？"
-      },
-      "double": {
-        "confirm": {
-          "content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
-          "title": "数据丢失！！！"
-        }
-      },
-      "success": "数据重置成功"
     },
     "restore": {
       "failed": "恢复失败",
@@ -5761,6 +5808,13 @@
       "data": {
         "title": "数据目录"
       },
+      "data_reset": {
+        "button": "重置",
+        "confirm_content": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
+        "confirm_title": "重置应用数据",
+        "error": "重置数据启动失败",
+        "title": "重置数据"
+      },
       "divider": {
         "basic": "基础数据设置",
         "cloud_storage": "云备份设置",
@@ -6493,10 +6547,6 @@
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
       "label": "常规设置",
-      "reset": {
-        "button": "重置",
-        "title": "重置数据"
-      },
       "restore": {
         "button": "恢复"
       },
@@ -7672,12 +7722,39 @@
       "titlePlaceholder": "请输入短语标题"
     },
     "scheduledTasks": {
+      "agentCreate": "通过 Agent 创建",
+      "allAgents": "全部 Agent",
+      "allStatuses": "全部状态",
+      "clearFilters": "清除筛选",
+      "createDescription": "设置 Agent 要执行的内容和运行频率。",
+      "createTitle": "新建定时任务",
       "description": "管理所有 Agent 的定时任务。任务将按照配置的时间计划自动运行。",
+      "editDescription": "更新 Agent 要执行的内容和运行频率。",
+      "editTitle": "编辑定时任务",
+      "filterAgent": "按 Agent 筛选",
+      "filterStatus": "按状态筛选",
+      "manualCreate": "手动创建",
+      "newTask": "新建",
       "noAgents": "暂无可用的 Agent。请先创建一个 Agent，再添加定时任务。",
       "noAgentsTip": "提示：你也可以直接在对话中让 Agent 创建定时任务。",
-      "noTasks": "暂无定时任务。点击「+ 添加」为某个 Agent 创建任务。",
+      "noAgentsTitle": "暂无 Agent",
+      "noMatches": "请尝试其他搜索词或筛选条件。",
+      "noMatchesTitle": "没有匹配的任务",
+      "noTasks": "创建一个任务，让 Agent 按计划自动运行。",
+      "noTasksTitle": "暂无定时任务",
+      "notFoundDescription": "该任务可能已被删除，或链接无效。",
+      "notFoundTitle": "未找到任务",
+      "paginationLabel": "定时任务分页",
+      "paginationStatus": "第 {{page}} / {{pageCount}} 页 · 共 {{total}} 个任务",
+      "search": "搜索定时任务",
+      "searchPlaceholder": "搜索任务或 Agent",
       "selectTask": "选择一个任务以查看详情",
-      "title": "定时任务"
+      "title": "定时任务",
+      "validation": {
+        "agent": "请选择 Agent。",
+        "name": "请输入任务名称。",
+        "prompt": "请输入任务提示词。"
+      }
     },
     "shortcuts": {
       "action": "操作",

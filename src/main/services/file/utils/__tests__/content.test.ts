@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { PathStaleVersionError } from '@main/utils/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { readByPath, writeIfUnchangedByPath } from '../content'
@@ -20,7 +20,7 @@ describe('file/utils/content', () => {
   })
 
   it('reads content directly by path', async () => {
-    const target = path.join(tmp, 'direct.txt') as FilePath
+    const target = path.join(tmp, 'direct.txt') as AbsoluteFilePath
     await writeFile(target, 'direct content', 'utf-8')
 
     const result = await readByPath(target)
@@ -30,7 +30,7 @@ describe('file/utils/content', () => {
   })
 
   it('reads binary content with a consistent file version', async () => {
-    const target = path.join(tmp, 'snapshot.txt') as FilePath
+    const target = path.join(tmp, 'snapshot.txt') as AbsoluteFilePath
     await writeFile(target, 'hello', 'utf-8')
 
     const result = await readByPath(target, { encoding: 'binary' })
@@ -41,7 +41,7 @@ describe('file/utils/content', () => {
   })
 
   it('returns the saved file version after a conditional write', async () => {
-    const target = path.join(tmp, 'save.txt') as FilePath
+    const target = path.join(tmp, 'save.txt') as AbsoluteFilePath
     await writeFile(target, 'original', 'utf-8')
     const original = await readByPath(target, { encoding: 'binary' })
     const data = new TextEncoder().encode('editor change')
@@ -54,7 +54,7 @@ describe('file/utils/content', () => {
   })
 
   it('rejects a version-checked write after the file changes externally', async () => {
-    const target = path.join(tmp, 'direct.txt') as FilePath
+    const target = path.join(tmp, 'direct.txt') as AbsoluteFilePath
     await writeFile(target, 'original', 'utf-8')
     const result = await readByPath(target, { encoding: 'binary' })
     await writeFile(target, 'external change', 'utf-8')

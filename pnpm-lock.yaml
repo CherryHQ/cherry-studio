@@ -188,6 +188,9 @@ importers:
       '@ai-sdk/azure':
         specifier: ^3.0.54
         version: 3.0.54(zod@4.3.4)
+      '@ai-sdk/bytedance':
+        specifier: 1.0.29
+        version: 1.0.29(zod@4.3.4)
       '@ai-sdk/cerebras':
         specifier: ^2.0.67
         version: 2.0.67(zod@4.3.4)
@@ -419,6 +422,9 @@ importers:
       '@radix-ui/react-context-menu':
         specifier: ^2.3.3
         version: 2.3.3(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-slot':
+        specifier: ^1.2.4
+        version: 1.3.0(@types/react@19.2.7)(react@19.2.3)
       '@radix-ui/react-switch':
         specifier: ^1.2.6
         version: 1.2.6(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -887,6 +893,9 @@ importers:
       macos-release:
         specifier: ^3.4.0
         version: 3.4.0
+      magic-string:
+        specifier: 0.30.21
+        version: 0.30.21
       markdown-it:
         specifier: ^14.1.1
         version: 14.1.1
@@ -1650,6 +1659,12 @@ packages:
 
   '@ai-sdk/azure@3.0.54':
     resolution: {integrity: sha512-lnW7V+Kl3OKKvNXHaZSf/D35vo4bchfMm7WzxILZMPJ5N7W6i1oDeSXVurSKlR685Kvpi8ZA76LBJKSbzff3yw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/bytedance@1.0.29':
+    resolution: {integrity: sha512-rBRNNuu+JojVjjulswfWDRIvJuvTj845qWLas1SZvEUmMG3kIcFSzuwzjspYhg8bhsgsgDkj5o2notl3Rmf1Rg==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -13910,6 +13925,12 @@ snapshots:
     dependencies:
       '@ai-sdk/openai': 3.0.53(patch_hash=83a4d486601eff47ad8b5e22024878be2ced05b5b86e09884199a3f47fd53530)(zod@4.3.4)
       '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
+      zod: 4.3.4
+
+  '@ai-sdk/bytedance@1.0.29(zod@4.3.4)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.14
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
       zod: 4.3.4
 

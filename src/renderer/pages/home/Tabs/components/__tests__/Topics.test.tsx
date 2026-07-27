@@ -390,6 +390,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'tab.open_in_new_window') return 'Open in New Window'
         if (key === 'common.cancel') return 'Cancel'
         if (key === 'common.copy_failed') return 'Copy failed'
+        if (key === 'common.loading') return 'Loading...'
         if (key === 'common.name') return 'Name'
         if (key === 'common.required_field') return 'Required field'
         if (key === 'common.save') return 'Save'
@@ -567,7 +568,7 @@ function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTop
   return {
     error: source.error,
     hasNext: source.hasNext,
-    isFullyLoaded: true,
+    isFullyLoaded: !source.isLoading && !source.hasNext,
     isLoading: source.isLoading,
     isLoadingAll: source.isLoading || source.hasNext,
     isRefreshing: source.isRefreshing,
@@ -1044,8 +1045,10 @@ describe('Topics', () => {
   it('uses the top header action to add an assistant in assistant display mode', () => {
     const onAddAssistant = vi.fn()
     const { onNewTopic } = renderTopicList({ onAddAssistant })
+    const addAssistantButton = screen.getByRole('button', { name: 'Add Assistant' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add Assistant' }))
+    expect(addAssistantButton).not.toHaveAttribute('data-ui', 'chat.topic-list.action.create')
+    fireEvent.click(addAssistantButton)
 
     expect(onAddAssistant).toHaveBeenCalledTimes(1)
     expect(onNewTopic).not.toHaveBeenCalled()
@@ -2439,7 +2442,7 @@ describe('Topics', () => {
   it('renders the topic header display mode and history actions in the shared menu', async () => {
     const { onOpenHistoryRecords } = renderTopicList()
 
-    expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-list-topic')).toHaveAttribute('data-ui', 'chat.topic-list')
     expect(screen.queryByPlaceholderText('Search conversations')).not.toBeInTheDocument()
 
     expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
@@ -2507,7 +2510,7 @@ describe('Topics', () => {
     expect(getTopicGroupExpansionCache().time).toEqual(['topic:time:yesterday'])
   })
 
-  it('keeps assistant grouped topics in the generic loading state until all pages are ready', () => {
+  it('shows the first assistant topic page while the remaining pages load', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -2536,14 +2539,13 @@ describe('Topics', () => {
 
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-list-grouped-loading')).not.toBeInTheDocument()
-    expect(screen.queryByText('Alpha Assistant')).not.toBeInTheDocument()
+    expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
     expect(screen.queryByText('Beta Assistant')).not.toBeInTheDocument()
-    expect(screen.queryByText('First page topic')).not.toBeInTheDocument()
-    expect(screen.queryByText('1')).not.toBeInTheDocument()
-    expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(0)
-    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
-    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
-    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
+    expect(screen.getByText('First page topic')).toBeInTheDocument()
+    expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(0)
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
   })
 
   it('reveals a history-selected topic hidden by show-more', async () => {
@@ -2594,6 +2596,7 @@ describe('Topics', () => {
 
     const createButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
     expect(createButton).toBeInTheDocument()
+    expect(createButton).toHaveAttribute('data-ui', 'chat.topic-list.action.create')
     expect(createButton).not.toHaveClass('border')
     expect(createButton.querySelector('.lucide-square-pen')).toBeInTheDocument()
     expect(screen.getByRole('listbox')).toHaveClass('pt-0')
@@ -2620,7 +2623,9 @@ describe('Topics', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const { onNewTopic } = renderTopicList()
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.conversation.new' }))
+    const createButton = screen.getByRole('button', { name: 'chat.conversation.new' })
+    expect(createButton).toHaveAttribute('data-ui', 'chat.topic-list.action.create')
+    fireEvent.click(createButton)
 
     expect(onNewTopic).toHaveBeenCalledWith(undefined)
   })
@@ -3930,5 +3935,20 @@ describe('Topics', () => {
     })
 
     expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
+  })
+
+  it('offers a retry entry point when a background refresh fails behind a served list', () => {
+    const assistantTopicsSource = createAssistantTopicsSource(createTopicPageItems(3))
+    Object.assign(assistantTopicsSource, { refreshError: new Error('refresh failed') })
+
+    renderTopicList({ assistantTopicsSource })
+
+    // The stale list stays on screen; the failure gets its own non-destructive strip.
+    expect(getTopicRow('Topic 1')).not.toBeNull()
+    const retryButton = screen.getByRole('button', { name: 'common.retry' })
+
+    fireEvent.click(retryButton)
+
+    expect(assistantTopicsSource.refetch).toHaveBeenCalled()
   })
 })

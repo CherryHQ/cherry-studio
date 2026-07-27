@@ -31,7 +31,11 @@ describe('EmbeddingSection', () => {
     const { rerender } = render(
       <EmbeddingSection embeddingModelId={null} onEmbeddingModelChange={vi.fn()} onLocalEmbeddingDownloaded={vi.fn()} />
     )
-    expect(screen.getByText('local-download')).toBeInTheDocument()
+    const downloadButton = screen.getByText('local-download')
+    const modelSelect = screen.getByText('knowledge.not_set')
+
+    expect(downloadButton).toBeInTheDocument()
+    expect(downloadButton.compareDocumentPosition(modelSelect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     rerender(
       <EmbeddingSection

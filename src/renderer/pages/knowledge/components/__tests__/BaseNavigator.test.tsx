@@ -188,6 +188,12 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    PageHeader: ({ title, action }: { title: ReactNode; action?: ReactNode }) => (
+      <div>
+        <h2>{title}</h2>
+        {action}
+      </div>
+    ),
     Popover: ({
       children,
       open,
@@ -1303,14 +1309,14 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Alpha/ }).parentElement).toHaveClass('bg-secondary')
+    expect(screen.getByRole('button', { name: /Alpha/ }).parentElement).toHaveClass('bg-muted', 'text-foreground')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta/ }))
 
     expect(onSelectBase).toHaveBeenCalledWith('base-2')
   })
 
-  it('creates a knowledge base directly from the search-row add button', () => {
+  it('creates a knowledge base from the full-width action above search', () => {
     const onCreateBase = vi.fn()
     const onCreateGroup = vi.fn()
 
@@ -1332,7 +1338,15 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+    const searchInput = screen.getByPlaceholderText('搜索知识库...')
+    const createButton = screen.getByRole('button', { name: '新建知识库' })
+
+    expect(screen.getByRole('heading', { name: '知识库' })).toBeInTheDocument()
+    expect(createButton.parentElement).toHaveClass('flex-col', 'px-2.5')
+    expect(createButton).toHaveClass('h-8', 'w-full', 'justify-start')
+    expect(createButton.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(createButton)
 
     expect(onCreateBase).toHaveBeenCalledTimes(1)
     // No initialGroupId — and in particular not the click's MouseEvent.

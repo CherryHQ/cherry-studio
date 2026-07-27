@@ -737,6 +737,54 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('ppio')
     })
 
+    it('routes Doubao IMAGE models through Doubao config (Ark protocol + the providerOptions key)', async () => {
+      // Two things ride on this id. The generic OpenAICompatibleImageModel would POST
+      // multipart /v1/images/edits once a reference image is attached — an endpoint Ark
+      // does not serve — and the vendor param body would ride under
+      // `providerOptions['openai-compatible']` while the image model read `doubao`,
+      // silently dropping every size/watermark/group control.
+      const provider = makeProvider({
+        id: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'doubao',
+        apiModelId: 'doubao-seedream-5-0-pro',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('doubao')
+      // `/api/v3` already carries a version, so no `/v1` is appended — the Ark image
+      // model appends `/images/generations` to exactly this.
+      expect(settings.baseURL).toBe('https://ark.cn-beijing.volces.com/api/v3')
+    })
+
+    it('leaves Doubao CHAT models on openai-compatible (image-only override)', async () => {
+      const provider = makeProvider({
+        id: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'doubao', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('openai-compatible')
+    })
+
     it('routes DMXAPI bespoke-family IMAGE models (e.g. qwen-image) through DMXAPI config', async () => {
       const provider = makeProvider({
         id: 'dmxapi',

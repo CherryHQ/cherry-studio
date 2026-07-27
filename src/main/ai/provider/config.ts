@@ -139,12 +139,16 @@ export async function providerToAiSdkConfig(
       match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
       build: buildDashScopeConfig
     },
-    // modelscope / ppio / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
-    // generation needs the bespoke submit/poll transport inside the extension provider
-    // (createXProvider().imageModel()). Override the resolved `openai-compatible` id to
-    // the extension id for image models only — chat/embedding fall through to the generic
+    // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
+    // generation needs the bespoke transport inside the extension provider
+    // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
+    // `/images/generations` protocol for doubao. Override the resolved `openai-compatible` id
+    // to the extension id for image models only — chat/embedding fall through to the generic
     // openai-compatible builder (which keeps `includeUsage`). provider.id is the extension
-    // id here, since the match requires it.
+    // id here, since the match requires it. Routing here is also what makes the vendor
+    // params land under the `providerOptions` key the image model reads: the delivery
+    // adapter keys the body by this `providerId`, which the generic branch would leave as
+    // `openai-compatible` while the model looked under the provider's own id.
     {
       match: (p, id) =>
         id === 'openai-compatible' &&
@@ -152,10 +156,11 @@ export async function providerToAiSdkConfig(
         (p.id === SystemProviderIds.modelscope ||
           p.id === SystemProviderIds.ppio ||
           p.id === SystemProviderIds.silicon ||
+          p.id === SystemProviderIds.doubao ||
           (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
       // provider.id is guaranteed to be one of these by the match above.
       build: (ctx) => ({
-        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'silicon' | 'dmxapi',
+        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'silicon' | 'doubao' | 'dmxapi',
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,

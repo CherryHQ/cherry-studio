@@ -1,10 +1,10 @@
-import 'pdfjs-dist/web/pdf_viewer.css'
+import '@renderer/assets/styles/vendor/pdf-viewer.css'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/circle-alert'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
@@ -105,7 +105,7 @@ function destroyLoadingTask(loadingTask: PDFDocumentLoadingTask, filePath: strin
   })
 }
 
-function PdfPreviewTooLarge({ filePath }: { filePath: FilePath }) {
+function PdfPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
   const { t } = useTranslation()
 
   const handleOpenWithDefaultApp = () => {

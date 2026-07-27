@@ -15,6 +15,7 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
+import { shouldDeferToolOutput } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
@@ -30,6 +31,7 @@ import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { pipeStreamLoop } from './pipeStreamLoop'
+import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -138,6 +140,7 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
   gracePeriodMs: 30_000,
   backgroundMode: 'continue',
   maxBufferChunks: 10_000,
+  maxDeferredOutputs: 64,
   // Generous (2 h) but bounded: a human can deliberate, yet a renderer that never responds (window
   // closed/crashed) can't leave the stream + subprocess hanging until app quit.
   approvalIdleTimeoutMs: 2 * 60 * 60 * 1000
@@ -235,7 +238,7 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Single locked dispatch entry point for chat streams. Both `ai.stream_open`
+   * Single locked dispatch entry point for chat streams. Both `ai.stream.open`
    * and the tool-approval continue path (`AiService.respondToolApproval`)
    * route through here so the per-topic `dispatchLock` serialises every dispatch
    * on a topic — not just opens. `prepareDispatch` is async and writes a PENDING
@@ -659,6 +662,17 @@ export class AiStreamManager extends BaseService {
     const anchorMessageId = exec.anchorMessageId
     exec.buffer.push({ topicId, executionId: sourceModelId, anchorMessageId, chunk })
 
+    // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
+    // entry just falls through to the persisted copy.
+    if (chunk.type === 'tool-output-available' && shouldDeferToolOutput(chunk.output)) {
+      const deferredOutputs = (exec.deferredOutputs ??= new Map())
+      deferredOutputs.set(chunk.toolCallId, chunk.output)
+      if (deferredOutputs.size > this.config.maxDeferredOutputs) {
+        const oldest = deferredOutputs.keys().next()
+        if (!oldest.done) deferredOutputs.delete(oldest.value)
+      }
+    }
+
     // Synchronous fan-out (listeners must not block the loop). Inline
     // liveness scrub so dead listeners go before the next onChunk runs.
     const dead: string[] = []
@@ -1007,8 +1021,9 @@ export class AiStreamManager extends BaseService {
       let firstFinalMessage: CherryUIMessage | undefined
       for (const exec of stream.executions.values()) {
         if (!exec.finalMessage) continue
-        finalMessages[exec.modelId] = exec.finalMessage
-        if (!firstFinalMessage) firstFinalMessage = exec.finalMessage
+        const finalMessage = projectStreamMessageForRenderer(req.topicId, exec.finalMessage)
+        finalMessages[exec.modelId] = finalMessage
+        if (!firstFinalMessage) firstFinalMessage = finalMessage
       }
       return {
         status: stream.status === 'aborted' ? 'paused' : 'done',
@@ -1045,13 +1060,26 @@ export class AiStreamManager extends BaseService {
 
     const bufferedChunks: StreamChunkPayload[] = []
     for (const exec of stream.executions.values()) {
-      bufferedChunks.push(...buildCompactReplay(exec.buffer))
+      bufferedChunks.push(...buildCompactReplay(exec.buffer).map(projectStreamChunkPayloadForRenderer))
     }
     return { status: 'attached', bufferedChunks }
   }
 
   detach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {
     this.removeListener(req.topicId, `wc:${sender.id}:${req.topicId}`)
+  }
+
+  /** Full output of a deferred tool call, while the stream that produced it is still active. */
+  getDeferredToolOutput(topicId: string, toolCallId: string): { found: true; output: unknown } | { found: false } {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return { found: false }
+
+    for (const exec of stream.executions.values()) {
+      if (exec.deferredOutputs?.has(toolCallId)) {
+        return { found: true, output: exec.deferredOutputs.get(toolCallId) }
+      }
+    }
+    return { found: false }
   }
 
   // ── Internal helpers ──────────────────────────────────────────────
