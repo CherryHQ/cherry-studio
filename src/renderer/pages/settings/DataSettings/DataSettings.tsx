@@ -13,11 +13,12 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
-import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
+import { BookOpen, CloudUpload, DatabaseBackup, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import BackupV2Settings from './BackupV2Settings'
 import BasicDataSettings from './BasicDataSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
@@ -38,6 +39,7 @@ const DataSettings: FC = () => {
 
   const menuItems = [
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
+    { key: 'backup_v2', title: t('settings.data.backup_v2.title'), icon: <DatabaseBackup size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'local_backup', title: t('settings.data.local.title'), icon: <FolderCog size={16} /> },
     { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudUpload size={16} /> },
@@ -98,6 +100,7 @@ const DataSettings: FC = () => {
       </div>
       <SettingsContentColumn theme={theme}>
         {menu === 'data' && <BasicDataSettings />}
+        {menu === 'backup_v2' && <BackupV2Settings />}
         {menu === 'webdav' && <WebDavSettings />}
         {menu === 'nutstore' && <NutstoreSettings />}
         {menu === 's3' && <S3Settings />}
