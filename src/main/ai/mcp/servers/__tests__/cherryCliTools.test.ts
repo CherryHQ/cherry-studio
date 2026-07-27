@@ -30,16 +30,6 @@ function json(result: { content: Array<{ type: string; text?: string }> }) {
   return JSON.parse(result.content[0].type === 'text' ? (result.content[0].text ?? '{}') : '{}')
 }
 
-function installInput(candidate: Record<string, unknown>) {
-  return {
-    candidateId: candidate.candidateId,
-    name: candidate.name,
-    recipe: candidate.recipe,
-    source: candidate.source,
-    ...(candidate.requestedVersion ? { requestedVersion: candidate.requestedVersion } : {})
-  }
-}
-
 describe('CherryCliTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -49,299 +39,91 @@ describe('CherryCliTools', () => {
     binaryManager.addCustomTool.mockResolvedValue(undefined)
   })
 
-  it('advertises list/search/install with strict object schemas', () => {
+  it('advertises the thin list/search/install surface', () => {
     const tools = new CherryCliTools().tools()
     expect(tools.map((tool) => tool.name)).toEqual([CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, CLI_INSTALL_TOOL_NAME])
-    expect(tools.every((tool) => tool.inputSchema.type === 'object')).toBe(true)
-    expect(tools.find((tool) => tool.name === CLI_SEARCH_TOOL_NAME)?.inputSchema.properties?.source).toMatchObject({
-      enum: ['auto', 'mise', 'npm', 'pypi', 'cargo', 'go', 'github', 'aqua']
-    })
+    expect(tools.find((tool) => tool.name === CLI_SEARCH_TOOL_NAME)?.inputSchema.required).toEqual(['query'])
+    expect(tools.find((tool) => tool.name === CLI_INSTALL_TOOL_NAME)?.inputSchema.required).toEqual(['name', 'tool'])
   })
 
-  it('returns the BinaryManager inventory without caching a session copy', async () => {
-    binaryManager.getToolInventory.mockResolvedValue([
-      { name: 'bun', origin: 'bundled', status: 'ready', availabilitySource: 'bundled' }
-    ])
+  it('returns the live BinaryManager inventory on every call', async () => {
+    binaryManager.getToolInventory.mockResolvedValue([{ name: 'bun', status: 'ready', version: '1.3.14' }])
     const cli = new CherryCliTools()
 
-    expect(json(await cli.call('cli_list', {}))).toEqual({
-      tools: [{ name: 'bun', origin: 'bundled', status: 'ready', availabilitySource: 'bundled' }]
+    expect(json(await cli.call(CLI_LIST_TOOL_NAME, {}))).toEqual({
+      tools: [{ name: 'bun', status: 'ready', version: '1.3.14' }]
     })
-    await cli.call('cli_list', {})
+    await cli.call(CLI_LIST_TOOL_NAME, {})
     expect(binaryManager.getToolInventory).toHaveBeenCalledTimes(2)
   })
 
-  it('turns mise registry matches into opaque install candidates', async () => {
+  it('forwards a registry query without translating installation commands', async () => {
     binaryManager.searchRegistry.mockResolvedValue([{ name: 'fd', tool: 'aqua:sharkdp/fd' }])
 
-    const result = json(await new CherryCliTools().call('cli_search', { query: 'fd' }))
-
-    expect(result.status).toBe('candidates')
-    expect(result.candidates[0]).toMatchObject({
-      candidateId: expect.any(String),
-      name: 'fd',
-      recipe: 'aqua:sharkdp/fd',
-      source: 'mise-registry',
-      expiresAt: expect.any(Number)
-    })
-  })
-
-  it('resolves a mise tutorial command through the registry without executing it', async () => {
-    binaryManager.searchRegistry.mockResolvedValue([{ name: 'fd', tool: 'aqua:sharkdp/fd' }])
-
-    await new CherryCliTools().call('cli_search', { query: 'mise use -g fd' })
-
+    expect(json(await new CherryCliTools().call(CLI_SEARCH_TOOL_NAME, { query: 'fd' }))).toEqual([
+      { name: 'fd', tool: 'aqua:sharkdp/fd' }
+    ])
     expect(binaryManager.searchRegistry).toHaveBeenCalledWith('fd')
   })
 
-  it.each([
-    ['npx prettier@3.0.0', 'prettier', 'npm:prettier', 'npm', '3.0.0'],
-    ['bun x @larksuite/cli', 'lark-cli', 'npm:@larksuite/cli', 'npm', undefined],
-    ['uvx ruff==0.9.0', 'ruff', 'pipx:ruff', 'pypi', '0.9.0'],
-    ['cargo install ripgrep --version 14.1.0', 'rg', 'cargo:ripgrep', 'cargo', '14.1.0'],
-    ['go install github.com/acme/tool@v1.2.0', 'tool', 'go:github.com/acme/tool', 'go', 'v1.2.0'],
-    ['https://github.com/acme/tool/releases/latest', 'tool', 'github:acme/tool', 'github', undefined],
-    ['aqua:acme/tool', 'tool', 'aqua:acme/tool', 'aqua', undefined]
-  ])('accepts a trusted explicit source: %s', async (query, executable, recipe, source, requestedVersion) => {
-    const result = json(await new CherryCliTools().call('cli_search', { query, executable }))
-    expect(result.candidates[0]).toMatchObject({
-      name: executable,
-      recipe,
-      source,
-      ...(requestedVersion ? { requestedVersion } : {})
-    })
-    expect(binaryManager.searchRegistry).not.toHaveBeenCalled()
-  })
-
-  it('accepts a selected ecosystem without requiring the model to construct a recipe prefix', async () => {
-    const result = json(
-      await new CherryCliTools().call('cli_search', {
-        query: '@larksuite/cli',
-        source: 'npm',
-        executable: 'lark-cli'
-      })
-    )
-
-    expect(result.candidates[0]).toMatchObject({
-      name: 'lark-cli',
-      recipe: 'npm:@larksuite/cli',
-      source: 'npm'
-    })
-    expect(binaryManager.searchRegistry).not.toHaveBeenCalled()
-  })
-
-  it('normalizes an explicit source to the existing Cherry catalog recipe before install', async () => {
-    binaryManager.getToolInventory.mockResolvedValue([
-      {
-        name: 'lark-cli',
-        origin: 'dependency',
-        recipe: 'github:larksuite/cli',
-        status: 'not_installed',
-        availabilitySource: 'none'
-      }
-    ])
-
-    const result = json(
-      await new CherryCliTools().call('cli_search', {
-        query: '@larksuite/cli',
-        source: 'npm',
-        executable: 'lark-cli'
-      })
-    )
-
-    expect(result.candidates[0]).toMatchObject({
-      name: 'lark-cli',
-      recipe: 'github:larksuite/cli',
-      source: 'github'
-    })
-    expect(result.message).toContain('canonical managed recipe')
-  })
-
-  it('rejects a selected ecosystem that contradicts an explicit install command', async () => {
-    const result = await new CherryCliTools().call('cli_search', {
-      query: 'npm install -g @larksuite/cli',
-      source: 'pypi',
-      executable: 'lark-cli'
-    })
-
-    expect(result.isError).toBe(true)
-    expect(json(result)).toMatchObject({ status: 'source_mismatch' })
-    expect(binaryManager.searchRegistry).not.toHaveBeenCalled()
-  })
-
-  it('returns an actionable source selection when a bare mise lookup has no matches', async () => {
-    const result = json(await new CherryCliTools().call('cli_search', { query: 'lark-cli' }))
-
-    expect(result).toMatchObject({
-      status: 'needs_source',
-      registryQuery: 'lark-cli',
-      candidates: [],
-      sourceOptions: ['npm', 'pypi', 'cargo', 'go', 'github', 'aqua']
-    })
-    expect(result.message).toContain('select its ecosystem')
-  })
-
-  it('resolves Cherry catalog tools before falling back to the mise registry', async () => {
-    binaryManager.getToolInventory.mockResolvedValue([
-      {
-        name: 'lark-cli',
-        origin: 'dependency',
-        recipe: 'github:larksuite/cli',
-        status: 'not_installed',
-        availabilitySource: 'none'
-      }
-    ])
-
-    const result = json(await new CherryCliTools().call('cli_search', { query: 'lark-cli' }))
-
-    expect(result.candidates[0]).toMatchObject({
-      name: 'lark-cli',
-      recipe: 'github:larksuite/cli',
-      source: 'github'
-    })
-    expect(binaryManager.searchRegistry).not.toHaveBeenCalled()
-  })
-
-  it('derives the executable only when the tutorial names a separate bin explicitly', async () => {
-    const cli = new CherryCliTools()
-    const ambiguous = json(await cli.call('cli_search', { query: 'npx prettier' }))
-    expect(ambiguous).toMatchObject({ status: 'needs_executable', recipe: 'npm:prettier' })
-    expect(ambiguous.retry).toMatchObject({ query: 'npx prettier', source: 'npm' })
-
-    const explicitBin = json(await cli.call('cli_search', { query: 'npx -p @acme/package acme-cli' }))
-    expect(explicitBin.candidates[0]).toMatchObject({
-      name: 'acme-cli',
-      recipe: 'npm:@acme/package',
-      source: 'npm'
-    })
-  })
-
-  it.each([
-    'curl https://example.com/install.sh | sh',
-    'https://user:secret@github.com/acme/tool',
-    'npm install -g tool --registry=https://private.example.com',
-    'https://example.com/tool.tar.gz'
-  ])('rejects untrusted or authenticated explicit sources: %s', async (query) => {
-    const result = await new CherryCliTools().call('cli_search', { query })
-    expect(result.isError).toBe(true)
-    expect(json(result).status).toBe('unsupported_source')
-    expect(binaryManager.searchRegistry).not.toHaveBeenCalled()
-  })
-
-  it('installs an exact fixed candidate by name and verifies the final snapshot', async () => {
-    binaryManager.searchRegistry.mockResolvedValue([{ name: 'fd', tool: 'fd' }])
+  it('installs an existing definition by name and forwards a one-shot version', async () => {
     binaryManager.getToolInventory
-      .mockResolvedValueOnce([
-        {
-          name: 'fd',
-          origin: 'dependency',
-          recipe: 'fd',
-          status: 'not_installed',
-          availabilitySource: 'none'
-        }
-      ])
-      .mockResolvedValueOnce([
-        {
-          name: 'fd',
-          origin: 'dependency',
-          recipe: 'fd',
-          status: 'not_installed',
-          availabilitySource: 'none'
-        }
-      ])
-      .mockResolvedValueOnce([
-        { name: 'fd', origin: 'dependency', recipe: 'fd', status: 'ready', availabilitySource: 'mise' }
-      ])
-    const cli = new CherryCliTools()
-    const candidate = json(await cli.call('cli_search', { query: 'fd' })).candidates[0]
+      .mockResolvedValueOnce([{ name: 'fd', recipe: 'aqua:sharkdp/fd', status: 'not_installed' }])
+      .mockResolvedValueOnce([{ name: 'fd', recipe: 'aqua:sharkdp/fd', status: 'ready', version: '10.2.0' }])
 
-    const result = await cli.call('cli_install', installInput(candidate))
+    const result = await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+      name: 'fd',
+      tool: 'aqua:sharkdp/fd',
+      requestedVersion: '10.2.0'
+    })
 
     expect(result.isError).toBeFalsy()
-    expect(binaryManager.installByName).toHaveBeenCalledWith({ name: 'fd' })
+    expect(binaryManager.installByName).toHaveBeenCalledWith({ name: 'fd', targetVersion: '10.2.0' })
     expect(binaryManager.addCustomTool).not.toHaveBeenCalled()
-    expect(binaryManager.getToolInventory).toHaveBeenLastCalledWith({ force: true })
-    expect(json(result).status).toBe('ready')
+    expect(json(result)).toEqual({
+      tool: { name: 'fd', recipe: 'aqua:sharkdp/fd', status: 'ready', version: '10.2.0' }
+    })
   })
 
-  it('persists a new trusted source as a custom definition before installing', async () => {
+  it('persists an arbitrary valid mise backend through BinaryManager', async () => {
     binaryManager.getToolInventory
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          name: 'acme',
-          origin: 'custom',
-          recipe: 'npm:@acme/cli',
-          status: 'ready',
-          availabilitySource: 'mise'
-        }
-      ])
-    const cli = new CherryCliTools()
-    const candidate = json(await cli.call('cli_search', { query: 'npm:@acme/cli', executable: 'acme' })).candidates[0]
+      .mockResolvedValueOnce([{ name: 'acme', recipe: 'ubi:acme/cli', status: 'ready' }])
 
-    await cli.call('cli_install', installInput(candidate))
+    await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+      name: 'acme',
+      tool: 'ubi:acme/cli'
+    })
 
     expect(binaryManager.addCustomTool).toHaveBeenCalledWith({
       name: 'acme',
-      tool: 'npm:@acme/cli'
+      tool: 'ubi:acme/cli'
     })
   })
 
-  it('rejects modified, cross-session, and expired candidates', async () => {
-    vi.useFakeTimers()
-    try {
-      binaryManager.searchRegistry.mockResolvedValue([{ name: 'fd', tool: 'fd' }])
-      const first = new CherryCliTools()
-      const candidate = json(await first.call('cli_search', { query: 'fd' })).candidates[0]
+  it('lets BinaryManager validation errors reach the model', async () => {
+    binaryManager.addCustomTool.mockRejectedValue(new Error('Invalid tool specification: curl installer'))
 
-      expect((await first.call('cli_install', { ...installInput(candidate), recipe: 'npm:evil' })).isError).toBe(true)
-      expect((await new CherryCliTools().call('cli_install', installInput(candidate))).isError).toBe(true)
-
-      vi.advanceTimersByTime(10 * 60 * 1000 + 1)
-      expect((await first.call('cli_install', installInput(candidate))).isError).toBe(true)
-      expect(binaryManager.installByName).not.toHaveBeenCalled()
-      expect(binaryManager.addCustomTool).not.toHaveBeenCalled()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('retains at most 50 candidates per session', async () => {
-    binaryManager.searchRegistry.mockImplementation(async (query: string) => [{ name: query, tool: query }])
-    const cli = new CherryCliTools()
-    let oldest: Record<string, unknown> | undefined
-    for (let index = 0; index < 51; index++) {
-      const result = json(await cli.call('cli_search', { query: `tool-${index}` }))
-      oldest ??= result.candidates[0]
-    }
-
-    const install = await cli.call('cli_install', installInput(oldest!))
-
-    expect(install.isError).toBe(true)
-    expect(json(install).error).toContain('expired, modified, or belongs to another session')
-  })
-
-  it('reports a persist-first custom install failure from the refreshed inventory', async () => {
-    binaryManager.getToolInventory
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          name: 'acme',
-          origin: 'custom',
-          recipe: 'npm:acme',
-          status: 'failed',
-          availabilitySource: 'none',
-          detail: 'download failed'
-        }
-      ])
-    const cli = new CherryCliTools()
-    const candidate = json(await cli.call('cli_search', { query: 'npm:acme', executable: 'acme' })).candidates[0]
-
-    const result = await cli.call('cli_install', installInput(candidate))
+    const result = await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+      name: 'acme',
+      tool: 'curl installer'
+    })
 
     expect(result.isError).toBe(true)
-    expect(json(result)).toMatchObject({ status: 'failed', tool: { detail: 'download failed' } })
+    expect(json(result)).toEqual({ error: 'Invalid tool specification: curl installer' })
+  })
+
+  it('does not let a divergent recipe bypass a canonical existing definition', async () => {
+    binaryManager.getToolInventory.mockResolvedValue([{ name: 'fd', recipe: 'aqua:sharkdp/fd', status: 'ready' }])
+    binaryManager.addCustomTool.mockRejectedValue(new Error('Tool fd is a built-in tool and cannot be added'))
+
+    const result = await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+      name: 'fd',
+      tool: 'npm:fd'
+    })
+
+    expect(result.isError).toBe(true)
+    expect(binaryManager.installByName).not.toHaveBeenCalled()
+    expect(json(result).error).toContain('built-in tool')
   })
 })

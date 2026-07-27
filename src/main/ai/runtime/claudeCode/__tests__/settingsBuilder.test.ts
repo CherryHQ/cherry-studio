@@ -30,9 +30,7 @@ const mocks = vi.hoisted(() => ({
   resolveRequire: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
-  rewritePackageRunnerCommands: vi.fn(),
   rtkRewrite: vi.fn(),
-  getToolInventory: vi.fn(),
   platform: { isMac: false },
   isWin: false
 }))
@@ -165,10 +163,6 @@ vi.mock('@main/utils/rtk', () => ({
   rtkRewrite: mocks.rtkRewrite
 }))
 
-vi.mock('../bashCommandRewrite', () => ({
-  rewritePackageRunnerCommands: mocks.rewritePackageRunnerCommands
-}))
-
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: mocks.getShellEnv
 }))
@@ -225,19 +219,16 @@ describe('buildClaudeCodeSessionSettings', () => {
         // headless gates are asserted by tests that override this.
         return { isCurrentTurnHeadless: () => false, hasLiveTurnStream: () => true }
       }
-      if (name === 'BinaryManager') return { getToolInventory: mocks.getToolInventory }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
     mocks.platform.isMac = false
-    mocks.getShellEnv.mockResolvedValue({})
-    mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    mocks.getBinaryPath.mockImplementation(async (name: string) => `/usr/local/bin/${name}`)
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.getAppLanguage.mockReturnValue('en-US')
-    mocks.rewritePackageRunnerCommands.mockResolvedValue({ kind: 'unchanged' })
     mocks.rtkRewrite.mockResolvedValue(null)
-    mocks.getToolInventory.mockResolvedValue([])
     mocks.isWin = false
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkills.mockResolvedValue([])
@@ -352,6 +343,35 @@ describe('buildClaudeCodeSessionSettings', () => {
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'sonnet-api',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'sonnet-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'haiku-api'
+    })
+  })
+
+  it('prepends package-runner shims and points them at the bundled runtimes', async () => {
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin:/app/feature.binary.data/shims' })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { PATH: '/custom/bin' } }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.env?.PATH?.split(':')[0]).toBe('/app/app.root.resources.agent_cli_shims')
+    expect(settings.env?.PATH).toContain('/custom/bin')
+    expect(settings.env).toMatchObject({
+      CHERRY_STUDIO_BUN_PATH: '/usr/local/bin/bun',
+      CHERRY_STUDIO_UVX_PATH: '/usr/local/bin/uvx'
     })
   })
 
@@ -928,12 +948,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(onInjected).toHaveBeenCalledTimes(1)
   })
 
-  it('returns one updatedInput after the AST npx rewrite and rtk rewrite run in sequence', async () => {
-    mocks.rewritePackageRunnerCommands.mockResolvedValue({
-      kind: 'rewritten',
-      command: 'bun x eslint .',
-      count: 1
-    })
+  it('keeps RTK as the only Bash text rewrite', async () => {
     mocks.rtkRewrite.mockResolvedValue('rtk eslint .')
     const session = {
       id: 'session-1',
@@ -949,8 +964,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {} as never
     )
 
-    expect(mocks.rewritePackageRunnerCommands).toHaveBeenCalledWith('npx eslint .')
-    expect(mocks.rtkRewrite).toHaveBeenCalledWith('bun x eslint .')
+    expect(mocks.rtkRewrite).toHaveBeenCalledWith('npx eslint .')
     expect(output).toEqual({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
@@ -959,11 +973,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
-  it('denies an unsafe npx form before rtk sees it', async () => {
-    mocks.rewritePackageRunnerCommands.mockResolvedValue({
-      kind: 'denied',
-      reason: 'unsupported npx runner option: --call; use `bun x` explicitly'
-    })
+  it('does not deny npx forms that are handled later by PATH resolution', async () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -978,10 +988,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       {} as never
     )
 
-    expect(output).toMatchObject({
-      hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: expect.stringContaining('bun x') }
-    })
-    expect(mocks.rtkRewrite).not.toHaveBeenCalled()
+    expect(output).toEqual({})
+    expect(mocks.rtkRewrite).toHaveBeenCalledWith('npx --call "echo hi"')
   })
 
   it('keeps an empty-text steer pending when the PreToolUse hook cannot inject it', async () => {

@@ -1,0 +1,33 @@
+#!/bin/sh
+
+if [ -z "$CHERRY_STUDIO_BUN_PATH" ]; then
+  echo "Cherry Studio could not locate its bundled Bun runtime." >&2
+  exit 127
+fi
+
+case "$1" in
+  -y|--yes|-p|--package|--no-install|'')
+    ;;
+  -*)
+    shim_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+    filtered_path=
+    old_ifs=$IFS
+    IFS=:
+    for directory in $PATH; do
+      if [ "$directory" != "$shim_dir" ]; then
+        filtered_path="${filtered_path}${filtered_path:+:}${directory}"
+      fi
+    done
+    IFS=$old_ifs
+    system_npx=$(PATH="$filtered_path" command -v npx 2>/dev/null)
+    if [ -n "$system_npx" ]; then
+      echo "Cherry Studio: passing unsupported npx runner options to system npx." >&2
+      PATH=$filtered_path
+      export PATH
+      exec "$system_npx" "$@"
+    fi
+    ;;
+esac
+
+echo "Cherry Studio: routing npx to bundled bun x." >&2
+exec "$CHERRY_STUDIO_BUN_PATH" x "$@"

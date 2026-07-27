@@ -66,6 +66,7 @@ export function buildPathRegistry() {
     'app.root.resources': appRootResources,
     'app.root.resources.scripts': path.join(appRootResources, 'scripts'),
     'app.root.resources.binaries': path.join(appRootResources, 'binaries'),
+    'app.root.resources.agent_cli_shims': path.join(appRootResources, 'agent-cli-shims'),
     'app.exe_file': app.getPath('exe'),
     'app.install': path.dirname(app.getPath('exe')), // directory containing the executable
     'app.logs': LOGS_DIR,
@@ -132,12 +133,6 @@ export function buildPathRegistry() {
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
     'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-agent workspace parent
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
-    'feature.agents.shell_parser.runtime_file': app.isPackaged
-      ? path.join(appExtraResources, 'tree-sitter', 'web-tree-sitter.wasm')
-      : path.join(app.getAppPath(), 'node_modules', 'web-tree-sitter', 'web-tree-sitter.wasm'),
-    'feature.agents.shell_parser.bash_grammar_file': app.isPackaged
-      ? path.join(appExtraResources, 'tree-sitter', 'tree-sitter-bash.wasm')
-      : path.join(app.getAppPath(), 'node_modules', 'tree-sitter-bash', 'tree-sitter-bash.wasm'),
 
     // Files / Notes / Knowledgebase
     'feature.files.data': path.join(appUserDataData, 'Files'),
@@ -227,12 +222,11 @@ const NO_ENSURE = [
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
+  'app.root.resources.agent_cli_shims',
   'app.database.migrations',
   'feature.provider_registry.data',
   'feature.agents.builtin',
-  'feature.agents.skills.builtin',
-  'feature.agents.shell_parser.runtime_file',
-  'feature.agents.shell_parser.bash_grammar_file'
+  'feature.agents.skills.builtin'
 ] as const satisfies readonly NoEnsureEntry[]
 
 /** Whether Application.getPath() should auto-create the directory for this key. */

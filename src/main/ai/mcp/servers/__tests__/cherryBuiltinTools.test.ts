@@ -706,7 +706,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
 
   it('exposes CLI management to normal agents and omits it for the built-in Assistant', async () => {
     const normal = new CherryBuiltinToolsServer(agentContext)
-    const assistant = new CherryBuiltinToolsServer(agentContext, { includeCliTools: false })
+    const assistant = new CherryBuiltinToolsServer({ ...agentContext, canManageCli: false })
     const normalHandlers = (normal.mcpServer.server as any)._requestHandlers
     const assistantHandlers = (assistant.mcpServer.server as any)._requestHandlers
 

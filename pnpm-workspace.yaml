@@ -97,7 +97,6 @@ allowBuilds:
   selection-hook: true
   sharp: true
   tesseract.js: true
-  tree-sitter-bash: false
   unrs-resolver: true
   zipfile: true
 

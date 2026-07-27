@@ -1,0 +1,29 @@
+#!/bin/sh
+
+if [ -z "$CHERRY_STUDIO_UVX_PATH" ]; then
+  echo "Cherry Studio could not locate its bundled uvx runtime." >&2
+  exit 127
+fi
+
+if [ "$1" = "run" ]; then
+  shift
+  echo "Cherry Studio: routing pipx run to bundled uvx." >&2
+  if [ "$1" = "--spec" ]; then
+    shift
+    package="$1"
+    if [ -z "$package" ]; then
+      echo "pipx run --spec requires a package." >&2
+      exit 2
+    fi
+    shift
+    exec "$CHERRY_STUDIO_UVX_PATH" --from "$package" "$@"
+  fi
+  exec "$CHERRY_STUDIO_UVX_PATH" "$@"
+fi
+
+if [ "$1" = "--version" ] || [ "$1" = "-V" ]; then
+  exec "$CHERRY_STUDIO_UVX_PATH" --version
+fi
+
+echo "Cherry Studio supports pipx run through bundled uvx; use cli_install for persistent Python CLIs." >&2
+exit 2

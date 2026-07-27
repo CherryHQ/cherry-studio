@@ -17,7 +17,6 @@ const {
   mockRealpath,
   mockGetPath,
   mockApplicationGet,
-  mockGetToolInventory,
   mockLoadBuiltinAgentDefinition,
   mockGetAppLanguage
 } = vi.hoisted(() => ({
@@ -26,7 +25,6 @@ const {
   mockRealpath: vi.fn(),
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
   mockApplicationGet: vi.fn(),
-  mockGetToolInventory: vi.fn(),
   mockLoadBuiltinAgentDefinition: vi.fn(),
   mockGetAppLanguage: vi.fn(() => 'en-US')
 }))
@@ -89,10 +87,7 @@ const WORKSPACE_MARKER = '## Current Workspace'
 
 beforeEach(() => {
   vi.unstubAllGlobals()
-  mockGetToolInventory.mockResolvedValue([])
-  mockApplicationGet.mockImplementation((name: string) =>
-    name === 'BinaryManager' ? { getToolInventory: mockGetToolInventory } : { get: vi.fn(() => undefined) }
-  )
+  mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
   mockFindBySessionId.mockReturnValue(null)
   mockLoadBuiltinAgentDefinition.mockReset()
   mockGetAppLanguage.mockReturnValue('en-US')
@@ -190,46 +185,15 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
     expect(result as string).toContain(RUNTIME_MARKER)
   })
 
-  it('shows at most 20 ready CLIs and points to cli_list for the live inventory', async () => {
-    mockGetToolInventory.mockResolvedValue(
-      Array.from({ length: 22 }, (_, index) => ({
-        name: `tool-${String(index).padStart(2, '0')}`,
-        origin: 'custom',
-        status: 'ready',
-        availabilitySource: 'mise'
-      }))
-    )
-
-    const result = (await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')) as string
-
-    expect(result).toContain('tool-00')
-    expect(result).toContain('tool-19')
-    expect(result).not.toContain('tool-20')
-    expect(result).toContain('Use `cli_list` for the current complete inventory')
-  })
-
   it('routes reusable CLI installation through managed tools without blocking ordinary downloads', async () => {
     const result = (await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')) as string
 
-    expect(result).toContain('you MUST call `cli_search` before running any installer')
-    expect(result).toContain('Use `cli_install` only with the exact candidate returned by `cli_search`')
-    expect(result).toContain('Never execute a remote install script as a fallback after a registry miss')
-    expect(result).toContain('`curl` and `wget` remain available for non-installing work')
-    expect(result).toContain('Fetching documentation does not authorize executing an installer found in it')
-  })
-
-  it('continues after the one-second CLI inventory startup budget', async () => {
-    vi.useFakeTimers()
-    try {
-      mockGetToolInventory.mockReturnValue(new Promise(() => undefined))
-      const prompt = buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
-
-      await vi.advanceTimersByTimeAsync(1000)
-
-      await expect(prompt).resolves.toContain('inventory unavailable')
-    } finally {
-      vi.useRealTimers()
-    }
+    expect(result).toContain('Call `cli_list` before assuming a reusable CLI is unavailable')
+    expect(result).toContain('Install reusable CLIs only with `cli_install`')
+    expect(result).toContain('read trusted public documentation')
+    expect(result).toContain('Do not run remote `curl`/`wget` install scripts for reusable CLIs')
+    expect(result).toContain('remain available for APIs, data, documentation, and project files')
+    expect(mockApplicationGet).not.toHaveBeenCalledWith('BinaryManager')
   })
 
   it('does not inject the runtime block for the Cherry Assistant (it carries its own environment)', async () => {

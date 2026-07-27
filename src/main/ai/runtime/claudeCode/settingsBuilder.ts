@@ -38,7 +38,6 @@ import {
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
-import { readyCliSummary } from '@main/ai/mcp/servers/cherryCliTools'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
@@ -55,6 +54,7 @@ import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getAppLanguage, t } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
+import { dedupePathSegments } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
@@ -78,7 +78,6 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
-import { rewritePackageRunnerCommands } from './bashCommandRewrite'
 import { detectGlobalInstall } from './dependencyGuard'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
@@ -538,7 +537,8 @@ function workspacePathErrorMessage(path: string, status: PathStatus): string {
 async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise<Record<string, string | undefined>> {
   const loginShellEnv = await getShellEnv()
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
-  const bunPath = await getBinaryPath('bun')
+  const [bunPath, uvxPath] = await Promise.all([getBinaryPath('bun'), getBinaryPath('uvx')])
+  const packageRunnerShims = toAsarUnpackedPath(application.getPath('app.root.resources.agent_cli_shims'))
 
   // API key and base URL are injected by the agent-session runtime query builder.
   // This function only builds agent-specific env vars.
@@ -583,6 +583,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     ENABLE_TOOL_SEARCH: 'auto',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
+    CHERRY_STUDIO_UVX_PATH: uvxPath,
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
   }
 
@@ -607,6 +608,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
       'CHERRY_STUDIO_NODE_PROXY_RULES',
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
       'CHERRY_STUDIO_BUN_PATH',
+      'CHERRY_STUDIO_UVX_PATH',
       'NODE_OPTIONS',
       '__PROTO__',
       'CONSTRUCTOR',
@@ -646,6 +648,17 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
       env.CLAUDE_CONFIG_DIR = loginShellEnv.CLAUDE_CONFIG_DIR || path.join(application.getPath('sys.home'), '.claude')
     }
   }
+
+  // Apply after user env vars so every Agent Bash process resolves the package
+  // runner shims first even when the user supplies a custom PATH.
+  const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  const pathSeparator = isWin ? ';' : path.delimiter
+  const runnerPath = dedupePathSegments([
+    packageRunnerShims,
+    ...pathKeys.flatMap((key) => (typeof env[key] === 'string' ? env[key].split(pathSeparator) : []))
+  ]).join(pathSeparator)
+  for (const key of pathKeys) env[key] = runnerPath
+  if (pathKeys.length === 0 || !isWin) env.PATH = runnerPath
 
   return env
 }
@@ -828,8 +841,8 @@ async function buildToolPermissions(
     }
   }
 
-  // Perform every safe Bash rewrite in one hook so Claude receives at most one updatedInput:
-  // syntax-aware npx/pipx run → bundled bun x/uvx first, then the existing rtk optimization.
+  // Keep RTK as the only Bash text rewrite. npx and pipx run are intercepted at
+  // command resolution by the agent-only PATH shims, including inside scripts.
   const bashRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
@@ -838,30 +851,13 @@ async function buildToolPermissions(
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
 
-    const runnerResult = await rewritePackageRunnerCommands(command)
-    if (runnerResult.kind === 'denied') {
-      logger.info('Blocked package runner command that could not be safely rewritten', {
-        sessionId: session.id,
-        reason: runnerResult.reason
-      })
-      return {
-        hookSpecificOutput: {
-          hookEventName: 'PreToolUse',
-          permissionDecision: 'deny',
-          permissionDecisionReason: runnerResult.reason
-        }
-      }
-    }
-
-    const afterRunnerRewrite = runnerResult.kind === 'rewritten' ? runnerResult.command : command
-    const afterRtk = (await rtkRewrite(afterRunnerRewrite)) || afterRunnerRewrite
-    if (afterRtk === command) return {}
+    const rewritten = await rtkRewrite(command)
+    if (!rewritten || rewritten === command) return {}
     logger.info('Rewrote Bash command', {
       original: command,
-      rewritten: afterRtk,
-      packageRunnerCommands: runnerResult.kind === 'rewritten' ? runnerResult.count : 0
+      rewritten
     })
-    return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: afterRtk } } }
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
   // Headless interactive-tool denial, enforced as a PreToolUse hook so it fires under every permission
@@ -1026,43 +1022,13 @@ async function buildToolPermissions(
  * stable (fixed install location), so this block is safe inside the warm-query
  * system-prompt signature.
  */
-async function getPromptCliInventory(): Promise<string[]> {
-  let timeout: ReturnType<typeof setTimeout> | undefined
-  try {
-    const inventory = application
-      .get('BinaryManager')
-      .getToolInventory()
-      .then(
-        (entries) => readyCliSummary(entries),
-        (error) => Promise.reject(error)
-      )
-    const timedOut = new Promise<readonly never[]>((resolve) => {
-      timeout = setTimeout(() => resolve([]), 1000)
-      timeout.unref?.()
-    })
-    return [...(await Promise.race([inventory, timedOut]))]
-  } catch (error) {
-    logger.warn('Failed to read CLI inventory for system prompt', {
-      error: error instanceof Error ? error.message : String(error)
-    })
-    return []
-  } finally {
-    if (timeout) clearTimeout(timeout)
-  }
-}
-
 async function buildRuntimeContext(): Promise<string> {
-  const [bunPath, uvPath, rgPath, cliInventory] = await Promise.all([
-    getBinaryPath('bun'),
-    getBinaryPath('uv'),
-    getBinaryPath('rg'),
-    getPromptCliInventory()
-  ])
+  const [bunPath, uvPath, rgPath] = await Promise.all([getBinaryPath('bun'), getBinaryPath('uv'), getBinaryPath('rg')])
   return [
     '## Managed CLI Installation',
-    'When the goal is to make a reusable command-line executable available for later commands or future sessions, you MUST call `cli_search` before running any installer or following any installation guide. This applies even when the guide recommends `curl`/`wget` piped to a shell, `npx`, `pipx`, or a package-manager install command.',
-    'Use `cli_install` only with the exact candidate returned by `cli_search`. Never execute a remote install script as a fallback after a registry miss. If `cli_search` returns `needs_source`, inspect trusted documentation only to identify a supported source, exact package/module/repository, and real executable, then retry `cli_search`. If no supported source can be identified, explain that Cherry Studio cannot manage this CLI instead of installing it outside BinaryManager.',
-    '`curl` and `wget` remain available for non-installing work such as APIs, data, documentation, and project files. Fetching documentation does not authorize executing an installer found in it.',
+    'Call `cli_list` before assuming a reusable CLI is unavailable, and `cli_search` to look up its executable and mise recipe.',
+    'Install reusable CLIs only with `cli_install`. If the registry misses, read trusted public documentation and pass its exact executable plus mise recipe (for example `npm:package`, `pipx:package`, or `github:owner/repo`); never guess the executable.',
+    'Do not run remote `curl`/`wget` install scripts for reusable CLIs. Those commands remain available for APIs, data, documentation, and project files.',
     '',
     '## Available Runtimes',
     'bun and uv are bundled and always on PATH. Use them to pull libraries and write throwaway scripts to verify logic — prefer them over node/npm/npx/pip, which are not guaranteed to be installed.',
@@ -1070,9 +1036,7 @@ async function buildRuntimeContext(): Promise<string> {
     `- Python — run with \`uv run python <file>\`, add deps inline with \`uv run --with <pkg> python <file>\` (ephemeral, no venv needed), run a tool with \`uvx <tool>\` (uv: ${uvPath})`,
     `- Search — \`rg\` for fast file/content search (ripgrep: ${rgPath})`,
     'Install dependencies INTO the project (cwd) only. Global installs (`-g`/`--global`, `uv tool install`, `pip install --user`) and direct mise mutations are blocked to keep tasks isolated — use `bun x` / `uvx` for one-off tools.',
-    `Ready CLIs (startup snapshot, at most 20): ${cliInventory.length > 0 ? cliInventory.join(', ') : 'inventory unavailable'}.`,
-    'Use `cli_list` for the current complete inventory.',
-    'A bare `cli_search` query checks Cherry’s managed catalog and the mise registry. If it returns `needs_source`, read a trusted installation guide, select its ecosystem with the `source` field, and retry using the exact package/module/repository identifier plus the real `executable`; never invent `npm:`/`pipx:` recipe prefixes. CLIs that need login, configuration, or reuse must be installed persistently, not run with `bun x` / `uvx`.'
+    'CLIs that need login, configuration, or reuse must be installed persistently, not run with `bun x` / `uvx`.'
   ].join('\n')
 }
 
@@ -1191,16 +1155,14 @@ export function buildMcpServers(
   mcpList['cherry-tools'] = {
     type: 'sdk',
     name: 'cherry-tools',
-    instance: new CherryBuiltinToolsServer(
-      {
-        agentId: agent.id,
-        workspaceSource,
-        workspacePath: session.workspace.path,
-        sourceChannelId,
-        getKnowledgeBaseIds: () => agentService.getAgent(agent.id)?.knowledgeBaseIds ?? []
-      },
-      { includeCliTools: agent.configuration?.builtin_role !== 'assistant' }
-    ).mcpServer
+    instance: new CherryBuiltinToolsServer({
+      agentId: agent.id,
+      workspaceSource,
+      workspacePath: session.workspace.path,
+      sourceChannelId,
+      canManageCli: agent.configuration?.builtin_role !== 'assistant',
+      getKnowledgeBaseIds: () => agentService.getAgent(agent.id)?.knowledgeBaseIds ?? []
+    }).mcpServer
   }
 
   // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the agent prompt and the

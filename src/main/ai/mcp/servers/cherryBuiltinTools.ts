@@ -17,7 +17,7 @@
  * - {@link CherryKnowledgeTools} (`…__kb_search`, `…__kb_read`, `…__kb_list`,
  *   `…__kb_manage`) — owns knowledge-base exposure and per-call scope authorization.
  * - {@link CherryCliTools} (`…__cli_list`, `…__cli_search`, `…__cli_install`) —
- *   owns per-session opaque install candidates and BinaryManager delegation.
+ *   delegates live discovery and approved installation to BinaryManager.
  *
  * Both act on the session's agent via the {@link CherryAgentContext} passed at
  * construction.
@@ -215,10 +215,10 @@ export async function callCherryBuiltinTool(name: string, args: unknown, signal:
 export class CherryBuiltinToolsServer {
   public mcpServer: McpServer
 
-  constructor(agentContext: CherryAgentContext, options: { includeCliTools?: boolean } = {}) {
+  constructor(agentContext: CherryAgentContext) {
     const autonomy = new CherryAutonomyTools(agentContext)
     const knowledge = new CherryKnowledgeTools(agentContext)
-    const cli = options.includeCliTools === false ? undefined : new CherryCliTools()
+    const cli = agentContext.canManageCli === false ? undefined : new CherryCliTools()
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [...listCherryBuiltinTools(), ...knowledge.tools(), ...autonomy.tools(), ...(cli?.tools() ?? [])]

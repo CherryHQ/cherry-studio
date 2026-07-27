@@ -26,6 +26,7 @@ const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, 
     chmod: vi.fn(async () => {}),
     writeFile: vi.fn(async () => {}),
     rename: vi.fn(async () => {}),
+    readdir: vi.fn(async () => []),
     access: vi.fn(async () => {}),
     realpath: vi.fn(async (candidate: string) => candidate)
   },
@@ -154,6 +155,7 @@ describe('BinaryManager', () => {
     platformMock.isWin = false
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
+    mockFsp.readdir.mockReset().mockResolvedValue([])
     mockFsp.access.mockReset().mockResolvedValue(undefined)
     mockFsp.realpath.mockReset().mockImplementation(async (candidate: string) => candidate)
     vi.mocked(findCommandInShellEnv).mockReset().mockResolvedValue(null)
@@ -571,6 +573,8 @@ describe('BinaryManager', () => {
         },
         application: { status: 'applied', version: '1.0.77' }
       })
+      expect(mockFsp.realpath).toHaveBeenCalledWith('/opt/mise/installs/github-larksuite-cli/latest/lark-cli')
+      expect(mockFsp.realpath).toHaveBeenCalledWith('/opt/mise/installs/github-larksuite-cli/1.0.77')
     })
 
     it('reports broken when an active entry shim resolves outside that entry install_path', async () => {
@@ -2897,72 +2901,61 @@ describe('BinaryManager', () => {
   })
 
   describe('Agent CLI inventory', () => {
-    it('aggregates bundled, fixed, custom, and runtime tools without exposing paths', async () => {
+    it('aggregates bundled, fixed, custom, and runtime tools without `mise which` or exposed paths', async () => {
       manifestRef.value = [{ name: 'acme', tool: 'npm:acme', requestedVersion: '1.2.3' }]
       const service = new BinaryManager()
-      vi.spyOn(service, 'getToolSnapshots').mockResolvedValue({
-        bun: {
-          name: 'bun',
-          availability: { source: 'bundled', path: '/mock/cherry/bin/bun', version: '1.3.0' },
-          application: { status: 'absent' }
-        },
-        fd: {
-          name: 'fd',
-          availability: { source: 'none' },
-          application: { status: 'absent' }
-        },
-        acme: {
-          name: 'acme',
-          definition: manifestRef.value[0],
-          availability: { source: 'mise', path: '/secret/shims/acme', version: '1.2.3' },
-          application: { status: 'applied', version: '1.2.3' }
-        },
-        node: {
-          name: 'node',
-          availability: { source: 'mise', path: '/secret/shims/node', version: '22.1.0' },
-          application: { status: 'applied', version: '22.1.0' }
-        }
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockResolvedValue({
+        stdout: JSON.stringify({
+          'npm:acme': [{ version: '1.2.3', active: true }],
+          'core:node': [{ version: '22.1.0', active: true }]
+        }),
+        stderr: ''
       })
+      ;(mockFsp.readdir as any).mockImplementation(async (directory: string) =>
+        directory === '/mock/feature.binary.data/shims'
+          ? [
+              { name: 'acme', isFile: () => true, isSymbolicLink: () => false },
+              { name: 'node', isFile: () => true, isSymbolicLink: () => false }
+            ]
+          : []
+      )
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/bun')
+      mockFs.readFileSync.mockImplementation((candidate: string) =>
+        candidate === '/mock/cherry.bin/.bun-version'
+          ? '1.3.0'
+          : (() => {
+              throw new Error('ENOENT')
+            })()
+      )
 
       const inventory = await service.getToolInventory()
 
       expect(inventory).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ name: 'bun', origin: 'bundled', status: 'ready' }),
-          expect.objectContaining({ name: 'fd', origin: 'dependency', status: 'not_installed' }),
-          expect.objectContaining({
-            name: 'acme',
-            origin: 'custom',
-            status: 'ready',
-            recipe: 'npm:acme',
-            requestedVersion: '1.2.3'
-          }),
-          expect.objectContaining({ name: 'node', origin: 'runtime', status: 'ready' })
+          { name: 'bun', recipe: 'bun', status: 'ready', version: '1.3.0' },
+          expect.objectContaining({ name: 'fd', status: 'not_installed' }),
+          { name: 'acme', recipe: 'npm:acme', status: 'ready', version: '1.2.3' },
+          { name: 'node', recipe: 'core:node', status: 'ready', version: '22.1.0' }
         ])
       )
-      expect(JSON.stringify(inventory)).not.toContain('/secret/')
+      expect(JSON.stringify(inventory)).not.toContain('/mock/')
+      expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
+      expect(mockExecFileAsync.mock.calls[0][1]).toEqual(['ls', '--json'])
     })
 
-    it('shares one inventory build, caches it, and actively invalidates on mutation', async () => {
+    it('reads live state on every inventory call instead of caching snapshots', async () => {
       const service = new BinaryManager()
-      let resolveSnapshots!: (value: Record<string, never>) => void
-      const snapshots = vi
-        .spyOn(service, 'getToolSnapshots')
-        .mockImplementationOnce(() => new Promise((resolve) => (resolveSnapshots = resolve)))
-        .mockResolvedValue({})
-
-      const first = service.getToolInventory()
-      const concurrent = service.getToolInventory()
-      expect(snapshots).toHaveBeenCalledTimes(1)
-      resolveSnapshots({})
-      await expect(Promise.all([first, concurrent])).resolves.toEqual([[], []])
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
 
       await service.getToolInventory()
-      expect(snapshots).toHaveBeenCalledTimes(1)
-
-      ;(service as any).bumpMutationRevision()
       await service.getToolInventory()
-      expect(snapshots).toHaveBeenCalledTimes(2)
+
+      expect(mockExecFileAsync).toHaveBeenCalledTimes(2)
+      expect(mockExecFileAsync.mock.calls.every((call: any[]) => call[1][0] === 'ls')).toBe(true)
     })
   })
 
