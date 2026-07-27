@@ -4,7 +4,6 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
-import { useStableListItems } from '@renderer/hooks/useStableListItems'
 import { cn } from '@renderer/utils/style'
 import { History, MoreHorizontal, SquarePen } from 'lucide-react'
 import type { ReactElement, ReactNode, RefObject } from 'react'
@@ -24,11 +23,6 @@ import {
   type ResourceListStatus
 } from './base'
 
-/**
- * Plain data only — items are deep-compared across snapshots (`useStableListItems`) so unchanged
- * rows keep their reference and skip re-rendering. Never add ReactNode or function fields here;
- * express per-item rendering as data (like `icon`) and behavior as rail-level props.
- */
 export type ResourceEntityRailItem = {
   id: string
   name: string
@@ -262,12 +256,9 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   selectedId,
   status = 'idle',
   variant,
-  items: itemsProp
+  items
 }: ResourceEntityRailProps<T, TActionContext>) {
   const { t } = useTranslation()
-  // Reuse item references across refreshed snapshots so unchanged rows keep their memo identity —
-  // consumers can rebuild the items array freely without re-rendering every row.
-  const items = useStableListItems(itemsProp)
   const hasReorderHandler = !!onReorder
   const reorderEnabled = hasReorderHandler && reorderEnabledProp
   const fallbackListRef = useRef<HTMLDivElement>(null)

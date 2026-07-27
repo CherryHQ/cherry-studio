@@ -41,7 +41,6 @@ import { useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
-import { useStableListItems } from '@renderer/hooks/useStableListItems'
 import {
   finishTopicRenaming,
   getTopicMessages,
@@ -372,7 +371,7 @@ export function Topics({
     [queueImageCaptureTarget, showTopicImageExportToast, t]
   )
 
-  const projectedApiTopics = useMemo(
+  const apiBackedTopics = useMemo(
     () =>
       apiTopics.map((apiTopic) => {
         const topic = mapApiTopicToRendererTopic(apiTopic)
@@ -380,7 +379,6 @@ export function Topics({
       }),
     [apiTopics, isTopicPinned]
   )
-  const apiBackedTopics = useStableListItems(projectedApiTopics)
   const [optimisticMove, setOptimisticMove] = useState<{
     payload: ResourceListItemReorderPayload
     targetAssistantId: string | null

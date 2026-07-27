@@ -31,10 +31,7 @@ function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null 
   }
 }
 
-/**
- * Plain-data description of an entity icon. Rail items carry this instead of rendered JSX so
- * list snapshots stay deep-comparable (see ResourceEntityRail's item stabilization).
- */
+/** Plain-data description of an entity icon rendered by the resource rail. */
 export type ResourceEntityIconDescriptor =
   | { type: 'model'; modelId: string; modelName?: string | null }
   | { type: 'emoji'; emoji: string }

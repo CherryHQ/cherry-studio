@@ -141,8 +141,6 @@ export function AssistantResourceList({
     [onCreateTopic]
   )
   const hasDefaultAssistantTopics = useMemo(() => apiTopics.some((topic) => !topic.assistantId), [apiTopics])
-  // Plain-data items only; the rail deep-compares snapshots to keep unchanged rows stable, so this
-  // memo may rebuild freely without re-rendering every row.
   const entities = useMemo<ResourceEntityRailItem[]>(() => {
     const entityItems: ResourceEntityRailItem[] = assistants.map((assistant) => {
       const group = assistant.groupId ? assistantGroupById.get(assistant.groupId) : undefined

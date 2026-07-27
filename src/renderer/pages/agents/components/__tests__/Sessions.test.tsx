@@ -1,5 +1,4 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import type * as SessionMenuActionsHook from '@renderer/hooks/chat/useSessionMenuActions'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -258,13 +257,11 @@ const pinMocks = vi.hoisted(() => ({
 
 const preferenceMocks = vi.hoisted(() => ({
   values: new Map<string, unknown>(),
-  setPreference: vi.fn(),
-  useMultiplePreferences: vi.fn()
+  setPreference: vi.fn()
 }))
 
 const cacheMocks = vi.hoisted(() => ({
   state: { activeSessionId: 'session-a' as string | null },
-  setters: new Map<string, (value: unknown) => void>(),
   values: new Map<string, unknown>(),
   setActiveSessionId: vi.fn(),
   setCache: vi.fn()
@@ -323,23 +320,6 @@ const topicStreamStatusMocks = vi.hoisted(() => ({
   }))
 }))
 
-const sessionRowRenderMocks = vi.hoisted(() => ({
-  counts: new Map<string, number>()
-}))
-
-vi.mock('@renderer/hooks/chat/useSessionMenuActions', async () => {
-  const actual = await vi.importActual<typeof SessionMenuActionsHook>('@renderer/hooks/chat/useSessionMenuActions')
-
-  return {
-    ...actual,
-    useSessionMenuActions: (...args: Parameters<typeof actual.useSessionMenuActions>) => {
-      const sessionName = args[0].sessionName
-      sessionRowRenderMocks.counts.set(sessionName, (sessionRowRenderMocks.counts.get(sessionName) ?? 0) + 1)
-      return actual.useSessionMenuActions(...args)
-    }
-  }
-})
-
 const agentSessionImageCaptureHostMocks = vi.hoisted(() => ({
   render: vi.fn()
 }))
@@ -396,7 +376,10 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       preferenceMocks.setPreference(key, value)
     }
   ],
-  useMultiplePreferences: preferenceMocks.useMultiplePreferences
+  useMultiplePreferences: (keys: Record<string, string>) => [
+    Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, preferenceMocks.values.get(key)])),
+    vi.fn()
+  ]
 }))
 
 vi.mock('@renderer/pages/agents/messages/AgentSessionImageCaptureHost', () => {
@@ -429,16 +412,13 @@ vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [undefined, vi.fn()],
-  usePersistCache: (key: string) => {
-    if (!cacheMocks.setters.has(key)) {
-      cacheMocks.setters.set(key, (value: unknown) => {
-        cacheMocks.values.set(key, value)
-        cacheMocks.setCache(key, value)
-      })
+  usePersistCache: (key: string) => [
+    cacheMocks.values.get(key),
+    (value: unknown) => {
+      cacheMocks.values.set(key, value)
+      cacheMocks.setCache(key, value)
     }
-
-    return [cacheMocks.values.get(key), cacheMocks.setters.get(key)]
-  }
+  ]
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -531,108 +511,105 @@ vi.mock('react-i18next', () => ({
     init: vi.fn(),
     type: '3rdParty'
   },
-  useTranslation: (() => {
-    const value = {
-      t: (key: string, options?: Record<string, unknown>) => {
-        const labels: Record<string, string> = {
-          'agent.session.add.title': 'Add task',
-          'agent.add.title': 'Add Agent',
-          'agent.session.display.agent': 'Agent',
-          'agent.session.display.time': 'Time',
-          'agent.session.display.title': 'Display mode',
-          'agent.session.display.workdir': 'Work directory',
-          'agent.session.empty.description': 'Tasks will appear here after you start one.',
-          'agent.session.empty.title': 'No tasks',
-          'agent.manage.title': 'Manage Agents',
-          'agent.delete.content': 'Delete this agent and its tasks?',
-          'agent.delete.error.failed': 'Failed to delete agent',
-          'agent.delete.title': 'Delete Agent',
-          'agent.edit.title': 'Edit Agent',
-          'agent.icon.type': 'Agent icon',
-          'agent.session.auto_rename': 'Generate task name',
-          'agent.toolPermission.pending': 'Waiting for confirmation',
-          'agent.toolPermission.pendingBadge': 'Pending',
-          'agent.session.edit.title': 'Edit task name',
-          'agent.session.file_manager.file_explorer': 'File Explorer',
-          'agent.session.file_manager.files': 'Files',
-          'agent.session.file_manager.finder': 'Finder',
-          'agent.session.get.error.failed': 'Failed to get tasks',
-          'agent.session.group.collapse': 'Collapse display',
-          'agent.session.group.collapse_all': 'Collapse all',
-          'agent.session.group.conversation': 'Conversations',
-          'agent.session.group.drag_hint': 'Drag to reorder. Drag tasks to adjust display and hidden groups.',
-          'agent.session.group.earlier': 'Earlier',
-          'agent.session.group.expand_all': 'Expand all',
-          'agent.session.group.no_workdir': 'No work directory',
-          'agent.session.group.show_more': 'Expand display',
-          'agent.session.group.this_week': 'This week',
-          'agent.session.group.today': 'Today',
-          'agent.session.group.unknown_agent': 'Unknown agent',
-          'agent.session.group.yesterday': 'Yesterday',
-          'agent.session.list.title': 'Tasks',
-          'agent.session.new': 'New task',
-          'agent.pin.title': 'Pin Agent',
-          'agent.session.pin.title': 'Pin task',
-          'agent.session.reorder.error.failed': 'Failed to reorder tasks',
-          'agent.session.search.placeholder': 'Search tasks',
-          'agent.session.update.error.failed': 'Failed to update task',
-          'agent.session.unpin.title': 'Unpin task',
-          'agent.session.workdir.delete.content':
-            'Deleting this work directory also deletes tasks under it. The actual folder is not deleted.',
-          'agent.session.workdir.delete.error.failed': 'Failed to delete work directory',
-          'agent.session.workdir.delete.title': 'Delete work directory',
-          'agent.session.workdir.delete.trigger': 'Delete work directory',
-          'agent.session.workdir.rename.error.failed': 'Failed to rename work directory',
-          'agent.session.workdir.rename.title': 'Rename work directory',
-          'agent.session.workdir.rename.trigger': 'Rename work directory',
-          'agent.unpin.title': 'Unpin Agent',
-          'chat.topics.delete.shortcut': 'Hold Ctrl to delete directly',
-          'chat.topics.copy.image': 'Copy as Image',
-          'chat.topics.copy.md': 'Copy as Markdown',
-          'chat.topics.copy.plain_text': 'Copy as Plain Text',
-          'chat.topics.copy.title': 'Copy',
-          'common.cancel': 'Cancel',
-          'common.delete': 'Delete',
-          'common.delete_success': 'Deleted successfully',
-          'common.error': 'Error',
-          'common.loading': 'Loading...',
-          'common.more': 'More',
-          'common.name': 'Name',
-          'common.open_in': `Open in ${options?.name ?? ''}`,
-          'common.open_in_new_tab': 'Open in new tab',
-          'common.rename': 'Rename',
-          'tab.open_in_new_window': 'Open in New Window',
-          'common.required_field': 'Required field',
-          'common.retry': 'Retry',
-          'common.save': 'Save',
-          'common.saved': 'Saved',
-          'common.unnamed': 'Untitled',
-          'error.model.not_exists': 'Model does not exist',
-          'message.tools.status.done': 'Done',
-          'message.tools.status.error': 'Error',
-          'message.tools.status.running': 'Running',
-          'settings.agent.position.label': 'Session position',
-          'settings.agent.position.left': 'Left',
-          'settings.agent.position.right': 'Right',
-          'settings.assistant.icon.type.emoji': 'Emoji',
-          'settings.assistant.icon.type.model': 'Model',
-          'settings.assistant.icon.type.none': 'None',
-          'selector.agent.create_new': 'Create agent',
-          'selector.agent.empty_text': 'No agents',
-          'selector.agent.search_placeholder': 'Search agents',
-          'selector.common.edit': 'Edit',
-          'selector.common.pin': 'Pin',
-          'selector.common.pinned_title': 'Pinned',
-          'selector.common.sort.asc': 'Oldest first',
-          'selector.common.sort.desc': 'Newest first',
-          'selector.common.sort_label': 'Sort',
-          'selector.common.unpin': 'Unpin'
-        }
-        return labels[key] ?? key
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const labels: Record<string, string> = {
+        'agent.session.add.title': 'Add task',
+        'agent.add.title': 'Add Agent',
+        'agent.session.display.agent': 'Agent',
+        'agent.session.display.time': 'Time',
+        'agent.session.display.title': 'Display mode',
+        'agent.session.display.workdir': 'Work directory',
+        'agent.session.empty.description': 'Tasks will appear here after you start one.',
+        'agent.session.empty.title': 'No tasks',
+        'agent.manage.title': 'Manage Agents',
+        'agent.delete.content': 'Delete this agent and its tasks?',
+        'agent.delete.error.failed': 'Failed to delete agent',
+        'agent.delete.title': 'Delete Agent',
+        'agent.edit.title': 'Edit Agent',
+        'agent.icon.type': 'Agent icon',
+        'agent.session.auto_rename': 'Generate task name',
+        'agent.toolPermission.pending': 'Waiting for confirmation',
+        'agent.toolPermission.pendingBadge': 'Pending',
+        'agent.session.edit.title': 'Edit task name',
+        'agent.session.file_manager.file_explorer': 'File Explorer',
+        'agent.session.file_manager.files': 'Files',
+        'agent.session.file_manager.finder': 'Finder',
+        'agent.session.get.error.failed': 'Failed to get tasks',
+        'agent.session.group.collapse': 'Collapse display',
+        'agent.session.group.collapse_all': 'Collapse all',
+        'agent.session.group.conversation': 'Conversations',
+        'agent.session.group.drag_hint': 'Drag to reorder. Drag tasks to adjust display and hidden groups.',
+        'agent.session.group.earlier': 'Earlier',
+        'agent.session.group.expand_all': 'Expand all',
+        'agent.session.group.no_workdir': 'No work directory',
+        'agent.session.group.show_more': 'Expand display',
+        'agent.session.group.this_week': 'This week',
+        'agent.session.group.today': 'Today',
+        'agent.session.group.unknown_agent': 'Unknown agent',
+        'agent.session.group.yesterday': 'Yesterday',
+        'agent.session.list.title': 'Tasks',
+        'agent.session.new': 'New task',
+        'agent.pin.title': 'Pin Agent',
+        'agent.session.pin.title': 'Pin task',
+        'agent.session.reorder.error.failed': 'Failed to reorder tasks',
+        'agent.session.search.placeholder': 'Search tasks',
+        'agent.session.update.error.failed': 'Failed to update task',
+        'agent.session.unpin.title': 'Unpin task',
+        'agent.session.workdir.delete.content':
+          'Deleting this work directory also deletes tasks under it. The actual folder is not deleted.',
+        'agent.session.workdir.delete.error.failed': 'Failed to delete work directory',
+        'agent.session.workdir.delete.title': 'Delete work directory',
+        'agent.session.workdir.delete.trigger': 'Delete work directory',
+        'agent.session.workdir.rename.error.failed': 'Failed to rename work directory',
+        'agent.session.workdir.rename.title': 'Rename work directory',
+        'agent.session.workdir.rename.trigger': 'Rename work directory',
+        'agent.unpin.title': 'Unpin Agent',
+        'chat.topics.delete.shortcut': 'Hold Ctrl to delete directly',
+        'chat.topics.copy.image': 'Copy as Image',
+        'chat.topics.copy.md': 'Copy as Markdown',
+        'chat.topics.copy.plain_text': 'Copy as Plain Text',
+        'chat.topics.copy.title': 'Copy',
+        'common.cancel': 'Cancel',
+        'common.delete': 'Delete',
+        'common.delete_success': 'Deleted successfully',
+        'common.error': 'Error',
+        'common.loading': 'Loading...',
+        'common.more': 'More',
+        'common.name': 'Name',
+        'common.open_in': `Open in ${options?.name ?? ''}`,
+        'common.open_in_new_tab': 'Open in new tab',
+        'common.rename': 'Rename',
+        'tab.open_in_new_window': 'Open in New Window',
+        'common.required_field': 'Required field',
+        'common.retry': 'Retry',
+        'common.save': 'Save',
+        'common.saved': 'Saved',
+        'common.unnamed': 'Untitled',
+        'error.model.not_exists': 'Model does not exist',
+        'message.tools.status.done': 'Done',
+        'message.tools.status.error': 'Error',
+        'message.tools.status.running': 'Running',
+        'settings.agent.position.label': 'Session position',
+        'settings.agent.position.left': 'Left',
+        'settings.agent.position.right': 'Right',
+        'settings.assistant.icon.type.emoji': 'Emoji',
+        'settings.assistant.icon.type.model': 'Model',
+        'settings.assistant.icon.type.none': 'None',
+        'selector.agent.create_new': 'Create agent',
+        'selector.agent.empty_text': 'No agents',
+        'selector.agent.search_placeholder': 'Search agents',
+        'selector.common.edit': 'Edit',
+        'selector.common.pin': 'Pin',
+        'selector.common.pinned_title': 'Pinned',
+        'selector.common.sort.asc': 'Oldest first',
+        'selector.common.sort.desc': 'Newest first',
+        'selector.common.sort_label': 'Sort',
+        'selector.common.unpin': 'Unpin'
       }
+      return labels[key] ?? key
     }
-    return () => value
-  })()
+  })
 }))
 
 import {
@@ -811,12 +788,7 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
 describe('Sessions', () => {
   beforeEach(() => {
     preferenceMocks.values.clear()
-    preferenceMocks.useMultiplePreferences.mockImplementation((keys: Record<string, string>) => [
-      Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, preferenceMocks.values.get(key)])),
-      vi.fn()
-    ])
     cacheMocks.values.clear()
-    sessionRowRenderMocks.counts.clear()
     imageCaptureTargetsMock.targets = undefined
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     preferenceMocks.values.set('agent.icon_type', 'emoji')
@@ -914,47 +886,17 @@ describe('Sessions', () => {
     ).toBeInTheDocument()
   })
 
-  it('keeps the sortable session list mounted while a refresh temporarily disables dragging', () => {
-    setupSessions({ isValidating: true })
+  it('keeps the sortable session list mounted and preserves scroll position during refresh', () => {
+    const view = render(<SessionsForTest />)
+    const listbox = screen.getByRole('listbox')
+    listbox.scrollTop = 640
 
-    render(<SessionsForTest />)
+    setupSessions({ isValidating: true })
+    view.rerender(<SessionsForTest />)
 
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
-  })
-
-  it('does not rerender unchanged session rows during refreshes or list appends', () => {
-    const stableMultiplePreferencesResult = [{}, vi.fn()]
-    preferenceMocks.useMultiplePreferences.mockReturnValue(stableMultiplePreferencesResult)
-    const view = render(<SessionsForTest />)
-    const initialRenderCounts = new Map(sessionRowRenderMocks.counts)
-
-    expect(initialRenderCounts.get('Alpha session')).toBeGreaterThan(0)
-    expect(initialRenderCounts.get('Beta session')).toBeGreaterThan(0)
-
-    setupSessions({ isValidating: true })
-    view.rerender(<SessionsForTest />)
-
-    expect(sessionRowRenderMocks.counts.get('Alpha session')).toBe(initialRenderCounts.get('Alpha session'))
-    expect(sessionRowRenderMocks.counts.get('Beta session')).toBe(initialRenderCounts.get('Beta session'))
-
-    setupSessions({
-      sessions: [
-        createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
-        createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' }),
-        createSession({
-          id: 'session-c',
-          name: 'Gamma session',
-          orderKey: 'c',
-          workspaceId: 'ws-b',
-          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Embedded Project B' })
-        })
-      ]
-    })
-    view.rerender(<SessionsForTest />)
-
-    expect(sessionRowRenderMocks.counts.get('Alpha session')).toBe(initialRenderCounts.get('Alpha session'))
-    expect(sessionRowRenderMocks.counts.get('Beta session')).toBe(initialRenderCounts.get('Beta session'))
-    expect(sessionRowRenderMocks.counts.get('Gamma session')).toBeGreaterThan(0)
+    expect(screen.getByRole('listbox')).toBe(listbox)
+    expect(listbox.scrollTop).toBe(640)
   })
 
   it('defaults workspace display groups to collapsed before the user changes expansion', () => {

@@ -113,8 +113,6 @@ export function AgentResourceList({
     [pinIdBySessionId, sessions]
   )
 
-  // Plain-data items only; the rail deep-compares snapshots to keep unchanged rows stable, so this
-  // memo may rebuild freely without re-rendering every row.
   const entities = useMemo<ResourceEntityRailItem[]>(
     () =>
       agents.map((agent) => ({
