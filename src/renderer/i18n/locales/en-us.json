@@ -5845,6 +5845,14 @@
           "lite_title": "Lite backup",
           "title": "Backup"
         },
+        "notice": {
+          "completed_description": "The previous database and every file the restore replaced are still on this device, and routine file cleanup stays paused until you confirm. Open Settings → Data → Backup & restore and choose \"Keep restored data\".",
+          "completed_title": "Restore complete — confirm to reclaim space",
+          "expired_description": "A prepared restore expired before it could run, so nothing was replaced. Prepare it again from Settings → Data → Backup & restore.",
+          "expired_title": "The restore did not run",
+          "failed_description": "Your previous data was kept and nothing was replaced. See Settings → Data → Backup & restore for what happened.",
+          "failed_title": "The restore did not complete"
+        },
         "outcome": {
           "acknowledge_button": "Keep restored data",
           "acknowledged": "Restore acknowledged. The previous data has been released.",

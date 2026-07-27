@@ -5845,6 +5845,14 @@
           "lite_title": "精简备份",
           "title": "备份"
         },
+        "notice": {
+          "completed_description": "先前的数据库和每个被替换的文件仍保留在本机，且常规文件清理会一直暂停，直到你确认。请打开 设置 → 数据 → 备份与恢复，选择\"保留恢复结果\"。",
+          "completed_title": "恢复已完成 —— 确认后可释放空间",
+          "expired_description": "已准备的恢复在执行前过期，没有任何内容被替换。可在 设置 → 数据 → 备份与恢复 中重新准备。",
+          "expired_title": "恢复未执行",
+          "failed_description": "先前的数据已保留，没有任何内容被替换。详情见 设置 → 数据 → 备份与恢复。",
+          "failed_title": "恢复未完成"
+        },
         "outcome": {
           "acknowledge_button": "保留恢复结果",
           "acknowledged": "已确认恢复，先前的数据已释放。",

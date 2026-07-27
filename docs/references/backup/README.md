@@ -437,6 +437,15 @@ asides **first**, clears the journal **last**, then releases GC protection. A cr
 anywhere before the last step leaves protection active and cleanup resumable. This is crash
 rollback protection, not a hidden long-term undo feature.
 
+**The user must be asked, not waited on.** Because protection holds double storage and keeps
+orphan sweep standing aside, an unacknowledged `completed` restore that is never revisited
+would pay both costs forever. The main window therefore raises a persistent notice for the
+terminal journal states at startup
+([`useBackupRestoreNotice.ts`](../../../src/renderer/windows/main/hooks/useBackupRestoreNotice.ts)),
+pointing at the settings screen that owns the action. Deliberately a reminder and **not** an
+expiry: auto-acknowledging on a timer would delete the only rollback material a bad restore
+has, unprompted, which is exactly the guarantee above.
+
 ### 6.6 userData relocation
 
 `runUserDataRelocation()` executes before the restore gate and copies the entire userData
