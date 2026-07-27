@@ -218,4 +218,19 @@ describe('TemporaryChatContextProvider', () => {
     // No pre-allocated messageId: AI SDK generates it for the streaming UIMessage
     expect(request.messageId).toBeUndefined()
   })
+
+  it('reads the knowledge scope from the submitted user-message parts', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({
+        userMessageParts: [
+          { type: 'text', text: 'search this' },
+          { type: 'data-knowledge-scope', data: { baseIds: ['kb-1', 'kb-1', 'kb-2'] } }
+        ]
+      }),
+      { hasLiveStream: false }
+    )
+
+    expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-1', 'kb-2'])
+  })
 })

@@ -130,7 +130,14 @@ export const zhCN = {
       title: '迁移失败',
       description: '迁移过程遇到错误，您可以重新尝试或继续使用之前版本（原始数据完好保存）。',
       error_prefix: '错误信息：',
-      unknown: '未知错误'
+      unknown: '未知错误',
+      v1_fallback: {
+        title: '重试后仍然失败？可以继续使用 V1',
+        description: '您的原始数据完好保存，下载并安装 V1 版本即可继续使用。',
+        download: '下载 V1 版本',
+        dismiss: '知道了',
+        open_failed: '无法打开下载页面'
+      }
     },
     version_incompatible: {
       title: '版本升级提示',
@@ -277,7 +284,14 @@ export const enUS = {
       description:
         'An error occurred during migration. You can retry or continue using the previous version (original data is intact).',
       error_prefix: 'Error: ',
-      unknown: 'Unknown error'
+      unknown: 'Unknown error',
+      v1_fallback: {
+        title: 'Still failing after a retry? You can keep using V1',
+        description: 'Your original data is intact. Download and install V1 to keep working.',
+        download: 'Download V1',
+        dismiss: 'Got it',
+        open_failed: 'Could not open the download page'
+      }
     },
     version_incompatible: {
       title: 'Version Upgrade Required',

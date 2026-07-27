@@ -89,7 +89,7 @@ export function ApiHostField({
     <ProviderField
       title={
         <span className={fieldClasses.titleWithHelp}>
-          <span className="font-semibold">{t('settings.provider.api_host')}</span>
+          <span>{t('settings.provider.api_host')}</span>
           <ApiHostEndpointButton onClick={onOpenRequestConfig} />
         </span>
       }
@@ -178,7 +178,7 @@ export function AnthropicApiHostField({
     <ProviderField
       title={
         <span className={fieldClasses.titleWithHelp}>
-          <span className="font-semibold">{t('settings.provider.anthropic_api_host')}</span>
+          <span>{t('settings.provider.anthropic_api_host')}</span>
           <ApiHostEndpointButton onClick={onOpenRequestConfig} />
         </span>
       }

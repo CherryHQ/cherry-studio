@@ -17,13 +17,16 @@ import {
   DropdownMenuTrigger,
   EmptyState,
   Input,
+  SearchInput,
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { SettingDescription, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useGroupMutations } from '@renderer/hooks/useGroups'
 import { toast } from '@renderer/services/toast'
 import type { GroupItem, ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
+import { cn } from '@renderer/utils/style'
 import type { Group } from '@shared/data/types/group'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
@@ -74,6 +77,10 @@ interface Props {
   onAddGroup: (groupName: string) => Promise<void> | void
   allGroups: Group[]
   toolbarLeading?: ReactNode
+  variant?: 'library' | 'settings'
+  /** Settings variant only: page heading rendered above the search row. */
+  title?: ReactNode
+  description?: ReactNode
 }
 
 function getGridColumnCount(width: number) {
@@ -147,18 +154,19 @@ interface SkillAddActionsProps {
   onSearchMarketplace: () => void
   onSearchSystem?: () => void
   onImportLocal: () => void
+  size?: 'sm' | 'default'
 }
 
-function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal }: SkillAddActionsProps) {
+function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal, size = 'sm' }: SkillAddActionsProps) {
   const { t } = useTranslation()
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="default" size="sm" className="shrink-0">
-          <Plus size={12} className="lucide-custom" />
+        <Button variant="default" size={size} className="shrink-0">
+          <Plus size={size === 'sm' ? 12 : 16} className="lucide-custom" />
           <span>{t('library.skill_add.add')}</span>
-          <ChevronDown size={12} className="text-primary-foreground/70" />
+          <ChevronDown size={size === 'sm' ? 12 : 14} className="text-primary-foreground/70" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-40">
@@ -201,9 +209,13 @@ export const ResourceGrid: FC<Props> = ({
   onGroupFilter,
   onAddGroup,
   allGroups,
-  toolbarLeading
+  toolbarLeading,
+  variant = 'library',
+  title,
+  description
 }) => {
   const { t } = useTranslation()
+  const isSettings = variant === 'settings'
   const { updateGroup, deleteGroup } = useGroupMutations('assistant', {
     refreshOnDelete: ['/assistants', '/assistants/*']
   })
@@ -308,43 +320,80 @@ export const ResourceGrid: FC<Props> = ({
     }
   }, [activeGroupId, deleteGroup, deleting, deletingGroup, onGroupFilter, t])
 
+  const addActions =
+    activeResourceType === 'assistant' ? (
+      <AssistantAddActions
+        onNew={() => onCreate('assistant')}
+        onImport={onImportAssistant}
+        onOpenLibrary={onOpenAssistantLibrary}
+      />
+    ) : activeResourceType === 'skill' ? (
+      <SkillAddActions
+        onSearchMarketplace={onOpenSkillMarketplace}
+        onSearchSystem={onOpenSystemSkills}
+        onImportLocal={() => onCreate('skill')}
+        size={isSettings ? 'default' : 'sm'}
+      />
+    ) : (
+      <Button
+        variant="default"
+        size={isSettings ? 'default' : 'sm'}
+        onClick={() => onCreate(activeResourceType)}
+        className="shrink-0">
+        <Plus size={isSettings ? 16 : 12} className="lucide-custom" />
+        <span>{t('library.create_menu.create', { type: t(RESOURCE_TYPE_META[activeResourceType].labelKey) })}</span>
+      </Button>
+    )
+
+  const searchInput = isSettings ? (
+    <SearchInput
+      aria-label={t('library.toolbar.search_placeholder')}
+      placeholder={t('library.toolbar.search_placeholder')}
+      value={search}
+      onChange={(event) => onSearchChange(event.currentTarget.value)}
+      onClear={() => onSearchChange('')}
+      clearLabel={t('common.clear')}
+    />
+  ) : (
+    <ResourceCatalogSearchInput
+      value={search}
+      onValueChange={onSearchChange}
+      placeholder={t('library.toolbar.search_placeholder')}
+      className="max-w-64 flex-1"
+    />
+  )
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-col border-border-muted border-b">
-        <div className="flex h-12 shrink-0 items-center gap-2 px-5">
-          {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
-          <ResourceCatalogSearchInput
-            value={search}
-            onValueChange={onSearchChange}
-            placeholder={t('library.toolbar.search_placeholder')}
-            className="max-w-64 flex-1"
-          />
+      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-muted border-b')}>
+        {isSettings ? (
+          <>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <SettingTitle>
+                  <span>{title}</span>
+                </SettingTitle>
+                {description ? <SettingDescription className="mt-0">{description}</SettingDescription> : null}
+              </div>
+              {addActions}
+            </div>
+            <SettingDivider />
+            <div className="flex shrink-0 flex-wrap items-center gap-2 py-1">
+              <div className="min-w-56 flex-1 [&>[data-slot=input-group]]:border-border [&>[data-slot=input-group]]:bg-transparent">
+                {searchInput}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex h-12 shrink-0 items-center gap-2 px-5">
+            {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
+            {searchInput}
 
-          <div className="flex-1" />
+            <div className="flex-1" />
 
-          <div className="flex shrink-0 items-center gap-2">
-            {activeResourceType === 'assistant' ? (
-              <AssistantAddActions
-                onNew={() => onCreate('assistant')}
-                onImport={onImportAssistant}
-                onOpenLibrary={onOpenAssistantLibrary}
-              />
-            ) : activeResourceType === 'skill' ? (
-              <SkillAddActions
-                onSearchMarketplace={onOpenSkillMarketplace}
-                onSearchSystem={onOpenSystemSkills}
-                onImportLocal={() => onCreate('skill')}
-              />
-            ) : (
-              <Button variant="default" size="sm" onClick={() => onCreate(activeResourceType)} className="shrink-0">
-                <Plus size={12} className="lucide-custom" />
-                <span>
-                  {t('library.create_menu.create', { type: t(RESOURCE_TYPE_META[activeResourceType].labelKey) })}
-                </span>
-              </Button>
-            )}
+            <div className="flex shrink-0 items-center gap-2">{addActions}</div>
           </div>
-        </div>
+        )}
 
         {showGroupToolbar && (
           <div className="flex items-center overflow-x-auto px-2 pt-1 pb-2 [&::-webkit-scrollbar]:h-0">
@@ -492,7 +541,10 @@ export const ResourceGrid: FC<Props> = ({
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+        className={cn(
+          'flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1',
+          isSettings ? 'py-3' : 'px-5 py-4'
+        )}>
         {isLoading ? (
           <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
         ) : resources.length === 0 ? (

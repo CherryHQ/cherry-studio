@@ -4,7 +4,8 @@ import type { McpTool } from '@renderer/types/tool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { useMemo } from 'react'
 
-import { isReportArtifactsToolResponse } from './agent'
+import { isReportArtifactsToolResponse, MessageChannelConfigTool } from './agent'
+import { isChannelAuthQrToolResponse } from './channelConfigTool'
 import MessageMcpTool from './mcp/MessageMcpTool'
 import MessageTool, { canRenderMessageToolResponse } from './MessageTool'
 import { normalizeToolErrorResponse, normalizeToolOutputResponse } from './toolResponse'
@@ -31,6 +32,7 @@ function rendersThroughChooseTool(toolResponse: McpToolResponse | NormalToolResp
 
 export function canRenderMessageTool(toolResponse: McpToolResponse | NormalToolResponse) {
   if (isReportArtifactsToolResponse(toolResponse)) return false
+  if (isChannelAuthQrToolResponse(toolResponse)) return true
   if (toolResponse.tool.type === 'mcp' && !rendersThroughChooseTool(toolResponse)) return true
   return canRenderMessageToolResponse(toolResponse as NormalToolResponse)
 }
@@ -57,8 +59,11 @@ export default function MessageTools({ toolResponse }: Props) {
   }, [deferredOutput, error, isLoading, output, toolResponse])
 
   if (isReportArtifactsToolResponse(resolvedToolResponse)) return null
+  if (isChannelAuthQrToolResponse(resolvedToolResponse)) {
+    return <MessageChannelConfigTool toolResponse={resolvedToolResponse} />
+  }
   if (rendersThroughChooseTool(resolvedToolResponse)) {
     return <MessageTool toolResponse={resolvedToolResponse as NormalToolResponse} />
   }
-  return <MessageMcpTool toolResponse={resolvedToolResponse as McpToolResponse} />
+  return <MessageMcpTool toolResponse={resolvedToolResponse} />
 }

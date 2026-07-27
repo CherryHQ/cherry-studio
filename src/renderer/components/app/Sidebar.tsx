@@ -6,7 +6,6 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -35,11 +34,6 @@ import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVarian
 
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
-
-function getResourceListRevealSource(menuItemId: SidebarAppId): ResourceListRevealSource | null {
-  if (menuItemId === 'assistants' || menuItemId === 'agents') return menuItemId
-  return null
-}
 
 function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
   if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return undefined
@@ -139,13 +133,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (!path || activeTab?.url === path) return
 
       const title = getDefaultRouteTitle(path)
-      const revealSource = getResourceListRevealSource(menuId)
 
       if (activeTab?.isPinned) {
-        const openedId = openTab(path, { forceNew: true, title })
-        if (revealSource) {
-          emitResourceListReveal({ source: revealSource, tabId: openedId })
-        }
+        openTab(path, { forceNew: true, title })
         return
       }
 
@@ -156,16 +146,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           icon: undefined,
           metadata: clearTabInstanceMetadata(activeTab.metadata)
         })
-        if (revealSource) {
-          emitResourceListReveal({ source: revealSource, tabId: activeTab.id })
-        }
         return
       }
 
-      const openedId = openTab(path, { forceNew: true, title })
-      if (revealSource) {
-        emitResourceListReveal({ source: revealSource, tabId: openedId })
-      }
+      openTab(path, { forceNew: true, title })
     },
     [activeTab, updateTab, openTab, defaultPaintingProvider]
   )

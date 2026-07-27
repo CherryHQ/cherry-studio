@@ -2140,7 +2140,7 @@
     "terminal": "Terminal",
     "terminal_hint": "Alege în ce aplicație terminal să rulezi CLI-ul",
     "terminal_placeholder": "Selectează aplicația terminal",
-    "title": "Instrumente de cod",
+    "title": "Code Mate",
     "tool_parameters": "Setări Parametri",
     "up_to_date": "La zi",
     "update_options": "Opțiuni de actualizare",
@@ -8068,7 +8068,7 @@
   "title": {
     "apps": "Aplicații",
     "chat": "Chat",
-    "code": "Cod",
+    "code": "Code Mate",
     "files": "Fișiere",
     "home": "Acasă",
     "knowledge": "Bază de cunoștințe",

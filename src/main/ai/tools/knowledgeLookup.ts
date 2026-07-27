@@ -407,14 +407,14 @@ function readTree(
 /**
  * kb_list dispatch: list the user's bases, or — when a `baseId` is supplied — outline that one
  * base's structure. One tool with two modes (see KNOWLEDGE_LIST_DESCRIPTION); both cores share the
- * `{ error }` contract, so this only routes by the presence of `baseId`. (`!= null` also covers
- * undefined; strict callers pass null for "no baseId", MCP callers omit it.)
+ * `{ error }` contract, so this only routes by the presence of `baseId`. AI-SDK adapters normalize
+ * their strict-schema sentinels before calling this core; MCP callers omit unused fields directly.
  */
 export async function listOrOutlineKnowledge(
-  input: { query?: string | null; groupId?: string | null; baseId?: string | null; maxDepth?: number | null },
+  input: { query?: string; groupId?: string; baseId?: string; maxDepth?: number },
   allowedIds: readonly string[]
 ): Promise<KnowledgeListResultOrError> {
-  if (input.baseId != null) {
+  if (input.baseId) {
     return readTree(input.baseId, { maxDepth: input.maxDepth ?? undefined }, allowedIds)
   }
   return listKnowledgeBases(input.query, input.groupId, allowedIds)
@@ -423,16 +423,16 @@ export async function listOrOutlineKnowledge(
 /** Longest a derived note title (its first line) may be before it is truncated. */
 const NOTE_TITLE_MAX_CHARS = 80
 
-/** kb_manage input shape shared by both callers: MCP omits an unused field, AI-SDK strict passes null. */
+/** kb_manage input shape shared after AI-SDK strict sentinels have been normalized. */
 type ManageKnowledgeInput = {
   baseId: string
   action: 'add' | 'delete' | 'refresh'
-  type?: 'file' | 'url' | 'note' | null
-  path?: string | null
-  url?: string | null
-  content?: string | null
-  title?: string | null
-  conceptIds?: string[] | null
+  type?: 'file' | 'url' | 'note'
+  path?: string
+  url?: string
+  content?: string
+  title?: string
+  conceptIds?: string[]
 }
 
 /**
