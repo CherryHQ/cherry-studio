@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { isEmbeddingModel, KnowledgeModelSelect } from '../../components/KnowledgeModelSelect'
-import LocalEmbeddingDownloadButton from './LocalEmbeddingDownloadButton'
+import LocalEmbeddingDownloadButton from '../../components/LocalEmbeddingDownloadButton'
 import { RagFieldLabel } from './panelPrimitives'
 
 interface EmbeddingSectionProps {
