@@ -378,6 +378,11 @@
         "label": "Ferramentas pré-aprovadas",
         "placeholder": "Selecionar ferramentas pré-aprovadas"
       },
+      "api_retry": {
+        "reason": "Pedido falhou ({{error}}, HTTP {{status}}) — a tentar novamente",
+        "retrying": "Tentando novamente {{attempt}}/{{max}}…",
+        "retrying_in": "Tentando novamente {{attempt}}/{{max}} em {{seconds}}s"
+      },
       "auto_rename": "Gerar nome da tarefa",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Falha ao excluir tarefa",
         "loadFailed": "Falha ao carregar tarefas",
         "runFailed": "Falha ao executar a tarefa",
+        "triggerInvalid": "Agenda inválida: verifique a expressão, fuso horário ou intervalo de tempo",
         "updateFailed": "Falha ao atualizar a tarefa"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "Executar",
       "runTriggered": "Tarefa acionada",
       "save": "Guardar",
+      "schedule": {
+        "custom": "Agenda personalizada",
+        "daily": "Diário",
+        "hour": "Hora",
+        "hourly": "Por hora",
+        "interval": "Intervalo personalizado",
+        "intervalMinutes": "Intervalo",
+        "invalid": "Insira uma frequência de execução válida.",
+        "minute": "Minuto",
+        "once": "Uma vez",
+        "runAt": "Executar em",
+        "summary": {
+          "daily": "Diariamente às {{time}}",
+          "hourly": "No início de cada hora",
+          "interval": "A cada {{count}} minutos",
+          "weekdays": "Dias da semana às {{time}}",
+          "weekly": "Todo {{weekday}} às {{time}}"
+        },
+        "time": "Tempo",
+        "weekday": "Dia da semana",
+        "weekdays": {
+          "friday": "Sexta-feira",
+          "monday": "Segunda-feira",
+          "saturday": "Sábado",
+          "sunday": "Domingo",
+          "thursday": "Quinta-feira",
+          "tuesday": "Terça-feira",
+          "wednesday": "Quarta-feira"
+        },
+        "weekdaysOnly": "Dias da semana",
+        "weekly": "Semanal"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Intervalo",
@@ -869,7 +907,7 @@
       "expired": "Expirado",
       "inputPreview": "Pré-visualização da entrada da ferramenta",
       "pending": "Pendente ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Pendente",
       "permissionExpired": "Solicitação de permissão expirou. Aguardando novas instruções...",
       "requiresElevatedPermissions": "Esta ferramenta requer permissões elevadas.",
       "suggestion": {
@@ -1427,21 +1465,21 @@
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Falha ao carregar a conversa referenciada",
+        "no_room": "Não há espaço suficiente restante na mensagem para adicionar esta conversa",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Nenhuma sessão corresponde à sua pesquisa",
+            "label": "Nenhuma Sessão Encontrada"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Sessões"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Nenhum tópico corresponde à sua pesquisa",
+            "label": "Nenhum Tópico Encontrado"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Tópicos"
         }
       },
       "resize_height": "Redimensionar altura da entrada",
@@ -2293,7 +2331,7 @@
     "provider": "Fornecedor",
     "reasoning_content": "Pensamento profundo concluído",
     "refresh": "Atualizar",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Não foi possível atualizar a lista. Exibindo a última versão carregada.",
     "regenerate": "Regenerar",
     "remove_image": "Remover imagem",
     "rename": "Renomear",
@@ -2609,7 +2647,7 @@
     "empty": {
       "no_match_description": "Nenhum arquivo corresponde aos filtros atuais",
       "no_match_title": "Nenhum arquivo correspondente encontrado",
-      "title": "[to be translated]:No files yet"
+      "title": "Nenhum arquivo ainda"
     },
     "empty_trash": "Esvaziar lixeira",
     "error": {
@@ -3781,6 +3819,8 @@
         "title": "Confirmação de Exclusão"
       },
       "failed": "Falha ao excluir",
+      "first_turn_not_supported": "A primeira mensagem do usuário não pode ser excluída.",
+      "root_unavailable": "As mensagens ainda estão carregando e ainda não podem ser excluídas.",
       "success": "Excluído com sucesso"
     },
     "dialog": {
@@ -7682,12 +7722,39 @@
       "titlePlaceholder": "Por favor, insira o título da frase"
     },
     "scheduledTasks": {
+      "agentCreate": "Criar com Agente",
+      "allAgents": "Todos os Agentes",
+      "allStatuses": "Todos os status",
+      "clearFilters": "Limpar filtros",
+      "createDescription": "Defina o que o Agente deve fazer e quando deve ser executado.",
+      "createTitle": "Nova tarefa agendada",
       "description": "Gerencie tarefas agendadas em todos os agentes. As tarefas são executadas automaticamente conforme o agendamento configurado.",
+      "editDescription": "Atualize o que o Agente deve fazer e quando deve ser executado.",
+      "editTitle": "Editar tarefa agendada",
+      "filterAgent": "Filtrar por Agente",
+      "filterStatus": "Filtrar por status",
+      "manualCreate": "Criar manualmente",
+      "newTask": "Novo",
       "noAgents": "Nenhum agente encontrado. Crie um agente primeiro para adicionar tarefas agendadas.",
       "noAgentsTip": "Dica: Você também pode pedir ao seu agente para criar tarefas agendadas via chat.",
+      "noAgentsTitle": "Sem Agentes",
+      "noMatches": "Tente uma pesquisa ou filtro diferente.",
+      "noMatchesTitle": "Nenhuma tarefa correspondente",
       "noTasks": "Nenhuma tarefa agendada. Clique em \"+ Adicionar\" para criar uma para um agente.",
+      "noTasksTitle": "Nenhuma tarefa agendada",
+      "notFoundDescription": "Esta tarefa pode ter sido excluída ou o link é inválido.",
+      "notFoundTitle": "Tarefa não encontrada",
+      "paginationLabel": "Paginação de tarefas agendadas",
+      "paginationStatus": "Página {{page}} de {{pageCount}} · {{total}} tarefas",
+      "search": "Pesquisar tarefas agendadas",
+      "searchPlaceholder": "Pesquisar tarefas ou Agentes",
       "selectTask": "Selecione uma tarefa para ver os detalhes",
-      "title": "Tarefas Agendadas"
+      "title": "Tarefas Agendadas",
+      "validation": {
+        "agent": "Selecione um Agente.",
+        "name": "Digite um nome para a tarefa.",
+        "prompt": "Insira um prompt de tarefa."
+      }
     },
     "shortcuts": {
       "action": "Ação",

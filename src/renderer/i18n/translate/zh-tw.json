@@ -378,6 +378,11 @@
         "label": "預先授權工具",
         "placeholder": "選擇預先授權的工具"
       },
+      "api_retry": {
+        "reason": "請求失敗（{{error}}，HTTP {{status}}）— 正在重試",
+        "retrying": "重試 {{attempt}}/{{max}}…",
+        "retrying_in": "正在重試 {{attempt}}/{{max}}，{{seconds}} 秒後重試"
+      },
       "auto_rename": "產生任務名",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "無法刪除任務",
         "loadFailed": "載入任務失敗",
         "runFailed": "無法執行任務",
+        "triggerInvalid": "無效的排程：請檢查表達式、時區或間隔範圍",
         "updateFailed": "更新任務失敗"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "執行",
       "runTriggered": "任務已觸發",
       "save": "儲存",
+      "schedule": {
+        "custom": "自訂排程",
+        "daily": "每日",
+        "hour": "小時",
+        "hourly": "每小時",
+        "interval": "自訂間隔",
+        "intervalMinutes": "區間",
+        "invalid": "輸入有效的執行頻率。",
+        "minute": "分鐘",
+        "once": "一次",
+        "runAt": "執行於",
+        "summary": {
+          "daily": "每日於 {{time}}",
+          "hourly": "在每個小時開始時",
+          "interval": "每 {{count}} 分鐘",
+          "weekdays": "週一至週五 {{time}}",
+          "weekly": "每個{{weekday}}的{{time}}"
+        },
+        "time": "時間",
+        "weekday": "星期幾",
+        "weekdays": {
+          "friday": "星期五",
+          "monday": "星期一",
+          "saturday": "星期六",
+          "sunday": "星期日",
+          "thursday": "星期四",
+          "tuesday": "星期二",
+          "wednesday": "星期三"
+        },
+        "weekdaysOnly": "週一至週五",
+        "weekly": "每週"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "間隔",
@@ -1427,21 +1465,21 @@
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "無法載入引用的對話",
+        "no_room": "訊息中沒有足夠的空間來新增這段對話",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "沒有符合您搜尋條件的場次",
+            "label": "找不到工作階段"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "會議"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "沒有符合您搜尋的主題",
+            "label": "未找到主題"
           },
-          "title": "[to be translated]:Topics"
+          "title": "主題"
         }
       },
       "resize_height": "調整輸入框高度",
@@ -2293,7 +2331,7 @@
     "provider": "供應商",
     "reasoning_content": "已深度思考",
     "refresh": "重新整理",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "無法重新整理清單。顯示上次載入的版本。",
     "regenerate": "重新產生",
     "remove_image": "移除圖片",
     "rename": "重新命名",
@@ -2609,7 +2647,7 @@
     "empty": {
       "no_match_description": "目前篩選條件下沒有檔案",
       "no_match_title": "找不到符合的檔案",
-      "title": "[to be translated]:No files yet"
+      "title": "尚無檔案"
     },
     "empty_trash": "清空回收站",
     "error": {
@@ -3781,6 +3819,8 @@
         "title": "刪除確認"
       },
       "failed": "刪除失敗",
+      "first_turn_not_supported": "第一則用戶訊息無法刪除",
+      "root_unavailable": "訊息仍在載入中，尚無法刪除。",
       "success": "刪除成功"
     },
     "dialog": {
@@ -7682,12 +7722,39 @@
       "titlePlaceholder": "請輸入短語標題"
     },
     "scheduledTasks": {
+      "agentCreate": "使用 Agent 創建",
+      "allAgents": "所有代理",
+      "allStatuses": "所有狀態",
+      "clearFilters": "清除篩選條件",
+      "createDescription": "設定 Agent 應該執行什麼操作以及何時執行。",
+      "createTitle": "新的排程任務",
       "description": "管理所有代理的排程任務。任務將依設定好的排程自動執行。",
+      "editDescription": "更新代理程式應該執行的內容以及執行時間。",
+      "editTitle": "編輯排程任務",
+      "filterAgent": "按代理篩選",
+      "filterStatus": "按狀態篩選",
+      "manualCreate": "手動建立",
+      "newTask": "新",
       "noAgents": "沒有可用的代理。請先建立一個代理，再新增排程任務。",
       "noAgentsTip": "提示：你也可以直接在對話中讓代理建立排程任務。",
+      "noAgentsTitle": "沒有代理",
+      "noMatches": "嘗試不同的搜尋或篩選條件。",
+      "noMatchesTitle": "沒有符合的任務",
       "noTasks": "沒有排程任務。點擊「+ 新增」為代理程式建立一個。",
+      "noTasksTitle": "沒有已排程的任務",
+      "notFoundDescription": "此任務可能已被刪除，或連結無效。",
+      "notFoundTitle": "找不到任務",
+      "paginationLabel": "排程任務分頁",
+      "paginationStatus": "第 {{page}} 頁，共 {{pageCount}} 頁 · {{total}} 項任務",
+      "search": "搜尋排程任務",
+      "searchPlaceholder": "搜尋任務或代理程式",
       "selectTask": "選擇一個任務來查看詳細資訊",
-      "title": "排程工作"
+      "title": "排程工作",
+      "validation": {
+        "agent": "選擇一個代理程式。",
+        "name": "輸入任務名稱。",
+        "prompt": "輸入任務提示。"
+      }
     },
     "shortcuts": {
       "action": "操作",

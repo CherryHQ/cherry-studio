@@ -378,6 +378,11 @@
         "label": "Предварительно одобренные инструменты",
         "placeholder": "Выберите предварительно одобренные инструменты"
       },
+      "api_retry": {
+        "reason": "Запрос не удался ({{error}}, HTTP {{status}}) — повторная попытка",
+        "retrying": "Повторная попытка {{attempt}}/{{max}}…",
+        "retrying_in": "Повторная попытка {{attempt}}/{{max}} через {{seconds}}с"
+      },
       "auto_rename": "Сгенерировать название задачи",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Не удалось удалить задачу",
         "loadFailed": "Не удалось загрузить задачи",
         "runFailed": "Не удалось выполнить задачу",
+        "triggerInvalid": "Неверное расписание: проверьте выражение, часовой пояс или диапазон интервала",
         "updateFailed": "Не удалось обновить задачу"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "Запустить",
       "runTriggered": "Задача запущена",
       "save": "Сохранить",
+      "schedule": {
+        "custom": "Индивидуальное расписание",
+        "daily": "Ежедневно",
+        "hour": "Час",
+        "hourly": "Почасовой",
+        "interval": "Пользовательский интервал",
+        "intervalMinutes": "Интервал",
+        "invalid": "Введите допустимую частоту выполнения.",
+        "minute": "Минута",
+        "once": "Один раз",
+        "runAt": "Запустить в",
+        "summary": {
+          "daily": "Ежедневно в {{time}}",
+          "hourly": "В начале каждого часа",
+          "interval": "Каждые {{count}} минут",
+          "weekdays": "По будням в {{time}}",
+          "weekly": "Каждый {{weekday}} в {{time}}"
+        },
+        "time": "Время",
+        "weekday": "День недели",
+        "weekdays": {
+          "friday": "Пятница",
+          "monday": "Понедельник",
+          "saturday": "Суббота",
+          "sunday": "Воскресенье",
+          "thursday": "Четверг",
+          "tuesday": "Вторник",
+          "wednesday": "Среда"
+        },
+        "weekdaysOnly": "Будни",
+        "weekly": "Еженедельно"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Интервал",
@@ -869,7 +907,7 @@
       "expired": "Истёк",
       "inputPreview": "Предварительный просмотр ввода инструмента",
       "pending": "Ожидание ({{seconds}}с)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "В ожидании",
       "permissionExpired": "Срок действия запроса на разрешение истёк. Ожидание новых инструкций...",
       "requiresElevatedPermissions": "Этому инструменту требуются повышенные разрешения.",
       "suggestion": {
@@ -1427,21 +1465,21 @@
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Не удалось загрузить указанный разговор",
+        "no_room": "Недостаточно места в сообщении, чтобы добавить эту беседу",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Нет сессий, соответствующих вашему поиску",
+            "label": "Сеансы не найдены"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Сессии"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Нет тем, соответствующих вашему поиску",
+            "label": "Темы не найдены"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Темы"
         }
       },
       "resize_height": "Изменить высоту ввода",
@@ -2293,7 +2331,7 @@
     "provider": "Провайдер",
     "reasoning_content": "Глубокий анализ",
     "refresh": "Обновить",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Не удалось обновить список. Отображается последняя загруженная версия.",
     "regenerate": "Пересоздать",
     "remove_image": "Удалить изображение",
     "rename": "Переименовать",
@@ -2609,7 +2647,7 @@
     "empty": {
       "no_match_description": "Ни один файл не соответствует текущим фильтрам",
       "no_match_title": "Совпадающие файлы не найдены",
-      "title": "[to be translated]:No files yet"
+      "title": "Пока нет файлов"
     },
     "empty_trash": "Очистить корзину",
     "error": {
@@ -3781,6 +3819,8 @@
         "title": "Подтверждение удаления"
       },
       "failed": "Ошибка удаления",
+      "first_turn_not_supported": "Первое сообщение пользователя не может быть удалено.",
+      "root_unavailable": "Сообщения всё ещё загружаются и пока не могут быть удалены.",
       "success": "Удаление успешно"
     },
     "dialog": {
@@ -7682,12 +7722,39 @@
       "titlePlaceholder": "Пожалуйста, введите название фразы"
     },
     "scheduledTasks": {
+      "agentCreate": "Создать с помощью Агента",
+      "allAgents": "Все агенты",
+      "allStatuses": "Все статусы",
+      "clearFilters": "Очистить фильтры",
+      "createDescription": "Установите, что должен делать Агент и когда он должен запускаться.",
+      "createTitle": "Новое запланированное задание",
       "description": "Управляйте запланированными задачами на всех агентах. Задачи выполняются автоматически по заданному расписанию.",
+      "editDescription": "Обновите, что должен делать Агент и когда он должен запускаться.",
+      "editTitle": "Редактировать запланированную задачу",
+      "filterAgent": "Фильтр по агенту",
+      "filterStatus": "Фильтр по статусу",
+      "manualCreate": "Создать вручную",
+      "newTask": "Новый",
       "noAgents": "Агенты не найдены. Сначала создайте агента, чтобы добавить запланированные задачи.",
       "noAgentsTip": "Совет: вы также можете попросить своего агента создать запланированные задачи через чат.",
+      "noAgentsTitle": "Нет агентов",
+      "noMatches": "Попробуйте другой поиск или фильтр.",
+      "noMatchesTitle": "Нет соответствующих задач",
       "noTasks": "Нет запланированных задач. Нажмите «Добавить», чтобы создать задачу для агента.",
+      "noTasksTitle": "Нет запланированных задач",
+      "notFoundDescription": "Эта задача могла быть удалена, или ссылка недействительна.",
+      "notFoundTitle": "Задача не найдена",
+      "paginationLabel": "Пагинация запланированных задач",
+      "paginationStatus": "Страница {{page}} из {{pageCount}} · {{total}} задач",
+      "search": "Поиск запланированных задач",
+      "searchPlaceholder": "Поиск задач или агентов",
       "selectTask": "Выберите задачу для просмотра подробностей",
-      "title": "Запланированные задачи"
+      "title": "Запланированные задачи",
+      "validation": {
+        "agent": "Выберите агента.",
+        "name": "Введите название задачи.",
+        "prompt": "Введите запрос задачи."
+      }
     },
     "shortcuts": {
       "action": "Действие",

@@ -378,6 +378,11 @@
         "label": "Vorab autorisierte Tools",
         "placeholder": "Vorab autorisierte Tools auswählen"
       },
+      "api_retry": {
+        "reason": "Anfrage fehlgeschlagen ({{error}}, HTTP {{status}}) — Wiederholung",
+        "retrying": "Erneuter Versuch {{attempt}}/{{max}}…",
+        "retrying_in": "Wiederholung {{attempt}}/{{max}} in {{seconds}}s"
+      },
       "auto_rename": "Aufgabenname generieren",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Fehler beim Löschen der Aufgabe",
         "loadFailed": "Aufgaben konnten nicht geladen werden",
         "runFailed": "Aufgabe konnte nicht ausgeführt werden",
+        "triggerInvalid": "Ungültiger Zeitplan: Prüfen Sie den Ausdruck, die Zeitzone oder den Intervallbereich",
         "updateFailed": "Aktualisierung der Aufgabe fehlgeschlagen"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "Ausführen",
       "runTriggered": "Aufgabe ausgelöst",
       "save": "Speichern",
+      "schedule": {
+        "custom": "Benutzerdefinierter Zeitplan",
+        "daily": "Täglich",
+        "hour": "Stunde",
+        "hourly": "Stündlich",
+        "interval": "Benutzerdefiniertes Intervall",
+        "intervalMinutes": "Intervall",
+        "invalid": "Geben Sie eine gültige Ausführungshäufigkeit ein.",
+        "minute": "Minute",
+        "once": "Einmal",
+        "runAt": "Ausführen bei",
+        "summary": {
+          "daily": "Täglich um {{time}}",
+          "hourly": "Zu Beginn jeder Stunde",
+          "interval": "Alle {{count}} Minuten",
+          "weekdays": "Wochentage um {{time}}",
+          "weekly": "Jeden {{weekday}} um {{time}}"
+        },
+        "time": "Zeit",
+        "weekday": "Wochentag",
+        "weekdays": {
+          "friday": "Freitag",
+          "monday": "Montag",
+          "saturday": "Samstag",
+          "sunday": "Sonntag",
+          "thursday": "Donnerstag",
+          "tuesday": "Dienstag",
+          "wednesday": "Mittwoch"
+        },
+        "weekdaysOnly": "Wochentage",
+        "weekly": "Wöchentlich"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Intervall",
@@ -869,7 +907,7 @@
       "expired": "Abgelaufen",
       "inputPreview": "Vorschau der Werkzeugeingabe",
       "pending": "Ausstehend ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Ausstehend",
       "permissionExpired": "Berechtigungsanfrage abgelaufen. Warte auf neue Anweisungen...",
       "requiresElevatedPermissions": "Dieses Tool erfordert erhöhte Berechtigungen.",
       "suggestion": {
@@ -1427,21 +1465,21 @@
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Fehler beim Laden der referenzierten Konversation",
+        "no_room": "Nicht genug Platz in der Nachricht, um dieses Gespräch hinzuzufügen",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Keine Sitzungen entsprechen Ihrer Suche",
+            "label": "Keine Sitzungen gefunden"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Sitzungen"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Keine Themen entsprechen Ihrer Suche",
+            "label": "Keine Themen gefunden"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Themen"
         }
       },
       "resize_height": "Eingabehöhe ändern",
@@ -2293,7 +2331,7 @@
     "provider": "Anbieter",
     "reasoning_content": "Tiefgehend nachgedacht",
     "refresh": "Aktualisieren",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Die Liste konnte nicht aktualisiert werden. Es wird die zuletzt geladene Version angezeigt.",
     "regenerate": "Neu generieren",
     "remove_image": "Bild entfernen",
     "rename": "Umbenennen",
@@ -2609,7 +2647,7 @@
     "empty": {
       "no_match_description": "Keine Dateien entsprechen den aktuellen Filtern",
       "no_match_title": "Keine passenden Dateien gefunden",
-      "title": "[to be translated]:No files yet"
+      "title": "Noch keine Dateien"
     },
     "empty_trash": "Papierkorb leeren",
     "error": {
@@ -3781,6 +3819,8 @@
         "title": "Löschen bestätigen"
       },
       "failed": "Löschen fehlgeschlagen",
+      "first_turn_not_supported": "Die erste Benutzernachricht kann nicht gelöscht werden.",
+      "root_unavailable": "Nachrichten werden noch geladen und können noch nicht gelöscht werden.",
       "success": "Erfolgreich gelöscht"
     },
     "dialog": {
@@ -7682,12 +7722,39 @@
       "titlePlaceholder": "Bitte geben Sie den Titel der Phrase ein"
     },
     "scheduledTasks": {
+      "agentCreate": "Mit Agent erstellen",
+      "allAgents": "Alle Agenten",
+      "allStatuses": "Alle Status",
+      "clearFilters": "Filter löschen",
+      "createDescription": "Legen Sie fest, was der Agent tun soll und wann er ausgeführt werden soll.",
+      "createTitle": "Neuer geplanter Task",
       "description": "Verwalten Sie geplante Aufgaben über alle Agents hinweg. Aufgaben werden automatisch nach dem konfigurierten Zeitplan ausgeführt.",
+      "editDescription": "Aktualisieren Sie, was der Agent tun soll und wann er ausgeführt werden soll.",
+      "editTitle": "Geplante Aufgabe bearbeiten",
+      "filterAgent": "Nach Agent filtern",
+      "filterStatus": "Nach Status filtern",
+      "manualCreate": "Manuell erstellen",
+      "newTask": "Neu",
       "noAgents": "Keine Agenten gefunden. Erstellen Sie zuerst einen Agenten, um geplante Aufgaben hinzuzufügen.",
       "noAgentsTip": "Tipp: Sie können Ihren Agenten auch bitten, per Chat geplante Aufgaben zu erstellen.",
+      "noAgentsTitle": "Keine Agenten",
+      "noMatches": "Versuchen Sie eine andere Suche oder einen anderen Filter.",
+      "noMatchesTitle": "Keine passenden Aufgaben",
       "noTasks": "Keine geplanten Aufgaben. Klicken Sie auf „+ Hinzufügen“, um eine für einen Agenten zu erstellen.",
+      "noTasksTitle": "Keine geplanten Aufgaben",
+      "notFoundDescription": "Diese Aufgabe wurde möglicherweise gelöscht, oder der Link ist ungültig.",
+      "notFoundTitle": "Aufgabe nicht gefunden",
+      "paginationLabel": "Geplante Aufgaben - Paginierung",
+      "paginationStatus": "Seite {{page}} von {{pageCount}} · {{total}} Aufgaben",
+      "search": "Geplante Aufgaben suchen",
+      "searchPlaceholder": "Aufgaben oder Agenten suchen",
       "selectTask": "Wählen Sie eine Aufgabe aus, um Details anzuzeigen",
-      "title": "Geplante Aufgaben"
+      "title": "Geplante Aufgaben",
+      "validation": {
+        "agent": "Wählen Sie einen Agenten aus.",
+        "name": "Geben Sie einen Aufgabennamen ein.",
+        "prompt": "Geben Sie einen Aufgaben-Prompt ein."
+      }
     },
     "shortcuts": {
       "action": "Aktionen",
