@@ -13,7 +13,13 @@ function makeScope(): RequestScope {
     model: { id: 'm1' } as never,
     provider: { id: 'p1' } as never,
     capabilities: undefined,
-    sdkConfig: { providerId: 'p1' as never, providerSettings: {} as never, modelId: 'm1' },
+    sdkConfig: {
+      providerId: 'p1' as never,
+      providerSettings: {} as never,
+      modelId: 'm1',
+      concreteProviderId: 'p1',
+      optionsKey: 'p1'
+    },
     endpointType: undefined,
     aiSdkProviderId: 'openai-compatible' as never,
     reasoningProfile: { format: 'none', wire: { disabled: true } },

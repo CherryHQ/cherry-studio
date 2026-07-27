@@ -38,7 +38,7 @@ import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
-import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
+import { resolveWireRegistration } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
 import { Agent, buildAgentParams, mergeUsage, ZERO_USAGE } from './runtime/aiSdk'
@@ -511,21 +511,29 @@ export class AiService extends BaseService {
     const params = request.paramValues
     const { structured, vendorBag } = splitParamValues(params)
 
-    // Vendor body (`providerOptions[providerId]`): the WireProfile engine maps the
-    // canonical bag to each provider's wire — a registered profile for the
-    // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
-    // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
-    const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
-    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
+    // Vendor body: the WireProfile engine maps the canonical bag to each
+    // provider's wire — a registered profile for the OpenAI / google / dashscope
+    // / aihubmix / dmxapi / doubao families, the wire-naming fallback for the
+    // generic openai-compatible family, else the diffusion catch-all. Delivered
+    // under `sdkConfig.optionsKey` — the namespace the SDK image model actually
+    // reads (the concrete provider name for openai-compatible, NOT
+    // 'openai-compatible').
+    const registration = resolveWireRegistration(sdkConfig.providerId)
+    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.optionsKey, params, registration, vendorBag)
     // Async custom-provider transports (ppio / dashscope / modelscope /
-    // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
-    // a restart. Unlike the in-SDK path (whose `providerOptions[id]` IS the wire
-    // body), a transport builds its own request envelope per model, so it receives
-    // the canonical camelCase `vendorBag` directly (native n/size/seed travel via
-    // the job payload → `input.*`). No wire-naming, no casing probes.
+    // dmxapi-bespoke / tokenhub) run the submit/poll loop on the job system so it
+    // survives a restart. Unlike the in-SDK path (whose `providerOptions[id]` IS
+    // the wire body), a transport builds its own request envelope per model, so
+    // it receives the canonical camelCase `vendorBag` directly (native n/size/seed
+    // travel via the job payload → `input.*`). No wire-naming, no casing probes.
     if (
       request.uniqueModelId &&
-      resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
+      resolveImageTransport(
+        sdkConfig.providerId,
+        sdkConfig.modelId,
+        sdkConfig.providerSettings,
+        sdkConfig.concreteProviderId
+      )
     ) {
       return await this.generateImageViaJob(request, structured, vendorBag, signal)
     }
@@ -651,6 +659,7 @@ export class AiService extends BaseService {
         prompt: request.prompt,
         n: structured.n ?? 1,
         ...(requestSize !== undefined && { size: requestSize }),
+        ...(structured.aspectRatio && { aspectRatio: structured.aspectRatio }),
         seed: structured.seed,
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),

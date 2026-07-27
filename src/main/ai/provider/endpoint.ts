@@ -59,14 +59,24 @@ export function resolveAiSdkProviderId(provider: Provider, endpointType: Endpoin
 /**
  * Maps the registered runtime provider id to the namespace its AI SDK model
  * reads from `providerOptions`.
+ *
+ * For the `openai-compatible` family the namespace is dynamic:
+ * `createOpenAICompatible({ name })` names its models `${name}.<type>` and reads
+ * `providerOptions[name]`, where `name` is the concrete provider id
+ * (`buildOpenAICompatibleConfig` sets `providerSettings.name = provider.id`) —
+ * so pass `concreteProviderId` whenever it is known, or the options bag is
+ * delivered under a key no model reads.
  */
-export function resolveProviderOptionsKey(providerId: AppProviderId): string {
+export function resolveProviderOptionsKey(providerId: AppProviderId, concreteProviderId?: string): string {
   if (
     providerId === 'google-vertex' ||
     providerId === 'google-vertex-anthropic' ||
     providerId === 'google-vertex-maas'
   ) {
     return 'vertex'
+  }
+  if (providerId === 'openai-compatible' && concreteProviderId) {
+    return concreteProviderId
   }
   return providerId
 }

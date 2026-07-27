@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import { splitParamValues } from '../../../../utils/imageOptions'
 import { buildImageRequest, buildVendorProviderOptions } from '../buildImageRequest'
-import { DEFAULT_DIFFUSION_REGISTRATION, DIFFUSION_WIRE_PROFILE, WIRE_REGISTRY } from '../wireProfile'
+import {
+  DEFAULT_DIFFUSION_REGISTRATION,
+  DIFFUSION_WIRE_PROFILE,
+  OPENAI_COMPAT_FALLBACK_REGISTRATION,
+  resolveWireRegistration,
+  WIRE_REGISTRY
+} from '../wireProfile'
 
 // The engine is the single source of truth for the vendor wire; each case asserts
 // the literal expected `providerOptions` bag. (These literals were locked against
@@ -258,5 +264,44 @@ describe('buildVendorProviderOptions — Ollama (numInferenceSteps → steps; si
 
   it('returns {} when numInferenceSteps is unset', () => {
     expect(engine('ollama', {})).toEqual({})
+  })
+})
+
+/** Run a concrete provider through the generic openai-compatible path: the
+ *  wire-naming fallback registration, delivered under the concrete id — the
+ *  namespace `createOpenAICompatible({ name })`'s image model reads. */
+function compatEngine(
+  concreteId: string,
+  paramValues: Record<string, unknown>
+): Record<string, Record<string, unknown>> {
+  const { vendorBag } = splitParamValues(paramValues)
+  const registration = resolveWireRegistration('openai-compatible')
+  return buildVendorProviderOptions(concreteId, paramValues, registration, vendorBag)
+}
+
+describe('resolveWireRegistration', () => {
+  it('gives the generic openai-compatible path the wire-naming fallback', () => {
+    expect(resolveWireRegistration('openai-compatible')).toBe(OPENAI_COMPAT_FALLBACK_REGISTRATION)
+  })
+
+  it('keys every other path by the SDK provider id', () => {
+    expect(resolveWireRegistration('openai')).toBe(WIRE_REGISTRY.openai)
+    expect(resolveWireRegistration('some-unlisted-sdk')).toBe(DEFAULT_DIFFUSION_REGISTRATION)
+  })
+})
+
+describe('buildVendorProviderOptions — openai-compatible fallback (wire-named passthrough)', () => {
+  it('delivers under the concrete provider id with catalog wire renames (zhipu: addWatermark → watermark)', () => {
+    const paramValues = { addWatermark: true, quality: 'hd', seed: 3, numImages: 1, size: '1024x1024' }
+    expect(compatEngine('zhipu', paramValues)).toEqual({
+      zhipu: { watermark: true, quality: 'hd', seed: 3 }
+    })
+  })
+
+  it('renames imageResolution → size and keeps non-catalog bag keys as-is', () => {
+    const paramValues = { imageResolution: '2K', someVendorField: 1 }
+    expect(compatEngine('tokenhub', paramValues)).toEqual({
+      tokenhub: { size: '2K', someVendorField: 1 }
+    })
   })
 })

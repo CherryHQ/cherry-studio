@@ -206,9 +206,14 @@ export interface WireRegistration {
   readonly key?: string
   /** Dual-key the body under `openai` AND the provider id (OpenAI image family). */
   readonly dualOpenAI?: boolean
-  /** Forward vendor-bag fields the profile doesn't map (diffusion family) — the
-   *  legacy `jsonBagFields` merge, profile-mapped fields winning on collision. */
-  readonly passthrough?: boolean
+  /** Forward vendor-bag fields the profile doesn't map — the legacy
+   *  `jsonBagFields` merge, profile-mapped fields winning on collision.
+   *  `true` forwards the raw canonical camelCase keys (custom SDK models —
+   *  cherryin / aihubmix / dashscope — read the bag under those names);
+   *  `'wire'` additionally renames catalog keys to their vendor wire spelling
+   *  (`wireName`: `imageResolution → size`, `addWatermark → watermark`, …) for
+   *  bodies that go on the HTTP wire as-is (the openai-compatible fallback). */
+  readonly passthrough?: boolean | 'wire'
   /** Additional bodies delivered under sibling provider keys (the dmxapi gateway
    *  routes a `google.imageConfig` block to the google adapter). Each is built
    *  from the same `paramValues` and emitted only when non-empty. */
@@ -265,4 +270,34 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
 export const DEFAULT_DIFFUSION_REGISTRATION: WireRegistration = {
   profile: DIFFUSION_WIRE_PROFILE,
   passthrough: true
+}
+
+/**
+ * Registration for concrete providers riding the generic `openai-compatible`
+ * SDK path (zhipu / tokenhub / …). Same diffusion profile, but the passthrough
+ * applies the catalog's `wireName` renames: this body IS the HTTP request body
+ * (`OpenAICompatibleImageModel` spreads `providerOptions[name]` into it
+ * verbatim), so the vendor spelling — `watermark`, `size` — must be used, not
+ * the canonical camelCase. Safe by construction: before the delivery-key fix
+ * these providers' bags were dropped entirely, so no previously-working wire
+ * shape can regress. A provider on this path needing a bespoke body shape gets
+ * routed to its own provider id instead (config.ts builders — doubao is the
+ * precedent), which puts it back on {@link WIRE_REGISTRY}.
+ */
+export const OPENAI_COMPAT_FALLBACK_REGISTRATION: WireRegistration = {
+  profile: DIFFUSION_WIRE_PROFILE,
+  passthrough: 'wire'
+}
+
+/**
+ * The registration for a resolved SDK provider id. The generic
+ * `openai-compatible` id gets the wire-naming fallback (its body goes on the
+ * HTTP wire as-is); every other id resolves via {@link WIRE_REGISTRY}, falling
+ * back to the raw diffusion catch-all. Pure — unit-tested directly.
+ */
+export function resolveWireRegistration(sdkProviderId: string): WireRegistration {
+  if (sdkProviderId === 'openai-compatible') {
+    return OPENAI_COMPAT_FALLBACK_REGISTRATION
+  }
+  return WIRE_REGISTRY[sdkProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
 }

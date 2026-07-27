@@ -19,6 +19,21 @@ export type ProviderConfig<T extends StringKeys<AppProviderSettingsMap> = String
 }
 
 /**
+ * A `ProviderConfig` with the provider's resolved identity attached — computed
+ * once by `providerToAiSdkConfig` so consumers never re-derive it:
+ * - `concreteProviderId`: the app-level provider id (`Provider.id`)
+ * - `optionsKey`: the `providerOptions` namespace the AI SDK model actually
+ *   reads (see `resolveProviderOptionsKey`); differs from `providerId` for the
+ *   vertex family (`'vertex'`) and the `openai-compatible` family (the concrete
+ *   provider id, via `providerSettings.name`).
+ */
+export type ResolvedProviderConfig<T extends StringKeys<AppProviderSettingsMap> = StringKeys<AppProviderSettingsMap>> =
+  ProviderConfig<T> & {
+    concreteProviderId: string
+    optionsKey: string
+  }
+
+/**
  * Model capability flags computed from model properties and assistant settings.
  * Used by provider-specific option builders to decide which parameters to include.
  */

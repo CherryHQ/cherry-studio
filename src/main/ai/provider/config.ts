@@ -22,7 +22,7 @@ import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider, matchesPrese
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { isEmpty } from 'es-toolkit/compat'
 
-import type { ProviderConfig } from '../types'
+import type { ProviderConfig, ResolvedProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
@@ -30,7 +30,7 @@ import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint, resolveProviderOptionsKey } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 
@@ -99,7 +99,7 @@ export async function providerToAiSdkConfig(
   provider: Provider,
   model: Model,
   options?: ProviderToAiSdkConfigOptions
-): Promise<ProviderConfig> {
+): Promise<ResolvedProviderConfig> {
   const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
@@ -194,7 +194,13 @@ export async function providerToAiSdkConfig(
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
 
-  return config
+  // Attach the resolved identity once so consumers (chat providerOptions, the
+  // image WireProfile engine) never re-derive the namespace the SDK model reads.
+  return {
+    ...config,
+    concreteProviderId: provider.id,
+    optionsKey: resolveProviderOptionsKey(config.providerId, provider.id)
+  }
 }
 
 // ── Config Builders ──
