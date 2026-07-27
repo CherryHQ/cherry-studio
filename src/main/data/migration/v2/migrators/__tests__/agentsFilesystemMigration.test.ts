@@ -26,7 +26,8 @@ import {
 } from '../agentsFilesystemMigration'
 
 const copyMutation = vi.hoisted(() => ({
-  afterCopy: undefined as undefined | ((sourcePath: string) => Promise<void>)
+  afterCopy: undefined as undefined | ((sourcePath: string) => Promise<void>),
+  beforeRealpath: undefined as undefined | ((sourcePath: string) => Promise<void>)
 }))
 
 vi.mock('node:fs/promises', async (importOriginal) => {
@@ -36,6 +37,10 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     cp: async (...args: Parameters<typeof original.cp>) => {
       await original.cp(...args)
       await copyMutation.afterCopy?.(String(args[0]))
+    },
+    realpath: async (...args: Parameters<typeof original.realpath>) => {
+      await copyMutation.beforeRealpath?.(String(args[0]))
+      return original.realpath(...args)
     }
   }
 })
@@ -93,6 +98,7 @@ describe('agentsFilesystemMigration', () => {
 
   afterEach(async () => {
     copyMutation.afterCopy = undefined
+    copyMutation.beforeRealpath = undefined
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
   })
 
@@ -266,6 +272,60 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('fallback user')
     expect(await readFile(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf8')).toBe('fallback fact')
   })
+
+  it.runIf(process.platform !== 'win32')(
+    'aborts instead of falling back when identity changes after its snapshot',
+    async () => {
+      const { tempRoot, agentsDataRoot } = await createFixture()
+      const olderWorkspace = path.join(tempRoot, 'older-workspace')
+      const newestWorkspace = path.join(tempRoot, 'newest-workspace')
+      const newestIdentitySource = path.join(newestWorkspace, 'identity-source.md')
+      const newestSoulPath = path.join(newestWorkspace, 'SOUL.md')
+      const olderSoulPath = path.join(olderWorkspace, 'SOUL.md')
+      await mkdir(olderWorkspace, { recursive: true })
+      await mkdir(newestWorkspace, { recursive: true })
+      await writeFile(newestIdentitySource, 'newest soul')
+      await symlink('identity-source.md', newestSoulPath)
+      await writeFile(olderSoulPath, 'older soul')
+
+      let newestSoulRealpathCalls = 0
+      copyMutation.beforeRealpath = async (sourcePath) => {
+        if (sourcePath !== newestSoulPath || ++newestSoulRealpathCalls !== 2) return
+        await rm(newestSoulPath)
+        await symlink('missing-source.md', newestSoulPath)
+      }
+
+      const olderSession = sessionPlan(agentsDataRoot, olderWorkspace, {
+        sourceSessionId: 'session_old',
+        finalSessionId: FINAL_OLD_SESSION_ID,
+        createdAt: Date.parse('2026-07-20T00:00:00Z'),
+        updatedAt: Date.parse('2026-07-21T00:00:00Z'),
+        managed: false
+      })
+      const newestSession = sessionPlan(agentsDataRoot, newestWorkspace, {
+        sourceSessionId: 'session_latest',
+        finalSessionId: FINAL_LATEST_SESSION_ID,
+        createdAt: Date.parse('2026-07-22T00:00:00Z'),
+        updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+        managed: false
+      })
+
+      await expect(
+        stageLegacyAgentFiles({
+          agentsDataRoot,
+          agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+          sessions: [olderSession, newestSession]
+        })
+      ).rejects.toThrow(/identity changed while being copied/i)
+
+      const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+      await expect(access(path.join(agentDataPath, 'SOUL.md'))).rejects.toThrow()
+      expect((await readdir(agentDataPath)).every((entry) => !entry.startsWith('.SOUL.md.migration-'))).toBe(true)
+      expect(await readlink(newestSoulPath)).toBe('missing-source.md')
+      expect(await readFile(newestIdentitySource, 'utf8')).toBe('newest soul')
+      expect(await readFile(olderSoulPath, 'utf8')).toBe('older soul')
+    }
+  )
 
   it('aborts on an identity conflict without overwriting either side', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()

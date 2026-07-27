@@ -188,7 +188,9 @@ async function copyIdentityEntry(
   const stagingPath = path.join(path.dirname(destinationPath), `${stagingPrefix}${randomUUID()}`)
 
   try {
-    if (!(await materializeIdentityEntry(sourcePath, stagingPath, sourceWorkspaceRoot))) return false
+    if (!(await materializeIdentityEntry(sourcePath, stagingPath, sourceWorkspaceRoot))) {
+      throw new Error(`Legacy Agent identity changed while being copied: ${sourcePath}`)
+    }
 
     const sourceMetadataFingerprint = await identitySourceMetadataFingerprint(sourcePath, sourceWorkspaceRoot)
     if (sourceMetadataFingerprint !== sourceSnapshot.metadataFingerprint) {
