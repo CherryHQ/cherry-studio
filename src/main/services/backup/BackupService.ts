@@ -3,8 +3,10 @@ import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
+import { acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
 import { BackupBusyError } from './errors'
 import { type ExportArchiveResult, exportLiteArchive } from './exportArchive'
+import { runPostPromotionWork } from './postPromotion'
 import { armPreparedRestore, cancelPreparedRestore, prepareLiteRestore, type RestorePreview } from './prepareRestore'
 
 const logger = loggerService.withContext('BackupService')
@@ -57,6 +59,9 @@ export interface BackupStatus {
 @ServicePhase(Phase.WhenReady)
 export class BackupService extends BaseService {
   private operation: BackupOperation | null = null
+  private shuttingDown = false
+  /** The post-promotion rebuild, tracked so `onStop` can join it (§6.7). */
+  private postPromotionWork: Promise<unknown> | null = null
 
   /**
    * Report what the last boot's restore attempt left behind. Read-only on
@@ -81,6 +86,25 @@ export class BackupService extends BaseService {
           step: status.step
         })
         return
+    }
+  }
+
+  /**
+   * Rebuild what a completed restore left derived (§6.7). Runs here rather than
+   * in the promotion because it needs the restored database live, the Knowledge
+   * service running, and the job queue open — none of which exist at preboot.
+   */
+  protected onAllReady(): void {
+    this.postPromotionWork = runPostPromotionWork(() => !this.shuttingDown).catch((error) => {
+      // Derived work is a repair, never a boot dependency.
+      logger.error('Post-promotion work failed', error as Error)
+    })
+  }
+
+  protected async onStop(): Promise<void> {
+    this.shuttingDown = true
+    if (this.postPromotionWork) {
+      await this.postPromotionWork
     }
   }
 
@@ -116,6 +140,15 @@ export class BackupService extends BaseService {
   /** Confirm a prepared restore and relaunch into promotion. */
   public armRestore(): void {
     armPreparedRestore()
+  }
+
+  /**
+   * Commit to a finished restore: drop its recovery asides and release the GC
+   * protection they held (§6.5). Idempotent, and refuses a restore that has not
+   * finished — that one still needs its aside.
+   */
+  public acknowledgeRestore(): AcknowledgeResult {
+    return acknowledgeRestore()
   }
 
   /**

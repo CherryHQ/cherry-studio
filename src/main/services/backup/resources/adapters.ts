@@ -57,9 +57,11 @@ export interface ResourceRoots {
 
 export interface SnapshotReadContext {
   /**
-   * Handle on the DETACHED portable snapshot. Never the live database: the
-   * inventory must describe the database the archive ships, and during restore
-   * preview the live database is a different profile entirely.
+   * Handle on the database whose references are being inventoried: the detached
+   * portable snapshot at export and preview time, or the live database once a
+   * restore has promoted it — at that point they ARE the same database. Never
+   * the live one while a different profile is staged, since the inventory must
+   * describe the database the archive ships.
    */
   readonly db: DbOrTx
   /** Absolute userData root that every `livePath` is relative to. */

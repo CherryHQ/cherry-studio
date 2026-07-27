@@ -1,3 +1,4 @@
+export { acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
 export { type BackupOperation, BackupService, type BackupStatus, type RestoreStatus } from './BackupService'
 export { BACKUP_CEILINGS, type BackupCeilings } from './ceilings'
 export { type ExportArchiveInputs, type ExportArchiveResult, exportLiteArchive } from './exportArchive'
@@ -14,12 +15,12 @@ export {
   type ResourcePayload,
   type ResourceRequirement
 } from './manifest'
+export { type PostPromotionOutcome, runPostPromotionWork } from './postPromotion'
 export {
   armPreparedRestore,
   cancelPreparedRestore,
   prepareLiteRestore,
   type PrepareRestoreInputs,
-  type ResourceCoverage,
   type RestorePreview
 } from './prepareRestore'
 export {
@@ -30,3 +31,8 @@ export {
   type TargetState,
   validateResourcePaths
 } from './resourcePaths'
+export {
+  type CoverageReport,
+  measureResourceCoverage,
+  type ResourceCoverage
+} from './resources/coverage'

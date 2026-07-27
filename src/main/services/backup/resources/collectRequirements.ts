@@ -10,6 +10,7 @@
  */
 
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -56,10 +57,26 @@ export function resolveResourceRoots(): ResourceRoots {
 export function collectResourceRequirements(input: CollectRequirementsInput): ResourceInventory {
   const sqlite = new Database(input.dbPath, { fileMustExist: true, readonly: true })
   try {
+    return collectResourceRequirementsFrom(drizzle({ client: sqlite, casing: 'snake_case' }), input)
+  } finally {
+    sqlite.close()
+  }
+}
+
+/**
+ * The same inventory taken from an ALREADY-OPEN database. Post-promotion work
+ * runs against the live connection rather than opening a second one — the
+ * restored database is live by then, so there is nothing detached left to read.
+ */
+export function collectResourceRequirementsFrom(
+  db: DbOrTx,
+  options: Omit<CollectRequirementsInput, 'dbPath'> = {}
+): ResourceInventory {
+  {
     const ctx = {
-      db: drizzle({ client: sqlite, casing: 'snake_case' }),
-      userDataPath: input.userDataPath ?? application.getPath('app.userdata'),
-      roots: input.roots ?? resolveResourceRoots(),
+      db,
+      userDataPath: options.userDataPath ?? application.getPath('app.userdata'),
+      roots: options.roots ?? resolveResourceRoots(),
       platform: currentBackupPlatform()
     }
 
@@ -91,7 +108,5 @@ export function collectResourceRequirements(input: CollectRequirementsInput): Re
     }
 
     return { requirements, unverifiableByKind }
-  } finally {
-    sqlite.close()
   }
 }
