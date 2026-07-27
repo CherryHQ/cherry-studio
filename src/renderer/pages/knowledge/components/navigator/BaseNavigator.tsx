@@ -74,22 +74,16 @@ const BaseNavigator = ({
   return (
     <div style={{ width }} className="relative h-full min-h-0 shrink-0">
       <aside className="flex size-full min-h-0 flex-col border-border border-r-[0.5px]">
-        <PageHeader
-          title={t('knowledge.title')}
-          action={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('knowledge.add.title')}
-              title={t('knowledge.add.title')}
-              className="size-6 text-muted-foreground hover:text-foreground"
-              onClick={() => onCreateBase()}>
-              <Plus className="size-4" />
-            </Button>
-          }
-        />
-        <div className="shrink-0 px-2.5 pb-2">
+        <PageHeader title={t('knowledge.title')} />
+        <div className="flex shrink-0 flex-col gap-2 px-2.5 pb-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-8 w-full justify-start rounded-[10px]"
+            onClick={() => onCreateBase()}>
+            <Plus className="size-3.5" />
+            {t('knowledge.add.title')}
+          </Button>
           <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} />
         </div>
 

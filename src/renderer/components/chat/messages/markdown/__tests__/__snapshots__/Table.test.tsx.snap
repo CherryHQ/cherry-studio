@@ -3,6 +3,7 @@
 exports[`Table > rendering > should match snapshot 1`] = `
 <div
   class="table-wrapper relative my-2 w-full min-w-0 max-w-full hover:[&_.table-toolbar]:opacity-100"
+  data-ui="chat.table"
 >
   <div
     class="table-scroll-viewport w-full min-w-0 max-w-full overflow-x-auto"
@@ -43,6 +44,7 @@ exports[`Table > rendering > should match snapshot 1`] = `
       <div
         aria-label="common.copy"
         class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-ghost-hover hover:text-foreground hover:shadow-xs"
+        data-ui="chat.table.action.copy"
         role="button"
       >
         <div
@@ -58,6 +60,7 @@ exports[`Table > rendering > should match snapshot 1`] = `
       <div
         aria-label="common.export.excel"
         class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-ghost-hover hover:text-foreground hover:shadow-xs"
+        data-ui="chat.table.action.export"
         role="button"
       >
         <div

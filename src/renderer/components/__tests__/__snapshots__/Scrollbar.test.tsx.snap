@@ -5,6 +5,7 @@ exports[`Scrollbar > rendering > should match default styled snapshot 1`] = `
   class="overflow-y-auto [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-[2000ms] [&::-webkit-scrollbar-thumb]:bg-transparent"
   data-scrolling="false"
   data-testid="scrollbar"
+  data-ui="ui.scrollbar"
   style="scrollbar-color: transparent transparent;"
 >
   内容
