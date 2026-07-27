@@ -51,7 +51,7 @@ export interface AiUsageRecordMessageInput {
   role: Message['role']
   modelId?: Message['modelId']
   messageSnapshot?: Message['messageSnapshot']
-  stats: Message['stats']
+  stats?: Message['stats']
 }
 
 function hasUsageSignal(stats: NonNullable<Message['stats']>): boolean {
