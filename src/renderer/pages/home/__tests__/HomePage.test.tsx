@@ -566,8 +566,7 @@ vi.mock('../components/TopicRightPane', () => {
   const TopicRightPane = {
     Scope: TopicRightPaneScope,
     Viewport: () => <div data-testid="topic-right-pane-viewport" />,
-    Shortcuts: () => <button type="button">Topic right pane shortcuts</button>,
-    Toggle: () => <button type="button">Toggle topic right pane</button>
+    Shortcuts: () => <button type="button">Topic right pane shortcuts</button>
   }
 
   return {

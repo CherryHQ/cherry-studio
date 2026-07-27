@@ -1,6 +1,6 @@
+import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import { useCallback, useState } from 'react'
 
-import type { PaneManualToggleSignal } from '../types/conversationLayout'
 import { useWindowFrame } from './useWindowFrame'
 
 interface UseConversationShellPaneStateOptions {

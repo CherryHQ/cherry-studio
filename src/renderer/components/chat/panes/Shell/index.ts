@@ -11,7 +11,6 @@ export {
   type RightPanelActions,
   type RightPanelCapability,
   type RightPanelComponentProps,
-  type RightPanelComposition,
   RightPanelHeaderControls,
   type RightPanelInstance,
   RightPanelProvider,

@@ -19,8 +19,6 @@ import { evaluateAutoCollapse, predictCenterWidth } from './paneWidthPolicy'
 import { RightPaneHost } from './RightPaneHost'
 import { clampResourceListPaneWidth } from './useResourceListPaneResize'
 
-export type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
-
 interface ChatAppShellBaseProps {
   topBar?: ReactNode
   pane?: ReactNode

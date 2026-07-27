@@ -1,19 +1,13 @@
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import { cn } from '@renderer/utils/style'
 import type { ReactNode, Ref } from 'react'
 
 import { useOptionalRightPanelState } from '../panes/Shell'
-import { ChatAppShell, type PaneManualToggleSignal } from './ChatAppShell'
+import { ChatAppShell } from './ChatAppShell'
 import { ConversationTopBarPortalProvider } from './ConversationTopBarPortal'
 import type { ChatPanePosition } from './paneLayout'
-
-export type ConversationCenterSlot = {
-  className?: string
-  content: ReactNode
-  id?: string
-  ref?: Ref<HTMLDivElement>
-}
 
 export interface ConversationShellProps {
   id?: string
