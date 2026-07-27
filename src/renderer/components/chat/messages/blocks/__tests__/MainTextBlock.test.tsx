@@ -1052,7 +1052,7 @@ describe('MainTextBlock', () => {
       expect(trigger).toHaveFocus()
     })
 
-    it('should keep command and reference composer tokens on the legacy message chip renderer', () => {
+    it('keeps command tokens on the legacy chip renderer and reference tokens on the composer chip', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = false
       renderMainTextBlock({
         content: 'Run docs',
@@ -1087,8 +1087,8 @@ describe('MainTextBlock', () => {
         'overflow-hidden'
       )
       expect(textElement.querySelector('[data-composer-token-kind="reference"]')).toHaveClass(
-        'text-primary',
-        'overflow-hidden'
+        'group/composer-token',
+        'text-primary'
       )
     })
 

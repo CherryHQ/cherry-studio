@@ -1,6 +1,6 @@
-# Migration Checklist (Phase 2-4)
+# Migration Checklist
 
-Use this checklist when migrating an existing service (KnowledgeRuntime / FileProcessing / agent task / heartbeat) to the unified JobManager. Each phase is a separate project — this doc is the per-handler discipline applied within each.
+Use this checklist when migrating an existing service (KnowledgeRuntime / FileProcessing / agent task / heartbeat) to the unified JobManager. Each migration is a separate project — this doc is the per-handler discipline applied within each.
 
 ## Per-handler
 
@@ -45,4 +45,4 @@ Use this checklist when migrating an existing service (KnowledgeRuntime / FilePr
 - [ ] DataApi paths (if added) registered in `paths.ts` / `types.ts`
 - [ ] cacheSchemas entries (if any new cache keys) registered
 - [ ] No commits to legacy services unless they're being deleted/refactored
-- [ ] Phase summary added to PR description (what migrated, what stayed)
+- [ ] Migration summary added to PR description (what migrated, what stayed)

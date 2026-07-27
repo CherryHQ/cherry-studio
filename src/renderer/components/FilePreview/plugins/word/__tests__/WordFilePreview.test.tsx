@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
@@ -68,7 +68,7 @@ vi.mock('react-i18next', () => ({
 
 import WordFilePreview from '../WordFilePreview'
 
-const filePath = '/tmp/documents/report.docx' as FilePath
+const filePath = '/tmp/documents/report.docx' as AbsoluteFilePath
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -111,10 +111,10 @@ describe('WordFilePreview', () => {
       })
     )
     const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
-    expect(toolbar).toHaveClass('h-10')
+    expect(toolbar).toHaveClass('h-11', 'min-h-11')
     expect(toolbar).not.toHaveClass('bg-background')
     expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
-    expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2')
+    await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
 
     fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
     await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('2 / 2'))

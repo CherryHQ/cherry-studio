@@ -869,6 +869,7 @@
       "expired": "Expiré",
       "inputPreview": "Aperçu de l'entrée de l'outil",
       "pending": "En attente ({{seconds}}s)",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Demande de permission expirée. En attente de nouvelles instructions...",
       "requiresElevatedPermissions": "Cet outil nécessite des autorisations élevées.",
       "suggestion": {
@@ -1425,6 +1426,24 @@
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "Redimensionner la hauteur d'entrée",
       "resource_panel": {
         "categories": {
@@ -2274,6 +2293,7 @@
     "provider": "Fournisseur",
     "reasoning_content": "Réflexion approfondie",
     "refresh": "Actualiser",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Regénérer",
     "remove_image": "Supprimer l'image",
     "rename": "Renommer",
@@ -2588,7 +2608,8 @@
     "edit": "Éditer",
     "empty": {
       "no_match_description": "Aucun fichier ne correspond aux filtres actuels",
-      "no_match_title": "Aucun fichier correspondant trouvé"
+      "no_match_title": "Aucun fichier correspondant trouvé",
+      "title": "[to be translated]:No files yet"
     },
     "empty_trash": "Vider la corbeille",
     "error": {
@@ -2990,7 +3011,6 @@
     "embedding_model": "Modèle d'embedding",
     "embedding_model_required": "Un modèle d'embedding de base de connaissances est requis",
     "empty": "Aucune base de connaissances",
-    "empty_action": "Créer une base de connaissances",
     "empty_description": "Vous n'avez pas encore de bases de connaissances. Créez-en une pour commencer à organiser et rechercher vos documents.",
     "error": {
       "directory_not_migrated": "Échec de la migration du dossier. Veuillez le supprimer et le télécharger à nouveau.",
@@ -3907,18 +3927,6 @@
     "processing": "En cours de traitement...",
     "regenerate": {
       "confirm": "La régénération va remplacer le message actuel"
-    },
-    "reset": {
-      "confirm": {
-        "content": "Êtes-vous sûr de vouloir réinitialiser toutes les données?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Toutes vos données seront perdues, si aucune sauvegarde n'a été effectuée, elles ne pourront pas être récupérées. Êtes-vous sûr de vouloir continuer?",
-          "title": "Perte de données!!!"
-        }
-      },
-      "success": "Réinitialisation des données réussie"
     },
     "restore": {
       "failed": "La restauration a échoué",
@@ -5764,6 +5772,13 @@
       "data": {
         "title": "Répertoire des données"
       },
+      "data_reset": {
+        "button": "Réinitialiser",
+        "confirm_content": "Les discussions, assistants, bases de connaissances, fichiers et paramètres seront effacés, puis l’application redémarrera. Cette action est irréversible. Continuer ?",
+        "confirm_title": "Réinitialiser les données de l’application",
+        "error": "Impossible de démarrer la réinitialisation des données",
+        "title": "Réinitialiser les données"
+      },
       "divider": {
         "basic": "Paramètres de base",
         "cloud_storage": "Paramètres de sauvegarde cloud",
@@ -6496,10 +6511,6 @@
       "emoji_picker": "Sélectionneur d'émoticônes",
       "image_upload": "Téléchargement d'images",
       "label": "Paramètres généraux",
-      "reset": {
-        "button": "Réinitialiser",
-        "title": "Réinitialiser les données"
-      },
       "restore": {
         "button": "Restaurer"
       },

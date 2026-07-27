@@ -155,6 +155,21 @@ application.get('DbService').withWriteTx((tx) => {
 
 Post-commit side effects (state publish, dispatch / delayed arming) are deferred one microtask past the synchronous transaction. On rollback the row never existed: the returned handle's `finished` never resolves, and an idempotency-key unique-index collision aborts the whole caller transaction. See the `enqueueTx` JSDoc for the full contract.
 
+## Transactional schedule mutation (`registerJobScheduleTx` / `updateJobScheduleTx` + `syncJobScheduleTimerById`)
+
+When a schedule row and a related business write must commit atomically, compose the transactional primitives inside a `DbService.withWriteTx` callback, then sync the timer after the transaction returns:
+
+```ts
+const { id } = application.get('DbService').withWriteTx((tx) => {
+  const created = jobManager.registerJobScheduleTx(tx, { type: 'agent.task', ... }) // schedule row
+  agentChannelService.replaceTaskSubscriptionsTx(tx, created.id, channelIds) // business write, same tx
+  return created
+})
+jobManager.syncJobScheduleTimerById(id) // post-commit timer sync (create: always; update: when the patch carried trigger/enabled)
+```
+
+The `*Tx` primitives validate up front (handler, name, trigger semantics → `JOB_SCHEDULE_TRIGGER_INVALID`) and never touch the timer, so a rollback has zero timer side effects. Timer sync is the caller's explicit post-commit step — `enqueueTx`'s post-commit re-read cannot be reused here because its rollback test ("row absent") only holds for INSERT; an UPDATE rollback would read as committed and re-arm, resetting the interval phase. See the `registerJobScheduleTx` JSDoc for the full contract.
+
 ## Renderer-side consumers
 
 The renderer never enqueues, cancels, or otherwise mutates jobs through the DataApi. It only observes job state read-only:
@@ -167,6 +182,8 @@ Triggering a job is owned by the relevant business module in main:
 1. The business service decides the semantics — which job type, what payload, queue, idempotency key, max attempts, timeout.
 2. It calls `application.get('JobManager').enqueue(...)` directly.
 3. If the renderer needs to initiate the work, the business module exposes a dedicated IPC route (e.g. the `knowledge.add_items` IpcApi route); the route handler internally calls `JobManager.enqueue(...)`.
+
+Schedule mutations (CRUD / pause / resume / run-now) follow the same pattern: renderer → dedicated IpcApi route (e.g. `ai.agent.task.*` → `AgentJobsService`) → JobManager schedule APIs; schedule reads stay on the GET-only DataApi.
 
 This keeps `JobRegistry`'s compile-time `JobPayloadOf<K>` type safety intact and prevents the renderer from depending on JobManager infrastructure details (queue names, retry policies, idempotency keys).
 
