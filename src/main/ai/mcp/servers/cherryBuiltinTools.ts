@@ -222,7 +222,7 @@ export class CherryBuiltinToolsServer {
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name } = request.params
       if (autonomy.handles(name)) {
-        return autonomy.call(name, (request.params.arguments ?? {}) as Record<string, string | undefined>)
+        return autonomy.call(name, request.params.arguments ?? {})
       }
       if (knowledge.handles(name)) {
         return knowledge.call(name, request.params.arguments)

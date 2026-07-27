@@ -106,7 +106,7 @@ async function callTool(
   args: Record<string, unknown>,
   toolName = 'cron'
 ): Promise<any> {
-  return server.call(toolName, args as Record<string, string | undefined>)
+  return server.call(toolName, args)
 }
 
 describe('CherryAutonomyTools', () => {
@@ -661,6 +661,19 @@ describe('CherryAutonomyTools', () => {
         expect(result.content[0].text).toContain("'name' is required")
       })
 
+      it('should reject a non-object channel config', async () => {
+        const server = createServer('agent_1')
+        const result = await callTool(
+          server,
+          { action: 'add_channel', type: 'telegram', name: 'Work Bot', config: 'invalid' },
+          'config'
+        )
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain("'config' must be an object")
+        expect(mockCreateChannel).not.toHaveBeenCalled()
+      })
+
       it('should error when unsupported type is given', async () => {
         const server = createServer('agent_1')
         const result = await callTool(server, { action: 'add_channel', type: 'whatsapp', name: 'test' }, 'config')
@@ -669,7 +682,7 @@ describe('CherryAutonomyTools', () => {
         expect(result.content[0].text).toContain('Unknown channel type')
       })
 
-      it('should add a wechat channel and return QR code image', async () => {
+      it('should add a wechat channel without a token path and return QR code image', async () => {
         mockCreateChannel.mockReturnValue({ id: 'ch_wc1', type: 'wechat', name: 'My WeChat', isActive: true })
         mockWaitForQrUrl.mockResolvedValue('https://login.weixin.qq.com/l/abc123')
         mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
@@ -677,10 +690,15 @@ describe('CherryAutonomyTools', () => {
         const server = createServer('agent_1')
         const result = await callTool(
           server,
-          { action: 'add_channel', type: 'wechat', name: 'My WeChat', config: { token_path: '/tmp/wechat' } },
+          { action: 'add_channel', type: 'wechat', name: 'My WeChat', auth_mode: 'qr' },
           'config'
         )
 
+        expect(mockCreateChannel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            config: { type: 'wechat', token_path: '', allowed_chat_ids: [] }
+          })
+        )
         expect(result.content).toHaveLength(2)
         expect(result.content[0].type).toBe('text')
         expect(result.content[0].text).toContain('WeChat channel created')
@@ -691,6 +709,42 @@ describe('CherryAutonomyTools', () => {
         expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_wc1', 30_000)
       })
 
+      it('should add a feishu channel without app credentials and return QR code image', async () => {
+        mockCreateChannel.mockReturnValue({ id: 'ch_fs1', type: 'feishu', name: 'My Feishu', isActive: true })
+        mockWaitForQrUrl.mockResolvedValue('https://accounts.feishu.cn/device/abc123')
+        mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
+
+        const server = createServer('agent_1')
+        const result = await callTool(
+          server,
+          { action: 'add_channel', type: 'feishu', name: 'My Feishu', auth_mode: 'qr' },
+          'config'
+        )
+
+        expect(mockCreateChannel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            config: {
+              type: 'feishu',
+              app_id: '',
+              app_secret: '',
+              encrypt_key: '',
+              verification_token: '',
+              allowed_chat_ids: [],
+              domain: 'feishu'
+            }
+          })
+        )
+        expect(result.content).toHaveLength(2)
+        expect(result.content[0].text).toContain('Feishu channel created')
+        expect(result.content[1]).toMatchObject({
+          type: 'image',
+          data: 'iVBORw0KGgo=',
+          mimeType: 'image/png'
+        })
+        expect(mockSyncChannel).toHaveBeenCalledWith('ch_fs1')
+        expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_fs1', 30_000)
+      })
+
       it('should clean up orphan channel when wechat QR times out', async () => {
         mockCreateChannel.mockReturnValue({ id: 'ch_wc2', type: 'wechat', name: 'My WeChat', isActive: true })
         mockWaitForQrUrl.mockRejectedValue(new Error('Timed out waiting for QR code'))
@@ -698,7 +752,7 @@ describe('CherryAutonomyTools', () => {
         const server = createServer('agent_1')
         const result = await callTool(
           server,
-          { action: 'add_channel', type: 'wechat', name: 'My WeChat', config: { token_path: '/tmp/wechat' } },
+          { action: 'add_channel', type: 'wechat', name: 'My WeChat', auth_mode: 'qr' },
           'config'
         )
 
@@ -708,9 +762,8 @@ describe('CherryAutonomyTools', () => {
         expect(result.content[0].text).toContain('not saved')
         // Should have deleted the orphan channel
         expect(mockDeleteChannel).toHaveBeenCalledWith('ch_wc2')
-        // syncChannel for the initial add (fire-and-forget), deleteChannel for orphan cleanup
+        // syncChannel runs once for the initial fire-and-forget add.
         expect(mockSyncChannel).toHaveBeenCalledTimes(1)
-        expect(mockDeleteChannel).toHaveBeenCalledWith('ch_wc2')
       })
 
       it('should error when required config field is missing', async () => {
@@ -723,6 +776,45 @@ describe('CherryAutonomyTools', () => {
 
         expect(result.isError).toBe(true)
         expect(result.content[0].text).toContain('Missing required config field "bot_token"')
+      })
+
+      it('should keep credential fields required unless QR authentication is explicit', async () => {
+        const server = createServer('agent_1')
+        const result = await callTool(
+          server,
+          { action: 'add_channel', type: 'feishu', name: 'My Feishu', config: {} },
+          'config'
+        )
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('Missing required config field "app_id"')
+        expect(mockCreateChannel).not.toHaveBeenCalled()
+      })
+
+      it('should reject QR authentication for channels that do not support it', async () => {
+        const server = createServer('agent_1')
+        const result = await callTool(
+          server,
+          { action: 'add_channel', type: 'telegram', name: 'Work Bot', auth_mode: 'qr' },
+          'config'
+        )
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('QR authentication is not supported for telegram')
+      })
+
+      it('should reject QR authentication for a disabled channel', async () => {
+        const server = createServer('agent_1')
+        const result = await callTool(
+          server,
+          { action: 'add_channel', type: 'wechat', name: 'My WeChat', auth_mode: 'qr', enabled: false },
+          'config'
+        )
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('QR authentication requires the channel to be enabled')
+        expect(mockCreateChannel).not.toHaveBeenCalled()
+        expect(mockWaitForQrUrl).not.toHaveBeenCalled()
       })
     })
 

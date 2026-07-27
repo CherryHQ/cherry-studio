@@ -155,6 +155,17 @@ vi.mock('../../tools/toolResponse', () => ({
     const output = part.output
     const metadata = output && typeof output === 'object' && output.metadata ? output.metadata : undefined
     const isMcp = metadata?.type === 'mcp' || type === 'dynamic-tool'
+    const isMcpContent =
+      metadata?.type === 'mcp' &&
+      Array.isArray(output?.content) &&
+      output.content.every(
+        (item: unknown) =>
+          item &&
+          typeof item === 'object' &&
+          'type' in item &&
+          typeof item.type === 'string' &&
+          ['text', 'image', 'audio', 'resource', 'resource_link'].includes(item.type)
+      )
     const status =
       part.state === 'output-available'
         ? 'done'
@@ -179,7 +190,7 @@ vi.mock('../../tools/toolResponse', () => ({
       partialArguments:
         (status === 'streaming' || status === 'invoking') && typeof part.input === 'string' ? part.input : undefined,
       status,
-      response: part.state === 'output-error' ? { isError: true } : (output?.content ?? output)
+      response: part.state === 'output-error' ? { isError: true } : isMcpContent ? output : (output?.content ?? output)
     }
   }
 }))
@@ -1317,6 +1328,43 @@ describe('MessagePartsRenderer', () => {
       fireEvent.click(historyTrigger)
       expect(screen.getByTestId('tool-history-content')).toHaveClass('pt-2')
       expect(screen.getByText('Searching provider sources')).toBeInTheDocument()
+    })
+
+    it('keeps channel authentication QR tools outside collapsed process history', () => {
+      renderParts([
+        toolPart('read'),
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'channel-auth',
+          toolName: 'mcp__cherry-tools__config',
+          state: 'output-available',
+          input: { action: 'add_channel', type: 'wechat', auth_mode: 'qr' },
+          output: {
+            content: [
+              { type: 'text', text: 'Scan this QR code' },
+              { type: 'image', data: 'BASE64', mimeType: 'image/png' }
+            ],
+            metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+          }
+        }
+      ] as unknown as CherryMessagePart[])
+
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+
+      const visibleAuthTool = screen.getByTestId('mock-message-tools')
+      expect(visibleAuthTool).toHaveAttribute('data-tool-name', 'mcp__cherry-tools__config')
+      expect(visibleAuthTool.closest('[data-testid="tool-history-content"]')).toBeNull()
+
+      fireEvent.click(historyTrigger)
+      expandCollapsedChildToolGroups()
+
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+      expect(
+        screen
+          .getAllByTestId('mock-message-tools')
+          .filter((node) => node.getAttribute('data-tool-name') === 'mcp__cherry-tools__config')
+      ).toHaveLength(1)
     })
 
     it('does not show an empty completed process group for a non-renderable provider tool', () => {

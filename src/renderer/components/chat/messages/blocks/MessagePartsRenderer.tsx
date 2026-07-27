@@ -49,6 +49,7 @@ import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import {
   findOpenTextTailIndex,
   isHiddenPart,
+  isProcessToolPart,
   isReasoningMessagePart,
   isResultPart,
   isSubstantiveAnswerPart,
@@ -814,7 +815,7 @@ function findLastLiveToolBoundaryIndex(items: readonly LiveMessagePartLayoutItem
   for (let index = items.length - 1; index >= 0; index--) {
     const item = items[index]
     const entries = item.kind === 'process' ? item.entries : [item.entry]
-    if (entries.some(({ part }) => isToolUIPart(part) && !isAskUserQuestionToolName(getToolName(part)))) {
+    if (entries.some(({ part }) => isProcessToolPart(part))) {
       return index
     }
   }
