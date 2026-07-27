@@ -65,6 +65,7 @@ describe('SkillService', () => {
         description: 'Extract web content',
         folderName: 'skill-one',
         source: 'marketplace',
+        version: '1.2.3',
         contentHash: 'abc123',
         isEnabled: true
       },
@@ -210,7 +211,8 @@ describe('SkillService', () => {
         id: SKILL_ID_1,
         name: 'skill-one',
         folderName: 'skill-one',
-        source: 'marketplace'
+        source: 'marketplace',
+        version: '1.2.3'
       })
       expect('tags' in (result as object)).toBe(false)
     })
@@ -375,6 +377,7 @@ describe('SkillService', () => {
         source: 'system',
         sourceUrl: expect.stringMatching(/^file:/),
         namespace: 'codex',
+        version: '1.0.0',
         isEnabled: false
       })
       await expect(fs.promises.readFile(path.join(dataSkillsRoot, 'large-skill', 'SKILL.md'), 'utf-8')).resolves.toBe(
@@ -749,6 +752,7 @@ describe('SkillService', () => {
         .from(agentGlobalSkillTable)
         .where(eq(agentGlobalSkillTable.id, SKILL_ID_BUILTIN))
       expect(row?.name).toBe('My Builtin')
+      expect(row?.version).toBe('1.0.0')
       expect(row?.contentHash).toBe(contentHash)
     })
 
@@ -765,6 +769,7 @@ describe('SkillService', () => {
         .where(eq(agentGlobalSkillTable.folderName, FOLDER_NAME))
       expect(rows).toHaveLength(1)
       expect(rows[0]?.source).toBe('builtin')
+      expect(rows[0]?.version).toBe('1.0.0')
       expect(rows[0]?.contentHash).toBe(contentHash)
 
       const joinRows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
@@ -914,6 +919,24 @@ describe('SkillService', () => {
       expect(unlinkSpy).toHaveBeenCalledWith('skill-one')
     })
 
+    it('persists and updates the SKILL.md version when reinstalling the same origin', async () => {
+      const sourceDir = await createTempDir('versioned-skill-')
+      const sourceUrl = pathToFileURL(sourceDir).href
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# Version 1')
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('versioned-skill', { version: '1.0.0' }))
+
+      const installed = await skillService['installSkillDir'](sourceDir, 'local', sourceUrl)
+
+      expect(installed.version).toBe('1.0.0')
+
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# Version 2')
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('versioned-skill', { version: '2.0.0' }))
+
+      const updated = await skillService['installSkillDir'](sourceDir, 'local', sourceUrl)
+
+      expect(updated).toMatchObject({ id: installed.id, version: '2.0.0' })
+    })
+
     function skillMeta(folderName: string, overrides: Record<string, unknown> = {}) {
       return {
         sourcePath: folderName,
@@ -977,7 +1000,7 @@ describe('SkillService', () => {
 
     it('reconcileSkills adopts a skill authored directly in the managed library', async () => {
       vi.mocked(parseSkillMetadata).mockResolvedValue(
-        skillMeta('new-skill', { name: 'New Skill', description: 'freshly authored' })
+        skillMeta('new-skill', { name: 'New Skill', description: 'freshly authored', version: '3.0.0' })
       )
       const authored = await writeLibrarySkill('new-skill', '# new')
 
@@ -990,6 +1013,7 @@ describe('SkillService', () => {
       expect(rows).toHaveLength(1)
       expect(rows[0]?.source).toBe('local')
       expect(rows[0]?.name).toBe('New Skill')
+      expect(rows[0]?.version).toBe('3.0.0')
       expect(rows[0]?.isEnabled).toBe(false)
       await expect(fs.promises.access(path.join(authored, 'SKILL.md'))).resolves.toBeUndefined()
       expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(true)

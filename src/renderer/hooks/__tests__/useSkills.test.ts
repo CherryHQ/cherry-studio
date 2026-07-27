@@ -59,6 +59,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     sourceUrl: null,
     namespace: null,
     author: null,
+    version: null,
     sourceTags: [],
     contentHash: 'hash-1',
     isEnabled: false,

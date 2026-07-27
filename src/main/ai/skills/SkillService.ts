@@ -614,6 +614,7 @@ export class SkillService {
           name: metadata.name,
           description: metadata.description ?? null,
           author: metadata.author ?? null,
+          version: metadata.version ?? null,
           tags,
           contentHash,
           ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
@@ -637,6 +638,7 @@ export class SkillService {
           sourceUrl,
           namespace: provenance.namespace ?? null,
           author: metadata.author ?? null,
+          version: metadata.version ?? null,
           tags,
           contentHash,
           isEnabled: false
@@ -1119,6 +1121,7 @@ export class SkillService {
           name: metadata.name,
           description: metadata.description ?? null,
           author: metadata.author ?? null,
+          version: metadata.version ?? null,
           tags,
           contentHash
         })
@@ -1131,6 +1134,7 @@ export class SkillService {
           sourceUrl: null,
           namespace: null,
           author: metadata.author ?? null,
+          version: metadata.version ?? null,
           tags,
           contentHash,
           isEnabled: false
@@ -1426,6 +1430,7 @@ export class SkillService {
           name: metadata.name,
           description: metadata.description ?? null,
           author: metadata.author ?? null,
+          version: metadata.version ?? null,
           tags,
           contentHash: sourceHash
         })
@@ -1438,6 +1443,7 @@ export class SkillService {
           sourceUrl: null,
           namespace: null,
           author: metadata.author ?? null,
+          version: metadata.version ?? null,
           tags,
           contentHash: sourceHash,
           isEnabled: false

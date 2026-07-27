@@ -71,6 +71,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     sourceUrl: null,
     namespace: null,
     author: null,
+    version: null,
     sourceTags: ['review'],
     contentHash: 'hash',
     isEnabled: true,

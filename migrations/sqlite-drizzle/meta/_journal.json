@@ -175,6 +175,13 @@
       "when": 1784860499109,
       "tag": "0024_shallow_chimera",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1785142312164,
+      "tag": "0025_sweet_exiles",
+      "breakpoints": true
     }
   ],
   "version": "7"
