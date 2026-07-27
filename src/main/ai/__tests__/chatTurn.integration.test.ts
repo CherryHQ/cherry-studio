@@ -1,6 +1,4 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
