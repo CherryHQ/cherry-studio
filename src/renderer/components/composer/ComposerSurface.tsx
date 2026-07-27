@@ -537,28 +537,6 @@ function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
-function useComposerQuickPanelReady(deferQuickPanel: boolean) {
-  const [quickPanelReady, setQuickPanelReady] = useState(!deferQuickPanel)
-
-  useLayoutEffect(() => {
-    if (!deferQuickPanel || quickPanelReady) return
-
-    let quickPanelFrame = 0
-    const editorFrame = window.requestAnimationFrame(() => {
-      quickPanelFrame = window.requestAnimationFrame(() => {
-        startTransition(() => setQuickPanelReady(true))
-      })
-    })
-
-    return () => {
-      window.cancelAnimationFrame(editorFrame)
-      if (quickPanelFrame) window.cancelAnimationFrame(quickPanelFrame)
-    }
-  }, [deferQuickPanel, quickPanelReady])
-
-  return !deferQuickPanel || quickPanelReady
-}
-
 export default function ComposerSurface({
   text,
   onTextChange,
@@ -608,7 +586,8 @@ export default function ComposerSurface({
   sendAccessory,
   deferQuickPanel = false
 }: ComposerSurfaceProps) {
-  const quickPanelReady = useComposerQuickPanelReady(deferQuickPanel)
+  const [editorReady, setEditorReady] = useState(!deferQuickPanel)
+  const quickPanelReady = !deferQuickPanel || editorReady
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -1806,6 +1785,9 @@ export default function ComposerSurface({
       }
     },
     onCreate: ({ editor: createdEditor }) => {
+      window.requestAnimationFrame(() => {
+        startTransition(() => setEditorReady(true))
+      })
       const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
       setTimeoutTimer(
         'composerSurfaceFocus',

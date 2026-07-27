@@ -315,9 +315,7 @@ describe('OpenClawService gateway status state machine', () => {
     it('stops stale gateway and restarts when port is in use by our gateway', async () => {
       // First call: port occupied; after stop: port free
       checkPortOpenSpy.mockResolvedValueOnce(true).mockResolvedValue(false)
-      checkHealthSpy
-        .mockResolvedValueOnce({ status: 'healthy', gatewayPort: 18790 }) // startGateway detects our gateway
-        .mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 }) // waitForGatewayStop confirms stopped
+      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 }) // startGateway detects our gateway
       findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
@@ -401,18 +399,19 @@ describe('OpenClawService gateway status state machine', () => {
   describe('stopGateway', () => {
     it('transitions to stopped on successful stop', async () => {
       ;(service as any).gatewayStatus = 'running'
-      checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 }) // gateway stopped
+      checkPortOpenSpy.mockResolvedValue(false)
 
       const result = await service.stopGateway()
 
       expect(result).toEqual({ success: true })
       expect((service as any).gatewayStatus).toBe('stopped')
+      expect(checkHealthSpy).not.toHaveBeenCalled()
     })
 
     it('transitions to error when gateway fails to stop', async () => {
       vi.useFakeTimers()
       ;(service as any).gatewayStatus = 'running'
-      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 }) // still running
+      checkPortOpenSpy.mockResolvedValue(true)
 
       const resultPromise = service.stopGateway()
       await vi.runAllTimersAsync()
@@ -420,7 +419,8 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(result.success).toBe(false)
       expect((service as any).gatewayStatus).toBe('error')
-      expect(checkHealthSpy).toHaveBeenCalledTimes(3)
+      expect(checkPortOpenSpy).toHaveBeenCalledTimes(3)
+      expect(checkHealthSpy).not.toHaveBeenCalled()
     })
   })
 

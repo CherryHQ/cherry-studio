@@ -1,6 +1,8 @@
 # UI semantic contract compiler
 
 This directory owns Cherry Studio's build-time `data-ui` protocol.
+The normative consumer contract, stability tiers, maintained anchors, and Custom CSS rules live in
+[`docs/references/ui-semantic-contract.md`](../../docs/references/ui-semantic-contract.md).
 
 - `vitePlugin.ts` injects readable semantic tokens before React compilation.
 - `transform.ts` performs source-mapped AST/HTML transformations without using display text or line numbers.
