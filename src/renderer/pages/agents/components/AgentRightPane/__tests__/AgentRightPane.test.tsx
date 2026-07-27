@@ -29,7 +29,9 @@ const {
   systemFileTreeState,
   useArtifactFileTreeModelMock,
   useCommandHandlerMock,
-  useDirectoryTreeMock
+  useDirectoryTreeMock,
+  ipcRequestMock,
+  toastErrorMock
 } = vi.hoisted(() => ({
   buildAgentToolFlowProjectionMock: vi.fn(),
   getToolResultMock: vi.fn(),
@@ -55,7 +57,9 @@ const {
   },
   useArtifactFileTreeModelMock: vi.fn(),
   useCommandHandlerMock: vi.fn(),
-  useDirectoryTreeMock: vi.fn()
+  useDirectoryTreeMock: vi.fn(),
+  ipcRequestMock: vi.fn(),
+  toastErrorMock: vi.fn()
 }))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
@@ -177,6 +181,14 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
 
 vi.mock('@renderer/hooks/useToolResult', () => ({
   useToolResult: (ref: unknown) => ({ output: ref ? getToolResultMock(ref) : undefined })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock }
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: toastErrorMock }
 }))
 
 vi.mock('@renderer/utils/filePath', () => ({
@@ -432,6 +444,8 @@ type StatusTaskFixture = {
   id: string
   status: 'pending' | 'in_progress' | 'completed' | 'error'
   title: string
+  taskType?: string
+  toolUseId?: string
 }
 
 function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { openPanel?: boolean } = {}) {
@@ -443,11 +457,13 @@ function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { o
           event: 'notification',
           taskId: task.id,
           status: task.status,
-          title: task.title
+          title: task.title,
+          taskType: task.taskType,
+          toolUseId: task.toolUseId
         }
       }) as unknown as CherryMessagePart
   )
-  const messages = [{ id: 'm1', role: 'assistant', parts, metadata: {} }] as CherryUIMessage[]
+  const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
 
   render(
     <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
@@ -924,6 +940,38 @@ describe('AgentRightPane', () => {
       expect(taskText).toHaveClass('wrap-break-word', 'leading-5')
       expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
     }
+  })
+
+  it('opens a subagent flow from the shortcut environment context', () => {
+    renderStatusTasks(
+      [
+        {
+          id: 'subagent-1',
+          status: 'in_progress',
+          title: 'Inspect task state',
+          taskType: 'local_agent',
+          toolUseId: 'tool-use-1'
+        }
+      ],
+      { openPanel: false }
+    )
+
+    const preview = screen.getByTestId('status-shortcut-preview')
+    fireEvent.click(within(preview).getByRole('button', { name: /Inspect task state/ }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
+  })
+
+  it('restores the stop button and reports an error when the runtime cannot stop the task', async () => {
+    ipcRequestMock.mockResolvedValue(false)
+    renderStatusTasks([{ id: 'subagent-1', status: 'in_progress', title: 'Inspect task state' }])
+
+    const stopButton = screen.getByRole('button', { name: 'agent.right_pane.status.stop_run_task' })
+    fireEvent.click(stopButton)
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('agent.right_pane.status.stop_run_task_failed'))
+    expect(stopButton).toBeEnabled()
   })
 
   it('renders artifact status filenames with neutral text', () => {

@@ -9,9 +9,9 @@ const NO_TASKS: AgentSessionBackgroundTasks = []
 
 /**
  * Background work still running in an agent session — shells, subagents and workflows that outlive
- * the turn that spawned them. Main republishes the SDK's full membership snapshot on every change,
- * so this is a level, not an edge stream: the list is always the current truth and needs no
- * pairing of start/finish events.
+ * the turn that spawned them. Main republishes the runtime's normalized full membership snapshot on
+ * every change, so this is a level, not an edge stream: the list is always the current truth and
+ * needs no pairing of start/finish events.
  *
  * Main owns this key, so this window must only ever read it — `useSharedCacheValue` never seeds the
  * schema default back, which would clobber Main's published set during the mount race.

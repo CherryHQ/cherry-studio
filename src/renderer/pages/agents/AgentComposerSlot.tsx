@@ -7,6 +7,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Model } from '@shared/data/types/model'
 import { lazy, memo } from 'react'
 
+import { useAgentRightPaneActions } from './components/AgentRightPane'
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 
 const AgentComposer = lazy(() => import('@renderer/components/composer/variants/AgentComposer'))
@@ -45,6 +46,7 @@ function AgentComposerSlot({
   composerContext
 }: AgentComposerSlotProps) {
   const rightPanelState = useOptionalRightPanelState()
+  const { canOpenAgentToolFlow, openAgentToolFlow } = useAgentRightPaneActions()
   const compactWhenSingleLine = Boolean(
     rightPanelState?.presentationMaximized && rightPanelState.activePanelId === 'files'
   )
@@ -60,6 +62,7 @@ function AgentComposerSlot({
         externalContextControls
         sendMessage={sendMessage}
         stop={stop}
+        openAgentToolFlow={canOpenAgentToolFlow ? openAgentToolFlow : undefined}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         onCreateEmptySession={onCreateEmptySession}

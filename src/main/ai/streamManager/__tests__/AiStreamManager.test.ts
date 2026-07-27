@@ -681,6 +681,32 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect(topicId)).toBeDefined()
     })
 
+    it('suspends an unadmitted runtime turn without terminalizing its internal listeners', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:session-1'
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const renderer = new FakeListener(`wc:1:${topicId}`)
+      const persistence = new FakeListener(`persistence:agents-db:${topicId}:model`)
+      const runtime = new FakeListener(`agent-runtime:session-1`)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [renderer, persistence, runtime]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      const suspended = mgr.suspendUnadmittedRuntimeTurn(topicId)
+      feed.close()
+      await suspended
+
+      expect(renderer.doneResults).toHaveLength(1)
+      expect(renderer.doneResults[0].isTopicDone).toBe(false)
+      expect(persistence.doneResults).toEqual([])
+      expect(runtime.doneResults).toEqual([])
+    })
+
     it('does not let trace flush failure block terminal completion', async () => {
       mockSaveSpans.mockRejectedValueOnce(new Error('trace write failed'))
       const listener = new FakeListener('l:a')

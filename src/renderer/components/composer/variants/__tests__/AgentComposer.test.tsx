@@ -2921,6 +2921,53 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeTruthy()
   })
 
+  it('opens a live subagent chip in its tool flow while keeping other background work inert', () => {
+    const openAgentToolFlow = vi.fn()
+    MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
+      { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },
+      { id: 'shell-1', type: 'local_bash', description: 'sleep 300' }
+    ])
+    MockUseCacheUtils.setSharedCacheValue('agent.session.task_events.session-1', {
+      'subagent-1': {
+        event: 'started',
+        taskId: 'subagent-1',
+        toolUseId: 'tool-use-1',
+        status: 'in_progress',
+        title: 'Audit the codebase',
+        taskType: 'subagent',
+        isBackgrounded: true
+      },
+      'shell-edge-1': {
+        event: 'started',
+        taskId: 'shell-edge-1',
+        status: 'in_progress',
+        title: 'sleep 300',
+        taskType: 'local_bash',
+        isBackgrounded: true
+      }
+    })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        openAgentToolFlow={openAgentToolFlow}
+        isStreaming={false}
+      />
+    )
+    render(<>{mocks.surfaceProps?.queueContent}</>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Audit the codebase' }))
+
+    expect(openAgentToolFlow).toHaveBeenCalledWith({
+      toolCallId: 'tool-use-1',
+      title: 'Audit the codebase'
+    })
+    expect(screen.getByText('sleep 300').closest('button')).toBeNull()
+  })
+
   it('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {
     seedInputHistory(['queued agent draft'])
     mocks.availableSkills = [pdfSkill]

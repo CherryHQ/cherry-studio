@@ -123,7 +123,8 @@ export type ClaudeCodeStreamStatusEvent = Extract<
       | 'compaction-error'
       | 'api-retry'
       | 'background-task-event'
-      | 'background-wake'
+      | 'autonomous-generation-state'
+      | 'receive-only-turn'
   }
 >
 
@@ -314,6 +315,10 @@ export class ClaudeCodeStreamAdapter {
   private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
   /** Content belongs to a turn's message stream; outside one there is nowhere for it to land. */
   private turnActive = false
+  /** Native background membership, used only here to translate Claude's wake protocol. */
+  private hasBackgroundTasks = false
+  /** The current turn was started by parentless SDK content rather than a host `send()`. */
+  private autonomousTurn = false
   /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
   private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
 
@@ -366,6 +371,7 @@ export class ClaudeCodeStreamAdapter {
   beginTurn(): void {
     this.ctx = this.createTurnContext()
     this.turnActive = true
+    this.autonomousTurn = false
     if (this.pendingInit) {
       const init = this.pendingInit
       this.pendingInit = undefined
@@ -396,11 +402,11 @@ export class ClaudeCodeStreamAdapter {
         })
         return { type: 'continue' }
       }
-      // Parentless content with no turn open is the SDK waking the main agent after background
-      // work completed — its response to the user. Tell the host first so it starts buffering,
-      // then open a turn so this and the following messages accumulate from a clean context.
-      this.statusSink.emit({ type: 'background-wake' })
+      // Parentless content with no turn open is Claude waking the main agent after background work.
+      // Translate that SDK protocol into the runtime-neutral receive-only contract.
+      this.statusSink.emit({ type: 'receive-only-turn' })
       this.beginTurn()
+      this.autonomousTurn = true
     }
 
     switch (message.type) {
@@ -419,6 +425,10 @@ export class ClaudeCodeStreamAdapter {
       case 'result':
         this.handleResultMessage(message, this.ctx)
         this.turnActive = false
+        if (this.autonomousTurn) {
+          this.autonomousTurn = false
+          this.statusSink.emit({ type: 'autonomous-generation-state', active: this.hasBackgroundTasks })
+        }
         return { type: 'result', sessionId: message.session_id, message }
       case 'system':
         this.handleSystemMessage(message, this.ctx)
@@ -976,8 +986,20 @@ export class ClaudeCodeStreamAdapter {
         this.handlePermissionDeniedSystemMessage(message, ctx)
         return
       case 'background_tasks_changed':
-        // REPLACE semantics: the payload is the full live set after a membership change.
-        this.statusSink.emit({ type: 'background-tasks', tasks: message.tasks })
+        // Claude-specific membership and wake ordering stay inside the adapter. The host receives an
+        // app-owned snapshot for presentation plus a separate, runtime-neutral ownership signal.
+        this.hasBackgroundTasks = message.tasks.length > 0
+        this.statusSink.emit({
+          type: 'background-tasks',
+          tasks: message.tasks.map((task) => ({
+            id: task.task_id,
+            type: task.task_type,
+            description: task.description
+          }))
+        })
+        if (this.hasBackgroundTasks) {
+          this.statusSink.emit({ type: 'autonomous-generation-state', active: true })
+        }
         return
       case 'commands_changed':
         // Mid-session catalog push (skills discovered in a subdirectory, etc.); consumers replace
@@ -1060,8 +1082,12 @@ export class ClaudeCodeStreamAdapter {
   private handleTaskSystemMessage(message: SDKTaskSystemMessage, ctx: StreamContext): void {
     const eventData = this.toTaskEventPartData(message)
 
+    // Keep a process-scoped per-task surface for liveness, stop targets and navigation. This is
+    // distinct from `background_tasks_changed`: that aggregate level explicitly forbids id
+    // correlation with task lifecycle edges.
+    this.statusSink.emit({ type: 'background-task-event', data: eventData })
+
     if (!this.turnActive) {
-      this.statusSink.emit({ type: 'background-task-event', data: eventData })
       return
     }
 
@@ -1192,7 +1218,8 @@ export class ClaudeCodeStreamAdapter {
           title: message.patch.description,
           activeText: status === 'in_progress' ? message.patch.description : undefined,
           description: message.patch.description,
-          error: message.patch.error
+          error: message.patch.error,
+          isBackgrounded: message.patch.is_backgrounded
         }
       }
       case 'task_notification':

@@ -174,7 +174,17 @@ vi.mock('../streamAdapter', () => ({
         return { type: 'continue' }
       }
       if (message.type === 'system' && message.subtype === 'background_tasks_changed') {
-        this.options.statusSink.emit({ type: 'background-tasks', tasks: message.tasks })
+        this.options.statusSink.emit({
+          type: 'background-tasks',
+          tasks: message.tasks.map((task: any) => ({
+            id: task.task_id,
+            type: task.task_type,
+            description: task.description
+          }))
+        })
+        if (message.tasks.length > 0) {
+          this.options.statusSink.emit({ type: 'autonomous-generation-state', active: true })
+        }
         return { type: 'continue' }
       }
       if (message.type === 'stream_event') {
@@ -967,7 +977,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
       tasks
     })
 
-    await expect(events.next()).resolves.toMatchObject({ value: { type: 'background-tasks', tasks } })
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'background-tasks',
+        tasks: [{ id: 'bg-1', type: 'subagent', description: 'Audit the codebase' }]
+      }
+    })
     void connection.close()
   })
 

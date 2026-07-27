@@ -337,6 +337,7 @@
         "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "選取的工具",
         "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} 完成",
         "tasks": "任務",
         "tools_active": "活躍",

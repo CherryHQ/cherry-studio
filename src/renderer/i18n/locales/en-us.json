@@ -337,6 +337,7 @@
         "run_tasks": "Subtasks",
         "selected_tool": "Selected tool",
         "stop_run_task": "Stop task",
+        "stop_run_task_failed": "Failed to stop task",
         "task_count": "{{completed}} / {{total}} complete",
         "tasks": "Tasks",
         "tools_active": "Active",

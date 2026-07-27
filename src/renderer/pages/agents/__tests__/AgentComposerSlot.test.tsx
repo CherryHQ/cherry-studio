@@ -8,6 +8,9 @@ import AgentComposerSlot from '../AgentComposerSlot'
 const agentComposerPropsMock = vi.hoisted(() => ({
   last: undefined as any
 }))
+const agentRightPaneActionsMock = vi.hoisted(() => ({
+  openAgentToolFlow: vi.fn()
+}))
 
 vi.mock('@renderer/components/chat/panes/Shell', () => ({
   useOptionalRightPanelState: () => null
@@ -24,6 +27,13 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
     agentComposerPropsMock.last = props
     return <div data-testid="agent-composer" />
   }
+}))
+
+vi.mock('../components/AgentRightPane', () => ({
+  useAgentRightPaneActions: () => ({
+    canOpenAgentToolFlow: true,
+    openAgentToolFlow: agentRightPaneActionsMock.openAgentToolFlow
+  })
 }))
 
 const session = { id: 'session-1', agentId: 'agent-1' } as AgentSessionEntity
@@ -68,7 +78,8 @@ describe('AgentComposerSlot', () => {
       resolvedAgent: activeAgent,
       resolvedModel: activeModel,
       resolvedWorkspaceWarning: 'Workspace unavailable',
-      externalContextControls: true
+      externalContextControls: true,
+      openAgentToolFlow: agentRightPaneActionsMock.openAgentToolFlow
     })
     expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
     expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()

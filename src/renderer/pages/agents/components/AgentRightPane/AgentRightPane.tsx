@@ -35,19 +35,19 @@ import type { ResourceListRevealRequest } from '@renderer/components/chat/resour
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
-import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { useToolResult } from '@renderer/hooks/useToolResult'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
+import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -779,10 +779,15 @@ function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: 
         onClick={async () => {
           setStopping(true)
           try {
-            await ipcApi.request('ai.agent.session.stop_background_task', { sessionId, taskId })
+            const stopped = await ipcApi.request('ai.agent.session.stop_background_task', { sessionId, taskId })
+            if (!stopped) {
+              setStopping(false)
+              toast.error(t('agent.right_pane.status.stop_run_task_failed'))
+            }
           } catch (error) {
             logger.warn('Failed to stop background task', { taskId, error })
             setStopping(false)
+            toast.error(t('agent.right_pane.status.stop_run_task_failed'))
           }
         }}>
         <CircleStop size={14} />
@@ -797,28 +802,52 @@ function isShellRunTask(task: AgentRunTask): boolean {
   return type.includes('bash') || type.includes('shell')
 }
 
+function isSubagentRunTask(task: AgentRunTask): boolean {
+  return task.taskType === 'subagent' || task.taskType === 'local_agent' || Boolean(task.subagentType)
+}
+
 function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: string }) {
+  const actions = useAgentRightPaneActions()
+
   return (
     <div className="space-y-1.5">
-      {tasks.map((task) => (
-        <div
-          key={task.id}
-          className="flex items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
-          <TaskStatusIcon status={task.status} />
-          <div className="min-w-0 flex-1">
-            {/* Rows persisted before summaries were kept out of titles can carry prose here — clamp it. */}
-            <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
-              {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
+      {tasks.map((task) => {
+        const toolCallId = actions.canOpenAgentToolFlow && isSubagentRunTask(task) ? task.toolUseId : undefined
+        const content = (
+          <>
+            <TaskStatusIcon status={task.status} />
+            <div className="min-w-0 flex-1">
+              {/* Rows persisted before summaries were kept out of titles can carry prose here — clamp it. */}
+              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
+                {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
+              </div>
+              <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                {[task.subagentType ?? task.workflowName ?? task.taskType, formatRunTaskUsage(task.usage)]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </div>
             </div>
-            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-              {[task.subagentType ?? task.workflowName ?? task.taskType, formatRunTaskUsage(task.usage)]
-                .filter(Boolean)
-                .join(' · ')}
-            </div>
+          </>
+        )
+
+        return (
+          <div
+            key={task.id}
+            className="flex items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
+            {toolCallId ? (
+              <button
+                type="button"
+                className="-m-1 flex min-w-0 flex-1 items-start gap-2 rounded-sm p-1 text-left transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => actions.openAgentToolFlow({ toolCallId, title: task.title })}>
+                {content}
+              </button>
+            ) : (
+              content
+            )}
+            {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
           </div>
-          {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -854,23 +883,29 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
   return <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
 }
 
-/** The two live signals a run task's own event stream cannot provide: is its turn still streaming,
- * and is it in the SDK's live background set. Everything else stopped, however it last reported. */
-function useAgentRunLiveness(sessionId: string | undefined): AgentRunLiveness {
-  const sessionIds = useMemo(() => (sessionId ? [sessionId] : []), [sessionId])
-  const streamStatuses = useAgentSessionStreamStatuses(sessionIds)
-  const backgroundTasks = useAgentSessionBackgroundTasks(sessionId)
-  const turnActive = sessionId ? (streamStatuses.get(sessionId)?.isPending ?? false) : false
-  const liveTaskIds = useMemo(() => new Set(backgroundTasks.map((task) => task.task_id)), [backgroundTasks])
-  return useMemo(() => ({ turnActive, liveTaskIds }), [turnActive, liveTaskIds])
+/** Foreground runs belong to one assistant row; detached runs use the SDK's per-task edge state. */
+function useAgentRunLiveness(messages: CherryUIMessage[], taskEvents: AgentSessionTaskEvents): AgentRunLiveness {
+  return useMemo(() => {
+    const activeMessageIds = new Set(
+      messages
+        .filter((message) => message.role === 'assistant' && message.metadata?.status === 'pending')
+        .map((message) => message.id)
+    )
+    const liveBackgroundTaskIds = new Set(
+      Object.values(taskEvents)
+        .filter((event) => event.isBackgrounded === true && event.status !== 'completed' && event.status !== 'error')
+        .map((event) => event.taskId)
+    )
+    return { activeMessageIds, liveBackgroundTaskIds }
+  }, [messages, taskEvents])
 }
 
 function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   const runtime = useAgentRightPaneRuntime()
   const meta = useAgentRightPaneMeta()
-  // Lifecycle that landed after its turn closed, so it never became a message part.
+  // Current-process per-task lifecycle edges.
   const lateTaskEvents = useAgentSessionTaskEvents(meta.sessionId)
-  const liveness = useAgentRunLiveness(meta.sessionId)
+  const liveness = useAgentRunLiveness(runtime.messages, lateTaskEvents)
   const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
   const status = useMemo(
     () =>

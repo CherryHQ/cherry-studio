@@ -337,6 +337,7 @@
         "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Outil sélectionnée",
         "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} terminé",
         "tasks": "Tâches",
         "tools_active": "Actif",

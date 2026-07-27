@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
+  suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   resolveToolApproval: vi.fn(),
@@ -147,6 +148,7 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
+          suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
           resolveToolApproval: mocks.resolveToolApproval,
@@ -1385,11 +1387,10 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
-  // Background work outlives its turn, so the SDK reports it as a session-scoped level rather than
-  // turn content. The runtime republishes each snapshot verbatim.
+  // Background work outlives its turn, so drivers report a normalized session-scoped snapshot.
   describe('background tasks', () => {
     const BG_KEY = 'agent.session.background_tasks.session-1'
-    const tasks = [{ task_id: 'bg-1', task_type: 'subagent', description: 'Audit the codebase' }]
+    const tasks = [{ id: 'bg-1', type: 'subagent', description: 'Audit the codebase' }]
 
     it('republishes the membership snapshot as session-scoped status', () => {
       const service = new AgentSessionRuntimeService()
@@ -1408,6 +1409,28 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks: [] })
 
       expect(mocks.cacheSetShared).toHaveBeenLastCalledWith(BG_KEY, [])
+    })
+
+    it('keeps task presentation separate from autonomous generation ownership', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.isSessionBusy('session-1')).toBe(false)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-generation-state', active: true })
+      expect(service.isSessionBusy('session-1')).toBe(true)
+      service.releaseIdleConnection('session-1')
+      expect(service.inspect('session-1')).toBeDefined()
+
+      // Replacing the presentation snapshot cannot release generation ownership.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks: [] })
+      expect(service.isSessionBusy('session-1')).toBe(true)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-generation-state', active: false })
+      expect(service.isSessionBusy('session-1')).toBe(false)
     })
 
     it('stops one task through the connection without touching the turn', async () => {
@@ -1490,11 +1513,29 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(mocks.cacheDeleteShared).toHaveBeenCalledWith(BG_KEY)
     })
+
+    it('ignores task-state resets from a stale connection', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const currentConnection = { close: vi.fn(), send: vi.fn(), events: [] }
+      const staleConnection = { close: vi.fn(), send: vi.fn(), events: [] }
+      entry.connection = currentConnection
+      entry.autonomousGenerationActive = true
+      entry.receiveOnlyTurnCompleted = true
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).resetConnectionRuntimeState(entry, staleConnection)
+
+      expect(entry.autonomousGenerationActive).toBe(true)
+      expect(entry.receiveOnlyTurnCompleted).toBe(true)
+      expect(mocks.cacheSetShared).not.toHaveBeenCalled()
+    })
   })
 
-  // The SDK resumes the main agent on its own once background work completes; the woken response
-  // needs a turn to land in, but nothing may be sent to the CLI — the generation is already running.
-  describe('background wake turn', () => {
+  // A runtime may generate content without a host-admitted prompt. It still needs a transcript turn,
+  // but nothing may be sent back to the runtime because the generation is already running.
+  describe('receive-only turn', () => {
     it('opens a receive-only headless turn and replays the buffered woken chunks', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -1504,7 +1545,7 @@ describe('AgentSessionRuntimeService', () => {
       entry.connection = { send, close: vi.fn(), events: [], reconcile: vi.fn().mockResolvedValue('current') }
       mocks.startRuntimeTurn.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'background-wake' })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'receive-only-turn' })
       // Chunks stream while the wake turn's stream is not open yet — buffered, not dropped.
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'chunk',
@@ -1530,16 +1571,96 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
-    it('ignores a wake while a turn is live', () => {
+    it('ignores a receive-only signal while an admitted turn is live', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
+      entry.currentTurn.admitted = true
       mocks.startRuntimeTurn.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'background-wake' })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'receive-only-turn' })
 
       expect(entry.rolling).toBeFalsy()
       expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    })
+
+    it('lets a receive-only generation finish before admitting a user turn that was still reconciling', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const reconcile = createDeferred<'current'>()
+      const send = vi.fn()
+      const connection = {
+        send,
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn(() => reconcile.promise)
+      }
+      entry.connection = connection
+
+      const originalReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await expect(originalReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.reconcile).toHaveBeenCalledTimes(1))
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'receive-only-turn' }, connection)
+      ;(service as any).handleRuntimeEvent(
+        entry,
+        { type: 'chunk', chunk: { type: 'text-delta', id: 'wake-1', delta: 'background finished' } },
+        connection
+      )
+      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-generation-state', active: false }, connection)
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' }, connection)
+
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+      const wakeTurn = entry.currentTurn
+      expect(wakeTurn).toMatchObject({ admitted: true, receiveOnly: true })
+
+      const wakeReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: wakeTurn.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await expect(wakeReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await expect(wakeReader.read()).resolves.toMatchObject({
+        value: { type: 'text-delta', delta: 'background finished' },
+        done: false
+      })
+      await expect(wakeReader.read()).resolves.toMatchObject({ done: true })
+      expect(send).not.toHaveBeenCalled()
+
+      const wakeRuntimeInput = mocks.startRuntimeTurn.mock.calls[0][0]
+      wakeRuntimeInput.listeners.find((listener: any) => listener.id === 'agent-runtime:session-1').onDone()
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
+
+      const deferredTurn = entry.currentTurn
+      expect(deferredTurn.turnId).toBe(handle.turnId)
+      const resumedReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: deferredTurn.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await expect(resumedReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      expect(send).not.toHaveBeenCalled()
+
+      reconcile.resolve('current')
+      await vi.waitFor(() =>
+        expect(send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
+      )
+      expect(mocks.suspendUnadmittedRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1')
+
+      service.closeSession('session-1')
+      await originalReader.cancel().catch(() => undefined)
+      await resumedReader.cancel().catch(() => undefined)
     })
   })
 
@@ -1759,23 +1880,29 @@ describe('AgentSessionRuntimeService', () => {
       expect(getContextUsage).toHaveBeenCalledTimes(1)
     })
 
-    it('coalesces concurrent refreshes on the same connection', async () => {
+    it('coalesces concurrent refreshes and runs one trailing semantic invalidation', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
-      const usage = usageAt(8)
-      const deferred = createDeferred<typeof usage>()
-      const getContextUsage = vi.fn().mockReturnValue(deferred.promise)
+      const firstUsage = usageAt(8)
+      const latestUsage = usageAt(9)
+      const first = createDeferred<typeof firstUsage>()
+      const trailing = createDeferred<typeof latestUsage>()
+      const getContextUsage = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(trailing.promise)
       entry.connection = { getContextUsage } as any
 
       ;(service as any).refreshContextUsage(entry)
       ;(service as any).refreshContextUsage(entry)
 
       expect(getContextUsage).toHaveBeenCalledTimes(1)
-      deferred.resolve(usage)
+      first.resolve(firstUsage)
+      await vi.waitFor(() => expect(getContextUsage).toHaveBeenCalledTimes(2))
+      ;(service as any).refreshContextUsage(entry)
+      trailing.resolve(latestUsage)
       await vi.waitFor(() =>
-        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+        expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.context_usage.session-1', latestUsage)
       )
+      expect(getContextUsage).toHaveBeenCalledTimes(2)
     })
   })
 

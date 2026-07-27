@@ -59,6 +59,7 @@ export interface AgentStatusTask {
  */
 export interface AgentRunTask {
   id: string
+  toolUseId?: string
   title: string
   status: 'pending' | 'in_progress' | 'completed' | 'error'
   activeText?: string
@@ -83,10 +84,10 @@ export interface AgentArtifactFile {
  * an interrupted turn, a crash or an app restart leaves the last event at `in_progress` forever.
  */
 export interface AgentRunLiveness {
-  /** A turn is streaming, so foreground subagents it spawned are genuinely running. */
-  turnActive: boolean
-  /** Task ids in the SDK's live background set — background work outlives the turn. */
-  liveTaskIds: ReadonlySet<string>
+  /** Assistant message ids whose own turn is still pending. */
+  activeMessageIds: ReadonlySet<string>
+  /** Task ids whose per-task lifecycle edge says they detached into the background. */
+  liveBackgroundTaskIds: ReadonlySet<string>
 }
 
 export interface AgentRightPaneStatus {
@@ -404,7 +405,12 @@ function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | u
 
 const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'error'])
 
-function applyAgentTaskEvent(runTaskMap: Map<string, AgentRunTask>, data: AgentTaskEventPartData): void {
+function applyAgentTaskEvent(
+  runTaskMap: Map<string, AgentRunTask>,
+  data: AgentTaskEventPartData,
+  originMessageId?: string,
+  originMessageIds?: Map<string, string>
+): void {
   const existing = runTaskMap.get(data.taskId)
   // A completion's summary is prose, not a name — it must never become the row title.
   const title = data.title?.trim() || data.description?.trim() || existing?.title
@@ -420,6 +426,7 @@ function applyAgentTaskEvent(runTaskMap: Map<string, AgentRunTask>, data: AgentT
 
   runTaskMap.set(data.taskId, {
     id: data.taskId,
+    toolUseId: data.toolUseId ?? existing?.toolUseId,
     title,
     activeText: data.activeText ?? data.description ?? existing?.activeText,
     status,
@@ -429,6 +436,9 @@ function applyAgentTaskEvent(runTaskMap: Map<string, AgentRunTask>, data: AgentT
     outputFile: data.outputFile ?? existing?.outputFile,
     usage: data.usage ?? existing?.usage
   })
+  if (originMessageId && !originMessageIds?.has(data.taskId)) {
+    originMessageIds?.set(data.taskId, originMessageId)
+  }
 }
 
 function isReportArtifactsTool(toolName: string | undefined): boolean {
@@ -447,8 +457,8 @@ export function buildAgentRightPaneStatus(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
   /**
-   * Lifecycle that arrived after the spawning turn closed, so it never became a message part.
-   * Applied last, by task id, so a background task's completion settles the row the parts built.
+   * Latest per-task lifecycle edge for the current CLI process. Applied last by task id so a
+   * background task's completion settles the row the transcript parts built.
    */
   lateTaskEvents: AgentSessionTaskEvents = {},
   /** Omitted means "trust the events" — production always passes it. */
@@ -456,13 +466,14 @@ export function buildAgentRightPaneStatus(
 ): AgentRightPaneStatus {
   const taskMap = new Map<string, AgentStatusTask>()
   const runTaskMap = new Map<string, AgentRunTask>()
+  const runTaskOriginMessageIds = new Map<string, string>()
   const artifactByPath = new Map<string, AgentArtifactFile>()
 
   for (const message of messages) {
     const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
     parts.forEach((part, partIndex) => {
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
-        applyAgentTaskEvent(runTaskMap, part.data)
+        applyAgentTaskEvent(runTaskMap, part.data, message.id, runTaskOriginMessageIds)
       }
 
       if (!isToolUIPart(part)) return
@@ -493,12 +504,18 @@ export function buildAgentRightPaneStatus(
   }
 
   // A run only settles if its completion event arrives; an interrupted turn, a crashed CLI or an
-  // app restart means it never will. Nothing outside the turn and outside the live background set
-  // is running, whatever its last event said — otherwise the row spins for the rest of the session.
+  // app restart means it never will. Foreground liveness belongs to the originating assistant row,
+  // while background liveness comes only from the SDK's per-task edge surface.
   if (liveness) {
     for (const [id, task] of runTaskMap) {
       if (RUN_TASK_TERMINAL_STATUSES.has(task.status)) continue
-      if (liveness.turnActive || liveness.liveTaskIds.has(id)) continue
+      const originMessageId = runTaskOriginMessageIds.get(id)
+      if (
+        (originMessageId && liveness.activeMessageIds.has(originMessageId)) ||
+        liveness.liveBackgroundTaskIds.has(id)
+      ) {
+        continue
+      }
       runTaskMap.set(id, { ...task, status: 'pending', activeText: undefined })
     }
   }

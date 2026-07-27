@@ -470,6 +470,24 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
+   * Detach one not-yet-admitted runtime execution without terminalizing its reserved assistant row.
+   * The runtime closes the upstream stream immediately after this call, then waits for the returned
+   * promise before opening the receive-only generation that preempted it.
+   */
+  async suspendUnadmittedRuntimeTurn(topicId: string): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return
+
+    for (const id of stream.listeners.keys()) {
+      if (id.startsWith('persistence:') || id.startsWith('agent-runtime:')) {
+        stream.listeners.delete(id)
+      }
+    }
+
+    await Promise.allSettled([...stream.executions.values()].map((execution) => execution.loopPromise))
+  }
+
+  /**
    * True iff this topic has a stream that `send()` would treat as the inject
    * path (live: pending or streaming). Providers query this in
    * `prepareDispatch` so they can skip placeholder rows / persistence

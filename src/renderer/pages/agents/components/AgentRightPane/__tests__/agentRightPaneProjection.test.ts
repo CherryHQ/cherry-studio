@@ -248,6 +248,7 @@ describe('agent right pane projections', () => {
         data: {
           event: 'started',
           taskId: 'task-1',
+          toolUseId: 'tool-use-1',
           status: 'in_progress',
           title: 'Inspect task state',
           activeText: 'Inspecting task state',
@@ -277,6 +278,7 @@ describe('agent right pane projections', () => {
     expect(status.runTasks).toEqual([
       {
         id: 'task-1',
+        toolUseId: 'tool-use-1',
         title: 'Inspect task state',
         activeText: 'Inspecting task state',
         status: 'completed',
@@ -403,19 +405,57 @@ describe('agent right pane projections', () => {
     ] as unknown as CherryMessagePart[]
     const messages = [message('m1', parts)]
 
-    const live = buildAgentRightPaneStatus(messages, { m1: parts }, {}, { turnActive: true, liveTaskIds: new Set() })
+    const live = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {},
+      { activeMessageIds: new Set(['m1']), liveBackgroundTaskIds: new Set() }
+    )
     expect(live.runTasks).toEqual([expect.objectContaining({ id: 'agent-1', status: 'in_progress' })])
 
     const backgrounded = buildAgentRightPaneStatus(
       messages,
       { m1: parts },
       {},
-      { turnActive: false, liveTaskIds: new Set(['agent-1']) }
+      { activeMessageIds: new Set(), liveBackgroundTaskIds: new Set(['agent-1']) }
     )
     expect(backgrounded.runTasks).toEqual([expect.objectContaining({ id: 'agent-1', status: 'in_progress' })])
 
-    const stale = buildAgentRightPaneStatus(messages, { m1: parts }, {}, { turnActive: false, liveTaskIds: new Set() })
+    const stale = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {},
+      { activeMessageIds: new Set(), liveBackgroundTaskIds: new Set() }
+    )
     expect(stale.runTasks).toEqual([
+      expect.objectContaining({ id: 'agent-1', status: 'pending', activeText: undefined })
+    ])
+  })
+
+  it('does not resurrect a historical run when an unrelated later turn starts', () => {
+    const historicalParts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'agent-1',
+          status: 'in_progress',
+          title: 'Historical review',
+          taskType: 'subagent'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const currentParts = [textPart('new turn')]
+    const messages = [message('historical', historicalParts), message('current', currentParts)]
+
+    const status = buildAgentRightPaneStatus(
+      messages,
+      { historical: historicalParts, current: currentParts },
+      {},
+      { activeMessageIds: new Set(['current']), liveBackgroundTaskIds: new Set() }
+    )
+
+    expect(status.runTasks).toEqual([
       expect.objectContaining({ id: 'agent-1', status: 'pending', activeText: undefined })
     ])
   })

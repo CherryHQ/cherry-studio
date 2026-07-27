@@ -72,9 +72,12 @@ export type AgentRuntimeEvent =
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
-  /** The SDK woke the main agent after background work completed: parentless content is streaming
-   *  with no open turn. The host opens a receive-only turn to carry it into the main transcript. */
-  | { type: 'background-wake' }
+  /** Whether the runtime currently owns an autonomous generation on this connection. While active,
+   *  the host keeps the connection alive and queues user turns instead of admitting them. */
+  | { type: 'autonomous-generation-state'; active: boolean }
+  /** Runtime-generated content started without a host-admitted user turn. The host opens a
+   *  receive-only turn to carry that content into the transcript without sending another prompt. */
+  | { type: 'receive-only-turn' }
   | { type: 'error'; error: unknown }
 
 /**

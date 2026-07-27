@@ -79,6 +79,8 @@ export interface AgentTaskEventPartData {
   lastToolName?: string
   outputFile?: string
   error?: string
+  /** Per-task edge authority for whether this task has detached from its spawning turn. */
+  isBackgrounded?: boolean
   skipTranscript?: boolean
   usage?: {
     totalTokens?: number

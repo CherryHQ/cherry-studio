@@ -8,10 +8,9 @@ const EMPTY_SESSION_ID = '__none__'
 const NO_EVENTS: AgentSessionTaskEvents = {}
 
 /**
- * Task lifecycle that arrived after the spawning turn's message stream closed, keyed by task id.
- * In-turn events are message parts and already reach the projection; these are the tail a
- * background task emits once there is no message left to carry it — without them a detached task's
- * row would stay running for the rest of the session.
+ * Latest task lifecycle edge for the current CLI process, keyed by task id. In-turn events also
+ * reach the transcript as hidden message parts; this cache supplies the live per-task state after
+ * the spawning turn closes and is reset at every connection boundary.
  *
  * Main owns this key, so this window must only ever read it.
  */

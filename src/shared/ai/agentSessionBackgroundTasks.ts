@@ -1,25 +1,22 @@
-import type { SDKBackgroundTasksChangedMessage } from '@anthropic-ai/claude-agent-sdk'
-
 import type { AgentTaskEventPartData } from '../data/types/uiParts'
 
 /**
- * Live background work registered in a Claude Agent SDK session (shells, subagents, monitors,
- * workflows). Background tasks outlive the turn that spawned them, so this rides shared cache as
- * session-scoped status rather than conversation content — a turn's message stream is already
- * closed by the time most of these events arrive.
- *
- * The driver returns the SDK's payload verbatim, so alias the SDK type rather than hand-mirroring
- * it — a shape change surfaces at compile time instead of silently diverging the cached contract.
+ * Runtime-neutral background work that outlives the turn which spawned it. Drivers normalize their
+ * native task payloads into this app-owned shape before crossing the runtime boundary.
  */
-export type AgentSessionBackgroundTask = SDKBackgroundTasksChangedMessage['tasks'][number]
+export type AgentSessionBackgroundTask = {
+  id: string
+  type: string
+  description: string
+}
 
 /**
- * REPLACE semantics: the SDK emits the full set on every membership change, so consumers swap their
- * list wholesale instead of pairing `task_started` / `task_notification` edges. A missed bookend
- * therefore cannot wedge a stale "running" indicator.
+ * REPLACE semantics: drivers publish the full set on every membership change, so consumers swap
+ * their list wholesale instead of pairing task lifecycle edges. A missed bookend therefore cannot
+ * wedge a stale "running" indicator.
  *
- * The level is per CLI process and nothing is emitted at startup, so the host resets to an empty
- * list whenever a session's connection is (re)established or torn down.
+ * The level is per runtime connection, so the host resets it whenever a connection is established
+ * or torn down.
  */
 export type AgentSessionBackgroundTasks = AgentSessionBackgroundTask[]
 
@@ -27,13 +24,12 @@ export const AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY = (sessionId: string) =>
   `agent.session.background_tasks.${sessionId}` as const
 
 /**
- * Task lifecycle reported after the turn that spawned the work ended. Inside a turn these land as
- * hidden message parts; once its stream is closed there is no message to carry them, so the latest
- * event per task rides shared cache instead and the UI merges it onto the part-derived rows.
+ * Latest task lifecycle edge for the current runtime connection. Inside a turn the same events also
+ * land as hidden message parts for transcript history; this cache remains the authoritative live
+ * surface for per-task background state after that turn closes.
  *
- * Keyed by task id, which is legitimate here: the SDK only forbids correlating the
- * `background_tasks_changed` level with the edge stream, and `task_started` / `task_notification`
- * are both edges.
+ * Keyed by task id. Drivers must not infer identity by correlating an aggregate task snapshot with
+ * this edge stream unless their native protocol explicitly guarantees that relationship.
  */
 export type AgentSessionTaskEvents = Record<string, AgentTaskEventPartData>
 

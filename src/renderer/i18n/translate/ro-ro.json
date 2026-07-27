@@ -337,6 +337,7 @@
         "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Instrument selectat",
         "stop_run_task": "[to be translated]:Stop task",
+        "stop_run_task_failed": "[to be translated]:Failed to stop task",
         "task_count": "{{completed}} / {{total}} finalizat",
         "tasks": "Sarcini",
         "tools_active": "Activ",

@@ -970,11 +970,50 @@ describe('ClaudeCodeStreamAdapter', () => {
       } as any)
 
       expect(statusEvents).toEqual([
-        { type: 'background-tasks', tasks },
+        {
+          type: 'background-tasks',
+          tasks: [{ id: 'bg-1', type: 'local_bash', description: 'sleep 300' }]
+        },
+        { type: 'autonomous-generation-state', active: true },
         { type: 'supported-commands', commands: [{ name: 'help', description: 'Help' }] }
       ])
       // Status is not turn content, so nothing reaches the message stream.
       expect(parts).toEqual([])
+    })
+
+    it('keeps Claude background membership ordering inside the adapter', () => {
+      const { adapter, statusEvents } = createAdapter({}, { openTurn: false })
+      const task = { task_id: 'bg-1', task_type: 'subagent', description: 'Audit the codebase' }
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [task]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: []
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'done' } })
+      )
+      adapter.handleMessage(successResult())
+
+      expect(statusEvents).toEqual([
+        {
+          type: 'background-tasks',
+          tasks: [{ id: 'bg-1', type: 'subagent', description: 'Audit the codebase' }]
+        },
+        { type: 'autonomous-generation-state', active: true },
+        { type: 'background-tasks', tasks: [] },
+        { type: 'receive-only-turn' },
+        { type: 'autonomous-generation-state', active: false }
+      ])
     })
 
     it('reports compaction through the status sink, including a boundary anchor', () => {
@@ -1045,7 +1084,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       ])
     })
 
-    it('keeps task lifecycle in the message stream while a turn is open', () => {
+    it('keeps task lifecycle in the transcript and current-process task surface while a turn is open', () => {
       const { adapter, parts, statusEvents } = createAdapter()
 
       adapter.handleMessage({
@@ -1057,28 +1096,56 @@ describe('ClaudeCodeStreamAdapter', () => {
         description: 'Audit the codebase'
       } as any)
 
-      // In-turn events stay parts so the transcript keeps the history.
-      expect(statusEvents).toEqual([])
+      // In-turn events stay parts for history and also update the process-scoped liveness surface.
+      expect(statusEvents).toEqual([
+        {
+          type: 'background-task-event',
+          data: expect.objectContaining({ taskId: 'bg-1', event: 'started', status: 'in_progress' })
+        }
+      ])
       expect(parts).toEqual([expect.objectContaining({ type: 'data-agent-task-event' })])
     })
 
-    // The SDK wakes the main agent after background work completes: parentless content starts
-    // streaming with no turn open. The adapter opens one itself and tells the host first, so the
-    // host is already buffering when the chunks arrive.
-    it('self-arms on parentless content and reports the wake before any chunk', () => {
+    it('maps the per-task background transition without correlating the aggregate level', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_updated',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'edge-task-1',
+        patch: { status: 'running', is_backgrounded: true }
+      } as any)
+
+      expect(statusEvents).toEqual([
+        {
+          type: 'background-task-event',
+          data: expect.objectContaining({
+            taskId: 'edge-task-1',
+            status: 'in_progress',
+            isBackgrounded: true
+          })
+        }
+      ])
+    })
+
+    // Claude wakes the main agent after background work completes. The adapter keeps that native
+    // protocol here and exposes a runtime-neutral receive-only turn to the host.
+    it('self-arms on parentless content and reports a receive-only turn before any chunk', () => {
       const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
 
       adapter.handleMessage(
         streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'woke up' } })
       )
 
-      expect(statusEvents).toEqual([{ type: 'background-wake' }])
+      expect(statusEvents).toEqual([{ type: 'receive-only-turn' }])
       expect(parts.some((part) => part.type === 'text-delta' && part.delta === 'woke up')).toBe(true)
       expect(adapter.isTurnActive).toBe(true)
     })
 
-    it('completes a wake generation with a normal result instead of a dropped turn-complete', () => {
-      const { adapter } = createAdapter({}, { openTurn: false })
+    it('releases autonomous ownership when a receive-only generation completes', () => {
+      const { adapter, statusEvents } = createAdapter({}, { openTurn: false })
 
       adapter.handleMessage(
         streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'summary' } })
@@ -1086,6 +1153,10 @@ describe('ClaudeCodeStreamAdapter', () => {
       const result = adapter.handleMessage(successResult({ session_id: 'resume-wake' }))
 
       expect(result).toMatchObject({ type: 'result', sessionId: 'resume-wake' })
+      expect(statusEvents).toEqual([
+        { type: 'receive-only-turn' },
+        { type: 'autonomous-generation-state', active: false }
+      ])
       expect(loggerMocks.warn).not.toHaveBeenCalledWith(
         'Received a result message with no active turn; dropping turn-complete',
         expect.anything()

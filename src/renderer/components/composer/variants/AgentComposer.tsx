@@ -1,6 +1,7 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
+import type { OpenAgentToolFlowInput } from '@renderer/components/chat/messages/types'
 import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
@@ -35,6 +36,7 @@ import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSe
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
+import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -249,6 +251,7 @@ type Props = {
   externalContextControls?: boolean
   sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
   stop: () => Promise<void>
+  openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
   onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
@@ -278,6 +281,7 @@ const AgentComposerRoot = ({
   externalContextControls = false,
   sendMessage,
   stop,
+  openAgentToolFlow,
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
@@ -358,6 +362,7 @@ const AgentComposerRoot = ({
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
         chatStop={stop}
+        openAgentToolFlow={openAgentToolFlow}
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
@@ -388,6 +393,7 @@ interface InnerProps {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
   chatStop: Props['stop']
+  openAgentToolFlow?: Props['openAgentToolFlow']
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
@@ -409,23 +415,67 @@ interface InnerProps {
  * wake the agent with a follow-up response when it settles; without this the gap in between reads
  * as a truncated answer.
  */
-function AgentComposerBackgroundTasks({ sessionId }: { sessionId: string }) {
+function AgentComposerBackgroundTasks({
+  sessionId,
+  openAgentToolFlow
+}: {
+  sessionId: string
+  openAgentToolFlow?: Props['openAgentToolFlow']
+}) {
   const { t } = useTranslation()
   const backgroundTasks = useAgentSessionBackgroundTasks(sessionId)
+  const taskEvents = useAgentSessionTaskEvents(sessionId)
   if (backgroundTasks.length === 0) return null
+  const liveTaskEvents = Object.values(taskEvents).filter(
+    (event) => event.isBackgrounded === true && event.status !== 'completed' && event.status !== 'error'
+  )
+  // The aggregate level explicitly forbids id correlation with lifecycle edges. Prefer the
+  // per-task edge surface when it is available; use aggregate rows only as an inert fallback.
+  const chips =
+    liveTaskEvents.length > 0
+      ? liveTaskEvents.map((event) => ({
+          key: `event:${event.taskId}`,
+          description: event.title ?? event.description ?? event.taskId,
+          toolCallId:
+            event.taskType === 'subagent' || event.taskType === 'local_agent' || event.subagentType
+              ? event.toolUseId
+              : undefined
+        }))
+      : backgroundTasks.map((task) => ({
+          key: `level:${task.id}`,
+          description: task.description,
+          toolCallId: undefined
+        }))
 
   return (
     <div
       aria-label={t('agent.composer.background_running', { count: backgroundTasks.length })}
       className="mt-1 mb-2 flex flex-wrap justify-center gap-1">
-      {backgroundTasks.map((task) => (
-        <div
-          key={task.task_id}
-          className="flex min-w-0 items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5 text-muted-foreground text-xs">
-          <Loader2 size={12} className="shrink-0 animate-spin" />
-          <span className="max-w-60 truncate">{task.description}</span>
-        </div>
-      ))}
+      {chips.map((task) => {
+        const content = (
+          <>
+            <Loader2 size={12} className="shrink-0 animate-spin" />
+            <span className="max-w-60 truncate">{task.description}</span>
+          </>
+        )
+
+        return task.toolCallId && openAgentToolFlow ? (
+          <Button
+            key={task.key}
+            type="button"
+            variant="ghost"
+            className="h-auto min-w-0 gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5 font-normal text-muted-foreground text-xs hover:bg-muted hover:text-foreground"
+            onClick={() => openAgentToolFlow({ toolCallId: task.toolCallId!, title: task.description })}>
+            {content}
+          </Button>
+        ) : (
+          <div
+            key={task.key}
+            className="flex min-w-0 items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5 text-muted-foreground text-xs">
+            {content}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -641,6 +691,7 @@ const AgentComposerInner = ({
   actionsRef,
   chatSendMessage,
   chatStop,
+  openAgentToolFlow,
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
@@ -1289,7 +1340,7 @@ const AgentComposerInner = ({
           onPause={abortAgentSession}
           queueContent={
             <>
-              <AgentComposerBackgroundTasks sessionId={sessionId} />
+              <AgentComposerBackgroundTasks sessionId={sessionId} openAgentToolFlow={openAgentToolFlow} />
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock
                   items={queuedFollowups}
