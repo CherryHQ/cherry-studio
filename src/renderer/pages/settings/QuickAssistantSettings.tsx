@@ -36,7 +36,7 @@ import type { Model } from '@shared/data/types/model'
 import { Check, ChevronDown, Info } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const QuickAssistantSettings: FC = () => {
@@ -52,13 +52,21 @@ const QuickAssistantSettings: FC = () => {
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { assistants } = useAssistants()
+  const { assistants, hasLoaded: haveAssistantsLoaded } = useAssistants()
   const { defaultModel } = useDefaultModel()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
 
   const assistantOptions = assistants
   const firstAssistantId = assistantOptions[0]?.id
   const selectedAssistant = assistantOptions.find((assistant) => assistant.id === quickAssistantId)
+  const isAssistantMode = Boolean(quickAssistantId && (!haveAssistantsLoaded || selectedAssistant))
+
+  useEffect(() => {
+    if (haveAssistantsLoaded && quickAssistantId && !selectedAssistant) {
+      void setQuickAssistantId('')
+    }
+  }, [haveAssistantsLoaded, quickAssistantId, selectedAssistant, setQuickAssistantId])
+
   const handleAssistantSelect = (assistantId: string) => {
     void setQuickAssistantId(assistantId)
   }
@@ -193,7 +201,7 @@ const QuickAssistantSettings: FC = () => {
               )}
               <SegmentedControl<'assistant' | 'model'>
                 size="sm"
-                value={quickAssistantId ? 'assistant' : 'model'}
+                value={isAssistantMode ? 'assistant' : 'model'}
                 options={[
                   {
                     value: 'assistant',
