@@ -8,7 +8,7 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
 }))
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (...args: unknown[]) => streamOpen(...args) }
+  ipcApi: { request: (_route: string, input: unknown) => streamOpen(input) }
 }))
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
@@ -229,7 +229,6 @@ describe('useChatWriteActions — fork and resend', () => {
       vi.mocked(cache.createSiblingTrigger).mock.invocationCallOrder[0]
     )
     expect(streamOpen).toHaveBeenCalledWith(
-      'ai.stream_open',
       expect.objectContaining({
         trigger: 'regenerate-message',
         topicId: 't1',
