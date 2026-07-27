@@ -1,10 +1,14 @@
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import type { PdfTranslationProgress } from '@shared/ipc/schemas/translate'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import PdfTranslationView, { type PdfTranslationHandle } from '../PdfTranslationView'
+
+const PAPER_PATH = '/tmp/paper.pdf' as AbsoluteFilePath
+const SCAN_PATH = '/tmp/scan.pdf' as AbsoluteFilePath
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
@@ -47,7 +51,7 @@ describe('PdfTranslationView', () => {
 
     render(
       <PdfTranslationView
-        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
         babelDocAvailability="available"
@@ -97,7 +101,7 @@ describe('PdfTranslationView', () => {
 
     render(
       <PdfTranslationView
-        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
         babelDocAvailability="available"
@@ -187,7 +191,7 @@ describe('PdfTranslationView', () => {
 
     render(
       <PdfTranslationView
-        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
         babelDocAvailability="available"
@@ -228,7 +232,7 @@ describe('PdfTranslationView', () => {
     let handle: PdfTranslationHandle | null = null
     const { unmount } = render(
       <PdfTranslationView
-        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
         babelDocAvailability="available"
@@ -274,7 +278,7 @@ describe('PdfTranslationView', () => {
 
     render(
       <PdfTranslationView
-        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
         babelDocAvailability="available"
@@ -309,7 +313,7 @@ describe('PdfTranslationView', () => {
 
     render(
       <PdfTranslationView
-        file={{ name: 'scan.pdf', path: '/tmp/scan.pdf' }}
+        file={{ name: 'scan.pdf', path: SCAN_PATH }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
         babelDocAvailability="available"
@@ -342,7 +346,7 @@ describe('PdfTranslationView', () => {
 
     render(
       <PdfTranslationView
-        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
         babelDocAvailability="available"
@@ -369,7 +373,7 @@ describe('PdfTranslationView', () => {
 
     render(
       <PdfTranslationView
-        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
         babelDocAvailability="missing"
@@ -391,7 +395,7 @@ describe('PdfTranslationView', () => {
   it('shows installation progress while BabelDOC is being installed', () => {
     render(
       <PdfTranslationView
-        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
         babelDocAvailability="missing"
@@ -411,7 +415,7 @@ describe('PdfTranslationView', () => {
   it('renders streamed text fallback content under a text translation header', () => {
     render(
       <PdfTranslationView
-        file={{ name: 'paper.pdf', path: '/tmp/paper.pdf' }}
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
         modelId="openai::gpt-4.1"
         sourceLangCode="en-us"
         babelDocAvailability="missing"

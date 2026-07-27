@@ -704,7 +704,7 @@ const TranslatePage: FC = () => {
         setPdfTextFallbackActive(false)
         setPdfTextOcrRequired(false)
         setIsPdfTextExtracting(false)
-        setPdfFile({ name: file.name, path: file.path })
+        setPdfFile({ name: file.name, path: AbsoluteFilePathSchema.parse(file.path) })
         return
       }
 
