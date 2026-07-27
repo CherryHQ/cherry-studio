@@ -66,8 +66,11 @@ describe('SettingsPage', () => {
   })
 
   it('places local models directly below the default model', () => {
-    render(<SettingsPage />)
+    const { container } = render(<SettingsPage />)
 
+    expect(container.querySelector('[data-ui="settings.view"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-ui="settings.navigation"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-ui="settings.content"]')).toBeInTheDocument()
     expect(screen.getByText('title.settings').closest('header')).toHaveClass('mb-1')
     expect(screen.getByText('偏好')).toBeInTheDocument()
 
