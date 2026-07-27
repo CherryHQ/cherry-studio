@@ -2,7 +2,6 @@ import { Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { Plus, X } from 'lucide-react'
@@ -107,12 +106,6 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
 }
 
 const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
-
-function getResourceListRevealSourceFromUrl(url: string): ResourceListRevealSource | null {
-  if (url === '/app/chat' || url.startsWith('/app/chat?') || url.startsWith('/app/chat/')) return 'assistants'
-  if (url === '/app/agents' || url.startsWith('/app/agents?') || url.startsWith('/app/agents/')) return 'agents'
-  return null
-}
 
 type NormalTabButtonProps = {
   tab: Tab
@@ -659,12 +652,7 @@ export const AppShellTabBar = ({
 
   const handleSelectTab = useCallback(
     (tab: Tab) => {
-      if (!handleTabClick(tab.id)) return
-
-      const revealSource = getResourceListRevealSourceFromUrl(tab.url)
-      if (revealSource) {
-        emitResourceListReveal({ source: revealSource, tabId: tab.id })
-      }
+      handleTabClick(tab.id)
     },
     [handleTabClick]
   )
