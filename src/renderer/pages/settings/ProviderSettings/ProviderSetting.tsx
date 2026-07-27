@@ -1,6 +1,9 @@
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingGroup } from '@renderer/components/SettingsPrimitives'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { cn } from '@renderer/utils/style'
+import { isLoginBasedProvider } from '@shared/utils/provider'
 import { useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
@@ -16,9 +19,11 @@ interface ProviderSettingProps {
 
 function ProviderSettingSections({
   providerId,
+  isLoginBased,
   allowManualModelAdd
 }: {
   providerId: string
+  isLoginBased: boolean
   allowManualModelAdd: boolean
 }) {
   const health = useModelListHealth()
@@ -27,19 +32,29 @@ function ProviderSettingSections({
     setModelPullGuideVersion((version) => version + 1)
   }, [])
 
+  const authenticationSection = (
+    <AuthenticationSection
+      providerId={providerId}
+      onOpenModelHealthCheck={health.openHealthCheck}
+      onRequestModelPullGuide={requestModelPullGuide}
+    />
+  )
+
   return (
     <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
-      <div className={providerDetailColumnClasses.sectionStack}>
-        <AuthenticationSection
-          providerId={providerId}
-          onOpenModelHealthCheck={health.openHealthCheck}
-          onRequestModelPullGuide={requestModelPullGuide}
-        />
-        <ModelList
-          providerId={providerId}
-          modelPullGuideVersion={modelPullGuideVersion}
-          allowManualModelAdd={allowManualModelAdd}
-        />
+      <div className={cn(providerDetailColumnClasses.sectionStack, isLoginBased && 'gap-3')}>
+        {isLoginBased ? (
+          <div className="shrink-0">{authenticationSection}</div>
+        ) : (
+          <SettingGroup className="mt-0 shrink-0">{authenticationSection}</SettingGroup>
+        )}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <ModelList
+            providerId={providerId}
+            modelPullGuideVersion={modelPullGuideVersion}
+            allowManualModelAdd={allowManualModelAdd}
+          />
+        </div>
       </div>
     </Scrollbar>
   )
@@ -68,7 +83,11 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
             </div>
           </div>
           <ModelListHealthProvider providerId={providerId}>
-            <ProviderSettingSections providerId={providerId} allowManualModelAdd={provider.id !== 'cherryin'} />
+            <ProviderSettingSections
+              providerId={providerId}
+              isLoginBased={isLoginBasedProvider(provider)}
+              allowManualModelAdd={provider.id !== 'cherryin'}
+            />
           </ModelListHealthProvider>
         </div>
       </div>

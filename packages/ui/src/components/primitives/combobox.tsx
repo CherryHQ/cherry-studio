@@ -367,7 +367,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               <button
                 type="button"
                 aria-label={getRemoveTagAriaLabel(option.label)}
-                className="inline-flex size-3 cursor-pointer items-center justify-center hover:text-foreground"
+                className="inline-flex size-3 cursor-pointer items-center justify-center opacity-70 hover:text-foreground hover:opacity-100"
                 onClick={(e) => handleRemoveTag(option.value, e)}
                 onKeyDown={(e) => handleRemoveTagKeyDown(option.value, e)}>
                 <X className="size-3" />
@@ -482,7 +482,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           <div className="truncate">{option.label}</div>
           {option.description && <div className="text-xs text-muted-foreground truncate">{option.description}</div>}
         </div>
-        {isSelected(option.value) && <Check className="size-4 shrink-0 text-success" />}
+        {isSelected(option.value) && <Check className="size-4 shrink-0 text-primary" />}
       </>
     )
   }
@@ -491,6 +491,10 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
   const state = disabled ? 'disabled' : error ? 'error' : 'default'
   const triggerWidth = width ? (typeof width === 'number' ? `${width}px` : width) : undefined
+  const popoverWidth =
+    typeof triggerWidth === 'string' && triggerWidth.trim().endsWith('%')
+      ? 'var(--radix-popover-trigger-width)'
+      : triggerWidth
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -517,7 +521,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         className={cn('p-0 rounded-md', popoverClassName)}
         align={popoverAlign}
         portalContainer={portalContainer}
-        style={{ width: triggerWidth }}
+        style={{ width: popoverWidth }}
         onOpenAutoFocus={(event) => {
           if (!triggerSearchEnabled) {
             return
