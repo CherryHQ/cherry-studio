@@ -173,7 +173,7 @@ The confidence is persisted in `apiKeyAttribution`.
 | --- | --- | --- |
 | `exact` | Deterministic | Live write, provider has exactly one enabled key |
 | `rotation` | Best effort | Live write, multiple enabled keys; uses the provider round-robin pointer |
-| `backfill` | Historical fallback | Migration assigns the provider's first configured key because the serving key was not recorded historically |
+| `backfill` | Historical fallback | Migration attributes history only when the provider has exactly one enabled key; otherwise attribution remains `none` |
 | `auth` | Provider-level credential | IAM/keyless/OAuth credential, no API key row |
 | `none` | Unresolvable | No key, lost pointer, deleted key/provider, or missing historical snapshot |
 
@@ -374,9 +374,10 @@ paginated; breakdown rows are aggregate views.
 - **Multi-key concurrency**: `rotation` attribution can name the wrong key
   when concurrent requests or unrelated provider operations move the rotation
   pointer before the ledger write resolves.
-- **Historical key attribution**: migration uses the provider's first
-  configured API key when available because legacy rows did not record the
-  serving key. This is intentionally labeled `backfill`, not `exact`.
+- **Historical key attribution**: legacy rows did not record the serving key,
+  so migration attributes history only when the provider has exactly one
+  enabled key. This is intentionally labeled `backfill`, not `exact`; providers
+  with multiple or no enabled keys remain `none`.
 - **Crash-window loss for stateless calls**: a crash between request finish and
   the async ledger write can lose a stateless row. There is no durable source
   to reconstruct gateway/translate/rename rows.
