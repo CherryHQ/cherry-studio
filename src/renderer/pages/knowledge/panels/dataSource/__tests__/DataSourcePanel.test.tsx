@@ -10,11 +10,21 @@ import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } fr
 const mockUseQuery = vi.fn()
 const defaultOnPreviewFile = vi.fn()
 
-type TestDataSourcePanelProps = Omit<DataSourcePanelProps, 'onPreviewFile'> &
-  Partial<Pick<DataSourcePanelProps, 'onPreviewFile'>>
+type TestDataSourcePanelProps = Omit<DataSourcePanelProps, 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'> &
+  Partial<Pick<DataSourcePanelProps, 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'>>
 
-const DataSourcePanel = ({ onPreviewFile = defaultOnPreviewFile, ...props }: TestDataSourcePanelProps) => (
-  <DataSourcePanelComponent {...props} onPreviewFile={onPreviewFile} />
+const DataSourcePanel = ({
+  onDeleteItems = vi.fn(),
+  onPreviewFile = defaultOnPreviewFile,
+  onReindexItems = vi.fn(),
+  ...props
+}: TestDataSourcePanelProps) => (
+  <DataSourcePanelComponent
+    {...props}
+    onDeleteItems={onDeleteItems}
+    onPreviewFile={onPreviewFile}
+    onReindexItems={onReindexItems}
+  />
 )
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -591,7 +601,7 @@ describe('DataSourcePanel', () => {
   })
 
   it('prunes selected item ids when items are removed', async () => {
-    const onDelete = vi.fn().mockResolvedValue(undefined)
+    const onDeleteItems = vi.fn().mockResolvedValue(undefined)
 
     const { rerender } = render(
       <DataSourcePanel
@@ -602,7 +612,8 @@ describe('DataSourcePanel', () => {
         ]}
         isLoading={false}
         onAdd={vi.fn()}
-        onDelete={onDelete}
+        onDelete={vi.fn()}
+        onDeleteItems={onDeleteItems}
         onReindex={vi.fn()}
       />
     )
@@ -616,7 +627,8 @@ describe('DataSourcePanel', () => {
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}
-        onDelete={onDelete}
+        onDelete={vi.fn()}
+        onDeleteItems={onDeleteItems}
         onReindex={vi.fn()}
       />
     )
@@ -630,10 +642,9 @@ describe('DataSourcePanel', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
-      expect(onDelete).toHaveBeenCalledTimes(1)
+      expect(onDeleteItems).toHaveBeenCalledTimes(1)
     })
-    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
-    expect(onDelete).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'file-2' }))
+    expect(onDeleteItems).toHaveBeenCalledWith(['file-1'])
   })
 
   it('dispatches a file row click to source preview instead of viewing chunks', () => {
@@ -893,7 +904,7 @@ describe('DataSourcePanel', () => {
   })
 
   it('shows bulk reindex failure toast and keeps the current selection when reindex rejects', async () => {
-    const onReindex = vi.fn().mockRejectedValue(new Error('reindex failed'))
+    const onReindexItems = vi.fn().mockRejectedValue(new Error('reindex failed'))
 
     render(
       <DataSourcePanel
@@ -905,7 +916,8 @@ describe('DataSourcePanel', () => {
         isLoading={false}
         onAdd={vi.fn()}
         onDelete={vi.fn()}
-        onReindex={onReindex}
+        onReindex={vi.fn()}
+        onReindexItems={onReindexItems}
       />
     )
 
@@ -915,11 +927,13 @@ describe('DataSourcePanel', () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('重新索引数据源失败: reindex failed')
     })
+    expect(onReindexItems).toHaveBeenCalledOnce()
+    expect(onReindexItems).toHaveBeenCalledWith(['file-1'])
     expect(screen.getByText('已选 1 项')).toBeInTheDocument()
   })
 
   it('clears the current selection after bulk reindex succeeds', async () => {
-    const onReindex = vi.fn().mockResolvedValue(undefined)
+    const onReindexItems = vi.fn().mockResolvedValue(undefined)
 
     render(
       <DataSourcePanel
@@ -931,7 +945,8 @@ describe('DataSourcePanel', () => {
         isLoading={false}
         onAdd={vi.fn()}
         onDelete={vi.fn()}
-        onReindex={onReindex}
+        onReindex={vi.fn()}
+        onReindexItems={onReindexItems}
       />
     )
 
@@ -939,15 +954,16 @@ describe('DataSourcePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
     await waitFor(() => {
-      expect(onReindex).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+      expect(onReindexItems).toHaveBeenCalledOnce()
     })
+    expect(onReindexItems).toHaveBeenCalledWith(['file-1'])
     await waitFor(() => {
       expect(screen.queryByText('已选 1 项')).not.toBeInTheDocument()
     })
   })
 
-  it('confirms bulk delete for selected rows and clears selection after deleting each item', async () => {
-    const onDelete = vi.fn().mockResolvedValue(undefined)
+  it('confirms bulk delete for selected rows and clears selection after one bulk operation', async () => {
+    const onDeleteItems = vi.fn().mockResolvedValue(undefined)
 
     render(
       <DataSourcePanel
@@ -958,7 +974,8 @@ describe('DataSourcePanel', () => {
         ]}
         isLoading={false}
         onAdd={vi.fn()}
-        onDelete={onDelete}
+        onDelete={vi.fn()}
+        onDeleteItems={onDeleteItems}
         onReindex={vi.fn()}
       />
     )
@@ -974,24 +991,17 @@ describe('DataSourcePanel', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
-      expect(onDelete).toHaveBeenCalledTimes(2)
+      expect(onDeleteItems).toHaveBeenCalledOnce()
     })
-    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
-    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-2' }))
+    expect(onDeleteItems).toHaveBeenCalledWith(['file-1', 'file-2'])
     await waitFor(() => {
       expect(screen.queryByText('已选 2 项')).not.toBeInTheDocument()
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('shows bulk delete failure toast and keeps selection when one selected delete rejects', async () => {
-    const onDelete = vi.fn().mockImplementation((item) => {
-      if (item.id === 'file-2') {
-        return Promise.reject(new Error('delete failed'))
-      }
-
-      return Promise.resolve()
-    })
+  it('shows bulk delete failure toast and keeps selection when bulk delete rejects', async () => {
+    const onDeleteItems = vi.fn().mockRejectedValue(new Error('delete failed'))
 
     render(
       <DataSourcePanel
@@ -1002,7 +1012,8 @@ describe('DataSourcePanel', () => {
         ]}
         isLoading={false}
         onAdd={vi.fn()}
-        onDelete={onDelete}
+        onDelete={vi.fn()}
+        onDeleteItems={onDeleteItems}
         onReindex={vi.fn()}
       />
     )
@@ -1016,6 +1027,8 @@ describe('DataSourcePanel', () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
     })
+    expect(onDeleteItems).toHaveBeenCalledOnce()
+    expect(onDeleteItems).toHaveBeenCalledWith(['file-1', 'file-2'])
     expect(screen.getByText('已选 2 项')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })

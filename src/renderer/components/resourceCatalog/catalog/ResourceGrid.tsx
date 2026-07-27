@@ -540,7 +540,7 @@ export const ResourceGrid: FC<Props> = ({
           isSettings ? 'py-3' : 'px-5 py-4'
         )}>
         {isLoading ? (
-          <ResourceGridLoadingState columnCount={columnCount} />
+          <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
         ) : resources.length === 0 ? (
           <EmptyState
             preset={search ? 'no-result' : 'no-resource'}
@@ -565,7 +565,7 @@ export const ResourceGrid: FC<Props> = ({
   )
 }
 
-function ResourceGridLoadingState({ columnCount }: { columnCount: number }) {
+function ResourceGridLoadingState({ columnCount, resourceType }: { columnCount: number; resourceType: ResourceType }) {
   const count = Math.max(columnCount, 1) * 4
 
   return (
@@ -574,7 +574,12 @@ function ResourceGridLoadingState({ columnCount }: { columnCount: number }) {
       data-testid="resource-grid-loading"
       style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}>
       {Array.from({ length: count }, (_, index) => (
-        <div key={index} className="rounded-lg border border-border-subtle bg-card p-3.5">
+        <div
+          key={index}
+          className="rounded-lg border border-border-subtle bg-card p-3.5"
+          style={
+            resourceType === 'skill' ? { backgroundColor: 'var(--settings-group-background, var(--card))' } : undefined
+          }>
           <div className="flex items-center gap-3">
             <Skeleton className="size-10 rounded-lg" />
             <div className="min-w-0 flex-1 space-y-2">

@@ -22,7 +22,12 @@ import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { SettingDivider, SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingsContentBody,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
@@ -521,44 +526,46 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   return (
     <Scrollbar className="flex flex-1 flex-col" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
       <SettingsContentBody>
-        <div className="flex items-center justify-between gap-4 pb-1">
-          <div className="min-w-0">
-            <SettingTitle className="justify-start gap-2">
-              {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
-              <span className="truncate">{channelDef.name}</span>
-            </SettingTitle>
-            <p className="mt-1.5 mb-0 text-foreground-muted text-xs">
-              {channelDef.available ? t(channelDef.description) : t('agent.channels.comingSoon')}
-            </p>
+        <SettingGroup>
+          <div className="flex items-center justify-between gap-4 pb-1">
+            <div className="min-w-0">
+              <SettingTitle className="justify-start gap-2">
+                {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
+                <span className="truncate">{channelDef.name}</span>
+              </SettingTitle>
+              <p className="mt-1.5 mb-0 text-foreground-muted text-xs">
+                {channelDef.available ? t(channelDef.description) : t('agent.channels.comingSoon')}
+              </p>
+            </div>
+            <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
+              <Plus className="size-4" />
+              {t('agent.channels.add')}
+            </Button>
           </div>
-          <Button disabled={!channelDef.available} onClick={handleAdd}>
-            <Plus size={16} />
-            {t('agent.channels.add')}
-          </Button>
-        </div>
-        <SettingDivider className="m-0 mt-2" />
-        <div className="flex flex-col">
-          {channelList.length === 0 && (
-            <EmptyState
-              compact
-              preset="no-resource"
-              description={t('agent.channels.noInstances', { type: channelDef.name })}
-              className="py-8"
-            />
-          )}
-          {channelList.map((ch) => (
-            <ChannelInstanceRow
-              key={ch.id}
-              channel={ch}
-              agents={agents}
-              connectionStatus={statuses.get(ch.id)}
-              onEdit={() => setEditingChannelId(ch.id)}
-              onDelete={() => handleDelete(ch.id)}
-              onToggle={(active) => handleToggle(ch.id, active)}
-              onShowLogs={() => setLogChannel({ id: ch.id, name: ch.name })}
-            />
-          ))}
-        </div>
+          <SettingDivider className="m-0 mt-2" />
+          <div className="flex flex-col">
+            {channelList.length === 0 && (
+              <EmptyState
+                compact
+                preset="no-resource"
+                description={t('agent.channels.noInstances', { type: channelDef.name })}
+                className="py-8"
+              />
+            )}
+            {channelList.map((ch) => (
+              <ChannelInstanceRow
+                key={ch.id}
+                channel={ch}
+                agents={agents}
+                connectionStatus={statuses.get(ch.id)}
+                onEdit={() => setEditingChannelId(ch.id)}
+                onDelete={() => handleDelete(ch.id)}
+                onToggle={(active) => handleToggle(ch.id, active)}
+                onShowLogs={() => setLogChannel({ id: ch.id, name: ch.name })}
+              />
+            ))}
+          </div>
+        </SettingGroup>
       </SettingsContentBody>
 
       <ChannelEditModal

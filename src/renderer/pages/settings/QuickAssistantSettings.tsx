@@ -1,6 +1,5 @@
 import {
   Button,
-  ButtonGroup,
   Command,
   CommandEmpty,
   CommandGroup,
@@ -12,6 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
   RowFlex,
+  SegmentedControl,
   Switch
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
@@ -36,7 +36,7 @@ import type { Model } from '@shared/data/types/model'
 import { Check, ChevronDown, Info } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const QuickAssistantSettings: FC = () => {
@@ -52,13 +52,21 @@ const QuickAssistantSettings: FC = () => {
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { assistants } = useAssistants()
+  const { assistants, hasLoaded: haveAssistantsLoaded } = useAssistants()
   const { defaultModel } = useDefaultModel()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
 
   const assistantOptions = assistants
   const firstAssistantId = assistantOptions[0]?.id
   const selectedAssistant = assistantOptions.find((assistant) => assistant.id === quickAssistantId)
+  const isAssistantMode = Boolean(quickAssistantId && (!haveAssistantsLoaded || selectedAssistant))
+
+  useEffect(() => {
+    if (haveAssistantsLoaded && quickAssistantId && !selectedAssistant) {
+      void setQuickAssistantId('')
+    }
+  }, [haveAssistantsLoaded, quickAssistantId, selectedAssistant, setQuickAssistantId])
+
   const handleAssistantSelect = (assistantId: string) => {
     void setQuickAssistantId(assistantId)
   }
@@ -191,23 +199,21 @@ const QuickAssistantSettings: FC = () => {
                   </Popover>
                 </RowFlex>
               )}
-              <ButtonGroup>
-                <Button
-                  className="min-w-20"
-                  variant={quickAssistantId && selectedAssistant ? 'default' : 'outline'}
-                  disabled={assistantOptions.length === 0}
-                  onClick={() => {
-                    void setQuickAssistantId(firstAssistantId ?? '')
-                  }}>
-                  {t('settings.models.use_assistant')}
-                </Button>
-                <Button
-                  className="min-w-20"
-                  variant={!quickAssistantId ? 'default' : 'outline'}
-                  onClick={() => void setQuickAssistantId('')}>
-                  {t('settings.models.use_model')}
-                </Button>
-              </ButtonGroup>
+              <SegmentedControl<'assistant' | 'model'>
+                size="sm"
+                value={isAssistantMode ? 'assistant' : 'model'}
+                options={[
+                  {
+                    value: 'assistant',
+                    label: t('settings.models.use_assistant'),
+                    disabled: assistantOptions.length === 0
+                  },
+                  { value: 'model', label: t('settings.models.use_model') }
+                ]}
+                onValueChange={(value) =>
+                  void setQuickAssistantId(value === 'assistant' ? (firstAssistantId ?? '') : '')
+                }
+              />
             </RowFlex>
           </SettingRow>
         </SettingGroup>
