@@ -24,7 +24,7 @@ const KnowledgePageContent = () => {
       ) : !isLoading && bases.length === 0 ? (
         <KnowledgePageEmptyStateSection />
       ) : (
-        <main className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-background px-6 text-muted-foreground text-sm">
+        <main className="flex min-h-0 min-w-0 flex-1 items-center justify-center px-6 text-muted-foreground text-sm">
           {t('common.loading')}
         </main>
       )}

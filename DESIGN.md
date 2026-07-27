@@ -7,6 +7,9 @@
 > inventory and selection rules are in
 > [`packages/ui/docs/variable-catalog.md`](./packages/ui/docs/variable-catalog.md).
 
+> **Semantic DOM contract:** For Custom CSS, tests, inspectors, and automation that need structural selectors, see
+> [`docs/references/ui-semantic-contract.md`](./docs/references/ui-semantic-contract.md).
+
 > **Usage notation:** Tailwind examples use semantic utilities such as `bg-background` and `text-foreground`.
 > Authored CSS examples use the unprefixed public runtime contract directly, whether the role is official Shadcn
 > (`var(--background)`) or a Cherry Studio product extension (`var(--success)`). Shared `--cs-*` variables are
@@ -340,7 +343,12 @@ Source: `DialogContent` and related primitives from `@cherrystudio/ui` (`package
 - Border: none (`border-0`)
 - Padding / gap: `p-6`, `gap-4`
 - Shadow: `shadow-xl`
-- Motion: fade + zoom transitions, `duration-200`
+- Motion: the overlay fades in over 220ms; content fades, rises 16px with an ease-out curve, and scales from 99%
+  over 260ms. Both close over 200ms with a 16px ease-in downward motion. Motion is disabled when
+  `prefers-reduced-motion` requests it.
+- Imperative Dialog hosts remain mounted for 200ms on close.
+- `ConfirmDialog` and the `popup.confirm/error/info/warning` acknowledgement family use `motion="fade-scale"`:
+  they keep the shared fade and 99% scale but omit vertical movement.
 
 **Layout**
 - Overlay: fixed full-window scrim, `z-[80]`, default `bg-black/50`
@@ -651,7 +659,7 @@ The right pane of every "simple right-content" settings page (i.e. pages whose r
 
 | Layer | Class | Purpose |
 |---|---|---|
-| Outer (full-width, scrolling) | `px-6 py-4` | Page edge padding — keeps `24px` between the content card and the column edge |
+| Outer (full-width, scrolling) | `p-6` | Page edge padding — keeps `24px` between the content card and every column edge |
 | Inner (constrained, centered) | `mx-auto w-full max-w-3xl` | Caps content at `768px` and centers it on wide screens |
 
 Use the canonical components in `src/renderer/pages/settings/index.tsx`:
@@ -797,7 +805,6 @@ Use icon-library defaults unless a component has a documented reason to override
 - Don't use `border-border/60`, `border-border/40`, `border-border/30`, or `border-border/15` — choose a semantic border token instead
 - Don't apply `var(--shadow-xl)` or `var(--shadow-2xl)` to standard UI elements — reserve `var(--shadow-xl)` for Dialogs, PageSidePanel, and full-screen overlays, and `var(--shadow-2xl)` for peak display emphasis
 - Don't author `--color-*` variables; that namespace belongs to the generated Tailwind adapter. Do not invent other token-looking aliases such as `--cs-glass`, `--blur-md`, `--opacity-50`, or `--border-width-2` without adding a reviewed shared contract in the same change
-
 ## 9. Responsive Behavior
 
 ### Breakpoints
