@@ -1411,7 +1411,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheSetShared).toHaveBeenLastCalledWith(BG_KEY, [])
     })
 
-    it('keeps task presentation separate from autonomous generation ownership', () => {
+    it('releases background keepalive on a no-wake completion without touching autonomous ownership', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
@@ -1420,17 +1420,22 @@ describe('AgentSessionRuntimeService', () => {
       service.markTurnTerminal('session-1', 'success')
       expect(service.isSessionBusy('session-1')).toBe(false)
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-generation-state', active: true })
-      expect(service.isSessionBusy('session-1')).toBe(true)
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      service.releaseIdleConnection('session-1')
+      expect(service.inspect('session-1')).toBeDefined()
+      expect(entry.autonomousGenerationActive).toBeFalsy()
+
+      // Presentation remains independent; the explicit keepalive level owns connection lifetime.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks: [] })
       service.releaseIdleConnection('session-1')
       expect(service.inspect('session-1')).toBeDefined()
 
-      // Replacing the presentation snapshot cannot release generation ownership.
-      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks: [] })
-      expect(service.isSessionBusy('session-1')).toBe(true)
-
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-generation-state', active: false })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
       expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(entry.autonomousGenerationActive).toBeFalsy()
+      service.releaseIdleConnection('session-1')
+      expect(service.inspect('session-1')).toBeUndefined()
     })
 
     it('stops one task through the connection without touching the turn', async () => {
@@ -1521,12 +1526,14 @@ describe('AgentSessionRuntimeService', () => {
       const currentConnection = { close: vi.fn(), send: vi.fn(), events: [] }
       const staleConnection = { close: vi.fn(), send: vi.fn(), events: [] }
       entry.connection = currentConnection
+      entry.backgroundWorkActive = true
       entry.autonomousGenerationActive = true
       entry.receiveOnlyTurnCompleted = true
       mocks.cacheSetShared.mockClear()
 
       ;(service as any).resetConnectionRuntimeState(entry, staleConnection)
 
+      expect(entry.backgroundWorkActive).toBe(true)
       expect(entry.autonomousGenerationActive).toBe(true)
       expect(entry.receiveOnlyTurnCompleted).toBe(true)
       expect(mocks.cacheSetShared).not.toHaveBeenCalled()
@@ -1569,6 +1576,49 @@ describe('AgentSessionRuntimeService', () => {
 
       service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
+    })
+
+    it('latches completion after the receive-only turn exists but before its controller is installed', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.markTurnTerminal('session-1', 'success')
+      const entry = getEntry(service)
+      entry.connection = {
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      mocks.startRuntimeTurn.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-generation-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'receive-only-turn' })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      const receiveOnlyTurn = entry.currentTurn
+      expect(receiveOnlyTurn).toMatchObject({ admitted: true, receiveOnly: true })
+      expect(receiveOnlyTurn.controller).toBeUndefined()
+
+      // Adapter result ordering: ownership release precedes the driver's turn-complete event.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-generation-state', active: false })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+
+      expect(entry.receiveOnlyTurnCompleted).toBe(true)
+      expect(receiveOnlyTurn.terminalStatus).toBeUndefined()
+
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: receiveOnlyTurn.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await expect(reader.read()).resolves.toMatchObject({ done: true })
+      expect(receiveOnlyTurn.terminalStatus).toBe('success')
+      expect(entry.receiveOnlyTurnCompleted).toBe(false)
+
+      service.closeSession('session-1')
     })
 
     it('ignores a receive-only signal while an admitted turn is live', () => {

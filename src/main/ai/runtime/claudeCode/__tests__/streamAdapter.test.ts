@@ -974,14 +974,14 @@ describe('ClaudeCodeStreamAdapter', () => {
           type: 'background-tasks',
           tasks: [{ id: 'bg-1', type: 'local_bash', description: 'sleep 300' }]
         },
-        { type: 'autonomous-generation-state', active: true },
+        { type: 'background-work-state', active: true },
         { type: 'supported-commands', commands: [{ name: 'help', description: 'Help' }] }
       ])
       // Status is not turn content, so nothing reaches the message stream.
       expect(parts).toEqual([])
     })
 
-    it('keeps Claude background membership ordering inside the adapter', () => {
+    it('releases background keepalive on completion without requiring a wake', () => {
       const { adapter, statusEvents } = createAdapter({}, { openTurn: false })
       const task = { task_id: 'bg-1', task_type: 'subagent', description: 'Audit the codebase' }
 
@@ -999,20 +999,15 @@ describe('ClaudeCodeStreamAdapter', () => {
         uuid: crypto.randomUUID(),
         tasks: []
       } as any)
-      adapter.handleMessage(
-        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'done' } })
-      )
-      adapter.handleMessage(successResult())
 
       expect(statusEvents).toEqual([
         {
           type: 'background-tasks',
           tasks: [{ id: 'bg-1', type: 'subagent', description: 'Audit the codebase' }]
         },
-        { type: 'autonomous-generation-state', active: true },
+        { type: 'background-work-state', active: true },
         { type: 'background-tasks', tasks: [] },
-        { type: 'receive-only-turn' },
-        { type: 'autonomous-generation-state', active: false }
+        { type: 'background-work-state', active: false }
       ])
     })
 
@@ -1139,7 +1134,10 @@ describe('ClaudeCodeStreamAdapter', () => {
         streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'woke up' } })
       )
 
-      expect(statusEvents).toEqual([{ type: 'receive-only-turn' }])
+      expect(statusEvents).toEqual([
+        { type: 'autonomous-generation-state', active: true },
+        { type: 'receive-only-turn' }
+      ])
       expect(parts.some((part) => part.type === 'text-delta' && part.delta === 'woke up')).toBe(true)
       expect(adapter.isTurnActive).toBe(true)
     })
@@ -1154,6 +1152,7 @@ describe('ClaudeCodeStreamAdapter', () => {
 
       expect(result).toMatchObject({ type: 'result', sessionId: 'resume-wake' })
       expect(statusEvents).toEqual([
+        { type: 'autonomous-generation-state', active: true },
         { type: 'receive-only-turn' },
         { type: 'autonomous-generation-state', active: false }
       ])

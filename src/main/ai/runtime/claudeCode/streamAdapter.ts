@@ -118,6 +118,7 @@ export type ClaudeCodeStreamStatusEvent = Extract<
     type:
       | 'supported-commands'
       | 'background-tasks'
+      | 'background-work-state'
       | 'compaction-start'
       | 'compaction-complete'
       | 'compaction-error'
@@ -315,8 +316,6 @@ export class ClaudeCodeStreamAdapter {
   private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
   /** Content belongs to a turn's message stream; outside one there is nowhere for it to land. */
   private turnActive = false
-  /** Native background membership, used only here to translate Claude's wake protocol. */
-  private hasBackgroundTasks = false
   /** The current turn was started by parentless SDK content rather than a host `send()`. */
   private autonomousTurn = false
   /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
@@ -404,6 +403,7 @@ export class ClaudeCodeStreamAdapter {
       }
       // Parentless content with no turn open is Claude waking the main agent after background work.
       // Translate that SDK protocol into the runtime-neutral receive-only contract.
+      this.statusSink.emit({ type: 'autonomous-generation-state', active: true })
       this.statusSink.emit({ type: 'receive-only-turn' })
       this.beginTurn()
       this.autonomousTurn = true
@@ -427,7 +427,7 @@ export class ClaudeCodeStreamAdapter {
         this.turnActive = false
         if (this.autonomousTurn) {
           this.autonomousTurn = false
-          this.statusSink.emit({ type: 'autonomous-generation-state', active: this.hasBackgroundTasks })
+          this.statusSink.emit({ type: 'autonomous-generation-state', active: false })
         }
         return { type: 'result', sessionId: message.session_id, message }
       case 'system':
@@ -986,9 +986,8 @@ export class ClaudeCodeStreamAdapter {
         this.handlePermissionDeniedSystemMessage(message, ctx)
         return
       case 'background_tasks_changed':
-        // Claude-specific membership and wake ordering stay inside the adapter. The host receives an
-        // app-owned snapshot for presentation plus a separate, runtime-neutral ownership signal.
-        this.hasBackgroundTasks = message.tasks.length > 0
+        // The snapshot feeds presentation while the level only keeps the connection alive. Neither
+        // claims autonomous generation ownership; that begins only if parentless content arrives.
         this.statusSink.emit({
           type: 'background-tasks',
           tasks: message.tasks.map((task) => ({
@@ -997,9 +996,7 @@ export class ClaudeCodeStreamAdapter {
             description: task.description
           }))
         })
-        if (this.hasBackgroundTasks) {
-          this.statusSink.emit({ type: 'autonomous-generation-state', active: true })
-        }
+        this.statusSink.emit({ type: 'background-work-state', active: message.tasks.length > 0 })
         return
       case 'commands_changed':
         // Mid-session catalog push (skills discovered in a subdirectory, etc.); consumers replace

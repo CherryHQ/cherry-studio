@@ -182,9 +182,7 @@ vi.mock('../streamAdapter', () => ({
             description: task.description
           }))
         })
-        if (message.tasks.length > 0) {
-          this.options.statusSink.emit({ type: 'autonomous-generation-state', active: true })
-        }
+        this.options.statusSink.emit({ type: 'background-work-state', active: message.tasks.length > 0 })
         return { type: 'continue' }
       }
       if (message.type === 'stream_event') {

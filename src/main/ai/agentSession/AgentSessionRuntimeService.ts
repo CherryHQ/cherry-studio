@@ -178,6 +178,8 @@ type AgentSessionRuntimeEntry = {
   /** A `system/api_retry` backoff is in flight — set so its ephemeral cache state is cleared exactly
    *  once when content resumes / the turn settles / the connection closes. */
   retrying?: boolean
+  /** Work outliving the current turn still needs the runtime connection kept alive. */
+  backgroundWorkActive?: boolean
   /** The connected runtime currently owns a generation that the host did not admit. */
   autonomousGenerationActive?: boolean
   /** A receive-only result arrived while its renderer stream was still opening. */
@@ -520,7 +522,10 @@ export class AgentSessionRuntimeService extends BaseService {
         // pull picks the rebuild up.
         const turn = entry.currentTurn
         const hasLiveTurn =
-          (turn && !turn.terminalStatus) || entry.rolling === true || entry.autonomousGenerationActive === true
+          (turn && !turn.terminalStatus) ||
+          entry.rolling === true ||
+          entry.backgroundWorkActive === true ||
+          entry.autonomousGenerationActive === true
         if (!hasLiveTurn) this.closeConnectionAsync(entry)
         return
       }
@@ -708,9 +713,11 @@ export class AgentSessionRuntimeService extends BaseService {
   /**
    * Release a connection opened by {@link primeConnection} (or left idle after a turn) when its
    * session view closes — frees the subprocess and clears the cached catalog now instead of waiting
-   * out the idle TTL. No-op while a turn is in flight so a backgrounded stream keeps running.
+   * out the idle TTL. No-op while a turn is in flight or background work still owns connection-local
+   * resources. Background keepalive is deliberately not "busy": a new user turn may still start.
    */
   releaseIdleConnection(sessionId: string): void {
+    if (this.entries.get(sessionId)?.backgroundWorkActive) return
     if (this.isSessionBusy(sessionId)) return
     this.closeSession(sessionId)
   }
@@ -839,7 +846,12 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private connectionTarget(entry: AgentSessionRuntimeEntry): AgentSessionConnectionTarget {
     const turn = entry.currentTurn
-    const live = turn && (!turn.terminalStatus || entry.rolling === true || entry.autonomousGenerationActive === true)
+    const live =
+      turn &&
+      (!turn.terminalStatus ||
+        entry.rolling === true ||
+        entry.backgroundWorkActive === true ||
+        entry.autonomousGenerationActive === true)
     return live
       ? { modelId: turn.modelId, reasoningEffort: turn.reasoningEffort }
       : { modelId: entry.modelId, reasoningEffort: 'default' }
@@ -862,7 +874,12 @@ export class AgentSessionRuntimeService extends BaseService {
         // #16796's steer-window edge case: the continuation always reuses the rolling connection.)
         // A fresh, unadmitted turn DOES reconcile — it must run on the latest config.
         const turn = entry.currentTurn
-        if (entry.autonomousGenerationActive || entry.rolling || (turn && turn.admitted && !turn.terminalStatus)) {
+        if (
+          entry.backgroundWorkActive ||
+          entry.autonomousGenerationActive ||
+          entry.rolling ||
+          (turn && turn.admitted && !turn.terminalStatus)
+        ) {
           return true
         }
 
@@ -883,6 +900,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // reused the connection) — its stream now rides this connection, so stop touching it.
         const turnAfter = entry.currentTurn
         if (
+          entry.backgroundWorkActive ||
           entry.autonomousGenerationActive ||
           entry.rolling ||
           (turnAfter && turnAfter.admitted && !turnAfter.terminalStatus)
@@ -1070,6 +1088,9 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'background-tasks':
         this.publishBackgroundTasks(entry, event.tasks, connection)
         break
+      case 'background-work-state':
+        this.handleBackgroundWorkState(entry, event.active, connection)
+        break
       case 'background-task-event':
         this.publishBackgroundTaskEvent(entry, event.data, connection)
         break
@@ -1097,7 +1118,7 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       case 'turn-complete':
         this.clearApiRetry(entry)
-        if (entry.rolling && entry.rollSteerInputs === undefined && !entry.currentTurn?.receiveOnly) {
+        if (entry.rolling && entry.rollSteerInputs === undefined) {
           entry.receiveOnlyTurnCompleted = true
         } else {
           this.closeCurrentTurn(entry, 'success')
@@ -1264,6 +1285,20 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
   }
 
+  private handleBackgroundWorkState(
+    entry: AgentSessionRuntimeEntry,
+    active: boolean,
+    connection = entry.connection
+  ): void {
+    if (!this.isCurrentEntry(entry) || (connection && entry.connection !== connection)) return
+    entry.backgroundWorkActive = active
+    if (active) {
+      this.clearIdleTimer(entry)
+    } else if (!this.isSessionBusy(entry.sessionId)) {
+      this.refreshIdleTimer(entry)
+    }
+  }
+
   private handleAutonomousGenerationState(
     entry: AgentSessionRuntimeEntry,
     active: boolean,
@@ -1318,6 +1353,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || entry.connection !== connection) return
+    entry.backgroundWorkActive = false
     entry.autonomousGenerationActive = false
     entry.receiveOnlyTurnCompleted = false
     const cache = application.get('CacheService')
@@ -1918,9 +1954,9 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
-    if (entry.autonomousGenerationActive) return
+    if (entry.backgroundWorkActive || entry.autonomousGenerationActive) return
     entry.idleTimer = setTimeout(() => {
-      if (!this.isCurrentEntry(entry) || entry.autonomousGenerationActive) return
+      if (!this.isCurrentEntry(entry) || entry.backgroundWorkActive || entry.autonomousGenerationActive) return
       const { sessionId, agentType, lastResumeToken } = entry
       this.closeSession(sessionId)
       if (lastResumeToken) {
@@ -1962,6 +1998,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.rollBuffer = undefined
     entry.rollSteerInputs = undefined
     entry.rollHeadless = undefined
+    entry.backgroundWorkActive = false
     entry.autonomousGenerationActive = false
     entry.receiveOnlyTurnCompleted = false
     if (entry.compacting) {
