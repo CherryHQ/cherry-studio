@@ -6623,7 +6623,9 @@
       "active": "Active",
       "addError": "Failed to add server",
       "addServer": {
+        "advanced": "Advanced",
         "create": "Quick Create",
+        "createDescription": "Fill in the connection details to create the server; everything else can be adjusted later.",
         "importFrom": {
           "connectionFailed": "Connection failed",
           "dxt": "Import DXT Package",
@@ -6703,7 +6705,11 @@
         "success": "Successfully fetched MCP servers"
       },
       "filter": {
-        "label": "Filter"
+        "allStatuses": "All statuses",
+        "allTypes": "All types",
+        "builtinOnly": "Built-in only",
+        "status": "Filter by status",
+        "type": "Filter by type"
       },
       "findMore": "Find More MCP",
       "headers": "Headers",
@@ -6760,6 +6766,7 @@
         "usage": "Usage",
         "version": "Version"
       },
+      "pageDescription": "Manage MCP servers. Once enabled, agents can call the tools and resources they provide.",
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Available Prompts",
@@ -7844,6 +7851,7 @@
       "noInstalled": "No skills installed",
       "noResults": "No skills found",
       "noSkillFile": "No SKILL.md found",
+      "pageDescription": "Manage installed skills. Skills extend what your agents can do and are invoked on demand.",
       "searchPlaceholder": "Discover more skills...",
       "searchRegistryTitle": "Search skill registries online",
       "searchTitle": "Search Skills",

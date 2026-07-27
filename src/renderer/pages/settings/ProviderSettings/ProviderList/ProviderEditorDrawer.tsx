@@ -858,7 +858,7 @@ function PresetInstancePicker({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-0.5">
-        <span className="font-medium text-[13px] text-foreground">
+        <span className="text-[13px] text-foreground">
           {t('settings.provider.create_custom.preset_instance.title')}
         </span>
         <span className="text-foreground-muted text-xs">
