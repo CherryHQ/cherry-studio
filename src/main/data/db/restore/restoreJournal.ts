@@ -6,9 +6,10 @@ import * as z from 'zod'
 
 /**
  * Restore promotion journal — the crash-safe contract between the backup
- * staging pipeline (writer), the preboot promotion gate (consumer), and
- * orphan sweep (reader via hasPendingRestore). See ./README.md for the state
- * machine and ownership boundaries.
+ * staging pipeline (writer) and the preboot promotion gate (consumer). Readers
+ * that only need "is a restore holding storage" go through `./restoreGuard.ts`,
+ * which spans both journal versions. See ./README.md for the state machine and
+ * ownership boundaries.
  *
  * The journal lives as a standalone sidecar file next to the database
  * (`feature.backup.restore.file`): the arbiter of a promotion cannot live
@@ -121,7 +122,7 @@ export function readRestoreJournal(): ReadJournalResult {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return { kind: 'none' }
     }
-    // Unreadable ≠ absent: treat as corrupt so hasPendingRestore stays fail-safe.
+    // Unreadable ≠ absent: treat as corrupt so the reclaim guard stays fail-safe.
     return { kind: 'corrupt', error: String(error) }
   }
 
@@ -166,36 +167,4 @@ export function writeRestoreJournal(journal: RestoreJournal): void {
       fs.closeSync(dirFd)
     }
   }
-}
-
-/**
- * Remove a consumed terminal journal and any interrupted-write sibling,
- * then durably flush the directory entry on POSIX.
- */
-export function removeRestoreJournal(): void {
-  const journalPath = journalFilePath()
-  fs.rmSync(journalPath, { force: true })
-  fs.rmSync(`${journalPath}.tmp`, { force: true })
-
-  if (process.platform !== 'win32') {
-    const dirFd = fs.openSync(path.dirname(journalPath), 'r')
-    try {
-      fs.fsyncSync(dirFd)
-    } finally {
-      fs.closeSync(dirFd)
-    }
-  }
-}
-
-/**
- * Whether a restore is staged or mid-promotion — the signal orphan sweep uses
- * to stand aside. Corrupt journals count as pending (fail-safe: one skipped
- * sweep is harmless; the next boot's gate cleans the corrupt journal up).
- */
-export function hasPendingRestore(): boolean {
-  const result = readRestoreJournal()
-  if (result.kind === 'corrupt') {
-    return true
-  }
-  return result.kind === 'ok' && (result.journal.state === 'staged' || result.journal.state === 'promoting')
 }

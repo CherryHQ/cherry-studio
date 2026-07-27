@@ -22,6 +22,23 @@ export class InsufficientDiskSpaceError extends Error {
   }
 }
 
+/**
+ * Thrown when a backup operation is requested while another one holds the
+ * service. Serializing them is not politeness: export and restore preparation
+ * share one staging root, so a concurrent pair would clean up each other's
+ * files.
+ */
+export class BackupBusyError extends Error {
+  readonly running: string
+  readonly requested: string
+  constructor(running: string, requested: string) {
+    super(`a backup operation is already running (${running}); cannot start ${requested}`)
+    this.name = 'BackupBusyError'
+    this.running = running
+    this.requested = requested
+  }
+}
+
 /** Thrown when an already-aborted `AbortSignal` is observed at a step boundary. */
 export class BackupCancelledError extends Error {
   constructor(message = 'backup cancelled') {

@@ -1,14 +1,9 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { RestoreJournal } from '@data/db/restore/restoreJournal'
-import {
-  hasPendingRestore,
-  readRestoreJournal,
-  removeRestoreJournal,
-  writeRestoreJournal
-} from '@data/db/restore/restoreJournal'
+import { readRestoreJournal, writeRestoreJournal } from '@data/db/restore/restoreJournal'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -136,44 +131,6 @@ describe('restoreJournal', () => {
 
       expect(readRestoreJournal()).toEqual({ kind: 'ok', journal: updated })
       expect(() => JSON.parse(readFileSync(journalPath(), 'utf8'))).not.toThrow()
-    })
-  })
-
-  describe('removeRestoreJournal', () => {
-    it('removes the journal and an interrupted-write sibling', () => {
-      writeRestoreJournal({ ...stagedJournal(), state: 'completed', step: 'integrity-ok' })
-      writeFileSync(`${journalPath()}.tmp`, 'stale')
-
-      removeRestoreJournal()
-
-      expect(readRestoreJournal()).toEqual({ kind: 'none' })
-      expect(existsSync(`${journalPath()}.tmp`)).toBe(false)
-    })
-  })
-
-  describe('hasPendingRestore', () => {
-    it.each([
-      ['staged', true],
-      ['promoting', true],
-      ['completed', false],
-      ['failed', false],
-      ['expired', false]
-    ] as const)('state %s → %s', (state, expected) => {
-      const journal =
-        state === 'staged' ? stagedJournal() : ({ ...stagedJournal(), state, step: 'work-promoted' } as RestoreJournal)
-      writeRestoreJournal(journal)
-
-      expect(hasPendingRestore()).toBe(expected)
-    })
-
-    it('returns true for a corrupt journal (fail-safe: sweep must stand aside)', () => {
-      writeFileSync(journalPath(), '{ not json')
-
-      expect(hasPendingRestore()).toBe(true)
-    })
-
-    it('returns false when no journal exists', () => {
-      expect(hasPendingRestore()).toBe(false)
     })
   })
 })
