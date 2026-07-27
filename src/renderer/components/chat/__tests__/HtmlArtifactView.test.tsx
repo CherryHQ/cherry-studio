@@ -440,6 +440,40 @@ describe('HtmlArtifactView', () => {
     expect(scrollRoot.style.getPropertyValue('overscroll-behavior-y')).toBe('')
   })
 
+  it('replays wheels from inside the iframe onto the message scroller', () => {
+    const scrollerWheels: number[] = []
+    const { container } = render(
+      <div data-message-virtual-list-scroller onWheel={(event) => scrollerWheels.push(event.deltaY)}>
+        <HtmlArtifactView html="<main>Page</main>" title="Preview" />
+      </div>
+    )
+    const scroller = container.querySelector('[data-message-virtual-list-scroller]')
+    if (!scroller) throw new Error('Expected scroller')
+
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    fireEvent.load(iframe)
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    // A wheel inside the frame's own document never reaches the list on its own.
+    frameDocument.body.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true }))
+
+    expect(scrollerWheels).toEqual([-120])
+  })
+
+  it('survives an iframe preview rendered outside any message scroller', () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    fireEvent.load(iframe)
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    expect(() =>
+      frameDocument.body.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true }))
+    ).not.toThrow()
+  })
+
   it('opens the HTML source externally from the inline controls', async () => {
     render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
 

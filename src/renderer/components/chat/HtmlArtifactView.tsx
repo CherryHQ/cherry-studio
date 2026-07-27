@@ -169,6 +169,27 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
   }
 }
 
+/**
+ * Replays a wheel that happened inside the preview onto the message list's scroller.
+ *
+ * A wheel inside the preview never reaches that scroller by itself: an iframe dispatches it in
+ * its own document, and the webview is a separate process. The list stamps user scroll intent
+ * from a wheel listener there, and without that stamp it reads the scroll that boundary chaining
+ * just produced as drift -- so on an already user-owned viewport it answers by re-asserting the
+ * frozen scrollTop before the next paint (`chatVirtualizerRuntime.tsx`, the non-user-initiated
+ * branch of `onScroll`). Every further wheel chains again and is undone again, which is the
+ * jitter. This carries the intent only: the scroll itself still comes from native chaining
+ * (iframe) or the explicit `scrollBy` below (webview), since a synthetic wheel scrolls nothing.
+ */
+function replayWheelIntentOnScroller(viewport: HTMLElement, deltaY: number): void {
+  const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
+  const view = viewport.ownerDocument.defaultView
+  if (!scroller || !view) return
+
+  // Bubbling like a genuine wheel, so listeners attached by delegation see it too.
+  scroller.dispatchEvent(new view.WheelEvent('wheel', { deltaY, bubbles: true }))
+}
+
 function getMaxPreviewHeight(viewport: HTMLElement): number {
   const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
   const scrollerHeight = scroller ? Math.max(scroller.clientHeight, scroller.getBoundingClientRect().height) : 0
@@ -238,15 +259,23 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       onHeightChange(nextHeight)
     }
 
+    const forwardWheelIntent = (event: Event) => {
+      replayWheelIntentOnScroller(viewport, (event as WheelEvent).deltaY)
+    }
+
     const observeDocument = () => {
       documentResizeObserver?.disconnect()
       documentMutationObserver?.disconnect()
       observedDocument?.removeEventListener('load', syncHeight, true)
+      observedDocument?.removeEventListener('wheel', forwardWheelIntent, true)
 
       const frameDocument = iframe.contentDocument
       const body = frameDocument?.body
       if (!frameDocument || !body) return
       observedDocument = frameDocument
+
+      // Capture phase: the frame's own content must not be able to swallow the signal.
+      frameDocument.addEventListener('wheel', forwardWheelIntent, true)
 
       syncHeight()
 
@@ -286,6 +315,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       documentMutationObserver?.disconnect()
       layoutResizeObserver?.disconnect()
       observedDocument?.removeEventListener('load', syncHeight, true)
+      observedDocument?.removeEventListener('wheel', forwardWheelIntent, true)
       iframe.removeEventListener('load', observeDocument)
       window.removeEventListener('resize', syncHeight)
     }
@@ -395,6 +425,8 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
       const deltaY = Math.max(-200, Math.min(200, message.value))
       const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
       if (scroller) {
+        // Must precede the write: an unannounced `scrollBy` reads as drift and gets undone.
+        replayWheelIntentOnScroller(viewport, deltaY)
         scroller.scrollBy({ top: deltaY })
       } else {
         window.scrollBy({ top: deltaY })
