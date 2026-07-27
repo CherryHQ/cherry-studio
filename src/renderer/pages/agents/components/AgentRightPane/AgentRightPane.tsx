@@ -35,14 +35,15 @@ import type { ResourceListRevealRequest } from '@renderer/components/chat/resour
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { useToolResult } from '@renderer/hooks/useToolResult'
 import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
@@ -778,15 +779,10 @@ function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: 
         onClick={async () => {
           setStopping(true)
           try {
-            const stopped = await ipcApi.request('ai.agent.session.stop_background_task', { sessionId, taskId })
-            if (!stopped) {
-              setStopping(false)
-              toast.error(t('error.diagnosis.unknown'))
-            }
+            await ipcApi.request('ai.agent.session.stop_background_task', { sessionId, taskId })
           } catch (error) {
             logger.warn('Failed to stop background task', { taskId, error })
             setStopping(false)
-            toast.error(t('error.diagnosis.unknown'))
           }
         }}>
         <CircleStop size={14} />
@@ -858,34 +854,30 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
   return <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
 }
 
-const RUN_TASK_TERMINAL_STATUSES = new Set(['completed', 'error'])
-
-/** Per-task liveness comes only from the current CLI process's task lifecycle edge map. */
-function useAgentRunLiveness(taskEvents: ReturnType<typeof useAgentSessionTaskEvents>): AgentRunLiveness {
-  const liveTaskIds = useMemo(
-    () =>
-      new Set(
-        Object.values(taskEvents)
-          .filter((event) => !event.status || !RUN_TASK_TERMINAL_STATUSES.has(event.status))
-          .map((event) => event.taskId)
-      ),
-    [taskEvents]
-  )
-  return useMemo(() => ({ liveTaskIds }), [liveTaskIds])
+/** The two live signals a run task's own event stream cannot provide: is its turn still streaming,
+ * and is it in the SDK's live background set. Everything else stopped, however it last reported. */
+function useAgentRunLiveness(sessionId: string | undefined): AgentRunLiveness {
+  const sessionIds = useMemo(() => (sessionId ? [sessionId] : []), [sessionId])
+  const streamStatuses = useAgentSessionStreamStatuses(sessionIds)
+  const backgroundTasks = useAgentSessionBackgroundTasks(sessionId)
+  const turnActive = sessionId ? (streamStatuses.get(sessionId)?.isPending ?? false) : false
+  const liveTaskIds = useMemo(() => new Set(backgroundTasks.map((task) => task.task_id)), [backgroundTasks])
+  return useMemo(() => ({ turnActive, liveTaskIds }), [turnActive, liveTaskIds])
 }
 
 function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   const runtime = useAgentRightPaneRuntime()
   const meta = useAgentRightPaneMeta()
-  const taskEvents = useAgentSessionTaskEvents(meta.sessionId)
-  const liveness = useAgentRunLiveness(taskEvents)
+  // Lifecycle that landed after its turn closed, so it never became a message part.
+  const lateTaskEvents = useAgentSessionTaskEvents(meta.sessionId)
+  const liveness = useAgentRunLiveness(meta.sessionId)
   const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
   const status = useMemo(
     () =>
       !active && retainedStatusRef.current
         ? retainedStatusRef.current
-        : buildAgentRightPaneStatus(runtime.messages, runtime.partsByMessageId, taskEvents, liveness),
-    [active, runtime.messages, runtime.partsByMessageId, taskEvents, liveness]
+        : buildAgentRightPaneStatus(runtime.messages, runtime.partsByMessageId, lateTaskEvents, liveness),
+    [active, runtime.messages, runtime.partsByMessageId, lateTaskEvents, liveness]
   )
   useLayoutEffect(() => {
     if (active) retainedStatusRef.current = status

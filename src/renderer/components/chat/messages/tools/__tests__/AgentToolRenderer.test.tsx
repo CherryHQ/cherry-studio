@@ -170,7 +170,6 @@ describe('AgentToolRenderer', () => {
     'agent.sidebar_title': 'Agents',
     'settings.tool.file_processing.features.document_to_markdown.title': 'Document Processing',
     'message.tools.status.done': 'Done',
-    'message.tools.agent_background': 'Running in background',
     'message.tools.units.item_one': '{{count}} item',
     'message.tools.units.item_other': '{{count}} items',
     'message.tools.units.line_one': '{{count}} line',
@@ -876,56 +875,6 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('agent tool flow action', () => {
-    it('renders an async Agent launch receipt while keeping inline details disabled', () => {
-      const toolResponse = createToolResponse({
-        tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
-        status: 'done',
-        arguments: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
-        response: {
-          status: 'async_launched',
-          isAsync: true,
-          agentId: 'agent-1',
-          description: 'Inspect renderer'
-        }
-      })
-
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
-
-      expect(screen.getByText('Running in background')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
-    })
-
-    it('renders completed Agent statistics while keeping inline details disabled', () => {
-      const toolResponse = createToolResponse({
-        tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
-        status: 'done',
-        arguments: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
-        response: {
-          status: 'completed',
-          agentId: 'agent-1',
-          content: [],
-          totalTokens: 1200,
-          totalToolUseCount: 3,
-          totalDurationMs: 6500,
-          usage: {
-            input_tokens: 1000,
-            output_tokens: 200,
-            cache_creation_input_tokens: null,
-            cache_read_input_tokens: null,
-            server_tool_use: null,
-            service_tier: null,
-            cache_creation: null
-          },
-          prompt: 'Check the message renderer'
-        }
-      })
-
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
-
-      expect(screen.getByText('1.2k · 3 items · 7s')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
-    })
-
     it('routes a nested subagent click through the real tool group and renderer chain', () => {
       const openAgentToolFlow = vi.fn()
       mockMessageListActions.mockReturnValue({ openAgentToolFlow })

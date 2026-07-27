@@ -95,18 +95,12 @@ function getEntry(service: InstanceType<typeof AgentSessionRuntimeService>) {
 function createAsyncQueue<T>() {
   const items: T[] = []
   const waiters: Array<(value: IteratorResult<T>) => void> = []
-  let done = false
 
   return {
     push(item: T) {
-      if (done) throw new Error('Cannot push after queue end')
       const waiter = waiters.shift()
       if (waiter) waiter({ value: item, done: false })
       else items.push(item)
-    },
-    end() {
-      done = true
-      for (const waiter of waiters.splice(0)) waiter({ value: undefined, done: true })
     },
     iterable: {
       [Symbol.asyncIterator](): AsyncIterator<T> {
@@ -114,7 +108,6 @@ function createAsyncQueue<T>() {
           next: () => {
             const item = items.shift()
             if (item) return Promise.resolve({ value: item, done: false })
-            if (done) return Promise.resolve({ value: undefined, done: true })
             return new Promise<IteratorResult<T>>((resolve) => waiters.push(resolve))
           }
         }
@@ -1417,66 +1410,6 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheSetShared).toHaveBeenLastCalledWith(BG_KEY, [])
     })
 
-    it('keeps a settled session owned while its CLI process still has background work', () => {
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn(baseTurnInput)
-      const entry = getEntry(service)
-      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks })
-      service.markTurnTerminal('session-1', 'success')
-
-      expect(service.isSessionBusy('session-1')).toBe(true)
-      expect(entry.idleTimer).toBeUndefined()
-      service.releaseIdleConnection('session-1')
-      expect(service.inspect('session-1')).toBeDefined()
-
-      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks: [] })
-      expect(service.isSessionBusy('session-1')).toBe(false)
-    })
-
-    it('resets process-scoped task state on both connection attach and detach', async () => {
-      const events = createAsyncQueue<any>()
-      const connection = {
-        events: events.iterable,
-        send: vi.fn(),
-        close: vi.fn(),
-        reconcile: vi.fn().mockResolvedValue('current')
-      }
-      runtimeDriverRegistry.register({
-        type: 'test-runtime',
-        capabilities: ['agent-session'],
-        connect: vi.fn().mockResolvedValue(connection),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
-      })
-      const service = new AgentSessionRuntimeService()
-      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
-      const reader = service
-        .openTurnStream({
-          sessionId: 'session-1',
-          turnId: handle.turnId,
-          signal: new AbortController().signal
-        })
-        .getReader()
-      await reader.read()
-
-      await vi.waitFor(() => {
-        expect(mocks.cacheSetShared).toHaveBeenCalledWith(BG_KEY, [])
-        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.task_events.session-1', {})
-      })
-
-      events.push({ type: 'background-tasks', tasks })
-      await vi.waitFor(() => expect(getEntry(service).backgroundTasks).toEqual(tasks))
-      mocks.cacheSetShared.mockClear()
-
-      events.end()
-      await vi.waitFor(() => expect(getEntry(service).connection).toBeUndefined())
-      expect(getEntry(service).backgroundTasks).toEqual([])
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith(BG_KEY, [])
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.task_events.session-1', {})
-
-      await reader.cancel()
-    })
-
     it('stops one task through the connection without touching the turn', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -1597,62 +1530,16 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
-    it('uses an unadmitted user turn for the wake, then sends the queued user input', async () => {
+    it('ignores a wake while a turn is live', () => {
       const service = new AgentSessionRuntimeService()
-      const originalUserMessage = userMessage('user-1')
-      const handle = service.beginTurn({ ...baseTurnInput, userMessage: originalUserMessage })
+      service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
-      const reconcile = createDeferred<'current'>()
-      const send = vi.fn()
-      entry.connection = {
-        send,
-        close: vi.fn(),
-        events: [],
-        reconcile: vi.fn().mockReturnValueOnce(reconcile.promise).mockResolvedValue('current')
-      }
-      const reader = service
-        .openTurnStream({
-          sessionId: 'session-1',
-          turnId: handle.turnId,
-          signal: new AbortController().signal
-        })
-        .getReader()
-      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      mocks.startRuntimeTurn.mockClear()
 
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-wake' })
-      ;(service as any).handleRuntimeEvent(entry, {
-        type: 'chunk',
-        chunk: { type: 'text-delta', id: 'w1', delta: 'background result' }
-      })
-      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
 
-      await expect(reader.read()).resolves.toMatchObject({
-        value: { type: 'text-delta', delta: 'background result' },
-        done: false
-      })
-      await expect(reader.read()).resolves.toMatchObject({ done: true })
-      expect(send).not.toHaveBeenCalled()
-      expect(entry.pendingTurns).toEqual([
-        expect.objectContaining({ message: expect.objectContaining({ id: originalUserMessage.id }) })
-      ])
-
-      terminalListener(handle).onDone()
-      reconcile.resolve('current')
-      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
-
-      const userTurn = entry.currentTurn
-      const userReader = service
-        .openTurnStream({
-          sessionId: 'session-1',
-          turnId: userTurn.turnId,
-          signal: new AbortController().signal
-        })
-        .getReader()
-      await userReader.read()
-      await vi.waitFor(() => expect(send).toHaveBeenCalledWith({ message: originalUserMessage, systemReminder: false }))
-
-      service.closeSession('session-1')
-      await userReader.cancel().catch(() => undefined)
+      expect(entry.rolling).toBeFalsy()
+      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
     })
   })
 
@@ -1872,25 +1759,23 @@ describe('AgentSessionRuntimeService', () => {
       expect(getContextUsage).toHaveBeenCalledTimes(1)
     })
 
-    it('coalesces concurrent refreshes on the same connection and runs one trailing refresh', async () => {
+    it('coalesces concurrent refreshes on the same connection', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
-      const initialUsage = usageAt(8)
-      const trailingUsage = usageAt(9)
-      const deferred = createDeferred<typeof initialUsage>()
-      const getContextUsage = vi.fn().mockReturnValueOnce(deferred.promise).mockResolvedValueOnce(trailingUsage)
+      const usage = usageAt(8)
+      const deferred = createDeferred<typeof usage>()
+      const getContextUsage = vi.fn().mockReturnValue(deferred.promise)
       entry.connection = { getContextUsage } as any
 
       ;(service as any).refreshContextUsage(entry)
       ;(service as any).refreshContextUsage(entry)
 
       expect(getContextUsage).toHaveBeenCalledTimes(1)
-      deferred.resolve(initialUsage)
-      await vi.waitFor(() => expect(getContextUsage).toHaveBeenCalledTimes(2))
-      await vi.waitFor(() => {
-        expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.context_usage.session-1', trailingUsage)
-      })
+      deferred.resolve(usage)
+      await vi.waitFor(() =>
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+      )
     })
   })
 

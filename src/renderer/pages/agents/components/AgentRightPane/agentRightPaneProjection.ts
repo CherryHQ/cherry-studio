@@ -83,7 +83,9 @@ export interface AgentArtifactFile {
  * an interrupted turn, a crash or an app restart leaves the last event at `in_progress` forever.
  */
 export interface AgentRunLiveness {
-  /** Non-terminal task ids in the current CLI process's task lifecycle edge map. */
+  /** A turn is streaming, so foreground subagents it spawned are genuinely running. */
+  turnActive: boolean
+  /** Task ids in the SDK's live background set — background work outlives the turn. */
   liveTaskIds: ReadonlySet<string>
 }
 
@@ -490,14 +492,13 @@ export function buildAgentRightPaneStatus(
     applyAgentTaskEvent(runTaskMap, data)
   }
 
-  // Historical parts may end at `in_progress` after an interrupted turn or dead CLI. Only the
-  // current process's task edge map can keep a non-terminal row live; the aggregate
-  // `background_tasks_changed` IDs are deliberately not used here because the SDK forbids
-  // correlating that level with task lifecycle events.
+  // A run only settles if its completion event arrives; an interrupted turn, a crashed CLI or an
+  // app restart means it never will. Nothing outside the turn and outside the live background set
+  // is running, whatever its last event said — otherwise the row spins for the rest of the session.
   if (liveness) {
     for (const [id, task] of runTaskMap) {
       if (RUN_TASK_TERMINAL_STATUSES.has(task.status)) continue
-      if (liveness.liveTaskIds.has(id)) continue
+      if (liveness.turnActive || liveness.liveTaskIds.has(id)) continue
       runTaskMap.set(id, { ...task, status: 'pending', activeText: undefined })
     }
   }

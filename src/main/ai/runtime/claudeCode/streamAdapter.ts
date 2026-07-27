@@ -1059,12 +1059,9 @@ export class ClaudeCodeStreamAdapter {
    */
   private handleTaskSystemMessage(message: SDKTaskSystemMessage, ctx: StreamContext): void {
     const eventData = this.toTaskEventPartData(message)
-    // The edge stream is the SDK-authoritative per-task surface. Publish every event at session
-    // scope so liveness and stop IDs never depend on correlating the unrelated
-    // `background_tasks_changed` aggregate level.
-    this.statusSink.emit({ type: 'background-task-event', data: eventData })
 
     if (!this.turnActive) {
+      this.statusSink.emit({ type: 'background-task-event', data: eventData })
       return
     }
 

@@ -29,10 +29,7 @@ const {
   systemFileTreeState,
   useArtifactFileTreeModelMock,
   useCommandHandlerMock,
-  useDirectoryTreeMock,
-  ipcRequestMock,
-  toastErrorMock,
-  taskEventsState
+  useDirectoryTreeMock
 } = vi.hoisted(() => ({
   buildAgentToolFlowProjectionMock: vi.fn(),
   getToolResultMock: vi.fn(),
@@ -58,10 +55,7 @@ const {
   },
   useArtifactFileTreeModelMock: vi.fn(),
   useCommandHandlerMock: vi.fn(),
-  useDirectoryTreeMock: vi.fn(),
-  ipcRequestMock: vi.fn(),
-  toastErrorMock: vi.fn(),
-  taskEventsState: { current: {} as Record<string, unknown> }
+  useDirectoryTreeMock: vi.fn()
 }))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
@@ -325,16 +319,11 @@ vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
   useAgentSessionContextUsage: () => ({ percentage: null, usage: null })
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentSessionTaskEvents', () => ({
-  useAgentSessionTaskEvents: () => taskEventsState.current
-}))
-
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (...args: unknown[]) => ipcRequestMock(...args) }
-}))
-
-vi.mock('@renderer/services/toast', () => ({
-  toast: { error: (...args: unknown[]) => toastErrorMock(...args) }
+// A live turn: run-task rows render the status their events report. Staleness is covered where the
+// rule lives, in the projection tests.
+vi.mock('@renderer/hooks/agent/useAgentSessionStreamStatuses', () => ({
+  useAgentSessionStreamStatuses: (sessionIds: readonly string[]) =>
+    new Map(sessionIds.map((sessionId) => [sessionId, { isPending: true, status: 'streaming' }]))
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -446,17 +435,6 @@ type StatusTaskFixture = {
 }
 
 function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { openPanel?: boolean } = {}) {
-  taskEventsState.current = Object.fromEntries(
-    tasks.map((task) => [
-      task.id,
-      {
-        event: 'notification',
-        taskId: task.id,
-        status: task.status,
-        title: task.title
-      }
-    ])
-  )
   const parts = tasks.map(
     (task) =>
       ({
@@ -500,8 +478,6 @@ describe('AgentRightPane', () => {
     fileSessionState.saveError = undefined
     fileTreeModelState.hasLoaded = false
     fileTreeModelState.nodeById = new Map()
-    taskEventsState.current = {}
-    ipcRequestMock.mockResolvedValue(true)
     fileTreeModelStore.listeners.clear()
     fileTreeModelStore.revision = 0
     resolveArtifactPaneFileSelectionMock.mockReturnValue(null)
@@ -920,22 +896,6 @@ describe('AgentRightPane', () => {
     expect(row).toHaveClass('items-start')
     expect(taskText).toHaveClass('wrap-break-word', 'leading-5')
     expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
-  })
-
-  it.each([
-    ['a false result', () => Promise.resolve(false)],
-    ['a rejected request', () => Promise.reject(new Error('connection closed'))]
-  ])('restores the stop control and reports %s', async (_case, stopResult) => {
-    ipcRequestMock.mockImplementation(stopResult)
-    renderStatusTasks([{ id: 'run-1', status: 'in_progress', title: 'Inspect renderer' }])
-
-    const stopButton = screen.getByRole('button', { name: 'agent.right_pane.status.stop_run_task' })
-    fireEvent.click(stopButton)
-
-    await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith('error.diagnosis.unknown')
-      expect(stopButton).toBeEnabled()
-    })
   })
 
   it('keeps shortcut preview task icons aligned while the status panel stays closed', () => {

@@ -59,7 +59,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
       toolCallId={toolResponse.toolCallId}
       toolName={tool?.name}
       input={args ?? parsedPartialArgs}
-      output={isLoading ? undefined : response}
+      output={isLoading || isSubagentTool ? undefined : response}
       isStreaming={isLoading}
       status={effectiveStatus}
       hasError={status === 'error'}

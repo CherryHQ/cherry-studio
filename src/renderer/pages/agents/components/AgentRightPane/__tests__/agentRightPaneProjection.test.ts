@@ -388,9 +388,9 @@ describe('agent right pane projections', () => {
     ])
   })
 
-  // Only the current CLI process's task edge stream can keep a row live. A session-wide active turn
-  // must not resurrect historical rows, and the unrelated background-task level is aggregate only.
-  it('does not resurrect a stale run task when an unrelated later task is active', () => {
+  // An interrupted turn kills its subagents without a completion event, so the persisted parts end
+  // at in_progress forever. Liveness — not the events — decides whether a row still spins.
+  it('stops a run task the session is no longer running', () => {
     const parts = [
       {
         type: 'data-agent-task-event',
@@ -403,29 +403,18 @@ describe('agent right pane projections', () => {
     ] as unknown as CherryMessagePart[]
     const messages = [message('m1', parts)]
 
-    const live = buildAgentRightPaneStatus(messages, { m1: parts }, {}, { liveTaskIds: new Set(['agent-1']) })
+    const live = buildAgentRightPaneStatus(messages, { m1: parts }, {}, { turnActive: true, liveTaskIds: new Set() })
     expect(live.runTasks).toEqual([expect.objectContaining({ id: 'agent-1', status: 'in_progress' })])
 
-    const unrelatedActive = buildAgentRightPaneStatus(
+    const backgrounded = buildAgentRightPaneStatus(
       messages,
       { m1: parts },
-      {
-        'agent-2': {
-          event: 'started',
-          taskId: 'agent-2',
-          status: 'in_progress',
-          title: 'New review',
-          taskType: 'local_agent'
-        }
-      },
-      { liveTaskIds: new Set(['agent-2']) }
+      {},
+      { turnActive: false, liveTaskIds: new Set(['agent-1']) }
     )
-    expect(unrelatedActive.runTasks).toEqual([
-      expect.objectContaining({ id: 'agent-1', status: 'pending' }),
-      expect.objectContaining({ id: 'agent-2', status: 'in_progress' })
-    ])
+    expect(backgrounded.runTasks).toEqual([expect.objectContaining({ id: 'agent-1', status: 'in_progress' })])
 
-    const stale = buildAgentRightPaneStatus(messages, { m1: parts }, {}, { liveTaskIds: new Set() })
+    const stale = buildAgentRightPaneStatus(messages, { m1: parts }, {}, { turnActive: false, liveTaskIds: new Set() })
     expect(stale.runTasks).toEqual([
       expect.objectContaining({ id: 'agent-1', status: 'pending', activeText: undefined })
     ])
