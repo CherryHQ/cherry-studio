@@ -127,7 +127,8 @@ const ModelCard: FC<ModelCardProps> = ({
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-hover"
+      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start gap-3">
         <div
           className={cn(
@@ -220,7 +221,10 @@ const LocalModelsSection: FC = () => {
       {unsupported ? (
         <div
           role="status"
-          className="rounded-xl border border-border border-dashed bg-card/50 px-4 py-6 text-center text-muted-foreground text-xs leading-5">
+          className="rounded-xl border border-border border-dashed px-4 py-6 text-center text-muted-foreground text-xs leading-5"
+          style={{
+            backgroundColor: 'var(--settings-group-background, color-mix(in srgb, var(--card) 50%, transparent))'
+          }}>
           {t('settings.dependencies.localModels.unsupported')}
         </div>
       ) : (

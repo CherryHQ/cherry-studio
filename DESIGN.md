@@ -646,7 +646,7 @@ The right pane of every "simple right-content" settings page (i.e. pages whose r
 
 | Layer | Class | Purpose |
 |---|---|---|
-| Outer (full-width, scrolling) | `px-6 py-4` | Page edge padding — keeps `24px` between the content card and the column edge |
+| Outer (full-width, scrolling) | `p-6` | Page edge padding — keeps `24px` between the content card and every column edge |
 | Inner (constrained, centered) | `mx-auto w-full max-w-3xl` | Caps content at `768px` and centers it on wide screens |
 
 Use the canonical components in `src/renderer/pages/settings/index.tsx`:

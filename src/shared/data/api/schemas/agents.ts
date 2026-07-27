@@ -12,7 +12,7 @@ import * as z from 'zod'
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
-import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
+import { TriggerSchema } from './jobs'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
@@ -211,25 +211,10 @@ export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).pa
 })
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
-// ============================================================================
-// Task DTOs
-// ============================================================================
-
-export const CreateTaskSchema = z.strictObject({
-  name: JobScheduleNameAtomSchema,
-  prompt: z.string().min(1),
-  trigger: TriggerSchema,
-  workspace: AgentSessionWorkspaceSourceSchema,
-  timeoutMinutes: TimeoutMinutesAtomSchema,
-  channelIds: z.array(z.string()).optional()
-})
-export type CreateTaskDto = z.infer<typeof CreateTaskSchema>
-
-export const UpdateTaskSchema = CreateTaskSchema.partial().extend({
-  /** Pause = false, resume = true. Replaces v1 status field. */
-  enabled: z.boolean().optional()
-})
-export type UpdateTaskDto = z.infer<typeof UpdateTaskSchema>
+// Task command DTOs live on IpcApi (`ai.agent.task.*` in
+// `@shared/ipc/schemas/ai`) — schedule mutations are mixed-effect and the Job
+// DataApi surface is GET-only (api-design-guidelines.md). Only the read-side
+// entity schemas above stay here.
 
 // ============================================================================
 // Common query types
@@ -311,34 +296,36 @@ export type AgentSchemas = {
     }
   }
 
-  /** List tasks for an agent, create a new task */
+  /** List scheduled tasks across every agent (settings overview, paginated) */
+  '/agent-tasks': {
+    GET: {
+      query?: ListQuery
+      response: OffsetPaginationResponse<ScheduledTaskEntity>
+    }
+  }
+
+  /** Get a scheduled task without requiring its owning Agent in the route */
+  '/agent-tasks/:taskId': {
+    GET: {
+      params: { taskId: string }
+      response: ScheduledTaskEntity
+    }
+  }
+
+  /** List tasks for an agent (mutations live on IpcApi `ai.agent.task.*`) */
   '/agents/:agentId/tasks': {
     GET: {
       params: { agentId: string }
       query?: ListQuery
       response: OffsetPaginationResponse<ScheduledTaskEntity>
     }
-    POST: {
-      params: { agentId: string }
-      body: CreateTaskDto
-      response: ScheduledTaskEntity
-    }
   }
 
-  /** Get, update, or delete a specific task */
+  /** Get a specific task */
   '/agents/:agentId/tasks/:taskId': {
     GET: {
       params: { agentId: string; taskId: string }
       response: ScheduledTaskEntity
-    }
-    PATCH: {
-      params: { agentId: string; taskId: string }
-      body: UpdateTaskDto
-      response: ScheduledTaskEntity
-    }
-    DELETE: {
-      params: { agentId: string; taskId: string }
-      response: void
     }
   }
 

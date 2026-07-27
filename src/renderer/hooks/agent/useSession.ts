@@ -412,14 +412,14 @@ export const useUpdateSession = () => {
 }
 
 /**
- * Listens for `ai.agent_session_auto_renamed` and invalidates the
+ * Listens for `ai.agent.session.auto_renamed` and invalidates the
  * renamed session's SWR cache so the new name appears without manual refetch.
  */
 export function useAgentSessionAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
   useIpcOn(
-    'ai.agent_session_auto_renamed',
+    'ai.agent.session.auto_renamed',
     ({ sessionId }) => void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
   )
 }
