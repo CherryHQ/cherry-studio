@@ -28,7 +28,9 @@ import Database from 'better-sqlite3'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
+import { LegacyAgentsDbReader } from '../../utils/LegacyAgentsDbReader'
 import { AgentsMigrator } from '../AgentsMigrator'
+import type { AgentsSchemaInfo } from '../mappings/AgentsDbMappings'
 
 const AGENT_ID = 'agent-v1-001'
 const CHANNEL_ID = 'channel-v1-001'
@@ -176,14 +178,20 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
 
   /** Helper: ATTACH the legacy DB to the target connection, run the TS-loop,
    *  then DETACH. Encapsulates the surrounding scaffolding so each test
-   *  only deals with assertions. */
-  async function runTsLoop(): Promise<void> {
-    dbh.db.run(sql.raw(`ATTACH DATABASE '${legacyPath}' AS agents_legacy`))
+   *  only deals with assertions.
+   *
+   *  The schema is probed from the real file via LegacyAgentsDbReader rather
+   *  than hand-built, so the guards see exactly what production would see. */
+  async function runTsLoop(dbPath: string = legacyPath): Promise<string[]> {
+    const schemaInfo = new LegacyAgentsDbReader({ legacyAgentDbFile: dbPath }).inspectSchema()
+    dbh.db.run(sql.raw(`ATTACH DATABASE '${dbPath}' AS agents_legacy`))
     try {
       const migrator = new AgentsMigrator()
-      await (
-        migrator as unknown as { migrateScheduledTasksTs: (db: typeof dbh.db) => Promise<void> }
-      ).migrateScheduledTasksTs(dbh.db)
+      return await (
+        migrator as unknown as {
+          migrateScheduledTasksTs: (db: typeof dbh.db, schemaInfo: AgentsSchemaInfo) => Promise<string[]>
+        }
+      ).migrateScheduledTasksTs(dbh.db, schemaInfo)
     } finally {
       dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
     }
@@ -339,14 +347,17 @@ describe('AgentsMigrator > migrateScheduledTasksTs > duplicate v1 task names', (
   })
 
   it('migrates both same-named v1 tasks without throwing, disambiguating one name', async () => {
+    const schemaInfo = new LegacyAgentsDbReader({ legacyAgentDbFile: legacyPath }).inspectSchema()
     dbh.db.run(sql.raw(`ATTACH DATABASE '${legacyPath}' AS agents_legacy`))
     try {
       const migrator = new AgentsMigrator()
       await expect(
         (
-          migrator as unknown as { migrateScheduledTasksTs: (db: typeof dbh.db) => Promise<void> }
-        ).migrateScheduledTasksTs(dbh.db)
-      ).resolves.toBeUndefined()
+          migrator as unknown as {
+            migrateScheduledTasksTs: (db: typeof dbh.db, schemaInfo: AgentsSchemaInfo) => Promise<string[]>
+          }
+        ).migrateScheduledTasksTs(dbh.db, schemaInfo)
+      ).resolves.toEqual([])
     } finally {
       dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
     }
@@ -361,5 +372,132 @@ describe('AgentsMigrator > migrateScheduledTasksTs > duplicate v1 task names', (
     expect(new Set(names).size).toBe(2)
     expect(names).toContain('Daily standup')
     expect(names.some((n) => n.startsWith('task_task-dup-'))).toBe(true)
+  })
+})
+
+/**
+ * Legacy schema drift. A v1 `agents.db` can predate the task feature entirely,
+ * or — as seen in the field (issue #17470) — carry a `scheduled_tasks` table
+ * built by a pre-release build whose columns differ from the shipped schema.
+ * Neither may abort the migration: every later migrator, including the vector
+ * store, is downstream of this one.
+ */
+describe('AgentsMigrator > migrateScheduledTasksTs > legacy schema drift', () => {
+  const dbh = setupTestDatabase()
+  let tempDir: string
+
+  beforeAll(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'cs-agents-task-drift-test-'))
+  })
+
+  afterAll(() => {
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  beforeEach(async () => {
+    await dbh.db.insert(agentTable).values({
+      id: AGENT_ID,
+      type: 'claude-code',
+      name: 'V1 Agent',
+      instructions: 'helper',
+      model: null,
+      orderKey: 'a0'
+    })
+  })
+
+  async function runAgainst(dbName: string, seed: (db: Database.Database) => void): Promise<string[]> {
+    const legacyPath = join(tempDir, dbName)
+    const legacy = new Database(legacyPath)
+    try {
+      seed(legacy)
+    } finally {
+      legacy.close()
+    }
+
+    const schemaInfo = new LegacyAgentsDbReader({ legacyAgentDbFile: legacyPath }).inspectSchema()
+    dbh.db.run(sql.raw(`ATTACH DATABASE '${legacyPath}' AS agents_legacy`))
+    try {
+      const migrator = new AgentsMigrator()
+      return await (
+        migrator as unknown as {
+          migrateScheduledTasksTs: (db: typeof dbh.db, schemaInfo: AgentsSchemaInfo) => Promise<string[]>
+        }
+      ).migrateScheduledTasksTs(dbh.db, schemaInfo)
+    } finally {
+      dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+    }
+  }
+
+  it('falls back to the default timeout when scheduled_tasks lacks timeout_minutes', async () => {
+    // Exact reproduction of the reported crash: the table exists but the column
+    // does not, so the hardcoded SELECT raised `no such column: timeout_minutes`.
+    const warnings = await runAgainst('no-timeout.db', (db) => {
+      db.exec(`
+        CREATE TABLE scheduled_tasks (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          schedule_type TEXT NOT NULL,
+          schedule_value TEXT NOT NULL,
+          status TEXT NOT NULL
+        )
+      `)
+      // Present so this case isolates the missing column, nothing else.
+      db.exec(`
+        CREATE TABLE channel_task_subscriptions (
+          channel_id TEXT NOT NULL,
+          task_id TEXT NOT NULL,
+          PRIMARY KEY (channel_id, task_id)
+        )
+      `)
+      db.prepare(
+        `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, status)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run('task-drift', AGENT_ID, 'Daily standup', 'Run standup', 'cron', '0 9 * * *', 'active')
+    })
+
+    const schedules = await dbh.db.select().from(jobScheduleTable).where(eq(jobScheduleTable.type, 'agent.task'))
+    expect(schedules).toHaveLength(1)
+    expect((schedules[0].jobInputTemplate as { timeoutMinutes: number }).timeoutMinutes).toBe(2)
+    // The task survived, so nothing is reported as lost.
+    expect(warnings).toEqual([])
+  })
+
+  it('skips the step and reports a warning when scheduled_tasks is absent', async () => {
+    const warnings = await runAgainst('no-tasks-table.db', (db) => {
+      db.exec(`CREATE TABLE agents (id TEXT PRIMARY KEY)`)
+    })
+
+    const schedules = await dbh.db.select().from(jobScheduleTable).where(eq(jobScheduleTable.type, 'agent.task'))
+    expect(schedules).toHaveLength(0)
+    expect(warnings).toEqual([expect.stringContaining('scheduled_tasks table not found')])
+  })
+
+  it('still migrates schedules when channel_task_subscriptions is absent', async () => {
+    const warnings = await runAgainst('no-subscriptions.db', (db) => {
+      db.exec(`
+        CREATE TABLE scheduled_tasks (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          schedule_type TEXT NOT NULL,
+          schedule_value TEXT NOT NULL,
+          timeout_minutes INTEGER,
+          status TEXT NOT NULL
+        )
+      `)
+      db.prepare(
+        `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run('task-nosub', AGENT_ID, 'Daily standup', 'Run standup', 'cron', '0 9 * * *', 7, 'active')
+    })
+
+    const schedules = await dbh.db.select().from(jobScheduleTable).where(eq(jobScheduleTable.type, 'agent.task'))
+    expect(schedules).toHaveLength(1)
+    expect((schedules[0].jobInputTemplate as { timeoutMinutes: number }).timeoutMinutes).toBe(7)
+    expect(await dbh.db.select().from(agentChannelTaskTable)).toHaveLength(0)
+    expect(warnings).toEqual([expect.stringContaining('channel_task_subscriptions table not found')])
   })
 })

@@ -20,9 +20,12 @@ import {
   type AgentsSchemaInfo,
   type AgentsTableRowCounts,
   buildAgentsImportStatements,
+  createEmptyAgentsRowCounts,
   createEmptyAgentsSchemaInfo,
   getTotalAgentsRowCount,
-  quoteSqlitePath
+  hasLegacyTable,
+  quoteSqlitePath,
+  selectLegacyColumn
 } from './mappings/AgentsDbMappings'
 import { type ChatMappingDeps, normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
 import { AGENT_TABLES, remapAgentPrefixIds } from './remapAgentPrefixIds'
@@ -45,6 +48,15 @@ type V1ChannelTaskSubscription = {
   task_agent_id: string
 }
 
+/**
+ * Columns `migrateScheduledTasksTs` cannot synthesise: without them there is no
+ * way to build a Trigger or bind the schedule to an agent. `name`,
+ * `timeout_minutes` and `status` are deliberately absent — each has a fallback.
+ */
+const SCHEDULED_TASK_REQUIRED_COLUMNS = ['id', 'agent_id', 'prompt', 'schedule_type', 'schedule_value'] as const
+
+const CHANNEL_SUBSCRIPTION_REQUIRED_COLUMNS = ['channel_id', 'task_id'] as const
+
 const HEARTBEAT_INTERVAL_FALLBACK_MS = 60 * 60_000
 
 const logger = loggerService.withContext('AgentsMigrator')
@@ -55,13 +67,13 @@ export class AgentsMigrator extends BaseMigrator {
   readonly description = 'Migrate legacy agents.db data into the main SQLite database'
   readonly order = 2.5
 
-  private sourceCounts: AgentsTableRowCounts = this.createEmptyCounts()
+  private sourceCounts: AgentsTableRowCounts = createEmptyAgentsRowCounts()
   private sourceDbPath: string | null | undefined = undefined
   private sourceSchemaInfo: AgentsSchemaInfo = createEmptyAgentsSchemaInfo()
   private reader: LegacyAgentsDbReader | null = null
 
   override reset(): void {
-    this.sourceCounts = this.createEmptyCounts()
+    this.sourceCounts = createEmptyAgentsRowCounts()
     this.sourceDbPath = undefined
     this.sourceSchemaInfo = createEmptyAgentsSchemaInfo()
     this.reader = null
@@ -135,6 +147,7 @@ export class AgentsMigrator extends BaseMigrator {
     let isAttached = false
     let committed = false
     let pendingError: unknown = null
+    const warnings: string[] = []
 
     try {
       ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
@@ -159,12 +172,16 @@ export class AgentsMigrator extends BaseMigrator {
       //      so MUST run while ATTACH is live and BEFORE remap rewrites ids.
       //   2. importLegacySessionMessages — generates UUID message ids instead
       //      of preserving legacy integer row ids, and writes final `data.parts`.
-      backfillAgentOrderKeys(ctx.db)
+      backfillAgentOrderKeys(ctx.db, this.sourceSchemaInfo)
       await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
         db: ctx.db,
         filesDataDir: ctx.paths.filesDataDir
       })
-      await migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
+      await migrateAgentMcps(
+        ctx.db,
+        ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined,
+        this.sourceSchemaInfo
+      )
 
       ctx.db.run(sql.raw('COMMIT'))
       committed = true
@@ -175,7 +192,7 @@ export class AgentsMigrator extends BaseMigrator {
       // ctx.db. Must happen BEFORE remapAgentPrefixIds — schedules carry the
       // legacy agent_id inside their jobInputTemplate JSON, and the remap step
       // rewrites both `agent.id` AND `job_schedule.jobInputTemplate.agentId`.
-      await this.migrateScheduledTasksTs(ctx.db)
+      warnings.push(...(await this.migrateScheduledTasksTs(ctx.db, this.sourceSchemaInfo)))
 
       // Prefix-id remap runs AFTER the outer COMMIT because it opens its own
       // BEGIN/COMMIT (nested SQLite transactions are not supported). It is
@@ -215,7 +232,8 @@ export class AgentsMigrator extends BaseMigrator {
 
     return {
       success: true,
-      processedCount: getTotalAgentsRowCount(this.sourceCounts)
+      processedCount: getTotalAgentsRowCount(this.sourceCounts),
+      ...(warnings.length > 0 ? { warnings } : {})
     }
   }
 
@@ -404,34 +422,41 @@ export class AgentsMigrator extends BaseMigrator {
     return this.sourceDbPath
   }
 
-  private createEmptyCounts(): AgentsTableRowCounts {
-    return {
-      agents: 0,
-      sessions: 0,
-      skills: 0,
-      agent_skills: 0,
-      scheduled_tasks: 0,
-      task_run_logs: 0,
-      channels: 0,
-      channel_task_subscriptions: 0,
-      session_messages: 0
-    }
-  }
-
   /**
    * Migrate v1 `scheduled_tasks` + `channel_task_subscriptions` into v2
    * `job_schedule` + `agent_channel_task`. v1 `task_run_logs` are intentionally
    * discarded — see breaking-changes/2026-05-19-agent-task-migration.md.
+   *
+   * Both source tables arrived in the same legacy migration, so a legacy db
+   * that predates it has neither. Every read here is schema-guarded: losing v1
+   * schedules is an acceptable degradation, aborting the migration (and with it
+   * every later migrator, including the vector store) is not — issue #17470.
    */
-  private async migrateScheduledTasksTs(db: MigrationContext['db']): Promise<void> {
+  private async migrateScheduledTasksTs(db: MigrationContext['db'], schemaInfo: AgentsSchemaInfo): Promise<string[]> {
+    const warnings: string[] = []
+
     // Idempotency on retry: drop any partial agent.task schedules from a
     // previous failed run so the (type, name) UNIQUE index doesn't reject the
-    // second-pass inserts. Other type rows are untouched.
+    // second-pass inserts. Other type rows are untouched. Runs before the
+    // schema guard so a retry against a drifted db still clears its own residue.
     await db.delete(jobScheduleTable).where(sql`${jobScheduleTable.type} = 'agent.task'`)
+
+    // Without these there is no way to build a Trigger or attach the schedule to
+    // an agent, so the whole step is skipped. Everything else has a fallback.
+    if (!hasLegacyTable(schemaInfo, 'scheduled_tasks', SCHEDULED_TASK_REQUIRED_COLUMNS)) {
+      const warning = schemaInfo.scheduled_tasks.exists
+        ? 'Legacy scheduled_tasks table is missing required columns; v1 scheduled tasks were not migrated'
+        : 'Legacy scheduled_tasks table not found; no v1 scheduled tasks to migrate'
+      logger.warn(warning, { columns: [...schemaInfo.scheduled_tasks.columns] })
+      return [warning]
+    }
 
     const v1Tasks = db.all<V1ScheduledTaskRow>(
       sql.raw(
-        'SELECT id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status ' +
+        `SELECT id, agent_id, prompt, schedule_type, schedule_value, ` +
+          `${selectLegacyColumn(schemaInfo, 'scheduled_tasks', 'name', 'name', 'NULL')}, ` +
+          `${selectLegacyColumn(schemaInfo, 'scheduled_tasks', 'timeout_minutes', 'timeout_minutes', 'NULL')}, ` +
+          `${selectLegacyColumn(schemaInfo, 'scheduled_tasks', 'status', 'status', "'active'")} ` +
           'FROM agents_legacy.scheduled_tasks ' +
           'WHERE agent_id IN (SELECT id FROM agent)'
       )
@@ -507,15 +532,23 @@ export class AgentsMigrator extends BaseMigrator {
       migratedCount++
     }
 
-    const v1Subs = db.all<V1ChannelTaskSubscription>(
-      sql.raw(
-        'SELECT s.channel_id, s.task_id, c.agent_id AS channel_agent_id, t.agent_id AS task_agent_id ' +
-          'FROM agents_legacy.channel_task_subscriptions s ' +
-          'JOIN agent_channel c ON c.id = s.channel_id ' +
-          'JOIN agents_legacy.scheduled_tasks t ON t.id = s.task_id ' +
-          'JOIN agent a ON a.id = t.agent_id'
-      )
-    )
+    // Independent of the schedules above: losing channel links must not cost the
+    // user their already-migrated schedules.
+    const v1Subs = hasLegacyTable(schemaInfo, 'channel_task_subscriptions', CHANNEL_SUBSCRIPTION_REQUIRED_COLUMNS)
+      ? db.all<V1ChannelTaskSubscription>(
+          sql.raw(
+            'SELECT s.channel_id, s.task_id, c.agent_id AS channel_agent_id, t.agent_id AS task_agent_id ' +
+              'FROM agents_legacy.channel_task_subscriptions s ' +
+              'JOIN agent_channel c ON c.id = s.channel_id ' +
+              'JOIN agents_legacy.scheduled_tasks t ON t.id = s.task_id ' +
+              'JOIN agent a ON a.id = t.agent_id'
+          )
+        )
+      : []
+
+    if (v1Subs.length === 0 && !schemaInfo.channel_task_subscriptions.exists) {
+      warnings.push('Legacy channel_task_subscriptions table not found; channel-to-task links were not migrated')
+    }
 
     let subCount = 0
     let skippedCrossAgentSubCount = 0
@@ -539,6 +572,8 @@ export class AgentsMigrator extends BaseMigrator {
       skippedCrossAgentChannelLinks: skippedCrossAgentSubCount,
       sanitizedNames: droppedNameCount
     })
+
+    return warnings
   }
 
   private buildTriggerFromV1(v1: V1ScheduledTaskRow): Trigger | null {
@@ -617,24 +652,6 @@ type NormalizedLegacySessionMessage = {
   modelId: string | null
 }
 
-function selectLegacySessionColumn(
-  schemaInfo: AgentsSchemaInfo,
-  column: string,
-  alias: string,
-  fallbackExpr: string
-): string {
-  return schemaInfo.sessions.columns.has(column) ? `sessions.${column} AS ${alias}` : `${fallbackExpr} AS ${alias}`
-}
-
-function selectLegacyAgentColumn(
-  schemaInfo: AgentsSchemaInfo,
-  column: string,
-  alias: string,
-  fallbackExpr: string
-): string {
-  return schemaInfo.agents.columns.has(column) ? `agents.${column} AS ${alias}` : `${fallbackExpr} AS ${alias}`
-}
-
 function selectSessionWorkspaceSourceRows(db: DbType, schemaInfo: AgentsSchemaInfo): SessionWorkspaceSourceRow[] {
   if (
     !schemaInfo.agents.exists ||
@@ -651,11 +668,11 @@ function selectSessionWorkspaceSourceRows(db: DbType, schemaInfo: AgentsSchemaIn
   const columns = [
     'sessions.id AS session_id',
     'sessions.agent_id AS agent_id',
-    selectLegacySessionColumn(schemaInfo, 'accessible_paths', 'session_accessible_paths', 'NULL'),
-    selectLegacyAgentColumn(schemaInfo, 'accessible_paths', 'agent_accessible_paths', 'NULL'),
-    selectLegacySessionColumn(schemaInfo, 'sort_order', 'sort_order', 'NULL'),
-    selectLegacySessionColumn(schemaInfo, 'created_at', 'created_at', 'NULL'),
-    selectLegacySessionColumn(schemaInfo, 'updated_at', 'updated_at', 'NULL')
+    selectLegacyColumn(schemaInfo, 'sessions', 'accessible_paths', 'session_accessible_paths', 'NULL', 'sessions'),
+    selectLegacyColumn(schemaInfo, 'agents', 'accessible_paths', 'agent_accessible_paths', 'NULL', 'agents'),
+    selectLegacyColumn(schemaInfo, 'sessions', 'sort_order', 'sort_order', 'NULL', 'sessions'),
+    selectLegacyColumn(schemaInfo, 'sessions', 'created_at', 'created_at', 'NULL', 'sessions'),
+    selectLegacyColumn(schemaInfo, 'sessions', 'updated_at', 'updated_at', 'NULL', 'sessions')
   ]
 
   return db.all(
@@ -794,15 +811,6 @@ function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaI
   return derived.workspaces.length
 }
 
-function selectLegacyMessageColumn(
-  schemaInfo: AgentsSchemaInfo,
-  column: string,
-  alias: string,
-  fallbackExpr: string
-): string {
-  return schemaInfo.session_messages.columns.has(column) ? `${column} AS ${alias}` : `${fallbackExpr} AS ${alias}`
-}
-
 function normalizeLegacyRole(value: string | null): MessageRole {
   return value === 'user' || value === 'assistant' || value === 'system' ? value : 'assistant'
 }
@@ -864,13 +872,13 @@ export async function importLegacySessionMessages(
   if (!schemaInfo.session_messages.exists) return 0
 
   const selectColumns = [
-    selectLegacyMessageColumn(schemaInfo, 'id', 'legacyId', 'NULL'),
-    selectLegacyMessageColumn(schemaInfo, 'session_id', 'sessionId', 'NULL'),
-    selectLegacyMessageColumn(schemaInfo, 'role', 'role', "'assistant'"),
-    selectLegacyMessageColumn(schemaInfo, 'content', 'content', 'NULL'),
-    selectLegacyMessageColumn(schemaInfo, 'agent_session_id', 'agentSessionId', 'NULL'),
-    selectLegacyMessageColumn(schemaInfo, 'created_at', 'createdAt', 'NULL'),
-    selectLegacyMessageColumn(schemaInfo, 'updated_at', 'updatedAt', 'NULL')
+    selectLegacyColumn(schemaInfo, 'session_messages', 'id', 'legacyId', 'NULL'),
+    selectLegacyColumn(schemaInfo, 'session_messages', 'session_id', 'sessionId', 'NULL'),
+    selectLegacyColumn(schemaInfo, 'session_messages', 'role', 'role', "'assistant'"),
+    selectLegacyColumn(schemaInfo, 'session_messages', 'content', 'content', 'NULL'),
+    selectLegacyColumn(schemaInfo, 'session_messages', 'agent_session_id', 'agentSessionId', 'NULL'),
+    selectLegacyColumn(schemaInfo, 'session_messages', 'created_at', 'createdAt', 'NULL'),
+    selectLegacyColumn(schemaInfo, 'session_messages', 'updated_at', 'updatedAt', 'NULL')
   ]
   const orderBy = [
     schemaInfo.session_messages.columns.has('created_at') ? 'created_at ASC' : null,
@@ -939,7 +947,17 @@ export async function importLegacySessionMessages(
  * attached and BEFORE remapAgentPrefixIds — the inserted `agentId` is the
  * legacy agent id, which that step rewrites alongside `agent.id`.
  */
-export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, string> | undefined): Promise<void> {
+export async function migrateAgentMcps(
+  db: DbType,
+  mcpServerIdMapping: Map<string, string> | undefined,
+  schemaInfo: AgentsSchemaInfo
+): Promise<void> {
+  // `mcps` has existed since the first legacy schema, but reading it unguarded
+  // would still abort the whole migration on any db that lacks it.
+  if (!hasLegacyTable(schemaInfo, 'agents', ['id', 'mcps'])) {
+    return
+  }
+
   const rows = db.all<{ agentId: string; oldMcpId: string }>(
     sql.raw(
       `SELECT DISTINCT a.id AS agentId, je.value AS oldMcpId
@@ -991,16 +1009,27 @@ export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<strin
  * DB is attached AND before remapAgentPrefixIds rewrites target ids.
  *
  * Sessions are scoped per agentId.
+ *
+ * The legacy join is best-effort: `sort_order` only arrived in a later legacy
+ * schema, so on an older db the join is dropped and rows fall back to id order.
+ * The backfill itself must still run either way — leaving the `''` sentinel in
+ * place would be worse than losing the original ordering (issue #17470).
  */
-export function backfillAgentOrderKeys(db: DbType): void {
+export function backfillAgentOrderKeys(db: DbType, schemaInfo: AgentsSchemaInfo): void {
   type Row = { id: string }
 
+  const legacySort = (table: 'agents' | 'sessions'): { join: string; order: string } =>
+    hasLegacyTable(schemaInfo, table, ['id', 'sort_order'])
+      ? { join: `LEFT JOIN agents_legacy.${table} s ON a.id = s.id`, order: 'COALESCE(s.sort_order, 0) ASC, ' }
+      : { join: '', order: '' }
+
+  const agentSort = legacySort('agents')
   const agents = db.all(
     sql.raw(
       `SELECT a.id AS id FROM agent a
-       LEFT JOIN agents_legacy.agents s ON a.id = s.id
+       ${agentSort.join}
        WHERE a.order_key = ''
-       ORDER BY COALESCE(s.sort_order, 0) ASC, a.id ASC`
+       ORDER BY ${agentSort.order}a.id ASC`
     )
   ) as Row[]
   if (agents.length > 0) {
@@ -1010,12 +1039,13 @@ export function backfillAgentOrderKeys(db: DbType): void {
     logger.info(`Backfilled ${agents.length} agent order keys`)
   }
 
+  const sessionSort = legacySort('sessions')
   const sessions = db.all(
     sql.raw(
       `SELECT a.id AS id, a.agent_id AS agent_id FROM agent_session a
-       LEFT JOIN agents_legacy.sessions s ON a.id = s.id
+       ${sessionSort.join}
        WHERE a.order_key = ''
-       ORDER BY a.agent_id ASC, COALESCE(s.sort_order, 0) ASC, a.id ASC`
+       ORDER BY a.agent_id ASC, ${sessionSort.order}a.id ASC`
     )
   ) as Array<Row & { agent_id: string }>
   if (sessions.length === 0) return

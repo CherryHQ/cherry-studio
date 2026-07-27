@@ -1,13 +1,27 @@
-export type AgentsSourceTableName =
-  | 'agents'
-  | 'sessions'
-  | 'skills'
-  | 'agent_skills'
-  | 'scheduled_tasks'
-  | 'task_run_logs'
-  | 'channels'
-  | 'channel_task_subscriptions'
-  | 'session_messages'
+/**
+ * Every table a legacy `agents.db` may contain.
+ *
+ * This list drives schema probing, so it MUST stay a superset of the tables any
+ * migration code reads. It is deliberately wider than
+ * `AGENTS_TABLE_MIGRATION_SPECS`: `scheduled_tasks` and
+ * `channel_task_subscriptions` are imported by TypeScript rather than generated
+ * SQL, and `task_run_logs` is discarded outright — but all three still have to
+ * be probed before anything reads them. Probing and importing are separate
+ * concerns; only importing is spec-driven (see `getAgentsSourceTableNames`).
+ */
+export const AGENTS_PROBED_TABLE_NAMES = [
+  'agents',
+  'sessions',
+  'skills',
+  'agent_skills',
+  'scheduled_tasks',
+  'task_run_logs',
+  'channels',
+  'channel_task_subscriptions',
+  'session_messages'
+] as const
+
+export type AgentsSourceTableName = (typeof AGENTS_PROBED_TABLE_NAMES)[number]
 
 export type AgentsTableRowCounts = Record<AgentsSourceTableName, number>
 
@@ -283,14 +297,28 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   }
 })()
 
+/**
+ * Tables that have an import spec. Drives statement generation, row counting
+ * for progress totals, and post-import validation — NOT schema probing, which
+ * covers the wider `AGENTS_PROBED_TABLE_NAMES`.
+ */
 export function getAgentsSourceTableNames(): AgentsSourceTableName[] {
   return AGENTS_TABLE_MIGRATION_SPECS.map((spec) => spec.sourceTable)
 }
 
+/** Tables to probe. Superset of {@link getAgentsSourceTableNames}. */
+export function getAgentsProbedTableNames(): readonly AgentsSourceTableName[] {
+  return AGENTS_PROBED_TABLE_NAMES
+}
+
 export function createEmptyAgentsSchemaInfo(): AgentsSchemaInfo {
   return Object.fromEntries(
-    getAgentsSourceTableNames().map((tableName) => [tableName, { exists: false, columns: new Set<string>() }])
+    AGENTS_PROBED_TABLE_NAMES.map((tableName) => [tableName, { exists: false, columns: new Set<string>() }])
   ) as AgentsSchemaInfo
+}
+
+export function createEmptyAgentsRowCounts(): AgentsTableRowCounts {
+  return Object.fromEntries(AGENTS_PROBED_TABLE_NAMES.map((tableName) => [tableName, 0])) as AgentsTableRowCounts
 }
 
 export function getTotalAgentsRowCount(counts: Partial<AgentsTableRowCounts>): number {
@@ -299,6 +327,48 @@ export function getTotalAgentsRowCount(counts: Partial<AgentsTableRowCounts>): n
 
 export function quoteSqlitePath(path: string): string {
   return `'${path.replaceAll("'", "''")}'`
+}
+
+/**
+ * Table-level guard for reads against the attached `agents_legacy` schema.
+ *
+ * Returns false when the table is absent, or when a column the caller has no
+ * fallback for is missing — letting the caller skip its step instead of having
+ * SQLite raise `no such table` / `no such column` and abort the entire
+ * migration (issue #17470). Pass only genuinely load-bearing columns as
+ * `requiredColumns`; anything with a sensible default belongs in
+ * {@link selectLegacyColumn} instead.
+ */
+export function hasLegacyTable(
+  schemaInfo: AgentsSchemaInfo,
+  table: AgentsSourceTableName,
+  requiredColumns: readonly string[] = []
+): boolean {
+  const schema = schemaInfo[table]
+  if (!schema?.exists) {
+    return false
+  }
+  return requiredColumns.every((column) => schema.columns.has(column))
+}
+
+/**
+ * Column-level fallback for reads against the attached `agents_legacy` schema:
+ * emits `<column> AS <alias>` when the source column exists, else
+ * `<fallbackExpr> AS <alias>`. Pass `qualifier` when the SELECT joins more than
+ * one legacy table and the column needs qualifying.
+ */
+export function selectLegacyColumn(
+  schemaInfo: AgentsSchemaInfo,
+  table: AgentsSourceTableName,
+  column: string,
+  alias: string,
+  fallbackExpr: string,
+  qualifier?: string
+): string {
+  if (!schemaInfo[table]?.columns.has(column)) {
+    return `${fallbackExpr} AS ${alias}`
+  }
+  return `${qualifier ? `${qualifier}.` : ''}${column} AS ${alias}`
 }
 
 function resolveColumnSelection(column: AgentsColumnExpr, sourceColumns: Set<string>) {

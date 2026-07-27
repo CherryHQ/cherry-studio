@@ -6,8 +6,9 @@ import { type MigrationPaths, resolveMigrationPaths } from '../core/MigrationPat
 import {
   type AgentsSchemaInfo,
   type AgentsTableRowCounts,
+  createEmptyAgentsRowCounts,
   createEmptyAgentsSchemaInfo,
-  getAgentsSourceTableNames
+  getAgentsProbedTableNames
 } from '../migrators/mappings/AgentsDbMappings'
 
 export class LegacyAgentsDbReader {
@@ -37,7 +38,7 @@ export class LegacyAgentsDbReader {
     try {
       const schemaInfo = createEmptyAgentsSchemaInfo()
 
-      for (const tableName of getAgentsSourceTableNames()) {
+      for (const tableName of getAgentsProbedTableNames()) {
         const existsRow = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName)
 
         if (existsRow === undefined) {
@@ -72,7 +73,7 @@ export class LegacyAgentsDbReader {
       const counts = this.createEmptyCounts()
       const effectiveSchemaInfo = schemaInfo ?? this.inspectSchema()
 
-      for (const tableName of getAgentsSourceTableNames()) {
+      for (const tableName of getAgentsProbedTableNames()) {
         if (!effectiveSchemaInfo[tableName].exists) {
           continue
         }
@@ -89,6 +90,6 @@ export class LegacyAgentsDbReader {
   }
 
   private createEmptyCounts(): AgentsTableRowCounts {
-    return Object.fromEntries(getAgentsSourceTableNames().map((tableName) => [tableName, 0])) as AgentsTableRowCounts
+    return createEmptyAgentsRowCounts()
   }
 }

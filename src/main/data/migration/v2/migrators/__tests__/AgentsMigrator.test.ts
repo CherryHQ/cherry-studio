@@ -54,6 +54,22 @@ function createSchemaInfo() {
   }
 }
 
+/**
+ * `createSchemaInfo` carries the bare minimum columns. Guarded legacy reads skip
+ * work when a column they need is absent, so tests exercising the *present*
+ * branch have to opt the column in explicitly.
+ */
+function createSchemaInfoWithColumns(extra: Partial<Record<keyof ReturnType<typeof createSchemaInfo>, string[]>>) {
+  const info = createSchemaInfo()
+  for (const [table, columns] of Object.entries(extra)) {
+    const entry = info[table as keyof typeof info]
+    for (const column of columns ?? []) {
+      entry.columns.add(column)
+    }
+  }
+  return info
+}
+
 function createMigrationContext(overrides: Record<string, unknown> = {}) {
   return {
     paths: {
@@ -177,12 +193,35 @@ describe('AgentsMigrator', () => {
       .mockReturnValueOnce([])
     const run = vi.fn().mockReturnValue(undefined)
 
-    backfillAgentOrderKeys({ all, run } as never)
+    backfillAgentOrderKeys(
+      { all, run } as never,
+      createSchemaInfoWithColumns({ agents: ['sort_order'], sessions: ['sort_order'] }) as never
+    )
 
     const [query] = all.mock.calls[0]
     expect(query.queryChunks[0]?.value?.[0]).toContain('LEFT JOIN agents_legacy.agents')
     expect(query.queryChunks[0]?.value?.[0]).toContain('ORDER BY COALESCE(s.sort_order, 0) ASC')
     expect(run).toHaveBeenCalledTimes(2)
+  })
+
+  it('backfills order keys without the legacy join when sort_order predates the legacy schema', async () => {
+    // `sort_order` arrived in a later legacy migration. Joining regardless would
+    // raise `no such column` and abort the migration; falling back to id order
+    // loses the original ordering but keeps every row out of the `''` sentinel.
+    const all = vi
+      .fn()
+      .mockReturnValueOnce([{ id: 'agent-a' }])
+      .mockReturnValueOnce([])
+    const run = vi.fn().mockReturnValue(undefined)
+
+    backfillAgentOrderKeys({ all, run } as never, createSchemaInfo() as never)
+
+    const sql = all.mock.calls[0][0].queryChunks[0]?.value?.[0]
+    expect(sql).not.toContain('LEFT JOIN')
+    expect(sql).not.toContain('sort_order')
+    expect(sql).toContain('ORDER BY a.id ASC')
+    // The backfill still happens — that is the point of degrading rather than skipping.
+    expect(run).toHaveBeenCalledTimes(1)
   })
 
   it('rolls back and detaches when an import statement fails inside the transaction', async () => {
@@ -397,7 +436,11 @@ describe('AgentsMigrator', () => {
         ['mcp-b', 'new-b']
       ])
 
-      await migrateAgentMcps({ all, insert } as never, mapping)
+      await migrateAgentMcps(
+        { all, insert } as never,
+        mapping,
+        createSchemaInfoWithColumns({ agents: ['mcps'] }) as never
+      )
 
       expect(all).toHaveBeenCalledTimes(1)
       // Batch insert — single values() call with 3 remapped rows
@@ -425,7 +468,11 @@ describe('AgentsMigrator', () => {
       const insert = vi.fn().mockReturnValue({ values: valuesFn })
       const mapping = new Map([['mcp-a', 'new-a']])
 
-      await migrateAgentMcps({ all, insert } as never, mapping)
+      await migrateAgentMcps(
+        { all, insert } as never,
+        mapping,
+        createSchemaInfoWithColumns({ agents: ['mcps'] }) as never
+      )
 
       expect(insert).toHaveBeenCalledTimes(1)
       const valuesCall = valuesFn.mock.calls[0][0]
@@ -438,9 +485,25 @@ describe('AgentsMigrator', () => {
       const all = vi.fn().mockReturnValue([])
       const insert = vi.fn()
 
-      await migrateAgentMcps({ all, insert } as never, new Map())
+      await migrateAgentMcps(
+        { all, insert } as never,
+        new Map(),
+        createSchemaInfoWithColumns({ agents: ['mcps'] }) as never
+      )
 
       expect(all).toHaveBeenCalledTimes(1)
+      expect(insert).not.toHaveBeenCalled()
+    })
+
+    it('does not query at all when the legacy agents table has no mcps column', async () => {
+      // json_each(a.mcps) against a db without the column raises `no such column`
+      // and takes the whole migration down with it.
+      const all = vi.fn()
+      const insert = vi.fn()
+
+      await migrateAgentMcps({ all, insert } as never, new Map(), createSchemaInfo() as never)
+
+      expect(all).not.toHaveBeenCalled()
       expect(insert).not.toHaveBeenCalled()
     })
 
@@ -448,9 +511,13 @@ describe('AgentsMigrator', () => {
       const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', oldMcpId: 'mcp-a' }])
       const insert = vi.fn()
 
-      await expect(migrateAgentMcps({ all, insert } as never, undefined)).rejects.toThrow(
-        /mcpServerIdMapping not found/
-      )
+      await expect(
+        migrateAgentMcps(
+          { all, insert } as never,
+          undefined,
+          createSchemaInfoWithColumns({ agents: ['mcps'] }) as never
+        )
+      ).rejects.toThrow(/mcpServerIdMapping not found/)
       expect(insert).not.toHaveBeenCalled()
     })
   })

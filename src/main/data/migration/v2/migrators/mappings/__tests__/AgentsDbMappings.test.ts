@@ -4,6 +4,7 @@ import {
   AGENTS_TABLE_MIGRATION_SPECS,
   buildAgentsImportStatements,
   createEmptyAgentsSchemaInfo,
+  getAgentsProbedTableNames,
   getAgentsSourceTableNames,
   getTotalAgentsRowCount,
   quoteSqlitePath
@@ -218,6 +219,24 @@ describe('AgentsDbMappings', () => {
 
   it('keeps the table spec list aligned with the source table names', () => {
     expect(AGENTS_TABLE_MIGRATION_SPECS.map((spec) => spec.sourceTable)).toEqual(getAgentsSourceTableNames())
+  })
+
+  // Probing and importing are deliberately separate lists. Collapsing them
+  // either leaves tables unprobed (which is what crashed the migration in
+  // issue #17470) or inflates the row totals that drive progress and validation.
+  it('probes every legacy table, including those with no import spec', () => {
+    const probed = getAgentsProbedTableNames()
+
+    expect(probed).toEqual(expect.arrayContaining(getAgentsSourceTableNames()))
+    expect(probed).toEqual(expect.arrayContaining(['scheduled_tasks', 'task_run_logs', 'channel_task_subscriptions']))
+    // The schemaInfo every guard reads must have a real entry for each probed
+    // table; a missing key reads as `undefined` and throws at runtime.
+    expect(Object.keys(createEmptyAgentsSchemaInfo())).toEqual([...probed])
+  })
+
+  it('keeps row-count totals scoped to importable tables only', () => {
+    expect(getAgentsSourceTableNames()).not.toContain('scheduled_tasks')
+    expect(getTotalAgentsRowCount({ agents: 1, scheduled_tasks: 999 })).toBe(1)
   })
 
   it('quotes sqlite file paths safely', () => {
