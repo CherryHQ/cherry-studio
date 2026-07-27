@@ -4,6 +4,7 @@ import type { SerializedError } from '@renderer/types/error'
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
 import { isMcpErrorMessage, isQuotaErrorMessage } from '@renderer/utils/errorClassifier'
 import { readDefaultModel } from '@renderer/utils/model'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { DiagnosisResult } from '@shared/data/types/uiParts'
 
@@ -19,15 +20,15 @@ export interface DiagnosisContext {
   modelId?: string
 }
 
-async function getCherryAiFreeModel(): Promise<Model | undefined> {
+async function getCherryAiDefaultFreeModel(): Promise<Model | undefined> {
   try {
-    const models = await ipcApi.request('ai.provider.model.list', { providerId: 'cherryai' })
-    const first = models[0]
+    const models = await ipcApi.request('ai.provider.model.list', { providerId: CHERRYAI_PROVIDER_ID })
+    const defaultModel = models.find((model) => model.id === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     // listModels returns Partial<Model>; the diagnosis flow only needs `.id`,
     // which the IPC always populates. Cast through the known-complete subset.
-    return first?.id ? (first as Model) : undefined
+    return defaultModel?.id ? (defaultModel as Model) : undefined
   } catch {
-    logger.warn('Failed to fetch CherryAI free models')
+    logger.warn('Failed to fetch the default CherryAI free model')
     return undefined
   }
 }
@@ -36,8 +37,8 @@ async function buildModelsToTry(context?: DiagnosisContext): Promise<Model[]> {
   const defaultModel = await readDefaultModel()
   const models: Model[] = []
 
-  // CherryAI free model as primary diagnosis model
-  const cherryModel = await getCherryAiFreeModel()
+  // CherryAI default free model as primary diagnosis model
+  const cherryModel = await getCherryAiDefaultFreeModel()
   if (cherryModel) {
     models.push(cherryModel)
   }
