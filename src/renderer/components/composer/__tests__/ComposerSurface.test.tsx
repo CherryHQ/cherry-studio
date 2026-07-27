@@ -507,13 +507,13 @@ describe('ComposerSurface', () => {
     expect(mocks.editorOptions?.immediatelyRender).toBe(false)
   })
 
-  it('mounts the editor before deferred dynamic controls', () => {
+  it('mounts deferred dynamic controls on the first frame after the editor is ready', () => {
+    mocks.stabilizeEditor = true
     const animationFrames: FrameRequestCallback[] = []
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       animationFrames.push(callback)
       return animationFrames.length
     })
-    const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
     const flushAnimationFrame = () => {
       act(() => {
         const callbacks = animationFrames.splice(0)
@@ -534,15 +534,19 @@ describe('ComposerSurface', () => {
       expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
       expect(document.querySelector('[data-composer-controls-loading]')).toBeInTheDocument()
 
-      flushAnimationFrame()
+      act(() => {
+        mocks.editorOptions.onCreate({ editor: mocks.editorInstance })
+      })
+
       expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).toBeInTheDocument()
 
       flushAnimationFrame()
+
       expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
       expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
     } finally {
       requestAnimationFrameSpy.mockRestore()
-      cancelAnimationFrameSpy.mockRestore()
     }
   })
 
