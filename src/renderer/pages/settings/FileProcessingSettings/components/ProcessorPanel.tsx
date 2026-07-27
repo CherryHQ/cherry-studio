@@ -1,6 +1,7 @@
 import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import {
+  SettingGroup,
   SettingHelpLink,
   SettingHelpText,
   SettingHelpTextRow,
@@ -178,7 +179,7 @@ export function ProcessorPanel({
   )
 
   return (
-    <div className="flex w-full flex-col gap-2">
+    <SettingGroup className="flex w-full flex-col gap-2">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-2">
           <ProcessorAvatar processorId={processor.id} />
@@ -302,6 +303,6 @@ export function ProcessorPanel({
           onChange={(value) => void handleLanguagesChange(value)}
         />
       ) : null}
-    </div>
+    </SettingGroup>
   )
 }

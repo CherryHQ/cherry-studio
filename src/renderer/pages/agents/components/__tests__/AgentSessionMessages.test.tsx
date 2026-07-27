@@ -34,7 +34,7 @@ vi.mock('../../messages/agentMessageListAdapter', () => ({
   useAgentMessageListProviderValue: useAgentMessageListProviderValueMock
 }))
 
-// The mount effect fires ipcApi.request('ai.prewarm_agent_session' / 'ai.close_agent_session_warm');
+// The mount effect fires ipcApi.request('ai.agent.session.prewarm' / 'ai.agent.session.close_warm');
 // a static mock keeps it from crashing (this suite doesn't assert on the warm-up calls).
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn().mockResolvedValue(undefined), on: vi.fn(() => () => {}) }

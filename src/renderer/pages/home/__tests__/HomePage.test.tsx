@@ -1,8 +1,10 @@
+import { cacheService } from '@data/CacheService'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -708,6 +710,9 @@ describe('HomePage', () => {
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
     homeMocks.topicsById.clear()
+    // HomePage writes its write-only persist keys (topic expansion, global-search
+    // recents) straight through cacheService, bypassing the hook mock below.
+    MockCacheUtils.resetMocks()
     homeMocks.activeTopicOptions = undefined
     homeMocks.assistantResourceListTopicsSource = undefined
     homeMocks.createdAssistantTopicsSource = undefined
@@ -897,7 +902,7 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move topics left' }))
 
     await waitFor(() => expect(homeMocks.preferenceValues.get('topic.tab.position')).toBe('left'))
-    expect(homeMocks.persistCacheValues.get('ui.topic.expansion.assistant')).toEqual([
+    expect(cacheService.getPersist('ui.topic.expansion.assistant')).toEqual([
       'topic:assistant:assistant-2',
       'topic:assistant:assistant-3',
       'topic:assistant:unknown'

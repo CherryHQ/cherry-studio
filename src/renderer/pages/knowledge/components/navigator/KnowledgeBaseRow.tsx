@@ -123,8 +123,8 @@ const KnowledgeBaseRow = ({
       <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
         <div
           className={cn(
-            'group/row flex w-full items-center gap-1 rounded-md px-2.5 py-1.5 transition-colors',
-            selected ? 'bg-secondary' : 'hover:bg-accent'
+            'group/row flex h-8 w-full items-center gap-1 rounded-md px-2.5 transition-colors',
+            selected ? 'bg-muted text-foreground' : 'hover:bg-muted'
           )}>
           <Button
             type="button"

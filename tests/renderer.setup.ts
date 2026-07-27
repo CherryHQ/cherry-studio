@@ -569,13 +569,27 @@ vi.mock('@cherrystudio/ui', () => {
     MenuList: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'menu-list' }, children),
     MenuDivider: (props) => React.createElement('div', { ...props, 'data-testid': 'menu-divider' }),
-    MenuItem: ({ children, icon, label, onClick, ...props }) =>
+    MenuItem: ({ active, children, icon, label, labelClassName, onClick, suffix, ...props }) =>
       React.createElement(
         'button',
-        { ...props, type: 'button', onClick, 'data-testid': 'menu-item' },
+        {
+          ...props,
+          type: 'button',
+          onClick,
+          'data-active': active ? 'true' : undefined,
+          'data-testid': 'menu-item'
+        },
         icon,
-        label,
+        React.createElement('span', { className: labelClassName }, label),
+        suffix,
         children
+      ),
+    PageHeader: ({ action, bordered, title, ...props }) =>
+      React.createElement(
+        'div',
+        { ...props, 'data-bordered': bordered ? 'true' : undefined, 'data-testid': 'page-header' },
+        React.createElement('h2', null, title),
+        action
       ),
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
