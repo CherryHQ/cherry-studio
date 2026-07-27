@@ -281,6 +281,8 @@ describe('AiUsageRecordMigrator', () => {
           providerId: 'multi-key',
           modelId: 'm1',
           name: 'm1',
+          capabilities: [],
+          supportsStreaming: true,
           isEnabled: true,
           isHidden: false,
           orderKey: 'a0'
@@ -290,6 +292,8 @@ describe('AiUsageRecordMigrator', () => {
           providerId: 'disabled-key',
           modelId: 'm1',
           name: 'm1',
+          capabilities: [],
+          supportsStreaming: true,
           isEnabled: true,
           isHidden: false,
           orderKey: 'a0'
