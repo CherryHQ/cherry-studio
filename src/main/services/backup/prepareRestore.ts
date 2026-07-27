@@ -35,12 +35,15 @@ import type { BackupManifestDegradation, BackupPreset } from './manifest'
 import { currentBackupPlatform } from './platform'
 import { type ManagedRootRebaseTable, prepareManagedRootRebase } from './portability/managedPathRebase'
 import { materializePortableDatabase } from './portability/materializeDatabase'
-import { collectResourceRequirements } from './resources/collectRequirements'
+import { collectResourceRequirements, resolveResourceRoots } from './resources/collectRequirements'
 import { measureResourceCoverage, type ResourceCoverage } from './resources/coverage'
+import { planResourceInstalls } from './resources/planInstalls'
 
 const logger = loggerService.withContext('backupPrepareRestore')
 
 const STAGED_DB_NAME = 'backup.sqlite'
+/** Staged payload root inside both the archive and this restore's staging tree. */
+const RESOURCES_DIR_NAME = 'resources'
 
 export interface PrepareRestoreInputs {
   /** Untrusted `.cherrybackup` chosen by the user. */
@@ -52,15 +55,31 @@ export interface RestorePreview {
   readonly restoreId: string
   readonly preset: BackupPreset
   readonly coverage: ResourceCoverage
+  /**
+   * What Full would do to this device's files, counted at preparation time
+   * (§8). Zero for Lite, which installs nothing. The preboot state machine owns
+   * the final result — a target can still appear or vanish before boot.
+   */
+  readonly resources: { readonly install: number; readonly replace: number }
   /** What materialization reduced, so a degraded restore never looks complete. */
   readonly degradations: readonly BackupManifestDegradation[]
   /** True when the archive's database was an older chain migrated forward. */
   readonly migratedForward: boolean
 }
 
-/** Where this restore's staged database lives, userData-relative (relocation-safe, §6.6). */
+/** This restore's staging tree, userData-relative (relocation-safe, §6.6). */
+function stagingRelDir(restoreId: string): string {
+  return `${path.basename(application.getPath('feature.backup.restore.staging'))}/${restoreId}`
+}
+
+/** Where this restore's staged database lives, userData-relative. */
 function stagedDbRelPath(restoreId: string): string {
-  return `${path.basename(application.getPath('feature.backup.restore.staging'))}/${restoreId}/${STAGED_DB_NAME}`
+  return `${stagingRelDir(restoreId)}/${STAGED_DB_NAME}`
+}
+
+/** Where this restore's staged resource payloads live, mirroring the archive's `resources/`. */
+function stagedResourcesRelDir(restoreId: string): string {
+  return `${stagingRelDir(restoreId)}/${RESOURCES_DIR_NAME}`
 }
 
 /**
@@ -95,7 +114,7 @@ function buildRebaseTable(producer: {
   return prepared.table
 }
 
-export async function prepareLiteRestore(inputs: PrepareRestoreInputs): Promise<RestorePreview> {
+export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<RestorePreview> {
   const { archivePath, signal } = inputs
   const stagingRoot = application.getPath('feature.backup.restore.staging')
 
@@ -109,9 +128,7 @@ export async function prepareLiteRestore(inputs: PrepareRestoreInputs): Promise<
   const restoreId = randomUUID()
   let promoted = false
   try {
-    if (admitted.manifest.preset !== 'lite') {
-      throw new Error(`this build prepares Lite archives only; got preset '${admitted.manifest.preset}'`)
-    }
+    const preset = admitted.manifest.preset
 
     const materialized = await materializePortableDatabase({
       dbPath: admitted.db.path,
@@ -125,17 +142,36 @@ export async function prepareLiteRestore(inputs: PrepareRestoreInputs): Promise<
       userDataPath
     })
 
-    // Move the sealed database out of admission's temporary tree and into the
-    // deterministic slot the journal names. Same volume, so this is a rename.
+    // Decide the whole install plan BEFORE moving anything: a unit that cannot
+    // be installed refuses the restore here, where nothing has been touched.
+    const plan = planResourceInstalls({
+      resources: admitted.resources,
+      userDataPath,
+      roots: resolveResourceRoots(),
+      restoreId,
+      stagingRelDir: stagedResourcesRelDir(restoreId),
+      platform: currentBackupPlatform()
+    })
+
+    // Move the sealed payloads out of admission's temporary tree and into the
+    // deterministic slots the journal names. Same volume, so these are renames;
+    // the resource tree moves as ONE unit because its internal layout is what
+    // each entry's staging path is relative to.
     const promotePath = path.resolve(userDataPath, stagedDbRelPath(restoreId))
     fs.mkdirSync(path.dirname(promotePath), { recursive: true })
     fs.renameSync(admitted.db.path, promotePath)
     promoted = true
+    if (plan.entries.length > 0) {
+      fs.renameSync(
+        path.join(admitted.stagingDir, RESOURCES_DIR_NAME),
+        path.resolve(userDataPath, stagedResourcesRelDir(restoreId))
+      )
+    }
 
     writeRestoreJournalV2({
       version: 2,
       restoreId,
-      preset: 'lite',
+      preset,
       createdAt: new Date().toISOString(),
       state: 'prepared',
       db: {
@@ -143,12 +179,26 @@ export async function prepareLiteRestore(inputs: PrepareRestoreInputs): Promise<
         aside: dbAsideRelPath(restoreId),
         chain: materialized.chain.map((entry) => ({ folderMillis: entry.folderMillis, hash: entry.hash }))
       },
-      resourceInstalls: []
+      resourceInstalls: [...plan.entries]
     })
 
     const degradations = admitted.manifest.degradations
-    logger.info('Restore prepared', { restoreId, coverage, migratedForward: admitted.migratedForward })
-    return { restoreId, preset: 'lite', coverage, degradations, migratedForward: admitted.migratedForward }
+    logger.info('Restore prepared', {
+      restoreId,
+      preset,
+      coverage,
+      installs: plan.entries.length,
+      replacing: plan.replace,
+      migratedForward: admitted.migratedForward
+    })
+    return {
+      restoreId,
+      preset,
+      coverage,
+      resources: { install: plan.install, replace: plan.replace },
+      degradations,
+      migratedForward: admitted.migratedForward
+    }
   } catch (error) {
     // The staged database is only reachable through the journal; without one it
     // is garbage this operation created and must remove.

@@ -8,7 +8,7 @@ import { BackupBusyError } from './errors'
 import { exportArchive, type ExportArchiveResult } from './exportArchive'
 import type { BackupPreset } from './manifest'
 import { runPostPromotionWork } from './postPromotion'
-import { armPreparedRestore, cancelPreparedRestore, prepareLiteRestore, type RestorePreview } from './prepareRestore'
+import { armPreparedRestore, cancelPreparedRestore, prepareRestore, type RestorePreview } from './prepareRestore'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -126,7 +126,7 @@ export class BackupService extends BaseService {
    * state; {@link armRestore} is what commits to it.
    */
   public prepareRestore(archivePath: string, signal?: AbortSignal): Promise<RestorePreview> {
-    return this.runExclusive('prepare-restore', () => prepareLiteRestore({ archivePath, signal }))
+    return this.runExclusive('prepare-restore', () => prepareRestore({ archivePath, signal }))
   }
 
   /**
