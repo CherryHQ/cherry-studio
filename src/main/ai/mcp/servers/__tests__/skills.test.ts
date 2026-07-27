@@ -28,7 +28,16 @@ async function callTool(server: SkillsServerInstance, name: string, args: Record
 }
 
 function mockMarketplace(skills: unknown[]) {
-  fetchMock.mockResolvedValue({ ok: true, json: async () => ({ skills }) })
+  fetchMock.mockImplementation(async (url: string) => ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: async () => {
+      if (url.startsWith('https://skills.sh/')) return { skills: [] }
+      if (url.startsWith('https://clawhub.ai/')) return { results: [] }
+      return { skills }
+    }
+  }))
 }
 
 describe('SkillsServer', () => {
@@ -50,15 +59,85 @@ describe('SkillsServer', () => {
           namespace: 'vercel-labs',
           description: 'React perf',
           author: 'vercel',
+          stars: 42,
           installs: 100,
-          metadata: { repoOwner: 'vercel-labs', repoName: 'agent-skills', directoryPath: 'skills/react-best-practices' }
+          sourceUrl: 'https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices',
+          metadata: {
+            repoOwner: 'vercel-labs',
+            repoName: 'agent-skills',
+            directoryPath: 'skills/react-best-practices'
+          }
         }
       ])
 
       const result = await callTool(createServer(), 'search_skills', { query: 'react perf' })
+      const payload = JSON.parse(
+        result.content[0].text.slice(result.content[0].text.indexOf('['), result.content[0].text.lastIndexOf(']') + 1)
+      )
 
       expect(result.isError).toBeFalsy()
-      expect(result.content[0].text).toContain('claude-plugins:vercel-labs/agent-skills/skills/react-best-practices')
+      expect(payload).toEqual([
+        expect.objectContaining({
+          stars: 42,
+          source_registry: 'claude-plugins.dev',
+          source_url: 'https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices',
+          install_source: 'claude-plugins:vercel-labs/agent-skills/skills/react-best-practices'
+        })
+      ])
+    })
+
+    it('searches every marketplace supported by the renderer', async () => {
+      fetchMock.mockImplementation(async (url: string) => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => {
+          if (url.startsWith('https://skills.sh/')) {
+            return {
+              query: 'developer tools',
+              count: 1,
+              skills: [
+                {
+                  id: 'owner/repo/web-search',
+                  skillId: 'web-search',
+                  name: 'Web Search',
+                  source: 'owner/repo',
+                  installs: 12
+                }
+              ]
+            }
+          }
+          if (url.startsWith('https://clawhub.ai/')) {
+            return {
+              results: [
+                {
+                  score: 1,
+                  slug: 'code-review',
+                  displayName: 'Code Review',
+                  summary: 'Review code',
+                  version: '1.0.0',
+                  updatedAt: 1,
+                  ownerHandle: 'owner'
+                }
+              ]
+            }
+          }
+          return { skills: [] }
+        }
+      }))
+
+      const result = await callTool(createServer(), 'search_skills', { query: 'developer tools' })
+      const payload = JSON.parse(
+        result.content[0].text.slice(result.content[0].text.indexOf('['), result.content[0].text.lastIndexOf(']') + 1)
+      )
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(payload).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ source_registry: 'skills.sh', install_source: 'skills.sh:owner/repo/web-search' }),
+          expect.objectContaining({ source_registry: 'clawhub.ai', install_source: 'clawhub:code-review' })
+        ])
+      )
     })
 
     it('builds install_source from directoryPath, not the display name (regression)', async () => {

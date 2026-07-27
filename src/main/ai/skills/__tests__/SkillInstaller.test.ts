@@ -4,6 +4,8 @@ const mockPathExists = vi.fn()
 const mockCopyDirectoryRecursive = vi.fn()
 const mockDeleteDirectoryRecursive = vi.fn()
 const mockFsRename = vi.fn()
+const mockFsLstat = vi.fn()
+const mockFsReaddir = vi.fn()
 
 vi.mock('@main/utils/legacyFile', () => ({
   pathExists: (...args: unknown[]) => mockPathExists(...args)
@@ -16,7 +18,9 @@ vi.mock('@main/utils/fileOperations', () => ({
 
 vi.mock('fs', () => ({
   promises: {
-    rename: (...args: unknown[]) => mockFsRename(...args)
+    rename: (...args: unknown[]) => mockFsRename(...args),
+    lstat: (...args: unknown[]) => mockFsLstat(...args),
+    readdir: (...args: unknown[]) => mockFsReaddir(...args)
   }
 }))
 
@@ -31,6 +35,7 @@ describe('SkillInstaller', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockFsLstat.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
     installer = new SkillInstaller()
   })
 
@@ -51,5 +56,19 @@ describe('SkillInstaller', () => {
 
       expect(mockCopyDirectoryRecursive).toHaveBeenCalledWith('/tmp/my-skill', '/global-skills/my-skill')
     })
+  })
+
+  it('recovers every hidden backup before reconciliation can prune the catalog', async () => {
+    mockFsReaddir.mockResolvedValue([
+      { name: '.first.bak', isDirectory: () => true },
+      { name: 'ordinary', isDirectory: () => true }
+    ])
+    mockFsLstat.mockResolvedValue({ isDirectory: () => true })
+    mockPathExists.mockResolvedValue(false)
+    mockFsRename.mockResolvedValue(undefined)
+
+    await installer.recoverInterruptedInstalls('/global-skills')
+
+    expect(mockFsRename).toHaveBeenCalledWith('/global-skills/.first.bak', '/global-skills/first')
   })
 })

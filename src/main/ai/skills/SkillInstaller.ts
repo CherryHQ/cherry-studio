@@ -1,4 +1,4 @@
-import * as crypto from 'node:crypto'
+import { createHash } from 'node:crypto'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -28,14 +28,13 @@ export class SkillInstaller {
       return
     }
 
-    // Hidden name (leading dot) so a crash-orphaned backup sitting next to the skill in the
-    // library root is skipped by the reconcile scanner instead of being adopted as a phantom skill.
-    const backupPath = path.join(path.dirname(destPath), `.${path.basename(destPath)}.bak`)
+    await this.recoverInterruptedInstall(destPath)
+
+    const backupPath = this.getBackupPath(destPath)
     let hasBackup = false
 
     try {
       if (await pathExists(destPath)) {
-        await this.safeRemoveDirectory(backupPath, 'stale backup')
         await fs.promises.rename(destPath, backupPath)
         hasBackup = true
         logger.debug('Backed up existing skill folder', { backupPath })
@@ -45,7 +44,7 @@ export class SkillInstaller {
       logger.debug('Skill folder copied to destination', { destPath })
 
       if (hasBackup) {
-        await this.safeRemoveDirectory(backupPath, 'backup skill folder')
+        await deleteDirectoryRecursive(backupPath)
       }
     } catch (error) {
       if (hasBackup) {
@@ -53,6 +52,50 @@ export class SkillInstaller {
         await this.safeRename(backupPath, destPath, 'skill folder backup')
       }
       throw error
+    }
+  }
+
+  /**
+   * Restore the complete old directory when a process exited before deleting its
+   * backup marker. The replacement is uncommitted while that marker exists.
+   */
+  async recoverInterruptedInstall(destPath: string): Promise<void> {
+    const backupPath = this.getBackupPath(destPath)
+    let backupStats: fs.Stats
+    try {
+      backupStats = await fs.promises.lstat(backupPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+    if (!backupStats.isDirectory()) {
+      logger.warn('Ignoring non-directory skill backup marker', { backupPath })
+      return
+    }
+
+    if (await pathExists(destPath)) {
+      await this.safeRemoveDirectory(destPath, 'uncommitted skill folder')
+    }
+
+    await fs.promises.rename(backupPath, destPath)
+    logger.info('Recovered interrupted skill install', { destPath, backupPath })
+  }
+
+  /** Restore every interrupted publish before reconcile considers pruning. */
+  async recoverInterruptedInstalls(storageRoot: string): Promise<void> {
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const match = entry.name.match(/^\.(.+)\.bak$/)
+      if (!match?.[1]) continue
+      await this.recoverInterruptedInstall(path.join(storageRoot, match[1]))
     }
   }
 
@@ -81,7 +124,11 @@ export class SkillInstaller {
       throw new Error(`SKILL.md not found in ${skillDir}`)
     }
     const content = await fs.promises.readFile(skillMdPath, 'utf-8')
-    return crypto.createHash('sha256').update(content).digest('hex')
+    return createHash('sha256').update(content).digest('hex')
+  }
+
+  private getBackupPath(destPath: string): string {
+    return path.join(path.dirname(destPath), `.${path.basename(destPath)}.bak`)
   }
 
   private async safeRename(from: string, to: string, label: string): Promise<void> {

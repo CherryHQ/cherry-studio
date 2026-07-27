@@ -3,12 +3,12 @@ import { skillService } from '@main/ai/skills/SkillService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
-import { normalizeClaudePlugins } from '@shared/utils/skillMarketplace'
+import { searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
 import { net } from 'electron'
 
 const logger = loggerService.withContext('McpServer:Skills')
 
-const MARKETPLACE_BASE_URL = 'https://claude-plugins.dev'
+const REQUEST_TIMEOUT_MS = 15_000
 
 const SEARCH_TOOL: Tool = {
   name: 'search_skills',
@@ -29,7 +29,7 @@ const SEARCH_TOOL: Tool = {
 const INSTALL_TOOL: Tool = {
   name: 'install_skill',
   description:
-    "Install ONE marketplace skill into Cherry Studio's managed library and enable it for the current agent. Pass the exact `install_source` string from a search_skills result — do NOT construct it yourself, and do NOT run `npx skills add`, `git clone`, or any shell command. Cherry clones the repo, installs just that single skill, and registers it. Call this only when the user intends to install the skill; the active Claude permission mode controls whether execution prompts or runs directly.",
+    "Install ONE marketplace skill into Cherry Studio's managed library and enable it for the current agent. Pass the exact `install_source` string from a search_skills result — do NOT construct it yourself, and do NOT run `npx skills add`, `git clone`, or any shell command. Cherry clones the repo, installs just that single skill, and registers it. Call this only after the user explicitly confirms the installation; Cherry enforces that confirmation independently of the agent permission mode.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -107,19 +107,17 @@ class SkillsServer {
     const query = args.query
     if (!query) throw new McpError(ErrorCode.InvalidParams, "'query' is required for search_skills")
 
-    const url = new URL(`${MARKETPLACE_BASE_URL}/api/skills`)
-    url.searchParams.set('q', query.replace(/[-_]+/g, ' ').trim())
-    url.searchParams.set('limit', '20')
-    url.searchParams.set('offset', '0')
-
-    const response = await net.fetch(url.toString(), { method: 'GET' })
-    if (!response.ok) {
-      throw new Error(`Marketplace API returned ${response.status}: ${response.statusText}`)
-    }
-
-    // Shared normalizer: builds install_source from the real directoryPath and drops entries whose
-    // install target can't be resolved reliably (so we never hand back an ambiguous one).
-    const results = normalizeClaudePlugins(await response.json())
+    const results = await searchSkillMarketplaces(
+      query.replace(/[-_]+/g, ' ').trim(),
+      (url) => this.fetchMarketplaceJson(url),
+      (source, error) => {
+        logger.warn('Skill marketplace search source failed', {
+          agentId: this.agentId,
+          source,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    )
 
     if (results.length === 0) {
       return { content: [{ type: 'text' as const, text: `No installable skills found for "${query}".` }] }
@@ -129,7 +127,10 @@ class SkillsServer {
       name: r.name,
       description: r.description,
       author: r.author,
+      stars: r.stars,
       installs: r.downloads,
+      source_registry: r.sourceRegistry,
+      source_url: r.sourceUrl,
       install_source: r.installSource
     }))
 
@@ -141,6 +142,20 @@ class SkillsServer {
           text: `Found ${view.length} installable skill(s) for "${query}":\n${JSON.stringify(view, null, 2)}\n\nWhen the user asks to install one, pass its exact 'install_source' string to install_skill.`
         }
       ]
+    }
+  }
+
+  private async fetchMarketplaceJson(url: string): Promise<unknown> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    try {
+      const response = await net.fetch(url, { method: 'GET', signal: controller.signal })
+      if (!response.ok) {
+        throw new Error(`Marketplace API returned ${response.status}: ${response.statusText}`)
+      }
+      return response.json()
+    } finally {
+      clearTimeout(timer)
     }
   }
 

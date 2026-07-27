@@ -99,13 +99,17 @@ export function useInstalledSkills(agentId?: string, options: { enabled?: boolea
     enabled,
     ...(agentId ? { query: { agentId } } : {})
   })
+  const refresh = useCallback(async () => {
+    await ipcApi.request('skill.reconcile', {})
+    return refetch()
+  }, [refetch])
 
   return {
     skills: data ?? [],
     loading: isLoading,
     refreshing: isRefreshing,
     error: error?.message ?? null,
-    refresh: refetch
+    refresh
   }
 }
 

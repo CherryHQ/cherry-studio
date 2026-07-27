@@ -41,6 +41,7 @@ const MAX_EXTRACTED_SIZE = 100 * 1024 * 1024 // 100MB
 const MAX_FILES_COUNT = 1000
 const MAX_FOLDER_NAME_LENGTH = 80
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
+const BUILTIN_VERSION_FILE = '.version'
 
 /**
  * Skill management service.
@@ -203,12 +204,13 @@ export class SkillService {
     logger.info('Installing skill from ZIP', { zipFilePath })
 
     await this.validateZipFile(zipFilePath)
+    const sourceUrl = pathToFileURL(path.resolve(zipFilePath)).href
     const tempDir = await this.createTempDir('zip-install')
 
     try {
       await this.extractZip(zipFilePath, tempDir)
       const skillDir = await this.locateSkillDir(tempDir)
-      return await this.installSkillDir(skillDir, 'zip', null)
+      return await this.installSkillDir(skillDir, 'zip', sourceUrl)
     } finally {
       await this.safeRemoveDirectory(tempDir)
     }
@@ -222,7 +224,8 @@ export class SkillService {
       throw new Error(`Directory not found: ${directoryPath}`)
     }
 
-    return this.installSkillDir(directoryPath, 'local', null)
+    const canonicalPath = await fs.promises.realpath(directoryPath)
+    return this.installSkillDir(canonicalPath, 'local', pathToFileURL(canonicalPath).href)
   }
 
   /**
@@ -275,7 +278,7 @@ export class SkillService {
         }
       })
     )
-    const installedByFolder = new Map(installed.map((skill) => [skill.folderName, skill]))
+    const installedByFolder = new Map(installed.map((skill) => [this.normalizeFolderKey(skill.folderName), skill]))
     const managedRoot = await fs.promises
       .realpath(application.getPath('feature.agents.skills'))
       .catch(() => path.resolve(application.getPath('feature.agents.skills')))
@@ -325,7 +328,7 @@ export class SkillService {
           const metadata = await parseSkillMetadata(canonicalPath, entry.name, 'skills', { calculateSize: false })
           const folderName = this.sanitizeFolderName(metadata.filename)
           const registered = installedByPath.get(canonicalPath)
-          const folderConflict = installedByFolder.get(folderName)
+          const folderConflict = installedByFolder.get(this.normalizeFolderKey(folderName))
           const status = registered ? 'registered' : folderConflict ? 'conflict' : 'available'
 
           candidates.set(canonicalPath, {
@@ -547,7 +550,7 @@ export class SkillService {
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
     const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
 
-    const existing = agentGlobalSkillService.getByFolderName(folderName)
+    const existing = this.findCatalogSkillCaseInsensitive(folderName)
     if (existing) {
       // Only a re-install of the exact same skill (same source + origin URL) may overwrite the
       // existing folder in place. Anything else — a marketplace install colliding with a builtin,
@@ -564,12 +567,27 @@ export class SkillService {
       }
     }
 
+    const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
+    if (!existing && storageEntry) {
+      throw new Error(
+        `Folder name "${folderName}" conflicts with an existing library directory "${storageEntry}"; ` +
+          'reconcile or remove that directory before installing.'
+      )
+    }
+    if (existing && storageEntry && storageEntry !== existing.folderName) {
+      throw new Error(
+        `Catalog folder "${existing.folderName}" conflicts with library directory "${storageEntry}" by case; ` +
+          'reconcile the library before installing.'
+      )
+    }
+
     const contentHash = await this.installer.computeContentHash(skillDir)
-    const destPath = this.getSkillStoragePath(folderName)
+    const destFolderName = existing?.folderName ?? folderName
+    const destPath = this.getSkillStoragePath(destFolderName)
 
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)
-    await this.linkMirror(folderName)
+    await this.linkMirror(destFolderName)
 
     const tags = metadata.tags ?? []
 
@@ -586,7 +604,7 @@ export class SkillService {
         })
       })
       const updated = agentGlobalSkillService.getById(existing.id)!
-      logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName, source })
+      logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName: destFolderName, source })
       return updated
     }
 
@@ -598,7 +616,7 @@ export class SkillService {
         const insertedRow = agentGlobalSkillService.insertTx(tx, {
           name: metadata.name,
           description: metadata.description ?? null,
-          folderName,
+          folderName: destFolderName,
           source,
           sourceUrl,
           namespace: provenance.namespace ?? null,
@@ -630,7 +648,7 @@ export class SkillService {
       this.enableForAllAgents(inserted.id)
     }
 
-    logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName, source })
+    logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName: destFolderName, source })
     return inserted
   }
 
@@ -726,7 +744,7 @@ export class SkillService {
         throw new Error(`Skill directory path escapes the repository: ${directoryPath}`)
       }
       const skillMdPath = await findSkillMdPath(resolved)
-      if (skillMdPath) return resolved
+      if (skillMdPath) return this.validateRepositorySkillDirectory(repoDir, resolved, skillMdPath)
 
       // Fail closed: an explicit directoryPath with no SKILL.md must NOT fall back to guessing a
       // different candidate in the repo — the user confirmed skill A and must not get skill B.
@@ -737,11 +755,11 @@ export class SkillService {
 
     if (skillName) {
       const matched = candidates.find((c) => path.basename(c.folderPath) === skillName)
-      if (matched) return matched.folderPath
+      if (matched) return this.validateRepositorySkillDirectory(repoDir, matched.folderPath)
     }
 
     if (candidates.length === 1) {
-      return candidates[0].folderPath
+      return this.validateRepositorySkillDirectory(repoDir, candidates[0].folderPath)
     }
 
     if (candidates.length > 1 && skillName) {
@@ -750,7 +768,7 @@ export class SkillService {
         const base = path.basename(c.folderPath).toLowerCase()
         return base.includes(lowerName) || lowerName.includes(base)
       })
-      if (fuzzy) return fuzzy.folderPath
+      if (fuzzy) return this.validateRepositorySkillDirectory(repoDir, fuzzy.folderPath)
     }
 
     if (candidates.length > 0) {
@@ -760,13 +778,37 @@ export class SkillService {
         candidateCount: candidates.length,
         selected: candidates[0].folderPath
       })
-      return candidates[0].folderPath
+      return this.validateRepositorySkillDirectory(repoDir, candidates[0].folderPath)
     }
 
     const rootSkill = await findSkillMdPath(repoDir)
-    if (rootSkill) return repoDir
+    if (rootSkill) return this.validateRepositorySkillDirectory(repoDir, repoDir, rootSkill)
 
     throw new Error(`No skill directory found in ${repoDir}`)
+  }
+
+  private async validateRepositorySkillDirectory(
+    repoDir: string,
+    skillDir: string,
+    knownSkillMdPath?: string
+  ): Promise<string> {
+    const [repoRealPath, skillRealPath] = await Promise.all([
+      fs.promises.realpath(repoDir),
+      fs.promises.realpath(skillDir)
+    ])
+    const relativeSkillPath = path.relative(repoRealPath, skillRealPath)
+    if (relativeSkillPath.startsWith('..') || path.isAbsolute(relativeSkillPath)) {
+      throw new Error(`Skill directory resolves outside the repository: ${skillDir}`)
+    }
+
+    const skillMdPath = knownSkillMdPath ?? (await findSkillMdPath(skillRealPath))
+    if (!skillMdPath) throw new Error(`No SKILL.md found in ${skillDir}`)
+    const skillMdRealPath = await fs.promises.realpath(skillMdPath)
+    const relativeDescriptorPath = path.relative(repoRealPath, skillMdRealPath)
+    if (relativeDescriptorPath.startsWith('..') || path.isAbsolute(relativeDescriptorPath)) {
+      throw new Error(`Skill descriptor resolves outside the repository: ${skillMdPath}`)
+    }
+    return skillRealPath
   }
 
   // ===========================================================================
@@ -816,8 +858,14 @@ export class SkillService {
     // Accept either casing so a lowercase-only skill still mirrors (reconcile normalizes to
     // SKILL.md, but install paths may not have run yet) — otherwise it would be in the catalog
     // but absent from the mirror the SDK loads.
-    if ((await this.readSkillMd(sourceDir)) === null) {
-      logger.warn('Skill source files missing; skipping mirror', { folderName, sourceDir })
+    const descriptor = await this.readSkillMdState(sourceDir)
+    if (descriptor.status !== 'found') {
+      await this.unlinkMirror(folderName)
+      logger.warn('Skill source descriptor unavailable; removed mirror', {
+        folderName,
+        sourceDir,
+        status: descriptor.status
+      })
       return
     }
 
@@ -862,10 +910,9 @@ export class SkillService {
    * CLAUDE_CONFIG_DIR/skills mirror. The filesystem is the source of truth;
    * `agent_global_skill` is a cache reconciled from disk — so a skill an agent
    * authored via native file tools (or one whose files were removed out-of-band) is
-   * picked up without any "register" call. Agents write straight into the managed
-   * library via the CHERRY_STUDIO_SKILLS_DIR env (see `buildEnvironment`), so this
-   * only ever reads the library forward — the mirror is a one-way projection of it,
-   * never a write target.
+   * picked up without any "register" call. Agents write to the authoring inbox exposed
+   * by CHERRY_STUDIO_SKILLS_DIR; reconcile publishes valid, non-conflicting drafts into
+   * the managed library before projecting that library into the mirror.
    *
    * 1. library → DB: adopt newly-present library skills, refresh changed ones, and
    *    prune non-builtin rows whose files have vanished. Pruning is gated on a
@@ -883,6 +930,9 @@ export class SkillService {
     // sync (which would let it read a stale snapshot and prune a just-installed row).
     this.reconcileInFlight = this.mutationLock
       .runExclusive(async () => {
+        const storageRoot = application.getPath('feature.agents.skills')
+        await this.installer.recoverInterruptedInstalls(storageRoot)
+        await this.publishAuthoredSkills()
         try {
           await this.ensureSkillPluginManifest()
         } catch (error) {
@@ -920,6 +970,8 @@ export class SkillService {
       return
     }
 
+    const dbSkills = agentGlobalSkillService.listAll()
+    const dbByFolder = new Map(dbSkills.map((skill) => [this.normalizeFolderKey(skill.folderName), skill]))
     const onDisk = new Map<string, string>()
     // Every skill folder physically enumerated on disk, regardless of whether its descriptor is
     // currently readable. Pruning keys off THIS set, not off a successful descriptor read: an editor
@@ -928,11 +980,20 @@ export class SkillService {
     // catalog row and every agent's enablement via the agent_skill FK.
     const presentFolders = new Set<string>()
     for (const entry of entries) {
-      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
       // Hidden entries (an install's `.<name>.bak` backup, staging dirs, …) are bookkeeping, never
       // skills — skip them so a backup can't be adopted as a phantom skill.
       if (entry.name.startsWith('.')) continue
-      presentFolders.add(entry.name)
+      if (entry.isSymbolicLink()) {
+        logger.warn('Rejected symlink in managed skill library', { folderName: entry.name })
+        continue
+      }
+      if (!entry.isDirectory()) continue
+      const folderKey = this.normalizeFolderKey(entry.name)
+      if (presentFolders.has(folderKey)) {
+        logger.warn('Rejected case-colliding skill library folder', { folderName: entry.name })
+        continue
+      }
+      presentFolders.add(folderKey)
       const dir = path.join(storageRoot, entry.name)
       // The scanner/parser accept lowercase `skill.md`, but the mirror + SDK load `SKILL.md`, so
       // normalize first — else a lowercase-only skill enters the catalog yet never loads.
@@ -949,11 +1010,8 @@ export class SkillService {
       // not adopted, and the presentFolders guard below keeps any existing row + enablement intact.
     }
 
-    const dbSkills = agentGlobalSkillService.listAll()
-    const dbByFolder = new Map(dbSkills.map((skill) => [skill.folderName, skill]))
-
     for (const [folderName, contentHash] of onDisk) {
-      const existing = dbByFolder.get(folderName)
+      const existing = dbByFolder.get(this.normalizeFolderKey(folderName))
       if (existing && existing.contentHash === contentHash) continue
 
       let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
@@ -998,7 +1056,7 @@ export class SkillService {
       if (skill.source === 'builtin') continue
       // Prune ONLY when the whole folder is gone from disk. A present folder whose descriptor is
       // momentarily missing/unreadable (atomic save, EACCES) keeps its row — see presentFolders.
-      if (presentFolders.has(skill.folderName)) continue
+      if (presentFolders.has(this.normalizeFolderKey(skill.folderName))) continue
       agentGlobalSkillService.deleteById(skill.id)
       await this.unlinkMirror(skill.folderName)
       logger.info('Pruned skill whose library folder was removed', { folderName: skill.folderName })
@@ -1012,7 +1070,7 @@ export class SkillService {
    */
   private async reconcileMirror(): Promise<void> {
     const all = agentGlobalSkillService.listAll()
-    const known = new Set(all.map((s) => s.folderName))
+    const known = new Set(all.map((s) => this.normalizeFolderKey(s.folderName)))
 
     for (const skill of all) {
       await this.linkMirror(skill.folderName)
@@ -1029,7 +1087,7 @@ export class SkillService {
     for (const entry of entries) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
       const folderName = entry.name
-      if (known.has(folderName)) continue
+      if (known.has(this.normalizeFolderKey(folderName))) continue
 
       const entryPath = path.join(root, folderName)
       // Managed mirror left behind by an uninstalled skill — drop it.
@@ -1039,10 +1097,38 @@ export class SkillService {
     }
   }
 
-  /** Read a skill folder's SKILL.md (either casing) directly, bypassing metadata parsing. */
-  private async readSkillMd(dir: string): Promise<string | null> {
-    const read = await this.readSkillMdState(dir)
-    return read.status === 'found' ? read.content : null
+  /**
+   * Publish agent-authored drafts through the same mutation lock as every other library write.
+   * Conflicts stay in the inbox for the author to resolve; canonical content is never overwritten.
+   */
+  private async publishAuthoredSkills(): Promise<void> {
+    const authoringRoot = application.getPath('feature.agents.skills.authoring')
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(authoringRoot, { withFileTypes: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('Failed to scan authored skill inbox', {
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+      return
+    }
+
+    for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+      if (entry.name.startsWith('.') || !entry.isDirectory() || entry.isSymbolicLink()) continue
+      const draftPath = path.join(authoringRoot, entry.name)
+      try {
+        await this.installSkillDirLocked(draftPath, 'local', `cherry-authoring:${this.normalizeFolderKey(entry.name)}`)
+        await this.installer.uninstall(draftPath)
+        logger.info('Published authored skill from inbox', { folderName: entry.name })
+      } catch (error) {
+        logger.warn('Failed to publish authored skill; keeping draft', {
+          folderName: entry.name,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
   }
 
   /**
@@ -1091,6 +1177,30 @@ export class SkillService {
         error: error instanceof Error ? error.message : String(error)
       })
     }
+  }
+
+  private normalizeFolderKey(folderName: string): string {
+    return folderName.toLowerCase()
+  }
+
+  private findCatalogSkillCaseInsensitive(folderName: string): InstalledSkill | null {
+    const key = this.normalizeFolderKey(folderName)
+    return agentGlobalSkillService.listAll().find((skill) => this.normalizeFolderKey(skill.folderName) === key) ?? null
+  }
+
+  private async findStorageFolderCaseInsensitive(folderName: string): Promise<string | null> {
+    const storageRoot = application.getPath('feature.agents.skills')
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    }
+    const key = this.normalizeFolderKey(folderName)
+    return (
+      entries.find((entry) => !entry.name.startsWith('.') && this.normalizeFolderKey(entry.name) === key)?.name ?? null
+    )
   }
 
   private sanitizeFolderName(folderName: string): string {
@@ -1149,8 +1259,8 @@ export class SkillService {
   }
 
   /**
-   * Register or refresh a built-in skill's DB row after its files have been
-   * copied to the global skills directory. Called by `installBuiltinSkills`.
+   * Atomically publish a bundled skill and synchronize its DB row under the
+   * same library mutation lock used by install, uninstall, and reconcile.
    *
    * - If the row exists and files weren't updated, no-ops.
    * - If files were updated, refreshes the metadata row in-place.
@@ -1161,12 +1271,27 @@ export class SkillService {
    * toggles it off, so a fresh `agent_global_skill` row is enabled everywhere —
    * for existing and future agents alike — without any `agent_skill` rows.
    */
-  async syncBuiltinSkill(folderName: string, destPath: string, filesUpdated: boolean): Promise<void> {
+  async syncBuiltinSkill(folderName: string, sourcePath: string, appVersion: string): Promise<boolean> {
     return this.mutationLock.runExclusive(async () => {
-      const existing = agentGlobalSkillService.getByFolderName(folderName)
+      const existing = this.findCatalogSkillCaseInsensitive(folderName)
+      const destFolderName = existing?.folderName ?? folderName
+      const destPath = this.getSkillStoragePath(destFolderName)
+      let filesUpdated = true
+      try {
+        const installedVersion = (await fs.promises.readFile(path.join(destPath, BUILTIN_VERSION_FILE), 'utf-8')).trim()
+        filesUpdated = installedVersion !== appVersion
+      } catch {
+        filesUpdated = true
+      }
+
+      if (filesUpdated) {
+        await this.installer.install(sourcePath, destPath)
+        await fs.promises.writeFile(path.join(destPath, BUILTIN_VERSION_FILE), appVersion, 'utf-8')
+      }
+
       // Skip only when the row is already a correctly-sourced builtin and its files are unchanged.
       // A row a concurrent reconcile race-adopted as `local` still needs its source reclaimed below.
-      if (existing && existing.source === 'builtin' && !filesUpdated) return
+      if (existing && existing.source === 'builtin' && !filesUpdated) return false
 
       const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
       const contentHash = await this.installer.computeContentHash(destPath)
@@ -1187,7 +1312,7 @@ export class SkillService {
         agentGlobalSkillService.insert({
           name: metadata.name,
           description: metadata.description ?? null,
-          folderName,
+          folderName: destFolderName,
           source: 'builtin',
           sourceUrl: null,
           namespace: null,
@@ -1198,8 +1323,9 @@ export class SkillService {
         })
       }
 
-      await this.linkMirror(folderName)
-      logger.info('Built-in skill synced to DB', { folderName, firstInstall: !existing })
+      await this.linkMirror(destFolderName)
+      logger.info('Built-in skill synced to DB', { folderName: destFolderName, firstInstall: !existing, filesUpdated })
+      return filesUpdated
     })
   }
 

@@ -582,7 +582,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     ENABLE_TOOL_SEARCH: 'auto',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
-    CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
+    CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills.authoring'),
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
   }
 
@@ -878,23 +878,21 @@ async function buildToolPermissions(
     }
   }
 
-  // Installing a skill requires the same permission handling as any other mutating tool. Interactive
-  // turns defer to the SDK: default / acceptEdits prompt through canUseTool, while bypassPermissions
-  // runs directly. A headless turn has no responder, so deny only when its live permission mode still
-  // requires approval. Resolve the mode from the session snapshot so a warm connection observes a
-  // live permission-mode update instead of the agent config captured when these hooks were built.
+  // Third-party skills execute with the agent's full permissions, so installation always crosses an
+  // explicit user-approval boundary independent of the agent's general permission mode. Headless
+  // turns cannot answer that prompt and therefore fail closed.
   const headlessSkillInstallHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (toolName !== 'mcp__skills__install_skill') return {}
-    if (getToolPolicySnapshot(session.id)?.getPermissionMode() === 'bypassPermissions') return {}
-    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    const headless = application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        permissionDecision: 'deny',
-        permissionDecisionReason:
-          'This channel or scheduled turn cannot approve a skill installation. Use bypassPermissions for unattended installation, or install it from an interactive turn.'
+        permissionDecision: headless ? 'deny' : 'ask',
+        permissionDecisionReason: headless
+          ? 'Channel and scheduled turns cannot approve third-party skill installation. Install it from an interactive turn.'
+          : 'Installing this third-party skill will let it run with the agent permissions. Confirm the installation.'
       }
     }
   }

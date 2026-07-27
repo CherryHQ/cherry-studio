@@ -1,4 +1,18 @@
-import { ClaudePluginsSearchResponseSchema, type SkillSearchResult, type SkillSearchSource } from '@shared/types/skill'
+import {
+  ClaudePluginsSearchResponseSchema,
+  ClawhubSearchResponseSchema,
+  type SkillSearchResult,
+  type SkillSearchSource,
+  SkillsShSearchResponseSchema
+} from '@shared/types/skill'
+
+export const SKILL_SEARCH_FAILED_ERROR = 'skill_search_failed'
+
+type MarketplaceSource = {
+  name: SkillSearchSource
+  buildUrl: (query: string) => string
+  normalize: (raw: unknown) => SkillSearchResult[]
+}
 
 /**
  * Shared normalizer for the claude-plugins.dev marketplace response. Used by both the renderer
@@ -76,5 +90,112 @@ export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
       // The install identifier is owner/repo/directoryPath — the REAL directory, not the display name.
       installSource: `claude-plugins:${repoOwner}/${repoName}/${directoryPath}`
     }
+  })
+}
+
+export function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
+  const parsed = SkillsShSearchResponseSchema.safeParse(raw)
+  if (!parsed.success) throw new Error('Invalid skills.sh search response')
+
+  return parsed.data.skills.map((skill) => ({
+    slug: skill.id,
+    name: skill.name,
+    description: null,
+    author: skill.source.split('/')[0] ?? null,
+    stars: 0,
+    downloads: skill.installs,
+    sourceRegistry: 'skills.sh',
+    sourceUrl: skill.source ? `https://github.com/${skill.source}` : null,
+    installSource: `skills.sh:${skill.id}`
+  }))
+}
+
+export function normalizeClawhub(raw: unknown): SkillSearchResult[] {
+  const parsed = ClawhubSearchResponseSchema.safeParse(raw)
+  if (!parsed.success) throw new Error('Invalid clawhub.ai search response')
+
+  return parsed.data.results.map((skill) => ({
+    slug: skill.slug,
+    name: skill.displayName,
+    description: skill.summary ?? null,
+    author: skill.ownerHandle ?? null,
+    stars: 0,
+    downloads: 0,
+    sourceRegistry: 'clawhub.ai',
+    sourceUrl: skill.ownerHandle
+      ? `https://clawhub.ai/${skill.ownerHandle}/skills/${skill.slug}`
+      : `https://clawhub.ai/skills/${skill.slug}`,
+    installSource: `clawhub:${skill.slug}`
+  }))
+}
+
+const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
+  {
+    name: 'skills.sh',
+    buildUrl: (query) => {
+      const url = new URL('https://skills.sh/api/search')
+      url.searchParams.set('q', query)
+      return url.toString()
+    },
+    normalize: normalizeSkillsSh
+  },
+  {
+    name: 'claude-plugins.dev',
+    buildUrl: (query) => {
+      const url = new URL('https://claude-plugins.dev/api/skills')
+      url.searchParams.set('q', query)
+      url.searchParams.set('limit', '20')
+      return url.toString()
+    },
+    normalize: normalizeClaudePlugins
+  },
+  {
+    name: 'clawhub.ai',
+    buildUrl: (query) => {
+      const url = new URL('https://clawhub.ai/api/v1/search')
+      url.searchParams.set('q', query)
+      return url.toString()
+    },
+    normalize: normalizeClawhub
+  }
+]
+
+/**
+ * Search every supported registry with caller-provided transport.
+ * Partial failures are preserved; only an all-source failure rejects.
+ */
+export async function searchSkillMarketplaces(
+  query: string,
+  fetchJson: (url: string) => Promise<unknown>,
+  onSourceFailure?: (source: SkillSearchSource, error: unknown) => void
+): Promise<SkillSearchResult[]> {
+  const trimmed = query.trim()
+  if (!trimmed) return []
+
+  const settled = await Promise.allSettled(
+    MARKETPLACE_SOURCES.map(async (source) => source.normalize(await fetchJson(source.buildUrl(trimmed))))
+  )
+  const combined: SkillSearchResult[] = []
+  let failedSourceCount = 0
+
+  for (const [index, result] of settled.entries()) {
+    if (result.status === 'fulfilled') {
+      combined.push(...result.value)
+    } else {
+      failedSourceCount += 1
+      onSourceFailure?.(MARKETPLACE_SOURCES[index].name, result.reason)
+    }
+  }
+
+  if (failedSourceCount === MARKETPLACE_SOURCES.length) {
+    throw new Error(SKILL_SEARCH_FAILED_ERROR)
+  }
+
+  const seen = new Set<string>()
+  return combined.filter((result) => {
+    const key = result.name.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
   })
 }

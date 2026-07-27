@@ -1,62 +1,14 @@
 import { loggerService } from '@logger'
+import type { SkillSearchResult } from '@shared/types/skill'
 import {
-  ClawhubSearchResponseSchema,
-  type SkillSearchResult,
-  type SkillSearchSource,
-  SkillsShSearchResponseSchema
-} from '@shared/types/skill'
-import { normalizeClaudePlugins } from '@shared/utils/skillMarketplace'
+  searchSkillMarketplaces,
+  SKILL_SEARCH_FAILED_ERROR as SHARED_SKILL_SEARCH_FAILED_ERROR
+} from '@shared/utils/skillMarketplace'
 
 const logger = loggerService.withContext('skillSearch')
 
-const CLAUDE_PLUGINS_API = 'https://claude-plugins.dev/api/skills'
-const SKILLS_SH_API = 'https://skills.sh/api/search'
-const CLAWHUB_API = 'https://clawhub.ai/api/v1/search'
-
 const REQUEST_TIMEOUT_MS = 15_000
-export const SKILL_SEARCH_FAILED_ERROR = 'skill_search_failed'
-
-// ===========================================================================
-// Normalizers: source-specific response → unified SkillSearchResult[]
-// (claude-plugins.dev normalizer lives in @shared/utils/skillMarketplace so the
-// main-process skills MCP builds identical install identifiers.)
-// ===========================================================================
-
-function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
-  const parsed = SkillsShSearchResponseSchema.safeParse(raw)
-  if (!parsed.success) throw new Error('Invalid skills.sh search response')
-
-  return parsed.data.skills.map((s) => ({
-    slug: s.id,
-    name: s.name,
-    description: null,
-    author: s.source.split('/')[0] ?? null,
-    stars: 0,
-    downloads: s.installs,
-    sourceRegistry: 'skills.sh' as SkillSearchSource,
-    sourceUrl: s.source ? `https://github.com/${s.source}` : null,
-    installSource: `skills.sh:${s.id}`
-  }))
-}
-
-function normalizeClawhub(raw: unknown): SkillSearchResult[] {
-  const parsed = ClawhubSearchResponseSchema.safeParse(raw)
-  if (!parsed.success) throw new Error('Invalid clawhub.ai search response')
-
-  return parsed.data.results.map((s) => ({
-    slug: s.slug,
-    name: s.displayName,
-    description: s.summary ?? null,
-    author: s.ownerHandle ?? null,
-    stars: 0,
-    downloads: 0,
-    sourceRegistry: 'clawhub.ai' as SkillSearchSource,
-    sourceUrl: s.ownerHandle
-      ? `https://clawhub.ai/${s.ownerHandle}/skills/${s.slug}`
-      : `https://clawhub.ai/skills/${s.slug}`,
-    installSource: `clawhub:${s.slug}`
-  }))
-}
+export const SKILL_SEARCH_FAILED_ERROR = SHARED_SKILL_SEARCH_FAILED_ERROR
 
 // ===========================================================================
 // Fetch helpers
@@ -79,32 +31,6 @@ async function fetchJson(url: string): Promise<unknown> {
 }
 
 // ===========================================================================
-// Source fetchers
-// ===========================================================================
-
-async function searchClaudePlugins(query: string): Promise<SkillSearchResult[]> {
-  const url = new URL(CLAUDE_PLUGINS_API)
-  url.searchParams.set('q', query)
-  url.searchParams.set('limit', '20')
-  const json = await fetchJson(url.toString())
-  return normalizeClaudePlugins(json)
-}
-
-async function searchSkillsSh(query: string): Promise<SkillSearchResult[]> {
-  const url = new URL(SKILLS_SH_API)
-  url.searchParams.set('q', query)
-  const json = await fetchJson(url.toString())
-  return normalizeSkillsSh(json)
-}
-
-async function searchClawhub(query: string): Promise<SkillSearchResult[]> {
-  const url = new URL(CLAWHUB_API)
-  url.searchParams.set('q', query)
-  const json = await fetchJson(url.toString())
-  return normalizeClawhub(json)
-}
-
-// ===========================================================================
 // Public API
 // ===========================================================================
 
@@ -113,39 +39,9 @@ async function searchClawhub(query: string): Promise<SkillSearchResult[]> {
  * Preserves partial success, but rejects when every source fails.
  */
 export async function searchSkills(query: string): Promise<SkillSearchResult[]> {
-  if (!query.trim()) return []
-
-  const sources = [
-    { name: 'skills.sh', search: () => searchSkillsSh(query) },
-    { name: 'claude-plugins', search: () => searchClaudePlugins(query) },
-    { name: 'clawhub', search: () => searchClawhub(query) }
-  ]
-
-  const results = await Promise.allSettled(sources.map((source) => source.search()))
-  const allResults: SkillSearchResult[] = []
-  let failedSourceCount = 0
-
-  for (const [index, result] of results.entries()) {
-    if (result.status === 'fulfilled') {
-      allResults.push(...result.value)
-    } else {
-      failedSourceCount++
-      logger.warn(`${sources[index].name} search failed`, {
-        error: result.reason instanceof Error ? result.reason.message : String(result.reason)
-      })
-    }
-  }
-
-  if (failedSourceCount === sources.length) {
-    throw new Error(SKILL_SEARCH_FAILED_ERROR)
-  }
-
-  // Deduplicate by name (keep first occurrence = fastest source)
-  const seen = new Set<string>()
-  return allResults.filter((r) => {
-    const key = r.name.toLowerCase()
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
+  return searchSkillMarketplaces(query, fetchJson, (source, error) => {
+    logger.warn(`${source} search failed`, {
+      error: error instanceof Error ? error.message : String(error)
+    })
   })
 }
