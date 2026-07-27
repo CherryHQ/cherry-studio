@@ -3,7 +3,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useConversationTurnController')
 
@@ -31,6 +31,15 @@ export function useConversationTurnController<TInput, TConversation>({
   refreshMetadata
 }: UseConversationTurnControllerOptions<TInput, TConversation>) {
   const [phase, setPhase] = useState<ConversationTurnPhase>('draft')
+  const [localSendGeneration, setLocalSendGeneration] = useState(0)
+  const scopeEpochRef = useRef(0)
+  const markLocalSendStarted = useCallback(() => {
+    setLocalSendGeneration((generation) => generation + 1)
+  }, [])
+
+  useLayoutEffect(() => {
+    scopeEpochRef.current += 1
+  }, [scopeKey])
 
   useEffect(() => {
     setPhase('draft')
@@ -38,33 +47,36 @@ export function useConversationTurnController<TInput, TConversation>({
 
   const send = useCallback(
     async (input: TInput): Promise<AiStreamOpenResponse | null> => {
+      const scopeEpoch = scopeEpochRef.current
+      const isCurrentScope = () => scopeEpochRef.current === scopeEpoch
       let conversation: TConversation | null = null
       try {
         setPhase('persisting')
         conversation = await ensureConversation(input)
         if (!conversation) {
-          setPhase('draft')
+          if (isCurrentScope()) setPhase('draft')
           return null
         }
 
-        setPhase('opening')
+        if (isCurrentScope()) setPhase('opening')
         const ack = await ipcApi.request('ai.stream.open', buildStreamRequest(input, conversation))
 
         if (ack.mode === 'blocked') {
           toast.error(ack.message)
-          setPhase('ready')
+          if (isCurrentScope()) setPhase('ready')
           void Promise.resolve(refreshMetadata?.(conversation, ack)).catch((err) => {
             logger.warn('Failed to refresh conversation metadata after blocked turn', err as Error)
           })
           return ack
         }
 
+        if (isCurrentScope()) markLocalSendStarted()
         const reservedMessages = ack.reservedMessages ?? []
         if (reservedMessages.length > 0) {
           await historyAdapter.seedReservedMessages(reservedMessages)
         }
 
-        setPhase('streaming')
+        if (isCurrentScope()) setPhase('streaming')
         void Promise.resolve(refreshMetadata?.(conversation, ack)).catch((err) => {
           logger.warn('Failed to refresh conversation metadata after stream open', err as Error)
         })
@@ -75,16 +87,18 @@ export function useConversationTurnController<TInput, TConversation>({
         } catch (rollbackErr) {
           logger.warn('Failed to rollback conversation history after stream open failure', rollbackErr as Error)
         }
-        setPhase('draft')
+        if (isCurrentScope()) setPhase('draft')
         throw err
       }
     },
-    [buildStreamRequest, ensureConversation, historyAdapter, refreshMetadata]
+    [buildStreamRequest, ensureConversation, historyAdapter, markLocalSendStarted, refreshMetadata]
   )
 
   return {
     phase,
     layout: phase === 'draft' ? ('draft' as const) : ('docked' as const),
+    localSendGeneration,
+    markLocalSendStarted,
     send
   }
 }

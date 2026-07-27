@@ -284,9 +284,23 @@ export class SelectionService extends BaseService implements Activatable {
     this.registerDisposable({
       dispose: preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean) => {
         this.desiredEnabled = enabled
+        // The reconciler can settle without running deactivate()/onActivate() (disable while
+        // never activated; rapid false→true), so keep the pool in sync directly here.
+        // Both calls are idempotent.
+        if (!enabled) {
+          wm.suspendPool(WindowType.SelectionAction)
+        } else if (this.isActivated) {
+          wm.resumePool(WindowType.SelectionAction)
+        }
         this.reconciler.request()
       })
     })
+
+    // The pool is warmup:'eager' — suspend before allReady so the warmup skips it while the
+    // feature is off; onActivate()'s resumePool() re-enables it.
+    if (!preferenceService.get('feature.selection.enabled')) {
+      wm.suspendPool(WindowType.SelectionAction)
+    }
   }
 
   protected onAllReady(): void {

@@ -106,6 +106,7 @@ vi.mock('@cherrystudio/ui', () => {
     DialogTitle: passthrough('h2'),
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Label: passthrough('label'),
     Select: ({ children, onValueChange }: { children?: React.ReactNode; onValueChange?: (value: string) => void }) => (
       <SelectContext value={{ onValueChange }}>{children}</SelectContext>
     ),
