@@ -221,6 +221,15 @@ describe('ProviderRegistryService', () => {
         providerRegistryService.getProviderPreset('does-not-exist', ['endpointConfigs', 'models'], 'also-missing')
       ).toEqual({ endpointConfigs: null, models: [] })
     })
+
+    it('treats an explicit null preset id as authoritative custom provenance', () => {
+      setupRegistryData()
+
+      expect(providerRegistryService.getProviderPreset('openai', ['endpointConfigs', 'models'], null)).toEqual({
+        endpointConfigs: null,
+        models: []
+      })
+    })
   })
 
   describe('registry load failure', () => {
@@ -330,6 +339,26 @@ describe('ProviderRegistryService', () => {
         providerId: 'custom-openai-models',
         presetModelId: 'gpt-4o'
       })
+    })
+
+    it('does not apply provider-specific registry data when a custom row collides with a registry id', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'openai',
+        presetProviderId: null,
+        name: 'User OpenAI Relay',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const lookup = providerRegistryService.lookupModel('openai', 'gpt-4o')
+      const catalog = providerRegistryService.listProviderRegistryModels({
+        providerId: 'openai',
+        presetProviderId: null
+      })
+
+      expect(lookup.presetModel?.id).toBe('gpt-4o')
+      expect(lookup.registryOverride).toBeNull()
+      expect(catalog).toEqual([])
     })
 
     it('should handle models not in registry', async () => {

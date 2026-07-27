@@ -121,7 +121,7 @@ function projectEndpointConfigOverrides(
   const presetConfigs = getDataService('ProviderRegistryService').getProviderPreset(
     providerId,
     ['endpointConfigs'],
-    presetProviderId ?? undefined
+    presetProviderId
   ).endpointConfigs
 
   const result: Partial<Record<EndpointType, EndpointConfigOverride>> = {}
@@ -146,10 +146,7 @@ function projectEndpointConfigOverrides(
  */
 function rowToRuntimeProvider(row: UserProviderRow): Provider {
   const providerRegistryService = getDataService('ProviderRegistryService')
-  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(
-    row.providerId,
-    row.presetProviderId ?? undefined
-  )
+  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(row.providerId, row.presetProviderId)
 
   // Process API keys (strip actual key values for security)
   // oxlint-disable-next-line no-unused-vars
@@ -192,11 +189,8 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     // the row contributes only the user-owned baseUrl override. Legacy
     // registry-only fields such as `reasoningFormatType` are stripped first.
     endpointConfigs:
-      providerRegistryService.mergeEndpointConfigs(
-        row.endpointConfigs,
-        row.providerId,
-        row.presetProviderId ?? undefined
-      ) ?? undefined,
+      providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
+      undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,
@@ -279,7 +273,7 @@ class ProviderService {
     )
     const presetMetadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
       dto.providerId,
-      dto.presetProviderId ?? undefined
+      dto.presetProviderId ?? null
     )
     const apiFeatures = diffApiFeatures(dto.apiFeatures, buildApiFeaturesBaseline(presetMetadata.apiFeatures))
     const defaultChatEndpoint =
@@ -372,10 +366,7 @@ class ProviderService {
       if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
       const presetMetadata =
         dto.defaultChatEndpoint !== undefined || dto.apiFeatures !== undefined
-          ? getDataService('ProviderRegistryService').getProviderDisplayMetadata(
-              providerId,
-              current.presetProviderId ?? undefined
-            )
+          ? getDataService('ProviderRegistryService').getProviderDisplayMetadata(providerId, current.presetProviderId)
           : undefined
       // A renderer may echo the merged runtime value while editing an unrelated
       // field. Drop a baseline-equal endpoint instead of freezing that registry
@@ -757,7 +748,7 @@ class ProviderService {
       const providerRegistryService = getDataService('ProviderRegistryService')
       if (
         (provider.presetProviderId && provider.presetProviderId === providerId) ||
-        providerRegistryService.isRegistryProvider(providerId)
+        (provider.presetProviderId !== null && providerRegistryService.isRegistryProvider(providerId))
       ) {
         throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
       }

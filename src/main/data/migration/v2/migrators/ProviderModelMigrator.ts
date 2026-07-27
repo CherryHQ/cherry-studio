@@ -23,6 +23,7 @@ import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migrati
 import {
   buildApiFeaturesBaseline,
   diffApiFeatures,
+  matchesModelPricingBaseline,
   mergePresetModel,
   providerRegistryService
 } from '@data/services/ProviderRegistryService'
@@ -283,7 +284,9 @@ export class ProviderModelMigrator extends BaseMigrator {
       userOverrides.add('endpointTypes')
     }
     if (row.supportsStreaming !== baseline.supportsStreaming) userOverrides.add('supportsStreaming')
-    if (row.pricing != null && !isEqual(row.pricing, baseline.pricing)) userOverrides.add('pricing')
+    if (row.pricing != null && !matchesModelPricingBaseline(row.pricing, baseline.pricing)) {
+      userOverrides.add('pricing')
+    }
 
     return {
       ...row,

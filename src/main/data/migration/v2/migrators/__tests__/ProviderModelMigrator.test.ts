@@ -678,6 +678,45 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.userOverrides).toBeNull()
     })
 
+    it('drops the synthetic v1 0/0 pricing echo when the registry has no pricing', async () => {
+      registryFixtures.models.set('gpt-4o', {
+        id: 'gpt-4o',
+        name: 'GPT-4o'
+      })
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: 'openai',
+              name: 'OpenAI',
+              type: 'openai',
+              enabled: true,
+              models: [
+                {
+                  id: 'gpt-4o',
+                  name: 'GPT-4o',
+                  group: 'Favorites',
+                  pricing: {
+                    input_per_million_tokens: 0,
+                    output_per_million_tokens: 0
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+      expect(modelRow.userOverrides).toEqual(['group'])
+      expect(modelRow.group).toBe('Favorites')
+      expect(modelRow.pricing).toBeNull()
+    })
+
     it('marks only genuine legacy model deltas as user overrides', async () => {
       registryFixtures.models.set('gpt-4o', {
         id: 'gpt-4o',

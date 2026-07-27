@@ -89,7 +89,9 @@ describe('ProviderService.delete — preset protection boundary', () => {
     expect(rows).toHaveLength(0)
   })
 
-  it('should NOT throw when deleting a fully custom provider with no presetProviderId', async () => {
+  it('should NOT throw when a future registry entry collides with a fully custom provider id', async () => {
+    vi.spyOn(providerRegistryService, 'isRegistryProvider').mockImplementation((id) => id === 'my-local-llm')
+
     await dbh.db.insert(userProviderTable).values({
       providerId: 'my-local-llm',
       presetProviderId: null,

@@ -9,9 +9,11 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
-// Stub the registry loader with a minimal CherryIN preset. `google-generate-content`
-// is deliberately present here but ABSENT from the persisted rows below —
-// modelling an install seeded before the registry gained that endpoint (#17096).
+// Stub the registry loader with CherryIN plus a future `my-relay` preset.
+// `google-generate-content` is deliberately present for CherryIN but ABSENT
+// from the persisted rows below — modelling an install seeded before the
+// registry gained that endpoint (#17096). `my-relay` models a later registry
+// id collision with an already-persisted fully custom provider.
 vi.mock('@cherrystudio/provider-registry/node', () => {
   class RegistryLoader {
     loadProviders() {
@@ -28,6 +30,18 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
           },
           defaultChatEndpoint: 'openai-chat-completions',
           apiFeatures: { serviceTier: false }
+        },
+        {
+          id: 'my-relay',
+          description: 'Future registry provider',
+          endpointConfigs: {
+            'openai-chat-completions': {
+              adapterFamily: 'future-registry',
+              baseUrl: 'https://registry.example/v1',
+              modelsApiUrls: { default: 'https://registry.example/v1/models' }
+            }
+          },
+          defaultChatEndpoint: 'openai-chat-completions'
         }
       ]
     }
@@ -99,9 +113,10 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     })
   })
 
-  it('leaves custom providers (no registry preset) on their persisted configs', async () => {
+  it('keeps explicit custom provenance when a future registry entry reuses the provider id', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'my-relay',
+      presetProviderId: null,
       name: 'My Relay',
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
@@ -115,8 +130,11 @@ describe('ProviderService read-time registry merge (#17096)', () => {
       orderKey: 'a0'
     })
 
-    const configs = providerService.getByProviderId('my-relay').endpointConfigs
+    const provider = providerService.getByProviderId('my-relay')
+    const configs = provider.endpointConfigs
 
+    expect(provider.description).toBeUndefined()
+    expect(provider.defaultChatEndpoint).toBeUndefined()
     expect(configs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).toEqual({
       baseUrl: 'https://relay.example/v1',
       adapterFamily: 'newapi'

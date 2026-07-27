@@ -49,7 +49,7 @@ import type {
   RuntimeParameterSupport,
   RuntimeReasoning
 } from '@shared/data/types/model'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, CURRENCY } from '@shared/data/types/model'
 import type {
   ApiFeatures,
   EndpointConfig,
@@ -59,6 +59,7 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 
@@ -109,6 +110,7 @@ export function diffApiFeatures(
 
 export interface ListProviderRegistryModelsOptions {
   providerId?: string
+  presetProviderId?: string | null
   disabled?: boolean
 }
 
@@ -143,7 +145,58 @@ export interface ResolvedReasoningProfile {
   support?: ProtoReasoningSupport
 }
 
-export type ReasoningProviderContext = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
+export interface ReasoningProviderContext {
+  id: Provider['id']
+  presetProviderId?: Provider['presetProviderId'] | null
+  defaultChatEndpoint?: Provider['defaultChatEndpoint']
+}
+
+function isEmptyPricingEcho(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const pricing = value as Partial<RuntimeModelPricing>
+  const isEmptyTier = (tier: RuntimeModelPricing['input'] | undefined) =>
+    tier != null && (tier.perMillionTokens === 0 || tier.perMillionTokens === null)
+  return (
+    isEmptyTier(pricing.input) &&
+    isEmptyTier(pricing.output) &&
+    !pricing.cacheRead &&
+    !pricing.cacheWrite &&
+    !pricing.perImage &&
+    !pricing.perMinute
+  )
+}
+
+function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeModelPricing {
+  const normalizeTier = (tier: RuntimeModelPricing['input']): RuntimeModelPricing['input'] => ({
+    perMillionTokens: tier.perMillionTokens,
+    currency: tier.currency ?? CURRENCY.USD
+  })
+
+  return {
+    input: normalizeTier(pricing.input),
+    output: normalizeTier(pricing.output),
+    ...(pricing.cacheRead ? { cacheRead: normalizeTier(pricing.cacheRead) } : {}),
+    ...(pricing.cacheWrite ? { cacheWrite: normalizeTier(pricing.cacheWrite) } : {}),
+    ...(pricing.perImage ? { perImage: pricing.perImage } : {}),
+    ...(pricing.perMinute ? { perMinute: pricing.perMinute } : {})
+  }
+}
+
+/**
+ * Compare user-visible pricing with a registry baseline. The v1 editor
+ * materialized an absent price as 0/0, so that empty echo is baseline-equal
+ * when the registry has no price.
+ */
+export function matchesModelPricingBaseline(value: unknown, baseline: unknown): boolean {
+  if (baseline === undefined && isEmptyPricingEcho(value)) return true
+  if (value && baseline) {
+    return isEqual(
+      normalizePricingForComparison(value as RuntimeModelPricing),
+      normalizePricingForComparison(baseline as RuntimeModelPricing)
+    )
+  }
+  return isEqual(value, baseline)
+}
 
 /** Resolve profile data without consulting model/provider ids or regexes. */
 export function resolveReasoningProfileFromRegistry(input: {
@@ -554,13 +607,18 @@ class ProviderRegistryService {
     presetProviderId?: string | null,
     lookupPersistedPreset = true
   ): ProtoProviderConfig | null {
+    // A persisted null is authoritative provenance for a fully custom
+    // provider. Do not let a future registry entry with the same id silently
+    // reclassify the row as a preset.
+    if (presetProviderId === null) return null
+
     const direct = this.findRegistryProvider(providerId)
     if (direct) return direct
 
-    let fallbackId = presetProviderId
-    if (!fallbackId && lookupPersistedPreset) {
+    let fallbackId: string | null | undefined = presetProviderId
+    if (fallbackId === undefined && lookupPersistedPreset) {
       try {
-        fallbackId = getDataService('ProviderService').getByProviderId(providerId).presetProviderId
+        fallbackId = getDataService('ProviderService').getByProviderId(providerId).presetProviderId ?? null
       } catch (error) {
         if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
           return null
@@ -569,6 +627,7 @@ class ProviderRegistryService {
       }
     }
 
+    if (fallbackId === null) return null
     return fallbackId ? (this.findRegistryProvider(fallbackId) ?? null) : null
   }
 
@@ -589,7 +648,7 @@ class ProviderRegistryService {
     }
   }
 
-  getProviderDisplayMetadata(providerId: string, presetProviderId?: string): ProviderDisplayMetadata {
+  getProviderDisplayMetadata(providerId: string, presetProviderId?: string | null): ProviderDisplayMetadata {
     try {
       const provider = this.resolveProviderPreset(providerId, presetProviderId, false)
 
@@ -628,7 +687,7 @@ class ProviderRegistryService {
   mergeEndpointConfigs(
     rowConfigs: Partial<Record<EndpointType, EndpointConfigOverride>> | null | undefined,
     providerId: string,
-    presetProviderId?: string
+    presetProviderId?: string | null
   ): Partial<Record<EndpointType, EndpointConfig>> | null {
     try {
       // lookupPersistedPreset=false — called from rowToRuntimeProvider; a DB
@@ -670,7 +729,7 @@ class ProviderRegistryService {
   getProviderPreset(
     providerId: string,
     fields: readonly ProviderPresetField[],
-    presetProviderId?: string
+    presetProviderId?: string | null
   ): ProviderPreset {
     const presetProvider = this.resolveProviderPreset(providerId, presetProviderId, false)
     const result: ProviderPreset = {}
@@ -694,10 +753,13 @@ class ProviderRegistryService {
     const registryProvider = this.findRegistryProvider(providerId)
     try {
       const provider = getDataService('ProviderService').getByProviderId(providerId)
+      const presetProviderId = provider.presetProviderId ?? null
       return {
         id: provider.id,
-        presetProviderId: provider.presetProviderId,
-        defaultChatEndpoint: provider.defaultChatEndpoint ?? registryProvider?.defaultChatEndpoint ?? undefined
+        presetProviderId,
+        defaultChatEndpoint:
+          provider.defaultChatEndpoint ??
+          (presetProviderId === null ? undefined : (registryProvider?.defaultChatEndpoint ?? undefined))
       }
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
@@ -712,7 +774,8 @@ class ProviderRegistryService {
     }
   }
 
-  private findProfileProvider(context: Pick<Provider, 'id' | 'presetProviderId'>) {
+  private findProfileProvider(context: Pick<ReasoningProviderContext, 'id' | 'presetProviderId'>) {
+    if (context.presetProviderId === null) return undefined
     return (
       this.findRegistryProvider(context.id) ??
       (context.presetProviderId ? this.findRegistryProvider(context.presetProviderId) : undefined)
@@ -828,20 +891,13 @@ class ProviderRegistryService {
     reasoningProfile: ResolvedReasoningProfile
   } {
     const loader = this.getLoader()
-    const presetProvider = this.resolveProviderPreset(providerId)
-    const registryProviderId = presetProvider?.id ?? providerId
-    const registryOverride = loader.findOverride(registryProviderId, modelId)
+    const providerContext = providerContextCache?.get(providerId) ?? this.getEffectiveProviderContext(providerId)
+    providerContextCache?.set(providerId, providerContext)
+    const presetProvider = this.resolveProviderPreset(providerId, providerContext.presetProviderId, false)
+    const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
     const presetModel =
       loader.findModel(registryOverride?.modelId ?? modelId) ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
-    // Provider context reads the provider row from the DB; when an
-    // optional cache is supplied (batch enrichment in `ModelService.list`),
-    // resolve it once per provider instead of once per model.
-    let providerContext = providerContextCache?.get(providerId)
-    if (!providerContext) {
-      providerContext = this.getEffectiveProviderContext(providerId)
-      providerContextCache?.set(providerId, providerContext)
-    }
 
     return {
       presetModel,
@@ -869,9 +925,8 @@ class ProviderRegistryService {
    */
   resolveModels(providerId: string, modelIds: string[]): Model[] {
     const loader = this.getLoader()
-    const presetProvider = this.resolveProviderPreset(providerId)
-    const registryProviderId = presetProvider?.id ?? providerId
     const providerContext = this.getEffectiveProviderContext(providerId)
+    const presetProvider = this.resolveProviderPreset(providerId, providerContext.presetProviderId, false)
 
     const results: Model[] = []
     const seen = new Set<string>()
@@ -881,7 +936,7 @@ class ProviderRegistryService {
       seen.add(modelId)
 
       // O(1) lookup with exact match + normalized fallback
-      const registryOverride = loader.findOverride(registryProviderId, modelId)
+      const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
       const presetModel =
         loader.findModel(registryOverride?.modelId ?? modelId) ??
         (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
@@ -958,7 +1013,11 @@ class ProviderRegistryService {
     const includeDisabled = options.disabled ?? false
 
     if (options.providerId) {
-      const presetProvider = this.resolveProviderPreset(options.providerId)
+      const presetProvider = this.resolveProviderPreset(
+        options.providerId,
+        options.presetProviderId,
+        options.presetProviderId === undefined
+      )
       return presetProvider ? this.listProviderPresetModels(options.providerId, presetProvider, includeDisabled) : []
     }
 

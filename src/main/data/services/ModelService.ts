@@ -18,6 +18,7 @@ import { pinService } from '@data/services/PinService'
 import {
   createCustomModel,
   inferCustomModelReasoning,
+  matchesModelPricingBaseline,
   mergePresetModel,
   projectRuntimeReasoning,
   providerRegistryService,
@@ -42,7 +43,7 @@ import type {
   RuntimeParameterSupport,
   RuntimeReasoning
 } from '@shared/data/types/model'
-import { createUniqueModelId, CURRENCY, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
@@ -305,46 +306,9 @@ function getBaselineField(model: Model, field: RegistryEnrichableField): unknown
   return model[field as keyof Model]
 }
 
-function isEmptyPricingEcho(value: unknown): boolean {
-  if (!value || typeof value !== 'object') return false
-  const pricing = value as Partial<RuntimeModelPricing>
-  const isEmptyTier = (tier: RuntimeModelPricing['input'] | undefined) =>
-    tier != null && (tier.perMillionTokens === 0 || tier.perMillionTokens === null)
-  return (
-    isEmptyTier(pricing.input) &&
-    isEmptyTier(pricing.output) &&
-    !pricing.cacheRead &&
-    !pricing.cacheWrite &&
-    !pricing.perImage &&
-    !pricing.perMinute
-  )
-}
-
-function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeModelPricing {
-  const normalizeTier = (tier: RuntimeModelPricing['input']): RuntimeModelPricing['input'] => ({
-    perMillionTokens: tier.perMillionTokens,
-    currency: tier.currency ?? CURRENCY.USD
-  })
-
-  return {
-    input: normalizeTier(pricing.input),
-    output: normalizeTier(pricing.output),
-    ...(pricing.cacheRead ? { cacheRead: normalizeTier(pricing.cacheRead) } : {}),
-    ...(pricing.cacheWrite ? { cacheWrite: normalizeTier(pricing.cacheWrite) } : {}),
-    ...(pricing.perImage ? { perImage: pricing.perImage } : {}),
-    ...(pricing.perMinute ? { perMinute: pricing.perMinute } : {})
-  }
-}
-
 function matchesBaseline(value: unknown, baseline: unknown, field: RegistryEnrichableField): boolean {
   if (field === 'pricing') {
-    if (baseline === undefined && isEmptyPricingEcho(value)) return true
-    if (value && baseline) {
-      return isEqual(
-        normalizePricingForComparison(value as RuntimeModelPricing),
-        normalizePricingForComparison(baseline as RuntimeModelPricing)
-      )
-    }
+    return matchesModelPricingBaseline(value, baseline)
   }
   return isEqual(value, baseline)
 }
