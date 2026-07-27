@@ -61,6 +61,12 @@ export async function runPostPromotionWork(shouldContinue: () => boolean): Promi
     ...coverage
   })
 
+  // The bases to rebuild come from THIS device's filesystem, not from the
+  // promotion's `summary.knowledgeBaseIds`. Every base the restore installed has
+  // a row in the database it installed with it, so the inventory below already
+  // contains all of them — plus the ones that were here before. The summary
+  // stays the durable record of what the promotion moved; using it as a second
+  // input could only ever add a base whose directory has since disappeared.
   const enqueued: string[] = []
   for (const requirement of present) {
     if (!shouldContinue()) break

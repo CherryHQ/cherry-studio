@@ -24,7 +24,8 @@ vi.mock('@application', () => ({
     getPath: vi.fn((key: string) => {
       const bases: Record<string, string> = {
         'app.userdata': userData,
-        'feature.backup.restore.file': join(userData, 'restore-journal.json')
+        'feature.backup.restore.file': join(userData, 'restore-journal.json'),
+        'feature.backup.restore.staging': join(userData, 'restore-staging')
       }
       const base = bases[key]
       if (!base) throw new Error(`Unexpected path key in acknowledgeRestore test: ${key}`)
