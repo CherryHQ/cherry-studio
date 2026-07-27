@@ -220,12 +220,11 @@ const MiniAppPage: FC = () => {
   }
 
   const handleReload = () => {
-    if (!app) return
+    if (!app || !isReady) return
     if (webviewRef.current) {
       setWebviewLoaded(app.appId, false)
       setIsReady(false)
-      webviewRef.current.src = app.url
-      setCurrentUrl(app.url)
+      webviewRef.current.reload()
     }
   }
 

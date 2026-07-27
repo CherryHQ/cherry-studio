@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,6 +30,8 @@ const mocks = vi.hoisted(() => ({
   openedKeepAliveMiniApps: [] as MiniApp[],
   openMiniAppKeepAlive: vi.fn(),
   updateTab: vi.fn(),
+  setWebviewLoaded: vi.fn(),
+  webviewLoaded: true,
   isActiveTab: true,
   currentTab: {
     id: 'launchpad-tab',
@@ -49,7 +51,11 @@ vi.mock('@renderer/components/icons/SvgIcon', () => ({
 }))
 
 vi.mock('@renderer/pages/miniApps/components/MinimalToolbar', () => ({
-  default: () => <div data-testid="minimal-toolbar" />
+  default: ({ onReload }: { onReload: () => void }) => (
+    <button data-testid="minimal-toolbar" onClick={onReload} type="button">
+      Reload
+    </button>
+  )
 }))
 
 vi.mock('@renderer/pages/miniApps/components/WebviewSearch', () => ({
@@ -89,9 +95,9 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 
 vi.mock('@renderer/utils/webviewStateManager', () => ({
-  getWebviewLoaded: () => true,
+  getWebviewLoaded: () => mocks.webviewLoaded,
   onWebviewStateChange: () => vi.fn(),
-  setWebviewLoaded: vi.fn()
+  setWebviewLoaded: mocks.setWebviewLoaded
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -127,6 +133,7 @@ describe('MiniAppPage', () => {
       })
     ]
     mocks.openedKeepAliveMiniApps = []
+    mocks.webviewLoaded = true
     mocks.isActiveTab = true
     mocks.currentTab = {
       id: 'launchpad-tab',
@@ -143,6 +150,7 @@ describe('MiniAppPage', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    vi.restoreAllMocks()
   })
 
   it('syncs the owning tab title and icon to the concrete mini app', async () => {
@@ -230,5 +238,40 @@ describe('MiniAppPage', () => {
 
     await waitFor(() => expect(screen.getByTestId('beat-loader')).toBeInTheDocument())
     expect(screen.queryByText('miniApp.error.not_found')).not.toBeInTheDocument()
+  })
+
+  it('reloads the current mini app page without resetting it to the configured home URL', async () => {
+    const reload = vi.fn()
+    const webview = {
+      src: 'https://chat.openai.com/c/123',
+      reload,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    }
+    vi.spyOn(document, 'querySelector').mockReturnValue(webview as unknown as Element)
+
+    const { getByTestId } = render(<MiniAppPage />)
+    fireEvent.click(getByTestId('minimal-toolbar'))
+
+    expect(reload).toHaveBeenCalledOnce()
+    expect(webview.src).toBe('https://chat.openai.com/c/123')
+  })
+
+  it('does not call WebView methods before the mini app has finished loading', () => {
+    mocks.webviewLoaded = false
+    const reload = vi.fn()
+    const webview = {
+      src: 'https://chat.openai.com',
+      reload,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    }
+    vi.spyOn(document, 'querySelector').mockReturnValue(webview as unknown as Element)
+
+    const { getByTestId } = render(<MiniAppPage />)
+    fireEvent.click(getByTestId('minimal-toolbar'))
+
+    expect(reload).not.toHaveBeenCalled()
+    expect(mocks.setWebviewLoaded).not.toHaveBeenCalled()
   })
 })
