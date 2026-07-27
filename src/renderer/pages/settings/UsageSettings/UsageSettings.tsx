@@ -65,17 +65,7 @@ const TOP_COUNT_KEYS = [5, 10, 20] as const
 // has nothing to put in a pie, so each side offers its own shapes.
 const TOTAL_CHART_TYPES = ['stack', 'pie'] as const
 const PERIOD_CHART_TYPES = ['bar', 'line'] as const
-const CHART_COLORS = [
-  'var(--color-lime-500)',
-  'var(--color-fuchsia-500)',
-  'var(--color-amber-500)',
-  'var(--color-emerald-500)',
-  'var(--color-sky-500)',
-  'var(--color-orange-500)',
-  'var(--color-violet-500)',
-  'var(--color-slate-400)',
-  'var(--color-rose-500)'
-] as const
+const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'] as const
 
 type WindowKey = (typeof WINDOW_KEYS)[number]
 type GroupByKey = (typeof GROUP_BY_KEYS)[number]
@@ -1530,7 +1520,7 @@ function UsageSettings() {
           <div className="flex min-h-64 items-center justify-center">
             <svg viewBox="0 0 160 160" className="-rotate-90 size-56" role="img">
               <title>{t('settings.usage.chart.pie')}</title>
-              <circle cx="80" cy="80" r={radius} fill="none" stroke="var(--color-muted)" strokeWidth="22" />
+              <circle cx="80" cy="80" r={radius} fill="none" stroke="var(--muted)" strokeWidth="22" />
               {entries.map((entry) => {
                 const length = entry.share * circumference
                 const dashOffset = -offset
