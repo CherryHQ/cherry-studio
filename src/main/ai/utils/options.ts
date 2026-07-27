@@ -94,6 +94,19 @@ function getVerbosity(model: Model, provider: Provider): OpenAIVerbosity {
   return undefined
 }
 
+function shouldNormalizeOpenAICompatibleReasoning(
+  providerId: AppProviderId,
+  endpointType: EndpointType | undefined
+): boolean {
+  return (
+    providerId === 'openai-compatible' ||
+    providerId === 'github-copilot-openai-compatible' ||
+    providerId === 'google-vertex-maas' ||
+    (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+      (providerId === 'aihubmix' || providerId === SystemProviderIds.dmxapi))
+  )
+}
+
 export function extractAiSdkStandardParams(customParams: Record<string, any>): {
   standardParams: Partial<Record<AiSdkParam, any>>
   providerParams: Record<string, any>
@@ -134,14 +147,9 @@ export function buildCapabilityProviderOptions(
         providerId: rawProviderId === 'openai-compatible' ? actualProvider.id : providerOptionsKey,
         options: {}
       }
-  const reasoningOptions =
-    rawProviderId === 'openai-compatible' ||
-    rawProviderId === 'github-copilot-openai-compatible' ||
-    rawProviderId === 'google-vertex-maas' ||
-    ((rawProviderId === 'aihubmix' || rawProviderId === SystemProviderIds.dmxapi) &&
-      context.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-      ? { ...resolvedReasoningOptions, options: normalizeOpenAICompatibleParams(resolvedReasoningOptions.options) }
-      : resolvedReasoningOptions
+  const reasoningOptions = shouldNormalizeOpenAICompatibleReasoning(rawProviderId, context.endpointType)
+    ? { ...resolvedReasoningOptions, options: normalizeOpenAICompatibleParams(resolvedReasoningOptions.options) }
+    : resolvedReasoningOptions
 
   let providerSpecificOptions: Record<string, any> = {}
 
@@ -244,13 +252,9 @@ export function buildResolvedReasoningProviderOptions(context: {
   reasoning: ResolvedReasoningInvocation
 }): Record<string, Record<string, unknown>> {
   const encoded = encodeReasoningOptions(context.providerOptionsKey, context.reasoning)
-  const options =
-    context.aiSdkProviderId === 'openai-compatible' ||
-    context.aiSdkProviderId === 'github-copilot-openai-compatible' ||
-    ((context.aiSdkProviderId === 'aihubmix' || context.aiSdkProviderId === SystemProviderIds.dmxapi) &&
-      context.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-      ? normalizeOpenAICompatibleParams(encoded.options)
-      : encoded.options
+  const options = shouldNormalizeOpenAICompatibleReasoning(context.aiSdkProviderId, context.endpointType)
+    ? normalizeOpenAICompatibleParams(encoded.options)
+    : encoded.options
   return Object.keys(options).length > 0 ? { [encoded.providerId]: options } : {}
 }
 

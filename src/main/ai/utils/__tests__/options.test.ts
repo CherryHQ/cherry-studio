@@ -3,7 +3,13 @@ import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { buildCapabilityProviderOptions, extractAiSdkStandardParams, mergeCustomProviderParameters } from '../options'
+import {
+  buildCapabilityProviderOptions,
+  buildResolvedReasoningProviderOptions,
+  extractAiSdkStandardParams,
+  mergeCustomProviderParameters
+} from '../options'
+import type { ResolvedReasoningInvocation } from '../reasoningSerializers'
 
 describe('extractAiSdkStandardParams', () => {
   it('routes AI-SDK standard params to standardParams, others to providerParams', () => {
@@ -157,6 +163,60 @@ describe('customParameters → providerOptions plugin contract', () => {
     )
     expect(standardParams).toEqual({ topK: 40 })
     expect(providerOptions).toEqual({ openai: { customFlag: true } })
+  })
+})
+
+describe('OpenAI-compatible reasoning normalization', () => {
+  it.each([
+    ['openai-compatible', 'relay'],
+    ['github-copilot-openai-compatible', 'copilot'],
+    ['google-vertex-maas', 'vertex'],
+    ['aihubmix', 'aihubmix'],
+    ['dmxapi', 'openai']
+  ] as const)('normalizes %s reasoning in both provider-options builders', (runtimeProviderId, providerOptionsKey) => {
+    const endpointType = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const reasoning: ResolvedReasoningInvocation = {
+      kind: 'effort',
+      selection: 'high',
+      effort: 'high',
+      emissions: [{ target: 'reasoning_effort', value: 'high' }]
+    }
+    const model = {
+      id: `${providerOptionsKey}::reasoner`,
+      providerId: providerOptionsKey,
+      name: 'reasoner',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    } as unknown as Model
+    const provider = {
+      id: providerOptionsKey,
+      name: providerOptionsKey,
+      settings: {},
+      apiFeatures: {}
+    } as Provider
+    const capabilityOptions = buildCapabilityProviderOptions(
+      { settings: {} } as Assistant,
+      model,
+      provider,
+      { enableReasoning: true, enableWebSearch: false, enableGenerateImage: false },
+      {
+        aiSdkProviderId: runtimeProviderId,
+        runtimeProviderId,
+        providerOptionsKey,
+        endpointType,
+        reasoning
+      }
+    )
+    const resolvedOptions = buildResolvedReasoningProviderOptions({
+      aiSdkProviderId: runtimeProviderId,
+      providerOptionsKey,
+      endpointType,
+      reasoning
+    })
+
+    for (const options of [capabilityOptions, resolvedOptions]) {
+      expect(options).toMatchObject({ [providerOptionsKey]: { reasoningEffort: 'high' } })
+      expect(options[providerOptionsKey].reasoning_effort).toBeUndefined()
+    }
   })
 })
 
