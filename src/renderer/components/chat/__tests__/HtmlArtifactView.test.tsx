@@ -298,6 +298,7 @@ describe('HtmlArtifactView', () => {
     const surface = screen.getByTestId('html-artifact-surface')
     expect(surface).not.toHaveClass('aspect-video')
     expect(surface).not.toHaveClass('rounded-xl', 'border', 'bg-background')
+    expect(surface).toHaveClass('rounded-lg')
     expect(surface).toHaveStyle({ height: '240px' })
     const setPreviewContentHeight = createPreviewContentHeightController()
 

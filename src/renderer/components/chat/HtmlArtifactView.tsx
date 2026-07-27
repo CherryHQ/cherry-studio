@@ -601,7 +601,7 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({
       {!isPopupOpen ? (
         <div
           data-testid="html-artifact-surface"
-          className="group relative w-full overflow-hidden"
+          className="group relative w-full overflow-hidden rounded-lg"
           style={{ height: surfaceHeight }}>
           <div className="relative h-full min-h-0 overflow-hidden bg-background">
             <div className={cn('h-full min-h-0', showCode && 'hidden')} aria-hidden={showCode || undefined}>
