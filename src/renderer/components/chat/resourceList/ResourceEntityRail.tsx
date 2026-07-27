@@ -148,6 +148,52 @@ type ResourceEntityRailRowProps<T extends ResourceEntityRailItem, TActionContext
   runContextMenuAction: (item: T, action: ResolvedAction<TActionContext>) => Promise<void>
 }
 
+function hasSameResourceEntityIcon(
+  previous: ResourceEntityIconDescriptor | undefined,
+  next: ResourceEntityIconDescriptor | undefined
+) {
+  if (previous === next) return true
+  if (!previous || !next || previous.type !== next.type) return false
+
+  if (previous.type === 'model' && next.type === 'model') {
+    return previous.modelId === next.modelId && previous.modelName === next.modelName
+  }
+  if (previous.type === 'emoji' && next.type === 'emoji') {
+    return previous.emoji === next.emoji
+  }
+  return previous.type === 'bot' && next.type === 'bot'
+}
+
+function hasSameResourceEntityRowItem(previous: ResourceEntityRailItem, next: ResourceEntityRailItem) {
+  return (
+    previous.id === next.id &&
+    previous.name === next.name &&
+    hasSameResourceEntityIcon(previous.icon, next.icon) &&
+    previous.orderKey === next.orderKey &&
+    previous.reorderable === next.reorderable &&
+    previous.pinned === next.pinned &&
+    previous.groupId === next.groupId &&
+    previous.groupName === next.groupName &&
+    previous.groupOrderKey === next.groupOrderKey &&
+    previous.canCreateResource === next.canCreateResource
+  )
+}
+
+function hasSameResourceEntityRailRowProps(
+  previous: Readonly<ResourceEntityRailRowProps<ResourceEntityRailItem, unknown>>,
+  next: Readonly<ResourceEntityRailRowProps<ResourceEntityRailItem, unknown>>
+) {
+  return (
+    hasSameResourceEntityRowItem(previous.item, next.item) &&
+    previous.createResourceLabel === next.createResourceLabel &&
+    previous.getContextMenuActions === next.getContextMenuActions &&
+    previous.moreLabel === next.moreLabel &&
+    previous.onContextMenuAction === next.onContextMenuAction &&
+    previous.onCreateResource === next.onCreateResource &&
+    previous.runContextMenuAction === next.runContextMenuAction
+  )
+}
+
 function ResourceEntityRailRowComponent<T extends ResourceEntityRailItem, TActionContext>({
   createResourceLabel,
   getContextMenuActions,
@@ -224,7 +270,7 @@ function ResourceEntityRailRowComponent<T extends ResourceEntityRailItem, TActio
   )
 }
 
-const ResourceEntityRailRow = memo(ResourceEntityRailRowComponent) as <
+const ResourceEntityRailRow = memo(ResourceEntityRailRowComponent, hasSameResourceEntityRailRowProps) as <
   T extends ResourceEntityRailItem,
   TActionContext
 >(
@@ -362,6 +408,34 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     [groupByGroup]
   )
 
+  // The list's `meta` memo depends on all three. Stable values keep unrelated parent renders from
+  // waking the virtual drag wrapper and its visible rows.
+  const dragCapabilities = useMemo(
+    () => ({ groups: false, items: reorderEnabled, itemSameGroup: reorderEnabled, itemCrossGroup: false }),
+    [reorderEnabled]
+  )
+  const canDragItem = useCallback(
+    ({ item }: { item: T }) => reorderEnabled && item.reorderable !== false && !item.pinned,
+    [reorderEnabled]
+  )
+  const canDropItem = useCallback(
+    ({
+      activeItem,
+      sourceGroupId,
+      targetGroupId
+    }: {
+      activeItem: T
+      sourceGroupId: string | null
+      targetGroupId: string | null
+    }) =>
+      reorderEnabled &&
+      activeItem.reorderable !== false &&
+      !activeItem.pinned &&
+      targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID &&
+      sourceGroupId === targetGroupId,
+    [reorderEnabled]
+  )
+
   // Alias the compound provider to a local before rendering — same pattern as TopicResourceList/SessionResourceList.
   // Written inline as `<ResourceList.Provider>` it gets auto-rewritten to `<ResourceList>` by the
   // React-19 "drop Context .Provider" lint fixer (ResourceList.Provider only looks like a Context).
@@ -377,20 +451,9 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       groupBy={groupBy}
       sectionBy={sectionBy}
       defaultGroupVisibleCount={Number.POSITIVE_INFINITY}
-      dragCapabilities={{
-        groups: false,
-        items: reorderEnabled,
-        itemSameGroup: reorderEnabled,
-        itemCrossGroup: false
-      }}
-      canDragItem={({ item }) => reorderEnabled && item.reorderable !== false && !item.pinned}
-      canDropItem={({ activeItem, sourceGroupId, targetGroupId }) =>
-        reorderEnabled &&
-        activeItem.reorderable !== false &&
-        !activeItem.pinned &&
-        targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID &&
-        sourceGroupId === targetGroupId
-      }
+      dragCapabilities={dragCapabilities}
+      canDragItem={canDragItem}
+      canDropItem={canDropItem}
       onReorder={reorderEnabled ? onReorder : undefined}>
       <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`}>
         <ResourceList.Header className="gap-1">

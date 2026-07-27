@@ -158,6 +158,29 @@ type CreateSessionSeed = {
   workspacePath?: string
 }
 
+/**
+ * Detects only the persisted ordering changes that invalidate the optimistic drag overlay.
+ * Element-wise scalar checks avoid allocating a multi-hundred-KB signature for a large history.
+ */
+function hasSameSessionOrdering(previous: readonly SessionListItem[], next: readonly SessionListItem[]) {
+  if (previous.length !== next.length) return false
+
+  for (let index = 0; index < previous.length; index += 1) {
+    const session = previous[index]
+    const nextSession = next[index]
+    if (
+      session.id !== nextSession.id ||
+      (session.agentId ?? '') !== (nextSession.agentId ?? '') ||
+      session.orderKey !== nextSession.orderKey ||
+      !!session.pinned !== !!nextSession.pinned
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
 function AgentGroupMoreMenu({
   agentId,
   assistantIconType,
@@ -460,6 +483,7 @@ const Sessions = ({
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
     [pinIdBySessionId, sessions]
   )
+  const sessionOrderingRef = useRef(sessionItems)
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
   const requestFileNavigation = useOptionalAgentFileNavigation()
@@ -543,6 +567,17 @@ const Sessions = ({
     displayMode === 'workdir' && dragReady && !isWorkdirMetadataLoading && !isWorkdirMetadataRefreshing
   const agentDragReady = displayMode === 'agent' && dragReady && !isAgentsLoading
   const itemDragReady = displayMode === 'workdir' ? workdirDragReady : agentDragReady
+  // Keep the list meta stable when drag readiness has not changed, so unrelated renders do not
+  // wake the virtual drag wrapper and its visible rows.
+  const dragCapabilities = useMemo(
+    () => ({
+      groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,
+      items: itemDragReady,
+      itemSameGroup: itemDragReady,
+      itemCrossGroup: false
+    }),
+    [agentDragReady, displayMode, itemDragReady, workdirDragReady]
+  )
   const workspaceRowsForDisplay = useMemo(() => {
     if (!optimisticWorkspaceOrderIds) return workspaceRows
 
@@ -594,17 +629,13 @@ const Sessions = ({
     return groupedSessions.filter((session) => session.agentId === agentIdFilter)
   }, [agentIdFilter, groupedSessions, isRightPanel])
 
-  const sessionOrderSignature = useMemo(
-    () =>
-      sessionItems
-        .map((session) => `${session.id}:${session.agentId ?? ''}:${session.orderKey}:${session.pinned ? '1' : '0'}`)
-        .join('|'),
-    [sessionItems]
-  )
-
   useEffect(() => {
-    setOptimisticMove(null)
-  }, [sessionOrderSignature])
+    const previousOrdering = sessionOrderingRef.current
+    sessionOrderingRef.current = sessionItems
+    if (!hasSameSessionOrdering(previousOrdering, sessionItems)) {
+      setOptimisticMove(null)
+    }
+  }, [sessionItems])
 
   useEffect(() => {
     setOptimisticWorkspaceOrderIds(null)
@@ -1825,12 +1856,7 @@ const Sessions = ({
       isGroupHeaderIconVisible={isGroupHeaderIconVisible}
       getGroupHeaderTooltip={getGroupHeaderTooltip}
       groupHeaderClickBehavior={getGroupHeaderClickBehavior}
-      dragCapabilities={{
-        groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,
-        items: itemDragReady,
-        itemSameGroup: itemDragReady,
-        itemCrossGroup: false
-      }}
+      dragCapabilities={dragCapabilities}
       canDragGroup={canDragSessionGroup}
       canDropGroup={canDropSessionGroup}
       canDragItem={canDragSessionItem}

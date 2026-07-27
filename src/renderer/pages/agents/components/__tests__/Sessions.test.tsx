@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as SessionMenuActionsHook from '@renderer/hooks/chat/useSessionMenuActions'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -257,11 +258,13 @@ const pinMocks = vi.hoisted(() => ({
 
 const preferenceMocks = vi.hoisted(() => ({
   values: new Map<string, unknown>(),
-  setPreference: vi.fn()
+  setPreference: vi.fn(),
+  useMultiplePreferences: vi.fn()
 }))
 
 const cacheMocks = vi.hoisted(() => ({
   state: { activeSessionId: 'session-a' as string | null },
+  setters: new Map<string, (value: unknown) => void>(),
   values: new Map<string, unknown>(),
   setActiveSessionId: vi.fn(),
   setCache: vi.fn()
@@ -320,6 +323,23 @@ const topicStreamStatusMocks = vi.hoisted(() => ({
   }))
 }))
 
+const sessionRowRenderMocks = vi.hoisted(() => ({
+  counts: new Map<string, number>()
+}))
+
+vi.mock('@renderer/hooks/chat/useSessionMenuActions', async () => {
+  const actual = await vi.importActual<typeof SessionMenuActionsHook>('@renderer/hooks/chat/useSessionMenuActions')
+
+  return {
+    ...actual,
+    useSessionMenuActions: (...args: Parameters<typeof actual.useSessionMenuActions>) => {
+      const sessionName = args[0].sessionName
+      sessionRowRenderMocks.counts.set(sessionName, (sessionRowRenderMocks.counts.get(sessionName) ?? 0) + 1)
+      return actual.useSessionMenuActions(...args)
+    }
+  }
+})
+
 const agentSessionImageCaptureHostMocks = vi.hoisted(() => ({
   render: vi.fn()
 }))
@@ -376,10 +396,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       preferenceMocks.setPreference(key, value)
     }
   ],
-  useMultiplePreferences: (keys: Record<string, string>) => [
-    Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, preferenceMocks.values.get(key)])),
-    vi.fn()
-  ]
+  useMultiplePreferences: preferenceMocks.useMultiplePreferences
 }))
 
 vi.mock('@renderer/pages/agents/messages/AgentSessionImageCaptureHost', () => {
@@ -412,13 +429,16 @@ vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [undefined, vi.fn()],
-  usePersistCache: (key: string) => [
-    cacheMocks.values.get(key),
-    (value: unknown) => {
-      cacheMocks.values.set(key, value)
-      cacheMocks.setCache(key, value)
+  usePersistCache: (key: string) => {
+    if (!cacheMocks.setters.has(key)) {
+      cacheMocks.setters.set(key, (value: unknown) => {
+        cacheMocks.values.set(key, value)
+        cacheMocks.setCache(key, value)
+      })
     }
-  ]
+
+    return [cacheMocks.values.get(key), cacheMocks.setters.get(key)]
+  }
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -511,8 +531,8 @@ vi.mock('react-i18next', () => ({
     init: vi.fn(),
     type: '3rdParty'
   },
-  useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => {
+  useTranslation: (() => {
+    const t = (key: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
         'agent.session.add.title': 'Add task',
         'agent.add.title': 'Add Agent',
@@ -609,7 +629,9 @@ vi.mock('react-i18next', () => ({
       }
       return labels[key] ?? key
     }
-  })
+    const value = { t }
+    return () => value
+  })()
 }))
 
 import {
@@ -788,7 +810,12 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
 describe('Sessions', () => {
   beforeEach(() => {
     preferenceMocks.values.clear()
+    preferenceMocks.useMultiplePreferences.mockImplementation((keys: Record<string, string>) => [
+      Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, preferenceMocks.values.get(key)])),
+      vi.fn()
+    ])
     cacheMocks.values.clear()
+    sessionRowRenderMocks.counts.clear()
     imageCaptureTargetsMock.targets = undefined
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     preferenceMocks.values.set('agent.icon_type', 'emoji')
@@ -897,6 +924,41 @@ describe('Sessions', () => {
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
     expect(screen.getByRole('listbox')).toBe(listbox)
     expect(listbox.scrollTop).toBe(640)
+  })
+
+  it('does not rerender unchanged session rows during refreshes or list appends', () => {
+    const stableMultiplePreferencesResult = [{}, vi.fn()]
+    preferenceMocks.useMultiplePreferences.mockReturnValue(stableMultiplePreferencesResult)
+    const view = render(<SessionsForTest />)
+    const initialRenderCounts = new Map(sessionRowRenderMocks.counts)
+
+    expect(initialRenderCounts.get('Alpha session')).toBeGreaterThan(0)
+    expect(initialRenderCounts.get('Beta session')).toBeGreaterThan(0)
+
+    setupSessions({ isValidating: true })
+    view.rerender(<SessionsForTest />)
+
+    expect(sessionRowRenderMocks.counts.get('Alpha session')).toBe(initialRenderCounts.get('Alpha session'))
+    expect(sessionRowRenderMocks.counts.get('Beta session')).toBe(initialRenderCounts.get('Beta session'))
+
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' }),
+        createSession({
+          id: 'session-c',
+          name: 'Gamma session',
+          orderKey: 'c',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Embedded Project B' })
+        })
+      ]
+    })
+    view.rerender(<SessionsForTest />)
+
+    expect(sessionRowRenderMocks.counts.get('Alpha session')).toBe(initialRenderCounts.get('Alpha session'))
+    expect(sessionRowRenderMocks.counts.get('Beta session')).toBe(initialRenderCounts.get('Beta session'))
+    expect(sessionRowRenderMocks.counts.get('Gamma session')).toBeGreaterThan(0)
   })
 
   it('defaults workspace display groups to collapsed before the user changes expansion', () => {

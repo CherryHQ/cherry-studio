@@ -1,8 +1,8 @@
 import {
-  compareResourceRecency,
-  getResourceTimeBucket,
+  createResourceTimeBucketResolver,
+  type getResourceTimeBucket,
   type ResourceListTimeBucket,
-  sortRankedResourceItems
+  sortRankedResourceItemsByRecency
 } from './base'
 
 const RESOURCE_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
@@ -16,10 +16,12 @@ export function sortResourceItemsByPinnedTime<T extends { pinned?: boolean; upda
   items: readonly T[],
   now?: Parameters<typeof getResourceTimeBucket>[1]
 ): T[] {
-  return sortRankedResourceItems(items, {
-    getRank: (item) =>
-      item.pinned === true ? 0 : RESOURCE_TIME_BUCKET_RANK[getResourceTimeBucket(item.updatedAt, now)],
+  const resolveTimeBucket = createResourceTimeBucketResolver(now)
+
+  return sortRankedResourceItemsByRecency(items, {
+    getRank: (item, updatedAtMs) =>
+      item.pinned === true ? 0 : RESOURCE_TIME_BUCKET_RANK[resolveTimeBucket(updatedAtMs)],
     isPinned: (item) => item.pinned === true,
-    compareWithinGroup: compareResourceRecency((item) => item.updatedAt)
+    getUpdatedAt: (item) => item.updatedAt
   })
 }

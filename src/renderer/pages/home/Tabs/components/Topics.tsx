@@ -143,6 +143,31 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
 }
 
+/**
+ * Detects the reordering that must discard the optimistic drag overlay, by comparing only the
+ * fields that overlay depends on. Element-wise rather than via a joined signature string: a 10k
+ * history costs scalar comparisons instead of one interpolated string per topic plus a
+ * multi-hundred-KB join, on a path that runs for every refreshed snapshot.
+ */
+function hasSameTopicOrdering(previous: readonly Topic[], next: readonly Topic[]) {
+  if (previous.length !== next.length) return false
+
+  for (let index = 0; index < previous.length; index += 1) {
+    const topic = previous[index]
+    const nextTopic = next[index]
+    if (
+      topic.id !== nextTopic.id ||
+      (topic.assistantId ?? '') !== (nextTopic.assistantId ?? '') ||
+      (topic.orderKey ?? '') !== (nextTopic.orderKey ?? '') ||
+      !!topic.pinned !== !!nextTopic.pinned
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
 function matchesAssistantFilter(topic: Topic, assistantIdFilter: string | null | undefined) {
   if (assistantIdFilter === undefined) return false
   if (assistantIdFilter === null) return !topic.assistantId
@@ -375,7 +400,8 @@ export function Topics({
     () =>
       apiTopics.map((apiTopic) => {
         const topic = mapApiTopicToRendererTopic(apiTopic)
-        return { ...topic, pinned: isTopicPinned(apiTopic.id) }
+        topic.pinned = isTopicPinned(apiTopic.id)
+        return topic
       }),
     [apiTopics, isTopicPinned]
   )
@@ -383,13 +409,7 @@ export function Topics({
     payload: ResourceListItemReorderPayload
     targetAssistantId: string | null
   } | null>(null)
-  const apiTopicOrderSignature = useMemo(
-    () =>
-      apiBackedTopics
-        .map((topic) => `${topic.id}:${topic.assistantId ?? ''}:${topic.orderKey ?? ''}:${topic.pinned ? '1' : '0'}`)
-        .join('|'),
-    [apiBackedTopics]
-  )
+  const topicOrderingRef = useRef(apiBackedTopics)
   const topics = apiBackedTopics
   const topicsRef = useRef(topics)
   const activeTopicRef = useRef(activeTopic)
@@ -408,8 +428,12 @@ export function Topics({
   }, [activeTopic])
 
   useEffect(() => {
-    setOptimisticMove(null)
-  }, [apiTopicOrderSignature])
+    const previousOrdering = topicOrderingRef.current
+    topicOrderingRef.current = apiBackedTopics
+    if (!hasSameTopicOrdering(previousOrdering, apiBackedTopics)) {
+      setOptimisticMove(null)
+    }
+  }, [apiBackedTopics])
 
   const [optimisticAssistantOrderIds, setOptimisticAssistantOrderIds] = useState<readonly string[] | null>(null)
   const assistantOrderSignature = useMemo(
@@ -803,6 +827,12 @@ export function Topics({
         ? 'empty'
         : 'idle'
   const dragReady = isAssistantDisplayMode && isFullyLoaded && !isLoadingAll && !isRefreshing
+  // Keep the list meta stable when drag readiness has not changed, so unrelated renders do not
+  // wake the virtual drag wrapper and its visible rows.
+  const dragCapabilities = useMemo(
+    () => ({ groups: dragReady, items: dragReady, itemSameGroup: dragReady, itemCrossGroup: dragReady }),
+    [dragReady]
+  )
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
@@ -1292,12 +1322,7 @@ export function Topics({
         getGroupHeaderIcon={getGroupHeaderIcon}
         isGroupHeaderIconVisible={isGroupHeaderIconVisible}
         groupHeaderClickBehavior={getGroupHeaderClickBehavior}
-        dragCapabilities={{
-          groups: dragReady,
-          items: dragReady,
-          itemSameGroup: dragReady,
-          itemCrossGroup: dragReady
-        }}
+        dragCapabilities={dragCapabilities}
         canDragGroup={canDragTopicGroup}
         canDropGroup={canDropTopicGroup}
         canDragItem={canDragTopicItem}
@@ -1603,6 +1628,51 @@ interface TopicRowWithStatusProps extends TopicRowSharedProps {
 
 type TopicRowProps = TopicRowWithStatusProps
 
+function hasSameTopicRowData(previous: Topic, next: Topic) {
+  return (
+    previous.id === next.id &&
+    previous.type === next.type &&
+    previous.assistantId === next.assistantId &&
+    previous.name === next.name &&
+    previous.createdAt === next.createdAt &&
+    previous.updatedAt === next.updatedAt &&
+    previous.activeNodeId === next.activeNodeId &&
+    previous.orderKey === next.orderKey &&
+    previous.traceId === next.traceId &&
+    previous.pinned === next.pinned &&
+    previous.prompt === next.prompt &&
+    previous.isNameManuallyEdited === next.isNameManuallyEdited &&
+    (previous.messages === next.messages || (previous.messages.length === 0 && next.messages.length === 0))
+  )
+}
+
+function hasSameTopicRowProps(previous: Readonly<TopicRowProps>, next: Readonly<TopicRowProps>) {
+  return (
+    hasSameTopicRowData(previous.topic, next.topic) &&
+    previous.assistantMoveTargets === next.assistantMoveTargets &&
+    previous.deletingTopicId === next.deletingTopicId &&
+    previous.displayMode === next.displayMode &&
+    previous.exportMenuOptions === next.exportMenuOptions &&
+    previous.isActive === next.isActive &&
+    previous.isNewlyRenamed === next.isNewlyRenamed &&
+    previous.isRenaming === next.isRenaming &&
+    previous.notesPath === next.notesPath &&
+    previous.onAutoRename === next.onAutoRename &&
+    previous.onClearMessages === next.onClearMessages &&
+    previous.onConfirmDelete === next.onConfirmDelete &&
+    previous.onDeleteClick === next.onDeleteClick &&
+    previous.onDeleteFromMenu === next.onDeleteFromMenu &&
+    previous.onMoveToAssistant === next.onMoveToAssistant &&
+    previous.onOpenInNewTab === next.onOpenInNewTab &&
+    previous.onOpenInNewWindow === next.onOpenInNewWindow &&
+    previous.onPinTopic === next.onPinTopic &&
+    previous.onRequestTopicImageAction === next.onRequestTopicImageAction &&
+    previous.onSetPanePosition === next.onSetPanePosition &&
+    previous.onSwitchTopic === next.onSwitchTopic &&
+    previous.panePosition === next.panePosition
+  )
+}
+
 const TopicRow = memo(function TopicRow({
   assistantMoveTargets,
   deletingTopicId,
@@ -1786,7 +1856,7 @@ const TopicRow = memo(function TopicRow({
       />
     </>
   )
-})
+}, hasSameTopicRowProps)
 
 const TopicStreamIndicator = ({
   isErrored,

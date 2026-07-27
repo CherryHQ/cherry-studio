@@ -3,9 +3,9 @@ import {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
   compareResourceOrderKey,
-  compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
+  createResourceTimeBucketResolver,
   createTimeGroupResolver,
   getResourceTimeBucket,
   moveResourceListStringGroupAfterDrop,
@@ -15,6 +15,7 @@ import {
   type ResourceListItemReorderPayload,
   type ResourceListTimeBucket,
   sortRankedResourceItems,
+  sortRankedResourceItemsByRecency,
   withResourceListGroupIdPrefix
 } from '@renderer/utils/chat/resourceListBase'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -273,10 +274,12 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
     })
   }
 
-  return sortRankedResourceItems(topics, {
-    getRank: (topic) =>
-      topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.updatedAt, options.now)],
+  const resolveTimeBucket = createResourceTimeBucketResolver(options.now)
+
+  return sortRankedResourceItemsByRecency(topics, {
+    getRank: (topic, updatedAtMs) =>
+      topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[resolveTimeBucket(updatedAtMs)],
     isPinned,
-    compareWithinGroup: compareResourceRecency((topic) => topic.updatedAt)
+    getUpdatedAt: (topic) => topic.updatedAt
   })
 }

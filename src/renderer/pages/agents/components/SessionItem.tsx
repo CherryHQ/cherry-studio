@@ -63,6 +63,46 @@ export interface SessionItemMenuActions {
   onSaveToNotes: (session: AgentSessionEntity) => void | Promise<void>
 }
 
+function hasSameSessionRowData(previous: AgentSessionEntity, next: AgentSessionEntity) {
+  return (
+    previous.id === next.id &&
+    previous.agentId === next.agentId &&
+    previous.name === next.name &&
+    previous.isNameManuallyEdited === next.isNameManuallyEdited &&
+    previous.description === next.description &&
+    previous.workspaceId === next.workspaceId &&
+    previous.workspace.id === next.workspace.id &&
+    previous.workspace.name === next.workspace.name &&
+    previous.workspace.path === next.workspace.path &&
+    previous.workspace.type === next.workspace.type &&
+    previous.workspace.orderKey === next.workspace.orderKey &&
+    previous.workspace.createdAt === next.workspace.createdAt &&
+    previous.workspace.updatedAt === next.workspace.updatedAt &&
+    previous.traceId === next.traceId &&
+    previous.orderKey === next.orderKey &&
+    previous.createdAt === next.createdAt &&
+    previous.updatedAt === next.updatedAt
+  )
+}
+
+function hasSameSessionItemProps(previous: Readonly<SessionItemProps>, next: Readonly<SessionItemProps>) {
+  return (
+    hasSameSessionRowData(previous.session, next.session) &&
+    (previous.active ?? false) === (next.active ?? false) &&
+    previous.channelType === next.channelType &&
+    previous.onDelete === next.onDelete &&
+    previous.onOpenInNewTab === next.onOpenInNewTab &&
+    previous.onOpenInNewWindow === next.onOpenInNewWindow &&
+    previous.onPress === next.onPress &&
+    previous.onSetPanePosition === next.onSetPanePosition &&
+    previous.onTogglePin === next.onTogglePin &&
+    previous.panePosition === next.panePosition &&
+    (previous.pinned ?? false) === (next.pinned ?? false) &&
+    (previous.reserveLeadingIconSlot ?? true) === (next.reserveLeadingIconSlot ?? true) &&
+    previous.sessionMenuActions === next.sessionMenuActions
+  )
+}
+
 const SessionItem = ({
   active = false,
   channelType,
@@ -421,4 +461,4 @@ const SessionStreamIndicator = ({
   )
 }
 
-export default memo(SessionItem)
+export default memo(SessionItem, hasSameSessionItemProps)
