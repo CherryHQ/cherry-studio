@@ -41,6 +41,9 @@ vi.mock('@renderer/components/Scrollbar', () => ({
 
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingDivider: (props: React.HTMLAttributes<HTMLHRElement>) => <hr {...props} />,
+  SettingGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+    <section {...props}>{children}</section>
+  ),
   SettingsContentBody: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
     <div {...props}>{children}</div>
   ),

@@ -6,8 +6,8 @@ import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, u
 
 import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
 import {
+  getQuickPanelBodyVerticalSpace,
   getQuickPanelHeights,
-  QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE,
   QUICK_PANEL_ITEM_HEIGHT,
   QUICK_PANEL_SAFE_MARGIN
 } from './heights'
@@ -816,13 +816,16 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       setMeasuredChromeHeight(null)
       return
     }
-    if (!footerRef.current) return
+    if (!footerRef.current || !bodyRef.current) return
 
     const footerElement = footerRef.current
+    const bodyElement = bodyRef.current
     const updateFooterMetrics = () => {
       setFooterWidth(footerElement.clientWidth)
       const nextChromeHeight =
-        footerElement.clientHeight > 0 ? footerElement.clientHeight + QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE : null
+        footerElement.clientHeight > 0
+          ? footerElement.clientHeight + getQuickPanelBodyVerticalSpace(getComputedStyle(bodyElement))
+          : null
       setMeasuredChromeHeight((prev) => (prev === nextChromeHeight ? prev : nextChromeHeight))
     }
 
@@ -831,6 +834,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     const resizeObserver = new ResizeObserver(updateFooterMetrics)
     resizeObserver.observe(footerElement)
+    resizeObserver.observe(bodyElement)
 
     return () => resizeObserver.disconnect()
   }, [isPanelPresent, ctx.readOnly])
@@ -943,7 +947,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       style={{ maxHeight: panelMaxHeight }}
       className={classNames(
         '-top-1 -translate-y-full absolute right-2 left-2 flex origin-bottom flex-col justify-end',
-        ctx.isVisible ? 'transition-[max-height] duration-200 ease-in-out' : 'transition-none',
+        ctx.isVisible
+          ? 'transition-[max-height] duration-200 ease-in-out motion-reduce:transition-none'
+          : 'transition-none',
         ctx.isVisible ? 'overflow-visible' : 'overflow-hidden',
         ctx.isVisible && 'visible',
         ctx.isVisible ? 'pointer-events-auto' : 'pointer-events-none'
@@ -951,14 +957,15 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       data-testid="quick-panel">
       <div
         ref={bodyRef}
+        data-slot="quick-panel-content"
         data-testid="quick-panel-body"
         style={constrainBody ? { height: panelMaxHeight } : undefined}
         className={classNames(
-          'relative isolate transform-gpu rounded-xl border border-border/80 bg-popover py-1.25 text-popover-foreground transition-[translate,scale,opacity,box-shadow] duration-200 ease-out will-change-transform motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:opacity-100 motion-reduce:transition-none [&::-webkit-scrollbar]:w-0.75',
+          'relative isolate transform-gpu overflow-hidden rounded-xl bg-[color:color-mix(in_srgb,var(--popover)_76%,transparent)] py-1.25 text-popover-foreground backdrop-blur-2xl transition-[translate,opacity] will-change-[translate,opacity] [border:0.5px_solid_var(--border)] motion-reduce:translate-y-0 motion-reduce:transition-none dark:bg-[color:color-mix(in_srgb,color-mix(in_srgb,var(--popover)_86%,var(--foreground)_14%)_90%,transparent)] [&::-webkit-scrollbar]:w-0.75',
           constrainBody && 'flex flex-col justify-end',
           ctx.isVisible
-            ? classNames('translate-y-0 scale-100 opacity-100', 'shadow-none')
-            : 'translate-y-3 scale-[0.985] opacity-0 shadow-none'
+            ? 'translate-y-0 opacity-100 shadow-none [transition-duration:140ms,200ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1),ease-out]'
+            : 'translate-y-2 opacity-0 shadow-none [transition-delay:0ms,80ms] [transition-duration:80ms,100ms] [transition-timing-function:cubic-bezier(0.4,0,1,1),ease-out]'
         )}
         onKeyDown={handlePanelKeyDown}
         onKeyUp={handlePanelKeyUp}
@@ -988,7 +995,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
               </DynamicVirtualList>
             ) : null}
             {fixedBottomItems.length > 0 ? (
-              <div className="absolute right-0 bottom-0 left-0 bg-popover" data-testid="quick-panel-fixed-bottom">
+              <div className="absolute right-0 bottom-0 left-0 bg-transparent" data-testid="quick-panel-fixed-bottom">
                 {fixedBottomItems.map((item, index) => (
                   <div key={item.id ?? index}>{rowRenderer(item, scrollableItems.length + index)}</div>
                 ))}

@@ -144,8 +144,20 @@ function isPathWithin(root: string, candidate: string): boolean {
 // Binary names are base names; .exe is appended on Windows at use sites.
 // NOTE: the build-time list in scripts/download-binaries.js is intentionally
 // separate — it additionally carries per-platform download URLs and checksums.
-const BUNDLED_TOOLS: Array<{ name: string; binaries: string[]; versionFile: string; internal?: boolean }> = [
-  { name: 'mise', binaries: ['mise'], versionFile: '.mise-version', internal: true },
+const BUNDLED_TOOLS: Array<{
+  name: string
+  binaries: string[]
+  windowsBinaries?: string[]
+  versionFile: string
+  internal?: boolean
+}> = [
+  {
+    name: 'mise',
+    binaries: ['mise'],
+    windowsBinaries: ['mise-shim'],
+    versionFile: '.mise-version',
+    internal: true
+  },
   { name: 'bun', binaries: ['bun'], versionFile: '.bun-version' },
   { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
   { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
@@ -549,7 +561,9 @@ export class BinaryManager extends BaseService {
 
     for (const tool of BUNDLED_TOOLS) {
       try {
-        const binaries = tool.binaries.map((bin) => getBinaryName(bin))
+        const binaries = [...tool.binaries, ...(isWin ? (tool.windowsBinaries ?? []) : [])].map((bin) =>
+          getBinaryName(bin)
+        )
         const versionPath = path.join(bundledDir, tool.versionFile)
         const bundledVersion = this.readVersionMarker(versionPath)
         if (!bundledVersion) {

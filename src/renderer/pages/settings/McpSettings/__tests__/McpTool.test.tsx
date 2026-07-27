@@ -28,21 +28,24 @@ vi.mock('@cherrystudio/ui', async () => {
     ({ children, ...props }: any) =>
       React.createElement(tag, props, children)
 
-  const DataTable = ({ columns = [], data = [], rowKey, emptyText }: any) => {
+  const DataTable = ({ columns = [], data = [], rowKey, emptyText, className, rowClassName }: any) => {
     if (!data.length) {
       return React.createElement('div', null, emptyText)
     }
 
     return React.createElement(
       'table',
-      { 'data-testid': 'data-table' },
+      { 'data-testid': 'data-table', className },
       React.createElement(
         'tbody',
         null,
         data.map((row: any) =>
           React.createElement(
             'tr',
-            { key: row[rowKey] ?? row.id },
+            {
+              key: row[rowKey] ?? row.id,
+              className: typeof rowClassName === 'function' ? rowClassName(row) : rowClassName
+            },
             columns.map((column: any) => {
               const width = column.meta?.width
               const maxWidth = column.meta?.maxWidth
@@ -160,5 +163,25 @@ describe('McpToolsSection', () => {
     const cell = trigger?.closest('td')
     expect(cell).not.toBeNull()
     expect(cell).toHaveStyle({ width: '400px', maxWidth: '400px' })
+  })
+
+  it('removes the tools table surface backgrounds', () => {
+    render(
+      <McpToolsSection
+        tools={[tool]}
+        server={server}
+        searchText=""
+        onToggleTool={vi.fn()}
+        onToggleAutoApprove={vi.fn()}
+      />
+    )
+
+    const table = screen.getByTestId('data-table')
+    expect(table).toHaveClass('bg-transparent')
+    expect(table.className).toContain('[&_[data-slot=table-cell]]:bg-transparent')
+    expect(table.className).toContain('[&_[data-slot=table-head]]:bg-transparent')
+    expect(table.className).toContain('[&_[data-slot=table-header]]:bg-transparent')
+    expect(table.className).toContain('[&_[data-slot=table-header]_[data-slot=table-row]]:bg-transparent')
+    expect(screen.getByRole('row')).toHaveClass('bg-transparent')
   })
 })

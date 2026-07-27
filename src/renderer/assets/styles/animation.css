@@ -78,54 +78,6 @@
   animation: animation-provider-model-pull-guide 1.2s ease-in-out both;
 }
 
-@keyframes animation-chat-message-enter-inline {
-  from {
-    transform: translate3d(-6px, 14px, 0) scale(0.97);
-    opacity: 0;
-  }
-  to {
-    transform: translate3d(0, 0, 0) scale(1);
-    opacity: 1;
-  }
-}
-
-.animation-chat-message-enter-inline {
-  transform-origin: left top;
-  animation: animation-chat-message-enter-inline 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes animation-chat-message-enter-bubble {
-  from {
-    transform: translate3d(14px, 18px, 0) scale(0.93);
-    opacity: 0;
-  }
-  to {
-    transform: translate3d(0, 0, 0) scale(1);
-    opacity: 1;
-  }
-}
-
-.animation-chat-message-enter-bubble {
-  transform-origin: right bottom;
-  animation: animation-chat-message-enter-bubble 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes animation-chat-message-enter-assistant {
-  from {
-    transform: translate3d(0, 8px, 0);
-    opacity: 0;
-  }
-  to {
-    transform: translate3d(0, 0, 0);
-    opacity: 1;
-  }
-}
-
-.animation-chat-message-enter-assistant {
-  transform-origin: left top;
-  animation: animation-chat-message-enter-assistant 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 @keyframes animation-chat-composer-dock-down {
   from {
     transform: translate3d(0, -18px, 0) scale(0.985);
@@ -143,9 +95,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animation-chat-message-enter-inline,
-  .animation-chat-message-enter-bubble,
-  .animation-chat-message-enter-assistant,
   .animation-chat-composer-dock-down {
     transform: none;
     animation: none;
