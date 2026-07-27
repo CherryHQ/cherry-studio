@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { ResourceList } from '@renderer/components/chat/resourceList/base'
 import {
   buildKnowledgeBaseGroupSections,
   DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY
@@ -82,16 +82,19 @@ const BaseNavigator = ({
 
   return (
     <div style={{ width }} className="relative h-full min-h-0 shrink-0">
-      <aside className="flex size-full min-h-0 flex-col border-border border-r-[0.5px]">
-        <div className="flex shrink-0 flex-col gap-2 px-2.5 py-2">
-          <Button
+      {/* `p-1.5` and the padding-free rows below match the assistant and agent rails'
+          `ResourceList.Frame`, so the three sidebars indent identically. */}
+      <aside className="flex size-full min-h-0 flex-col border-border border-r-[0.5px] p-1.5">
+        <div className="flex shrink-0 flex-col gap-2">
+          {/* Same borderless header item the assistant and agent rails use, so the three
+              sidebars read as one family. */}
+          <ResourceList.HeaderItem
             type="button"
-            variant="outline"
-            className="h-8 w-full justify-start rounded-[10px]"
-            onClick={() => onCreateBase()}>
-            <Plus className="size-3.5" />
-            {t('knowledge.add.title')}
-          </Button>
+            icon={<Plus />}
+            label={t('knowledge.add.title')}
+            aria-label={t('knowledge.add.title')}
+            onClick={() => onCreateBase()}
+          />
           {isSearchVisible ? <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} /> : null}
         </div>
 

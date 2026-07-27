@@ -659,7 +659,10 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass('overflow-x-hidden', 'px-2.5', 'pb-3')
+    // The inset lives on `aside`, matching the assistant and agent rails; the scroll
+    // area itself spans the full inner width.
+    expect(container.querySelector('aside')).toHaveClass('p-1.5')
+    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass('overflow-x-hidden', 'pt-1', 'pb-3')
     expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('px-0')
     expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('[scrollbar-gutter:auto]')
     expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('[scrollbar-gutter:stable_both-edges]')
@@ -1406,8 +1409,9 @@ describe('BaseNavigator', () => {
 
     // The sidebar no longer repeats the page title above the create action.
     expect(screen.queryByRole('heading', { name: '知识库' })).toBeNull()
-    expect(createButton.parentElement).toHaveClass('flex-col', 'px-2.5')
-    expect(createButton).toHaveClass('h-8', 'w-full', 'justify-start')
+    // Borderless and full-width, matching the assistant and agent rails' add action.
+    expect(createButton).toHaveClass('flex-1', 'justify-start')
+    expect(createButton.className).not.toMatch(/\bborder\b/)
     expect(createButton.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(createButton)
