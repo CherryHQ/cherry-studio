@@ -5,7 +5,8 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 
 import { acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
 import { BackupBusyError } from './errors'
-import { type ExportArchiveResult, exportLiteArchive } from './exportArchive'
+import { exportArchive, type ExportArchiveResult } from './exportArchive'
+import type { BackupPreset } from './manifest'
 import { runPostPromotionWork } from './postPromotion'
 import { armPreparedRestore, cancelPreparedRestore, prepareLiteRestore, type RestorePreview } from './prepareRestore'
 
@@ -113,11 +114,11 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * Export a Lite archive to `outPath`. The destination must not exist — this
-   * never overwrites a prior backup.
+   * Export an archive to `outPath`. The destination must not exist — this never
+   * overwrites a prior backup.
    */
-  public exportLite(outPath: string, signal?: AbortSignal): Promise<ExportArchiveResult> {
-    return this.runExclusive('export', () => exportLiteArchive({ outPath, signal }))
+  public export(outPath: string, preset: BackupPreset, signal?: AbortSignal): Promise<ExportArchiveResult> {
+    return this.runExclusive('export', () => exportArchive({ outPath, preset, signal }))
   }
 
   /**
