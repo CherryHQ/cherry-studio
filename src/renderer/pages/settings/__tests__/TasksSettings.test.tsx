@@ -886,9 +886,10 @@ describe('TasksSettings routing and creation', () => {
     render(<TasksSettings />)
 
     const backButton = await screen.findByRole('button', { name: 'common.back' })
-    expect(backButton).toHaveTextContent('Daily task')
+    expect(backButton).not.toHaveTextContent('Daily task')
     expect(backButton).not.toHaveTextContent('settings.scheduledTasks.title')
-    expect(backButton).toHaveAttribute('data-size', 'lg')
+    expect(backButton).toHaveAttribute('data-size', 'icon-sm')
+    expect(screen.getByText('Daily task')).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'agent.tasks.name.label' })).not.toBeInTheDocument()
     fireEvent.click(backButton)
 
