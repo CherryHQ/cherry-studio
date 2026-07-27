@@ -5,6 +5,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 
 import { BackupBusyError } from './errors'
 import { type ExportArchiveResult, exportLiteArchive } from './exportArchive'
+import { armPreparedRestore, cancelPreparedRestore, prepareLiteRestore, type RestorePreview } from './prepareRestore'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -93,6 +94,28 @@ export class BackupService extends BaseService {
    */
   public exportLite(outPath: string, signal?: AbortSignal): Promise<ExportArchiveResult> {
     return this.runExclusive('export', () => exportLiteArchive({ outPath, signal }))
+  }
+
+  /**
+   * Admit an archive and stage a cancellable `prepared` restore. Mutates no live
+   * state; {@link armRestore} is what commits to it.
+   */
+  public prepareRestore(archivePath: string, signal?: AbortSignal): Promise<RestorePreview> {
+    return this.runExclusive('prepare-restore', () => prepareLiteRestore({ archivePath, signal }))
+  }
+
+  /**
+   * Discard a prepared restore. Not routed through {@link runExclusive}: it is a
+   * synchronous cleanup of state a finished preparation left behind, and making
+   * it wait on an unrelated export would only strand the staging tree longer.
+   */
+  public cancelRestore(): void {
+    cancelPreparedRestore()
+  }
+
+  /** Confirm a prepared restore and relaunch into promotion. */
+  public armRestore(): void {
+    armPreparedRestore()
   }
 
   /**
