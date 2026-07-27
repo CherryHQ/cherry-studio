@@ -1,9 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
-import {
-  useMessageListAdapterCapabilities,
-  useMessageListAdapterInteractionCapabilities
-} from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
+import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
   pickMessageLeafActions,
@@ -207,21 +204,6 @@ export function useAgentMessageListProviderValue({
     })
   }, [assistantId, visibleMessages, topic.assistantId, topic.id])
 
-  const {
-    exportActions,
-    getMessageActivityState,
-    headerCapabilities,
-    leafCapabilities,
-    menuConfig,
-    messageUiStateCache,
-    renderConfig,
-    updateRenderConfig
-  } = useMessageListAdapterCapabilities({
-    topicId: topic.id,
-    topicName: topic.name,
-    partsByMessageId: displayPartsByMessageId,
-    streamingLayers: displayStreamingLayers
-  })
   const persistDiagnosis = useCallback(
     async (partId: string, diagnosis: DiagnosisResult) => {
       const parsed = parseMessagePartId(partId)
@@ -239,16 +221,27 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId]
   )
-  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
-  const { errorActions, selectionController } = useMessageListAdapterInteractionCapabilities({
+  const {
+    errorActions,
+    exportActions,
+    getMessageActivityState,
+    headerCapabilities,
+    leafCapabilities,
+    menuConfig,
+    messageUiStateCache,
+    renderConfig,
+    selectionController,
+    updateRenderConfig
+  } = useMessageListAdapterCapabilities({
     topicId: topic.id,
+    topicName: topic.name,
     messages: messageItems,
     partsByMessageId: displayPartsByMessageId,
+    streamingLayers: displayStreamingLayers,
     deleteMessage,
-    saveTextFile: exportActions.saveTextFile,
-    copyRichContent: leafCapabilities.copyRichContent,
     persistDiagnosis
   })
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
 
   const openPath = useCallback(
     (path: string) => {

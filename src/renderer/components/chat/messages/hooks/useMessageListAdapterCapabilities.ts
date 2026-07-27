@@ -15,19 +15,26 @@ import { useMessageUiStateCache } from './useMessageUiStateCache'
 interface UseMessageListAdapterCapabilitiesOptions {
   topicId: string
   topicName: string
+  messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
+  deleteMessage?: MessageListActions['deleteMessage']
+  persistDiagnosis?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
 }
 
 /**
- * Shared message-list adapter wiring. Domain adapters keep their own data,
- * mutations, and actions; this hook only assembles the common UI capabilities.
+ * Shared message-list adapter wiring. Domain adapters inject their own data,
+ * mutations, and persistence; this hook assembles the common UI capabilities,
+ * including the export/copy feed into the selection controller.
  */
 export function useMessageListAdapterCapabilities({
   topicId,
   topicName,
+  messages,
   partsByMessageId,
-  streamingLayers
+  streamingLayers,
+  deleteMessage,
+  persistDiagnosis
 }: UseMessageListAdapterCapabilitiesOptions) {
   const getMessageActivityState = useMessageActivityState(topicId, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
@@ -36,8 +43,18 @@ export function useMessageListAdapterCapabilities({
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
+  const errorActions = useMessageErrorActions({ persistDiagnosis })
+  const selectionController = useMessageSelectionController({
+    topicId,
+    messages,
+    partsByMessageId,
+    deleteMessage,
+    saveTextFile: exportActions.saveTextFile,
+    copyRichContent: leafCapabilities.copyRichContent
+  })
 
   return {
+    errorActions,
     exportActions,
     getMessageActivityState,
     headerCapabilities,
@@ -45,38 +62,7 @@ export function useMessageListAdapterCapabilities({
     menuConfig,
     messageUiStateCache,
     renderConfig,
+    selectionController,
     updateRenderConfig
   }
-}
-
-interface UseMessageListAdapterInteractionCapabilitiesOptions {
-  topicId: string
-  messages: MessageListItem[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
-  deleteMessage?: MessageListActions['deleteMessage']
-  saveTextFile?: MessageListActions['saveTextFile']
-  copyRichContent?: MessageListActions['copyRichContent']
-  persistDiagnosis?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
-}
-
-export function useMessageListAdapterInteractionCapabilities({
-  topicId,
-  messages,
-  partsByMessageId,
-  deleteMessage,
-  saveTextFile,
-  copyRichContent,
-  persistDiagnosis
-}: UseMessageListAdapterInteractionCapabilitiesOptions) {
-  const errorActions = useMessageErrorActions({ persistDiagnosis })
-  const selectionController = useMessageSelectionController({
-    topicId,
-    messages,
-    partsByMessageId,
-    deleteMessage,
-    saveTextFile,
-    copyRichContent
-  })
-
-  return { errorActions, selectionController }
 }

@@ -3,10 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import {
-  useMessageListAdapterCapabilities,
-  useMessageListAdapterInteractionCapabilities
-} from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
+import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
   pickMessageLeafActions,
@@ -112,21 +109,6 @@ export function useHomeMessageListProviderValue({
   const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
-  const {
-    exportActions,
-    getMessageActivityState,
-    headerCapabilities,
-    leafCapabilities,
-    menuConfig,
-    messageUiStateCache,
-    renderConfig,
-    updateRenderConfig
-  } = useMessageListAdapterCapabilities({
-    topicId,
-    topicName: topic.name,
-    partsByMessageId,
-    streamingLayers
-  })
   const { editingMessageId, startEditing } = useMessageEditing()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const resolvedAssistantId = assistant?.id ?? assistantId
@@ -205,6 +187,43 @@ export function useHomeMessageListProviderValue({
     },
     [chatWrite, t, topic.id]
   )
+
+  const deleteMessage = useCallback<NonNullable<MessageListActions['deleteMessage']>>(
+    (messageId, traceOptions) => requireChatWrite('deleteMessage').deleteMessage(messageId, traceOptions),
+    [requireChatWrite]
+  )
+
+  const persistDiagnosis = useCallback(async (partId: string, diagnosis: DiagnosisResult) => {
+    const parsed = parseMessagePartId(partId)
+    if (!parsed) return
+
+    const persistedMessage = await dataApiService.get(`/messages/${parsed.messageId}`)
+    const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
+    if (!updatedParts) return
+
+    await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
+  }, [])
+
+  const {
+    errorActions,
+    exportActions,
+    getMessageActivityState,
+    headerCapabilities,
+    leafCapabilities,
+    menuConfig,
+    messageUiStateCache,
+    renderConfig,
+    selectionController,
+    updateRenderConfig
+  } = useMessageListAdapterCapabilities({
+    topicId,
+    topicName: topic.name,
+    messages: messageItems,
+    partsByMessageId,
+    streamingLayers,
+    deleteMessage,
+    persistDiagnosis
+  })
 
   const clearTopic = useCallback(
     async (data: Topic) => {
@@ -468,17 +487,6 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
-  const persistDiagnosis = useCallback(async (partId: string, diagnosis: DiagnosisResult) => {
-    const parsed = parseMessagePartId(partId)
-    if (!parsed) return
-
-    const persistedMessage = await dataApiService.get(`/messages/${parsed.messageId}`)
-    const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
-    if (!updatedParts) return
-
-    await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
-  }, [])
-
   const createTranslationUpdater = useCallback(
     async (
       messageId: string,
@@ -633,11 +641,6 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
-  const deleteMessage = useCallback<NonNullable<MessageListActions['deleteMessage']>>(
-    (messageId, traceOptions) => requireChatWrite('deleteMessage').deleteMessage(messageId, traceOptions),
-    [requireChatWrite]
-  )
-
   const getMessageDeleteAvailability = useCallback<NonNullable<MessageListActions['getMessageDeleteAvailability']>>(
     (messageId) => requireChatWrite('getMessageDeleteAvailability').getMessageDeleteAvailability(messageId),
     [requireChatWrite]
@@ -739,16 +742,6 @@ export function useHomeMessageListProviderValue({
     },
     [regenerateMessageUsingModel, t]
   )
-
-  const { errorActions, selectionController } = useMessageListAdapterInteractionCapabilities({
-    topicId: topic.id,
-    messages: messageItems,
-    partsByMessageId,
-    deleteMessage,
-    saveTextFile: exportActions.saveTextFile,
-    copyRichContent: leafCapabilities.copyRichContent,
-    persistDiagnosis
-  })
 
   const state = useMemo<MessageListState>(
     () => ({
