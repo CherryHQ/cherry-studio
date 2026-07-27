@@ -29,8 +29,19 @@ export const BACKUP_CEILINGS = Object.freeze({
    * manifest array (`producer.managedRoots`, `resourceRequirements`,
    * `resourcePayloads`, `degradations`), so those arrays carry no arbitrary
    * per-array count limit in the schema.
+   *
+   * BECAUSE those arrays scale with the profile, this cap is NOT independent of
+   * {@link maxResourceInstallEntries}: a manifest at that ceiling measures
+   * ~14 MiB of payload entries plus ~5 MiB of requirement entries. The original
+   * 1 MiB was therefore self-contradictory — it made an archive at the frozen
+   * install ceiling unproducible, and broke Lite export for any profile past
+   * ~8,000 attachments, which is an ordinary library rather than an attack.
+   * 32 MiB clears the measured worst case with headroom while staying a bounded
+   * pre-parse read of an entry whose declared size admission already verified.
+   * `manifestBudget.test.ts` builds a manifest at the install ceiling so the two
+   * constants can never silently drift apart again.
    */
-  maxManifestBytes: 1 * 1024 ** 2,
+  maxManifestBytes: 32 * 1024 ** 2,
   /** Max segments in any archive/journal relative path. */
   maxPathDepth: RELATIVE_SUBPATH_LIMITS.maxDepth,
   /** Max character length of any archive/journal relative path. */
