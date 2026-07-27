@@ -144,7 +144,7 @@ describe('kb_read', () => {
 
     await callExecute({ baseId: 'kb-1', conceptId: 'docs/intro.md' }, { knowledgeBaseIds: [] })
 
-    expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', { charStart: undefined, charEnd: undefined })
+    expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', { charStart: 0, charEnd: undefined })
   })
 
   it('maps a NOT_FOUND into a steer to re-check the conceptId (not a raw throw)', async () => {
