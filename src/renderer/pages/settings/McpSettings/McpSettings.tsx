@@ -30,7 +30,7 @@ import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServer } from '@renderer/hooks/useMcpServer'
@@ -636,9 +636,9 @@ const McpSettings: React.FC = () => {
         <Form {...form}>
           <form
             onChange={() => setIsFormChanged(true)}
-            className="flex w-full min-w-0 flex-col gap-5 pb-6"
+            className="w-full min-w-0 pb-6 [&_[data-slot=select-trigger]]:bg-background [&_input[data-slot=form-control]]:bg-background [&_textarea[data-slot=form-control]]:bg-background"
             id="mcp-settings-form">
-            <McpFormSection>
+            <McpFormSection className="flex flex-col gap-4">
               <McpFormGrid>
                 <FormField
                   control={form.control}
@@ -700,9 +700,6 @@ const McpSettings: React.FC = () => {
                   )}
                 />
               </McpFormGrid>
-            </McpFormSection>
-
-            <McpFormSection>
               {(serverType === 'sse' || serverType === 'streamableHttp') && (
                 <McpFormGrid>
                   <FormField
@@ -898,9 +895,6 @@ const McpSettings: React.FC = () => {
                   />
                 </McpFormGrid>
               )}
-            </McpFormSection>
-
-            <McpFormSection>
               <McpFormGrid>
                 <FormField
                   control={form.control}
@@ -1042,7 +1036,7 @@ const McpSettings: React.FC = () => {
           onValueChange={(value) => setActiveTab(value as TabKey)}
           variant="line"
           className="flex min-h-0 flex-1 flex-col bg-transparent">
-          <div className="shrink-0 px-6 pt-3">
+          <div className="shrink-0 px-6 pt-6">
             <div className="mx-auto w-full max-w-3xl">
               <SettingTitle className="min-w-0 flex-wrap gap-2">
                 <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -1098,7 +1092,7 @@ const McpSettings: React.FC = () => {
               </div>
             </div>
           </div>
-          <Scrollbar className="min-h-0 flex-1 px-6 pt-2 pb-4">
+          <Scrollbar className="min-h-0 flex-1 px-6 pt-2 pb-6">
             <div className="mx-auto w-full max-w-3xl">
               {tabs.map((tab) => (
                 <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">
@@ -1114,7 +1108,7 @@ const McpSettings: React.FC = () => {
                   size="sm"
                   variant="ghost"
                   onClick={() => onDeleteMcpServer(server)}
-                  className="-ml-2 -mt-1 rounded-full text-destructive opacity-60 hover:text-destructive hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
+                  className="-ml-2 -mt-1 hover:!bg-destructive/10 hover:!text-destructive rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}
                 </Button>
@@ -1145,7 +1139,7 @@ const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'spa
 )
 
 const McpFormSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn(className)} {...props} />
+  <SettingGroup className={cn('mt-0', className)} {...props} />
 )
 
 const McpFormGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

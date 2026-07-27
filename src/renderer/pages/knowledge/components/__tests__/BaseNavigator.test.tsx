@@ -1316,7 +1316,7 @@ describe('BaseNavigator', () => {
     expect(onSelectBase).toHaveBeenCalledWith('base-2')
   })
 
-  it('creates a knowledge base from the compact page-header action', () => {
+  it('creates a knowledge base from the full-width action above search', () => {
     const onCreateBase = vi.fn()
     const onCreateGroup = vi.fn()
 
@@ -1342,7 +1342,8 @@ describe('BaseNavigator', () => {
     const createButton = screen.getByRole('button', { name: '新建知识库' })
 
     expect(screen.getByRole('heading', { name: '知识库' })).toBeInTheDocument()
-    expect(createButton).toHaveClass('size-6')
+    expect(createButton.parentElement).toHaveClass('flex-col', 'px-2.5')
+    expect(createButton).toHaveClass('h-8', 'w-full', 'justify-start')
     expect(createButton.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(createButton)
