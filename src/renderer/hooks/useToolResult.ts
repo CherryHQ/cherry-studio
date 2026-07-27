@@ -10,7 +10,7 @@ export function useToolResult(ref: DeferredToolResultRef | undefined) {
   const { data, error, isLoading } = useSWRImmutable(
     ref ? `tool-result:${ref.topicId}\0${ref.messageId}\0${ref.toolCallId}` : null,
     async () => {
-      const response = await ipcApi.request('ai.get_tool_result', ref!)
+      const response = await ipcApi.request('ai.tool.get_result', ref!)
       if (!response.found) throw new Error(`Tool result is no longer available: ${ref!.toolCallId}`)
       return response.output
     },

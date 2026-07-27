@@ -98,7 +98,7 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
-    this.emit('ai.stream_done', {
+    this.emit('ai.stream.done', {
       topicId: this.topicId,
       executionId: result.modelId,
       anchorMessageId: result.anchorMessageId,
@@ -113,7 +113,7 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
-    this.emit('ai.stream_done', {
+    this.emit('ai.stream.done', {
       topicId: this.topicId,
       executionId: result.modelId,
       anchorMessageId: result.anchorMessageId,
@@ -129,7 +129,7 @@ export class WebContentsListener implements StreamListener {
     }
     this.flushPending()
     // `result.finalMessage` is not forwarded — the renderer keeps its own accumulated state.
-    this.emit('ai.stream_error', {
+    this.emit('ai.stream.error', {
       topicId: this.topicId,
       executionId: result.modelId,
       anchorMessageId: result.anchorMessageId,
@@ -165,7 +165,7 @@ export class WebContentsListener implements StreamListener {
 
   private sendChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void {
     if (this.wc.isDestroyed()) return
-    this.emit('ai.stream_chunk', {
+    this.emit('ai.stream.chunk', {
       topicId: this.topicId,
       executionId: sourceModelId,
       anchorMessageId,

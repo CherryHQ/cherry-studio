@@ -12,7 +12,7 @@ IPC / RPC / REST are layered, not rival:
 | Dimension | DataApi | IpcApi |
 |---|---|---|
 | Paradigm | REST / resource | RPC / capability |
-| Addressing | `path` + HTTP method | `namespace.action` dot snake |
+| Addressing | `path` + HTTP method | `namespace[.subdomain].action` dot snake |
 | Side effects | forbidden (pure data) | the point (window/system/shell/external/file) |
 | Future | may become a remote server | always local, bound to main |
 | Retry | idempotent reads may retry | commands default to no retry |

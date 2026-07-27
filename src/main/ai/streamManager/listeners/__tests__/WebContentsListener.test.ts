@@ -58,7 +58,7 @@ describe('WebContentsListener coalescing', () => {
     vi.advanceTimersByTime(16)
 
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream_chunk', {
+    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream.chunk', {
       topicId: 'topic-1',
       executionId: undefined,
       anchorMessageId: undefined,
@@ -148,7 +148,7 @@ describe('WebContentsListener coalescing', () => {
       isTopicDone: true
     } as never)
 
-    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream_done', {
+    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream.done', {
       topicId: 'topic-1',
       executionId: 'openai::gpt-4o',
       anchorMessageId: 'assistant-1',
@@ -188,7 +188,7 @@ describe('WebContentsListener coalescing', () => {
 
     l.onChunk(toolChunk, undefined, 'assistant-1')
 
-    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream_chunk', {
+    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream.chunk', {
       topicId: 'agent-session:session-1',
       executionId: undefined,
       anchorMessageId: 'assistant-1',
@@ -216,7 +216,7 @@ describe('WebContentsListener coalescing', () => {
 
     expect(wc.send).toHaveBeenCalledWith(
       IpcChannel.IpcApi_Event,
-      'ai.stream_chunk',
+      'ai.stream.chunk',
       expect.objectContaining({ chunk: toolChunk })
     )
   })
@@ -246,9 +246,9 @@ describe('WebContentsListener coalescing', () => {
     l.onDone({ modelId: 'openai::gpt-4o', status: 'success', isTopicDone: true } as never)
 
     expect(wc.send).toHaveBeenCalledTimes(2)
-    expect(wc.send.mock.calls[0][1]).toBe('ai.stream_chunk')
+    expect(wc.send.mock.calls[0][1]).toBe('ai.stream.chunk')
     expect(wc.send.mock.calls[0][2].chunk.delta).toBe('Final')
-    expect(wc.send.mock.calls[1][1]).toBe('ai.stream_done')
+    expect(wc.send.mock.calls[1][1]).toBe('ai.stream.done')
   })
 
   it('flushes pending buffer on onError before sending the terminal event', () => {
@@ -264,7 +264,7 @@ describe('WebContentsListener coalescing', () => {
 
     expect(wc.send).toHaveBeenCalledTimes(2)
     expect(wc.send.mock.calls[0][2].chunk.delta).toBe('Partial')
-    expect(wc.send.mock.calls[1][1]).toBe('ai.stream_error')
+    expect(wc.send.mock.calls[1][1]).toBe('ai.stream.error')
   })
 
   it('drops pending buffer and sends nothing when the WebContents is destroyed', () => {

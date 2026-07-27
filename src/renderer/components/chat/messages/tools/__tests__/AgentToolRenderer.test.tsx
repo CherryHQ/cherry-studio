@@ -459,7 +459,7 @@ describe('AgentToolRenderer', () => {
       render(<MessageTools toolResponse={toolResponse} />)
 
       await waitFor(() =>
-        expect(mockGetToolResult).toHaveBeenCalledWith('ai.get_tool_result', {
+        expect(mockGetToolResult).toHaveBeenCalledWith('ai.tool.get_result', {
           topicId: 'topic-1',
           messageId: 'message-1',
           toolCallId: 'call-defer-1'

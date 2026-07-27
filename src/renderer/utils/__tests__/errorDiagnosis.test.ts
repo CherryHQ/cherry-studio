@@ -35,7 +35,7 @@ function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
 
-// listModels goes through ipcApi.request('ai.list_models', …) now (Main IPC).
+// listModels goes through ipcApi.request('ai.provider.model.list', …) now (Main IPC).
 const { mockListModels } = vi.hoisted(() => ({ mockListModels: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => mockListModels(input) }

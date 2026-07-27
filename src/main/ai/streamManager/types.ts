@@ -109,7 +109,7 @@ export interface StreamExecution {
   droppedChunks: number
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
   finalMessage?: CherryUIMessage
-  /** Tool outputs too large to send, by toolCallId. Serves `ai.get_tool_result` until persisted. */
+  /** Tool outputs too large to send, by toolCallId. Serves `ai.tool.get_result` until persisted. */
   deferredOutputs?: Map<string, unknown>
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
    *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */

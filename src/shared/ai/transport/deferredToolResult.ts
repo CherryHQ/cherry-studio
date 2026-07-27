@@ -1,6 +1,6 @@
 /**
  * Outbound transport policy for tool results: an oversized output is replaced by a reference the
- * renderer resolves on demand through `ai.get_tool_result`. Imported by both processes.
+ * renderer resolves on demand through `ai.tool.get_result`. Imported by both processes.
  */
 
 /** Where a deferred tool result can be fetched from. */
