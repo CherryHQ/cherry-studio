@@ -86,6 +86,12 @@
 | [Command System](./references/command/README.md) | Current command-backed action model across shared definitions, renderer and main handlers, keybindings, and menus |
 | [Command System — Usage](./references/command/command-usage.md) | How to consume command UI and hooks, register handlers and context keys, build menus, and add a command |
 
+### Backup & Restore
+
+| Document | Description |
+|----------|-------------|
+| [Backup & Restore Architecture](./references/backup/README.md) | Backup v2 contract: shared portable DB, Lite/Full presets, resource overlay, manifest/journal v2, promotion & recovery |
+
 ### Components
 
 | Document | Description |
