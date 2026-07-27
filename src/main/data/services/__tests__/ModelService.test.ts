@@ -316,7 +316,7 @@ describe('ModelService.update', () => {
       .where(eq(userModelTable.id, createUniqueModelId('tokenhub', apiModelId)))
     expect(row.name).toBeNull()
     expect(updated.name).toBe('DeepSeek-V4-Flash 原厂直供')
-    expect(lookupModelMock).toHaveBeenCalledWith('tokenhub', apiModelId)
+    expect(lookupModelMock).toHaveBeenNthCalledWith(1, 'tokenhub', apiModelId, undefined)
   })
 
   it('does not freeze the edit drawer empty-pricing echo when the registry has no pricing', async () => {
