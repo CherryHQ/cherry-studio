@@ -36,6 +36,17 @@ type RestorePreview = Extract<OutputFor<'backup.prepare_restore'>, { status: 'pr
 type Preset = 'lite' | 'full'
 type JournalRestore = Extract<NonNullable<BackupStatus['restore']>, { kind: 'journal' }>
 
+/**
+ * What is running, identified down to the row that started it — the abortable
+ * ones need it so the cancel affordance appears where the user last clicked.
+ * `other` covers the instant actions (discard, arm, acknowledge), which only
+ * need to hold the busy lock.
+ */
+type Running =
+  | { readonly kind: 'export'; readonly preset: Preset }
+  | { readonly kind: 'prepare' }
+  | { readonly kind: 'other' }
+
 /** Written out rather than interpolated, so the keys stay greppable. */
 const PRESET_LABEL_KEYS: Record<Preset, string> = {
   lite: 'settings.data.backup_v2.preset.lite',
@@ -56,7 +67,8 @@ const BackupV2Settings: FC = () => {
   const { theme } = useTheme()
   const [status, setStatus] = useState<BackupStatus | null>(null)
   const [preview, setPreview] = useState<RestorePreview | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [running, setRunning] = useState<Running | null>(null)
+  const busy = running !== null
 
   const refresh = useCallback(async () => {
     setStatus(await ipcApi.request('backup.get_status'))
@@ -95,23 +107,40 @@ const BackupV2Settings: FC = () => {
 
   /** One operation at a time, and the status is re-read whatever the outcome. */
   const run = useCallback(
-    async (work: () => Promise<void>) => {
+    async (started: Running, work: () => Promise<void>) => {
       if (busy) return
-      setBusy(true)
+      setRunning(started)
       try {
         await work()
       } catch (error) {
         reportFailure(error)
       } finally {
-        setBusy(false)
+        setRunning(null)
         await refresh()
       }
     },
     [busy, refresh, reportFailure]
   )
 
+  /**
+   * Ask main to abort the operation in flight. Deliberately NOT routed through
+   * {@link run}: it exists to interrupt a busy service, so the busy guard that
+   * protects every other action would block the only action that can end it.
+   *
+   * No confirmation toast — the abort is cooperative, so the row's button
+   * returning to its idle label is the only honest signal that it actually
+   * stopped, and that arrives on its own when the operation unwinds.
+   */
+  const handleCancelOperation = useCallback(async () => {
+    try {
+      await ipcApi.request('backup.cancel_operation')
+    } catch (error) {
+      reportFailure(error)
+    }
+  }, [reportFailure])
+
   const handleExport = (preset: Preset) =>
-    run(async () => {
+    run({ kind: 'export', preset }, async () => {
       const result = await ipcApi.request('backup.export', { preset })
       if (result.status === 'canceled') return
       toast.success(
@@ -122,14 +151,14 @@ const BackupV2Settings: FC = () => {
     })
 
   const handlePrepare = () =>
-    run(async () => {
+    run({ kind: 'prepare' }, async () => {
       const result = await ipcApi.request('backup.prepare_restore')
       if (result.status === 'canceled') return
       setPreview(result.preview)
     })
 
   const handleArm = () =>
-    run(async () => {
+    run({ kind: 'other' }, async () => {
       const confirmed = await popup.confirm({
         title: t('settings.data.backup_v2.restore.confirm_title'),
         content: t('settings.data.backup_v2.restore.confirm_content'),
@@ -144,14 +173,14 @@ const BackupV2Settings: FC = () => {
     })
 
   const handleDiscard = () =>
-    run(async () => {
+    run({ kind: 'other' }, async () => {
       await ipcApi.request('backup.cancel_restore')
       setPreview(null)
       toast.success(t('settings.data.backup_v2.restore.discarded'))
     })
 
   const handleAcknowledge = () =>
-    run(async () => {
+    run({ kind: 'other' }, async () => {
       await ipcApi.request('backup.acknowledge_restore')
       toast.success(t('settings.data.backup_v2.outcome.acknowledged'))
     })
@@ -173,9 +202,13 @@ const BackupV2Settings: FC = () => {
             <SettingRowTitle>{t('settings.data.backup_v2.export.lite_title')}</SettingRowTitle>
             <SettingHelpText>{t('settings.data.backup_v2.export.lite_help')}</SettingHelpText>
           </div>
-          <Button disabled={busy} onClick={() => handleExport('lite')}>
-            {t('settings.data.backup_v2.export.button')}
-          </Button>
+          <AbortableAction
+            label={t('settings.data.backup_v2.export.button')}
+            active={running?.kind === 'export' && running.preset === 'lite'}
+            busy={busy}
+            onStart={() => handleExport('lite')}
+            onCancel={handleCancelOperation}
+          />
         </SettingRow>
         <SettingDivider />
 
@@ -184,9 +217,13 @@ const BackupV2Settings: FC = () => {
             <SettingRowTitle>{t('settings.data.backup_v2.export.full_title')}</SettingRowTitle>
             <SettingHelpText>{t('settings.data.backup_v2.export.full_help')}</SettingHelpText>
           </div>
-          <Button disabled={busy} onClick={() => handleExport('full')}>
-            {t('settings.data.backup_v2.export.button')}
-          </Button>
+          <AbortableAction
+            label={t('settings.data.backup_v2.export.button')}
+            active={running?.kind === 'export' && running.preset === 'full'}
+            busy={busy}
+            onStart={() => handleExport('full')}
+            onCancel={handleCancelOperation}
+          />
         </SettingRow>
       </SettingGroup>
 
@@ -197,9 +234,13 @@ const BackupV2Settings: FC = () => {
 
         <SettingRow>
           <SettingRowTitle>{t('settings.data.backup_v2.restore.choose_title')}</SettingRowTitle>
-          <Button disabled={busy} onClick={handlePrepare}>
-            {t('settings.data.backup_v2.restore.choose_button')}
-          </Button>
+          <AbortableAction
+            label={t('settings.data.backup_v2.restore.choose_button')}
+            active={running?.kind === 'prepare'}
+            busy={busy}
+            onStart={handlePrepare}
+            onCancel={handleCancelOperation}
+          />
         </SettingRow>
 
         {preview && <RestorePreviewCard preview={preview} />}
@@ -230,6 +271,36 @@ const BackupV2Settings: FC = () => {
         </SettingGroup>
       )}
     </>
+  )
+}
+
+/**
+ * A row's action button, which becomes that row's cancel button while its own
+ * work is running.
+ *
+ * One control rather than two: an export or an archive admission can take
+ * minutes, and the place the user looks for a way out is the button they just
+ * pressed. Rows whose work is not running stay disabled, because the service
+ * takes one operation at a time.
+ */
+const AbortableAction: FC<{
+  label: string
+  /** This row's operation is the one in flight. */
+  active: boolean
+  /** Some operation is in flight (this row's or another's). */
+  busy: boolean
+  onStart: () => void
+  onCancel: () => void
+}> = ({ label, active, busy, onStart, onCancel }) => {
+  const { t } = useTranslation()
+
+  if (active) {
+    return <Button onClick={onCancel}>{t('common.cancel')}</Button>
+  }
+  return (
+    <Button disabled={busy} onClick={onStart}>
+      {label}
+    </Button>
   )
 }
 

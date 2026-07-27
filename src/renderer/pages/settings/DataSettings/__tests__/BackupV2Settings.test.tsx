@@ -212,4 +212,79 @@ describe('BackupV2Settings', () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup_v2.error.unexpected'))
   })
+
+  describe('cancelling work in flight', () => {
+    const EXPORT_BUTTON = 'settings.data.backup_v2.export.button'
+
+    /** Hold one route open so the component stays in its running state. */
+    function stall(route: string): { finish: (outcome: unknown) => void } {
+      let finish: (outcome: unknown) => void = () => {}
+      requestMock.mockImplementation(async (called: string) => {
+        if (called === route) return new Promise((resolve) => (finish = resolve))
+        if (called === 'backup.get_status') return { operation: null, restore: { kind: 'none' } }
+        return undefined
+      })
+      return { finish: (outcome) => finish(outcome) }
+    }
+
+    it('turns the running row into its own cancel button and disables the rest', async () => {
+      const stalled = stall('backup.export')
+      await renderSettings()
+
+      click(EXPORT_BUTTON) // Lite is the first of the two export rows.
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument())
+      // Exactly one export label survives — the row that is NOT running — and it
+      // is disabled, so the cancel affordance sits on the row the user pressed.
+      expect(screen.getByRole('button', { name: EXPORT_BUTTON })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'settings.data.backup_v2.restore.choose_button' })).toBeDisabled()
+
+      stalled.finish({ status: 'canceled' })
+      await waitFor(() => expect(screen.getAllByRole('button', { name: EXPORT_BUTTON })).toHaveLength(2))
+    })
+
+    it('asks main to abort while the service is busy — the busy guard must not block it', async () => {
+      const stalled = stall('backup.export')
+      await renderSettings()
+      click(EXPORT_BUTTON)
+      await waitFor(() => expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument())
+
+      click('common.cancel')
+
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.cancel_operation'))
+
+      stalled.finish({ status: 'canceled' })
+      await waitFor(() => expect(screen.getAllByRole('button', { name: EXPORT_BUTTON })).toHaveLength(2))
+    })
+
+    it('reports a cancelled operation with silence, not a success or a failure', async () => {
+      const stalled = stall('backup.export')
+      await renderSettings()
+      click(EXPORT_BUTTON)
+      await waitFor(() => expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument())
+      click('common.cancel')
+
+      stalled.finish({ status: 'canceled' })
+
+      await waitFor(() => expect(screen.getAllByRole('button', { name: EXPORT_BUTTON })).toHaveLength(2))
+      expect(toast.success).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
+    it('offers the same cancel on the row that admits an archive', async () => {
+      const stalled = stall('backup.prepare_restore')
+      await renderSettings()
+
+      click('settings.data.backup_v2.restore.choose_button')
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument())
+      click('common.cancel')
+      expect(requestMock).toHaveBeenCalledWith('backup.cancel_operation')
+
+      stalled.finish({ status: 'canceled' })
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'settings.data.backup_v2.restore.choose_button' })).toBeEnabled()
+      )
+    })
+  })
 })
