@@ -1,0 +1,456 @@
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+
+import { applyMigrations } from '@data/db/applyMigrations'
+import { readAppliedChain } from '@data/db/restore/appliedChain'
+import type { PromotionStepV2, RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
+import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
+import {
+  isLiveDbStrandedV2,
+  markRestoreFailedAfterCrashV2,
+  runRestorePromotionV2
+} from '@data/db/restore/restorePromotionV2'
+import { appStateTable } from '@data/db/schemas/appState'
+import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+/**
+ * Crash matrix for the Backup v2 promotion gate.
+ *
+ * Strategy: fake userData through a shadowed `@application.getPath`, everything
+ * else REAL — real SQLite files built by the production `applyMigrations`, real
+ * renames on a real temp filesystem. Each case must end in one of exactly two
+ * states: the OLD database is intact and live, or the NEW one is complete and
+ * live. Anything else is the third state the design forbids, so every assertion
+ * reads the marker row out of the file that actually sits in the live slot.
+ */
+
+let userData = ''
+
+vi.mock('@application', () => ({
+  application: {
+    getPath: vi.fn((key: string, filename?: string) => {
+      const bases: Record<string, string> = {
+        'app.userdata': userData,
+        'app.database.file': join(userData, 'cherrystudio.sqlite'),
+        'app.database.migrations': resolveMigrationsPath(),
+        'feature.backup.restore.file': join(userData, 'restore-journal.json'),
+        'feature.backup.restore.staging': join(userData, 'restore-staging')
+      }
+      const base = bases[key]
+      if (!base) throw new Error(`Unexpected path key in restorePromotionV2 test: ${key}`)
+      return filename ? join(base, filename) : base
+    })
+  }
+}))
+
+const RID = '11111111-2222-4333-8444-555555555555'
+const MARKER_KEY = 'restore-test-marker'
+
+const livePath = () => join(userData, 'cherrystudio.sqlite')
+const asideRel = `cherrystudio.sqlite.pre-restore-${RID}`
+const asidePath = () => join(userData, asideRel)
+const stagedRel = `restore-staging/${RID}/backup.sqlite`
+const stagedPath = () => join(userData, stagedRel)
+const stagingDir = () => join(userData, 'restore-staging', RID)
+const journalPath = () => join(userData, 'restore-journal.json')
+
+/**
+ * A migrated database carrying a marker row.
+ *
+ * `mode` mirrors production: the live database runs in WAL, and a staged one
+ * arrives SEALED in DELETE mode (materialization's contract). The difference is
+ * load-bearing here — a read-only open of a WAL database re-creates its
+ * sidecars, which the gate rightly refuses to promote.
+ */
+function makeDb(dbPath: string, which: 'old' | 'new', mode: 'wal' | 'delete' = 'wal'): void {
+  mkdirSync(dirname(dbPath), { recursive: true })
+  const sqlite = new Database(dbPath)
+  sqlite.pragma('journal_mode = WAL')
+  const db = drizzle({ client: sqlite, casing: 'snake_case' })
+  applyMigrations(db, resolveMigrationsPath())
+  db.insert(appStateTable).values({ key: MARKER_KEY, value: { which } }).run()
+  if (mode === 'delete') {
+    sqlite.pragma('journal_mode = DELETE')
+  }
+  sqlite.close()
+}
+
+/** The staged database as materialization leaves it: sealed, no sidecars. */
+function makeStagedDb(which: 'old' | 'new' = 'new'): void {
+  makeDb(stagedPath(), which, 'delete')
+}
+
+function readMarker(dbPath: string): string {
+  const sqlite = new Database(dbPath, { readonly: true, fileMustExist: true })
+  try {
+    const row = sqlite.prepare('SELECT value FROM app_state WHERE key = ?').get(MARKER_KEY) as
+      | { value: string }
+      | undefined
+    if (!row) throw new Error(`marker row missing in ${dbPath}`)
+    return (JSON.parse(row.value) as { which: string }).which
+  } finally {
+    sqlite.close()
+  }
+}
+
+function hasRow(dbPath: string, key: string): boolean {
+  const sqlite = new Database(dbPath, { readonly: true, fileMustExist: true })
+  try {
+    return sqlite.prepare('SELECT 1 FROM app_state WHERE key = ?').get(key) !== undefined
+  } finally {
+    sqlite.close()
+  }
+}
+
+function chainOf(dbPath: string): Array<{ folderMillis: number; hash: string }> {
+  const sqlite = new Database(dbPath, { readonly: true, fileMustExist: true })
+  try {
+    return readAppliedChain(sqlite)
+  } finally {
+    sqlite.close()
+  }
+}
+
+interface JournalOverrides {
+  state?: RestoreJournalV2['state']
+  step?: PromotionStepV2
+  chain?: Array<{ folderMillis: number; hash: string }>
+}
+
+function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
+  const base = {
+    version: 2 as const,
+    restoreId: RID,
+    preset: 'lite' as const,
+    createdAt: '2026-07-27T00:00:00.000Z',
+    db: {
+      promote: stagedRel,
+      aside: asideRel,
+      chain: overrides.chain ?? chainOf(stagedPath())
+    },
+    resourceInstalls: []
+  }
+  const state = overrides.state ?? 'armed'
+  if (state === 'promoting') return { ...base, state, step: overrides.step ?? 'gate-passed' }
+  if (state === 'completed') return { ...base, state, summary: { knowledgeBaseIds: [] } }
+  return { ...base, state } as RestoreJournalV2
+}
+
+function journalState(): string {
+  const read = readRestoreJournalV2()
+  return read.kind === 'ok' ? read.journal.state : read.kind
+}
+
+/**
+ * Park the crash arrangement's live database exactly as the `live-aside` step
+ * would have.
+ */
+function arrangeLiveParked(): void {
+  renameSync(livePath(), asidePath())
+}
+
+describe('restore promotion v2', () => {
+  beforeEach(() => {
+    userData = mkdtempSync(join(tmpdir(), 'cs-promote-v2-'))
+    mkdirSync(stagingDir(), { recursive: true })
+  })
+
+  afterEach(() => {
+    rmSync(userData, { recursive: true, force: true })
+    vi.clearAllMocks()
+  })
+
+  describe('journal states that must not promote', () => {
+    it('does nothing when no journal exists', async () => {
+      makeDb(livePath(), 'old')
+
+      await runRestorePromotionV2()
+
+      expect(readMarker(livePath())).toBe('old')
+    })
+
+    it('expires an unarmed preparation instead of promoting it', async () => {
+      // The user prepared a restore and then simply restarted the app. A
+      // preparation is a staged file, not consent (§6.1).
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ state: 'prepared' }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('expired')
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(stagingDir())).toBe(false)
+      expect(existsSync(asidePath())).toBe(false)
+    })
+
+    it.each(['completed', 'failed', 'expired'] as const)('leaves the terminal state %s alone', async (state) => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ state }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe(state)
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(stagedPath())).toBe(true)
+    })
+
+    it('quarantines a journal it cannot parse and clears the whole staging root', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      // A v1 journal reads exactly like this: unparseable, so unpromotable.
+      writeFileSync(journalPath(), '{ "version": 1, "state": "staged" }')
+
+      await runRestorePromotionV2()
+
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(journalPath())).toBe(false)
+      expect(existsSync(join(userData, 'restore-staging'))).toBe(false)
+    })
+  })
+
+  describe('armed promotion', () => {
+    it('replaces the live database and parks the previous one aside', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal())
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('completed')
+      expect(readMarker(livePath())).toBe('new')
+      // Retained until acknowledgement (§6.5) — this is the rollback source.
+      expect(readMarker(asidePath())).toBe('old')
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('carries the live WAL into the aside (no fingerprint means the checkpoint is the only guarantee)', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      // Dirty-exit simulation: commit a row, preserve the (main, -wal) pair from
+      // BEFORE the clean close, then put it back — committed data left in WAL.
+      const sqlite = new Database(livePath())
+      sqlite.pragma('journal_mode = WAL')
+      sqlite.prepare("INSERT INTO app_state (key, value, created_at, updated_at) VALUES ('wal-row', '1', 0, 0)").run()
+      copyFileSync(livePath(), `${livePath()}.dirty`)
+      copyFileSync(`${livePath()}-wal`, `${livePath()}.dirty-wal`)
+      sqlite.close()
+      renameSync(`${livePath()}.dirty`, livePath())
+      renameSync(`${livePath()}.dirty-wal`, `${livePath()}-wal`)
+      writeRestoreJournalV2(buildJournal())
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('completed')
+      expect(readMarker(livePath())).toBe('new')
+      // The rename moves the main file alone; without the §6.2 checkpoint this
+      // committed row would have been thrown away with the sidecar.
+      expect(hasRow(asidePath(), 'wal-row')).toBe(true)
+      expect(existsSync(`${livePath()}-wal`)).toBe(false)
+    })
+
+    it('refuses a journal whose chain is not a prefix of the bundled one', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ chain: [{ folderMillis: 1, hash: 'forked' }] }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('expired')
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('refuses a staged database that still carries a sidecar', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const journal = buildJournal()
+      // The gate renames the main file only, so committed rows sitting in this
+      // WAL would vanish. Refuse rather than guess what they were.
+      writeFileSync(`${stagedPath()}-wal`, 'leftover')
+      writeRestoreJournalV2(journal)
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('expired')
+      expect(readMarker(livePath())).toBe('old')
+    })
+
+    it('refuses to promote when there is no live database to replace', async () => {
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal())
+
+      await runRestorePromotionV2()
+
+      // Promoting into an empty slot would break the recovery model's reading of
+      // "live present, aside absent" and leave no rollback target.
+      expect(journalState()).toBe('expired')
+      expect(existsSync(livePath())).toBe(false)
+    })
+
+    it('reverts to the old database when the promoted one fails its integrity check', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const journal = buildJournal()
+      // Chain lives in the journal, so a garbage file passes admission and is
+      // only caught post-commit — exactly the case the revert path exists for.
+      writeFileSync(stagedPath(), 'not a database')
+      writeRestoreJournalV2(journal)
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(asidePath())).toBe(false)
+      expect(existsSync(join(userData, `restore-failed-${RID}.sqlite`))).toBe(true)
+    })
+  })
+
+  describe('crash recovery', () => {
+    it('rolls back a crash before the live database was parked', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'live-checkpointed' }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('never deletes the live database when the staged one is already gone (the uninstall row)', async () => {
+      // pre-commit, staged absent, live present, aside absent. The generic unit
+      // table would call this "an installed backup with no aside → remove it";
+      // for the DB unit that would delete the user's database.
+      makeDb(livePath(), 'old')
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'live-checkpointed', chain: chainOf(livePath()) }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+    })
+
+    it('restores the aside when the crash landed between parking and promoting', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      arrangeLiveParked()
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'live-aside' }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(asidePath())).toBe(false)
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('resumes forward when the commit rename outran its own marker', async () => {
+      // The marker is written AFTER the action, so `live-aside` with the staged
+      // file gone and both live and aside present can only mean the commit
+      // landed. Rolling back here would discard a database that is already live.
+      makeDb(asidePath(), 'old')
+      makeDb(livePath(), 'new')
+      const journal = buildJournal({ state: 'promoting', step: 'live-aside', chain: chainOf(livePath()) })
+      writeRestoreJournalV2(journal)
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('completed')
+      expect(readMarker(livePath())).toBe('new')
+      expect(readMarker(asidePath())).toBe('old')
+    })
+
+    it('finishes a crash at the commit point', async () => {
+      makeDb(asidePath(), 'old')
+      makeDb(livePath(), 'new')
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'db-promoted', chain: chainOf(livePath()) }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('completed')
+      expect(readMarker(livePath())).toBe('new')
+    })
+
+    it('re-runs the commit rename when the marker claims committed but the staged DB is still there', async () => {
+      makeDb(asidePath(), 'old')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'db-promoted' }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('completed')
+      expect(readMarker(livePath())).toBe('new')
+    })
+
+    it('fails closed on a state the algorithm cannot produce, keeping the artifacts', async () => {
+      // committed with both the staged DB and a live node present: `live` cannot
+      // be proven to be the promoted database, so nothing may be moved.
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'db-promoted' }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      // Evidence, not garbage: repair needs the staged database.
+      expect(existsSync(stagedPath())).toBe(true)
+    })
+  })
+
+  describe('escaped-crash net', () => {
+    it('reports a stranded database and puts it back', () => {
+      makeDb(asidePath(), 'old')
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'live-aside', chain: chainOf(asidePath()) }))
+
+      expect(isLiveDbStrandedV2()).toBe(true)
+
+      markRestoreFailedAfterCrashV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(isLiveDbStrandedV2()).toBe(false)
+    })
+
+    it('leaves a committed promotion resumable rather than freezing it to failed', () => {
+      makeDb(asidePath(), 'old')
+      makeDb(livePath(), 'new')
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'db-promoted', chain: chainOf(livePath()) }))
+
+      markRestoreFailedAfterCrashV2()
+
+      expect(journalState()).toBe('promoting')
+      expect(readMarker(livePath())).toBe('new')
+    })
+  })
+
+  it('promotes under a relocated userData through relative paths alone', async () => {
+    // runUserDataRelocation copies the whole tree before this gate runs (§6.6).
+    makeDb(livePath(), 'old')
+    makeStagedDb()
+    writeRestoreJournalV2(buildJournal())
+    const original = userData
+    const relocated = mkdtempSync(join(tmpdir(), 'cs-promote-v2-moved-'))
+    cpSync(original, relocated, { recursive: true })
+    userData = relocated
+
+    try {
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('completed')
+      expect(readMarker(join(relocated, 'cherrystudio.sqlite'))).toBe('new')
+      // The pre-relocation tree is not this gate's business.
+      expect(readMarker(join(original, 'cherrystudio.sqlite'))).toBe('old')
+    } finally {
+      userData = original
+      rmSync(relocated, { recursive: true, force: true })
+    }
+  })
+})

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { RestoreJournalSchema as RestoreJournalV1Schema } from '../restoreJournal'
 import {
   DB_COMMIT_STEP,
   parseRestoreJournalV2,
@@ -206,15 +205,11 @@ describe('parseRestoreJournalV2', () => {
   })
 })
 
-describe('journal downgrade quarantine (v1 <-> v2 mutual rejection)', () => {
-  it('a valid v2 journal is rejected by the v1 parser', () => {
-    const v2 = liteJournal()
-    // Prove it is a genuinely valid v2 journal first, then that v1 rejects it.
-    expect(RestoreJournalV2Schema.safeParse(v2).success).toBe(true)
-    expect(RestoreJournalV1Schema.safeParse(v2).success).toBe(false)
-  })
-
-  it('a valid v1 journal is rejected by the v2 parser', () => {
+describe('leftover v1 journal quarantine', () => {
+  it('rejects a journal written by the v1 format so the gate quarantines it', () => {
+    // v1's promotion is gone, but its sidecar may still be on disk from an
+    // upgrade. Reinterpreting it would promote a fingerprinted staging tree
+    // this build cannot honour, so it must fail to parse (§5.2).
     const v1 = {
       version: 1,
       restoreId: 'restore-1',
@@ -223,7 +218,7 @@ describe('journal downgrade quarantine (v1 <-> v2 mutual rejection)', () => {
       fileResources: [],
       state: 'staged'
     }
-    expect(RestoreJournalV1Schema.safeParse(v1).success).toBe(true)
+
     expect(RestoreJournalV2Schema.safeParse(v1).success).toBe(false)
   })
 })

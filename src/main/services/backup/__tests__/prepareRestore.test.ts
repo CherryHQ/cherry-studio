@@ -163,6 +163,10 @@ describe('restore preparation', () => {
       expect(read.journal.db.aside).toBe(`cherrystudio.sqlite.pre-restore-${preview.restoreId}`)
       expect(existsSync(join(userData, read.journal.db.promote))).toBe(true)
       expect(read.journal.db.chain.length).toBeGreaterThan(0)
+      // The promotion gate renames the main file alone and refuses a staged
+      // database carrying a sidecar, so preparation must hand it over sealed.
+      expect(existsSync(join(userData, `${read.journal.db.promote}-wal`))).toBe(false)
+      expect(existsSync(join(userData, `${read.journal.db.promote}-shm`))).toBe(false)
     })
 
     it('leaves no admission staging tree behind beyond the prepared restore', async () => {

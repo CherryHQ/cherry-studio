@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { hasPendingRestore } from '@data/db/restore/restoreGuard'
-import type { RestoreJournal } from '@data/db/restore/restoreJournal'
 import type { RestoreJournalV2, RestoreJournalV2State } from '@data/db/restore/restoreJournalV2'
 import { writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,24 +54,6 @@ function v2Journal(state: RestoreJournalV2State): RestoreJournalV2 {
   }
 }
 
-function writeV1Journal(state: RestoreJournal['state']): void {
-  const journal = {
-    version: 1,
-    restoreId: 'restore-0001',
-    createdAt: '2026-07-09T12:00:00.000Z',
-    state,
-    db: {
-      promote: 'restore-staging/restore-0001/work.sqlite',
-      aside: 'cherrystudio.sqlite.pre-restore-restore-0001',
-      fingerprint: 'ab'.repeat(32),
-      chain: [{ folderMillis: 1_730_000_000_000, hash: 'hash-one' }]
-    },
-    fileResources: [],
-    ...(state === 'promoting' ? { step: 'work-promoted' } : {})
-  }
-  writeFileSync(journalPath(), JSON.stringify(journal))
-}
-
 describe('hasPendingRestore', () => {
   beforeEach(() => {
     userDataDir = mkdtempSync(join(tmpdir(), 'cs-restore-guard-'))
@@ -116,21 +97,7 @@ describe('hasPendingRestore', () => {
     })
   })
 
-  describe('journal v1 fallback', () => {
-    it.each([
-      ['staged', true],
-      ['promoting', true],
-      ['completed', false],
-      ['failed', false],
-      ['expired', false]
-    ] as const)('applies the v1 rule for %s', (state, expected) => {
-      writeV1Journal(state)
-
-      expect(hasPendingRestore()).toBe(expected)
-    })
-  })
-
-  it('protects storage when no version can parse the journal', () => {
+  it('protects storage when the journal cannot be parsed', () => {
     writeFileSync(journalPath(), '{ not json')
 
     expect(hasPendingRestore()).toBe(true)
