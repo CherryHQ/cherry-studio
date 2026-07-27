@@ -7,6 +7,9 @@
 > inventory and selection rules are in
 > [`packages/ui/docs/variable-catalog.md`](./packages/ui/docs/variable-catalog.md).
 
+> **Semantic DOM contract:** For Custom CSS, tests, inspectors, and automation that need structural selectors, see
+> [`docs/references/ui-semantic-contract.md`](./docs/references/ui-semantic-contract.md).
+
 > **Usage notation:** Tailwind examples use semantic utilities such as `bg-background` and `text-foreground`.
 > Authored CSS examples use the unprefixed public runtime contract directly, whether the role is official Shadcn
 > (`var(--background)`) or a Cherry Studio product extension (`var(--success)`). Shared `--cs-*` variables are
@@ -797,7 +800,6 @@ Use icon-library defaults unless a component has a documented reason to override
 - Don't use `border-border/60`, `border-border/40`, `border-border/30`, or `border-border/15` — choose a semantic border token instead
 - Don't apply `var(--shadow-xl)` or `var(--shadow-2xl)` to standard UI elements — reserve `var(--shadow-xl)` for Dialogs, PageSidePanel, and full-screen overlays, and `var(--shadow-2xl)` for peak display emphasis
 - Don't author `--color-*` variables; that namespace belongs to the generated Tailwind adapter. Do not invent other token-looking aliases such as `--cs-glass`, `--blur-md`, `--opacity-50`, or `--border-width-2` without adding a reviewed shared contract in the same change
-
 ## 9. Responsive Behavior
 
 ### Breakpoints
