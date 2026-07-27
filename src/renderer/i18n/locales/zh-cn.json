@@ -5820,7 +5820,75 @@
       },
       "backup": {
         "skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用，加快备份速度",
-        "skip_file_data_title": "精简备份"
+        "skip_file_data_title": "精简备份",
+        "v2_unavailable": "云端备份位置尚未可用。请使用「备份与恢复」导出备份文件并从中恢复。"
+      },
+      "backup_v2": {
+        "error": {
+          "archive_rejected": "该备份文件被拒绝：文件损坏、不完整，或由不兼容的版本创建。",
+          "arm_failed": "无法启动执行恢复所需的重启，未做任何更改。",
+          "busy": "另一个备份操作正在进行，请等待其完成。",
+          "export_destination": "无法将备份写入该位置。请检查剩余空间，并选择一个尚不存在的文件名。",
+          "journal_unreadable": "本机的恢复记录无法读取，下次启动时将被隔离。",
+          "restore_state": "没有可执行该操作的已准备恢复。",
+          "unexpected": "操作意外失败。"
+        },
+        "export": {
+          "button": "导出…",
+          "credentials_warning": "备份包含你的设置，其中的 API 密钥等凭据以可读形式保存，请妥善保管备份文件。",
+          "done": "备份已导出。",
+          "done_degraded": "备份已导出。有 {{count}} 项无法包含，已在归档中列出。",
+          "full_help": "数据库加可迁移的受管文件。恢复不会删除仅存在于本机的文件；常规清理稍后可能回收恢复后数据库不再引用的受管文件。",
+          "full_title": "完整备份",
+          "integrations_warning": "恢复后会运行程序或访问网络的集成保持关闭，直到你在恢复目标设备上确认。",
+          "lite_help": "仅数据库。恢复不会替换本机文件，因此依赖文件的内容可能不可用；常规清理稍后可能回收恢复后数据库不再引用的文件。",
+          "lite_title": "精简备份",
+          "title": "备份"
+        },
+        "outcome": {
+          "acknowledge_button": "保留恢复结果",
+          "acknowledged": "已确认恢复，先前的数据已释放。",
+          "completed_help": "在你确认之前，先前的数据库和每个被替换的文件仍保留在本机，可用于回滚。",
+          "reconfirm_integrations": "恢复后会运行程序或访问网络的集成保持关闭，直到你在本机确认。",
+          "state": {
+            "armed": "已确认恢复，将在下次启动时执行。",
+            "completed": "恢复已完成。",
+            "expired": "已准备的恢复未执行即过期。",
+            "failed": "上次恢复未完成，先前的数据已保留。",
+            "prepared": "已准备一个恢复。",
+            "promoting": "恢复正在进行。"
+          },
+          "title": "上次恢复",
+          "unreadable": "本机的恢复记录无法读取，下次启动时将被隔离。"
+        },
+        "preset": {
+          "full": "完整（数据库和文件）",
+          "lite": "精简（仅数据库）"
+        },
+        "preview": {
+          "coverage": "该备份需要的文件",
+          "coverage_counts": "{{available}} 项可用，{{missing}} 项缺失，{{unverifiable}} 项在应用之外",
+          "degradations": "创建该备份时有 {{count}} 项未被包含。",
+          "destructive": "恢复会替换当前数据库并重启应用。一旦确认保留，将无法撤销。",
+          "migrated_forward": "该备份由较旧版本创建，已在准备阶段升级。",
+          "preset": "备份类型",
+          "resources": "待恢复的文件（预估）",
+          "resources_counts": "新增 {{install}} 项，替换 {{replace}} 项"
+        },
+        "restore": {
+          "arm_button": "恢复并重启",
+          "choose_button": "选择备份文件…",
+          "choose_title": "从备份文件恢复",
+          "confirm_content": "当前数据库将被备份中的数据库替换，应用会重启。仅存在于本机的文件不会被删除。",
+          "confirm_ok": "替换并重启",
+          "confirm_title": "用该备份替换全部数据？",
+          "discard_button": "放弃准备",
+          "discarded": "已放弃准备的恢复。",
+          "help": "恢复会用备份文件中的数据库整体替换当前数据库，不做合并。",
+          "pending_elsewhere": "此前准备的恢复仍在等待。重新选择备份文件可查看其详情。",
+          "title": "恢复"
+        },
+        "title": "备份与恢复"
       },
       "clear_cache": {
         "button": "清除缓存",

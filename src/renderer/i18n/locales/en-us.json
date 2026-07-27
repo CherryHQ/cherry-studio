@@ -5820,7 +5820,75 @@
       },
       "backup": {
         "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
-        "skip_file_data_title": "Slim Backup"
+        "skip_file_data_title": "Slim Backup",
+        "v2_unavailable": "Cloud backup destinations are not available yet. Use Backup & restore to export a backup file and restore from it."
+      },
+      "backup_v2": {
+        "error": {
+          "archive_rejected": "This backup file was rejected: it is damaged, incomplete, or made by an incompatible version.",
+          "arm_failed": "The restart that performs the restore could not be started. Nothing was changed.",
+          "busy": "Another backup operation is still running. Wait for it to finish.",
+          "export_destination": "The backup could not be written to that location. Check free space and pick a name that does not already exist.",
+          "journal_unreadable": "The restore record on this device cannot be read. The next start will quarantine it.",
+          "restore_state": "There is no prepared restore for that action.",
+          "unexpected": "The operation failed unexpectedly."
+        },
+        "export": {
+          "button": "Export…",
+          "credentials_warning": "A backup contains your settings, including API keys and other credentials, in readable form. Keep the file somewhere safe.",
+          "done": "Backup exported.",
+          "done_degraded": "Backup exported. {{count}} item(s) could not be included and are listed in the archive.",
+          "full_help": "Database plus portable managed files. Restoring does not delete files that only exist on this device; normal cleanup may later reclaim managed files the restored database no longer refers to.",
+          "full_title": "Full backup",
+          "integrations_warning": "Restored integrations that run programs or reach the network stay off until you confirm them on the device you restore to.",
+          "lite_help": "Database only. Restoring does not replace your local files, so content backed by files may be unavailable, and normal cleanup may later reclaim files the restored database no longer refers to.",
+          "lite_title": "Lite backup",
+          "title": "Backup"
+        },
+        "outcome": {
+          "acknowledge_button": "Keep restored data",
+          "acknowledged": "Restore acknowledged. The previous data has been released.",
+          "completed_help": "Until you confirm, the previous database and every replaced file are still on this device as rollback material.",
+          "reconfirm_integrations": "Restored integrations that run programs or reach the network stay off until you confirm them on this device.",
+          "state": {
+            "armed": "A restore is armed and will run at the next start.",
+            "completed": "A restore completed.",
+            "expired": "A prepared restore expired without running.",
+            "failed": "The last restore did not complete. Your previous data was kept.",
+            "prepared": "A restore is prepared.",
+            "promoting": "A restore is in progress."
+          },
+          "title": "Last restore",
+          "unreadable": "The restore record on this device cannot be read. The next start will quarantine it."
+        },
+        "preset": {
+          "full": "Full (database and files)",
+          "lite": "Lite (database only)"
+        },
+        "preview": {
+          "coverage": "Files this backup expects",
+          "coverage_counts": "{{available}} available, {{missing}} missing, {{unverifiable}} outside this app",
+          "degradations": "{{count}} item(s) were not included when this backup was made.",
+          "destructive": "Restoring replaces the current database and restarts the app. This cannot be undone once you confirm keeping it.",
+          "migrated_forward": "This backup was made by an older version and was upgraded during preparation.",
+          "preset": "Backup type",
+          "resources": "Files to restore (estimate)",
+          "resources_counts": "{{install}} to add, {{replace}} to replace"
+        },
+        "restore": {
+          "arm_button": "Restore and restart",
+          "choose_button": "Choose backup…",
+          "choose_title": "Restore from a backup file",
+          "confirm_content": "The current database will be replaced by the backup and the app will restart. Files that only exist on this device are not deleted.",
+          "confirm_ok": "Replace and restart",
+          "confirm_title": "Replace all data with this backup?",
+          "discard_button": "Discard preparation",
+          "discarded": "Prepared restore discarded.",
+          "help": "A restore replaces the whole database with the one in the backup file. There is no merge.",
+          "pending_elsewhere": "A restore prepared earlier is still waiting. Choose the backup again to see its details.",
+          "title": "Restore"
+        },
+        "title": "Backup & restore"
       },
       "clear_cache": {
         "button": "Clear Cache",
