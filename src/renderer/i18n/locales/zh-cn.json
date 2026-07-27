@@ -2178,7 +2178,7 @@
     "terminal": "终端",
     "terminal_hint": "选择命令执行的终端应用",
     "terminal_placeholder": "选择终端应用",
-    "title": "Code Switch",
+    "title": "编码搭档",
     "tool_parameters": "参数设置",
     "up_to_date": "最新版本",
     "update_options": "更新选项",
@@ -3049,6 +3049,7 @@
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
+    "empty_action": "创建知识库",
     "empty_description": "与 AI 一起积累知识",
     "error": {
       "directory_not_migrated": "该文件夹内容迁移失败，请删除后重新上传。",
@@ -6444,6 +6445,7 @@
       "viewErrorDetails": "查看详情"
     },
     "developer": {
+      "client_id": "客户端 ID",
       "enable_developer_mode": "启用开发者模式",
       "help": "启用开发者模式后，将可以使用调用链功能查看模型调用过程的数据流。更改将在重启应用后生效。",
       "title": "开发者模式"
@@ -6626,7 +6628,9 @@
       "active": "启用",
       "addError": "添加服务器失败",
       "addServer": {
+        "advanced": "高级设置",
         "create": "快速创建",
+        "createDescription": "填写连接信息后创建，其余配置可稍后在详情页调整。",
         "importFrom": {
           "connectionFailed": "连接失败",
           "dxt": "导入 DXT 包",
@@ -6706,7 +6710,11 @@
         "success": "服务器获取成功"
       },
       "filter": {
-        "label": "筛选"
+        "allStatuses": "全部状态",
+        "allTypes": "全部类型",
+        "builtinOnly": "仅内置",
+        "status": "按状态筛选",
+        "type": "按类型筛选"
       },
       "findMore": "更多 MCP",
       "headers": "请求头",
@@ -6763,6 +6771,7 @@
         "usage": "用法",
         "version": "版本"
       },
+      "pageDescription": "管理 MCP 服务器。启用后，Agent 可以调用其提供的工具与资源。",
       "prompts": {
         "arguments": "参数",
         "availablePrompts": "可用提示",
@@ -7847,6 +7856,7 @@
       "noInstalled": "暂无已安装的技能",
       "noResults": "未找到技能",
       "noSkillFile": "未找到 SKILL.md 文件",
+      "pageDescription": "管理已安装的技能。技能可以扩展 Agent 的能力，随时按需调用。",
       "searchPlaceholder": "发现更多技能...",
       "searchRegistryTitle": "在线搜索技能注册表",
       "searchTitle": "搜索技能",
@@ -8132,7 +8142,7 @@
   "title": {
     "apps": "小程序",
     "chat": "对话",
-    "code": "Code Switch",
+    "code": "编码搭档",
     "files": "文件",
     "home": "首页",
     "knowledge": "知识库",

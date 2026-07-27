@@ -1,4 +1,4 @@
-import '@xyflow/react/dist/style.css'
+import '@renderer/assets/styles/vendor/xyflow.css'
 
 import { cn } from '@renderer/utils/style'
 import {

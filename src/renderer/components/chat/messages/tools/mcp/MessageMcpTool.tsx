@@ -186,8 +186,10 @@ type ExtractedContent = {
 const extractPreviewContent = (response: unknown): ExtractedContent => {
   if (!response) return { text: '', images: [] }
 
-  const result = CallToolResultSchema.safeParse(response)
-  if (result.success) {
+  const hasMcpContent =
+    typeof response === 'object' && response !== null && Object.prototype.hasOwnProperty.call(response, 'content')
+  const result = hasMcpContent ? CallToolResultSchema.safeParse(response) : null
+  if (result?.success) {
     const contents = result.data.content
     if (contents.length === 0) return { text: '', images: [] }
 

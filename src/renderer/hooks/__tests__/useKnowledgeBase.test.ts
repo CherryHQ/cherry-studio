@@ -13,7 +13,7 @@ import {
   useUpdateKnowledgeBase
 } from '../useKnowledgeBase'
 
-type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
+type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
 
 const mockUseQuery = vi.fn()
 const mockUseMutation = vi.fn()
@@ -173,6 +173,35 @@ describe('useCreateKnowledgeBase', () => {
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
       base: {
         name: 'Base 3'
+      }
+    })
+  })
+
+  it('forwards the embedding model with its dimensions when one is picked', async () => {
+    const createdBase = createKnowledgeBase({
+      id: 'base-5',
+      name: 'Base 5',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: 1536
+    })
+    mockIpcRequest.mockResolvedValueOnce(createdBase)
+    const input: CreateKnowledgeBaseInput = {
+      name: 'Base 5',
+      embeddingModelId: '  openai::text-embedding-3-small  ',
+      dimensions: 1536
+    }
+
+    const { result } = renderHook(() => useCreateKnowledgeBase())
+
+    await act(async () => {
+      await result.current.createBase(input)
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
+      base: {
+        name: 'Base 5',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: 1536
       }
     })
   })

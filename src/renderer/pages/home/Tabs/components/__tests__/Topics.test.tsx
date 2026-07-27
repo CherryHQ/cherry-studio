@@ -1045,8 +1045,10 @@ describe('Topics', () => {
   it('uses the top header action to add an assistant in assistant display mode', () => {
     const onAddAssistant = vi.fn()
     const { onNewTopic } = renderTopicList({ onAddAssistant })
+    const addAssistantButton = screen.getByRole('button', { name: 'Add Assistant' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add Assistant' }))
+    expect(addAssistantButton).not.toHaveAttribute('data-ui', 'chat.topic-list.action.create')
+    fireEvent.click(addAssistantButton)
 
     expect(onAddAssistant).toHaveBeenCalledTimes(1)
     expect(onNewTopic).not.toHaveBeenCalled()
@@ -2440,7 +2442,7 @@ describe('Topics', () => {
   it('renders the topic header display mode and history actions in the shared menu', async () => {
     const { onOpenHistoryRecords } = renderTopicList()
 
-    expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-list-topic')).toHaveAttribute('data-ui', 'chat.topic-list')
     expect(screen.queryByPlaceholderText('Search conversations')).not.toBeInTheDocument()
 
     expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
@@ -2594,6 +2596,7 @@ describe('Topics', () => {
 
     const createButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
     expect(createButton).toBeInTheDocument()
+    expect(createButton).toHaveAttribute('data-ui', 'chat.topic-list.action.create')
     expect(createButton).not.toHaveClass('border')
     expect(createButton.querySelector('.lucide-square-pen')).toBeInTheDocument()
     expect(screen.getByRole('listbox')).toHaveClass('pt-0')
@@ -2620,7 +2623,9 @@ describe('Topics', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const { onNewTopic } = renderTopicList()
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.conversation.new' }))
+    const createButton = screen.getByRole('button', { name: 'chat.conversation.new' })
+    expect(createButton).toHaveAttribute('data-ui', 'chat.topic-list.action.create')
+    fireEvent.click(createButton)
 
     expect(onNewTopic).toHaveBeenCalledWith(undefined)
   })

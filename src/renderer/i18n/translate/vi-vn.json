@@ -2140,7 +2140,7 @@
     "terminal": "Thiết bị đầu cuối",
     "terminal_hint": "Chọn ứng dụng terminal để chạy CLI",
     "terminal_placeholder": "Chọn ứng dụng thiết bị đầu cuối",
-    "title": "Công cụ mã",
+    "title": "Code Mate",
     "tool_parameters": "Cài đặt tham số",
     "up_to_date": "Cập nhật",
     "update_options": "Tùy chọn Cập nhật",
@@ -8065,7 +8065,7 @@
   "title": {
     "apps": "Ứng dụng",
     "chat": "Trò chuyện",
-    "code": "Mã",
+    "code": "Code Mate",
     "files": "Tập tin",
     "home": "Trang chủ",
     "knowledge": "Cơ sở tri thức",

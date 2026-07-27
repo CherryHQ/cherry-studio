@@ -228,6 +228,7 @@ describe('MainWindowService', () => {
   })
 
   afterEach(() => {
+    vi.unstubAllEnvs()
     vi.clearAllMocks()
   })
 
@@ -696,5 +697,53 @@ describe('MainWindowService', () => {
     })
 
     expect(webPreferences).not.toHaveProperty('preload')
+  })
+
+  // The origin/app-root decision itself is covered by validateSender's tests; these
+  // only pin that the guard is wired to it and blocks everything else.
+  describe('will-navigate guard', () => {
+    // `applicationMock.getPath` resolves 'app.root' to this, matching packaged builds
+    // where the renderer is loaded from disk with loadFile().
+    const APP_ROOT = '/mock/app.root'
+
+    const navigateTo = (url: string) => {
+      const call = win.webContents.on.mock.calls.find(([event]) => event === 'will-navigate')
+      if (!call) throw new Error('will-navigate listener not registered')
+      const event = { preventDefault: vi.fn() }
+      ;(call[1] as (event: unknown, url: string) => void)(event, url)
+      return event
+    }
+
+    beforeEach(() => {
+      ;(svc as any).setupWebContentsHandlers(win)
+    })
+
+    it('allows navigation within the dev-server origin', () => {
+      vi.stubEnv('ELECTRON_RENDERER_URL', 'http://127.0.0.1:4173')
+
+      expect(navigateTo('http://127.0.0.1:4173/windows/main/index.html').preventDefault).not.toHaveBeenCalled()
+    })
+
+    it('allows navigation to a packaged renderer page when no dev server is configured', () => {
+      vi.stubEnv('ELECTRON_RENDERER_URL', undefined)
+
+      expect(
+        navigateTo(`file://${APP_ROOT}/out/renderer/windows/main/index.html`).preventDefault
+      ).not.toHaveBeenCalled()
+    })
+
+    it('blocks a remote URL that merely carries the dev-server address as text', () => {
+      vi.stubEnv('ELECTRON_RENDERER_URL', 'http://localhost:5173')
+
+      // Regression guard: the previous substring check let this navigate in-window.
+      expect(navigateTo('https://example.com/?next=http://localhost:5173').preventDefault).toHaveBeenCalledOnce()
+    })
+
+    it('blocks a dev-server port mismatch and local files outside the app root', () => {
+      vi.stubEnv('ELECTRON_RENDERER_URL', 'http://127.0.0.1:4173')
+
+      expect(navigateTo('http://127.0.0.1:5173/windows/main/index.html').preventDefault).toHaveBeenCalledOnce()
+      expect(navigateTo('file:///Users/victim/Downloads/evil.html').preventDefault).toHaveBeenCalledOnce()
+    })
   })
 })

@@ -2140,7 +2140,7 @@
     "terminal": "terminal",
     "terminal_hint": "Escolha em qual aplicativo de terminal executar a CLI",
     "terminal_placeholder": "Selecionar aplicativo de terminal",
-    "title": "Ferramenta de código",
+    "title": "Code Mate",
     "tool_parameters": "Configurações de Parâmetros",
     "up_to_date": "Atualizado",
     "update_options": "Opções de atualização",
@@ -8065,7 +8065,7 @@
   "title": {
     "apps": "Miniaplicativos",
     "chat": "Chat",
-    "code": "Código",
+    "code": "Code Mate",
     "files": "Arquivos",
     "home": "Página Inicial",
     "knowledge": "Base de Conhecimento",
