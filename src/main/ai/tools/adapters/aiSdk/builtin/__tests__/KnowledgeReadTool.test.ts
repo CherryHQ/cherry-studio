@@ -34,11 +34,11 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 type ReadArgs = {
   baseId: string
   conceptId: string
-  charStart?: number
-  charEnd?: number
-  pattern?: string
-  ignoreCase?: boolean
-  maxMatches?: number
+  charStart?: number | null
+  charEnd?: number | null
+  pattern?: string | null
+  ignoreCase?: boolean | null
+  maxMatches?: number | null
 }
 
 function callExecute(args: ReadArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
@@ -113,6 +113,29 @@ describe('kb_read', () => {
       content: 'hello world',
       truncated: false
     })
+  })
+
+  it('normalizes strict-path null fields to read-mode defaults', async () => {
+    readConcept.mockResolvedValue(conceptContent())
+
+    await callExecute(
+      {
+        baseId: 'kb-1',
+        conceptId: 'docs/intro.md',
+        charStart: null,
+        charEnd: null,
+        pattern: null,
+        ignoreCase: null,
+        maxMatches: null
+      },
+      { knowledgeBaseIds: ['kb-1'] }
+    )
+
+    expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', {
+      charStart: undefined,
+      charEnd: undefined
+    })
+    expect(grepConcept).not.toHaveBeenCalled()
   })
 
   it('reads unscoped when the assistant has no knowledge scope', async () => {

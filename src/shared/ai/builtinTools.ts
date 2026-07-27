@@ -209,6 +209,63 @@ export const kbReadInputSchema = z.object({
     )
 })
 
+// AI-SDK path (KnowledgeReadTool) runs with `strict: true` — same `.nullable()` treatment as
+// `kbListStrictInputSchema` and `kbManageStrictInputSchema`. Strict OpenAI-compatible providers
+// require every property to appear in `required`; null is the "unused" signal for mode-specific
+// fields and is normalized back to undefined by the AI-SDK adapter.
+export const kbReadStrictInputSchema = z.object({
+  baseId: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('ID of the knowledge base to read from — a base id from kb_list or a kb_search hit.'),
+  conceptId: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('Concept ID of the document to read — the `conceptId` field of a kb_search hit (its relative path).'),
+  charStart: z
+    .number()
+    .int()
+    .nonnegative()
+    .nullable()
+    .describe('Read mode only: 0-based start offset of the slice to read. Pass null to start at the beginning.'),
+  charEnd: z
+    .number()
+    .int()
+    .positive()
+    .nullable()
+    .describe(
+      'Read mode only: end offset (exclusive) of the slice. Pass null to read to the end. Long reads are capped; ' +
+        'when `totalChars` exceeds the returned `charEnd`, page on by calling again with `charStart` set to that `charEnd`.'
+    ),
+  pattern: z
+    .string()
+    .min(1)
+    .max(200)
+    .nullable()
+    .describe(
+      'Pass a JavaScript regular expression to switch to grep mode: instead of the document text, return each ' +
+        'matching line with its character offsets and a snippet (anchors `^`/`$` bind to each line; a match ' +
+        'cannot span lines). Use this for an exact lookup — a number, code symbol, term, quote. Pass null to read ' +
+        'the document text; use kb_search for semantic/meaning-based lookup across documents.'
+    ),
+  ignoreCase: z
+    .boolean()
+    .nullable()
+    .describe('Grep mode only: case-insensitive matching. Pass null to use the default (true).'),
+  maxMatches: z
+    .number()
+    .int()
+    .positive()
+    .max(200)
+    .nullable()
+    .describe(
+      'Grep mode only: maximum matches to return (default 50, hard cap 200). Pass null to use the default. ' +
+        '`totalMatches` always reports the full count.'
+    )
+})
+
 export const kbReadOutputSchema = z.object({
   conceptId: z.string(),
   title: z.string(),

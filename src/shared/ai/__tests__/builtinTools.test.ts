@@ -8,6 +8,8 @@ import {
   kbListStrictInputSchema,
   kbManageInputSchema,
   kbManageStrictInputSchema,
+  kbReadInputSchema,
+  kbReadStrictInputSchema,
   kbSearchInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
@@ -97,6 +99,30 @@ describe('builtin tool contracts', () => {
     expect(kbManageInputSchema.safeParse({ baseId: 'kb-1', action: 'add', type: 'note', content: 'hi' }).success).toBe(
       true
     )
+  })
+
+  it('keeps kb_read strict-path fields in `required` so strict providers accept the schema', () => {
+    const json = z.toJSONSchema(kbReadStrictInputSchema) as { required?: unknown }
+
+    expect(Array.isArray(json.required)).toBe(true)
+    expect(json.required).toEqual(
+      expect.arrayContaining(['baseId', 'conceptId', 'charStart', 'charEnd', 'pattern', 'ignoreCase', 'maxMatches'])
+    )
+    expect(
+      kbReadStrictInputSchema.safeParse({
+        baseId: 'kb-1',
+        conceptId: 'docs/intro.md',
+        charStart: null,
+        charEnd: null,
+        pattern: null,
+        ignoreCase: null,
+        maxMatches: null
+      }).success
+    ).toBe(true)
+  })
+
+  it('lets the MCP kb_read path omit mode-specific fields', () => {
+    expect(kbReadInputSchema.safeParse({ baseId: 'kb-1', conceptId: 'docs/intro.md' }).success).toBe(true)
   })
 
   it('validates final report artifacts', () => {
