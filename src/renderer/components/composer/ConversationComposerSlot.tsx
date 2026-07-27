@@ -25,7 +25,7 @@ export default function ConversationComposerSlot({
   return (
     <ComposerContextProvider value={composerContext}>
       <Suspense key={scopeKey} fallback={<ConversationComposerLoading forceNarrowLayout={forceNarrowLayout} />}>
-        <ComposerCore fallback={fallback} />
+        <ComposerCore fallback={fallback} forceNarrowLayout={forceNarrowLayout} />
       </Suspense>
     </ComposerContextProvider>
   )

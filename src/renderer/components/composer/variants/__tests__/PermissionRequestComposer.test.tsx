@@ -83,6 +83,16 @@ describe('PermissionRequestComposer', () => {
     expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
   })
 
+  it('matches the inputbar narrow shell and compact action density', () => {
+    const { container } = render(
+      <PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} forceNarrowLayout />
+    )
+
+    expect(container.firstElementChild).toHaveClass('active', 'max-w-[calc(800px+3rem)]', 'px-6', 'pb-3')
+    expect(screen.getByRole('button', { name: 'Allow' })).toHaveClass('min-h-7')
+    expect(screen.getByRole('button', { name: 'Deny' })).toHaveClass('min-h-7')
+  })
+
   it('submits an approval decision', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(
@@ -147,7 +157,7 @@ describe('PermissionRequestComposer', () => {
     expect(screen.getByText('lookup_docs')).toBeInTheDocument()
     expect(screen.getByText('Search project documentation.')).toBeInTheDocument()
     expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
-    expect(screen.getByTestId('permission-mcp-args-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
+    expect(screen.getByTestId('permission-mcp-args-scroll')).toHaveClass('max-h-36', 'overflow-y-auto')
     expect(screen.queryByText('Docs : lookup_docs')).not.toBeInTheDocument()
     expect(screen.getByText('query')).toBeInTheDocument()
     expect(screen.getByText('composer')).toBeInTheDocument()
@@ -157,7 +167,7 @@ describe('PermissionRequestComposer', () => {
     render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 
     expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
-    expect(screen.getByTestId('permission-builtin-body-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
+    expect(screen.getByTestId('permission-builtin-body-scroll')).toHaveClass('max-h-36', 'overflow-y-auto')
   })
 
   it('uses a visible light-mode background for the tool input preview', () => {

@@ -1,6 +1,9 @@
 import { Button, Checkbox, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import Scrollbar from '@renderer/components/Scrollbar'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { ArrowRight, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
@@ -18,6 +21,7 @@ type AskUserQuestionComposerProps = {
   request: AskUserQuestionComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   className?: string
+  forceNarrowLayout?: boolean
 }
 
 type AskUserQuestionComposerOverrideOptions = {
@@ -34,12 +38,25 @@ export function createAskUserQuestionComposerOverride({
   return {
     id: `ask-user-question:${request.approvalId}`,
     priority: 100,
-    render: ({ className }) => <AskUserQuestionComposer request={request} onRespond={onRespond} className={className} />
+    render: ({ className, forceNarrowLayout }) => (
+      <AskUserQuestionComposer
+        request={request}
+        onRespond={onRespond}
+        className={className}
+        forceNarrowLayout={forceNarrowLayout}
+      />
+    )
   }
 }
 
-export default function AskUserQuestionComposer({ request, onRespond, className }: AskUserQuestionComposerProps) {
+export default function AskUserQuestionComposer({
+  request,
+  onRespond,
+  className,
+  forceNarrowLayout = false
+}: AskUserQuestionComposerProps) {
   const { t } = useTranslation()
+  const [narrowMode] = usePreference('chat.narrow_mode')
   const questions = request.input.questions
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedAnswers, setSelectedAnswers] = useState<AnswersByIndex>({})
@@ -193,14 +210,15 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   if (!currentQuestion) return null
 
   return (
-    <div
+    <NarrowLayout
       data-composer-viewport-inset-target=""
-      className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
-      <div
-        className="rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
+      narrowMode={forceNarrowLayout || narrowMode}
+      withSidePadding
+      style={{ width: '100%' }}
+      className={cn('relative z-2 pb-3', className)}>
+      <div className="rounded-[20px] border-[0.5px] border-border bg-card p-2 shadow-sm">
         <div className="flex items-center justify-between gap-3 px-1">
-          <h2 className="line-clamp-1 min-w-0 flex-1 font-semibold text-foreground text-sm leading-5">
+          <h2 className="line-clamp-1 min-w-0 flex-1 font-medium text-[13px] text-foreground leading-5">
             {currentQuestion.question}
           </h2>
 
@@ -209,20 +227,20 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="size-7 shadow-none"
+              className="size-6 shadow-none"
               aria-label={t('agent.askUserQuestion.previous')}
               disabled={isFirstQuestion || isSubmitting}
               onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}>
-              <ChevronLeft className="size-4" />
+              <ChevronLeft className="size-3.5" />
             </Button>
-            <span className="min-w-11 text-center text-xs">
+            <span className="min-w-9 text-center text-[11px]">
               {t('agent.askUserQuestion.progress', { current: currentIndex + 1, total: totalQuestions })}
             </span>
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="size-7 shadow-none"
+              className="size-6 shadow-none"
               aria-label={isLastQuestion ? t('agent.askUserQuestion.submit') : t('agent.askUserQuestion.next')}
               disabled={(isLastQuestion && !hasAnySelectedAnswer) || isSubmitting}
               onClick={
@@ -230,22 +248,22 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                   ? () => void submitAnswers()
                   : () => setCurrentIndex((index) => Math.min(totalQuestions - 1, index + 1))
               }>
-              <ChevronRight className="size-4" />
+              <ChevronRight className="size-3.5" />
             </Button>
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="size-7 shadow-none"
+              className="size-6 shadow-none"
               aria-label={t('agent.askUserQuestion.close')}
               disabled={isSubmitting}
               onClick={handleDismiss}>
-              <X className="size-4" />
+              <X className="size-3.5" />
             </Button>
           </div>
         </div>
 
-        <div className="mt-2 flex flex-col gap-1.5">
+        <Scrollbar className="mt-1.5 flex max-h-36 flex-col gap-0.5 overflow-x-hidden">
           {currentQuestion.options.map((option, optionIndex) => {
             const isSelected = selectedForCurrent.includes(option.label)
 
@@ -255,7 +273,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 type="button"
                 variant="ghost"
                 className={cn(
-                  'group h-auto min-h-11 w-full justify-start gap-3 whitespace-normal rounded-[12px] px-3 py-2 text-left shadow-none',
+                  'group h-8 w-full justify-start gap-2 rounded-lg px-2 py-1 text-left shadow-none',
                   'hover:bg-muted focus-visible:bg-muted',
                   isSelected && 'bg-muted'
                 )}
@@ -264,7 +282,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 onClick={() => handleSelectOption(option.label)}>
                 <span
                   className={cn(
-                    'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
+                    'flex size-5 shrink-0 items-center justify-center rounded-full font-medium text-[11px] transition-colors',
                     isSelected
                       ? 'bg-neutral-950 text-white dark:bg-neutral-50 dark:text-neutral-950'
                       : 'bg-muted text-muted-foreground group-hover:bg-neutral-950 group-hover:text-white dark:group-hover:bg-neutral-50 dark:group-hover:text-neutral-950'
@@ -272,10 +290,12 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                   {optionIndex + 1}
                 </span>
 
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold text-foreground text-sm leading-5">{option.label}</span>
+                <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                  <span className="min-w-0 max-w-[55%] truncate font-medium text-[13px] text-foreground leading-4">
+                    {option.label}
+                  </span>
                   {option.description && (
-                    <span className="block truncate font-medium text-muted-foreground text-xs leading-4">
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground text-xs leading-4">
                       {option.description}
                     </span>
                   )}
@@ -292,7 +312,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 ) : (
                   <ArrowRight
                     className={cn(
-                      'size-4 shrink-0 text-muted-foreground transition-opacity',
+                      'size-3.5 shrink-0 text-muted-foreground transition-opacity',
                       isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     )}
                   />
@@ -300,16 +320,16 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
               </Button>
             )
           })}
-        </div>
+        </Scrollbar>
 
-        <div className="mt-2 flex items-center gap-2 border-border-subtle border-t pt-2">
+        <div className="mt-1.5 flex items-center gap-1.5 border-border-subtle border-t pt-1.5">
           <div className="relative min-w-0 flex-1">
-            <Pencil className="-translate-y-1/2 absolute top-1/2 left-3 size-3.5 text-muted-foreground" />
+            <Pencil className="-translate-y-1/2 absolute top-1/2 left-2.5 size-3 text-muted-foreground" />
             <Input
               value={currentCustomAnswer}
               disabled={isSubmitting}
               placeholder={t('agent.askUserQuestion.customPlaceholder')}
-              className="h-9 rounded-full border-transparent bg-muted/70 pl-9 text-sm shadow-none focus-visible:border-transparent"
+              className="h-8 rounded-full border-transparent bg-muted/70 pl-8 text-[13px] shadow-none focus-visible:border-transparent"
               onChange={(event) =>
                 setCustomAnswers((prev) => ({
                   ...prev,
@@ -327,7 +347,8 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           <Button
             type="button"
             variant="ghost"
-            className="h-9 px-2.5 font-semibold text-muted-foreground text-sm shadow-none hover:bg-transparent hover:text-foreground"
+            size="sm"
+            className="h-8 px-2 font-medium text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground"
             loading={customActionSubmitsAll && isSubmitting}
             disabled={isSubmitting}
             onClick={handleCustomAction}>
@@ -337,6 +358,6 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           </Button>
         </div>
       </div>
-    </div>
+    </NarrowLayout>
   )
 }

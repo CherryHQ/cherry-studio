@@ -13,7 +13,11 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('../ComposerCore', () => ({
-  default: ({ fallback }: { fallback: ReactNode }) => <div data-testid="composer-core">{fallback}</div>
+  default: ({ fallback, forceNarrowLayout }: { fallback: ReactNode; forceNarrowLayout?: boolean }) => (
+    <div data-force-narrow-layout={forceNarrowLayout || undefined} data-testid="composer-core">
+      {fallback}
+    </div>
+  )
 }))
 
 describe('ConversationComposerSlot', () => {
@@ -107,6 +111,19 @@ describe('ConversationComposerSlot', () => {
       'active',
       'max-w-[calc(800px+3rem)]'
     )
+  })
+
+  it('forwards the forced narrow layout to an active composer core', () => {
+    render(
+      <ConversationComposerSlot
+        scopeKey="topic-1"
+        composerContext={{}}
+        fallback={<button type="button">send</button>}
+        forceNarrowLayout
+      />
+    )
+
+    expect(screen.getByTestId('composer-core')).toHaveAttribute('data-force-narrow-layout', 'true')
   })
 
   it('renders nothing when no fallback composer is available', () => {

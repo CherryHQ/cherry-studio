@@ -1,5 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/ArgsTable'
@@ -7,10 +8,11 @@ import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/ch
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
-import { ArrowRight, Wrench } from 'lucide-react'
+import { Wrench } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -26,6 +28,7 @@ type PermissionRequestComposerProps = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   className?: string
+  forceNarrowLayout?: boolean
 }
 
 type PermissionRequestComposerOverrideOptions = {
@@ -59,7 +62,7 @@ function renderBuiltinPreviewChildren(toolName: string, children: ToolDisclosure
   }
 
   return (
-    <Scrollbar className="max-h-60 overflow-x-hidden" data-testid="permission-builtin-body-scroll">
+    <Scrollbar className="max-h-36 overflow-x-hidden" data-testid="permission-builtin-body-scroll">
       {children}
     </Scrollbar>
   )
@@ -72,8 +75,13 @@ export function createPermissionRequestComposerOverride({
   return {
     id: `tool-permission:${request.approvalId}`,
     priority: 90,
-    render: ({ className }) => (
-      <PermissionRequestComposer request={request} onRespond={onRespond} className={className} />
+    render: ({ className, forceNarrowLayout }) => (
+      <PermissionRequestComposer
+        request={request}
+        onRespond={onRespond}
+        className={className}
+        forceNarrowLayout={forceNarrowLayout}
+      />
     )
   }
 }
@@ -91,8 +99,8 @@ function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolRe
     children: renderBuiltinPreviewChildren(toolName, renderedItem.children),
     classNames: {
       ...renderedItem.classNames,
-      header: cn('px-3 py-2', renderedItem.classNames?.header),
-      body: cn('max-h-none overflow-visible bg-transparent p-2 text-foreground', renderedItem.classNames?.body)
+      header: cn('px-2 py-1', renderedItem.classNames?.header),
+      body: cn('max-h-none overflow-visible bg-transparent p-1.5 text-foreground', renderedItem.classNames?.body)
     }
   }
 
@@ -111,10 +119,10 @@ function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse 
   const args = normalizeArgs(toolResponse.arguments)
 
   return (
-    <div className="px-3 py-2">
+    <div className="px-2 py-1.5">
       <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
       {args ? (
-        <Scrollbar className="max-h-60 overflow-x-hidden" data-testid="permission-mcp-args-scroll">
+        <Scrollbar className="max-h-36 overflow-x-hidden" data-testid="permission-mcp-args-scroll">
           <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
         </Scrollbar>
       ) : (
@@ -142,7 +150,7 @@ function getPermissionRequestSubtitle(request: PermissionRequestComposerRequest)
 
 function PermissionPreviewHeader({ toolName, description }: { toolName: string; description?: string }) {
   return (
-    <div className="min-w-0 text-foreground text-sm">
+    <div className="min-w-0 text-[13px] text-foreground">
       <div className="truncate font-medium">{toolName}</div>
       {description ? (
         <div className="mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-4">{description}</div>
@@ -151,57 +159,14 @@ function PermissionPreviewHeader({ toolName, description }: { toolName: string; 
   )
 }
 
-function PermissionOption({
-  index,
-  label,
-  ariaLabel,
-  destructive,
-  disabled,
-  onSelect
-}: {
-  index: number
-  label: string
-  ariaLabel: string
-  destructive?: boolean
-  disabled: boolean
-  onSelect: () => void
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className={cn(
-        'group h-auto min-h-11 w-full justify-start gap-3 whitespace-normal rounded-[12px] px-3 py-2 text-left shadow-none',
-        'hover:bg-muted focus-visible:bg-muted'
-      )}
-      disabled={disabled}
-      aria-label={ariaLabel}
-      onClick={onSelect}>
-      <span
-        className={cn(
-          'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
-          'bg-muted text-muted-foreground group-hover:bg-neutral-950 group-hover:text-white dark:group-hover:bg-neutral-50 dark:group-hover:text-neutral-950'
-        )}>
-        {index}
-      </span>
-
-      <span
-        className={cn(
-          'block min-w-0 flex-1 truncate font-semibold text-foreground text-sm leading-5',
-          destructive && 'text-destructive'
-        )}>
-        {label}
-      </span>
-
-      <ArrowRight
-        className={cn('size-4 shrink-0 text-muted-foreground transition-opacity', 'opacity-0 group-hover:opacity-100')}
-      />
-    </Button>
-  )
-}
-
-export default function PermissionRequestComposer({ request, onRespond, className }: PermissionRequestComposerProps) {
+export default function PermissionRequestComposer({
+  request,
+  onRespond,
+  className,
+  forceNarrowLayout = false
+}: PermissionRequestComposerProps) {
   const { t } = useTranslation()
+  const [narrowMode] = usePreference('chat.narrow_mode')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const subtitle = getPermissionRequestSubtitle(request)
 
@@ -246,49 +211,47 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   }, [isSubmitting, request.match, respond, t])
 
   return (
-    <div
+    <NarrowLayout
       data-composer-viewport-inset-target=""
-      className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
-      <div
-        className="rounded-[17px] border-[0.5px] border-border p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]"
-        style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
+      narrowMode={forceNarrowLayout || narrowMode}
+      withSidePadding
+      style={{ width: '100%' }}
+      className={cn('relative z-2 pb-3', className)}>
+      <div className="rounded-[20px] border-[0.5px] border-border bg-card p-2 shadow-sm">
         <div className="flex items-center justify-between gap-3 px-1">
           <div className="min-w-0 flex-1">
-            <h2 className="line-clamp-1 flex min-w-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
-              <Wrench className="size-4 shrink-0 text-muted-foreground" />
+            <h2 className="line-clamp-1 flex min-w-0 items-center gap-1.5 font-medium text-[13px] text-foreground leading-5">
+              <Wrench className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="truncate">{t('agent.toolPermission.confirmation')}</span>
             </h2>
             {subtitle ? (
               <div className="mt-0.5 line-clamp-1 text-muted-foreground text-xs leading-4">{subtitle}</div>
             ) : null}
           </div>
-          <div className="rounded-full bg-warning/10 px-2 py-1 font-medium text-[11px] text-warning">
+          <div className="rounded-full bg-warning/10 px-1.5 py-0.5 font-medium text-[11px] text-warning">
             {t('agent.toolPermission.pending')}
           </div>
         </div>
 
-        <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
+        <div className="mt-1.5 overflow-hidden rounded-lg bg-muted dark:bg-muted/30" data-testid="permission-preview">
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
 
-        <div className="mt-2 flex flex-col gap-1.5">
-          <PermissionOption
-            index={1}
-            label={t('agent.toolPermission.button.allow')}
-            ariaLabel={t('agent.toolPermission.button.allow')}
+        <div className="mt-2 flex items-center justify-end gap-1.5 border-border-subtle border-t pt-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive shadow-none hover:text-destructive"
             disabled={isSubmitting}
-            onSelect={() => void approve()}
-          />
-          <PermissionOption
-            index={2}
-            label={t('agent.toolPermission.button.deny')}
-            ariaLabel={t('agent.toolPermission.button.deny')}
-            destructive
-            disabled={isSubmitting}
-            onSelect={() => void deny()}
-          />
+            onClick={() => void deny()}>
+            {t('agent.toolPermission.button.deny')}
+          </Button>
+          <Button type="button" size="sm" disabled={isSubmitting} onClick={() => void approve()}>
+            {t('agent.toolPermission.button.allow')}
+          </Button>
         </div>
       </div>
-    </div>
+    </NarrowLayout>
   )
 }

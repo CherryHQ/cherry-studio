@@ -74,6 +74,15 @@ describe('AskUserQuestionComposer', () => {
     expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
   })
 
+  it('matches the inputbar narrow shell and compact option density', () => {
+    const { container } = render(
+      <AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} forceNarrowLayout />
+    )
+
+    expect(container.firstElementChild).toHaveClass('active', 'max-w-[calc(800px+3rem)]', 'px-6', 'pb-3')
+    expect(screen.getByRole('button', { name: /Winston/ })).toHaveClass('h-8', 'rounded-lg')
+  })
+
   it('auto advances after option selection and submits a custom input as an answer option', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
