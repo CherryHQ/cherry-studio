@@ -368,7 +368,7 @@ const MigrationApp: React.FC = () => {
 
   const openDownloadPage = async () => {
     try {
-      if (await actions.openDownloadPage()) {
+      if (await actions.openDownloadPage(i18n.language)) {
         setV1DialogOpen(false)
         return
       }

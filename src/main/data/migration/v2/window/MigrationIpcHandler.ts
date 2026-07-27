@@ -15,7 +15,7 @@ import {
   type MigrationSummary,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
-import { app, dialog, ipcMain, type IpcMainInvokeEvent, net, shell } from 'electron'
+import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 import * as z from 'zod'
@@ -53,43 +53,20 @@ function assertMigrationWindowSender(event: IpcMainInvokeEvent): void {
 }
 
 // The migration window runs on the `simplest` preload (ipcRenderer only), so opening the v1
-// download page has to go through main — which also picks the site, since the renderer has no
-// say in it.
+// download page has to go through main — which also owns the URL table, so the renderer only
+// names a language and can never turn this into an arbitrary shell.openExternal call.
 // The v1-specific page, since the button offers v1 rather than the current release.
 const V1_DOWNLOAD_URL_CN = 'https://cherryai.com.cn/download/v1'
 const V1_DOWNLOAD_URL_GLOBAL = 'https://cherryai.com/download/v1'
-const REGION_LOOKUP_TIMEOUT = 5000
-
-// One lookup per session: the error screen can be revisited across retries.
-let v1DownloadUrlPromise: Promise<string> | null = null
 
 /**
- * Geolocates the egress IP to pick the download site, defaulting to the China
- * site when detection fails.
- *
- * Duplicated from RegionService, whose cache reads CacheService/ProxyService —
- * neither exists during the preboot migration gate. Kept local (like
- * MigrationDbService's ensureDatabaseIntegrity) so it is deleted along with
- * migration instead of shaping a permanent service around a throwaway caller.
+ * Picks the download site from the wizard's language, using the same `zh` test the window's
+ * i18n resolver uses to pick that language — so the site is the one the user can read.
+ * Anything else, including a missing or malformed value, lands on the global site.
  */
-function resolveV1DownloadUrl(): Promise<string> {
-  v1DownloadUrlPromise ??= (async () => {
-    try {
-      const response = await net.fetch('https://api.ipinfo.io/lite/me?token=5aa4105b40adbc', {
-        signal: AbortSignal.timeout(REGION_LOOKUP_TIMEOUT)
-      })
-      if (!response.ok) throw new Error(`IP info request failed with HTTP ${response.status}`)
-
-      const country = (await response.json()).country_code
-      if (!country) throw new Error('IP info response missing country_code')
-
-      return country.toLowerCase() === 'cn' ? V1_DOWNLOAD_URL_CN : V1_DOWNLOAD_URL_GLOBAL
-    } catch (error) {
-      logger.warn('Failed to detect egress country for the v1 download page', error as Error)
-      return V1_DOWNLOAD_URL_CN
-    }
-  })()
-  return v1DownloadUrlPromise
+function resolveV1DownloadUrl(language: unknown): string {
+  const isChinese = typeof language === 'string' && language.toLowerCase().includes('zh')
+  return isChinese ? V1_DOWNLOAD_URL_CN : V1_DOWNLOAD_URL_GLOBAL
 }
 
 const MigrationDiagnosticSavePayloadSchema: z.ZodType<MigrationDiagnosticSavePayload> = z.strictObject({
@@ -230,10 +207,10 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   })
 
   // Open the v1 download page after a retried migration keeps failing
-  ipcMain.handle(MigrationIpcChannels.OpenDownloadPage, async (event: IpcMainInvokeEvent) => {
+  ipcMain.handle(MigrationIpcChannels.OpenDownloadPage, async (event: IpcMainInvokeEvent, language: unknown) => {
     assertMigrationWindowSender(event)
     try {
-      await shell.openExternal(await resolveV1DownloadUrl())
+      await shell.openExternal(resolveV1DownloadUrl(language))
       return true
     } catch (error) {
       logger.warn('Failed to open v1 download page', error as Error)
@@ -497,7 +474,6 @@ export function resetMigrationData(): void {
   quitScheduled = false
   dataLocationNotice = null
   lastSavedDiagnosticBundlePath = null
-  v1DownloadUrlPromise = null
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,

@@ -634,7 +634,8 @@ describe('MigrationApp', () => {
         fireEvent.click(screen.getByTestId('v1-download-button'))
       })
 
-      expect(migrationHookMock.actions.openDownloadPage).toHaveBeenCalledOnce()
+      // The wizard language decides the regional site, so it must reach main.
+      expect(migrationHookMock.actions.openDownloadPage).toHaveBeenCalledExactlyOnceWith('en-US')
       expect(toastErrorMock).not.toHaveBeenCalled()
       expect(dialog()).not.toBeInTheDocument()
     })

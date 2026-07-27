@@ -40,10 +40,10 @@ Once the user has retried and the migration fails again, `V1DownloadDialog` open
 nobody is stranded on a version that cannot migrate. It is the only surface for that offer — the error page
 itself carries no download entry — and it is keyed on *entering* the error stage, since clicking Retry flips
 the flag while the error screen is still up; dismissing it waits for the next failed retry. The window runs on
-the `simplest` preload (no shell access), so the download button asks main to open the page, and main picks
-the regional site by geolocating the egress IP — a lookup `MigrationIpcHandler` duplicates from
-`RegionService` (whose cache needs services the preboot gate does not have) so it is deleted along with
-migration.
+the `simplest` preload (no shell access), so the download button asks main to open the page, passing the
+wizard's current language; `MigrationIpcHandler` owns the URL table and maps that language to a regional site
+with the same `zh` test `i18n/resolver.ts` uses, so the site is the one the user can read and the renderer can
+never name a URL of its own.
 
 ## Implementation Notes
 
