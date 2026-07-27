@@ -8,7 +8,8 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  Label
 } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
@@ -123,7 +124,7 @@ export default function ProviderConnectionCheckDrawer({
         <div className="space-y-4">
           <div className="space-y-3">
             <div>
-              <label className="mb-2.5 block text-[13px] text-foreground/85">{t('button.select_model')}</label>
+              <Label className="mb-2.5 block text-[13px] text-foreground/85">{t('button.select_model')}</Label>
               {sortedModels.length > 0 ? (
                 <Combobox
                   className="h-9 w-full justify-between px-2.5 text-left font-normal"
@@ -149,9 +150,9 @@ export default function ProviderConnectionCheckDrawer({
 
             {hasMultipleKeys ? (
               <div>
-                <label className="mb-2.5 block text-[13px] text-foreground/85">
+                <Label className="mb-2.5 block text-[13px] text-foreground/85">
                   {t('settings.models.check.select_api_key')}
-                </label>
+                </Label>
                 <Combobox
                   className="h-9 w-full justify-between px-2.5 text-left font-mono text-[12px]"
                   emptyText={t('common.no_results')}

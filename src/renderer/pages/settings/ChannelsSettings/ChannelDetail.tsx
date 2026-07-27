@@ -8,6 +8,7 @@ import {
   DialogTitle,
   EmptyState,
   Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -254,7 +255,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
             </DialogHeader>
             <div className="flex flex-col gap-4">
               <div>
-                <label className="mb-1 block text-xs">{t('common.name')}</label>
+                <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -263,7 +264,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs">{t('agent.channels.bindAgent')}</label>
+                <Label className="mb-1 block text-xs">{t('agent.channels.bindAgent')}</Label>
                 <Select value={agentId ?? NO_AGENT_VALUE} onValueChange={handleAgentChange}>
                   <SelectTrigger size="sm" className="w-full">
                     <SelectValue placeholder={t('agent.channels.selectAgent')} />

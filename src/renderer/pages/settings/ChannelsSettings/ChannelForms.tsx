@@ -4,6 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -67,7 +68,7 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs">{t('agent.channels.security.permissionMode')}</label>
+      <Label className="text-xs">{t('agent.channels.security.permissionMode')}</Label>
       <Select
         value={channel.permissionMode ?? INHERIT_PERMISSION_MODE_VALUE}
         onValueChange={(value) =>
@@ -137,7 +138,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
       <div className="grid grid-cols-2 gap-3">
         {fields.map((field) => (
           <div key={field.key} className={field.span === 2 ? 'col-span-2' : ''}>
-            <label className="mb-1 block text-xs">{field.label}</label>
+            <Label className="mb-1 block text-xs">{field.label}</Label>
             {field.secret ? (
               <Input
                 type="password"
@@ -160,7 +161,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
         ))}
         {extraContent}
         <div className={chatIdsConfig.fullWidth ? 'col-span-2' : ''}>
-          <label className="mb-1 block text-xs">{chatIdsConfig.label}</label>
+          <Label className="mb-1 block text-xs">{chatIdsConfig.label}</Label>
           <Input
             value={chatIds}
             onChange={(e) => setChatIds(e.target.value)}
@@ -210,7 +211,7 @@ const FeishuDomainSelector: FC<ChannelFormProps> = ({ channel, onConfigChange })
   const cfg = channel.config
   return (
     <div>
-      <label className="mb-1 block text-xs">{t('agent.channels.feishu.domain')}</label>
+      <Label className="mb-1 block text-xs">{t('agent.channels.feishu.domain')}</Label>
       <Select
         value={(cfg.domain as FeishuDomain) ?? 'feishu'}
         onValueChange={(value) => onConfigChange({ config: { ...cfg, domain: value as FeishuDomain } })}>

@@ -2,6 +2,7 @@ import {
   Button,
   InputGroup,
   InputGroupInput,
+  Label,
   MenuItem,
   MenuList,
   Popover,
@@ -373,9 +374,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
           const inputId = `provider-request-config-endpoint-${type}`
           return (
             <div key={type} className="space-y-1.5">
-              <label className="text-muted-foreground/60 text-xs" htmlFor={inputId}>
+              <Label className="text-muted-foreground/60 text-xs" htmlFor={inputId}>
                 {label}
-              </label>
+              </Label>
               <InputGroup className={fieldClasses.inputGroup}>
                 <InputGroupInput
                   id={inputId}
