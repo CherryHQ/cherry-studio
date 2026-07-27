@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { MigrationIpcChannels, type MigrationProgress, type MigrationResult } from '@shared/data/migration/v2/types'
-import { dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
+import { dialog, ipcMain, type IpcMainInvokeEvent, net, shell } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Shared mock fns so each test can configure return values.
@@ -336,6 +336,59 @@ describe('MigrationIpcHandler', () => {
       destination: '/chosen/diagnostics.zip',
       stage: 'version_incompatible',
       logDate: '2026-07-23'
+    })
+  })
+
+  describe('v1 download page', () => {
+    const ipLookupResponse = (body: unknown, init: { ok?: boolean; status?: number } = {}) =>
+      ({ ok: init.ok ?? true, status: init.status ?? 200, json: async () => body }) as never
+
+    it.each([
+      ['CN', 'https://cherryai.com.cn/download'],
+      ['US', 'https://cherryai.com/download']
+    ])('opens the site matching the %s egress country', async (country, url) => {
+      vi.mocked(net.fetch).mockResolvedValue(ipLookupResponse({ country_code: country }))
+
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage)).resolves.toBe(true)
+      expect(shell.openExternal).toHaveBeenCalledWith(url)
+    })
+
+    // Detection failures must not strand the user: a request error, a non-2xx, or a payload
+    // without a country all fall back to the China site rather than surfacing an error.
+    it.each([
+      ['the request fails', () => vi.mocked(net.fetch).mockRejectedValue(new Error('offline'))],
+      ['the response is not ok', () => vi.mocked(net.fetch).mockResolvedValue(ipLookupResponse({}, { ok: false }))],
+      ['the country is missing', () => vi.mocked(net.fetch).mockResolvedValue(ipLookupResponse({}))]
+    ])('falls back to the China site when %s', async (_case, arrange) => {
+      arrange()
+
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage)).resolves.toBe(true)
+      expect(shell.openExternal).toHaveBeenCalledWith('https://cherryai.com.cn/download')
+    })
+
+    it('detects the egress country once across repeated opens', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(ipLookupResponse({ country_code: 'US' }))
+
+      await invoke(MigrationIpcChannels.OpenDownloadPage)
+      await invoke(MigrationIpcChannels.OpenDownloadPage)
+
+      expect(net.fetch).toHaveBeenCalledOnce()
+      expect(shell.openExternal).toHaveBeenCalledTimes(2)
+    })
+
+    it('rejects an untrusted sender', async () => {
+      diagnosticMocks.validateSender.mockReturnValue(false)
+
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage)).rejects.toThrow('Unauthorized')
+      expect(net.fetch).not.toHaveBeenCalled()
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('returns false when the shell cannot open the page', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(ipLookupResponse({ country_code: 'US' }))
+      vi.mocked(shell.openExternal).mockRejectedValueOnce(new Error('no browser'))
+
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage)).resolves.toBe(false)
     })
   })
 

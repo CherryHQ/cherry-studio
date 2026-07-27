@@ -15,7 +15,7 @@ import {
   type MigrationSummary,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
-import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
+import { app, dialog, ipcMain, type IpcMainInvokeEvent, net, shell } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 import * as z from 'zod'
@@ -48,8 +48,47 @@ let currentProgress: MigrationProgress = {
 // introduction progress from scratch) instead of vanishing after a failed run.
 let dataLocationNotice: string | null = null
 
-function assertMigrationDiagnosticSender(event: IpcMainInvokeEvent): void {
-  if (!validateSender(event)) throw new Error('Unauthorized migration diagnostic IPC sender.')
+function assertMigrationWindowSender(event: IpcMainInvokeEvent): void {
+  if (!validateSender(event)) throw new Error('Unauthorized migration IPC sender.')
+}
+
+// The migration window runs on the `simplest` preload (ipcRenderer only), so opening the v1
+// download page has to go through main — which also picks the site, since the renderer has no
+// say in it.
+const V1_DOWNLOAD_URL_CN = 'https://cherryai.com.cn/download'
+const V1_DOWNLOAD_URL_GLOBAL = 'https://cherryai.com/download'
+const REGION_LOOKUP_TIMEOUT = 5000
+
+// One lookup per session: the error screen can be revisited across retries.
+let v1DownloadUrlPromise: Promise<string> | null = null
+
+/**
+ * Geolocates the egress IP to pick the download site, defaulting to the China
+ * site when detection fails.
+ *
+ * Duplicated from RegionService, whose cache reads CacheService/ProxyService —
+ * neither exists during the preboot migration gate. Kept local (like
+ * MigrationDbService's ensureDatabaseIntegrity) so it is deleted along with
+ * migration instead of shaping a permanent service around a throwaway caller.
+ */
+function resolveV1DownloadUrl(): Promise<string> {
+  v1DownloadUrlPromise ??= (async () => {
+    try {
+      const response = await net.fetch('https://api.ipinfo.io/lite/me?token=5aa4105b40adbc', {
+        signal: AbortSignal.timeout(REGION_LOOKUP_TIMEOUT)
+      })
+      if (!response.ok) throw new Error(`IP info request failed with HTTP ${response.status}`)
+
+      const country = (await response.json()).country_code
+      if (!country) throw new Error('IP info response missing country_code')
+
+      return country.toLowerCase() === 'cn' ? V1_DOWNLOAD_URL_CN : V1_DOWNLOAD_URL_GLOBAL
+    } catch (error) {
+      logger.warn('Failed to detect egress country for the v1 download page', error as Error)
+      return V1_DOWNLOAD_URL_CN
+    }
+  })()
+  return v1DownloadUrlPromise
 }
 
 const MigrationDiagnosticSavePayloadSchema: z.ZodType<MigrationDiagnosticSavePayload> = z.strictObject({
@@ -131,7 +170,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   ipcMain.handle(
     MigrationIpcChannels.SaveDiagnosticBundle,
     async (event: IpcMainInvokeEvent, payload: unknown): Promise<MigrationDiagnosticSaveResult> => {
-      assertMigrationDiagnosticSender(event)
+      assertMigrationWindowSender(event)
       const parsedPayload = MigrationDiagnosticSavePayloadSchema.safeParse(payload)
       if (!parsedPayload.success) throw new Error('Invalid migration diagnostic save payload.')
       const { dialogTitle, logDate } = parsedPayload.data
@@ -177,7 +216,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   )
 
   ipcMain.handle(MigrationIpcChannels.ShowDiagnosticBundleInFolder, async (event: IpcMainInvokeEvent) => {
-    assertMigrationDiagnosticSender(event)
+    assertMigrationWindowSender(event)
     if (!lastSavedDiagnosticBundlePath) return false
     try {
       await fs.access(lastSavedDiagnosticBundlePath)
@@ -185,6 +224,18 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       return true
     } catch (error) {
       logger.warn('Failed to show migration diagnostic bundle in folder', error as Error)
+      return false
+    }
+  })
+
+  // Open the v1 download page after a retried migration keeps failing
+  ipcMain.handle(MigrationIpcChannels.OpenDownloadPage, async (event: IpcMainInvokeEvent) => {
+    assertMigrationWindowSender(event)
+    try {
+      await shell.openExternal(await resolveV1DownloadUrl())
+      return true
+    } catch (error) {
+      logger.warn('Failed to open v1 download page', error as Error)
       return false
     }
   })
@@ -445,6 +496,7 @@ export function resetMigrationData(): void {
   quitScheduled = false
   dataLocationNotice = null
   lastSavedDiagnosticBundlePath = null
+  v1DownloadUrlPromise = null
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,

@@ -5,6 +5,7 @@ import {
   AccordionTrigger,
   Alert,
   Button,
+  error as showErrorToast,
   MenuItem,
   MenuList,
   Popover,
@@ -28,6 +29,7 @@ import {
   ArrowRight,
   Check,
   Database,
+  ExternalLink,
   FolderOpen,
   Loader2,
   Monitor,
@@ -243,6 +245,9 @@ const MigrationApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   // Some runMigration failures happen before progress can reliably move to error.
   const [localMigrationError, setLocalMigrationError] = useState<string | null>(null)
+  // Retry sends the user back to the introduction screen, so a failure after this flag is set is
+  // the "retried and still failing" case that warrants pointing them back to v1.
+  const [hasRetried, setHasRetried] = useState(false)
   const [skipOpen, setSkipOpen] = useState(false)
   const [skipMenuOpen, setSkipMenuOpen] = useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
@@ -357,6 +362,17 @@ const MigrationApp: React.FC = () => {
     } finally {
       startGuardRef.current = false
       setIsLoading(false)
+    }
+  }
+
+  const openDownloadPage = async () => {
+    try {
+      if (!(await actions.openDownloadPage())) {
+        showErrorToast(t('migration.error.v1_fallback.open_failed'))
+      }
+    } catch (error) {
+      logger.error('Failed to open the v1 download page', error as Error)
+      showErrorToast(t('migration.error.v1_fallback.open_failed'))
     }
   }
 
@@ -544,6 +560,22 @@ const MigrationApp: React.FC = () => {
                 {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>
             </div>
+            {hasRetried && (
+              <Alert
+                type="warning"
+                showIcon
+                message={t('migration.error.v1_fallback.title')}
+                description={
+                  <div className="space-y-2.5">
+                    <p>{t('migration.error.v1_fallback.description')}</p>
+                    <Button variant="outline" size="sm" onClick={() => void openDownloadPage()}>
+                      <ExternalLink size={13} />
+                      {t('migration.error.v1_fallback.download')}
+                    </Button>
+                  </div>
+                }
+              />
+            )}
             <MigrationDiagnosticPanel />
             <div className="flex items-center gap-2">
               <Button variant="outline" size="lg" onClick={() => actions.cancel()}>
@@ -554,6 +586,7 @@ const MigrationApp: React.FC = () => {
                 size="lg"
                 className="flex-1 gap-2"
                 onClick={() => {
+                  setHasRetried(true)
                   setLocalMigrationError(null)
                   void actions.retry()
                 }}>

@@ -146,6 +146,10 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
   }, [])
 
+  const openDownloadPage = useCallback((): Promise<boolean> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenDownloadPage)
+  }, [])
+
   return {
     startMigration,
     retry,
@@ -153,6 +157,7 @@ export function useMigrationActions() {
     restart,
     skipMigration,
     saveDiagnostics,
-    showDiagnosticBundleInFolder
+    showDiagnosticBundleInFolder,
+    openDownloadPage
   }
 }

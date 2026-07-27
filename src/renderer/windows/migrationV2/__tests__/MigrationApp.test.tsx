@@ -23,10 +23,13 @@ const invoke = vi.fn()
 const platformState = vi.hoisted(() => ({
   isMac: false
 }))
+const toastErrorMock = vi.hoisted(() => vi.fn())
 const migrationHookMock = vi.hoisted(() => ({
   actions: {
     cancel: vi.fn(),
+    openDownloadPage: vi.fn(),
     restart: vi.fn(),
+    retry: vi.fn(),
     skipMigration: vi.fn(),
     startMigration: vi.fn()
   },
@@ -69,16 +72,23 @@ vi.mock('@cherrystudio/ui', () => {
     AccordionTrigger: ({ children, ...props }: MockPassthroughProps) =>
       React.createElement('button', { ...props, type: 'button', 'data-testid': 'accordion-trigger' }, children),
     Alert: ({
+      description,
       message,
       showIcon,
       type,
       ...props
-    }: MockPassthroughProps & { message?: ReactNode; showIcon?: boolean; type?: string }) =>
+    }: MockPassthroughProps & {
+      description?: ReactNode
+      message?: ReactNode
+      showIcon?: boolean
+      type?: string
+    }) =>
       React.createElement(
         'div',
         { ...props, 'data-testid': 'alert', 'data-type': type },
         showIcon ? React.createElement('span', { 'data-testid': 'alert-icon' }) : null,
-        message
+        message,
+        description
       ),
     Badge: passthrough('span', 'badge'),
     Button: ({ children, disabled, isDisabled, loading, onPress, startContent, ...props }: MockButtonProps) =>
@@ -99,7 +109,8 @@ vi.mock('@cherrystudio/ui', () => {
     SelectItem: passthrough('div', 'select-item'),
     SelectTrigger: passthrough('button', 'select-trigger'),
     SelectValue: () => React.createElement('span', { 'data-testid': 'select-value' }),
-    Tooltip: ({ children }: MockChildrenProps) => children
+    Tooltip: ({ children }: MockChildrenProps) => children,
+    error: toastErrorMock
   }
 })
 
@@ -202,8 +213,11 @@ describe('MigrationApp', () => {
         removeListener: vi.fn()
       }))
     })
+    toastErrorMock.mockClear()
     vi.mocked(migrationHookMock.actions.cancel).mockClear()
+    vi.mocked(migrationHookMock.actions.openDownloadPage).mockReset()
     vi.mocked(migrationHookMock.actions.restart).mockClear()
+    vi.mocked(migrationHookMock.actions.retry).mockClear()
     vi.mocked(migrationHookMock.actions.skipMigration).mockClear()
     vi.mocked(migrationHookMock.actions.startMigration).mockClear()
     vi.mocked(ReduxExporter).mockReset()
@@ -508,6 +522,81 @@ describe('MigrationApp', () => {
     render(<MigrationApp />)
 
     expect(screen.queryByTestId('migration-diagnostic-panel')).not.toBeInTheDocument()
+  })
+
+  describe('v1 download guidance', () => {
+    const errorProgress = {
+      currentMessage: 'Failed',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'error'
+    }
+    const downloadButton = () => screen.queryByRole('button', { name: 'migration.error.v1_fallback.download' })
+
+    // Retry hands the user back to the introduction screen, so "still failing" means a second
+    // error stage — the first failure alone must not push people off the upgrade.
+    const failAfterRetry = () => {
+      migrationHookMock.progress = errorProgress
+      const { rerender } = render(<MigrationApp />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.retry' }))
+      migrationHookMock.progress = { currentMessage: 'Ready', migrators: [], overallProgress: 0, stage: 'introduction' }
+      rerender(<MigrationApp />)
+
+      migrationHookMock.progress = errorProgress
+      rerender(<MigrationApp />)
+    }
+
+    it('stays hidden on the first failure', () => {
+      migrationHookMock.progress = errorProgress
+
+      render(<MigrationApp />)
+
+      expect(downloadButton()).not.toBeInTheDocument()
+    })
+
+    it('stays hidden while a retried migration is still running', () => {
+      migrationHookMock.progress = errorProgress
+      const { rerender } = render(<MigrationApp />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.retry' }))
+      expect(migrationHookMock.actions.retry).toHaveBeenCalledOnce()
+
+      migrationHookMock.progress = {
+        currentMessage: 'Migrating…',
+        migrators: [],
+        overallProgress: 10,
+        stage: 'migration'
+      }
+      rerender(<MigrationApp />)
+
+      expect(downloadButton()).not.toBeInTheDocument()
+    })
+
+    it('offers the v1 download once a retried migration fails again', async () => {
+      migrationHookMock.actions.openDownloadPage.mockResolvedValue(true)
+
+      failAfterRetry()
+
+      await act(async () => {
+        fireEvent.click(downloadButton() as HTMLElement)
+      })
+
+      expect(migrationHookMock.actions.openDownloadPage).toHaveBeenCalledOnce()
+      expect(toastErrorMock).not.toHaveBeenCalled()
+    })
+
+    it('surfaces a toast when the download page cannot be opened', async () => {
+      migrationHookMock.actions.openDownloadPage.mockResolvedValue(false)
+
+      failAfterRetry()
+
+      await act(async () => {
+        fireEvent.click(downloadButton() as HTMLElement)
+      })
+
+      expect(toastErrorMock).toHaveBeenCalledWith('migration.error.v1_fallback.open_failed')
+    })
   })
 
   it('keeps exactly one window-level toast host mounted across stages', () => {
