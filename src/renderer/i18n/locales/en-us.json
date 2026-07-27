@@ -5830,7 +5830,7 @@
           "busy": "Another backup operation is still running. Wait for it to finish.",
           "export_destination": "The backup could not be written to that location. Check free space and pick a name that does not already exist.",
           "journal_unreadable": "The restore record on this device cannot be read. The next start will quarantine it.",
-          "restore_state": "There is no prepared restore for that action.",
+          "restore_state": "That does not match the current state of the restore. Finish or discard the pending restore first.",
           "unexpected": "The operation failed unexpectedly."
         },
         "export": {
@@ -5838,7 +5838,7 @@
           "credentials_warning": "A backup contains your settings, including API keys and other credentials, in readable form. Keep the file somewhere safe.",
           "done": "Backup exported.",
           "done_degraded": "Backup exported. {{count}} item(s) could not be included and are listed in the archive.",
-          "full_help": "Database plus portable managed files. Restoring does not delete files that only exist on this device; normal cleanup may later reclaim managed files the restored database no longer refers to.",
+          "full_help": "Database plus the app's managed folders and files (knowledge bases, notes, workspaces, skills, stored files). Restoring leaves anything the backup does not include untouched, but replaces each included folder as a whole — content inside one of them that the backup does not carry is gone once you confirm keeping the restore. Normal cleanup may later reclaim managed files the restored database no longer refers to.",
           "full_title": "Full backup",
           "integrations_warning": "Restored integrations that run programs or reach the network stay off until you confirm them on the device you restore to.",
           "lite_help": "Database only. Restoring does not replace your local files, so content backed by files may be unavailable, and normal cleanup may later reclaim files the restored database no longer refers to.",
@@ -5879,7 +5879,7 @@
           "arm_button": "Restore and restart",
           "choose_button": "Choose backup…",
           "choose_title": "Restore from a backup file",
-          "confirm_content": "The current database will be replaced by the backup and the app will restart. Files that only exist on this device are not deleted.",
+          "confirm_content": "The current database will be replaced by the backup and the app will restart. A Full backup also replaces each managed folder it carries as a whole; anything the backup does not carry is left alone.",
           "confirm_ok": "Replace and restart",
           "confirm_title": "Replace all data with this backup?",
           "discard_button": "Discard preparation",

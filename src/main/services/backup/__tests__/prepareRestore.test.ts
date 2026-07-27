@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { application } from '@application'
-import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
+import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -277,6 +277,45 @@ describe('restore preparation', () => {
       expect(readRestoreJournalV2().kind).toBe('none')
       expect(readdirSync(join(userData, 'restore-staging'))).toEqual([])
       expect(readFileSync(join(userData, 'cherrystudio.sqlite'), 'utf8')).toBe('LIVE-DB')
+    })
+  })
+
+  describe('preparing while another restore exists', () => {
+    it('replaces a prepared restore and takes its staging tree with it', async () => {
+      const first = await prepareRestore({ archivePath })
+
+      const second = await prepareRestore({ archivePath })
+
+      // Choosing another archive IS a cancellation of the first; overwriting the
+      // journal instead would orphan a staging tree nothing points at.
+      expect(second.restoreId).not.toBe(first.restoreId)
+      expect(readdirSync(join(userData, 'restore-staging'))).toEqual([second.restoreId])
+    })
+
+    it.each([
+      ['armed', () => armPreparedRestore()],
+      [
+        'completed',
+        () => {
+          const read = readRestoreJournalV2()
+          if (read.kind !== 'ok') throw new Error('expected a journal')
+          writeRestoreJournalV2({ ...read.journal, state: 'completed', summary: { knowledgeBaseIds: [] } })
+        }
+      ]
+    ])('refuses to prepare over a %s restore', async (_label, advance) => {
+      await prepareRestore({ archivePath })
+      advance()
+
+      // A confirmed or finished restore owns the rollback material; a silent
+      // overwrite would leave the previous database unreferenced on disk.
+      await expect(prepareRestore({ archivePath })).rejects.toThrow(/must be finished/)
+      expect(readRestoreJournalV2().kind).toBe('ok')
+    })
+
+    it('refuses to prepare over a journal it cannot read', async () => {
+      writeFileSync(join(userData, 'restore-journal.json'), '{ not json')
+
+      await expect(prepareRestore({ archivePath })).rejects.toThrow(/unreadable/)
     })
   })
 

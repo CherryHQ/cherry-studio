@@ -1,0 +1,391 @@
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { application } from '@application'
+import { applyMigrations } from '@data/db/applyMigrations'
+import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
+import { runRestorePromotionV2 } from '@data/db/restore/restorePromotionV2'
+import { snapshotTo } from '@data/db/restore/snapshot'
+import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { appStateTable } from '@data/db/schemas/appState'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { noteTable } from '@data/db/schemas/note'
+import { setupTestDatabase } from '@test-helpers/db'
+import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import type { Mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { acknowledgeRestore } from '../acknowledgeRestore'
+import { exportArchive } from '../exportArchive'
+import { armPreparedRestore, prepareRestore } from '../prepareRestore'
+
+/**
+ * End-to-end proof for Backup v2: export → prepare → arm → preboot promotion →
+ * acknowledgement, with real archives, real SQLite files, and real renames.
+ *
+ * The two devices are two userData directories and one switchable path
+ * registry, which is what makes "cross-device" testable at all: the archive is
+ * produced against one root set and consumed against another, so a path the
+ * producer wrote can only survive if the rebase actually ran.
+ *
+ * Every case asserts the same shape of truth — the file sitting in the live
+ * database slot afterwards. The target database carries a marker row the archive
+ * cannot contain; its disappearance is the proof that a restore REPLACED the
+ * database rather than merging into it.
+ */
+
+const FILE_ID = '11111111-1111-4111-8111-111111111111'
+const TARGET_MARKER = 'e2e-target-marker'
+
+const dbh = setupTestDatabase()
+
+let workDir = ''
+let sourceUserData = ''
+let targetUserData = ''
+/** The device the path registry currently describes. */
+let activeUserData = ''
+
+function pathFor(key: string, filename?: string): string {
+  const bases: Record<string, string> = {
+    'app.userdata': activeUserData,
+    'app.database.file': join(activeUserData, 'cherrystudio.sqlite'),
+    'app.database.migrations': resolveMigrationsPath(),
+    'feature.backup.temp': join(activeUserData, 'backup-temp'),
+    'feature.backup.restore.file': join(activeUserData, 'restore-journal.json'),
+    'feature.backup.restore.staging': join(activeUserData, 'restore-staging'),
+    'feature.files.data': join(activeUserData, 'Data', 'Files'),
+    'feature.knowledgebase.data': join(activeUserData, 'Data', 'KnowledgeBase'),
+    'feature.notes.data': join(activeUserData, 'Data', 'Notes'),
+    'feature.agents.workspaces': join(activeUserData, 'Data', 'Agents'),
+    'feature.agents.skills': join(activeUserData, 'Data', 'Skills')
+  }
+  const base = bases[key]
+  if (!base) throw new Error(`Unexpected path key in restore E2E test: ${key}`)
+  return filename ? join(base, filename) : base
+}
+
+/** A migrated live database carrying a marker row no archive can contain. */
+function makeLiveDb(userData: string): void {
+  const sqlite = new Database(join(userData, 'cherrystudio.sqlite'))
+  sqlite.pragma('journal_mode = WAL')
+  const db = drizzle({ client: sqlite, casing: 'snake_case' })
+  applyMigrations(db, resolveMigrationsPath())
+  db.insert(appStateTable)
+    .values({ key: TARGET_MARKER, value: { device: 'target' } })
+    .run()
+  sqlite.close()
+}
+
+function prepareUserData(userData: string): void {
+  mkdirSync(join(userData, 'backup-temp'), { recursive: true })
+  mkdirSync(join(userData, 'restore-staging'), { recursive: true })
+  makeLiveDb(userData)
+}
+
+function query<T>(dbPath: string, sql: string, ...params: unknown[]): T | undefined {
+  const sqlite = new Database(dbPath, { readonly: true, fileMustExist: true })
+  try {
+    return sqlite.prepare(sql).get(...params) as T | undefined
+  } finally {
+    sqlite.close()
+  }
+}
+
+/** The database the app would boot from on the target device. */
+function liveDbPath(userData = targetUserData): string {
+  return join(userData, 'cherrystudio.sqlite')
+}
+
+/**
+ * Rows referencing every resource kind the adapters enumerate, all pointing at
+ * the SOURCE device's managed roots — so a cross-device restore has something to
+ * rebase and something to install.
+ */
+function seedSourceDatabase(): void {
+  dbh.db.insert(fileEntryTable).values({ id: FILE_ID, origin: 'internal', name: 'report', ext: 'pdf', size: 4 }).run()
+  dbh.db
+    .insert(knowledgeBaseTable)
+    .values({ id: 'kb-1', name: 'kb', status: 'completed', chunkSize: 512, chunkOverlap: 32 })
+    .run()
+  dbh.db
+    .insert(noteTable)
+    .values({ id: 'n-1', rootPath: join(sourceUserData, 'Data', 'Notes'), path: 'a.md', isStarred: true })
+    .run()
+  dbh.db
+    .insert(agentWorkspaceTable)
+    .values({
+      id: 'w-1',
+      name: 'ws',
+      path: join(sourceUserData, 'Data', 'Agents', 's-1'),
+      type: 'system',
+      orderKey: 'a'
+    })
+    .run()
+  dbh.db
+    .insert(agentGlobalSkillTable)
+    .values({ id: 'sk-1', name: 'skill', folderName: 'skill-1', source: 'local', contentHash: 'h' })
+    .run()
+}
+
+/** The bytes those rows point at, on the source device. */
+function seedSourceResources(): void {
+  const write = (relative: string, content: string) => {
+    const target = join(sourceUserData, relative)
+    mkdirSync(join(target, '..'), { recursive: true })
+    writeFileSync(target, content)
+  }
+  write(join('Data', 'Files', `${FILE_ID}.pdf`), 'SOURCE-BLOB')
+  write(join('Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'SOURCE-KB')
+  write(join('Data', 'Notes', 'a.md'), '# source note')
+  write(join('Data', 'Agents', 's-1', 'session.json'), 'SOURCE-WS')
+  write(join('Data', 'Skills', 'skill-1', 'SKILL.md'), 'SOURCE-SKILL')
+}
+
+async function exportFrom(preset: 'lite' | 'full', name: string): Promise<string> {
+  const out = join(workDir, 'out', `${name}.cherrybackup`)
+  activeUserData = sourceUserData
+  await exportArchive({ outPath: out, preset })
+  return out
+}
+
+/** Prepare, confirm, and let the preboot gate run — the whole restore. */
+async function restoreOnTarget(archivePath: string): Promise<void> {
+  activeUserData = targetUserData
+  await prepareRestore({ archivePath })
+  armPreparedRestore()
+  await runRestorePromotionV2()
+}
+
+beforeEach(() => {
+  workDir = mkdtempSync(join(tmpdir(), 'cs-e2e-'))
+  sourceUserData = join(workDir, 'source')
+  targetUserData = join(workDir, 'target')
+  mkdirSync(join(workDir, 'out'), { recursive: true })
+  prepareUserData(sourceUserData)
+  prepareUserData(targetUserData)
+  activeUserData = sourceUserData
+
+  vi.spyOn(application, 'getPath').mockImplementation(pathFor)
+  ;(application.get('DbService').createSnapshot as unknown as Mock).mockImplementation((target: string) =>
+    snapshotTo(dbh.sqlite, target)
+  )
+  seedSourceDatabase()
+})
+
+afterEach(() => {
+  rmSync(workDir, { recursive: true, force: true })
+  ;(application.get('DbService').createSnapshot as unknown as Mock).mockReset()
+  vi.restoreAllMocks()
+})
+
+describe('Lite restore, cross-device', () => {
+  it('replaces the whole database and keeps the replaced one until acknowledgement', async () => {
+    const archive = await exportFrom('lite', 'lite')
+
+    await restoreOnTarget(archive)
+
+    // The archive's database is now the database.
+    expect(query(liveDbPath(), 'SELECT id FROM note WHERE id = ?', 'n-1')).toBeDefined()
+    // …and nothing of the target's own database survived the replacement.
+    expect(query(liveDbPath(), 'SELECT key FROM app_state WHERE key = ?', TARGET_MARKER)).toBeUndefined()
+
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok') throw new Error('expected a terminal journal')
+    expect(read.journal.state).toBe('completed')
+
+    // The replaced database is still on disk — a rollback is still possible.
+    const aside = join(targetUserData, read.journal.db.aside)
+    expect(query(aside, 'SELECT key FROM app_state WHERE key = ?', TARGET_MARKER)).toBeDefined()
+
+    expect(acknowledgeRestore()).toMatchObject({ acknowledged: true, restoreId: read.journal.restoreId })
+    expect(existsSync(aside)).toBe(false)
+    expect(readRestoreJournalV2().kind).toBe('none')
+    // Acknowledgement releases GC protection only after the artifacts are gone.
+    expect(existsSync(join(targetUserData, 'restore-staging', read.journal.restoreId))).toBe(false)
+  })
+
+  it('rebases the producer’s managed roots onto this device', async () => {
+    const archive = await exportFrom('lite', 'lite-rebase')
+
+    await restoreOnTarget(archive)
+
+    const note = query<{ root_path: string }>(liveDbPath(), 'SELECT root_path FROM note WHERE id = ?', 'n-1')
+    const workspace = query<{ path: string }>(liveDbPath(), 'SELECT path FROM agent_workspace WHERE id = ?', 'w-1')
+    // A path that still pointed at the producer's profile would send the app
+    // reading and writing outside this device's managed roots.
+    expect(note?.root_path).toBe(join(targetUserData, 'Data', 'Notes'))
+    expect(workspace?.path).toBe(join(targetUserData, 'Data', 'Agents', 's-1'))
+  })
+
+  it('installs no resources and leaves this device’s files exactly as they were', async () => {
+    seedSourceResources()
+    const archive = await exportFrom('lite', 'lite-files')
+    mkdirSync(join(targetUserData, 'Data', 'Files'), { recursive: true })
+    writeFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'TARGET-BLOB')
+
+    activeUserData = targetUserData
+    const preview = await prepareRestore({ archivePath: archive })
+    expect(preview.resources).toEqual({ install: 0, replace: 0 })
+    armPreparedRestore()
+    await runRestorePromotionV2()
+
+    // Lite is a database-only restore: the blob the restored rows point at is
+    // whatever this device already had, untouched.
+    expect(readFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'utf8')).toBe('TARGET-BLOB')
+    expect(existsSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1'))).toBe(false)
+  })
+})
+
+describe('Full restore, empty target device', () => {
+  it('installs every declared resource next to the database that references it', async () => {
+    seedSourceResources()
+    const archive = await exportFrom('full', 'full-empty')
+
+    activeUserData = targetUserData
+    const preview = await prepareRestore({ archivePath: archive })
+    expect(preview.preset).toBe('full')
+    // Nothing to park on a device that has none of them.
+    expect(preview.resources).toEqual({ install: 5, replace: 0 })
+    armPreparedRestore()
+    await runRestorePromotionV2()
+
+    expect(readFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'utf8')).toBe('SOURCE-BLOB')
+    expect(readFileSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'utf8')).toBe('SOURCE-KB')
+    expect(readFileSync(join(targetUserData, 'Data', 'Notes', 'a.md'), 'utf8')).toBe('# source note')
+    expect(readFileSync(join(targetUserData, 'Data', 'Agents', 's-1', 'session.json'), 'utf8')).toBe('SOURCE-WS')
+    expect(readFileSync(join(targetUserData, 'Data', 'Skills', 'skill-1', 'SKILL.md'), 'utf8')).toBe('SOURCE-SKILL')
+
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok') throw new Error('expected a terminal journal')
+    expect(read.journal.state).toBe('completed')
+    // Nothing was parked, so acknowledgement has only the database aside to drop.
+    expect(acknowledgeRestore()).toMatchObject({ acknowledged: true, removed: 1 })
+  })
+
+  it('names the knowledge bases it installed so the reindex has something to schedule', async () => {
+    seedSourceResources()
+    const archive = await exportFrom('full', 'full-summary')
+
+    await restoreOnTarget(archive)
+
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
+    expect(read.journal.summary?.knowledgeBaseIds).toEqual(['kb-1'])
+  })
+})
+
+describe('Full restore, same device with content already there', () => {
+  beforeEach(() => {
+    // One device: the archive is produced and consumed against the same roots.
+    targetUserData = sourceUserData
+  })
+
+  it('parks what it replaces and leaves undeclared paths alone', async () => {
+    seedSourceResources()
+    writeFileSync(join(sourceUserData, 'Data', 'Files', 'not-in-the-backup.bin'), 'TARGET-ONLY')
+    const archive = await exportFrom('full', 'full-same')
+    // Change the live content so "replaced" is observable.
+    writeFileSync(join(sourceUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'STALE-BLOB')
+
+    activeUserData = targetUserData
+    const preview = await prepareRestore({ archivePath: archive })
+    expect(preview.resources).toEqual({ install: 0, replace: 5 })
+    armPreparedRestore()
+    await runRestorePromotionV2()
+
+    expect(readFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'utf8')).toBe('SOURCE-BLOB')
+    // A path the archive never declared is not an install unit, so nothing in
+    // the promotion can touch it.
+    expect(readFileSync(join(targetUserData, 'Data', 'Files', 'not-in-the-backup.bin'), 'utf8')).toBe('TARGET-ONLY')
+  })
+
+  it('replaces a declared directory as a whole, and holds the old one until acknowledgement', async () => {
+    seedSourceResources()
+    const archive = await exportFrom('full', 'full-dir')
+    // A note this device made after the backup. The notes root is ONE unit, so
+    // the restore replaces the whole directory rather than merging into it.
+    writeFileSync(join(sourceUserData, 'Data', 'Notes', 'newer.md'), '# written after the backup')
+
+    activeUserData = targetUserData
+    await prepareRestore({ archivePath: archive })
+    armPreparedRestore()
+    await runRestorePromotionV2()
+
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok') throw new Error('expected a terminal journal')
+    const notesUnit = read.journal.resourceInstalls.find((entry) => entry.live === 'Data/Notes')
+    if (!notesUnit) throw new Error('expected a notes install unit')
+
+    expect(existsSync(join(targetUserData, 'Data', 'Notes', 'newer.md'))).toBe(false)
+    // Parked, not destroyed: until the user commits to the restore it is still
+    // recoverable from the aside.
+    expect(readFileSync(join(targetUserData, notesUnit.aside, 'newer.md'), 'utf8')).toBe('# written after the backup')
+
+    acknowledgeRestore()
+
+    // Acknowledgement is the point of no return, and the disclosure says so.
+    expect(existsSync(join(targetUserData, notesUnit.aside))).toBe(false)
+  })
+})
+
+describe('a crash before the commit boundary', () => {
+  it('rolls a Full restore back to the database and files this device already had', async () => {
+    seedSourceResources()
+    const archive = await exportFrom('full', 'full-crash')
+    activeUserData = targetUserData
+    mkdirSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1'), { recursive: true })
+    writeFileSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'TARGET-KB')
+    await prepareRestore({ archivePath: archive })
+    armPreparedRestore()
+
+    // The crash: the marker claims the installs completed while the filesystem
+    // still shows them pending. Pre-commit, the filesystem wins and the whole
+    // attempt rolls back.
+    const armed = readRestoreJournalV2()
+    if (armed.kind !== 'ok' || armed.journal.state !== 'armed') throw new Error('expected an armed journal')
+    writeRestoreJournalV2({ ...armed.journal, state: 'promoting', step: 'resources-installed' })
+
+    await runRestorePromotionV2()
+
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok') throw new Error('expected a terminal journal')
+    expect(read.journal.state).toBe('failed')
+    // The two states the design allows: this is the "old database intact" one.
+    expect(query(liveDbPath(), 'SELECT key FROM app_state WHERE key = ?', TARGET_MARKER)).toBeDefined()
+    expect(readFileSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'utf8')).toBe('TARGET-KB')
+    expect(existsSync(join(targetUserData, 'Data', 'Skills', 'skill-1'))).toBe(false)
+
+    // A failed restore owns nothing, so acknowledgement just clears the record.
+    expect(acknowledgeRestore()).toMatchObject({ acknowledged: true })
+    expect(readRestoreJournalV2().kind).toBe('none')
+  })
+})
+
+describe('relocated userData', () => {
+  it('acknowledges a completed restore after the whole profile moved', async () => {
+    seedSourceResources()
+    const archive = await exportFrom('full', 'full-relocate')
+
+    await restoreOnTarget(archive)
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok') throw new Error('expected a terminal journal')
+
+    // Everything the journal names is userData-relative (§6.6), so moving the
+    // profile must not strand a single artifact.
+    const moved = join(workDir, 'relocated')
+    renameSync(targetUserData, moved)
+    targetUserData = moved
+    activeUserData = moved
+
+    expect(acknowledgeRestore()).toMatchObject({ acknowledged: true })
+    expect(existsSync(join(moved, read.journal.db.aside))).toBe(false)
+    expect(readRestoreJournalV2().kind).toBe('none')
+    // The restored data itself came along with the move.
+    expect(readFileSync(join(moved, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'utf8')).toBe('SOURCE-KB')
+  })
+})
