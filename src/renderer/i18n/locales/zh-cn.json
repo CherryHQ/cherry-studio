@@ -2080,12 +2080,6 @@
     "auto_update_to_latest": "检查更新并安装最新版本",
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
     "can_upgrade": "可升级",
-    "claude_preflight": {
-      "authentication_error": "Claude Code 鉴权失败，请确认该供应商接受当前配置的 API Key。",
-      "model_error": "Claude Code 已连接到接口，但所选模型不可用或企业网关模型映射无效。",
-      "route_error": "供应商未提供 Claude Code 所需的 /v1/messages 路由，请检查 Anthropic 接口地址。",
-      "service_error": "供应商服务或网络不可用，无法验证 Claude Code 接口。"
-    },
     "clear_config_failed": "清除 CLI 配置失败，凭证可能仍保留在该工具的配置文件中",
     "cli_config": {
       "format_failed": "格式化失败，请检查文件格式",

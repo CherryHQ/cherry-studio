@@ -24,7 +24,6 @@ import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliCon
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 
-import { type ClaudePreflightInput, preflightClaudeEndpoint as runClaudeEndpointPreflight } from './claudePreflight'
 import { writeCliConfigFiles } from './configWriter'
 import { sanitizeEnvForLogging } from './envRedaction'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
@@ -352,10 +351,6 @@ export class CodeCliService extends BaseService {
   /** Transactional write of a file-configured CLI's config files (code_cli.write_config). */
   public async writeConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
     return writeCliConfigFiles(cliTool, files)
-  }
-
-  public async preflightClaudeEndpoint(input: ClaudePreflightInput) {
-    return runClaudeEndpointPreflight(input)
   }
 
   async run(input: CodeCliRunInput): Promise<OperationResult> {

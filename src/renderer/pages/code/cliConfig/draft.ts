@@ -10,8 +10,6 @@ import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/p
 
 import { getAdapter, sanitizeCliConfigBlob } from './adapters'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
-import { ClaudeConfigPreflightError } from './preflight'
-import { resolveClaudeBaseUrl } from './resolvers'
 import type {
   CliConfigDraftBuildArgs,
   CliConfigFileDraft,
@@ -100,7 +98,7 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
   return {
     provider,
     apiKey: effectiveApiKey,
-    model: modelRecord?.apiModelId ?? model,
+    model,
     modelLabel: modelRecord?.name ?? model,
     modelRecord,
     configBlob: sanitizeCliConfigBlob(args.cliTool, args.configBlob)
@@ -149,7 +147,6 @@ export async function writeCliConfigDraft(args: {
   gateway?: CliConfigGatewayContext
 }): Promise<unknown> {
   let files = args.files
-  let context: ResolvedCliConfigContext | null = null
   if (args.modelId) {
     const writeArgs: CliConfigDraftBuildArgs = {
       cliTool: args.cliTool,
@@ -159,7 +156,7 @@ export async function writeCliConfigDraft(args: {
       gateway: args.gateway,
       files: args.files
     }
-    context = await resolveContext(writeArgs)
+    const context = await resolveContext(writeArgs)
     if (!context) return
     assertCliConfigCredentials(args.cliTool, context)
     // Gateway: always rebuild so the freshly-resolved gateway key/model is (re)injected — the preview
@@ -176,19 +173,6 @@ export async function writeCliConfigDraft(args: {
 
   if (!isFileConfiguredCli(args.cliTool)) {
     throw new Error(`${args.cliTool} does not use config files`)
-  }
-  if (args.cliTool === CodeCli.CLAUDE_CODE && context) {
-    const connection = getAdapter(args.cliTool)?.extractConnection(files)
-    const baseUrl = connection?.baseUrl ?? resolveClaudeBaseUrl(context.provider)
-    const apiKey = connection?.apiKey ?? context.apiKey
-    const model = connection?.model ?? context.model
-    if (!baseUrl || !apiKey || !model) {
-      throw new Error('Claude Code config is missing the endpoint, API key, or model required for preflight')
-    }
-    const preflight = await ipcApi.request('code_cli.claude.preflight', { baseUrl, apiKey, model })
-    if (!preflight.success && preflight.category !== 'ok') {
-      throw new ClaudeConfigPreflightError(preflight.category, preflight.statusCode)
-    }
   }
   const result = await ipcApi.request('code_cli.write_config', {
     cliTool: args.cliTool,

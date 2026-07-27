@@ -9,7 +9,6 @@ import { useTranslation } from 'react-i18next'
 
 import {
   clearCliConfig,
-  cliConfigApplyErrorKey,
   type CliConfigConnection,
   type CliConfigFileDraft,
   type CliConfigGatewayContext,
@@ -287,7 +286,7 @@ export function useConfigPanelController({
           if (gateway) toast.info(t('code.api_gateway.requires_running'))
         } catch (err) {
           logger.error('Failed to inject CLI config on enable:', err as Error)
-          toast.error(t(cliConfigApplyErrorKey(err)))
+          toast.error(t('code.apply_failed'))
         }
       })().finally(() => {
         inFlightToolsRef.current.delete(selectedCliTool)

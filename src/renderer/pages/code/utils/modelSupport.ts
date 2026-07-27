@@ -16,7 +16,7 @@ function hasAnyModelEndpoint(model: Model, endpoints: string[]): boolean {
 export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
   switch (cliTool) {
     case CodeCli.CLAUDE_CODE:
-      return model.endpointTypes?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) === true
+      return hasModelEndpoint(model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
     case CodeCli.OPENAI_CODEX:
       return hasModelEndpoint(model, ENDPOINT_TYPE.OPENAI_RESPONSES)
     case CodeCli.OPEN_CODE:
