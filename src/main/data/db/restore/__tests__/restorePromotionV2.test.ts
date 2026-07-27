@@ -1,4 +1,15 @@
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -38,7 +49,8 @@ vi.mock('@application', () => ({
         'app.database.file': join(userData, 'cherrystudio.sqlite'),
         'app.database.migrations': resolveMigrationsPath(),
         'feature.backup.restore.file': join(userData, 'restore-journal.json'),
-        'feature.backup.restore.staging': join(userData, 'restore-staging')
+        'feature.backup.restore.staging': join(userData, 'restore-staging'),
+        'feature.knowledgebase.data': join(userData, 'Data', 'KnowledgeBase')
       }
       const base = bases[key]
       if (!base) throw new Error(`Unexpected path key in restorePromotionV2 test: ${key}`)
@@ -119,20 +131,22 @@ interface JournalOverrides {
   state?: RestoreJournalV2['state']
   step?: PromotionStepV2
   chain?: Array<{ folderMillis: number; hash: string }>
+  resourceInstalls?: RestoreJournalV2['resourceInstalls']
 }
 
 function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
+  const resourceInstalls = overrides.resourceInstalls ?? []
   const base = {
     version: 2 as const,
     restoreId: RID,
-    preset: 'lite' as const,
+    preset: resourceInstalls.length > 0 ? ('full' as const) : ('lite' as const),
     createdAt: '2026-07-27T00:00:00.000Z',
     db: {
       promote: stagedRel,
       aside: asideRel,
       chain: overrides.chain ?? chainOf(stagedPath())
     },
-    resourceInstalls: []
+    resourceInstalls
   }
   const state = overrides.state ?? 'armed'
   if (state === 'promoting') return { ...base, state, step: overrides.step ?? 'gate-passed' }
@@ -428,6 +442,140 @@ describe('restore promotion v2', () => {
 
       expect(journalState()).toBe('promoting')
       expect(readMarker(livePath())).toBe('new')
+    })
+  })
+
+  describe('full preset resource installation', () => {
+    const BASE_REL = 'Data/KnowledgeBase/base-1'
+
+    /** One Knowledge base unit, exactly as preparation seals it into the journal. */
+    function baseUnit(): RestoreJournalV2['resourceInstalls'][number] {
+      return {
+        resourceType: 'directory',
+        staging: `restore-staging/${RID}/resources/${BASE_REL}`,
+        live: BASE_REL,
+        aside: `restore-aside/${RID}/0-base-1`
+      }
+    }
+
+    function makeUnitDir(relative: string, content: string): void {
+      const dir = join(userData, ...relative.split('/'))
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(join(dir, 'doc.txt'), content)
+    }
+
+    function readUnitDir(relative: string): string {
+      return readFileSync(join(userData, ...relative.split('/'), 'doc.txt'), 'utf8')
+    }
+
+    function unitExists(relative: string): boolean {
+      return existsSync(join(userData, ...relative.split('/')))
+    }
+
+    function completedSummary(): string[] {
+      const read = readRestoreJournalV2()
+      if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error(`not completed: ${journalState()}`)
+      return [...read.journal.summary.knowledgeBaseIds]
+    }
+
+    it('installs the archive resources and records what it installed', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const unit = baseUnit()
+      makeUnitDir(unit.staging, 'ARCHIVE')
+      makeUnitDir(unit.live, 'TARGET')
+      writeRestoreJournalV2(buildJournal({ resourceInstalls: [unit] }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('completed')
+      expect(readMarker(livePath())).toBe('new')
+      expect(readUnitDir(unit.live)).toBe('ARCHIVE')
+      // Same rollback material as the database aside, released together (§6.5).
+      expect(readUnitDir(unit.aside)).toBe('TARGET')
+      expect(completedSummary()).toEqual(['base-1'])
+    })
+
+    it('rolls the resources back out when the promotion fails after the commit', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const unit = baseUnit()
+      makeUnitDir(unit.staging, 'ARCHIVE')
+      makeUnitDir(unit.live, 'TARGET')
+      const journal = buildJournal({ resourceInstalls: [unit] })
+      // Garbage passes admission (the chain lives in the journal) and is caught
+      // by the post-commit integrity check — a database rollback the resources
+      // must follow, or the restore ends half applied.
+      writeFileSync(stagedPath(), 'not a database')
+      writeRestoreJournalV2(journal)
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readUnitDir(unit.live)).toBe('TARGET')
+      expect(unitExists(unit.aside)).toBe(false)
+    })
+
+    it('rolls back a crash that landed between installing the resources and parking the database', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const unit = baseUnit()
+      // The install ran: the archive copy is live and the target is parked.
+      makeUnitDir(unit.live, 'ARCHIVE')
+      makeUnitDir(unit.aside, 'TARGET')
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'resources-installed', resourceInstalls: [unit] }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readUnitDir(unit.live)).toBe('TARGET')
+      expect(unitExists(unit.aside)).toBe(false)
+    })
+
+    it('keeps the installed resources when the crash landed past the commit', async () => {
+      makeDb(asidePath(), 'old')
+      makeDb(livePath(), 'new')
+      const unit = baseUnit()
+      makeUnitDir(unit.live, 'ARCHIVE')
+      makeUnitDir(unit.aside, 'TARGET')
+      writeRestoreJournalV2(
+        buildJournal({
+          state: 'promoting',
+          step: 'db-promoted',
+          chain: chainOf(livePath()),
+          resourceInstalls: [unit]
+        })
+      )
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('completed')
+      expect(readUnitDir(unit.live)).toBe('ARCHIVE')
+      expect(readUnitDir(unit.aside)).toBe('TARGET')
+      expect(completedSummary()).toEqual(['base-1'])
+    })
+
+    it('refuses the whole restore when a resource target cannot be installed', async () => {
+      // A symlink appeared where the base belongs AFTER preparation vetted it.
+      // The install runs before the commit precisely so this still has the old
+      // database to fall back to.
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const unit = baseUnit()
+      makeUnitDir(unit.staging, 'ARCHIVE')
+      makeUnitDir('outside-target', 'OUTSIDE')
+      mkdirSync(join(userData, 'Data', 'KnowledgeBase'), { recursive: true })
+      symlinkSync(join(userData, 'outside-target'), join(userData, ...BASE_REL.split('/')))
+      writeRestoreJournalV2(buildJournal({ resourceInstalls: [unit] }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readUnitDir('outside-target')).toBe('OUTSIDE')
+      expect(unitExists(unit.aside)).toBe(false)
     })
   })
 

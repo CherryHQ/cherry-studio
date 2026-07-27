@@ -13,10 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  */
 const { loggerMock, postPromotionMock } = vi.hoisted(() => ({
   loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-  postPromotionMock: vi.fn(async (_shouldContinue: () => boolean) => ({
-    ran: false,
-    enqueuedBaseIds: [] as string[]
-  }))
+  postPromotionMock: vi.fn<(shouldContinue: () => boolean) => Promise<{ ran: boolean; enqueuedBaseIds: string[] }>>(
+    async () => ({ ran: false, enqueuedBaseIds: [] })
+  )
 }))
 
 vi.mock('@logger', () => ({ loggerService: { withContext: () => loggerMock } }))
