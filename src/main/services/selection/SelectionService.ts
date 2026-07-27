@@ -284,6 +284,14 @@ export class SelectionService extends BaseService implements Activatable {
     this.registerDisposable({
       dispose: preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean) => {
         this.desiredEnabled = enabled
+        // Suspend the action pool directly on disable instead of relying on deactivate(): a
+        // disable landing before the deferred warm-up ever activated (see onAllReady) settles
+        // the reconciler at desired=false/actual=false without running deactivate, which would
+        // leave the eager-warmed pool alive. Idempotent with the suspend in
+        // releaseActivationResources() on the activated path.
+        if (!enabled) {
+          wm.suspendPool(WindowType.SelectionAction)
+        }
         this.reconciler.request()
       })
     })

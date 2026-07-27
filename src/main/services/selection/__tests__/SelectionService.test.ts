@@ -51,6 +51,18 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     return activate
   }
 
+  /** Fetch the `feature.selection.enabled` change handler that onInit() subscribed. */
+  const getEnabledChangeHandler = () => {
+    const subscribeChange = (
+      application.get('PreferenceService') as unknown as { subscribeChange: ReturnType<typeof vi.fn> }
+    ).subscribeChange
+    const handler = subscribeChange.mock.calls.find((call) => call[0] === 'feature.selection.enabled')?.[1] as
+      | ((enabled: boolean) => void)
+      | undefined
+    expect(handler).toBeDefined()
+    return handler!
+  }
+
   it('defers activation past the boot critical path when the feature is enabled', async () => {
     prefGet.mockReturnValue(true)
     const activate = wireActivation()
@@ -81,24 +93,40 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     const activate = wireActivation()
 
     await svc._doInit() // registers the `feature.selection.enabled` subscription
-    const subscribeChange = (
-      application.get('PreferenceService') as unknown as { subscribeChange: ReturnType<typeof vi.fn> }
-    ).subscribeChange
-    const enabledHandler = subscribeChange.mock.calls.find((call) => call[0] === 'feature.selection.enabled')?.[1] as
-      | ((enabled: boolean) => void)
-      | undefined
-    expect(enabledHandler).toBeDefined()
+    const enabledHandler = getEnabledChangeHandler()
 
     svc.onAllReady() // enabled → schedules the deferred warm-up
 
     // The user disables before the deferred warm-up fires. The old code activated unconditionally
     // from the setImmediate; the reconciler re-reads the desired state and never activates.
-    enabledHandler!(false)
+    enabledHandler(false)
 
     await flushImmediate()
 
     expect(activate).not.toHaveBeenCalled()
     expect(svc.isActivated).toBe(false)
+  })
+
+  it('suspends the SelectionAction pool when disabled before the deferred warm-up activates', async () => {
+    // Enabled at boot: onInit leaves the pool warm for the eager warmup. A disable landing in
+    // the deferred gap settles the reconciler at desired=false/actual=false, so deactivate()
+    // (whose releaseActivationResources() suspends the pool) never runs — only the direct
+    // suspend in the subscription keeps the standby renderer from surviving with the feature off.
+    prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
+    const activate = wireActivation()
+    const suspendPool = (application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn> })
+      .suspendPool
+
+    await svc._doInit()
+    expect(suspendPool).not.toHaveBeenCalled()
+
+    svc.onAllReady()
+    getEnabledChangeHandler()(false)
+
+    await flushImmediate()
+
+    expect(activate).not.toHaveBeenCalled()
+    expect(suspendPool).toHaveBeenCalledWith(WindowType.SelectionAction)
   })
 })
 
