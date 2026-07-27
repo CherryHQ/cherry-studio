@@ -115,8 +115,40 @@ function buildRebaseTable(producer: {
   return prepared.table
 }
 
+/**
+ * Make room for a new preparation, or refuse.
+ *
+ * The journal is a single slot, so preparing while one exists would silently
+ * overwrite it. What that costs depends on the state it is in:
+ *
+ * - `prepared` is cancellable by contract, and choosing another archive IS a
+ *   cancellation, so discard it properly — overwriting would orphan its staging
+ *   tree with nothing left pointing at it.
+ * - `armed` / `promoting` are past the user's confirmation; a relaunch is
+ *   imminent or a promotion is mid-flight, and neither may be redirected.
+ * - a terminal journal still owns the previous database and every replaced file
+ *   (§6.5). Overwriting it would leave that rollback material unreferenced and
+ *   unacknowledgeable, so the user must finish the last restore first.
+ */
+function clearWayForPreparation(): void {
+  const read = readRestoreJournalV2()
+  if (read.kind === 'none') return
+  if (read.kind === 'corrupt') {
+    throw new RestoreStateError('unreadable', 'the restore journal is unreadable; the next boot will quarantine it')
+  }
+  if (read.journal.state === 'prepared') {
+    cancelPreparedRestore()
+    return
+  }
+  throw new RestoreStateError(
+    'wrong-state',
+    `a restore in state '${read.journal.state}' must be finished before another can be prepared`
+  )
+}
+
 export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<RestorePreview> {
   const { archivePath, signal } = inputs
+  clearWayForPreparation()
   const stagingRoot = application.getPath('feature.backup.restore.staging')
 
   const admitted = await admitArchive({
