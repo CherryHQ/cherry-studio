@@ -24,6 +24,8 @@ import { application } from '@application'
 import { clearRestoreJournalV2, readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 
+import { RestoreStateError } from './errors'
+
 const logger = loggerService.withContext('backupAcknowledgeRestore')
 
 /** What the acknowledgement removed, for the caller to report. */
@@ -43,14 +45,17 @@ export function acknowledgeRestore(): AcknowledgeResult {
   if (read.kind === 'corrupt') {
     // Nothing can be proven about which asides it owns, so deleting from it
     // would be guesswork. The next boot's promotion gate quarantines it.
-    throw new Error('the restore journal is unreadable; the next boot will quarantine it')
+    throw new RestoreStateError('unreadable', 'the restore journal is unreadable; the next boot will quarantine it')
   }
 
   const journal = read.journal
   if (journal.state === 'prepared' || journal.state === 'armed' || journal.state === 'promoting') {
     // Acknowledging a restore that has not finished would release GC protection
     // over a database the promotion is still about to move.
-    throw new Error(`a restore in state '${journal.state}' has not finished and cannot be acknowledged`)
+    throw new RestoreStateError(
+      'wrong-state',
+      `a restore in state '${journal.state}' has not finished and cannot be acknowledged`
+    )
   }
 
   const userData = application.getPath('app.userdata')

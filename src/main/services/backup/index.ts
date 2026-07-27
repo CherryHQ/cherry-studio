@@ -1,6 +1,16 @@
 export { acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
 export { type BackupOperation, BackupService, type BackupStatus, type RestoreStatus } from './BackupService'
 export { BACKUP_CEILINGS, type BackupCeilings } from './ceilings'
+export {
+  ArchiveAdmissionError,
+  BackupBusyError,
+  DiskFullError,
+  HardLinkUnsupportedError,
+  InsufficientDiskSpaceError,
+  OutputPathExistsError,
+  RestoreStateError,
+  type RestoreStateErrorCode
+} from './errors'
 export { exportArchive, type ExportArchiveInputs, type ExportArchiveResult } from './exportArchive'
 export {
   BACKUP_FORMAT_VERSION,

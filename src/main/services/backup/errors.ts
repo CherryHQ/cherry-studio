@@ -39,6 +39,31 @@ export class BackupBusyError extends Error {
   }
 }
 
+/**
+ * The restore lifecycle refused an action because the durable journal is not in
+ * the state that action needs (§6.1) — or cannot be read at all.
+ *
+ * Structural rather than message-matched: the IPC layer has to turn these into
+ * stable codes the restore UI branches on, and a journal state is exactly the
+ * kind of fact that must not travel as prose.
+ */
+export type RestoreStateErrorCode =
+  /** No journal, or one whose state this action does not accept. */
+  | 'wrong-state'
+  /** The journal exists but no version can parse it; the next boot quarantines it. */
+  | 'unreadable'
+  /** Arming succeeded but the relaunch it exists for could not be started. */
+  | 'relaunch-failed'
+
+export class RestoreStateError extends Error {
+  readonly code: RestoreStateErrorCode
+  constructor(code: RestoreStateErrorCode, message: string) {
+    super(message)
+    this.name = 'RestoreStateError'
+    this.code = code
+  }
+}
+
 /** Thrown when an already-aborted `AbortSignal` is observed at a step boundary. */
 export class BackupCancelledError extends Error {
   constructor(message = 'backup cancelled') {
