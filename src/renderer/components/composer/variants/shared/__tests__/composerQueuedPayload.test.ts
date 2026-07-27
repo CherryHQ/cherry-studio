@@ -95,11 +95,11 @@ describe('buildComposerQueuedPayload', () => {
       files: [],
       fileTokenId,
       requireText: true,
-      extra: (tokenIds) => ({ knowledgeBaseIds: tokenIds.has('knowledge:k1') ? ['k1'] : undefined })
+      extra: (tokenIds) => ({ reasoningEffort: tokenIds.has('knowledge:k1') ? 'high' : undefined })
     })
 
     expect(result?.text).toBe('  hello  ')
     expect(result?.userMessageParts).toEqual([{ type: 'text', text: '  hello  ' }])
-    expect(result?.knowledgeBaseIds).toEqual(['k1'])
+    expect(result?.reasoningEffort).toBe('high')
   })
 })

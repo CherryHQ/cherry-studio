@@ -1,19 +1,16 @@
 import { useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
-import ConversationComposerLoading from '@renderer/components/composer/ConversationComposerLoading'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
+import AgentComposer from '@renderer/components/composer/variants/AgentComposer'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Model } from '@shared/data/types/model'
-import { lazy, memo } from 'react'
+import { memo } from 'react'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 
-const AgentComposer = lazy(() => import('@renderer/components/composer/variants/AgentComposer'))
-
 interface AgentComposerSlotProps {
   agentId?: string
-  agentLoading: boolean
   activeAgent?: GetAgentResponse
   activeModel?: Model
   workspaceWarning?: string
@@ -31,7 +28,6 @@ interface AgentComposerSlotProps {
 
 function AgentComposerSlot({
   agentId,
-  agentLoading,
   activeAgent,
   activeModel,
   workspaceWarning,
@@ -68,11 +64,9 @@ function AgentComposerSlot({
         onCreateEmptySession={onCreateEmptySession}
         compactWhenSingleLine={compactWhenSingleLine}
       />
-    ) : agentLoading && !isMultiSelectMode ? (
-      <ConversationComposerLoading compact={compactWhenSingleLine} />
     ) : undefined
 
-  return <ConversationComposerSlot scopeKey={sessionId} composerContext={composerContext} fallback={fallback} />
+  return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
 }
 
 export default memo(AgentComposerSlot)
