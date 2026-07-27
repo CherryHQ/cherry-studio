@@ -97,7 +97,7 @@ const NpxSearch: FC = () => {
   }, [])
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-2 pt-5">
+    <div className="flex min-w-0 flex-1 flex-col gap-2">
       <Center>
         <div className="mb-6.25 flex w-full max-w-125 flex-col px-4">
           <Center className="mb-3.75">

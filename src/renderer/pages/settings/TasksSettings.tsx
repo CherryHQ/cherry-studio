@@ -833,16 +833,19 @@ const TaskDetail: FC<{
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle className="flex-wrap gap-3">
-          <Button
-            type="button"
-            size="lg"
-            variant="ghost"
-            className="px-0"
-            aria-label={t('common.back')}
-            onClick={onBack}>
-            <ArrowLeft size={16} />
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              className="-ml-2 shrink-0 rounded-full"
+              aria-label={t('common.back')}
+              title={t('common.back')}
+              onClick={onBack}>
+              <ArrowLeft size={16} />
+            </Button>
             <span className="min-w-0 break-words">{task.name}</span>
-          </Button>
+          </div>
           <RowFlex className="flex-wrap items-center gap-2">
             {!isCompleted && (
               <Button type="button" variant="outline" className="min-w-18" onClick={() => setEditOpen(true)}>
@@ -1425,10 +1428,15 @@ const TasksSettings: FC = () => {
   }
 
   return (
-    <SettingsContentColumn theme={theme} className="pt-3" innerClassName="flex min-h-full flex-col">
+    <SettingsContentColumn theme={theme} className="pt-2" innerClassName="flex min-h-full flex-col">
       <div className="flex flex-1 flex-col">
-        <SettingTitle>
-          <span>{t('settings.scheduledTasks.title')}</span>
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <SettingTitle>
+              <span>{t('settings.scheduledTasks.title')}</span>
+            </SettingTitle>
+            <SettingDescription className="mt-0">{t('settings.scheduledTasks.description')}</SettingDescription>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button type="button">
@@ -1450,8 +1458,7 @@ const TasksSettings: FC = () => {
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-        </SettingTitle>
-        <SettingDescription className="mt-0">{t('settings.scheduledTasks.description')}</SettingDescription>
+        </div>
         <SettingDivider />
 
         {tasks.length === 0 ? (
@@ -1476,8 +1483,8 @@ const TasksSettings: FC = () => {
           />
         ) : (
           <>
-            <RowFlex className="flex-wrap items-center gap-2 py-1">
-              <div className="min-w-56 flex-1">
+            <RowFlex className="mb-3 flex-wrap items-center gap-2 py-1">
+              <div className="min-w-56 flex-1 [&>[data-slot=input-group]]:border-border [&>[data-slot=input-group]]:bg-transparent">
                 <SearchInput
                   aria-label={t('settings.scheduledTasks.search')}
                   placeholder={t('settings.scheduledTasks.searchPlaceholder')}
@@ -1526,29 +1533,31 @@ const TasksSettings: FC = () => {
                 onAction={clearFilters}
               />
             ) : (
-              <ItemGroup>
-                {filteredTasks.map((task, index) => (
-                  <Fragment key={task.id}>
-                    {index > 0 && <ItemSeparator />}
-                    <Item asChild size="sm">
-                      <Link to="/settings/scheduled-tasks/$taskId" params={{ taskId: task.id }}>
-                        <ItemContent>
-                          <ItemTitle>{task.name}</ItemTitle>
-                          <ItemDescription>
-                            {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
-                            {getTriggerSummary(task.trigger, t)}
-                          </ItemDescription>
-                        </ItemContent>
-                        <ItemActions>
-                          <Badge variant="outline">
-                            {getScheduleKindLabel(triggerToFormState(task.trigger).kind, t)}
-                          </Badge>
-                          <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
-                          <ChevronRight size={16} />
-                        </ItemActions>
-                      </Link>
-                    </Item>
-                  </Fragment>
+              <ItemGroup className="gap-2">
+                {filteredTasks.map((task) => (
+                  <Item
+                    key={task.id}
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    className="rounded-lg border-border/60 px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35">
+                    <Link to="/settings/scheduled-tasks/$taskId" params={{ taskId: task.id }}>
+                      <ItemContent>
+                        <ItemTitle>{task.name}</ItemTitle>
+                        <ItemDescription>
+                          {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
+                          {getTriggerSummary(task.trigger, t)}
+                        </ItemDescription>
+                      </ItemContent>
+                      <ItemActions>
+                        <Badge variant="outline">
+                          {getScheduleKindLabel(triggerToFormState(task.trigger).kind, t)}
+                        </Badge>
+                        <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
+                        <ChevronRight size={16} />
+                      </ItemActions>
+                    </Link>
+                  </Item>
                 ))}
               </ItemGroup>
             )}

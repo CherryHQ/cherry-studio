@@ -213,7 +213,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
 }
 
 const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof SettingsContentColumn>) => (
-  <SettingsContentColumn className={cn('w-full min-w-0', className)} {...props} />
+  <SettingsContentColumn className={cn('w-full min-w-0 pt-2', className)} {...props} />
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

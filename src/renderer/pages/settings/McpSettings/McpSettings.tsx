@@ -5,7 +5,7 @@ import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServer } from '@renderer/hooks/useMcpServer'
@@ -456,7 +456,7 @@ const McpSettings: React.FC = () => {
         <Form {...form}>
           <form
             onChange={() => setIsFormChanged(true)}
-            className="w-full min-w-0 pb-6 [&_[data-slot=select-trigger]]:bg-background [&_input[data-slot=form-control]]:bg-background [&_textarea[data-slot=form-control]]:bg-background"
+            className="flex w-full min-w-0 flex-col gap-4 pb-6 [&_[data-slot=select-trigger]]:bg-background [&_input[data-slot=form-control]]:bg-background [&_textarea[data-slot=form-control]]:bg-background"
             id="mcp-settings-form">
             <McpFormSection>
               <McpIdentityFields {...fieldsProps} />
@@ -565,7 +565,7 @@ const McpSettings: React.FC = () => {
           onValueChange={(value) => setActiveTab(value as TabKey)}
           variant="line"
           className="flex min-h-0 flex-1 flex-col bg-transparent">
-          <div className="shrink-0 px-6 pt-6">
+          <div className="shrink-0 px-6 pt-2">
             <div className="mx-auto w-full max-w-3xl">
               <SettingTitle className="min-w-0 flex-wrap gap-2">
                 <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -668,7 +668,7 @@ const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'spa
 )
 
 const McpFormSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <SettingGroup className={cn('mt-0', className)} {...props} />
+  <div className={className} {...props} />
 )
 
 const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

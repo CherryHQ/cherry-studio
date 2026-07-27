@@ -368,14 +368,20 @@ export const ResourceGrid: FC<Props> = ({
       <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-muted border-b')}>
         {isSettings ? (
           <>
-            <SettingTitle>
-              <span>{title}</span>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <SettingTitle>
+                  <span>{title}</span>
+                </SettingTitle>
+                {description ? <SettingDescription className="mt-0">{description}</SettingDescription> : null}
+              </div>
               {addActions}
-            </SettingTitle>
-            {description ? <SettingDescription className="mt-0">{description}</SettingDescription> : null}
+            </div>
             <SettingDivider />
             <div className="flex shrink-0 flex-wrap items-center gap-2 py-1">
-              <div className="min-w-56 flex-1">{searchInput}</div>
+              <div className="min-w-56 flex-1 [&>[data-slot=input-group]]:border-border [&>[data-slot=input-group]]:bg-transparent">
+                {searchInput}
+              </div>
             </div>
           </>
         ) : (
