@@ -1,16 +1,15 @@
 import {
-  cleanupTerminalRestoreArtifacts,
-  isLiveDbStranded,
-  markRestoreFailedAfterCrash,
-  runRestorePromotion
-} from '@data/db/restore/restorePromotion'
+  isLiveDbStrandedV2,
+  markRestoreFailedAfterCrashV2,
+  runRestorePromotionV2
+} from '@data/db/restore/restorePromotionV2'
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('BackupRestoreGate')
 
 /**
  * Preboot shell around the restore promotion logic (which lives in
- * data/db/restore/restorePromotion.ts — same layering as
+ * data/db/restore/restorePromotionV2.ts — same layering as
  * v2MigrationGate → MigrationEngine).
  *
  * Runs in startApp() before runV2MigrationGate() reads the DB. Hard ordering
@@ -21,7 +20,7 @@ const logger = loggerService.withContext('BackupRestoreGate')
  * No return value: whatever happens, boot continues — promotion success means
  * the new DB is live, any refusal or failure means the old DB is. An
  * unexpected crash of the promotion logic is logged and handed to
- * markRestoreFailedAfterCrash, which restores the live DB from the aside if
+ * markRestoreFailedAfterCrashV2, which restores the live DB from the aside if
  * needed and freezes the journal to failed (or leaves a committed promotion
  * resumable) so the next boot does not retry a promotion that just proved
  * itself poisonous.
@@ -29,26 +28,25 @@ const logger = loggerService.withContext('BackupRestoreGate')
  * This shell never throws — a preboot exception falls into startApp's
  * fail-fast catch (forceExit) and dead-loops the app into "Unable to Start" —
  * with exactly ONE exception: when even the crash net could not put a live
- * DB in place (isLiveDbStranded), booting on would silently CREATE a fresh
+ * DB in place (isLiveDbStrandedV2), booting on would silently CREATE a fresh
  * empty database while the user's data sits in the aside. That is the one
  * outcome worse than the fail-fast dialog, so the gate refuses to boot and
  * leaves the aside, the journal, and the staging tree as repair artifacts.
  */
 export async function runBackupRestoreGate(): Promise<void> {
   try {
-    await runRestorePromotion()
+    await runRestorePromotionV2()
   } catch (error) {
     logger.error('Restore promotion crashed unexpectedly — attempting last-resort recovery', error as Error)
     try {
-      markRestoreFailedAfterCrash()
+      markRestoreFailedAfterCrashV2()
     } catch (journalError) {
       logger.error('Failed to mark the restore journal as failed', journalError as Error)
     }
-    if (isLiveDbStranded()) {
+    if (isLiveDbStrandedV2()) {
       throw new Error(
         'Restore recovery failed: the live database is missing while the previous database is still parked aside — refusing to boot into an empty database'
       )
     }
   }
-  cleanupTerminalRestoreArtifacts()
 }
