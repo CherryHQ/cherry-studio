@@ -1,5 +1,6 @@
 import { Flex, InfoTooltip, Input, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import CopyButton from '@renderer/components/CopyButton'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -38,6 +39,7 @@ const SystemSettings: FC = () => {
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
   const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const [clientId] = usePreference('app.user.id')
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
@@ -200,6 +202,20 @@ const SystemSettings: FC = () => {
           </Flex>
           <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
         </SettingRow>
+        {enableDeveloperMode && (
+          <>
+            <SettingDivider />
+            <SettingRow className="gap-3">
+              <SettingRowTitle>{t('settings.developer.client_id')}</SettingRowTitle>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="select-text break-all text-right font-mono text-foreground-muted text-xs">
+                  {clientId}
+                </span>
+                <CopyButton textToCopy={clientId} successFeedback="icon" />
+              </div>
+            </SettingRow>
+          </>
+        )}
       </SettingGroup>
     </SettingsContentColumn>
   )

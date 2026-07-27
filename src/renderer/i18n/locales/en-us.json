@@ -6441,6 +6441,7 @@
       "viewErrorDetails": "View details"
     },
     "developer": {
+      "client_id": "Client ID",
       "enable_developer_mode": "Enable Developer Mode",
       "help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation. Changes take effect after restarting the application.",
       "title": "Developer Mode"
