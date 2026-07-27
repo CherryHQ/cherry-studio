@@ -1,7 +1,7 @@
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -137,12 +137,14 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     placement,
     onSend,
     sendDisabled,
-    onDraftAssistantChange
+    onDraftAssistantChange,
+    captureLocalSendScrollEligibility
   }: {
     placement: 'home' | 'docked'
     onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
     sendDisabled?: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
+    captureLocalSendScrollEligibility?: () => void
   }) => {
     capturedOnSend = onSend
     if (placement === 'home') {
@@ -158,7 +160,10 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
         type="button"
         data-use-mentioned-model-selector="true"
         disabled={sendDisabled}
-        onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })}>
+        onClick={() => {
+          captureLocalSendScrollEligibility?.()
+          return onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+        }}>
         send
       </button>
     )
@@ -329,11 +334,9 @@ describe('ChatContent', () => {
     render(<ChatContent topic={topic} />)
     mockMessageListValue.current.actions.bindRuntime?.({ captureLocalSendScrollEligibility })
 
-    // The composer is lazy-loaded; wait for it to mount and hand out onSend.
-    await waitFor(() => expect(capturedOnSend).toBeDefined())
-
+    const sendButton = await screen.findByRole('button', { name: 'send' })
     await act(async () => {
-      await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+      fireEvent.click(sendButton)
       await Promise.resolve()
     })
 

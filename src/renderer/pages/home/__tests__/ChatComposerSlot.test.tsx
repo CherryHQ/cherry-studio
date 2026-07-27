@@ -70,7 +70,8 @@ const topic = { id: 'topic-1' } as Topic
 const baseProps = {
   placement: 'docked' as const,
   topic,
-  onSend: vi.fn()
+  onSend: vi.fn(),
+  captureLocalSendScrollEligibility: vi.fn()
 }
 
 describe('ChatComposerSlot', () => {
@@ -96,6 +97,7 @@ describe('ChatComposerSlot', () => {
         resolvedContext: assistantContext,
         resolvedProviders: providers,
         externalContextControls: true,
+        captureLocalSendScrollEligibility: baseProps.captureLocalSendScrollEligibility,
         onConversationControlsChange
       })
     )

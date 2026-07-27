@@ -2,7 +2,11 @@ import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
-import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListRuntime,
+  MessageStreamingLayers,
+  MessageToolApprovalInput
+} from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
@@ -21,7 +25,7 @@ import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -104,6 +108,8 @@ export interface AgentChatRuntimeState {
   hasOlder?: boolean
   loadOlder?: () => void
   localSendGeneration: number
+  bindMessageListRuntime: (runtime: MessageListRuntime) => void | (() => void)
+  captureLocalSendScrollEligibility: () => void
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
@@ -126,6 +132,18 @@ export function useAgentChatRuntimeState({
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
+  const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
+  const bindMessageListRuntime = useCallback((runtime: MessageListRuntime) => {
+    messageListRuntimeRef.current = runtime
+    return () => {
+      if (messageListRuntimeRef.current === runtime) {
+        messageListRuntimeRef.current = null
+      }
+    }
+  }, [])
+  const captureLocalSendScrollEligibility = useCallback(() => {
+    messageListRuntimeRef.current?.captureLocalSendScrollEligibility()
+  }, [])
   const {
     messages: uiMessages,
     isLoading,
@@ -328,6 +346,8 @@ export function useAgentChatRuntimeState({
     hasOlder,
     loadOlder,
     localSendGeneration,
+    bindMessageListRuntime,
+    captureLocalSendScrollEligibility,
     isPending,
     stop,
     sendMessage,

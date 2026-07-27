@@ -261,7 +261,6 @@ export function useChatRuntimeState({
   >({
     scopeKey: topic.id,
     historyAdapter,
-    captureLocalSendScrollEligibility,
     ensureConversation: async () => {
       if (isHistoryLoading) return null
       const parentAnchorId = getBranchDraftAnchorId?.() ?? activeNodeId ?? null
@@ -406,6 +405,7 @@ export function useChatRuntimeState({
     shouldRenderHomeComposer,
     chatWriteActions,
     bindMessageListRuntime,
+    captureLocalSendScrollEligibility,
     sendMessage,
     localSendGeneration: turnController.localSendGeneration,
     composerContext,

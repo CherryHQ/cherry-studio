@@ -2,7 +2,7 @@
 title: Sent messages no longer snap to the viewport top
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#17415"
 date: 2026-07-25
 ---
 

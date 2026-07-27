@@ -212,6 +212,8 @@ describe('useAgentMessageListProviderValue', () => {
     const deleteMessage = vi.fn()
     const respondToolApproval = vi.fn()
     const openArtifactFile = vi.fn()
+    const unbindExternalRuntime = vi.fn()
+    const onBindRuntime = vi.fn(() => unbindExternalRuntime)
     let value: MessageListProviderValue | undefined
 
     const Probe = () => {
@@ -224,6 +226,7 @@ describe('useAgentMessageListProviderValue', () => {
         openArtifactFile,
         deleteMessage,
         respondToolApproval,
+        onBindRuntime,
         messageNavigation: 'anchor',
         workspacePath: '/tmp/workspace'
       })
@@ -345,13 +348,15 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', expect.any(Function))
 
     const listLocateMessage = vi.fn()
-    const unbindRuntime = value?.actions.bindRuntime?.({
+    const listRuntime = {
       captureLocalSendScrollEligibility: vi.fn(),
       scrollToBottom: vi.fn(),
       locateMessage: listLocateMessage,
       copyTopicImage: vi.fn(),
       exportTopicImage: vi.fn()
-    })
+    } as MessageListRuntime
+    const unbindRuntime = value?.actions.bindRuntime?.(listRuntime)
+    expect(onBindRuntime).toHaveBeenCalledWith(listRuntime)
 
     vi.useFakeTimers()
     try {
@@ -366,6 +371,7 @@ describe('useAgentMessageListProviderValue', () => {
       vi.useRealTimers()
       unbindRuntime?.()
     }
+    expect(unbindExternalRuntime).toHaveBeenCalledOnce()
 
     eventMocks.emit.mockClear()
     value?.actions.locateMessage?.('assistant-1', true)

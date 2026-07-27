@@ -1188,7 +1188,7 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('uses the pre-fork eligibility when the branch shrinks before edit-and-resend starts', () => {
+  it('keeps the pre-fork eligibility when a non-scrolling interaction follows the branch shrink', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1236,6 +1236,7 @@ describe('useChatVirtualizerRuntime', () => {
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       expect(scrollTop).toBe(500)
 
+      act(() => runtime!.takeUserControl())
       view.rerender(
         <RuntimeDomProbe
           items={['edited-user-message', 'pending-assistant']}
@@ -1259,7 +1260,7 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('keeps the pre-fork reading position when the branch shrinks before edit-and-resend starts', () => {
+  it('keeps the pre-fork reading position when a non-scrolling interaction follows the branch shrink', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1306,6 +1307,7 @@ describe('useChatVirtualizerRuntime', () => {
       )
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       expect(scrollTop).toBe(500)
+      act(() => runtime!.takeUserControl())
 
       view.rerender(
         <RuntimeDomProbe

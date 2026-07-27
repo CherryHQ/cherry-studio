@@ -402,7 +402,9 @@ export function useChatVirtualizerRuntime<T>({
   // Any direct user interaction with the message area hands them the wheel:
   // cancel runtime writers, latch the at-bottom tracker into its protected
   // `user-scrolled-up` state (a plain reset would be re-latched by the very next
-  // in-tolerance size change), and freeze the viewport where it stands.
+  // in-tolerance size change), and freeze the viewport where it stands. A click
+  // alone does not resample a pending local send; only a real scroll or an
+  // explicit return to the bottom may change that captured decision.
   const takeUserControl = useCallback(
     (preferredAnchor?: Element | null) => {
       readNavigationActiveRef.current = false
@@ -416,13 +418,11 @@ export function useChatVirtualizerRuntime<T>({
       }
       captureFreezeAnchor(preferredAnchor, wasUserDriven)
       updateScrollToBottomButtonVisibility()
-      refreshPendingLocalSendEligibilityAfterUserInput()
     },
     [
       atBottom,
       captureFreezeAnchor,
       getNaturalScrollHeight,
-      refreshPendingLocalSendEligibilityAfterUserInput,
       setFreezeSpacerHeight,
       smoothScroll,
       updateScrollToBottomButtonVisibility
