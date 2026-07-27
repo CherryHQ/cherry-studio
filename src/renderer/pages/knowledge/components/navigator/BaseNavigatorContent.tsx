@@ -9,7 +9,6 @@ import { UNGROUPED_SECTION_VALUE } from './types'
 
 const BaseNavigatorContent = ({
   isLoading,
-  hasBases,
   sections,
   groups,
   groupById,
@@ -58,13 +57,9 @@ const BaseNavigatorContent = ({
         <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
           {t('common.loading')}
         </div>
-      ) : !hasBases ? (
-        // Truly empty (no bases at all — empty groups may still exist and are
-        // deliberately hidden behind the state) names the list state here; the
-        // content pane carries the "build knowledge with AI" invitation.
-        <EmptyState preset="no-knowledge" title={t('knowledge.empty')} compact className="h-full" />
       ) : sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (
-        // Bases exist but nothing survived filtering — the search matched nothing.
+        // The navigator only mounts once a base exists (zero bases takes over the whole
+        // page), so an empty list here can only mean the search matched nothing.
         <EmptyState preset="no-result" title={t('common.no_results')} compact className="h-full" />
       ) : flatSection ? (
         <div className="space-y-1">

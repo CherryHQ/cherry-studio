@@ -550,30 +550,12 @@ describe('BaseNavigator', () => {
     onResizeStart: vi.fn()
   }
 
-  it('shows loading instead of the empty state before the base query settles', () => {
+  // Zero bases never reaches the navigator — KnowledgePage takes over the whole page
+  // with its own empty state — so the only states left here are loading and no-match.
+  it('shows loading before the base query settles', () => {
     render(<BaseNavigator {...baseProps} bases={[]} isLoading />)
 
     expect(screen.getByText('加载中')).toBeInTheDocument()
-    expect(screen.queryByText('暂无知识库')).toBeNull()
-  })
-
-  it('names the empty list state when no bases exist', () => {
-    render(<BaseNavigator {...baseProps} bases={[]} />)
-
-    // Truly empty names the list state; the search no-result hint is reserved
-    // for filtered-out searches over existing bases.
-    expect(screen.getByText('暂无知识库')).toBeInTheDocument()
-    expect(screen.queryByText('无结果')).toBeNull()
-  })
-
-  it('names the empty list state when bases are cleared but groups remain', () => {
-    // buildKnowledgeBaseGroupSections keeps the default group and all empty
-    // known groups when the search is empty, so sections is non-empty here —
-    // the global empty state must still win over a row of hollow group headers.
-    render(<BaseNavigator {...baseProps} bases={[]} groups={[createGroup({ id: 'group-1', name: 'Research' })]} />)
-
-    expect(screen.getByText('暂无知识库')).toBeInTheDocument()
-    expect(screen.queryByText('Research')).toBeNull()
     expect(screen.queryByText('无结果')).toBeNull()
   })
 
@@ -637,7 +619,6 @@ describe('BaseNavigator', () => {
     fireEvent.change(screen.getByPlaceholderText('搜索知识库...'), { target: { value: 'zzz' } })
 
     expect(screen.getByText('无结果')).toBeInTheDocument()
-    expect(screen.queryByText('暂无知识库')).toBeNull()
   })
 
   it('keeps stable horizontal layout around the knowledge base list', () => {

@@ -100,7 +100,6 @@ const BaseNavigator = ({
 
         <BaseNavigatorContent
           isLoading={isLoading}
-          hasBases={bases.length > 0}
           sections={knowledgeBaseGroupSections}
           groups={groups}
           groupById={groupById}
