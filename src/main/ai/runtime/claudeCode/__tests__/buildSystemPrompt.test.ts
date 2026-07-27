@@ -185,6 +185,17 @@ describe('buildSystemPrompt — bundled-runtime guidance', () => {
     expect(result as string).toContain(RUNTIME_MARKER)
   })
 
+  it('routes reusable CLI installation through managed tools without blocking ordinary downloads', async () => {
+    const result = (await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')) as string
+
+    expect(result).toContain('Call `cli_list` before assuming a reusable CLI is unavailable')
+    expect(result).toContain('Install reusable CLIs only with `cli_install`')
+    expect(result).toContain('read trusted public documentation')
+    expect(result).toContain('Do not run remote `curl`/`wget` install scripts for reusable CLIs')
+    expect(result).toContain('remain available for APIs, data, documentation, and project files')
+    expect(mockApplicationGet).not.toHaveBeenCalledWith('BinaryManager')
+  })
+
   it('does not inject the runtime block for the Cherry Assistant (it carries its own environment)', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
