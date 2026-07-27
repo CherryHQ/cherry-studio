@@ -1,6 +1,7 @@
 import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
+import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/components/CodeBlockView/constants'
 import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsCard'
 import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'
 import { getCodeBlockId } from '@renderer/utils/markdown'
@@ -90,7 +91,20 @@ const CodeBlock: React.FC<Props> = ({
         const isHtmlArtifactStreaming = inlineHtmlPreviewMode === 'generating' || isStreaming || isIncomplete
 
         if (inlineHtmlPreviewMode) {
-          return <MessageHtmlArtifact html={children} isStreaming={isHtmlArtifactStreaming} />
+          if (isHtmlArtifactStreaming) {
+            return (
+              <CodeBlockView
+                language={language}
+                editable={false}
+                isStreaming={isHtmlArtifactStreaming}
+                maxHeight={MAX_COLLAPSED_CODE_HEIGHT}
+                showToolbar={false}>
+                {children}
+              </CodeBlockView>
+            )
+          }
+
+          return <MessageHtmlArtifact html={children} />
         }
 
         return (

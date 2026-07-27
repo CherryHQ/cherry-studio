@@ -32,10 +32,9 @@ const mocks = vi.hoisted(() => {
         </button>
       </div>
     )),
-    MessageHtmlArtifact: vi.fn(({ html, isStreaming }) => (
+    MessageHtmlArtifact: vi.fn(({ html }) => (
       <div data-testid="message-html-artifact">
         <span>{html}</span>
-        <span data-testid="html-streaming-state">{String(isStreaming)}</span>
       </div>
     ))
   }
@@ -304,7 +303,7 @@ describe('CodeBlock', () => {
 
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
       expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
-        expect.objectContaining({ html: '<h1>Hello</h1>', isStreaming: false }),
+        expect.objectContaining({ html: '<h1>Hello</h1>' }),
         undefined
       )
     })
@@ -318,8 +317,7 @@ describe('CodeBlock', () => {
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
       expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
         expect.objectContaining({
-          html,
-          isStreaming: false
+          html
         }),
         undefined
       )
@@ -381,17 +379,24 @@ describe('CodeBlock', () => {
       expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
     })
 
-    it('routes streaming HTML to the message artifact without rendering the legacy card', () => {
+    it('renders streaming HTML as source code until the artifact is ready', () => {
       render(
         <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="generating">
           {'<h1>Hello</h1>'}
         </CodeBlock>
       )
 
-      expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
-      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
-        expect.objectContaining({ html: '<h1>Hello</h1>', isStreaming: true }),
+      expect(mocks.MessageHtmlArtifact).not.toHaveBeenCalled()
+      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          children: '<h1>Hello</h1>',
+          editable: false,
+          language: 'html',
+          isStreaming: true,
+          maxHeight: 350,
+          showToolbar: false
+        }),
         undefined
       )
     })
