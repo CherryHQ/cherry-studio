@@ -535,6 +535,7 @@ describe('buildCapabilityProviderOptions', () => {
       {
         aiSdkProviderId: 'ollama',
         runtimeProviderId: 'ollama',
+        providerOptionsKey: 'ollama',
         endpointType: undefined,
         reasoning: {
           kind: 'omit',
@@ -569,6 +570,7 @@ describe('buildCapabilityProviderOptions', () => {
       {
         aiSdkProviderId: 'ollama',
         runtimeProviderId: 'ollama',
+        providerOptionsKey: 'ollama',
         endpointType: undefined,
         reasoning: {
           kind: 'omit',
