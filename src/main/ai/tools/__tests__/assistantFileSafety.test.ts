@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { exists } from '@main/utils/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:child_process', async (importOriginal) => {
@@ -34,15 +34,15 @@ describe('readBoundedRegularFile', () => {
   })
 
   it('reads a regular UTF-8 file within the byte limit', async () => {
-    const target = path.join(temporaryDirectory, 'source.md') as FilePath
+    const target = path.join(temporaryDirectory, 'source.md') as AbsoluteFilePath
     await writeFile(target, '# Report')
 
     await expect(readBoundedRegularFile(target, { maxBytes: 64 })).resolves.toBe('# Report')
   })
 
   it('rejects oversized files and non-regular paths', async () => {
-    const oversized = path.join(temporaryDirectory, 'oversized.md') as FilePath
-    const directory = path.join(temporaryDirectory, 'folder.md') as FilePath
+    const oversized = path.join(temporaryDirectory, 'oversized.md') as AbsoluteFilePath
+    const directory = path.join(temporaryDirectory, 'folder.md') as AbsoluteFilePath
     await writeFile(oversized, '12345')
     await mkdir(directory)
 
@@ -52,7 +52,7 @@ describe('readBoundedRegularFile', () => {
 
   it('rejects a symlink instead of following it', async () => {
     const real = path.join(temporaryDirectory, 'real.md')
-    const linked = path.join(temporaryDirectory, 'linked.md') as FilePath
+    const linked = path.join(temporaryDirectory, 'linked.md') as AbsoluteFilePath
     const { symlink } = await import('node:fs/promises')
     await writeFile(real, '# Private')
     await symlink(real, linked)
@@ -61,7 +61,7 @@ describe('readBoundedRegularFile', () => {
   })
 
   it('honors an already-aborted signal without opening the file', async () => {
-    const target = path.join(temporaryDirectory, 'source.md') as FilePath
+    const target = path.join(temporaryDirectory, 'source.md') as AbsoluteFilePath
     const controller = new AbortController()
     await writeFile(target, '# Report')
     controller.abort()
@@ -86,8 +86,8 @@ describe('publishFileNoClobber', () => {
   })
 
   it('publishes a staging file and consumes it', async () => {
-    const staged = path.join(temporaryDirectory, 'staged.bin') as FilePath
-    const target = path.join(temporaryDirectory, 'target.bin') as FilePath
+    const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
+    const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath
     await writeFile(staged, 'new content')
 
     await publishFileNoClobber(staged, target)
@@ -97,8 +97,8 @@ describe('publishFileNoClobber', () => {
   })
 
   it('never replaces an existing target', async () => {
-    const staged = path.join(temporaryDirectory, 'staged.bin') as FilePath
-    const target = path.join(temporaryDirectory, 'target.bin') as FilePath
+    const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
+    const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath
     await writeFile(staged, 'new content')
     await writeFile(target, 'keep me')
 
@@ -109,8 +109,8 @@ describe('publishFileNoClobber', () => {
   })
 
   it('falls back to an exclusive copy when hard links cross filesystems', async () => {
-    const staged = path.join(temporaryDirectory, 'staged.bin') as FilePath
-    const target = path.join(temporaryDirectory, 'target.bin') as FilePath
+    const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
+    const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath
     vi.mocked(link).mockRejectedValueOnce(
       Object.assign(new Error('cross-device link not permitted'), { code: 'EXDEV' })
     )
@@ -124,8 +124,8 @@ describe('publishFileNoClobber', () => {
   })
 
   it('does not replace an existing target when hard-link publication reports EXDEV', async () => {
-    const staged = path.join(temporaryDirectory, 'staged.bin') as FilePath
-    const target = path.join(temporaryDirectory, 'target.bin') as FilePath
+    const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
+    const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath
     vi.mocked(link).mockRejectedValueOnce(
       Object.assign(new Error('cross-device link not permitted'), { code: 'EXDEV' })
     )
@@ -139,8 +139,8 @@ describe('publishFileNoClobber', () => {
   })
 
   it('removes the published target when final validation cancels the operation', async () => {
-    const staged = path.join(temporaryDirectory, 'staged.bin') as FilePath
-    const target = path.join(temporaryDirectory, 'target.bin') as FilePath
+    const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
+    const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath
     const controller = new AbortController()
     let validations = 0
     await writeFile(staged, 'new content')
@@ -161,8 +161,8 @@ describe('publishFileNoClobber', () => {
   })
 
   it('cleans a leading-hyphen target after validation fails', async () => {
-    const staged = path.join(temporaryDirectory, 'staged.bin') as FilePath
-    const target = path.join(temporaryDirectory, '-target.bin') as FilePath
+    const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
+    const target = path.join(temporaryDirectory, '-target.bin') as AbsoluteFilePath
     await writeFile(staged, 'new content')
 
     await expect(
@@ -181,8 +181,8 @@ describe('publishFileNoClobber', () => {
     const outputParent = path.join(temporaryDirectory, 'output')
     const displacedParent = path.join(temporaryDirectory, 'displaced-output')
     const outsideParent = path.join(temporaryDirectory, 'outside')
-    const staged = path.join(temporaryDirectory, 'staged.bin') as FilePath
-    const target = path.join(outputParent, 'target.bin') as FilePath
+    const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
+    const target = path.join(outputParent, 'target.bin') as AbsoluteFilePath
     const outsideVictim = path.join(outsideParent, 'target.bin')
     const actualChildProcess = await vi.importActual<typeof NodeChildProcess>('node:child_process')
     const actualExecFile = actualChildProcess.execFile
@@ -218,8 +218,8 @@ describe('publishFileNoClobber', () => {
   })
 
   it('does not publish when already aborted', async () => {
-    const staged = path.join(temporaryDirectory, 'staged.bin') as FilePath
-    const target = path.join(temporaryDirectory, 'target.bin') as FilePath
+    const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
+    const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath
     const controller = new AbortController()
     await writeFile(staged, 'new content')
     controller.abort()

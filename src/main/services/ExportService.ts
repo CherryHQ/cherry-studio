@@ -4,7 +4,7 @@
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { atomicWriteFile } from '@main/utils/file'
-import type { FilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import {
   AlignmentType,
   BorderStyle,
@@ -400,7 +400,11 @@ export class ExportService {
     return Packer.toBuffer(doc)
   }
 
-  public exportToWordPath = async (markdown: string, filePath: FilePath, signal?: AbortSignal): Promise<void> => {
+  public exportToWordPath = async (
+    markdown: string,
+    filePath: AbsoluteFilePath,
+    signal?: AbortSignal
+  ): Promise<void> => {
     const buffer = await this.renderWord(markdown)
     signal?.throwIfAborted()
     await atomicWriteFile(filePath, buffer, signal ? { signal } : undefined)
@@ -415,7 +419,7 @@ export class ExportService {
       })
 
       if (filePath) {
-        await this.exportToWordPath(markdown, filePath as FilePath)
+        await this.exportToWordPath(markdown, AbsoluteFilePathSchema.parse(filePath))
         logger.debug('Document exported successfully')
       }
     } catch (error) {

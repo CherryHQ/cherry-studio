@@ -7,7 +7,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem'
-import type { FilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('AssistantFileSafety')
 const IO_CHUNK_BYTES = 64 * 1024
@@ -81,7 +81,7 @@ export async function assertWorkspacePathUnchanged(
 
 /** Read a stable regular UTF-8 file without following a last-component symlink. */
 export async function readBoundedRegularFile(
-  target: FilePath,
+  target: AbsoluteFilePath,
   options: { maxBytes: number; signal?: AbortSignal }
 ): Promise<string> {
   if (!Number.isSafeInteger(options.maxBytes) || options.maxBytes < 0) {
@@ -208,7 +208,7 @@ function runUnlinkOwnedPathChild(
 }
 
 async function bestEffortUnlinkOwnedPath(
-  target: FilePath,
+  target: AbsoluteFilePath,
   expected: Pick<Stats, 'dev' | 'ino'>,
   operation: string
 ): Promise<void> {
@@ -271,14 +271,14 @@ async function copyFileHandles(source: FileHandle, destination: FileHandle, sign
   signal?.throwIfAborted()
 }
 
-async function assertPathIdentity(target: FilePath, expected: Pick<Stats, 'dev' | 'ino'>): Promise<void> {
+async function assertPathIdentity(target: AbsoluteFilePath, expected: Pick<Stats, 'dev' | 'ino'>): Promise<void> {
   const current = await lstat(target)
   if (!current.isFile() || !sameFileIdentity(current, expected)) {
     throw new Error(`Target path changed while being published: ${target}`)
   }
 }
 
-async function fsyncDirectoryOf(target: FilePath): Promise<void> {
+async function fsyncDirectoryOf(target: AbsoluteFilePath): Promise<void> {
   try {
     const directoryHandle = await open(path.dirname(target), 'r')
     try {
@@ -295,8 +295,8 @@ async function fsyncDirectoryOf(target: FilePath): Promise<void> {
 
 /** Publish a fully-written staging file at a new target without replacing an existing path. */
 export async function publishFileNoClobber(
-  staged: FilePath,
-  target: FilePath,
+  staged: AbsoluteFilePath,
+  target: AbsoluteFilePath,
   options: PublishFileNoClobberOptions = {}
 ): Promise<void> {
   options.signal?.throwIfAborted()
@@ -306,7 +306,7 @@ export async function publishFileNoClobber(
   const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0
   const stagedHandle = await open(staged, constants.O_RDONLY | noFollow)
   let reservationHandle: FileHandle | undefined
-  let reservationPath: FilePath | undefined
+  let reservationPath: AbsoluteFilePath | undefined
   let reservationStat: Stats | undefined
   let destinationHandle: FileHandle | undefined
   let destinationStat: Stats | undefined
@@ -319,7 +319,7 @@ export async function publishFileNoClobber(
       throw new Error(`Staged path changed while being opened: ${staged}`)
     }
 
-    reservationPath = `${staged}.publish-${randomUUID()}` as FilePath
+    reservationPath = AbsoluteFilePathSchema.parse(`${staged}.publish-${randomUUID()}`)
     reservationHandle = await open(reservationPath, 'wx+', stagedPathStat.mode & 0o777)
     reservationStat = await reservationHandle.stat()
 

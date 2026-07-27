@@ -8,7 +8,7 @@ import { validatePath } from '@main/ai/mcp/servers/filesystem'
 import { exportService } from '@main/services/ExportService'
 import { printService } from '@main/services/PrintService'
 import { atomicWriteFile, exists, remove } from '@main/utils/file'
-import type { FilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import MarkdownIt from 'markdown-it'
 import PptxGenJS from 'pptxgenjs'
 import * as z from 'zod'
@@ -263,7 +263,7 @@ function renderCsvToXlsx(csv: string): Uint8Array {
   return new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }))
 }
 
-async function removeStagingBestEffort(stagingPath: FilePath): Promise<void> {
+async function removeStagingBestEffort(stagingPath: AbsoluteFilePath): Promise<void> {
   try {
     await remove(stagingPath)
   } catch (error) {
@@ -291,8 +291,8 @@ export async function exportOfficeArtifact(
     validatePath(input.source_path, workspacePath),
     validatePath(input.output_path, workspacePath)
   ])
-  const sourcePath = resolvedSourcePath as FilePath
-  const outputPath = resolvedOutputPath as FilePath
+  const sourcePath = AbsoluteFilePathSchema.parse(resolvedSourcePath)
+  const outputPath = AbsoluteFilePathSchema.parse(resolvedOutputPath)
 
   let source: string
   try {
@@ -323,10 +323,9 @@ export async function exportOfficeArtifact(
   if (await exists(outputPath)) throw new Error(`Office export output already exists: ${input.output_path}`)
 
   const fallbackTitle = path.basename(sourcePath, path.extname(sourcePath)) || 'Presentation'
-  const stagingPath = path.join(
-    resolvedWorkspacePath,
-    `.cherry-office-export-${randomUUID()}${extensions.output}`
-  ) as FilePath
+  const stagingPath = AbsoluteFilePathSchema.parse(
+    path.join(resolvedWorkspacePath, `.cherry-office-export-${randomUUID()}${extensions.output}`)
+  )
 
   try {
     switch (input.operation) {

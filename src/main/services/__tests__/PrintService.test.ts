@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -151,7 +152,7 @@ describe('PrintService', () => {
   it('exports directly to a provided path without opening a save dialog', async () => {
     const service = new PrintService()
 
-    await service.exportToPdfPath(payload, '/tmp/direct.pdf')
+    await service.exportToPdfPath(payload, '/tmp/direct.pdf' as AbsoluteFilePath)
 
     expect(dialog.showSaveDialog).not.toHaveBeenCalled()
     expect(writeFile).toHaveBeenCalledWith('/tmp/direct.pdf', Buffer.from('pdf-data'), undefined)
@@ -164,7 +165,7 @@ describe('PrintService', () => {
     controller.abort()
 
     await expect(
-      service.exportToPdfPath(payload, '/tmp/canceled.pdf', { signal: controller.signal })
+      service.exportToPdfPath(payload, '/tmp/canceled.pdf' as AbsoluteFilePath, { signal: controller.signal })
     ).rejects.toMatchObject({
       name: 'AbortError'
     })
