@@ -1,3 +1,4 @@
+import type * as nodeFs from 'node:fs'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -9,7 +10,23 @@ import {
 } from '@data/db/restore/resourceInstallV2'
 import type { ResourceInstallEntry } from '@data/db/restore/restoreJournalV2'
 import type { RecoveryPhase } from '@data/db/restore/restoreRecovery'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+type NodeFs = typeof nodeFs
+
+/** The one fault a real filesystem will not produce on demand: a cross-device rename. */
+const { crossDevice } = vi.hoisted(() => ({ crossDevice: { on: false } }))
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<NodeFs & { default: NodeFs }>()
+  const renameSync: NodeFs['renameSync'] = (source, target) => {
+    if (!crossDevice.on) return actual.renameSync(source, target)
+    const error = new Error('EXDEV: cross-device link not permitted') as NodeJS.ErrnoException
+    error.code = 'EXDEV'
+    throw error
+  }
+  return { ...actual, renameSync, default: { ...actual.default, renameSync } }
+})
 
 /**
  * Crash matrix for the `resource-install` unit operation (§6.3, §6.4).
@@ -64,6 +81,7 @@ describe('resourceInstallV2', () => {
   })
 
   afterEach(() => {
+    crossDevice.on = false
     rmSync(userData, { recursive: true, force: true })
   })
 
@@ -154,6 +172,18 @@ describe('resourceInstallV2', () => {
       expect(() => installResourceUnits([unit], userData)).toThrow(/aside-occupied/)
       expect(readUnit(unit.live)).toBe('TARGET')
       expect(readUnit(unit.aside)).toBe('OLDER-ASIDE')
+    })
+
+    it('reports a cross-filesystem rename instead of falling back to a copy', () => {
+      // Preparation proved the payload and the target share a device; if that
+      // stopped being true by boot, the answer is a refusal, never a copy —
+      // copying is not crash-atomic and this window has no rollback but rename.
+      const unit = entry('Data/KnowledgeBase/base-1')
+      makeDirUnit(unit.staging, 'ARCHIVE')
+      crossDevice.on = true
+
+      expect(() => installResourceUnits([unit], userData)).toThrow(/cross-filesystem/)
+      expect(readUnit(unit.staging)).toBe('ARCHIVE')
     })
 
     it('installs many units and files alike in one pass', () => {
