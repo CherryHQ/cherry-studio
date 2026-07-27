@@ -22,6 +22,7 @@ interface AgentComposerSlotProps {
   session: AgentSessionEntity
   sessionId: string
   sendMessage: AgentChatRuntimeState['sendMessage']
+  captureLocalSendScrollEligibility: AgentChatRuntimeState['captureLocalSendScrollEligibility']
   stop: AgentChatRuntimeState['stop']
   isStreaming: boolean
   sendDisabled: boolean
@@ -39,6 +40,7 @@ function AgentComposerSlot({
   session,
   sessionId,
   sendMessage,
+  captureLocalSendScrollEligibility,
   stop,
   isStreaming,
   sendDisabled,
@@ -61,6 +63,7 @@ function AgentComposerSlot({
         resolvedWorkspaceWarning={workspaceWarning ?? null}
         externalContextControls
         sendMessage={sendMessage}
+        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
         stop={stop}
         openAgentToolFlow={canOpenAgentToolFlow ? openAgentToolFlow : undefined}
         isStreaming={isStreaming}

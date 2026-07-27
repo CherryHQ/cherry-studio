@@ -250,6 +250,7 @@ type Props = {
   resolvedWorkspaceWarning?: string | null
   externalContextControls?: boolean
   sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
+  captureLocalSendScrollEligibility?: () => void
   stop: () => Promise<void>
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
   onCreateEmptySession?: () => void | Promise<unknown>
@@ -280,6 +281,7 @@ const AgentComposerRoot = ({
   resolvedWorkspaceWarning,
   externalContextControls = false,
   sendMessage,
+  captureLocalSendScrollEligibility,
   stop,
   openAgentToolFlow,
   onCreateEmptySession,
@@ -361,6 +363,7 @@ const AgentComposerRoot = ({
         workspaceId={workspaceId ?? session?.workspaceId ?? null}
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
+        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
         chatStop={stop}
         openAgentToolFlow={openAgentToolFlow}
         onCreateEmptySession={onCreateEmptySession}
@@ -392,6 +395,7 @@ interface InnerProps {
   workspaceId?: string | null
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
+  captureLocalSendScrollEligibility?: Props['captureLocalSendScrollEligibility']
   chatStop: Props['stop']
   openAgentToolFlow?: Props['openAgentToolFlow']
   onCreateEmptySession?: Props['onCreateEmptySession']
@@ -690,6 +694,7 @@ const AgentComposerInner = ({
   workspaceId,
   actionsRef,
   chatSendMessage,
+  captureLocalSendScrollEligibility,
   chatStop,
   openAgentToolFlow,
   onCreateEmptySession,
@@ -1068,7 +1073,8 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload) => {
+    async (payload: ComposerQueuedMessagePayload, scrollEligibilityCaptured = false) => {
+      if (!scrollEligibilityCaptured) captureLocalSendScrollEligibility?.()
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
@@ -1091,7 +1097,15 @@ const AgentComposerInner = ({
         return false
       }
     },
-    [accessiblePaths, agentId, chatSendMessage, saveHistory, sessionId, sessionTopicId]
+    [
+      accessiblePaths,
+      agentId,
+      captureLocalSendScrollEligibility,
+      chatSendMessage,
+      saveHistory,
+      sessionId,
+      sessionTopicId
+    ]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1171,8 +1185,9 @@ const AgentComposerInner = ({
       const previousSkills = selectedSkills
       const previousDraftTokens = draftTokensRef.current
 
+      captureLocalSendScrollEligibility?.()
       clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload)
+      const sent = await sendQueuedPayload(payload, true)
       if (!sent) {
         clearTimeoutTimer('agentComposerSendMessage')
         setText(previousText)
@@ -1186,6 +1201,7 @@ const AgentComposerInner = ({
     },
     [
       buildQueuedPayload,
+      captureLocalSendScrollEligibility,
       clearTimeoutTimer,
       clearCurrentDraft,
       draftCacheKey,

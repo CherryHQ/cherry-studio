@@ -132,6 +132,7 @@ export interface ChatComposerProps {
       reasoningEffort?: ReasoningEffortOption
     }
   ) => void | Promise<void>
+  captureLocalSendScrollEligibility?: () => void
   sendDisabled?: boolean
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
@@ -310,6 +311,7 @@ const ChatComposerRoot = ({
   externalContextControls,
   onConversationControlsChange,
   onSend,
+  captureLocalSendScrollEligibility,
   sendDisabled,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -363,6 +365,7 @@ const ChatComposerRoot = ({
             initialDraft={initialDraft}
             actionsRef={actionsRef}
             onSend={onSend}
+            captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
             sendDisabled={sendDisabled}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
@@ -398,6 +401,7 @@ const ChatComposerInner = ({
   initialDraft,
   actionsRef,
   onSend,
+  captureLocalSendScrollEligibility,
   sendDisabled = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -987,7 +991,8 @@ const ChatComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload) => {
+    async (payload: ComposerQueuedMessagePayload, scrollEligibilityCaptured = false) => {
+      if (!scrollEligibilityCaptured) captureLocalSendScrollEligibility?.()
       setIsSending(true)
 
       try {
@@ -1008,7 +1013,7 @@ const ChatComposerInner = ({
         setIsSending(false)
       }
     },
-    [onSend, saveHistory]
+    [captureLocalSendScrollEligibility, onSend, saveHistory]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1175,6 +1180,7 @@ const ChatComposerInner = ({
         return
       }
 
+      captureLocalSendScrollEligibility?.()
       if (selectedModelForMissingAssistantDefault) {
         await handleModelSelect(selectedModelForMissingAssistantDefault)
       }
@@ -1188,7 +1194,7 @@ const ChatComposerInner = ({
       const previousKnowledgeBases = selectedKnowledgeBases
 
       clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload)
+      const sent = await sendQueuedPayload(payload, true)
       if (!sent) {
         setText(previousText)
         setFiles(previousFiles)
@@ -1200,6 +1206,7 @@ const ChatComposerInner = ({
       buildQueuedPayload,
       buildEditedMessageParts,
       canSteer,
+      captureLocalSendScrollEligibility,
       chatWrite,
       clearCurrentDraft,
       editingMessageForCurrentTopic,

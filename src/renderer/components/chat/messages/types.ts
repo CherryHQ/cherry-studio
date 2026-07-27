@@ -39,6 +39,7 @@ export interface MessageListSelectionState {
 
 export interface MessageListRuntime {
   scrollToBottom: () => void
+  captureLocalSendScrollEligibility: () => void
   locateMessage: (messageId: string) => void
   copyTopicImage: () => Promise<void>
   exportTopicImage: () => Promise<void>
@@ -275,6 +276,8 @@ export interface MessageListState {
   loadOlderDelayMs: number
   loadingResetDelayMs: number
   listKey?: string
+  /** Monotonic counter incremented only after this renderer opens a local user turn. */
+  localSendGeneration?: number
   readonly?: boolean
   renderConfig: MessageRenderConfig
   menuConfig?: MessageMenuConfig
