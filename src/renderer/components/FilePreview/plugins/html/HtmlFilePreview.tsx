@@ -115,13 +115,15 @@ function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewC
   // alone is not a boundary — only running no scripts reliably keeps a malicious file from
   // reaching `parent.api` to read/exfiltrate other local files.
   return (
-    <HtmlPreviewFrame
-      html={loadState.content}
-      title={fileName}
-      baseUrl={baseUrl}
-      sandbox={HTML_PREVIEW_RESTRICTED_SANDBOX}
-      csp={HTML_PREVIEW_RESTRICTED_CSP}
-    />
+    <div className="h-full bg-white [&>div]:bg-white [&_iframe]:bg-white">
+      <HtmlPreviewFrame
+        html={loadState.content}
+        title={fileName}
+        baseUrl={baseUrl}
+        sandbox={HTML_PREVIEW_RESTRICTED_SANDBOX}
+        csp={HTML_PREVIEW_RESTRICTED_CSP}
+      />
+    </div>
   )
 }
 

@@ -1,4 +1,4 @@
-import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useInvalidateCache, usePaginatedQuery, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -17,7 +17,14 @@ import { useTranslation } from 'react-i18next'
  * command the DataApi read keys are invalidated explicitly since IpcApi has no
  * auto-refresh tie-in.
  */
-const taskReadKeys = (agentId: string) => [`/agents/${agentId}/tasks`, `/agents/${agentId}/tasks/*`]
+const taskReadKeys = (agentId: string) => [
+  '/agent-tasks',
+  '/agent-tasks/*',
+  `/agents/${agentId}/tasks`,
+  `/agents/${agentId}/tasks/*`
+]
+
+export const TASKS_PAGE_LIMIT = 50
 
 /** Trigger-validation failures carry a branchable code — map them to the form hint instead of the raw parser message. */
 const taskCommandErrorMessage = (error: unknown, t: TFunction, fallbackPrefix: string): string => {
@@ -37,6 +44,43 @@ export const useTasks = (agentId: string | null) => {
   return {
     tasks: data?.items ?? [],
     total: data?.total ?? 0,
+    error,
+    isLoading
+  }
+}
+
+/** All scheduled tasks across every agent — backs the settings overview page. */
+export const useAllTasks = () => {
+  const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh } = usePaginatedQuery(
+    '/agent-tasks',
+    {
+      limit: TASKS_PAGE_LIMIT,
+      swrOptions: { keepPreviousData: false }
+    }
+  )
+  return {
+    tasks: items,
+    total,
+    page,
+    pageCount: Math.ceil(total / TASKS_PAGE_LIMIT),
+    error,
+    isLoading,
+    hasNext,
+    hasPrev,
+    nextPage,
+    prevPage,
+    refetch: refresh
+  }
+}
+
+export const useTask = (taskId: string | null) => {
+  const { data, error, isLoading } = useQuery('/agent-tasks/:taskId', {
+    params: { taskId: taskId! },
+    enabled: !!taskId,
+    swrOptions: { keepPreviousData: false }
+  })
+  return {
+    task: data,
     error,
     isLoading
   }

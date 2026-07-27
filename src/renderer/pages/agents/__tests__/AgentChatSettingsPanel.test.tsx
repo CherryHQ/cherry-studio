@@ -43,11 +43,11 @@ const conversationShellPropsMock = vi.hoisted(() => ({
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
 const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
 
-// Tool-approval responses now go through ipcApi.request('ai.respond_tool_approval', …).
+// Tool-approval responses now go through ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.respond_tool_approval' ? toolApprovalRespondMock(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval' ? toolApprovalRespondMock(input) : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))

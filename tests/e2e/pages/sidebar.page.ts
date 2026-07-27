@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 
+import { uiLocator } from '../utils'
 import { BasePage } from './base.page'
 
 /**
@@ -18,7 +19,7 @@ export class SidebarPage extends BasePage {
 
   constructor(page: Page) {
     super(page)
-    this.sidebar = page.locator('[class*="Sidebar"], nav, aside')
+    this.sidebar = uiLocator(page, 'app.sidebar')
     this.homeLink = page.locator('a[href="#/"], a[href="#!/"]').first()
     this.storeLink = page.locator('a[href*="/store"]')
     this.knowledgeLink = page.locator('a[href*="/knowledge"]')

@@ -48,7 +48,8 @@ export function ResourceCatalogView({
   }, [hasActiveDialog])
 
   return (
-    <div className={cn('flex min-h-0 flex-1 bg-background', className)}>
+    <div
+      className={cn('flex min-h-0 flex-1', resourceType === 'skill' ? 'bg-transparent' : 'bg-background', className)}>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {resourceError ? (
           <>

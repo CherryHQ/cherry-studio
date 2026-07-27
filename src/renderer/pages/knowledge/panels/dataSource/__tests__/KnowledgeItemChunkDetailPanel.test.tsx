@@ -297,5 +297,11 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '返回' }))
 
     expect(onBack).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: '返回' }).closest('.h-11')).toHaveClass(
+      'after:left-3',
+      'after:right-3',
+      'after:border-border',
+      'after:border-b'
+    )
   })
 })
