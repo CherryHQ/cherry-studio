@@ -26,6 +26,9 @@ const mocks = vi.hoisted(() => ({
   getBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
+  ensureAgentDataDirectory: vi.fn(),
+  ensureAgentStorageDirectory: vi.fn(),
+  buildPrompt: vi.fn(),
   getAppLanguage: vi.fn(),
   resolveRequire: vi.fn(),
   loggerWarn: vi.fn(),
@@ -94,7 +97,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn(async () => 'soul prompt') }))
+  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: mocks.buildPrompt }))
 }))
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({
@@ -140,6 +143,11 @@ vi.mock('@main/utils/file', () => ({
     const relative = path.relative(path.resolve(parent), path.resolve(child))
     return relative.length > 0 && !relative.startsWith('..') && !path.isAbsolute(relative)
   }
+}))
+
+vi.mock('@main/ai/agents/agentDataDirectory', () => ({
+  ensureAgentDataDirectory: mocks.ensureAgentDataDirectory,
+  ensureAgentStorageDirectory: mocks.ensureAgentStorageDirectory
 }))
 
 vi.mock('@main/i18n', () => ({
@@ -226,6 +234,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
+    mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => path.join(root, agentId))
+    mocks.buildPrompt.mockResolvedValue('soul prompt')
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.isWin = false
     mocks.listSkills.mockResolvedValue([])
@@ -245,6 +255,13 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(mocks.listLocalSkills).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
+    expect(settings.additionalDirectories).toEqual(['/app/feature.agents.data/agent-1'])
+    expect(mocks.buildPrompt).toHaveBeenCalledWith(
+      '/workspace/project',
+      expect.anything(),
+      true,
+      '/app/feature.agents.data/agent-1'
+    )
     expect(settings.systemPrompt as string).toContain('"/workspace/project"')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
@@ -447,6 +464,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       'ask'
     )
     await expect(permissionDecisions('Write', { file_path: 'output.html' })).resolves.not.toContain('ask')
+    await expect(
+      permissionDecisions('Read', { file_path: '/app/feature.agents.data/agent-1/SOUL.md' })
+    ).resolves.not.toContain('ask')
     await expect(permissionDecisions('Glob', { path: '/workspace/project' })).resolves.not.toContain('ask')
     await expect(permissionDecisions('Glob', {})).resolves.not.toContain('ask')
     await expect(permissionDecisions('Bash', { command: 'cat /outside/read.txt' })).resolves.not.toContain('ask')

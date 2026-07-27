@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { remapAgentPrefixIds } from '../remapAgentPrefixIds'
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: string) {
   await db.insert(agentTable).values({
@@ -137,6 +137,27 @@ describe('remapAgentPrefixIds', () => {
 
     expect(after.map((r) => r.id)).toContain(uuidId)
     expect(after.length).toBe(before.length)
+  })
+
+  it('produces stable IDs when the same legacy identifiers are imported again', async () => {
+    const agentId = 'agent_retry_abc'
+    const sessionId = 'session_retry_abc'
+    await insertAgent(dbh.db, agentId)
+    await insertSession(dbh.db, sessionId, agentId)
+
+    const first = await remapAgentPrefixIds(dbh.db)
+    const remappedAgentId = first.agentIds.get(agentId)
+    const remappedSessionId = first.sessionIds.get(sessionId)
+
+    await dbh.db.delete(agentSessionTable)
+    await dbh.db.delete(agentTable)
+    await dbh.db.delete(agentWorkspaceTable)
+    await insertAgent(dbh.db, agentId)
+    await insertSession(dbh.db, sessionId, agentId)
+
+    const second = await remapAgentPrefixIds(dbh.db)
+    expect(second.agentIds.get(agentId)).toBe(remappedAgentId)
+    expect(second.sessionIds.get(sessionId)).toBe(remappedSessionId)
   })
 
   it('passes PRAGMA foreign_key_check after remapping', async () => {

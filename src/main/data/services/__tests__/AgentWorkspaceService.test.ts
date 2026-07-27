@@ -149,8 +149,8 @@ describe('AgentWorkspaceService', () => {
   it('creates system workspace rows without creating the backing directory', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-system-workspace-'))
     vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
-      if (key === 'feature.agents.workspaces') {
-        return filename ? path.join(root, 'Agents', filename) : path.join(root, 'Agents')
+      if (key === 'feature.agents.system_workspaces') {
+        return filename ? path.join(root, 'Agents', 'system', filename) : path.join(root, 'Agents', 'system')
       }
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
@@ -160,7 +160,11 @@ describe('AgentWorkspaceService', () => {
     )
 
     expect(workspace).toMatchObject({
-      path: path.join(root, 'Agents', 'session-system'),
+      path: expect.stringMatching(
+        new RegExp(
+          `${path.join(root, 'Agents', 'system').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[/\\\\]\\d{4}-\\d{2}-\\d{2}[/\\\\]session-system$`
+        )
+      ),
       type: 'system'
     })
     await expect(stat(workspace.path)).rejects.toThrow()

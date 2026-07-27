@@ -6,6 +6,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { systemWorkspacePath } from '@main/utils/agentWorkspacePath'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -272,7 +273,9 @@ describe('AgentSessionService', () => {
 
     expect(session.workspaceId).toBeTruthy()
     expect(session.workspace.type).toBe('system')
-    expect(session.workspace.path).toBe(path.join(application.getPath('feature.agents.workspaces'), session.id))
+    expect(session.workspace.path).toBe(
+      systemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id)
+    )
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
@@ -386,7 +389,9 @@ describe('AgentSessionService', () => {
 
     expect(updated.workspaceId).not.toBe(userWorkspace.id)
     expect(updated.workspace.type).toBe('system')
-    expect(updated.workspace.path).toBe(path.join(application.getPath('feature.agents.workspaces'), session.id))
+    expect(updated.workspace.path).toBe(
+      systemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id)
+    )
     const [systemWorkspaceRow] = await dbh.db
       .select()
       .from(agentWorkspaceTable)

@@ -4,8 +4,9 @@ import {
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
@@ -86,9 +87,7 @@ export function AgentSelector(props: AgentSelectorProps) {
   // Keep in lockstep with TasksSettings' agents query — they share one SWR
   // cache entry only while path + query serialize identically.
   const { data, isLoading, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
-  const { trigger: createAgent, isLoading: isCreatingAgent } = useMutation('POST', '/agents', {
-    refresh: ['/agents']
-  })
+  const { createAgent, isCreatingAgent } = useAgentMutations()
   const {
     isLoading: isPinnedLoading,
     isRefreshing: isPinsRefreshing,
@@ -161,9 +160,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     async (values: ResourceCreateWizardValues) => {
       let created: AgentDetail
       try {
-        created = await createAgent({
-          body: buildCreateAgentDto(values)
-        })
+        created = await createAgent(buildCreateAgentDto(values))
       } catch (error) {
         logger.error('Failed to create agent from selector', error as Error)
         throw error

@@ -183,6 +183,16 @@ export class AgentService {
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
   createAgent(req: CreateAgentDto): AgentEntity {
+    return this.createAgentWithId(uuidv4(), req)
+  }
+
+  /**
+   * DB-only create primitive for main-process command orchestration.
+   *
+   * The caller owns non-database side effects (for example provisioning the
+   * agent data directory) and supplies the already-reserved id.
+   */
+  createAgentWithId(id: string, req: CreateAgentDto): AgentEntity {
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
     if (getBuiltinRole(req.configuration) !== undefined) {
       throw DataApiErrorFactory.invalidOperation(
@@ -190,7 +200,6 @@ export class AgentService {
         'configuration.builtin_role is reserved for system agents'
       )
     }
-    const id = uuidv4()
     const mcps = req.mcps ?? []
     const knowledgeBaseIds = req.knowledgeBaseIds ?? []
     const globalSkillService = getDataService('AgentGlobalSkillService')

@@ -3,8 +3,8 @@ import {
   ResourceCreateWizard,
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
 import { useCallback } from 'react'
 
@@ -18,16 +18,12 @@ type AgentCreateDialogProps = {
 
 export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreateDialogProps) {
   const modelFilter = useAgentModelFilter('claude-code')
-  const { trigger: createAgent, isLoading: isCreatingAgent } = useMutation('POST', '/agents', {
-    refresh: ['/agents']
-  })
+  const { createAgent, isCreatingAgent } = useAgentMutations()
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
       try {
-        const created = await createAgent({
-          body: buildCreateAgentDto(values)
-        })
+        const created = await createAgent(buildCreateAgentDto(values))
         onOpenChange(false)
         await onCreated(created.id)
       } catch (error) {

@@ -1,3 +1,4 @@
+import type { Dirent } from 'node:fs'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
@@ -6,6 +7,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
+import { assertAgentStoragePath } from '@main/ai/agents/agentDataDirectory'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -58,6 +60,7 @@ const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 const SESSION_FILE_SWEEP_INTERVAL_MS = 30 * 60 * 1000
 const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const SYSTEM_WORKSPACE_DATE_RE = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = 'success' | 'paused' | 'error'
@@ -278,23 +281,53 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  /** Auto-created system workspace dirs are named by session id — the row is gone, so is the dir. */
+  /** Auto-created system workspace dirs are grouped by date, then named by session id. */
   private async sweepSystemWorkspaceDirectories(live: AgentSessionLiveIndex): Promise<void> {
-    const root = application.getPath('feature.agents.workspaces')
-    let entries: string[]
+    const root = application.getPath('feature.agents.system_workspaces')
+    let dateEntries: Dirent[]
     try {
-      entries = await fs.readdir(root)
+      dateEntries = await fs.readdir(root, { withFileTypes: true })
     } catch {
       return
     }
-    for (const entry of entries) {
-      if (!SESSION_UUID_RE.test(entry) || live.isSessionLive(entry)) continue
-      try {
-        await fs.rm(path.join(root, entry), { recursive: true, force: true })
-        logger.info('Swept orphaned session workspace directory', { entry })
-      } catch (error) {
-        logger.warn('Failed to sweep session workspace directory', { entry, error })
+
+    for (const dateEntry of dateEntries) {
+      if (!dateEntry.isDirectory() || dateEntry.isSymbolicLink() || !SYSTEM_WORKSPACE_DATE_RE.test(dateEntry.name)) {
+        continue
       }
+      const datePath = path.join(root, dateEntry.name)
+      let sessionEntries: Dirent[]
+      try {
+        sessionEntries = await fs.readdir(datePath, { withFileTypes: true })
+      } catch {
+        continue
+      }
+      for (const sessionEntry of sessionEntries) {
+        if (
+          !sessionEntry.isDirectory() ||
+          sessionEntry.isSymbolicLink() ||
+          !SESSION_UUID_RE.test(sessionEntry.name) ||
+          live.isSessionLive(sessionEntry.name)
+        ) {
+          continue
+        }
+        try {
+          const sessionPath = path.join(datePath, sessionEntry.name)
+          await assertAgentStoragePath(root, sessionPath)
+          await fs.rm(sessionPath, { recursive: true, force: true })
+          logger.info('Swept orphaned session workspace directory', {
+            date: dateEntry.name,
+            sessionId: sessionEntry.name
+          })
+        } catch (error) {
+          logger.warn('Failed to sweep session workspace directory', {
+            date: dateEntry.name,
+            sessionId: sessionEntry.name,
+            error
+          })
+        }
+      }
+      await fs.rmdir(datePath).catch(() => undefined)
     }
   }
 

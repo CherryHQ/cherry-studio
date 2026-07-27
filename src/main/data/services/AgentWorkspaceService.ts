@@ -4,7 +4,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { normalizeWorkspacePath } from '@main/utils/agentWorkspacePath'
+import { normalizeWorkspacePath, systemWorkspacePath } from '@main/utils/agentWorkspacePath'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -137,7 +137,7 @@ export class AgentWorkspaceService {
 
   createSystemWorkspaceForSessionTx(tx: DbOrTx, input: { sessionId: string }): AgentWorkspaceEntity {
     const workspacePath = normalizeWorkspacePath(
-      path.join(application.getPath('feature.agents.workspaces'), input.sessionId)
+      systemWorkspacePath(application.getPath('feature.agents.system_workspaces'), input.sessionId)
     )
     const row = withSqliteErrors(
       () =>

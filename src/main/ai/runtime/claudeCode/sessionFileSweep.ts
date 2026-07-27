@@ -24,9 +24,11 @@ function encodeProjectDirName(workspacePath: string): string {
 // Claude session ids (resume tokens) and Cherry session ids are both uuids; anything else in the
 // swept stores was not written per-session and must be left alone (memory/, sessions-index.json…).
 const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const SYSTEM_WORKSPACE_SUFFIX_RE =
+  /^(\d{4}-\d{2}-\d{2})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
 
 export interface SweepRootOptions {
-  /** Parent of Cherry's auto-created system workspaces (`feature.agents.workspaces`). */
+  /** Parent of Cherry's auto-created system workspaces (`feature.agents.system_workspaces`). */
   workspacesRoot: string
 }
 
@@ -39,7 +41,7 @@ export interface SweepRootOptions {
  */
 export async function sweepClaudeSessionFiles(live: AgentSessionLiveIndex): Promise<void> {
   await sweepConfigRoot(path.resolve(application.getPath('feature.agents.claude.root')), live, {
-    workspacesRoot: application.getPath('feature.agents.workspaces')
+    workspacesRoot: application.getPath('feature.agents.system_workspaces')
   })
 }
 
@@ -56,12 +58,15 @@ export async function sweepConfigRoot(
     const projectDir = path.join(projectsDir, name)
 
     // A project dir whose cwd was an auto-created system workspace belongs to exactly one Cherry
-    // session — its name ends with that session's id, so the whole dir is judged at once.
-    if (name.startsWith(systemWorkspacePrefix)) {
-      const sessionId = name.slice(systemWorkspacePrefix.length)
-      if (SESSION_ID_RE.test(sessionId) && !live.isSessionLive(sessionId)) {
-        await remove(projectDir)
-      }
+    // session. Match the complete encoded `system/YYYY-MM-DD/<uuid>` suffix:
+    // a user workspace such as `system-backup/<uuid>` must stay on the
+    // per-token path below and must never be removed as one system project.
+    const systemWorkspaceMatch = name.startsWith(systemWorkspacePrefix)
+      ? SYSTEM_WORKSPACE_SUFFIX_RE.exec(name.slice(systemWorkspacePrefix.length))
+      : null
+    const systemSessionId = systemWorkspaceMatch?.[2]
+    if (systemSessionId) {
+      if (!live.isSessionLive(systemSessionId)) await remove(projectDir)
       continue
     }
 

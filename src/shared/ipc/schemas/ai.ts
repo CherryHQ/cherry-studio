@@ -9,7 +9,12 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
-import { ScheduledTaskEntitySchema, TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
+import {
+  AgentEntitySchema,
+  CreateAgentSchema,
+  ScheduledTaskEntitySchema,
+  TimeoutMinutesAtomSchema
+} from '@shared/data/api/schemas/agents'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
@@ -221,6 +226,10 @@ export const aiRequestSchemas = {
   }),
 
   // ── Agent session warm-connection lifecycle ──
+  'ai.agent.create': defineRoute({
+    input: CreateAgentSchema,
+    output: AgentEntitySchema
+  }),
   'ai.agent.session.prewarm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()

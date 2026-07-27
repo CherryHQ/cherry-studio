@@ -266,15 +266,11 @@ export interface DeleteAgentResult {
 // ============================================================================
 
 export type AgentSchemas = {
-  /** List all agents, create a new agent */
+  /** List all agents. Creation is a mixed filesystem + DB command on IpcApi (`ai.agent.create`). */
   '/agents': {
     GET: {
       query?: ListAgentsQueryParams
       response: OffsetPaginationResponse<AgentEntity>
-    }
-    POST: {
-      body: CreateAgentDto
-      response: AgentEntity
     }
   }
 

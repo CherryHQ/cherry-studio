@@ -1,9 +1,11 @@
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
+import { systemWorkspacePath } from '@main/utils/agentWorkspacePath'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { MessageData, MessageRole, MessageStatus } from '@shared/data/types/message'
@@ -14,6 +16,14 @@ import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
+import {
+  type AgentFileSessionPlan,
+  cleanupLegacyAgentFiles,
+  isManagedLegacyAgentWorkspace,
+  type LegacyAgentFilesCleanupPlan,
+  legacyAgentWorkspacePath,
+  stageLegacyAgentFiles
+} from './agentsFilesystemMigration'
 import { BaseMigrator } from './BaseMigrator'
 import {
   AGENTS_TABLE_MIGRATION_SPECS,
@@ -25,7 +35,45 @@ import {
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
 import { type ChatMappingDeps, normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
-import { AGENT_TABLES, remapAgentPrefixIds } from './remapAgentPrefixIds'
+import { AGENT_TABLES, type AgentPrefixIdRemap, remapAgentPrefixIds } from './remapAgentPrefixIds'
+
+const DERIVED_SESSION_WORKSPACES_KEY = 'agentsMigrator.derivedSessionWorkspaces'
+let pendingFilesCleanupPlan: LegacyAgentFilesCleanupPlan | null = null
+
+function rememberFilesCleanupPlan(nextPlan: LegacyAgentFilesCleanupPlan): void {
+  if (!pendingFilesCleanupPlan || pendingFilesCleanupPlan.agentsDataRoot !== nextPlan.agentsDataRoot) {
+    pendingFilesCleanupPlan = nextPlan
+    return
+  }
+
+  const entriesByWorkspace = new Map(
+    pendingFilesCleanupPlan.workspaces.map(({ workspacePath, entryNames }) => [workspacePath, new Set(entryNames)])
+  )
+  for (const { workspacePath, entryNames } of nextPlan.workspaces) {
+    const entries = entriesByWorkspace.get(workspacePath) ?? new Set<string>()
+    for (const entryName of entryNames) entries.add(entryName)
+    entriesByWorkspace.set(workspacePath, entries)
+  }
+  pendingFilesCleanupPlan = {
+    agentsDataRoot: nextPlan.agentsDataRoot,
+    workspaces: Array.from(entriesByWorkspace, ([workspacePath, entryNames]) => ({
+      workspacePath,
+      entryNames: Array.from(entryNames)
+    }))
+  }
+}
+
+/**
+ * Finalize only the filesystem work staged by AgentsMigrator.
+ * The migration IPC orchestration calls this after MigrationEngine reports
+ * success, which means every migrator, FK validation, and markCompleted passed.
+ */
+export async function cleanupMigratedAgentFilesAfterSuccess(): Promise<void> {
+  const plan = pendingFilesCleanupPlan
+  if (!plan) return
+  await cleanupLegacyAgentFiles(plan)
+  pendingFilesCleanupPlan = null
+}
 
 type V1ScheduledTaskRow = {
   id: string
@@ -143,7 +191,8 @@ export class AgentsMigrator extends BaseMigrator {
       // PRAGMA once on its single connection), so no per-call toggle here.
       ctx.db.run(sql.raw('BEGIN'))
 
-      stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
+      const derivedSessionWorkspaces = await stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
+      ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, derivedSessionWorkspaces)
 
       for (const statement of importStatements) {
         logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
@@ -180,7 +229,21 @@ export class AgentsMigrator extends BaseMigrator {
       // Prefix-id remap runs AFTER the outer COMMIT because it opens its own
       // BEGIN/COMMIT (nested SQLite transactions are not supported). It is
       // idempotent, so a retry after a partial failure is safe.
-      await remapAgentPrefixIds(ctx.db)
+      const legacyAgentIds = ctx.db
+        .all<{ id: string }>(sql.raw('SELECT id FROM agent ORDER BY id'))
+        .map((row) => row.id)
+      const idRemap = await remapAgentPrefixIds(ctx.db)
+      const finalSessionWorkspaces = finalizeSessionWorkspaces(ctx, derivedSessionWorkspaces, idRemap)
+      ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, finalSessionWorkspaces)
+      const filesCleanupPlan = await stageLegacyAgentFiles({
+        agentsDataRoot: ctx.paths.agentsDataDir,
+        agents: legacyAgentIds.map((sourceAgentId) => ({
+          sourceAgentId,
+          finalAgentId: idRemap.agentIds.get(sourceAgentId) ?? sourceAgentId
+        })),
+        sessions: toAgentFileSessionPlans(finalSessionWorkspaces)
+      })
+      rememberFilesCleanupPlan(filesCleanupPlan)
 
       // Self-check agent-domain referential integrity after import + remap. FK is OFF for
       // the whole migration, so violations only surface here (and at the engine's final
@@ -257,7 +320,9 @@ export class AgentsMigrator extends BaseMigrator {
     try {
       // v1 has no workspace table. v2 agent_workspace rows are derived from
       // session/agent accessible paths, or a generated default path per session.
-      const derivedWorkspaces = deriveSessionWorkspaces(ctx, this.sourceSchemaInfo)
+      const derivedWorkspaces =
+        (ctx.sharedData.get(DERIVED_SESSION_WORKSPACES_KEY) as DerivedSessionWorkspaces | undefined) ??
+        (await deriveSessionWorkspaces(ctx, this.sourceSchemaInfo))
       const workspaceRows = ctx.db.all<{ count: number }>(sql.raw('SELECT COUNT(*) AS count FROM agent_workspace'))
       const workspaceTargetCount = Number(workspaceRows[0]?.count ?? 0)
       const workspaceExpectedCount = derivedWorkspaces.workspaces.length
@@ -592,7 +657,14 @@ type DerivedWorkspace = {
 
 type DerivedSessionWorkspaceMap = {
   sessionId: string
+  agentId: string
+  finalSessionId?: string
+  finalAgentId?: string
   workspaceId: string
+  sourceWorkspacePath: string
+  isManagedDefault: boolean
+  createdAt: number
+  updatedAt: number
 }
 
 type DerivedSessionWorkspaces = {
@@ -714,9 +786,8 @@ function legacyTimestampToMs(value: string | number | null, fallback: number): n
   return fallback
 }
 
-function defaultWorkspacePathForSession(agentWorkspacesDir: string, sessionId: string): string {
-  const safeSessionId = sessionId.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || uuidv4()
-  return path.join(agentWorkspacesDir, `session-${safeSessionId}`)
+function defaultWorkspacePathForSession(systemWorkspacesDir: string, sessionId: string, createdAt: number): string {
+  return systemWorkspacePath(systemWorkspacesDir, sessionId, createdAt)
 }
 
 function countExpectedSessionWorkspacePaths(derived: DerivedSessionWorkspaces): Map<string, number> {
@@ -730,23 +801,32 @@ function countExpectedSessionWorkspacePaths(derived: DerivedSessionWorkspaces): 
   return counts
 }
 
-function deriveSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaInfo): DerivedSessionWorkspaces {
+async function deriveSessionWorkspaces(
+  ctx: MigrationContext,
+  schemaInfo: AgentsSchemaInfo
+): Promise<DerivedSessionWorkspaces> {
   const rows = selectSessionWorkspaceSourceRows(ctx.db, schemaInfo)
   const byPath = new Map<string, DerivedWorkspace>()
   const mappings: DerivedSessionWorkspaceMap[] = []
   const now = Date.now()
-  const agentWorkspacesDir = ctx.paths.agentWorkspacesDir
+  const agentsDataDir = ctx.paths.agentsDataDir
+  const systemWorkspacesDir = ctx.paths.agentSystemWorkspacesDir
 
   for (const row of rows) {
     const explicitWorkspacePath =
       extractPrimaryWorkspacePath(row.session_accessible_paths, 'session') ??
       extractPrimaryWorkspacePath(row.agent_accessible_paths, 'agent')
-    const workspacePath = explicitWorkspacePath ?? defaultWorkspacePathForSession(agentWorkspacesDir, row.session_id)
-    const workspaceType = explicitWorkspacePath ? 'user' : 'system'
+    const sourceWorkspacePath = explicitWorkspacePath ?? legacyAgentWorkspacePath(agentsDataDir, row.agent_id)
+    const isManagedDefault = await isManagedLegacyAgentWorkspace(agentsDataDir, row.agent_id, sourceWorkspacePath)
+    const createdAt = legacyTimestampToMs(row.created_at, now)
+    const updatedAt = legacyTimestampToMs(row.updated_at, createdAt)
+    const workspacePath = isManagedDefault
+      ? defaultWorkspacePathForSession(systemWorkspacesDir, row.session_id, createdAt)
+      : sourceWorkspacePath
+    const workspaceType = isManagedDefault ? 'system' : 'user'
 
     let workspace = byPath.get(workspacePath)
     if (!workspace) {
-      const createdAt = legacyTimestampToMs(row.created_at, now)
       workspace = {
         id: uuidv4(),
         name: workspaceNameFromPath(workspacePath),
@@ -754,12 +834,20 @@ function deriveSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchema
         type: workspaceType,
         orderKey: '',
         createdAt,
-        updatedAt: legacyTimestampToMs(row.updated_at, createdAt)
+        updatedAt
       }
       byPath.set(workspacePath, workspace)
     }
 
-    mappings.push({ sessionId: row.session_id, workspaceId: workspace.id })
+    mappings.push({
+      sessionId: row.session_id,
+      agentId: row.agent_id,
+      workspaceId: workspace.id,
+      sourceWorkspacePath,
+      isManagedDefault,
+      createdAt,
+      updatedAt
+    })
   }
 
   const workspaces = assignOrderKeysInSequence(Array.from(byPath.values()))
@@ -767,14 +855,17 @@ function deriveSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchema
   return { workspaces, mappings }
 }
 
-function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaInfo): number {
+async function stageSessionWorkspaces(
+  ctx: MigrationContext,
+  schemaInfo: AgentsSchemaInfo
+): Promise<DerivedSessionWorkspaces> {
   const db = ctx.db
   db.run(
     sql.raw('CREATE TEMP TABLE IF NOT EXISTS session_workspace_map (session_id TEXT PRIMARY KEY, workspace_id TEXT)')
   )
   db.run(sql.raw('DELETE FROM session_workspace_map'))
 
-  const derived = deriveSessionWorkspaces(ctx, schemaInfo)
+  const derived = await deriveSessionWorkspaces(ctx, schemaInfo)
   for (const workspace of derived.workspaces) {
     db.run(
       sql`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
@@ -791,7 +882,60 @@ function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaI
     workspaces: derived.workspaces.length,
     mappedSessions: derived.mappings.length
   })
-  return derived.workspaces.length
+  return derived
+}
+
+function finalizeSessionWorkspaces(
+  ctx: MigrationContext,
+  derived: DerivedSessionWorkspaces,
+  idRemap: AgentPrefixIdRemap
+): DerivedSessionWorkspaces {
+  const workspacesById = new Map(derived.workspaces.map((workspace) => [workspace.id, { ...workspace }]))
+  const mappings = derived.mappings.map((mapping) => {
+    const finalSessionId = idRemap.sessionIds.get(mapping.sessionId) ?? mapping.sessionId
+    const finalAgentId = idRemap.agentIds.get(mapping.agentId) ?? mapping.agentId
+    const workspace = workspacesById.get(mapping.workspaceId)
+    if (workspace?.type === 'system') {
+      const workspacePath = defaultWorkspacePathForSession(
+        ctx.paths.agentSystemWorkspacesDir,
+        finalSessionId,
+        mapping.createdAt
+      )
+      workspace.path = workspacePath
+      workspace.name = workspaceNameFromPath(workspacePath)
+      ctx.db.run(
+        sql`UPDATE ${agentWorkspaceTable}
+            SET path = ${workspace.path}, name = ${workspace.name}
+            WHERE ${agentWorkspaceTable.id} = ${workspace.id}`
+      )
+    }
+    return {
+      ...mapping,
+      finalSessionId,
+      finalAgentId
+    }
+  })
+
+  return { workspaces: Array.from(workspacesById.values()), mappings }
+}
+
+function toAgentFileSessionPlans(derived: DerivedSessionWorkspaces): AgentFileSessionPlan[] {
+  const workspacesById = new Map(derived.workspaces.map((workspace) => [workspace.id, workspace]))
+  return derived.mappings.map((mapping) => {
+    const workspace = workspacesById.get(mapping.workspaceId)
+    if (!workspace) throw new Error(`Missing derived workspace for session ${mapping.sessionId}`)
+    return {
+      sourceSessionId: mapping.sessionId,
+      finalSessionId: mapping.finalSessionId ?? mapping.sessionId,
+      sourceAgentId: mapping.agentId,
+      finalAgentId: mapping.finalAgentId ?? mapping.agentId,
+      sourceWorkspacePath: mapping.sourceWorkspacePath,
+      isManagedDefault: mapping.isManagedDefault,
+      systemWorkspacePath: workspace.type === 'system' ? workspace.path : undefined,
+      createdAt: mapping.createdAt,
+      updatedAt: mapping.updatedAt
+    }
+  })
 }
 
 function selectLegacyMessageColumn(

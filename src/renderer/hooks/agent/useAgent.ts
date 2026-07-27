@@ -6,7 +6,9 @@
  * configuration) lives here, not on sessions.
  */
 
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { loggerService } from '@logger'
+import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
@@ -19,6 +21,8 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentTools } from './useAgentTools'
+
+const logger = loggerService.withContext('useAgent')
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 
@@ -67,21 +71,29 @@ export const useAgents = () => {
   const { t } = useTranslation()
   const { data, isLoading, error, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
+  const invalidate = useInvalidateCache()
 
-  const { trigger: createTrigger } = useMutation('POST', '/agents', { refresh: ['/agents'] })
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<AgentEntity>> => {
       try {
-        const result = await createTrigger({ body: form as unknown as CreateAgentDto })
+        const result = await ipcApi.request('ai.agent.create', form as unknown as CreateAgentDto)
+        try {
+          await invalidate('/agents')
+        } catch (invalidateError) {
+          logger.warn('Failed to refresh agents cache after IPC creation', {
+            agentId: result.id,
+            error: invalidateError
+          })
+        }
         toast.success(t('common.add_success'))
-        return { success: true, data: result as unknown as AgentEntity }
+        return { success: true, data: result }
       } catch (error) {
         const msg = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
         toast.error(msg)
         return { success: false, error: error instanceof Error ? error : new Error(msg) }
       }
     },
-    [createTrigger, t]
+    [invalidate, t]
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', {

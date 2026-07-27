@@ -7,11 +7,15 @@ import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { loggerService } from '@logger'
 import { eq, sql } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
-import { v4 as uuidv4 } from 'uuid'
+import { v5 as uuidv5 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 
 const logger = loggerService.withContext('remapAgentPrefixIds')
+
+function migrationUuid(kind: 'agent' | 'session', legacyId: string): string {
+  return uuidv5(`cherry-studio:v2:${kind}:${legacyId}`, uuidv5.URL)
+}
 
 /**
  * Every agent-domain table this remap touches. AgentsMigrator passes these to
@@ -29,8 +33,15 @@ export const AGENT_TABLES: SQLiteTable[] = [
   agentMcpServerTable
 ]
 
+export interface AgentPrefixIdRemap {
+  agentIds: Map<string, string>
+  sessionIds: Map<string, string>
+}
+
 /**
- * Remap old prefix IDs and hardcoded builtin IDs to UUID v4, updating all FK references.
+ * Remap old prefix IDs and hardcoded builtin IDs to deterministic UUIDs,
+ * updating all FK references. Stable IDs make filesystem migration retryable:
+ * a rerun after the database is cleared resolves to the same managed paths.
  *
  * Runs inside AgentsMigrator's ATTACH window, so it uses manual BEGIN/COMMIT to keep every
  * statement on the same connection that holds `agents_legacy` attached, bracketed by the
@@ -39,7 +50,9 @@ export const AGENT_TABLES: SQLiteTable[] = [
  * not toggle FK itself; AgentsMigrator asserts agent-domain FK integrity via
  * `assertOwnedForeignKeys(AGENT_TABLES)` after this returns. Idempotent.
  */
-export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<void> {
+export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<AgentPrefixIdRemap> {
+  const agentIds = new Map<string, string>()
+  const sessionIds = new Map<string, string>()
   let committed = false
   try {
     db.run(sql.raw('BEGIN'))
@@ -52,7 +65,8 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
       )
 
     for (const { id: oldId } of oldAgents) {
-      const newId = uuidv4()
+      const newId = migrationUuid('agent', oldId)
+      agentIds.set(oldId, newId)
       await db.update(agentTable).set({ id: newId }).where(eq(agentTable.id, oldId))
       await db.update(agentSessionTable).set({ agentId: newId }).where(eq(agentSessionTable.agentId, oldId))
       await db.update(agentSkillTable).set({ agentId: newId }).where(eq(agentSkillTable.agentId, oldId))
@@ -79,7 +93,8 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
       .where(sql`${agentSessionTable.id} GLOB 'session_*'`)
 
     for (const { id: oldId } of oldSessions) {
-      const newId = uuidv4()
+      const newId = migrationUuid('session', oldId)
+      sessionIds.set(oldId, newId)
       await db.update(agentSessionTable).set({ id: newId }).where(eq(agentSessionTable.id, oldId))
       await db
         .update(agentSessionMessageTable)
@@ -103,4 +118,5 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
     }
     throw error
   }
+  return { agentIds, sessionIds }
 }

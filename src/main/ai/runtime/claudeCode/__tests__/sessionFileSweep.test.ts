@@ -13,9 +13,11 @@ const LIVE_TOKEN = 'bbbbbbbb-0000-4000-8000-000000000001'
 const DEAD_TOKEN = 'bbbbbbbb-0000-4000-8000-000000000002'
 const FRESH_DEAD_TOKEN = 'bbbbbbbb-0000-4000-8000-000000000003'
 
-const WORKSPACES_ROOT = '/Users/tester/Library/App/Data/Agents'
-const ENCODED_WORKSPACES_ROOT = '-Users-tester-Library-App-Data-Agents'
+const WORKSPACES_ROOT = '/Users/tester/Library/App/Data/Agents/system'
+const ENCODED_WORKSPACES_ROOT = '-Users-tester-Library-App-Data-Agents-system'
+const SYSTEM_WORKSPACE_DATE = '2026-07-27'
 const USER_PROJECT = '-Users-tester-my-project'
+const PREFIX_COLLISION_PROJECT = `${ENCODED_WORKSPACES_ROOT}-backup-${DEAD_SESSION}`
 
 const live: AgentSessionLiveIndex = {
   isSessionLive: (id) => id === LIVE_SESSION,
@@ -49,8 +51,22 @@ describe('sweepConfigRoot', () => {
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-sweep-'))
     // System-workspace project dirs — judged by Cherry session id.
-    await agedFile(path.join(root, 'projects', `${ENCODED_WORKSPACES_ROOT}-${LIVE_SESSION}`, `${LIVE_TOKEN}.jsonl`))
-    await agedFile(path.join(root, 'projects', `${ENCODED_WORKSPACES_ROOT}-${DEAD_SESSION}`, `${DEAD_TOKEN}.jsonl`))
+    await agedFile(
+      path.join(
+        root,
+        'projects',
+        `${ENCODED_WORKSPACES_ROOT}-${SYSTEM_WORKSPACE_DATE}-${LIVE_SESSION}`,
+        `${LIVE_TOKEN}.jsonl`
+      )
+    )
+    await agedFile(
+      path.join(
+        root,
+        'projects',
+        `${ENCODED_WORKSPACES_ROOT}-${SYSTEM_WORKSPACE_DATE}-${DEAD_SESSION}`,
+        `${DEAD_TOKEN}.jsonl`
+      )
+    )
     // Shared user-workspace project dir — judged per token.
     const userProject = path.join(root, 'projects', USER_PROJECT)
     await agedFile(path.join(userProject, `${LIVE_TOKEN}.jsonl`))
@@ -60,6 +76,10 @@ describe('sweepConfigRoot', () => {
     await fs.writeFile(path.join(userProject, `${FRESH_DEAD_TOKEN}.jsonl`), '{}')
     await agedFile(path.join(userProject, 'sessions-index.json'))
     await agedDir(path.join(userProject, 'memory'))
+    // Encodes a user workspace at `.../Agents/system-backup/<uuid>`.
+    // It shares the managed prefix and UUID suffix but not the required date segment.
+    await fs.mkdir(path.join(root, 'projects', PREFIX_COLLISION_PROJECT), { recursive: true })
+    await fs.writeFile(path.join(root, 'projects', PREFIX_COLLISION_PROJECT, `${FRESH_DEAD_TOKEN}.jsonl`), '{}')
     // Per-token stores.
     for (const store of ['session-env', 'file-history', 'tasks']) {
       await agedDir(path.join(root, store, LIVE_TOKEN))
@@ -76,8 +96,12 @@ describe('sweepConfigRoot', () => {
   it('sweeps orphans in the app-managed root, keeping live and recent entries', async () => {
     await sweepConfigRoot(root, live, { workspacesRoot: WORKSPACES_ROOT })
 
-    expect(await exists(path.join(root, 'projects', `${ENCODED_WORKSPACES_ROOT}-${LIVE_SESSION}`))).toBe(true)
-    expect(await exists(path.join(root, 'projects', `${ENCODED_WORKSPACES_ROOT}-${DEAD_SESSION}`))).toBe(false)
+    expect(
+      await exists(path.join(root, 'projects', `${ENCODED_WORKSPACES_ROOT}-${SYSTEM_WORKSPACE_DATE}-${LIVE_SESSION}`))
+    ).toBe(true)
+    expect(
+      await exists(path.join(root, 'projects', `${ENCODED_WORKSPACES_ROOT}-${SYSTEM_WORKSPACE_DATE}-${DEAD_SESSION}`))
+    ).toBe(false)
 
     const userProject = path.join(root, 'projects', USER_PROJECT)
     expect(await exists(path.join(userProject, `${LIVE_TOKEN}.jsonl`))).toBe(true)
@@ -88,6 +112,8 @@ describe('sweepConfigRoot', () => {
     // Non-per-session entries are never judged.
     expect(await exists(path.join(userProject, 'sessions-index.json'))).toBe(true)
     expect(await exists(path.join(userProject, 'memory'))).toBe(true)
+    expect(await exists(path.join(root, 'projects', PREFIX_COLLISION_PROJECT))).toBe(true)
+    expect(await exists(path.join(root, 'projects', PREFIX_COLLISION_PROJECT, `${FRESH_DEAD_TOKEN}.jsonl`))).toBe(true)
 
     for (const store of ['session-env', 'file-history', 'tasks']) {
       expect(await exists(path.join(root, store, LIVE_TOKEN))).toBe(true)

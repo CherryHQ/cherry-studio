@@ -30,6 +30,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { ensureAgentDataDirectory, ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import {
   isProvisioned,
   loadBuiltinAgentDefinition,
@@ -283,6 +284,7 @@ export async function buildClaudeCodeSessionSettings(
   // 1. Working directory (session-bound)
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
+  const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
 
   // 2. Environment variables
   const env = await buildEnvironment(provider, agent)
@@ -309,11 +311,12 @@ export async function buildClaudeCodeSessionSettings(
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
     session,
     agent,
-    assistantMcpEnabled
+    assistantMcpEnabled,
+    agentDataPath
   )
 
   // 5. System prompt
-  const systemPrompt = await buildSystemPrompt(session, agent, cwd, linkedChannelSnapshot !== null)
+  const systemPrompt = await buildSystemPrompt(session, agent, cwd, linkedChannelSnapshot !== null, agentDataPath)
 
   // 6. MCP servers (session + built-in)
   const mcpServers = buildMcpServers(
@@ -321,7 +324,8 @@ export async function buildClaudeCodeSessionSettings(
     agent,
     assistantMcpEnabled,
     options?.mcpServerSnapshots,
-    linkedChannelSnapshot
+    linkedChannelSnapshot,
+    agentDataPath
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
 
@@ -364,6 +368,7 @@ export async function buildClaudeCodeSessionSettings(
   // 10. Build settings
   const settings: ClaudeCodeSettings = {
     cwd,
+    additionalDirectories: [agentDataPath],
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
@@ -447,32 +452,17 @@ export async function prepareClaudeCodeWorkspaceDirectory(session: AgentSessionE
 }
 
 async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
-  await assertSystemWorkspacePath(cwd)
-  const status = await getPathStatus(cwd)
-  if (status.ok && status.kind === 'directory') return
-  if (status.ok) {
-    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, status))
-  }
-  if (status.reason === 'inaccessible') {
-    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, status))
-  }
-
-  try {
-    await fs.promises.mkdir(cwd, { recursive: true })
-  } catch (error) {
-    logger.warn(`Failed to create system workspace directory: ${cwd}`, { error })
-    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }))
-  }
-}
-
-async function assertSystemWorkspacePath(cwd: string): Promise<void> {
-  // Resolve symlinks through the nearest existing ancestor before containment
-  // checks, so a symlink under the managed root cannot escape it.
-  const root = await resolveRealOrNearestExistingPath(path.resolve(application.getPath('feature.agents.workspaces')))
-  const target = await resolveRealOrNearestExistingPath(path.resolve(cwd))
+  const root = path.resolve(application.getPath('feature.agents.system_workspaces'))
+  const target = path.resolve(cwd)
   const relative = path.relative(root, target)
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
     throw new AgentSessionWorkspaceError(`System workspace path is outside the managed workspace root: ${cwd}`)
+  }
+  try {
+    await ensureAgentStorageDirectory(root, target)
+  } catch (error) {
+    logger.warn(`Failed to validate or create system workspace directory: ${cwd}`, { error })
+    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }))
   }
 }
 
@@ -702,7 +692,8 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
 async function buildToolPermissions(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  assistantMcpEnabled: boolean
+  assistantMcpEnabled: boolean,
+  agentDataPath: string
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -913,9 +904,14 @@ async function buildToolPermissions(
     // Glob/Grep intentionally omit `path` to search from cwd. Let the SDK validate missing or
     // malformed required fields for the other tools rather than duplicating their schemas here.
     if (typeof requestedPath !== 'string' || !requestedPath.trim()) return {}
-    if (await isPathWithinWorkspace(cwd, requestedPath)) return {}
+    if (
+      (await isPathWithinWorkspace(cwd, requestedPath)) ||
+      (await isPathWithinWorkspace(agentDataPath, requestedPath))
+    ) {
+      return {}
+    }
 
-    logger.info('Requiring approval for file-tool path outside the session workspace', {
+    logger.info('Requiring approval for file-tool path outside the session workspace and agent data directory', {
       sessionId: session.id,
       toolName,
       requestedPath
@@ -924,7 +920,7 @@ async function buildToolPermissions(
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'ask',
-        permissionDecisionReason: `${toolName} requested a path outside the session workspace (${cwd}): ${requestedPath}`
+        permissionDecisionReason: `${toolName} requested a path outside the session workspace (${cwd}) and agent data directory (${agentDataPath}): ${requestedPath}`
       }
     }
   }
@@ -1017,7 +1013,8 @@ export async function buildSystemPrompt(
   session: AgentSessionEntity,
   agent: AgentEntity,
   cwd: string,
-  channelLinked?: boolean
+  channelLinked?: boolean,
+  agentDataPath = cwd
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const agentConfig = agent.configuration
 
@@ -1075,7 +1072,12 @@ export async function buildSystemPrompt(
   // Not added to the assistant path above — it injects its own environment via buildAssistantContext.
   const runtimeBlock = `\n\n${await buildRuntimeContext()}`
 
-  const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig, Boolean(instructions?.trim()))
+  const soulPrompt = await promptBuilder.buildSystemPrompt(
+    cwd,
+    agentConfig,
+    Boolean(instructions?.trim()),
+    agentDataPath
+  )
   const userInstructions = instructions ? `\n\n${instructions}` : ''
   return `${soulPrompt}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
 }
@@ -1085,7 +1087,8 @@ export function buildMcpServers(
   agent: AgentEntity,
   assistantMcpEnabled: boolean,
   mcpServerSnapshots?: McpServerSnapshotMap,
-  linkedChannelSnapshot?: LinkedChannelSnapshot
+  linkedChannelSnapshot?: LinkedChannelSnapshot,
+  agentDataPath = session.workspace.path
 ): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
 
@@ -1140,7 +1143,7 @@ export function buildMcpServers(
   // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the agent prompt and the
   // workspace bootstrap drive via `mcp__agent-memory__memory`. Without it the documented
   // "log completion" step (and all memory writes) have no backing server.
-  const memoryServer = new WorkspaceMemoryServer(agent.id, session.workspace.path)
+  const memoryServer = new WorkspaceMemoryServer(agent.id, agentDataPath)
   mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
 
   logger.debug('Injected cherry-tools + agent-memory MCP servers', {
