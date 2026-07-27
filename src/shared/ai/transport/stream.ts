@@ -71,7 +71,6 @@ export interface ComposerQueuedMessagePayload {
   attachments?: Array<Record<string, unknown>>
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
-  knowledgeBaseIds?: string[]
   /** Canonical reasoning selection captured with this queued draft. */
   reasoningEffort?: ReasoningEffortOption
 }
@@ -139,13 +138,6 @@ export type AiStreamOpenRequest = {
   topicId: string
   /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
   mentionedModelIds?: UniqueModelId[]
-  /**
-   * Knowledge bases selected via the composer `/` picker for this turn. Scope is resolved by
-   * `resolveKnowledgeBaseIds`: the assistant's own bound bases take precedence when non-empty
-   * (these ids are then ignored); only when the assistant has none does this selection define
-   * the scope.
-   */
-  knowledgeBaseIds?: string[]
 } & (
   | {
       /** Brand-new user turn: create the user msg + N assistant placeholders. */

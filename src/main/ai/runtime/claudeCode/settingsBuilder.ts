@@ -86,7 +86,13 @@ const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
   'You are Cherry Assistant, the built-in helper for Cherry Studio. Help users understand and troubleshoot Cherry Studio.'
 const require_ = createRequire(import.meta.url)
 const promptBuilder = new PromptBuilder()
-const HEADLESS_INTERACTIVE_TOOLS = ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'] as const
+const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
+const HEADLESS_INTERACTIVE_TOOLS = [
+  ASK_USER_QUESTION_TOOL_NAME,
+  'EnterPlanMode',
+  'ExitPlanMode',
+  'EnterWorktree'
+] as const
 const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
 const OUT_OF_TURN_APPROVAL_DENIAL =
@@ -743,9 +749,9 @@ async function buildToolPermissions(
     }
 
     // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce per-turn
-    // headless interactive-tool denial at fire time. Mirrored by `headlessInteractiveToolHook` so the
-    // denial also holds under bypassPermissions/acceptEdits, where the SDK skips `canUseTool`; this
-    // branch stays so an interactive follow-up on a warm connection can still reach the approval path.
+    // headless interactive-tool denial at fire time. Mirrored by `interactiveToolPermissionHook` so
+    // the denial also holds under bypassPermissions/acceptEdits, where the SDK skips `canUseTool`;
+    // this branch stays so an interactive follow-up on a warm connection can reach the approval path.
     if (
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) &&
       application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
@@ -762,7 +768,10 @@ async function buildToolPermissions(
     }
 
     const access = snapshot.resolve(toolName, input)
-    if (access?.approval === 'auto') {
+    // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
+    // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
+    // bypassPermissions marks every ordinary tool as auto-approved.
+    if (toolName !== ASK_USER_QUESTION_TOOL_NAME && access?.approval === 'auto') {
       return { behavior: 'allow', updatedInput: input }
     }
 
@@ -840,20 +849,31 @@ async function buildToolPermissions(
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
-  // Headless interactive-tool denial, enforced as a PreToolUse hook so it fires under every permission
-  // mode — the `canUseTool` branch above is skipped for auto-approved paths (bypassPermissions /
-  // acceptEdits), which a migrated autonomy agent may run in. Resolves headless state by session id at
-  // fire-time so a warm connection reused across interactive and headless turns is judged per-turn.
-  const headlessInteractiveToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+  // Interactive-tool policy, enforced as a PreToolUse hook so it fires under every permission mode.
+  // Headless turns deny tools that need a responder. Interactive AskUserQuestion calls explicitly ask
+  // so bypassPermissions cannot skip `canUseTool` and execute without a user-authored answer.
+  // Resolve headless state by session id at fire-time so warm connections are judged per turn.
+  const interactiveToolPermissionHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number])) return {}
-    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+
+    if (application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: HEADLESS_INTERACTIVE_TOOL_DENIAL
+        }
+      }
+    }
+
+    if (toolName !== ASK_USER_QUESTION_TOOL_NAME) return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        permissionDecision: 'deny',
-        permissionDecisionReason: HEADLESS_INTERACTIVE_TOOL_DENIAL
+        permissionDecision: 'ask',
+        permissionDecisionReason: 'AskUserQuestion requires a live user response.'
       }
     }
   }
@@ -968,7 +988,7 @@ async function buildToolPermissions(
       PreToolUse: [
         {
           hooks: [
-            headlessInteractiveToolHook,
+            interactiveToolPermissionHook,
             headlessConfigMutationHook,
             disabledToolHook,
             workspacePathHook,

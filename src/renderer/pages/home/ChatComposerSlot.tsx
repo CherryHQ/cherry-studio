@@ -18,7 +18,6 @@ interface ChatComposerSlotBaseProps {
     text: string,
     options?: {
       mentionedModels?: UniqueModelId[]
-      knowledgeBaseIds?: string[]
       userMessageParts?: CherryMessagePart[]
     }
   ) => Promise<void>
