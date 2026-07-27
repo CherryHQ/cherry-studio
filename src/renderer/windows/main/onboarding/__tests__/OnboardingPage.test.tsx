@@ -330,6 +330,42 @@ describe('OnboardingPage', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe(LATEST_PRIVACY_POLICY_VERSION)
   })
 
+  it('persists the privacy choice before leaving onboarding', async () => {
+    let resolvePrivacyUpdate: (() => void) | undefined
+    const updatePreferences = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolvePrivacyUpdate = resolve
+          })
+      )
+      .mockResolvedValueOnce(undefined)
+    mockUseMultiplePreferences.mockReturnValueOnce([
+      {
+        providerSetupStatus: 'pending',
+        dataCollectionEnabled: true,
+        policyVersion: ''
+      },
+      updatePreferences
+    ])
+    render(<OnboardingPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'onboarding.skip' }))
+
+    expect(updatePreferences).toHaveBeenCalledExactlyOnceWith({
+      policyVersion: LATEST_PRIVACY_POLICY_VERSION
+    })
+
+    resolvePrivacyUpdate?.()
+
+    await waitFor(() =>
+      expect(updatePreferences).toHaveBeenNthCalledWith(2, {
+        providerSetupStatus: 'skipped'
+      })
+    )
+  })
+
   it('shows the privacy control only on the welcome step', async () => {
     render(<OnboardingPage />)
 
@@ -484,7 +520,7 @@ describe('OnboardingPage', () => {
   })
 
   it('shows an error when completing onboarding fails', async () => {
-    const updatePreferences = vi.fn().mockRejectedValueOnce(new Error('write failed'))
+    const updatePreferences = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('write failed'))
     mockUseMultiplePreferences.mockReturnValueOnce([
       {
         providerSetupStatus: 'pending',
@@ -498,11 +534,8 @@ describe('OnboardingPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'onboarding.skip' }))
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('onboarding.toast.complete_failed'))
-    expect(updatePreferences).toHaveBeenCalledWith({
-      providerSetupStatus: 'skipped',
-      dataCollectionEnabled: true,
-      policyVersion: LATEST_PRIVACY_POLICY_VERSION
-    })
+    expect(updatePreferences).toHaveBeenNthCalledWith(1, { policyVersion: LATEST_PRIVACY_POLICY_VERSION })
+    expect(updatePreferences).toHaveBeenNthCalledWith(2, { providerSetupStatus: 'skipped' })
     expect(screen.getByRole('button', { name: 'onboarding.skip' })).toBeEnabled()
   })
 

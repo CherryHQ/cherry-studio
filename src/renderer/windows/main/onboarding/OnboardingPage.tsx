@@ -59,7 +59,7 @@ function OnboardingProviderSettings() {
 export default function OnboardingPage() {
   const { t } = useTranslation()
   const [language, setLanguage] = usePreference('app.language')
-  const [{ dataCollectionEnabled }, updateOnboardingPreferences] = useMultiplePreferences(
+  const [, updateOnboardingPreferences] = useMultiplePreferences(
     ONBOARDING_PREFERENCE_KEYS,
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
@@ -179,18 +179,17 @@ export default function OnboardingPage() {
     async (status: OnboardingCompletionStatus) => {
       setIsCompleting(true)
       try {
-        await updateOnboardingPreferences({
-          providerSetupStatus: status,
-          dataCollectionEnabled: privacyAccepted ? dataCollectionEnabled : false,
-          policyVersion: privacyAccepted ? LATEST_PRIVACY_POLICY_VERSION : ''
-        })
+        if (!(await persistPrivacyChoice())) {
+          return
+        }
+        await updateOnboardingPreferences({ providerSetupStatus: status })
       } catch {
         toast.error(t('onboarding.toast.complete_failed'))
       } finally {
         setIsCompleting(false)
       }
     },
-    [dataCollectionEnabled, privacyAccepted, t, updateOnboardingPreferences]
+    [persistPrivacyChoice, t, updateOnboardingPreferences]
   )
 
   const runAfterPrivacyChoice = useCallback(
