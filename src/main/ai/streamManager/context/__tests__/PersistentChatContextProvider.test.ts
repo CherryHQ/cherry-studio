@@ -163,7 +163,10 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       parentId: 'a1',
       topicId: 'topic-1',
       role: 'user',
-      data: { parts: [{ type: 'text', text: 'actually do X instead' }] },
+      data: {
+        parts: [{ type: 'text', text: 'actually do X instead' }],
+        knowledgeBaseIds: ['kb-selected-for-steer']
+      },
       status: 'success',
       siblingsGroupId: 0,
       modelId: MODEL_ID,
@@ -180,6 +183,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
 
     expect(resolveAssistantModelId).not.toHaveBeenCalled()
     expect(resolveModels).toHaveBeenLastCalledWith([MODEL_ID], MODEL_ID)
+    expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-selected-for-steer'])
 
     // A fresh assistant placeholder is created under u2 — no new user row.
     const children = messageService.getChildrenByParentId('u2')
@@ -402,7 +406,10 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
           parentId: null,
           topicId: 'topic-1',
           role: 'user',
-          data: { parts: [{ type: 'text', text: 'run the tool' }] },
+          data: {
+            parts: [{ type: 'text', text: 'run the tool' }],
+            knowledgeBaseIds: ['kb-selected-for-approved-tool']
+          },
           status: 'success',
           siblingsGroupId: 0,
           createdAt: 100,
@@ -520,6 +527,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe(ANCHOR_MODEL_ID)
     expect(prepared.models[0].request.messageId).toBe('a1')
+    expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-selected-for-approved-tool'])
 
     // No placeholder row was created — the path to the anchor is unchanged.
     const afterCount = messageService.getPathToNode('a1').length

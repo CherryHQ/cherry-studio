@@ -1137,7 +1137,7 @@ describe('MessageService', () => {
             topicId: 'topic-root-sibling',
             parentId: null,
             role: 'user',
-            data: mainText('root prompt'),
+            data: { ...mainText('root prompt'), knowledgeBaseIds: ['kb-selected-this-turn'] },
             status: 'success',
             siblingsGroupId: 0,
             createdAt: 100,
@@ -1161,6 +1161,10 @@ describe('MessageService', () => {
       expect(sibling.parentId).toBe(virtualRootId)
       expect(sibling.status).toBe('success')
       expect(sibling.siblingsGroupId).toBeGreaterThan(0)
+      expect(sibling.data).toEqual({
+        ...mainText('edited root prompt'),
+        knowledgeBaseIds: ['kb-selected-this-turn']
+      })
       expect(contentRows.every((message) => message.siblingsGroupId === sibling.siblingsGroupId)).toBe(true)
 
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-root-sibling')).limit(1)

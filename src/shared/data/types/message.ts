@@ -114,7 +114,7 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
  */
 export interface MessageData {
   parts?: CherryMessagePart[]
-  /** Composer-selected knowledge bases for this turn; restored when regenerating the response. */
+  /** Composer-selected knowledge bases for this turn; restored for retries and continuation requests. */
   knowledgeBaseIds?: string[]
 }
 

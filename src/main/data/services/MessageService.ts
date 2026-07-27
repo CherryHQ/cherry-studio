@@ -861,6 +861,7 @@ export class MessageService {
    *   still ungrouped (`= 0`); otherwise joins the source's existing group.
    * - The new message inherits the source's `role` and `topicId`, hangs off
    *   the same `parentId`, and always becomes the topic's active node.
+   * - Per-turn knowledge scope is inherited unless the caller explicitly replaces it.
    * - Edited user siblings are already complete (`success`); assistant siblings
    *   stay `pending` until their response stream resolves.
    * - First-turn messages hang off the topic's virtual root, so editing / resending
@@ -888,19 +889,26 @@ export class MessageService {
         tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, sourceId)).run()
       }
 
+      // Edit-and-resend supplies replacement parts only. Preserve the source turn's knowledge
+      // snapshot so regenerating from the sibling exposes the same tools; an explicit [] still clears it.
+      const siblingData =
+        data.knowledgeBaseIds === undefined && source.data.knowledgeBaseIds !== undefined
+          ? { ...data, knowledgeBaseIds: source.data.knowledgeBaseIds }
+          : data
+
       const [row] = tx
         .insert(messageTable)
         .values({
           topicId: source.topicId,
           parentId: source.parentId,
           role: source.role,
-          data,
+          data: siblingData,
           status: source.role === 'user' ? 'success' : 'pending',
           siblingsGroupId
         })
         .returning()
         .all()
-      replaceChatMessageFileRefsTx(tx, row.id, data)
+      replaceChatMessageFileRefsTx(tx, row.id, siblingData)
 
       const topicService = getDataService('TopicService')
       topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })

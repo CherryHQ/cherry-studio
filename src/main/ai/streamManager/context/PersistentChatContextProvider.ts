@@ -350,6 +350,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     if (anchor.topicId !== req.topicId) {
       throw new Error(`'continue-conversation' anchor does not belong to topic ${req.topicId}`)
     }
+    const knowledgeBaseIds = anchor.parentId ? messageService.getById(anchor.parentId).data.knowledgeBaseIds : undefined
 
     // Apply decisions to DB parts and flip status to `pending` so buildHistory sees the approved state.
     const beforeParts = anchor.data.parts ?? []
@@ -394,7 +395,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               model.id,
               history,
               anchor.id,
-              undefined,
+              knowledgeBaseIds,
               undefined
             ),
             rootSpan
@@ -469,7 +470,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               model.id,
               history,
               placeholder.id,
-              undefined,
+              userMessage.data.knowledgeBaseIds,
               req.reasoningEffort
             ),
             rootSpan
