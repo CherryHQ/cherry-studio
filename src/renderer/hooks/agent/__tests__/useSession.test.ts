@@ -672,14 +672,14 @@ describe('useAgentSessionAutoRenameSync', () => {
   it('invalidates agent session list and detail caches when a session is auto-renamed', () => {
     let emitAutoRenamed: ((payload: { sessionId: string }) => void) | undefined
     mockUseIpcOn.mockImplementation((event: string, handler: (payload: { sessionId: string }) => void) => {
-      if (event === 'ai.agent_session_auto_renamed') emitAutoRenamed = handler
+      if (event === 'ai.agent.session.auto_renamed') emitAutoRenamed = handler
     })
     const invalidate = vi.fn().mockResolvedValue(undefined)
     mockUseInvalidateCache.mockReturnValue(invalidate)
 
     renderHook(() => useAgentSessionAutoRenameSync())
 
-    expect(mockUseIpcOn).toHaveBeenCalledWith('ai.agent_session_auto_renamed', expect.any(Function))
+    expect(mockUseIpcOn).toHaveBeenCalledWith('ai.agent.session.auto_renamed', expect.any(Function))
     act(() => {
       emitAutoRenamed?.({ sessionId: 'session-1' })
     })
