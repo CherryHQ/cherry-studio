@@ -323,8 +323,7 @@ const AssistantHistoryRecords = ({
         onStartRename: () => undefined,
         notesPath,
         t,
-        topic,
-        topicsLength: topics.length
+        topic
       })
     },
     [
@@ -336,8 +335,7 @@ const AssistantHistoryRecords = ({
       handlePinTopic,
       isTopicRenaming,
       notesPath,
-      t,
-      topics.length
+      t
     ]
   )
   const topicMenuPreset = useTopicMenuPreset<ApiTopic>({ getActionContext: getTopicActionContext })

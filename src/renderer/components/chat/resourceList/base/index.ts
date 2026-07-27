@@ -12,9 +12,13 @@ export {
   buildIconTypeActionDescriptors,
   buildResolvedIconTypeActions,
   buildResolvedIconTypeMenuAction,
+  getAgentEntityIconDescriptor,
+  getAssistantEntityIconDescriptor,
   renderAgentEntityIcon,
   renderAssistantEntityIcon,
-  RESOURCE_ICON_TYPE_OPTIONS
+  RESOURCE_ICON_TYPE_OPTIONS,
+  ResourceEntityIcon,
+  type ResourceEntityIconDescriptor
 } from './resourceEntityIcon'
 export type {
   ResourceListActionMap,

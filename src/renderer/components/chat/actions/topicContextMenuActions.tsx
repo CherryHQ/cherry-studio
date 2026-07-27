@@ -78,7 +78,6 @@ export interface TopicActionContext {
   panePosition?: TopicTabPosition
   t: TFunction
   topic: Topic
-  topicsLength: number
 }
 
 const topicActionRegistry = createActionRegistry<TopicActionContext>()

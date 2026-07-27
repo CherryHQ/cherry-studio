@@ -1,4 +1,3 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -19,7 +18,7 @@ import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
-import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, SquarePen, Tags, Trash2 } from 'lucide-react'
+import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,8 +26,7 @@ import {
   buildResolvedIconTypeMenuAction,
   buildResolvedResourceEntityMenuAction,
   type ConversationResourceMenuItem,
-  renderAssistantEntityIcon,
-  ResourceList,
+  getAssistantEntityIconDescriptor,
   TopicListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
@@ -143,31 +141,21 @@ export function AssistantResourceList({
     [onCreateTopic]
   )
   const hasDefaultAssistantTopics = useMemo(() => apiTopics.some((topic) => !topic.assistantId), [apiTopics])
+  // Plain-data items only; the rail deep-compares snapshots to keep unchanged rows stable, so this
+  // memo may rebuild freely without re-rendering every row.
   const entities = useMemo<ResourceEntityRailItem[]>(() => {
-    const defaultAssistantEntity: ResourceEntityRailItem[] = hasDefaultAssistantTopics
-      ? [
-          {
-            id: DEFAULT_ASSISTANT_ENTITY_ID,
-            name: t('chat.default.name'),
-            icon: renderAssistantEntityIcon(
-              assistantIconType,
-              {
-                emoji: DEFAULT_ASSISTANT_EMOJI
-              },
-              defaultModelId
-            ),
-            reorderable: false
-            // No "new topic" action: the default group is only a display bucket for legacy
-            // assistant-less topics. A null-assistant create can't reuse an empty placeholder
-            // (findReusableEmptyTopic bails without an assistantId), so it would stack blanks.
-          }
-        ]
-      : []
+    const entityItems: ResourceEntityRailItem[] = assistants.map((assistant) => {
+      const group = assistant.groupId ? assistantGroupById.get(assistant.groupId) : undefined
 
-    return [
-      ...assistants.map((assistant) => {
-        const group = assistant.groupId ? assistantGroupById.get(assistant.groupId) : undefined
-        const icon = renderAssistantEntityIcon(
+      return {
+        id: assistant.id,
+        name: assistant.name,
+        orderKey: assistant.orderKey,
+        pinned: assistantPinnedIdSet.has(assistant.id),
+        groupId: group?.id,
+        groupName: group?.name,
+        groupOrderKey: group?.orderKey,
+        icon: getAssistantEntityIconDescriptor(
           assistantIconType,
           {
             emoji: assistant.emoji,
@@ -176,39 +164,27 @@ export function AssistantResourceList({
           },
           defaultModelId
         )
-
-        return {
-          id: assistant.id,
-          name: assistant.name,
-          orderKey: assistant.orderKey,
-          pinned: assistantPinnedIdSet.has(assistant.id),
-          groupId: group?.id,
-          groupName: group?.name,
-          groupOrderKey: group?.orderKey,
-          icon,
-          trailingAction: (
-            <Tooltip title={t('chat.conversation.new')} delay={500}>
-              <ResourceList.GroupHeaderActionButton
-                type="button"
-                aria-label={t('chat.conversation.new')}
-                onClick={() => {
-                  void handleCreateTopic(assistant.id)
-                }}>
-                <SquarePen className="block" />
-              </ResourceList.GroupHeaderActionButton>
-            </Tooltip>
-          )
-        }
-      }),
-      ...defaultAssistantEntity
-    ]
+      }
+    })
+    if (hasDefaultAssistantTopics) {
+      entityItems.push({
+        id: DEFAULT_ASSISTANT_ENTITY_ID,
+        name: t('chat.default.name'),
+        icon: getAssistantEntityIconDescriptor(assistantIconType, { emoji: DEFAULT_ASSISTANT_EMOJI }, defaultModelId),
+        reorderable: false,
+        // No "new topic" action: the default group is only a display bucket for legacy
+        // assistant-less topics. A null-assistant create can't reuse an empty placeholder
+        // (findReusableEmptyTopic bails without an assistantId), so it would stack blanks.
+        canCreateResource: false
+      })
+    }
+    return entityItems
   }, [
     assistantGroupById,
     assistantIconType,
-    assistants,
     assistantPinnedIdSet,
+    assistants,
     defaultModelId,
-    handleCreateTopic,
     hasDefaultAssistantTopics,
     t
   ])
@@ -504,12 +480,14 @@ export function AssistantResourceList({
         selectedClickId={hasActiveResourceMenuItem ? null : (activeAssistantId ?? DEFAULT_ASSISTANT_ENTITY_ID)}
         status={listStatus}
         ariaLabel={t('assistants.abbr')}
+        createResourceLabel={t('chat.conversation.new')}
         defaultGroupLabel={t('assistants.abbr')}
         groupByGroup={isGroupGrouping}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
         historyRecordsActive={historyRecordsActive}
         onAdd={onAddAssistant ?? (() => onCreateTopic(null))}
+        onCreateResource={handleCreateTopic}
         headerActions={
           <TopicListOptionsMenu
             historyRecordsActive={historyRecordsActive}

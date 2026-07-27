@@ -1,4 +1,3 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -24,8 +23,7 @@ import {
   buildResolvedIconTypeMenuAction,
   buildResolvedResourceEntityMenuAction,
   type ConversationResourceMenuItem,
-  renderAgentEntityIcon,
-  ResourceList,
+  getAgentEntityIconDescriptor,
   SessionListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
@@ -115,32 +113,18 @@ export function AgentResourceList({
     [pinIdBySessionId, sessions]
   )
 
+  // Plain-data items only; the rail deep-compares snapshots to keep unchanged rows stable, so this
+  // memo may rebuild freely without re-rendering every row.
   const entities = useMemo<ResourceEntityRailItem[]>(
     () =>
-      agents.map((agent) => {
-        const icon = renderAgentEntityIcon(assistantIconType, agent, defaultModelId)
-
-        return {
-          id: agent.id,
-          name: agent.name,
-          orderKey: agent.orderKey,
-          pinned: agentPinnedIdSet.has(agent.id),
-          icon,
-          trailingAction: (
-            <Tooltip title={t('agent.session.new')} delay={500}>
-              <ResourceList.GroupHeaderActionButton
-                type="button"
-                aria-label={t('agent.session.new')}
-                onClick={() => {
-                  void onCreateSession(agent.id)
-                }}>
-                <SquarePen className="block" />
-              </ResourceList.GroupHeaderActionButton>
-            </Tooltip>
-          )
-        }
-      }),
-    [agentPinnedIdSet, agents, assistantIconType, defaultModelId, onCreateSession, t]
+      agents.map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        orderKey: agent.orderKey,
+        pinned: agentPinnedIdSet.has(agent.id),
+        icon: getAgentEntityIconDescriptor(assistantIconType, agent, defaultModelId)
+      })),
+    [agentPinnedIdSet, agents, assistantIconType, defaultModelId]
   )
 
   const sortSessionsForEntity = useCallback(
@@ -307,11 +291,13 @@ export function AgentResourceList({
         selectedClickId={hasActiveResourceMenuItem ? null : activeAgentId}
         status={listStatus}
         ariaLabel={t('agent.sidebar_title')}
+        createResourceLabel={t('agent.session.new')}
         defaultGroupLabel={t('agent.sidebar_title')}
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
         historyRecordsActive={historyRecordsActive}
         onAdd={onAddAgent ?? (() => onShowMissingAgentSelection?.())}
+        onCreateResource={onCreateSession}
         headerActions={
           <SessionListOptionsMenu
             historyRecordsActive={historyRecordsActive}

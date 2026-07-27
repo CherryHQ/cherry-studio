@@ -31,10 +31,54 @@ function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null 
   }
 }
 
-function renderFallbackAssistantIcon(emoji?: string | null) {
-  return emoji ? (
-    <EmojiIcon emoji={emoji} size={24} fontSize={14} className="mr-0" />
-  ) : (
+/**
+ * Plain-data description of an entity icon. Rail items carry this instead of rendered JSX so
+ * list snapshots stay deep-comparable (see ResourceEntityRail's item stabilization).
+ */
+export type ResourceEntityIconDescriptor =
+  | { type: 'model'; modelId: string; modelName?: string | null }
+  | { type: 'emoji'; emoji: string }
+  | { type: 'bot' }
+
+export function getAssistantEntityIconDescriptor(
+  iconType: AssistantIconType,
+  assistant: { emoji?: string | null; modelId?: string | null; modelName?: string | null },
+  fallbackModelId?: string | null
+): ResourceEntityIconDescriptor | undefined {
+  if (iconType === 'none') return undefined
+
+  const uniqueModelId = assistant.modelId ?? fallbackModelId
+  if (iconType === 'model' && isUniqueModelId(uniqueModelId)) {
+    return { type: 'model', modelId: uniqueModelId, modelName: assistant.modelName }
+  }
+
+  return assistant.emoji ? { type: 'emoji', emoji: assistant.emoji } : { type: 'bot' }
+}
+
+export function getAgentEntityIconDescriptor(
+  iconType: AssistantIconType,
+  agent: { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null } | undefined,
+  fallbackModelId?: string | null
+): ResourceEntityIconDescriptor | undefined {
+  if (iconType === 'none') return undefined
+
+  const uniqueModelId = agent?.model ?? fallbackModelId
+  if (iconType === 'model' && isUniqueModelId(uniqueModelId)) {
+    return { type: 'model', modelId: uniqueModelId, modelName: agent?.modelName }
+  }
+
+  return { type: 'emoji', emoji: getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI }
+}
+
+export function ResourceEntityIcon({ descriptor }: { descriptor: ResourceEntityIconDescriptor }) {
+  if (descriptor.type === 'model') {
+    const model = buildModelAvatarModel(descriptor.modelId, descriptor.modelName)
+    if (model) return <ModelAvatar model={model} size={24} />
+  }
+  if (descriptor.type === 'emoji')
+    return <EmojiIcon emoji={descriptor.emoji} size={24} fontSize={14} className="mr-0" />
+
+  return (
     <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
       <Bot size={14} />
     </span>
@@ -46,12 +90,8 @@ export function renderAssistantEntityIcon(
   assistant: { emoji?: string | null; modelId?: string | null; modelName?: string | null },
   fallbackModelId?: string | null
 ) {
-  if (iconType === 'none') return undefined
-
-  const modelAvatarModel = buildModelAvatarModel(assistant.modelId ?? fallbackModelId, assistant.modelName)
-  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
-
-  return renderFallbackAssistantIcon(assistant.emoji)
+  const descriptor = getAssistantEntityIconDescriptor(iconType, assistant, fallbackModelId)
+  return descriptor ? <ResourceEntityIcon descriptor={descriptor} /> : undefined
 }
 
 export function renderAgentEntityIcon(
@@ -59,19 +99,8 @@ export function renderAgentEntityIcon(
   agent: { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null } | undefined,
   fallbackModelId?: string | null
 ) {
-  if (iconType === 'none') return undefined
-
-  const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
-  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
-
-  return (
-    <EmojiIcon
-      emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI}
-      size={24}
-      fontSize={14}
-      className="mr-0"
-    />
-  )
+  const descriptor = getAgentEntityIconDescriptor(iconType, agent, fallbackModelId)
+  return descriptor ? <ResourceEntityIcon descriptor={descriptor} /> : undefined
 }
 
 export function buildResolvedIconTypeActions(

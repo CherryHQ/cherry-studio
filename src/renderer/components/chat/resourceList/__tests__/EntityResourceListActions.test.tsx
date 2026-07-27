@@ -126,21 +126,25 @@ vi.mock('@renderer/components/chat/resourceList/useResourceEntityRail', () => ({
 
 vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
   ResourceEntityRail: ({
+    createResourceLabel,
     getContextMenuActions,
     groupByGroup,
     headerActions,
     items,
     onContextMenuAction,
+    onCreateResource,
     onReorder,
     reorderEnabled = true,
     resourceMenuItems,
     selectedId
   }: {
+    createResourceLabel?: string
     getContextMenuActions?: (item: ResourceEntityRailItem) => readonly ResolvedAction[]
     groupByGroup?: boolean
     headerActions?: ReactNode
     items: readonly ResourceEntityRailItem[]
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
+    onCreateResource?: (entityId: string) => void | Promise<unknown>
     onReorder?: unknown
     reorderEnabled?: boolean
     resourceMenuItems?: readonly { active?: boolean; id: string }[]
@@ -165,7 +169,6 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
 
           return (
             <section key={item.id} aria-label={item.name}>
-              {item.icon}
               <div data-testid={`${item.id}-context-menu`}>
                 {renderedActions.map((action) => (
                   <button
@@ -188,7 +191,11 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
                   </button>
                 ))}
               </div>
-              {item.trailingAction}
+              {createResourceLabel && onCreateResource && item.canCreateResource !== false && (
+                <button type="button" aria-label={createResourceLabel} onClick={() => void onCreateResource(item.id)}>
+                  {createResourceLabel}
+                </button>
+              )}
             </section>
           )
         })}
