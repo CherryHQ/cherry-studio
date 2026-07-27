@@ -342,6 +342,42 @@ describe('MigrationIpcHandler', () => {
     })
   })
 
+  describe('v1 download page', () => {
+    it.each([
+      ['zh-CN', 'https://cherryai.com.cn/download/v1'],
+      ['en-US', 'https://cherryai.com/download/v1']
+    ])('opens the site matching the %s wizard language', async (language, url) => {
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, language)).resolves.toBe(true)
+      expect(shell.openExternal).toHaveBeenCalledWith(url)
+    })
+
+    // Any Chinese variant reads the China site, matching the window's own `zh` language test.
+    it.each(['zh', 'zh-TW', 'ZH-HK'])('treats %s as Chinese', async (language) => {
+      await invoke(MigrationIpcChannels.OpenDownloadPage, language)
+
+      expect(shell.openExternal).toHaveBeenCalledWith('https://cherryai.com.cn/download/v1')
+    })
+
+    // A missing or malformed language must not strand the user on an error.
+    it.each([undefined, null, 42])('falls back to the global site for %s', async (language) => {
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, language)).resolves.toBe(true)
+      expect(shell.openExternal).toHaveBeenCalledWith('https://cherryai.com/download/v1')
+    })
+
+    it('rejects an untrusted sender', async () => {
+      diagnosticMocks.validateSender.mockReturnValue(false)
+
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, 'zh-CN')).rejects.toThrow('Unauthorized')
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('returns false when the shell cannot open the page', async () => {
+      vi.mocked(shell.openExternal).mockRejectedValueOnce(new Error('no browser'))
+
+      await expect(invoke(MigrationIpcChannels.OpenDownloadPage, 'en-US')).resolves.toBe(false)
+    })
+  })
+
   describe('export file writes', () => {
     it('overwrites export files by default for existing callers', async () => {
       await invoke(MigrationIpcChannels.WriteExportFile, '/export', 'localStorage', '[]')

@@ -2140,7 +2140,7 @@
     "terminal": "端末",
     "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
     "terminal_placeholder": "ターミナルアプリを選択",
-    "title": "コードツール",
+    "title": "Code Mate",
     "tool_parameters": "パラメータ設定",
     "up_to_date": "最新の状態",
     "update_options": "更新オプション",
@@ -8061,7 +8061,7 @@
   "title": {
     "apps": "アプリ",
     "chat": "チャット",
-    "code": "Code",
+    "code": "Code Mate",
     "files": "ファイル",
     "home": "ホーム",
     "knowledge": "ナレッジベース",

@@ -511,4 +511,75 @@ describe('buildCapabilityProviderOptions', () => {
       expect(result).not.toHaveProperty(runtimeProviderId)
     }
   )
+
+  it('forwards the configured contextWindow as num_ctx for Ollama models', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: {} } as Assistant,
+      {
+        id: 'ollama::qwen3:32b',
+        providerId: 'ollama',
+        name: 'qwen3:32b',
+        capabilities: [],
+        contextWindow: 32_768
+      } as unknown as Model,
+      {
+        id: 'ollama',
+        settings: {},
+        apiFeatures: {}
+      } as Provider,
+      {
+        enableReasoning: false,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'ollama',
+        runtimeProviderId: 'ollama',
+        providerOptionsKey: 'ollama',
+        endpointType: undefined,
+        reasoning: {
+          kind: 'omit',
+          selection: 'default',
+          emissions: []
+        }
+      }
+    )
+
+    expect(result).toMatchObject({ ollama: { options: { num_ctx: 32_768 } } })
+  })
+
+  it('omits num_ctx for Ollama models without a configured contextWindow', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: {} } as Assistant,
+      {
+        id: 'ollama::qwen3:32b',
+        providerId: 'ollama',
+        name: 'qwen3:32b',
+        capabilities: []
+      } as unknown as Model,
+      {
+        id: 'ollama',
+        settings: {},
+        apiFeatures: {}
+      } as Provider,
+      {
+        enableReasoning: false,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'ollama',
+        runtimeProviderId: 'ollama',
+        providerOptionsKey: 'ollama',
+        endpointType: undefined,
+        reasoning: {
+          kind: 'omit',
+          selection: 'default',
+          emissions: []
+        }
+      }
+    )
+
+    expect(result.ollama).not.toHaveProperty('options')
+  })
 })
