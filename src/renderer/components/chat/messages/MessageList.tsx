@@ -11,7 +11,6 @@ import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceT
 import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
-import { useMessageEnterMotionIds } from '../motion/messageEnterMotion'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
 import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
@@ -120,13 +119,7 @@ const MessageHistoryLayer = memo(MessageGroupLayer, (previous, next) => {
     previous.captureMode === next.captureMode &&
     previous.registerMessageElement === next.registerMessageElement &&
     previous.isLatestAssistantGroup === next.isLatestAssistantGroup &&
-    previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
-    (previous.enteringMessageIds === next.enteringMessageIds ||
-      previous.messages.every(
-        (message) =>
-          (previous.enteringMessageIds?.has(message.id) ?? false) ===
-          (next.enteringMessageIds?.has(message.id) ?? false)
-      ))
+    previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId
   )
 })
 
@@ -222,11 +215,6 @@ const MessageList = () => {
     return () => setForceWideLayout(false)
   }, [setForceWideLayout, useWideMessageLayout])
 
-  const enteringMessageIds = useMessageEnterMotionIds({
-    messages,
-    scopeKey: data.listKey ?? topic.id
-  })
-
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
       messageElements.current.set(id, element)
@@ -239,6 +227,10 @@ const MessageList = () => {
 
   const scrollToBottom = useCallback(() => {
     messageListRef.current?.scrollToBottom('instant')
+  }, [])
+
+  const captureLocalSendScrollEligibility = useCallback(() => {
+    messageListRef.current?.captureLocalSendScrollEligibility()
   }, [])
 
   // Navigation buttons scroll through the virtua-aware runtime handle (smooth,
@@ -420,8 +412,18 @@ const MessageList = () => {
     },
     [data.isInitialLoading, enqueueTopicImageCaptureAction, topic.id]
   )
-  const runtimeActionsRef = useRef({ scrollToBottom, scrollToMessageById, runTopicImageAction })
-  runtimeActionsRef.current = { scrollToBottom, scrollToMessageById, runTopicImageAction }
+  const runtimeActionsRef = useRef({
+    scrollToBottom,
+    captureLocalSendScrollEligibility,
+    scrollToMessageById,
+    runTopicImageAction
+  })
+  runtimeActionsRef.current = {
+    scrollToBottom,
+    captureLocalSendScrollEligibility,
+    scrollToMessageById,
+    runTopicImageAction
+  }
 
   const flushPendingTopicImageAction = useCallback(() => {
     if (data.isInitialLoading || !scrollContainerRef.current) return
@@ -525,6 +527,7 @@ const MessageList = () => {
   useEffect(() => {
     return bindRuntime?.({
       scrollToBottom: () => runtimeActionsRef.current.scrollToBottom(),
+      captureLocalSendScrollEligibility: () => runtimeActionsRef.current.captureLocalSendScrollEligibility(),
       locateMessage: (messageId) => runtimeActionsRef.current.scrollToMessageById(messageId),
       copyTopicImage: () => runtimeActionsRef.current.runTopicImageAction('copy'),
       exportTopicImage: () => runtimeActionsRef.current.runTopicImageAction('export')
@@ -538,21 +541,17 @@ const MessageList = () => {
   const activeOutlineMessage = activeOutline
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
-  const latestUserMessage = messages.findLast((message) => message.role === 'user' && message.type !== 'clear')
   const latestAssistantGroupMessages = latestAssistantGroupKey
     ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
     : undefined
-  const preserveScrollAnchor =
+  const shouldKeepLatestAssistantGroupMounted =
     latestAssistantGroupMessages?.some(
       (message) =>
         message.role === 'assistant' &&
         (messageUi.getMessageActivityState?.(message).isProcessing ?? message.status === 'pending')
     ) ?? false
-  const keepMountedKeys = preserveScrollAnchor && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
-  // The runtime now treats this key as the group to scroll to the viewport
-  // top (rather than scrolling to the absolute bottom). User-message groups
-  // are keyed by `user${msgId}` — see stableGroupedMessages.
-  const forceScrollToBottomKey = latestUserMessage ? `user${latestUserMessage.id}` : undefined
+  const keepMountedKeys =
+    shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   const defaultBottomPadding = isMultiSelectMode
     ? MULTI_SELECT_BOTTOM_PADDING_PX
     : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX
@@ -584,8 +583,7 @@ const MessageList = () => {
             overscan={data.overscan}
             topPadding={topPadding}
             bottomPadding={bottomPadding}
-            forceScrollToBottomKey={forceScrollToBottomKey}
-            preserveScrollAnchor={preserveScrollAnchor}
+            localSendGeneration={data.localSendGeneration}
             keepMountedKeys={keepMountedKeys}
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
@@ -597,7 +595,6 @@ const MessageList = () => {
               const props: MessageGroupLayerProps = {
                 groupKey: key,
                 narrowMode: messageListNarrowMode,
-                enteringMessageIds,
                 isLatestAssistantGroup: key === latestAssistantGroupKey,
                 directAssistantModelsByUserId,
                 messages: groupMessages,

@@ -1,5 +1,11 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  GENERATE_IMAGE_TOOL_NAME,
+  KB_LIST_TOOL_NAME,
+  KB_MANAGE_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME
+} from '@shared/ai/builtinTools'
 
 import { AgentExecutionTimeline } from './agent'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
@@ -12,8 +18,15 @@ const builtinToolsPrefix = 'builtin_'
 const agentMcpToolsPrefix = 'mcp__'
 const agentGenerateImageToolName = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`
 const agentTools = new Set<string>(Object.values(AgentToolsType))
-/** cherry-tools that carry short wire names (no `mcp__` prefix) and lack a bespoke card. */
-const CHERRY_AGENT_TOOL_NAMES = new Set(['web_fetch', 'kb_list', 'memory'])
+/** cherry-tools that carry short wire names rather than the `mcp__` prefix. */
+const CHERRY_AGENT_TOOL_NAMES = new Set([
+  'web_fetch',
+  KB_SEARCH_TOOL_NAME,
+  KB_LIST_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_MANAGE_TOOL_NAME,
+  'memory'
+])
 
 const isAgentTool = (toolName: string) => {
   if (agentTools.has(toolName) || toolName.startsWith(agentMcpToolsPrefix)) {
@@ -30,7 +43,7 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
   }
 
   // In-process cherry-tools (web/knowledge/memory) carry short wire names, not the `mcp__` prefix.
-  if (toolName === 'kb_search') {
+  if (toolName === KB_SEARCH_TOOL_NAME) {
     return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
   }
   if (toolName === 'web_search') {
@@ -39,8 +52,7 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
   if (toolName === GENERATE_IMAGE_TOOL_NAME || toolName === agentGenerateImageToolName) {
     return <MessageGenerateImageToolTitle toolResponse={toolResponse} />
   }
-  // web_fetch / kb_list / memory have no bespoke card yet — render them through the standard
-  // agent tool-call card rather than dropping them.
+  // Short-name tools without a bespoke card render through the standard agent tool-call card.
   if (CHERRY_AGENT_TOOL_NAMES.has(toolName)) {
     return <AgentExecutionTimeline toolResponse={toolResponse} />
   }

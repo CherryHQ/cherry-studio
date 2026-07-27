@@ -2140,7 +2140,7 @@
     "terminal": "終端機",
     "terminal_hint": "選擇執行命令的終端機應用程式",
     "terminal_placeholder": "選擇終端機應用程式",
-    "title": "Code Switch",
+    "title": "編碼搭檔",
     "tool_parameters": "參數設定",
     "up_to_date": "最新版本",
     "update_options": "更新選項",
@@ -8061,7 +8061,7 @@
   "title": {
     "apps": "小程式",
     "chat": "對話",
-    "code": "Code Switch",
+    "code": "編碼搭檔",
     "files": "檔案",
     "home": "首頁",
     "knowledge": "知識庫",

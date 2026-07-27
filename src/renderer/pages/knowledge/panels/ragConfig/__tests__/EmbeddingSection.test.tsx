@@ -18,7 +18,7 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
   )
 }))
 
-vi.mock('../LocalEmbeddingDownloadButton', () => ({
+vi.mock('../../../components/LocalEmbeddingDownloadButton', () => ({
   default: ({ onSelected }: { onSelected: (id: string) => void }) => (
     <button type="button" onClick={() => onSelected('local-embedding::qwen3-embedding-0.6b')}>
       local-download
