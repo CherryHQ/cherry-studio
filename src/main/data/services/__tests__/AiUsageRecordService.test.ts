@@ -787,15 +787,15 @@ describe('AiUsageRecordService', () => {
         { ...base, requestId: 'm3', providerId: 'anthropic', apiKeyId: 'key-c', createdAt: 3000, updatedAt: 3000 }
       ])
 
-      const byTime = await aiUsageRecordService.list({ limit: 50, from: 1500, to: 2500 })
+      const byTime = aiUsageRecordService.list({ limit: 50, from: 1500, to: 2500 })
       expect(byTime.items.map((i) => i.requestId)).toEqual(['m2'])
 
-      const page1 = await aiUsageRecordService.list({ limit: 2 })
+      const page1 = aiUsageRecordService.list({ limit: 2 })
       expect(page1.items.map((i) => i.requestId)).toEqual(['m3', 'm2'])
       expect(page1.total).toBe(3)
       expect(page1.nextCursor).toBeDefined()
 
-      const page2 = await aiUsageRecordService.list({ cursor: page1.nextCursor, limit: 2 })
+      const page2 = aiUsageRecordService.list({ cursor: page1.nextCursor, limit: 2 })
       expect(page2.items.map((i) => i.requestId)).toEqual(['m1'])
       expect(page2.total).toBe(3)
       expect(page2.nextCursor).toBeUndefined()
@@ -852,7 +852,7 @@ describe('AiUsageRecordService', () => {
       expect(aiUsageRecordService.list({ limit: 3, sortBy: 'cost', costCurrency: 'USD' })).toMatchObject({
         items: [{ requestId: 'expensive' }, { requestId: 'slow' }, { requestId: 'fast' }]
       })
-      const ttftPage1 = await aiUsageRecordService.list({
+      const ttftPage1 = aiUsageRecordService.list({
         limit: 2,
         sortBy: 'timeFirstTokenMs',
         sortOrder: 'asc'
@@ -871,13 +871,13 @@ describe('AiUsageRecordService', () => {
         items: [{ requestId: 'slow' }],
         nextCursor: undefined
       })
-      const tpsPage1 = await aiUsageRecordService.list({ limit: 2, sortBy: 'tokensPerSecond' })
+      const tpsPage1 = aiUsageRecordService.list({ limit: 2, sortBy: 'tokensPerSecond' })
       expect(tpsPage1).toMatchObject({
         items: [{ requestId: 'fast' }, { requestId: 'expensive' }]
       })
       expect(tpsPage1.nextCursor).toBeDefined()
 
-      const tpsPage2 = await aiUsageRecordService.list({
+      const tpsPage2 = aiUsageRecordService.list({
         cursor: tpsPage1.nextCursor,
         limit: 2,
         sortBy: 'tokensPerSecond'
@@ -907,13 +907,13 @@ describe('AiUsageRecordService', () => {
         { ...base, requestId: 'free-new', createdAt: 3000, updatedAt: 3000 }
       ])
 
-      const first = await aiUsageRecordService.list({ limit: 1, sortBy: 'totalTokens' })
-      const second = await aiUsageRecordService.list({
+      const first = aiUsageRecordService.list({ limit: 1, sortBy: 'totalTokens' })
+      const second = aiUsageRecordService.list({
         cursor: first.nextCursor,
         limit: 1,
         sortBy: 'totalTokens'
       })
-      const third = await aiUsageRecordService.list({
+      const third = aiUsageRecordService.list({
         cursor: second.nextCursor,
         limit: 1,
         sortBy: 'totalTokens'
@@ -1120,7 +1120,7 @@ describe('AiUsageRecordService', () => {
         }
       ])
 
-      const { buckets } = await aiUsageRecordService.stats({
+      const { buckets } = aiUsageRecordService.stats({
         ...DEFAULT_AGGREGATE_QUERY,
         groupBy: 'apiKey',
         metric: 'cost',
@@ -1170,7 +1170,7 @@ describe('AiUsageRecordService', () => {
         }
       ])
 
-      const { buckets } = await aiUsageRecordService.stats({ ...DEFAULT_AGGREGATE_QUERY, groupBy: 'apiKey' })
+      const { buckets } = aiUsageRecordService.stats({ ...DEFAULT_AGGREGATE_QUERY, groupBy: 'apiKey' })
 
       expect(buckets).toHaveLength(2)
       expect(buckets).toEqual(
@@ -1216,7 +1216,7 @@ describe('AiUsageRecordService', () => {
         }
       ])
 
-      const { buckets } = await aiUsageRecordService.stats({
+      const { buckets } = aiUsageRecordService.stats({
         ...DEFAULT_AGGREGATE_QUERY,
         groupBy: 'apiKey'
       })
@@ -1258,13 +1258,13 @@ describe('AiUsageRecordService', () => {
         updatedAt: 1000
       })
 
-      const stats = await aiUsageRecordService.stats({ ...DEFAULT_AGGREGATE_QUERY, groupBy: 'provider' })
+      const stats = aiUsageRecordService.stats({ ...DEFAULT_AGGREGATE_QUERY, groupBy: 'provider' })
       expect(stats.buckets[0]).toMatchObject({
         providerId: 'custom-provider',
         providerName: 'custom-provider'
       })
 
-      const list = await aiUsageRecordService.list({ limit: 10 })
+      const list = aiUsageRecordService.list({ limit: 10 })
       expect(list.items[0]).toMatchObject({
         providerId: 'custom-provider',
         providerName: 'custom-provider'
@@ -1299,7 +1299,7 @@ describe('AiUsageRecordService', () => {
         }
       ])
 
-      const { buckets } = await aiUsageRecordService.stats({
+      const { buckets } = aiUsageRecordService.stats({
         ...DEFAULT_AGGREGATE_QUERY,
         groupBy: 'provider',
         from: 2000,
@@ -1374,7 +1374,7 @@ describe('AiUsageRecordService', () => {
         }
       ])
 
-      const { buckets } = await aiUsageRecordService.stats({
+      const { buckets } = aiUsageRecordService.stats({
         ...DEFAULT_AGGREGATE_QUERY,
         groupBy: 'source',
         metric: 'cost',
@@ -1438,7 +1438,7 @@ describe('AiUsageRecordService', () => {
         }
       ])
 
-      const result = await aiUsageRecordService.stats({
+      const result = aiUsageRecordService.stats({
         ...DEFAULT_AGGREGATE_QUERY,
         groupBy: 'provider',
         limit: 2
@@ -1471,7 +1471,7 @@ describe('AiUsageRecordService', () => {
         { ...usdBase, requestId: 'm2', totalTokens: 50, cost: 0.75, createdAt: second, updatedAt: second }
       ])
 
-      const { buckets } = await aiUsageRecordService.timeline({
+      const { buckets } = aiUsageRecordService.timeline({
         ...DEFAULT_AGGREGATE_QUERY,
         metric: 'cost',
         currency: 'USD'
@@ -1510,7 +1510,7 @@ describe('AiUsageRecordService', () => {
         { ...base, requestId: 'free-1', totalTokens: 7, cost: null, createdAt: at, updatedAt: at }
       ])
 
-      const result = await aiUsageRecordService.timeline({
+      const result = aiUsageRecordService.timeline({
         ...DEFAULT_AGGREGATE_QUERY,
         metric: 'cost',
         currency: 'USD'
@@ -1579,7 +1579,7 @@ describe('AiUsageRecordService', () => {
         { ...usdBase, requestId: 'm1', totalTokens: 10, cost: 0.1, createdAt: day1, updatedAt: day1 }
       ])
 
-      const { buckets } = await aiUsageRecordService.timeline(DEFAULT_AGGREGATE_QUERY)
+      const { buckets } = aiUsageRecordService.timeline(DEFAULT_AGGREGATE_QUERY)
 
       expect(buckets.map((bucket) => bucket.date)).toEqual([localDateKey(day1), localDateKey(day3)])
       expect(buckets.map((bucket) => bucket.totalTokens)).toEqual([10, 30])
@@ -1603,7 +1603,7 @@ describe('AiUsageRecordService', () => {
         { ...base, requestId: 'a3', totalTokens: 7, createdAt: next, updatedAt: next }
       ])
 
-      const { buckets } = await aiUsageRecordService.timeline({
+      const { buckets } = aiUsageRecordService.timeline({
         ...DEFAULT_AGGREGATE_QUERY,
         groupBy: 'model'
       })
@@ -1639,7 +1639,7 @@ describe('AiUsageRecordService', () => {
         }
       ])
 
-      const { buckets } = await aiUsageRecordService.timeline({
+      const { buckets } = aiUsageRecordService.timeline({
         ...DEFAULT_AGGREGATE_QUERY,
         groupBy: 'provider',
         limit: 1
@@ -1661,7 +1661,7 @@ describe('AiUsageRecordService', () => {
         .insert(aiUsageRecordTable)
         .values([{ ...base, requestId: 'a1', totalTokens: 10, createdAt: at, updatedAt: at }])
 
-      const [bucket] = (await aiUsageRecordService.timeline(DEFAULT_AGGREGATE_QUERY)).buckets
+      const [bucket] = aiUsageRecordService.timeline(DEFAULT_AGGREGATE_QUERY).buckets
 
       expect(bucket.providerId).toBeUndefined()
       expect(bucket.modelId).toBeUndefined()
@@ -1683,7 +1683,7 @@ describe('AiUsageRecordService', () => {
         { ...usdBase, requestId: 'm-after', totalTokens: 50, cost: 0.5, createdAt: after, updatedAt: after }
       ])
 
-      const { buckets } = await aiUsageRecordService.timeline({
+      const { buckets } = aiUsageRecordService.timeline({
         ...DEFAULT_AGGREGATE_QUERY,
         from,
         to,
