@@ -1,3 +1,4 @@
+import { TopicType } from '@renderer/types/topic'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -5,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   launchers: [] as any[],
+  manifests: [] as any[],
   dispatchLauncher: vi.fn(),
   reorderableProps: null as any,
   committedCustomizeOrders: [] as string[][]
@@ -21,6 +23,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     dispatchLauncher: mocks.dispatchLauncher
   }),
   useComposerToolLauncherVersion: () => 1
+}))
+
+vi.mock('@renderer/components/composer/tools/builtinTools', () => ({
+  getComposerToolbarManifestsForScope: () => mocks.manifests
 }))
 
 // Local override of the global @cherrystudio/ui mock: exposes ReorderableList props
@@ -112,6 +118,7 @@ const attachmentLauncher = {
 
 const renderShortcuts = (overrides: Partial<Parameters<typeof ComposerToolbarShortcuts>[0]> = {}) => {
   const props = {
+    scope: TopicType.Chat,
     pinnedIds: ['thinking', 'ghost', 'web-search'],
     onPinnedIdsChange: vi.fn(),
     onResetPinnedIds: vi.fn(),
@@ -128,6 +135,7 @@ const renderShortcuts = (overrides: Partial<Parameters<typeof ComposerToolbarSho
 describe('ComposerToolbarShortcuts', () => {
   beforeEach(() => {
     mocks.launchers = [thinkingLauncher, webSearchLauncher, knowledgeLauncher]
+    mocks.manifests = []
     mocks.dispatchLauncher.mockClear()
     mocks.reorderableProps = null
     mocks.committedCustomizeOrders = []
@@ -149,6 +157,26 @@ describe('ComposerToolbarShortcuts', () => {
     expect(webSearchButton).not.toHaveAttribute('aria-haspopup')
     // Unpinned and unknown ids stay off the bar.
     expect(screen.queryByRole('button', { name: 'kb-label' })).not.toBeInTheDocument()
+  })
+
+  it('renders a known pinned manifest immediately while runtime state is unresolved', () => {
+    mocks.launchers = []
+    mocks.manifests = [
+      {
+        id: 'web-search',
+        kind: 'command',
+        order: 30,
+        label: 'web-search-label',
+        icon: <span data-testid="icon-web-search-fallback" />
+      }
+    ]
+
+    renderShortcuts({ pinnedIds: ['web-search'] })
+
+    const webSearchButton = screen.getByRole('button', { name: 'web-search-label' })
+    expect(webSearchButton).toBeDisabled()
+    expect(webSearchButton).not.toHaveAttribute('aria-pressed')
+    expect(screen.getByTestId('icon-web-search-fallback')).toBeInTheDocument()
   })
 
   it('announces dialog launchers with aria-haspopup="dialog" and no toggle state', () => {

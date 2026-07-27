@@ -4,6 +4,8 @@ import {
   useComposerToolLauncherVersion
 } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/quickPanel'
+import { getComposerToolbarManifestsForScope } from '@renderer/components/composer/tools/builtinTools'
+import type { ComposerToolScope } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
 import { GripVertical, RotateCcw } from 'lucide-react'
@@ -43,10 +45,13 @@ interface ShortcutCandidate {
   haspopup?: 'menu' | 'dialog'
   /** True only for genuine on/off toggles (command launchers); drives `aria-pressed`. */
   toggle: boolean
+  /** Runtime state and action have been registered for the current model/context. */
+  resolved: boolean
   select: () => void
 }
 
 interface ComposerToolbarShortcutsProps {
+  scope: ComposerToolScope
   pinnedIds: readonly string[]
   onPinnedIdsChange: (next: string[]) => void
   onResetPinnedIds: () => void
@@ -99,13 +104,14 @@ const reconcileCustomizeOrder = (
 
 /**
  * User-customizable persistent tool shortcut bar shared by the composer variants.
- * Renders the pinned tool ids that resolve to a live candidate (launcher registered
- * for the current scope/model, or a variant-provided custom tool); stale ids stay in
- * the preference untouched. The customize popover (opened from the "+" panel's
+ * Renders known pinned ids immediately from the scope manifest, then overlays live
+ * launcher state and actions when the model runtime registers. Unknown stale ids stay
+ * in the preference untouched. The customize popover (opened from the "+" panel's
  * bottom-fixed item) keeps all candidates in one draggable list, with a switch toggling
  * whether each tool is pinned.
  */
 export const ComposerToolbarShortcuts = ({
+  scope,
   pinnedIds,
   onPinnedIdsChange,
   onResetPinnedIds,
@@ -123,6 +129,20 @@ export const ComposerToolbarShortcuts = ({
 
   const candidates = useMemo<ShortcutCandidate[]>(() => {
     void toolLaunchersVersion
+    const manifestCandidates = getComposerToolbarManifestsForScope(scope, t).map((manifest): ShortcutCandidate => {
+      const opensPanel = manifest.kind === 'group' || manifest.kind === 'panel'
+      return {
+        id: manifest.id,
+        label: manifest.label,
+        icon: manifest.icon,
+        active: false,
+        disabled: true,
+        haspopup: opensPanel ? 'menu' : manifest.kind === 'dialog' ? 'dialog' : undefined,
+        toggle: manifest.kind === 'command',
+        resolved: false,
+        select: () => undefined
+      }
+    })
     const launcherCandidates = getLaunchers('popover').map((launcher): ShortcutCandidate => {
       // group/panel launchers open the unified panel; dialog launchers open a modal
       // (attachment picker); command launchers are plain on/off toggles.
@@ -138,6 +158,7 @@ export const ComposerToolbarShortcuts = ({
         tooltip: launcher.tooltip,
         haspopup: opensPanel ? 'menu' : launcher.kind === 'dialog' ? 'dialog' : undefined,
         toggle: launcher.kind === 'command',
+        resolved: true,
         select: opensPanel
           ? () =>
               unifiedPanelControl?.open({
@@ -158,24 +179,34 @@ export const ComposerToolbarShortcuts = ({
         disabled: Boolean(tool.disabled) || (requiresPanel && panelUnavailable),
         haspopup: requiresPanel ? 'menu' : undefined,
         toggle: false,
+        resolved: true,
         select: () => tool.onSelect({ inputAdapter, unifiedPanelControl })
       }
     })
-    return [...launcherCandidates, ...customCandidates]
+
+    const candidateById = new Map<string, ShortcutCandidate>()
+    const candidateOrder: string[] = []
+    for (const candidate of [...manifestCandidates, ...customCandidates, ...launcherCandidates]) {
+      if (!candidateById.has(candidate.id)) candidateOrder.push(candidate.id)
+      candidateById.set(candidate.id, candidate)
+    }
+    return candidateOrder.map((id) => candidateById.get(id)!)
   }, [
     customTools,
     dispatchLauncher,
     getLaunchers,
     inputAdapter,
     panelUnavailable,
+    scope,
+    t,
     toolLaunchersVersion,
     unifiedPanelControl
   ])
 
   const candidateById = useMemo(() => new Map(candidates.map((candidate) => [candidate.id, candidate])), [candidates])
 
-  // Stale pinned ids (tool not registered for the current scope/model) keep their
-  // row so reordering preserves them in the preference; only resolved rows render.
+  // Unknown stale ids keep their row so reordering preserves them in the
+  // preference; manifest-backed rows remain visible before runtime registration.
   const pinnedRows = useMemo<CustomizeRow[]>(
     () => pinnedIds.map((id) => ({ id, candidate: candidateById.get(id) })),
     [candidateById, pinnedIds]
@@ -290,7 +321,7 @@ export const ComposerToolbarShortcuts = ({
                   )}
                   aria-label={typeof shortcut.label === 'string' ? shortcut.label : undefined}
                   aria-haspopup={shortcut.haspopup}
-                  aria-pressed={shortcut.toggle ? shortcut.active : undefined}
+                  aria-pressed={shortcut.toggle && shortcut.resolved ? shortcut.active : undefined}
                   disabled={shortcut.disabled}
                   data-active={shortcut.active || undefined}
                   onClick={shortcut.select}>

@@ -1,11 +1,14 @@
-import { AttachmentToolRuntime } from '@renderer/components/composer/tools/components/AttachmentButton'
+import {
+  ATTACHMENT_TOOLBAR_MANIFEST,
+  AttachmentToolRuntime
+} from '@renderer/components/composer/tools/components/AttachmentButton'
 import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 
 import { composerFileTokenId, getComposerTokenIds } from '../../variants/shared/composerTokens'
 
 const attachmentTool = defineTool({
   key: 'attachment',
-  label: (t) => t('chat.input.upload.image_or_document'),
+  label: (t) => t('chat.input.upload.attachment'),
 
   visibleInScopes: [TopicType.Chat, TopicType.Session, 'quick-assistant', 'painting'],
 
@@ -15,6 +18,7 @@ const attachmentTool = defineTool({
   },
 
   composer: {
+    toolbar: ATTACHMENT_TOOLBAR_MANIFEST,
     runtime: ({ context }) => {
       const { state, actions, launcher } = context
 

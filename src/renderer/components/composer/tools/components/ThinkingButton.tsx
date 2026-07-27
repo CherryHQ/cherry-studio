@@ -1,5 +1,5 @@
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import type { ToolComposerToolbarContribution, ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   MdiLightbulbAutoOutline,
   MdiLightbulbOffOutline,
@@ -27,6 +27,13 @@ interface Props {
   reasoningEffort?: ThinkingOption
   onReasoningEffortChange?: (option: ThinkingOption) => void
 }
+
+export const THINKING_TOOLBAR_MANIFEST = {
+  id: 'thinking',
+  kind: 'group',
+  order: 60,
+  icon: <MdiLightbulbQuestion className="icon" width={18} height={18} style={{ marginTop: -2 }} />
+} satisfies ToolComposerToolbarContribution
 
 const useThinkingToolController = ({
   launcher,
@@ -143,10 +150,8 @@ const useThinkingToolController = ({
   useEffect(() => {
     const disposeLauncher = launcher.registerLaunchers([
       {
-        id: 'thinking',
-        kind: 'group',
+        ...THINKING_TOOLBAR_MANIFEST,
         sources: ['popover'],
-        order: 60,
         label: t('assistants.settings.reasoning_effort.label'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'assistants.settings.reasoning_effort.label', [

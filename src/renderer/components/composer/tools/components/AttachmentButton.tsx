@@ -1,5 +1,5 @@
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import type { ToolComposerToolbarContribution, ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { toast } from '@renderer/services/toast'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
@@ -16,6 +16,13 @@ interface Props {
   setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
   disabled?: boolean
 }
+
+export const ATTACHMENT_TOOLBAR_MANIFEST = {
+  id: 'attachment',
+  kind: 'dialog',
+  order: 10,
+  icon: <Paperclip />
+} satisfies ToolComposerToolbarContribution
 
 const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, setFiles, disabled }: Props) => {
   const { t } = useTranslation()
@@ -68,15 +75,12 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
     const isDocumentOnly = !couldAddImageFile
     const disposeLauncher = launcher.registerLaunchers([
       {
-        id: 'attachment',
-        kind: 'dialog',
+        ...ATTACHMENT_TOOLBAR_MANIFEST,
         sources: ['popover'],
-        order: 10,
         label: t('chat.input.upload.attachment'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'chat.input.upload.attachment', ['upload attachment']),
         tooltip: isDocumentOnly ? t('chat.input.upload.image_not_supported') : undefined,
-        icon: <Paperclip />,
         suffix: isDocumentOnly ? t('chat.input.upload.document_only') : undefined,
         disabled,
         action: ({ inputAdapter }) => {

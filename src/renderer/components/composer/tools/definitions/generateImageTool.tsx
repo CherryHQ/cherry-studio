@@ -1,6 +1,11 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import { defineTool, type ToolLauncherApi, TopicType } from '@renderer/components/composer/tools/types'
+import {
+  defineTool,
+  type ToolComposerToolbarContribution,
+  type ToolLauncherApi,
+  TopicType
+} from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { Image } from 'lucide-react'
 import type { FC } from 'react'
@@ -11,6 +16,13 @@ interface Props {
   assistantId: string
   launcher: ToolLauncherApi
 }
+
+const GENERATE_IMAGE_TOOLBAR_MANIFEST = {
+  id: 'generate-image',
+  kind: 'command',
+  order: 20,
+  icon: <Image size={18} />
+} satisfies ToolComposerToolbarContribution
 
 /**
  * Toggle that flips `assistant.settings.enableGenerateImage`, which gates the `generate_image`
@@ -35,15 +47,12 @@ const useGenerateImageToolController = ({ assistantId, launcher }: Props) => {
   useEffect(() => {
     return launcher.registerLaunchers([
       {
-        id: 'generate-image',
-        kind: 'command',
+        ...GENERATE_IMAGE_TOOLBAR_MANIFEST,
         sources: ['popover'],
-        order: 20,
         label: t('chat.input.generate_image'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'chat.input.generate_image', ['generate image']),
         disabledReason,
-        icon: <Image size={18} />,
         active: enabled,
         disabled: isDisabled,
         action: handleToggle
@@ -64,6 +73,7 @@ const generateImageTool = defineTool({
   label: (t) => t('chat.input.generate_image'),
   visibleInScopes: [TopicType.Chat],
   composer: {
+    toolbar: GENERATE_IMAGE_TOOLBAR_MANIFEST,
     runtime: ({ context }) => (
       <GenerateImageComposerRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
     )

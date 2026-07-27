@@ -767,7 +767,7 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
-    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
+    expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
   })
 
   it('uses page-resolved context without subscribing to agent and model data again', () => {
@@ -828,7 +828,7 @@ describe('AgentComposer', () => {
 
     await notifyComposerBottomToolbarWidth(420)
 
-    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
+    expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
     expect(document.querySelector('.lucide-bot')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-sparkles')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')

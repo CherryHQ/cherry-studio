@@ -42,7 +42,6 @@ interface Props {
   onStartBranchDraft?: MessageListActions['startMessageBranch']
   assistantContext?: ChatComposerResolvedContext
   providers?: Provider[]
-  assistantContextLoading?: boolean
   onConversationControlsChange?: ChatConversationControlsChangeHandler
 }
 
@@ -69,7 +68,6 @@ const ChatContent: FC<Props> = ({
   onStartBranchDraft,
   assistantContext,
   providers,
-  assistantContextLoading,
   onConversationControlsChange
 }) => {
   const {
@@ -99,7 +97,6 @@ const ChatContent: FC<Props> = ({
       onStartBranchDraft={onStartBranchDraft}
       assistantContext={assistantContext}
       providers={providers}
-      assistantContextLoading={assistantContextLoading}
       onConversationControlsChange={onConversationControlsChange}
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
@@ -150,7 +147,6 @@ const ChatContentInner: FC<InnerProps> = ({
   onStartBranchDraft,
   assistantContext,
   providers,
-  assistantContextLoading,
   onConversationControlsChange,
   isHistoryLoading,
   isHistoryStale,
@@ -246,7 +242,6 @@ const ChatContentInner: FC<InnerProps> = ({
       composerContext={runtime.composerContext}
       assistantContext={assistantContext}
       providers={providers}
-      assistantContextLoading={assistantContextLoading}
       onConversationControlsChange={onConversationControlsChange}
     />
   ) : (
@@ -260,7 +255,6 @@ const ChatContentInner: FC<InnerProps> = ({
       composerContext={runtime.composerContext}
       assistantContext={assistantContext}
       providers={providers}
-      assistantContextLoading={assistantContextLoading}
       onConversationControlsChange={onConversationControlsChange}
     />
   )

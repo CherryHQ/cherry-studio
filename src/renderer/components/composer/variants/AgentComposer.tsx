@@ -264,7 +264,7 @@ type Props = {
 type AgentComposerRootProps = Props & {
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
-  deferDynamicControls?: boolean
+  deferQuickPanel?: boolean
 }
 
 const AgentComposerRoot = ({
@@ -290,7 +290,7 @@ const AgentComposerRoot = ({
   compactWhenSingleLine = false,
   renderControls,
   forceNarrowLayout = false,
-  deferDynamicControls = false
+  deferQuickPanel = false
 }: AgentComposerRootProps) => {
   const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
   const session = sessionOverride ?? loadedSession
@@ -334,7 +334,7 @@ const AgentComposerRoot = ({
     []
   )
 
-  if (!session || !agent) return null
+  if (!session) return null
 
   return (
     <ComposerToolRuntimeProvider
@@ -369,7 +369,7 @@ const AgentComposerRoot = ({
         compactWhenSingleLine={compactWhenSingleLine}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
-        deferDynamicControls={deferDynamicControls}
+        deferQuickPanel={deferQuickPanel}
         resolvedWorkspaceWarning={resolvedWorkspaceWarning}
       />
     </ComposerToolRuntimeProvider>
@@ -377,7 +377,7 @@ const AgentComposerRoot = ({
 }
 
 interface InnerProps {
-  agent: AgentEntity
+  agent?: AgentEntity
   model?: Model
   agentId: string
   sessionId: string
@@ -399,7 +399,7 @@ interface InnerProps {
   compactWhenSingleLine: boolean
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
-  deferDynamicControls?: boolean
+  deferQuickPanel?: boolean
   resolvedWorkspaceWarning?: string | null
 }
 
@@ -620,7 +620,7 @@ const AgentComposerInner = ({
   compactWhenSingleLine,
   renderControls,
   forceNarrowLayout = false,
-  deferDynamicControls = false,
+  deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
   const { updateModel } = useUpdateAgent()
@@ -646,7 +646,7 @@ const AgentComposerInner = ({
     customizePanelItem
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
-  const agentModelFilter = useAgentModelFilter(agent.type)
+  const agentModelFilter = useAgentModelFilter(agent?.type)
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const pinnedLauncherIds = useMemo(
     () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
@@ -1180,6 +1180,7 @@ const AgentComposerInner = ({
       unifiedPanelControl?: AgentComposerUnifiedPanelControl
     }) => (
       <ComposerToolbarShortcuts
+        scope={TopicType.Session}
         pinnedIds={pinnedToolIds}
         onPinnedIdsChange={setPinnedToolIds}
         onResetPinnedIds={resetPinnedToolIds}
@@ -1302,7 +1303,7 @@ const AgentComposerInner = ({
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           sendAccessory={sendAccessory}
           compactWhenSingleLine={compactWhenSingleLine}
-          deferDynamicControls={deferDynamicControls}
+          deferQuickPanel={deferQuickPanel}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>
@@ -1408,7 +1409,7 @@ const MissingAgentHomeComposerInner = ({
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        deferDynamicControls
+        deferQuickPanel
         {...controlSlots}
       />
     </ComposerToolDerivedStateProvider>
@@ -1447,7 +1448,7 @@ const AgentComposer = (props: Props) => {
     <AgentComposerRoot
       key={props.agentId}
       {...props}
-      deferDynamicControls
+      deferQuickPanel
       renderControls={props.externalContextControls ? renderAgentInputControls : renderAgentToolbarControls}
     />
   )

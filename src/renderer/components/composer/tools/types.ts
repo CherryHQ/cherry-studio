@@ -1,4 +1,4 @@
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolLauncher, ComposerToolLauncherKind } from '@renderer/components/composer/toolLauncher'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
@@ -98,6 +98,17 @@ export interface ToolComposerMenuContribution<
   createItems: (context: ToolRenderContext<S, A>) => ComposerToolLauncher[]
 }
 
+/**
+ * Stable toolbar identity for a pinnable tool. Runtime launchers overlay model-
+ * and state-dependent behavior after they register.
+ */
+export interface ToolComposerToolbarContribution {
+  id: string
+  kind: ComposerToolLauncherKind
+  order: number
+  icon: React.ReactNode
+}
+
 export interface ToolTokenContribution<
   S extends readonly ToolStateKey[] = readonly ToolStateKey[],
   A extends readonly ToolActionKey[] = readonly ToolActionKey[]
@@ -114,6 +125,9 @@ export interface ToolComposerContribution<
   S extends readonly ToolStateKey[] = readonly ToolStateKey[],
   A extends readonly ToolActionKey[] = readonly ToolActionKey[]
 > {
+  /** Stable fallback used to render pinned shortcuts before runtime launchers register. */
+  toolbar?: ToolComposerToolbarContribution
+
   // Composer-native "+" popover and "/" root suggestion entries.
   menuItems?: ToolComposerMenuContribution<S, A>
 

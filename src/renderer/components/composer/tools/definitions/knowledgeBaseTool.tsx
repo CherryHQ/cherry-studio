@@ -5,7 +5,7 @@ import { useCallback } from 'react'
 
 import { chatComposerTokenId } from '../../variants/chatComposerTokens'
 import { getComposerTokenIds } from '../../variants/shared/composerTokens'
-import { KnowledgeBaseToolRuntime } from '../components/KnowledgeBaseButton'
+import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST, KnowledgeBaseToolRuntime } from '../components/KnowledgeBaseButton'
 
 type KnowledgeBaseToolContext = ToolRenderContext<
   readonly ['selectedKnowledgeBases', 'files', 'selectableKnowledgeBases'],
@@ -57,6 +57,7 @@ const knowledgeBaseTool = defineTool({
   },
 
   composer: {
+    toolbar: KNOWLEDGE_BASE_TOOLBAR_MANIFEST,
     runtime: ({ context }) => <KnowledgeBaseComposerRuntime context={context} />,
     // Editor→state: prune deselected knowledge bases and re-add ones whose marker was pasted,
     // resolved against the scope's selectable knowledge bases.

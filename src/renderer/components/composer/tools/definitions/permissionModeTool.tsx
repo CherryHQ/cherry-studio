@@ -1,5 +1,10 @@
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
+import {
+  defineTool,
+  type ToolComposerToolbarContribution,
+  type ToolRenderContext,
+  TopicType
+} from '@renderer/components/composer/tools/types'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import type { PermissionMode } from '@renderer/types/agent'
@@ -23,6 +28,13 @@ const getPermissionModeIcon = (mode: PermissionMode): ReactNode => {
       return <Pointer size={18} color="#00b96b" />
   }
 }
+
+const PERMISSION_MODE_TOOLBAR_MANIFEST = {
+  id: 'permission-mode',
+  kind: 'group',
+  order: 80,
+  icon: getPermissionModeIcon('default')
+} satisfies ToolComposerToolbarContribution
 
 type PermissionModeContext = ToolRenderContext<readonly [], readonly []>
 
@@ -69,10 +81,8 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   useEffect(() => {
     return launcher.registerLaunchers([
       {
-        id: 'permission-mode',
-        kind: 'group',
+        ...PERMISSION_MODE_TOOLBAR_MANIFEST,
         sources: ['popover'],
-        order: 80,
         label: t('agent.settings.permissionMode.title', 'Permission Mode'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
@@ -97,6 +107,7 @@ const permissionModeTool = defineTool({
   visibleInScopes: [TopicType.Session],
 
   composer: {
+    toolbar: PERMISSION_MODE_TOOLBAR_MANIFEST,
     runtime: ({ context }) => <PermissionModeComposerRuntime context={context} />
   }
 })

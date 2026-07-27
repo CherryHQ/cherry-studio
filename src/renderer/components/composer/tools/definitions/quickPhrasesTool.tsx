@@ -1,4 +1,7 @@
-import { QuickPhrasesToolRuntime } from '@renderer/components/composer/tools/components/QuickPhrasesButton'
+import {
+  QUICK_PHRASES_TOOLBAR_MANIFEST,
+  QuickPhrasesToolRuntime
+} from '@renderer/components/composer/tools/components/QuickPhrasesButton'
 import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 
 const quickPhrasesTool = defineTool({
@@ -12,6 +15,7 @@ const quickPhrasesTool = defineTool({
   },
 
   composer: {
+    toolbar: QUICK_PHRASES_TOOLBAR_MANIFEST,
     runtime: ({ context }) => {
       const { actions, launcher } = context
 
