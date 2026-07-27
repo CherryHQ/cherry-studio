@@ -335,7 +335,12 @@ Source: `DialogContent` and related primitives from `@cherrystudio/ui` (`package
 - Border: none (`border-0`)
 - Padding / gap: `p-6`, `gap-4`
 - Shadow: `shadow-xl`
-- Motion: fade + zoom transitions, `duration-200`
+- Motion: the overlay fades in over 220ms; content fades, rises 16px with an ease-out curve, and scales from 99%
+  over 260ms. Both close over 200ms with a 16px ease-in downward motion. Motion is disabled when
+  `prefers-reduced-motion` requests it.
+- Imperative Dialog hosts remain mounted for 200ms on close.
+- `ConfirmDialog` and the `popup.confirm/error/info/warning` acknowledgement family use `motion="fade-scale"`:
+  they keep the shared fade and 99% scale but omit vertical movement.
 
 **Layout**
 - Overlay: fixed full-window scrim, `z-[80]`, default `bg-black/50`
