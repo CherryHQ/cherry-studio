@@ -372,7 +372,7 @@ export const ResourceGrid: FC<Props> = ({
               <span>{title}</span>
               {addActions}
             </SettingTitle>
-            {description ? <SettingDescription>{description}</SettingDescription> : null}
+            {description ? <SettingDescription className="mt-0">{description}</SettingDescription> : null}
             <SettingDivider />
             <div className="flex shrink-0 flex-wrap items-center gap-2 py-1">
               <div className="min-w-56 flex-1">{searchInput}</div>

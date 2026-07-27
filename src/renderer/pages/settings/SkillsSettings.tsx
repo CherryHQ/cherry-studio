@@ -7,7 +7,7 @@ export function SkillsSettings() {
 
   return (
     <SettingsContentBody
-      className="min-h-0 flex-1 overflow-hidden"
+      className="min-h-0 flex-1 overflow-hidden pt-3"
       innerClassName="flex min-h-0 flex-1 flex-col overflow-hidden">
       <ResourceCatalogView
         resourceType="skill"

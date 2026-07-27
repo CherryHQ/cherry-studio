@@ -1425,7 +1425,7 @@ const TasksSettings: FC = () => {
   }
 
   return (
-    <SettingsContentColumn theme={theme} innerClassName="flex min-h-full flex-col">
+    <SettingsContentColumn theme={theme} className="pt-3" innerClassName="flex min-h-full flex-col">
       <div className="flex flex-1 flex-col">
         <SettingTitle>
           <span>{t('settings.scheduledTasks.title')}</span>
@@ -1451,7 +1451,7 @@ const TasksSettings: FC = () => {
             </DropdownMenuContent>
           </DropdownMenu>
         </SettingTitle>
-        <SettingDescription>{t('settings.scheduledTasks.description')}</SettingDescription>
+        <SettingDescription className="mt-0">{t('settings.scheduledTasks.description')}</SettingDescription>
         <SettingDivider />
 
         {tasks.length === 0 ? (
