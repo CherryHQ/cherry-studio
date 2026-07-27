@@ -72,6 +72,8 @@ describe('AgentService', () => {
         providerId: 'anthropic',
         modelId: 'claude-3-5-sonnet',
         name: 'claude-3-5-sonnet',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: generateOrderKeyBetween(null, null)
       })
       .onConflictDoNothing()
@@ -120,8 +122,10 @@ describe('AgentService', () => {
         id: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
         providerId: 'anthropic',
         modelId: 'claude-sonnet-4-5',
-        presetModelId: 'claude-sonnet-4-5',
+        presetModelId: null,
         name: 'Claude Sonnet 4.5',
+        capabilities: [],
+        supportsStreaming: true,
         isEnabled: true,
         isHidden: false,
         orderKey: generateOrderKeyBetween(null, null)
@@ -1084,6 +1088,8 @@ describe('AgentService', () => {
         providerId: 'anthropic',
         modelId: 'deleted-model',
         name: 'Deleted Model',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: generateOrderKeyBetween(null, null)
       })
 

@@ -240,6 +240,20 @@ export const EndpointConfigSchema = z.object({
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
 
+/**
+ * The row-persisted subset of {@link EndpointConfigSchema} — only fields the
+ * user explicitly owns. Registry-owned fields (`modelsApiUrls`,
+ * `adapterFamily`) resolve from the registry at read time; persisting them
+ * through the renderer write contract would freeze a snapshot that goes stale
+ * (#17096).
+ */
+export const EndpointConfigOverrideSchema = z.object({
+  /** User-owned base URL override for this endpoint type's API */
+  baseUrl: z.string().optional()
+})
+
+export type EndpointConfigOverride = z.infer<typeof EndpointConfigOverrideSchema>
+
 export const ProviderSchema = z.object({
   /** Provider ID */
   id: z.string(),

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9c1532b1-8e4b-4b06-b7fa-d3f793bd3ffb",
-  "prevId": "89e1707b-580e-4d39-8c85-9bd812a65a5b",
+  "id": "fcd71427-0b1b-43a8-8c54-5649d39868e8",
+  "prevId": "9c1532b1-8e4b-4b06-b7fa-d3f793bd3ffb",
   "tables": {
     "agent": {
       "name": "agent",
@@ -889,6 +889,333 @@
         "agent_workspace_type_check": {
           "name": "agent_workspace_type_check",
           "value": "\"agent_workspace\".\"type\" IN ('user', 'system')"
+        }
+      }
+    },
+    "ai_usage_record": {
+      "name": "ai_usage_record",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "capture_source": {
+          "name": "capture_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'runtime'"
+        },
+        "topic_id": {
+          "name": "topic_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provider_name": {
+          "name": "provider_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source_name": {
+          "name": "source_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source_icon": {
+          "name": "source_icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "modality": {
+          "name": "modality",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "api_key_id": {
+          "name": "api_key_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "api_key_label": {
+          "name": "api_key_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "api_key_masked": {
+          "name": "api_key_masked",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "api_key_attribution": {
+          "name": "api_key_attribution",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "auth_method": {
+          "name": "auth_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "input_tokens": {
+          "name": "input_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "output_tokens": {
+          "name": "output_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "total_tokens": {
+          "name": "total_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reasoning_tokens": {
+          "name": "reasoning_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "no_cache_tokens": {
+          "name": "no_cache_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cache_read_tokens": {
+          "name": "cache_read_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cache_write_tokens": {
+          "name": "cache_write_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "image_count": {
+          "name": "image_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cost": {
+          "name": "cost",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cost_currency": {
+          "name": "cost_currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cost_source": {
+          "name": "cost_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cost_breakdown": {
+          "name": "cost_breakdown",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "pricing_snapshot": {
+          "name": "pricing_snapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "time_first_token_ms": {
+          "name": "time_first_token_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "time_completion_ms": {
+          "name": "time_completion_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "time_thinking_ms": {
+          "name": "time_thinking_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "ai_usage_record_request_id_idx": {
+          "name": "ai_usage_record_request_id_idx",
+          "columns": ["request_id"],
+          "isUnique": true
+        },
+        "ai_usage_record_provider_created_idx": {
+          "name": "ai_usage_record_provider_created_idx",
+          "columns": ["provider_id", "created_at"],
+          "isUnique": false
+        },
+        "ai_usage_record_api_key_created_idx": {
+          "name": "ai_usage_record_api_key_created_idx",
+          "columns": ["api_key_id", "created_at"],
+          "isUnique": false
+        },
+        "ai_usage_record_source_created_idx": {
+          "name": "ai_usage_record_source_created_idx",
+          "columns": ["source_type", "source_id", "created_at"],
+          "isUnique": false
+        },
+        "ai_usage_record_created_at_idx": {
+          "name": "ai_usage_record_created_at_idx",
+          "columns": ["created_at"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "ai_usage_record_attribution_check": {
+          "name": "ai_usage_record_attribution_check",
+          "value": "\"ai_usage_record\".\"api_key_attribution\" IN ('explicit', 'matched', 'auth', 'unknown')"
+        },
+        "ai_usage_record_auth_method_check": {
+          "name": "ai_usage_record_auth_method_check",
+          "value": "\"ai_usage_record\".\"auth_method\" IN ('oauth', 'external-cli', 'iam-aws', 'api-key-aws', 'iam-gcp', 'iam-azure')"
+        },
+        "ai_usage_record_capture_source_check": {
+          "name": "ai_usage_record_capture_source_check",
+          "value": "\"ai_usage_record\".\"capture_source\" IN ('runtime', 'persistence', 'migration')"
+        },
+        "ai_usage_record_cost_source_check": {
+          "name": "ai_usage_record_cost_source_check",
+          "value": "\"ai_usage_record\".\"cost_source\" IN ('provider', 'computed')"
+        },
+        "ai_usage_record_cost_tuple_check": {
+          "name": "ai_usage_record_cost_tuple_check",
+          "value": "(\n        \"ai_usage_record\".\"cost\" IS NULL\n        AND \"ai_usage_record\".\"cost_currency\" IS NULL\n        AND \"ai_usage_record\".\"cost_source\" IS NULL\n        AND \"ai_usage_record\".\"cost_breakdown\" IS NULL\n        AND \"ai_usage_record\".\"pricing_snapshot\" IS NULL\n      ) OR (\n        \"ai_usage_record\".\"cost\" IS NOT NULL\n        AND \"ai_usage_record\".\"cost_currency\" IS NOT NULL\n        AND \"ai_usage_record\".\"cost_source\" IS NOT NULL\n      )"
+        },
+        "ai_usage_record_api_key_identity_check": {
+          "name": "ai_usage_record_api_key_identity_check",
+          "value": "(\n        \"ai_usage_record\".\"api_key_attribution\" IN ('explicit', 'matched')\n        AND \"ai_usage_record\".\"api_key_id\" IS NOT NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NULL\n      ) OR (\n        \"ai_usage_record\".\"api_key_attribution\" = 'auth'\n        AND \"ai_usage_record\".\"api_key_id\" IS NULL\n        AND \"ai_usage_record\".\"api_key_label\" IS NULL\n        AND \"ai_usage_record\".\"api_key_masked\" IS NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NOT NULL\n      ) OR (\n        \"ai_usage_record\".\"api_key_attribution\" = 'unknown'\n        AND \"ai_usage_record\".\"api_key_id\" IS NULL\n        AND \"ai_usage_record\".\"api_key_label\" IS NULL\n        AND \"ai_usage_record\".\"api_key_masked\" IS NULL\n        AND \"ai_usage_record\".\"auth_method\" IS NULL\n      )"
+        },
+        "ai_usage_record_source_identity_check": {
+          "name": "ai_usage_record_source_identity_check",
+          "value": "(\n        \"ai_usage_record\".\"source_type\" IS NULL\n        AND \"ai_usage_record\".\"source_id\" IS NULL\n        AND \"ai_usage_record\".\"source_name\" IS NULL\n        AND \"ai_usage_record\".\"source_icon\" IS NULL\n      ) OR (\n        \"ai_usage_record\".\"source_type\" IS NOT NULL\n        AND \"ai_usage_record\".\"source_id\" IS NOT NULL\n      )"
+        },
+        "ai_usage_record_source_type_check": {
+          "name": "ai_usage_record_source_type_check",
+          "value": "\"ai_usage_record\".\"source_type\" IN ('assistant', 'agent')"
+        },
+        "ai_usage_record_modality_check": {
+          "name": "ai_usage_record_modality_check",
+          "value": "\"ai_usage_record\".\"modality\" IN ('language', 'embedding', 'image')"
+        },
+        "ai_usage_record_image_count_check": {
+          "name": "ai_usage_record_image_count_check",
+          "value": "(\n        \"ai_usage_record\".\"modality\" = 'image'\n        AND \"ai_usage_record\".\"image_count\" IS NOT NULL\n        AND \"ai_usage_record\".\"image_count\" > 0\n      ) OR (\n        \"ai_usage_record\".\"modality\" <> 'image'\n        AND \"ai_usage_record\".\"image_count\" IS NULL\n      )"
+        },
+        "ai_usage_record_cost_currency_check": {
+          "name": "ai_usage_record_cost_currency_check",
+          "value": "\"ai_usage_record\".\"cost_currency\" IN ('USD', 'CNY')"
         }
       }
     },

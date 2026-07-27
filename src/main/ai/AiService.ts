@@ -813,13 +813,19 @@ export class AiService extends BaseService {
     // shipped catalog instead of calling the upstream API. The rest of the pull
     // flow (enrich → reconcile → enable) is unchanged.
     if (provider.modelListSource === 'registry') {
-      return providerRegistryService.listProviderRegistryModels({ providerId })
+      return providerRegistryService.listProviderRegistryModels({
+        providerId,
+        presetProviderId: provider.presetProviderId ?? null
+      })
     }
     // Union the live API list with the registry catalog so vendor-exclusive models
     // the upstream `/models` never returns (ppio image models, Claude-on-Vertex)
     // still surface for the user to enable.
     const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
-    const registryModels = providerRegistryService.listProviderRegistryModels({ providerId })
+    const registryModels = providerRegistryService.listProviderRegistryModels({
+      providerId,
+      presetProviderId: provider.presetProviderId ?? null
+    })
     return mergeProviderModelsWithRegistry(remoteModels, registryModels)
   }
 

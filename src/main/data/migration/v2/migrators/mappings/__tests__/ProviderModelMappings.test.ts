@@ -86,10 +86,11 @@ describe('ProviderModelMappings', () => {
         location: '',
         credentials: undefined
       })
+      // adapterFamily is not persisted — read-time inference routes
+      // google-generate-content to the google adapter.
       expect(result.endpointConfigs).toEqual({
         [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
-          baseUrl: 'https://vertex-proxy.example.com/v1/projects/project-1/locations/us-central1',
-          adapterFamily: 'google'
+          baseUrl: 'https://vertex-proxy.example.com/v1/projects/project-1/locations/us-central1'
         }
       })
     })
@@ -111,10 +112,10 @@ describe('ProviderModelMappings', () => {
       )
 
       expect(result.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      // adapterFamily is not persisted — read-time inference covers it.
       expect(result.endpointConfigs).toEqual({
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-          baseUrl: 'https://example.openai.azure.com/openai/deployments/deployment-1',
-          adapterFamily: 'openai-compatible'
+          baseUrl: 'https://example.openai.azure.com/openai/deployments/deployment-1'
         }
       })
       expect(result.authConfig).toEqual({
@@ -341,9 +342,12 @@ describe('ProviderModelMappings', () => {
         {}
       )
 
-      expect(result.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]).toMatchObject({
-        baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
-        adapterFamily: 'anthropic'
+      // The row deliberately stores NO adapterFamily for ANTHROPIC_MESSAGES:
+      // the legacy-type hint ('openai-compatible') must not be persisted, and
+      // read-time inference resolves the endpoint protocol ('anthropic') —
+      // covered by ProviderService.readMerge.test.ts.
+      expect(result.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]).toEqual({
+        baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic'
       })
     })
 
