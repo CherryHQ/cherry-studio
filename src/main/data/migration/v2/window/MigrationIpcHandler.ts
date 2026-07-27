@@ -258,14 +258,6 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       const result = await runPromise
 
       if (result.success) {
-        try {
-          await migrationEngine.finalizeCompletedMigration()
-        } catch (error) {
-          logger.error(
-            'Agent filesystem cleanup failed after migration completed; remaining legacy files were preserved',
-            error as Error
-          )
-        }
         updateProgress({
           stage: 'completed',
           overallProgress: 100,

@@ -19,6 +19,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import {
+  agentDataDirectoryPath,
   assertAgentStoragePath,
   ensureAgentDataDirectory,
   ensureAgentStorageDirectory
@@ -83,8 +84,9 @@ export interface LegacyAgentFilesCleanupPlan {
       entryName: string
       sourceFingerprint: string
       sourceMetadataFingerprint: string
+      sourceVerification: 'identity' | 'raw'
       destinationPath: string
-      destinationFingerprint: string
+      copiedFingerprint: string
       destinationMetadataFingerprint: string
     }>
   }>
@@ -92,7 +94,12 @@ export interface LegacyAgentFilesCleanupPlan {
 
 interface LegacyAgentFilesCleanupCandidate {
   entryName: string
+  sourceFingerprint: string
+  sourceMetadataFingerprint: string
+  sourceVerification: 'identity' | 'raw'
   destinationPath: string
+  copiedFingerprint: string
+  destinationMetadataFingerprint: string
 }
 
 export function legacyAgentWorkspacePath(agentsDataRoot: string, legacyAgentId: string): string {
@@ -171,16 +178,8 @@ async function materializeIdentityEntry(
     return copied
   }
 
-  const destinationStat = await lstatIfExists(destinationPath)
   if (sourceStat.isDirectory()) {
-    if (destinationStat && (!destinationStat.isDirectory() || destinationStat.isSymbolicLink())) {
-      logger.warn('Skipping identity directory because the target already exists with another type', {
-        sourcePath,
-        destinationPath
-      })
-      return false
-    }
-    if (!destinationStat) await mkdir(destinationPath)
+    await mkdir(destinationPath)
 
     let complete = true
     for (const entry of await readdir(sourcePath)) {
@@ -199,21 +198,76 @@ async function materializeIdentityEntry(
     logger.warn('Skipping unsupported identity filesystem entry', { sourcePath })
     return false
   }
-  if (destinationStat) {
-    if (
-      destinationStat.isFile() &&
-      !destinationStat.isSymbolicLink() &&
-      sourceStat.size === destinationStat.size &&
-      (await fileDigest(sourcePath)) === (await fileDigest(destinationPath))
-    ) {
-      return true
-    }
-    logger.warn('Keeping legacy identity file because the existing target differs', { sourcePath, destinationPath })
-    return false
-  }
 
-  await copyFile(sourcePath, destinationPath, constants.COPYFILE_EXCL)
+  await copyFile(sourcePath, destinationPath, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE)
   return true
+}
+
+async function copyIdentityEntry(
+  sourcePath: string,
+  destinationPath: string,
+  sourceWorkspaceRoot: string
+): Promise<LegacyAgentFilesCleanupCandidate | undefined> {
+  const sourceSnapshot = await identityCopySourceSnapshot(sourcePath, sourceWorkspaceRoot)
+  if (!sourceSnapshot) return undefined
+
+  const stagingPrefix = `.${path.basename(destinationPath)}.migration-`
+  await removeStaleStagingEntries(path.dirname(destinationPath), stagingPrefix)
+  const stagingPath = path.join(path.dirname(destinationPath), `${stagingPrefix}${randomUUID()}`)
+
+  try {
+    if (!(await materializeIdentityEntry(sourcePath, stagingPath, sourceWorkspaceRoot))) return undefined
+
+    const sourceMetadataFingerprint = await identitySourceMetadataFingerprint(sourcePath, sourceWorkspaceRoot)
+    if (sourceMetadataFingerprint !== sourceSnapshot.metadataFingerprint) {
+      throw new Error(`Legacy Agent identity changed while being copied: ${sourcePath}`)
+    }
+
+    const stagingSnapshot = await requiredFilesystemEntrySnapshot(stagingPath)
+    if (stagingSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
+      throw new Error(`Legacy Agent identity copy verification failed: ${sourcePath}`)
+    }
+
+    let destinationSnapshot = await filesystemEntrySnapshot(destinationPath)
+    if (destinationSnapshot) {
+      if (destinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
+        logger.warn('Keeping legacy identity entry because the existing target differs', {
+          sourcePath,
+          destinationPath
+        })
+        return undefined
+      }
+      logger.info('Reusing identical identity entry from an earlier migration attempt', {
+        sourcePath,
+        destinationPath
+      })
+    } else {
+      try {
+        await publishStagedWorkspaceEntry(stagingPath, destinationPath)
+      } catch (error) {
+        destinationSnapshot = await filesystemEntrySnapshot(destinationPath)
+        if (!destinationSnapshot || destinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
+          throw error
+        }
+      }
+      destinationSnapshot = await requiredFilesystemEntrySnapshot(destinationPath)
+    }
+
+    if (destinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
+      throw new Error(`Legacy Agent identity changed while being published: ${destinationPath}`)
+    }
+    return {
+      entryName: path.basename(sourcePath),
+      sourceFingerprint: sourceSnapshot.sourceFingerprint,
+      sourceMetadataFingerprint: sourceSnapshot.metadataFingerprint,
+      sourceVerification: 'identity',
+      destinationPath,
+      copiedFingerprint: sourceSnapshot.copiedFingerprint,
+      destinationMetadataFingerprint: destinationSnapshot.metadataFingerprint
+    }
+  } finally {
+    await removeTreeWithoutFollowing(stagingPath).catch(() => undefined)
+  }
 }
 
 async function copyIdentityFromWorkspace(
@@ -253,13 +307,8 @@ async function copyIdentityFromWorkspace(
     const sourcePath = await findCaseInsensitiveEntry(effectiveWorkspacePath, name)
     if (!sourcePath) continue
     const destinationPath = path.join(agentDataPath, name)
-    const copied = await materializeIdentityEntry(sourcePath, destinationPath, effectiveWorkspacePath)
-    if (copied && canCleanup) {
-      cleanupEntries.push({
-        entryName: path.basename(sourcePath),
-        destinationPath
-      })
-    }
+    const cleanupEntry = await copyIdentityEntry(sourcePath, destinationPath, effectiveWorkspacePath)
+    if (cleanupEntry && canCleanup) cleanupEntries.push(cleanupEntry)
   }
   return cleanupEntries
 }
@@ -375,18 +424,16 @@ async function copyWorkspaceEntryPreservingLinks(
   )
 }
 
-async function fileDigest(filePath: string): Promise<string> {
-  const hash = createHash('sha256')
-  for await (const chunk of createReadStream(filePath)) {
-    hash.update(chunk)
-  }
-  return hash.digest('hex')
-}
-
 type FilesystemEntryKind = 'directory' | 'file' | 'symlink'
 
 interface FilesystemEntrySnapshot {
   fingerprint: string
+  metadataFingerprint: string
+}
+
+interface CopySourceSnapshot {
+  sourceFingerprint: string
+  copiedFingerprint: string
   metadataFingerprint: string
 }
 
@@ -483,6 +530,204 @@ async function filesystemEntryMetadataFingerprint(targetPath: string): Promise<s
   return hash.digest('hex')
 }
 
+async function identityCopySourceSnapshot(
+  targetPath: string,
+  sourceWorkspaceRoot: string,
+  visitedRealPaths = new Set<string>(),
+  realWorkspaceRoot?: string
+): Promise<CopySourceSnapshot | undefined> {
+  const targetStat = await lstatBigIntIfExists(targetPath)
+  if (!targetStat) return undefined
+
+  const kind = filesystemEntryKind(targetStat)
+  const sourceHash = createHash('sha256')
+  const copiedHash = createHash('sha256')
+  const metadataHash = initializeMetadataFingerprint(targetStat)
+  updateFingerprintField(sourceHash, kind)
+
+  if (kind === 'symlink') {
+    updateFingerprintField(sourceHash, await readlink(targetPath))
+    let resolved: string
+    try {
+      resolved = await realpath(targetPath)
+    } catch {
+      return undefined
+    }
+    const workspaceRoot = realWorkspaceRoot ?? (await realpath(sourceWorkspaceRoot))
+    if (!isPathInsideOrEqual(resolved, workspaceRoot) || resolved === workspaceRoot || visitedRealPaths.has(resolved)) {
+      return undefined
+    }
+    visitedRealPaths.add(resolved)
+    const resolvedSnapshot = await identityCopySourceSnapshot(
+      resolved,
+      sourceWorkspaceRoot,
+      visitedRealPaths,
+      workspaceRoot
+    )
+    visitedRealPaths.delete(resolved)
+    if (!resolvedSnapshot) return undefined
+    updateFingerprintField(metadataHash, resolvedSnapshot.metadataFingerprint)
+    await assertFilesystemEntryUnchanged(targetPath, targetStat)
+    return {
+      sourceFingerprint: sourceHash.digest('hex'),
+      copiedFingerprint: resolvedSnapshot.copiedFingerprint,
+      metadataFingerprint: metadataHash.digest('hex')
+    }
+  }
+
+  updateFingerprintField(copiedHash, kind)
+  if (kind === 'file') {
+    for await (const chunk of createReadStream(targetPath)) {
+      sourceHash.update(chunk)
+      copiedHash.update(chunk)
+    }
+  } else {
+    const entries = await readdir(targetPath)
+    entries.sort()
+    for (const entry of entries) {
+      const childSnapshot = await identityCopySourceSnapshot(
+        path.join(targetPath, entry),
+        sourceWorkspaceRoot,
+        visitedRealPaths,
+        realWorkspaceRoot
+      )
+      if (!childSnapshot) return undefined
+      updateFingerprintField(sourceHash, entry)
+      updateFingerprintField(sourceHash, childSnapshot.sourceFingerprint)
+      updateFingerprintField(copiedHash, entry)
+      updateFingerprintField(copiedHash, childSnapshot.copiedFingerprint)
+      updateFingerprintField(metadataHash, entry)
+      updateFingerprintField(metadataHash, childSnapshot.metadataFingerprint)
+    }
+  }
+
+  await assertFilesystemEntryUnchanged(targetPath, targetStat)
+  return {
+    sourceFingerprint: sourceHash.digest('hex'),
+    copiedFingerprint: copiedHash.digest('hex'),
+    metadataFingerprint: metadataHash.digest('hex')
+  }
+}
+
+async function identitySourceMetadataFingerprint(
+  targetPath: string,
+  sourceWorkspaceRoot: string,
+  visitedRealPaths = new Set<string>(),
+  realWorkspaceRoot?: string
+): Promise<string | undefined> {
+  const targetStat = await lstatBigIntIfExists(targetPath)
+  if (!targetStat) return undefined
+
+  const kind = filesystemEntryKind(targetStat)
+  const metadataHash = initializeMetadataFingerprint(targetStat)
+  if (kind === 'symlink') {
+    let resolved: string
+    try {
+      resolved = await realpath(targetPath)
+    } catch {
+      return undefined
+    }
+    const workspaceRoot = realWorkspaceRoot ?? (await realpath(sourceWorkspaceRoot))
+    if (!isPathInsideOrEqual(resolved, workspaceRoot) || resolved === workspaceRoot || visitedRealPaths.has(resolved)) {
+      return undefined
+    }
+    visitedRealPaths.add(resolved)
+    const resolvedFingerprint = await identitySourceMetadataFingerprint(
+      resolved,
+      sourceWorkspaceRoot,
+      visitedRealPaths,
+      workspaceRoot
+    )
+    visitedRealPaths.delete(resolved)
+    if (!resolvedFingerprint) return undefined
+    updateFingerprintField(metadataHash, resolvedFingerprint)
+  } else if (kind === 'directory') {
+    const entries = await readdir(targetPath)
+    entries.sort()
+    for (const entry of entries) {
+      const childFingerprint = await identitySourceMetadataFingerprint(
+        path.join(targetPath, entry),
+        sourceWorkspaceRoot,
+        visitedRealPaths,
+        realWorkspaceRoot
+      )
+      if (!childFingerprint) return undefined
+      updateFingerprintField(metadataHash, entry)
+      updateFingerprintField(metadataHash, childFingerprint)
+    }
+  }
+
+  await assertFilesystemEntryUnchanged(targetPath, targetStat)
+  return metadataHash.digest('hex')
+}
+
+async function workspaceCopySourceSnapshot(
+  sourcePath: string,
+  finalDestinationPath: string,
+  sourceWorkspaceRoot: string,
+  destinationWorkspaceRoot: string,
+  agentDataPath: string
+): Promise<CopySourceSnapshot | undefined> {
+  const sourceStat = await lstatBigIntIfExists(sourcePath)
+  if (!sourceStat) return undefined
+
+  const kind = filesystemEntryKind(sourceStat)
+  const sourceHash = createHash('sha256')
+  const copiedHash = createHash('sha256')
+  const metadataHash = initializeMetadataFingerprint(sourceStat)
+  updateFingerprintField(sourceHash, kind)
+  updateFingerprintField(copiedHash, kind)
+
+  if (kind === 'symlink') {
+    const linkTarget = await readlink(sourcePath)
+    updateFingerprintField(sourceHash, linkTarget)
+    updateFingerprintField(
+      copiedHash,
+      migratedLinkTarget(
+        sourcePath,
+        finalDestinationPath,
+        linkTarget,
+        sourceWorkspaceRoot,
+        destinationWorkspaceRoot,
+        agentDataPath
+      )
+    )
+  } else if (kind === 'file') {
+    for await (const chunk of createReadStream(sourcePath)) {
+      sourceHash.update(chunk)
+      copiedHash.update(chunk)
+    }
+  } else {
+    const entries = await readdir(sourcePath)
+    entries.sort()
+    for (const entry of entries) {
+      const childSnapshot = await workspaceCopySourceSnapshot(
+        path.join(sourcePath, entry),
+        path.join(finalDestinationPath, entry),
+        sourceWorkspaceRoot,
+        destinationWorkspaceRoot,
+        agentDataPath
+      )
+      if (!childSnapshot) {
+        throw new Error(`Agent migration fingerprint source disappeared: ${path.join(sourcePath, entry)}`)
+      }
+      updateFingerprintField(sourceHash, entry)
+      updateFingerprintField(sourceHash, childSnapshot.sourceFingerprint)
+      updateFingerprintField(copiedHash, entry)
+      updateFingerprintField(copiedHash, childSnapshot.copiedFingerprint)
+      updateFingerprintField(metadataHash, entry)
+      updateFingerprintField(metadataHash, childSnapshot.metadataFingerprint)
+    }
+  }
+
+  await assertFilesystemEntryUnchanged(sourcePath, sourceStat)
+  return {
+    sourceFingerprint: sourceHash.digest('hex'),
+    copiedFingerprint: copiedHash.digest('hex'),
+    metadataFingerprint: metadataHash.digest('hex')
+  }
+}
+
 async function requiredFilesystemEntrySnapshot(targetPath: string): Promise<FilesystemEntrySnapshot> {
   const snapshot = await filesystemEntrySnapshot(targetPath)
   if (!snapshot) {
@@ -502,39 +747,7 @@ async function filesystemEntryMatchesSnapshot(
   return (await filesystemEntrySnapshot(targetPath))?.fingerprint === expectedFingerprint
 }
 
-async function workspaceEntriesEqual(leftPath: string, rightPath: string): Promise<boolean> {
-  const [leftStat, rightStat] = await Promise.all([lstatIfExists(leftPath), lstatIfExists(rightPath)])
-  if (!leftStat || !rightStat) return false
-
-  if (leftStat.isSymbolicLink() || rightStat.isSymbolicLink()) {
-    return (
-      leftStat.isSymbolicLink() &&
-      rightStat.isSymbolicLink() &&
-      (await readlink(leftPath)) === (await readlink(rightPath))
-    )
-  }
-  if (leftStat.isFile() || rightStat.isFile()) {
-    if (!leftStat.isFile() || !rightStat.isFile() || leftStat.size !== rightStat.size) return false
-    const [leftDigest, rightDigest] = await Promise.all([fileDigest(leftPath), fileDigest(rightPath)])
-    return leftDigest === rightDigest
-  }
-  if (!leftStat.isDirectory() || !rightStat.isDirectory()) return false
-
-  const [leftEntries, rightEntries] = await Promise.all([readdir(leftPath), readdir(rightPath)])
-  leftEntries.sort()
-  rightEntries.sort()
-  if (leftEntries.length !== rightEntries.length || leftEntries.some((entry, index) => entry !== rightEntries[index])) {
-    return false
-  }
-  for (const entry of leftEntries) {
-    if (!(await workspaceEntriesEqual(path.join(leftPath, entry), path.join(rightPath, entry)))) return false
-  }
-  return true
-}
-
-async function removeStaleWorkspaceStagingEntries(destinationWorkspaceRoot: string): Promise<void> {
-  const stagingParent = path.dirname(destinationWorkspaceRoot)
-  const stagingPrefix = `.${path.basename(destinationWorkspaceRoot)}.migration-`
+async function removeStaleStagingEntries(stagingParent: string, stagingPrefix: string): Promise<void> {
   for (const entry of await readdir(stagingParent)) {
     if (entry.startsWith(stagingPrefix)) {
       await removeTreeWithoutFollowing(path.join(stagingParent, entry))
@@ -574,12 +787,22 @@ async function copyWorkspaceEntry(
   sourceWorkspaceRoot: string,
   destinationWorkspaceRoot: string,
   agentDataPath: string
-): Promise<void> {
-  await removeStaleWorkspaceStagingEntries(destinationWorkspaceRoot)
-  const stagingPath = path.join(
-    path.dirname(destinationWorkspaceRoot),
-    `.${path.basename(destinationWorkspaceRoot)}.migration-${randomUUID()}`
+): Promise<LegacyAgentFilesCleanupCandidate> {
+  const sourceSnapshot = await workspaceCopySourceSnapshot(
+    sourcePath,
+    destinationPath,
+    sourceWorkspaceRoot,
+    destinationWorkspaceRoot,
+    agentDataPath
   )
+  if (!sourceSnapshot) {
+    throw new Error(`Agent migration fingerprint source disappeared: ${sourcePath}`)
+  }
+
+  const stagingParent = path.dirname(destinationWorkspaceRoot)
+  const stagingPrefix = `.${path.basename(destinationWorkspaceRoot)}.migration-`
+  await removeStaleStagingEntries(stagingParent, stagingPrefix)
+  const stagingPath = path.join(stagingParent, `${stagingPrefix}${randomUUID()}`)
   try {
     await copyWorkspaceEntryPreservingLinks(
       sourcePath,
@@ -590,24 +813,49 @@ async function copyWorkspaceEntry(
       agentDataPath
     )
 
-    if (await lstatIfExists(destinationPath)) {
-      if (await workspaceEntriesEqual(stagingPath, destinationPath)) {
+    const currentSourceMetadata = await filesystemEntryMetadataFingerprint(sourcePath)
+    if (currentSourceMetadata !== sourceSnapshot.metadataFingerprint) {
+      throw new Error(`Legacy Agent workspace entry changed while being copied: ${sourcePath}`)
+    }
+
+    const stagingSnapshot = await requiredFilesystemEntrySnapshot(stagingPath)
+    if (stagingSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
+      throw new Error(`Legacy Agent workspace copy verification failed: ${sourcePath}`)
+    }
+
+    let destinationSnapshot = await filesystemEntrySnapshot(destinationPath)
+    if (destinationSnapshot) {
+      if (destinationSnapshot.fingerprint === sourceSnapshot.copiedFingerprint) {
         logger.info('Reusing identical workspace entry from an earlier migration attempt', {
           sourcePath,
           destinationPath
         })
-        return
+      } else {
+        throw new Error(`Legacy workspace migration conflict at ${destinationPath}`)
       }
-      throw new Error(`Legacy workspace migration conflict at ${destinationPath}`)
+    } else {
+      try {
+        await publishStagedWorkspaceEntry(stagingPath, destinationPath)
+      } catch (error) {
+        destinationSnapshot = await filesystemEntrySnapshot(destinationPath)
+        if (!destinationSnapshot || destinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
+          throw error
+        }
+      }
+      destinationSnapshot = await requiredFilesystemEntrySnapshot(destinationPath)
     }
 
-    try {
-      await publishStagedWorkspaceEntry(stagingPath, destinationPath)
-    } catch (error) {
-      if ((await lstatIfExists(destinationPath)) && (await workspaceEntriesEqual(stagingPath, destinationPath))) {
-        return
-      }
-      throw error
+    if (destinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
+      throw new Error(`Legacy Agent workspace entry changed while being published: ${destinationPath}`)
+    }
+    return {
+      entryName: path.basename(sourcePath),
+      sourceFingerprint: sourceSnapshot.sourceFingerprint,
+      sourceMetadataFingerprint: sourceSnapshot.metadataFingerprint,
+      sourceVerification: 'raw',
+      destinationPath,
+      copiedFingerprint: sourceSnapshot.copiedFingerprint,
+      destinationMetadataFingerprint: destinationSnapshot.metadataFingerprint
     }
   } finally {
     await removeTreeWithoutFollowing(stagingPath).catch(() => undefined)
@@ -628,31 +876,32 @@ async function copyOrdinaryWorkspaceContent(
   for (const entry of await readdir(sourceWorkspacePath)) {
     if (IDENTITY_ENTRY_NAMES.has(entry.toLowerCase())) continue
     const destinationPath = path.join(destinationWorkspacePath, entry)
-    await copyWorkspaceEntry(
-      path.join(sourceWorkspacePath, entry),
-      destinationPath,
-      sourceWorkspacePath,
-      destinationWorkspacePath,
-      agentDataPath
+    cleanupEntries.push(
+      await copyWorkspaceEntry(
+        path.join(sourceWorkspacePath, entry),
+        destinationPath,
+        sourceWorkspacePath,
+        destinationWorkspacePath,
+        agentDataPath
+      )
     )
-    cleanupEntries.push({ entryName: entry, destinationPath })
   }
   return cleanupEntries
 }
 
 function addCleanupEntries(
-  cleanupByWorkspace: Map<string, Map<string, string>>,
+  cleanupByWorkspace: Map<string, Map<string, LegacyAgentFilesCleanupCandidate>>,
   workspacePath: string,
   cleanupEntries: LegacyAgentFilesCleanupCandidate[]
 ): void {
   if (cleanupEntries.length === 0) return
-  const entries = cleanupByWorkspace.get(workspacePath) ?? new Map<string, string>()
-  for (const { entryName, destinationPath } of cleanupEntries) {
-    const existingDestination = entries.get(entryName)
-    if (existingDestination && path.resolve(existingDestination) !== path.resolve(destinationPath)) {
-      throw new Error(`Legacy Agent cleanup entry was copied to multiple destinations: ${entryName}`)
+  const entries = cleanupByWorkspace.get(workspacePath) ?? new Map<string, LegacyAgentFilesCleanupCandidate>()
+  for (const entry of cleanupEntries) {
+    const existing = entries.get(entry.entryName)
+    if (existing && path.resolve(existing.destinationPath) !== path.resolve(entry.destinationPath)) {
+      throw new Error(`Legacy Agent cleanup entry was copied to multiple destinations: ${entry.entryName}`)
     }
-    entries.set(entryName, destinationPath)
+    entries.set(entry.entryName, entry)
   }
   cleanupByWorkspace.set(workspacePath, entries)
 }
@@ -662,7 +911,7 @@ export async function stageLegacyAgentFiles(input: {
   agents: Array<{ sourceAgentId: string; finalAgentId: string }>
   sessions: AgentFileSessionPlan[]
 }): Promise<LegacyAgentFilesCleanupPlan> {
-  const cleanupByWorkspace = new Map<string, Map<string, string>>()
+  const cleanupByWorkspace = new Map<string, Map<string, LegacyAgentFilesCleanupCandidate>>()
   const plansByAgent = new Map<string, AgentFileSessionPlan[]>()
   for (const session of input.sessions) {
     const plans = plansByAgent.get(session.sourceAgentId) ?? []
@@ -672,9 +921,8 @@ export async function stageLegacyAgentFiles(input: {
 
   for (const { sourceAgentId, finalAgentId } of input.agents) {
     const agentPlans = plansByAgent.get(sourceAgentId) ?? []
-    const agentDataPath = await ensureAgentDataDirectory(input.agentsDataRoot, finalAgentId, {
-      createFiles: false
-    })
+    const agentDataPath = agentDataDirectoryPath(input.agentsDataRoot, finalAgentId)
+    await ensureAgentStorageDirectory(input.agentsDataRoot, agentDataPath)
     const defaultWorkspacePath = legacyAgentWorkspacePath(input.agentsDataRoot, sourceAgentId)
 
     const orderedSources = [...agentPlans]
@@ -731,18 +979,7 @@ export async function stageLegacyAgentFiles(input: {
   const workspaces: LegacyAgentFilesCleanupPlan['workspaces'] = []
   for (const [workspacePath, cleanupEntries] of cleanupByWorkspace) {
     const entries: LegacyAgentFilesCleanupPlan['workspaces'][number]['entries'] = []
-    for (const [entryName, destinationPath] of cleanupEntries) {
-      const sourceSnapshot = await requiredFilesystemEntrySnapshot(path.join(workspacePath, entryName))
-      const destinationSnapshot = await requiredFilesystemEntrySnapshot(destinationPath)
-      entries.push({
-        entryName,
-        sourceFingerprint: sourceSnapshot.fingerprint,
-        sourceMetadataFingerprint: sourceSnapshot.metadataFingerprint,
-        destinationPath,
-        destinationFingerprint: destinationSnapshot.fingerprint,
-        destinationMetadataFingerprint: destinationSnapshot.metadataFingerprint
-      })
-    }
+    entries.push(...cleanupEntries.values())
     workspaces.push({ workspacePath, entries })
   }
   return { agentsDataRoot: input.agentsDataRoot, workspaces }
@@ -750,8 +987,8 @@ export async function stageLegacyAgentFiles(input: {
 
 /**
  * Remove only source entries that were successfully copied during staging.
- * Called after the engine has verified all migrators and persisted its
- * completed marker. Failures are safe to retry or leave as v1 residue.
+ * Called after the engine has verified all migrators, but before it persists
+ * the completed marker. Failures keep the migration retryable.
  */
 export async function cleanupLegacyAgentFiles(plan: LegacyAgentFilesCleanupPlan): Promise<void> {
   for (const workspace of plan.workspaces) {
@@ -789,7 +1026,7 @@ export async function cleanupLegacyAgentFiles(plan: LegacyAgentFilesCleanupPlan)
 
       const destinationMatches = await filesystemEntryMatchesSnapshot(
         destinationPath,
-        entry.destinationFingerprint,
+        entry.copiedFingerprint,
         entry.destinationMetadataFingerprint
       )
       if (!destinationMatches) {
@@ -802,11 +1039,20 @@ export async function cleanupLegacyAgentFiles(plan: LegacyAgentFilesCleanupPlan)
       }
 
       const sourcePath = path.join(workspace.workspacePath, entryName)
-      const sourceMatches = await filesystemEntryMatchesSnapshot(
-        sourcePath,
-        entry.sourceFingerprint,
-        entry.sourceMetadataFingerprint
-      )
+      let sourceMatches: boolean
+      if (entry.sourceVerification === 'identity') {
+        const metadataFingerprint = await identitySourceMetadataFingerprint(sourcePath, workspace.workspacePath)
+        sourceMatches =
+          metadataFingerprint === entry.sourceMetadataFingerprint ||
+          (await identityCopySourceSnapshot(sourcePath, workspace.workspacePath))?.copiedFingerprint ===
+            entry.copiedFingerprint
+      } else {
+        sourceMatches = await filesystemEntryMatchesSnapshot(
+          sourcePath,
+          entry.sourceFingerprint,
+          entry.sourceMetadataFingerprint
+        )
+      }
       if (!sourceMatches) {
         logger.warn('Keeping legacy Agent entry because its source changed after migration staging', {
           workspacePath: workspace.workspacePath,

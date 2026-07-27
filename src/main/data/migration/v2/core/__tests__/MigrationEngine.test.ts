@@ -7,16 +7,6 @@ import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/Main
 import { MigrationEngine } from '../MigrationEngine'
 import type { MigrationPaths } from '../MigrationPaths'
 
-const finalizationMocks = vi.hoisted(() => ({
-  discard: vi.fn(),
-  finalize: vi.fn()
-}))
-
-vi.mock('../../migrators/agentFilesFinalization', () => ({
-  discardPendingAgentFilesFinalization: finalizationMocks.discard,
-  finalizePendingAgentFiles: finalizationMocks.finalize
-}))
-
 vi.mock('../MigrationContext', () => ({
   createMigrationContext: vi.fn().mockResolvedValue({})
 }))
@@ -75,6 +65,9 @@ function createTestMigrator(id: string, order: number, events: string[]) {
         errors: [],
         stats: { sourceCount: 0, targetCount: 0, skippedCount: 0 }
       }
+    }),
+    finalize: vi.fn(async () => {
+      events.push(`${id}:finalize`)
     })
   }
 }
@@ -83,8 +76,6 @@ describe('MigrationEngine', () => {
   let engine: MigrationEngine
 
   beforeEach(() => {
-    finalizationMocks.discard.mockReset()
-    finalizationMocks.finalize.mockReset()
     engine = new MigrationEngine()
 
     ;(engine as any)._paths = mockPaths
@@ -121,6 +112,8 @@ describe('MigrationEngine', () => {
       'chat:prepare',
       'chat:execute',
       'chat:validate',
+      'boot:finalize',
+      'chat:finalize',
       'boot:reset',
       'chat:reset',
       'boot:prepare',
@@ -128,7 +121,9 @@ describe('MigrationEngine', () => {
       'boot:validate',
       'chat:prepare',
       'chat:execute',
-      'chat:validate'
+      'chat:validate',
+      'boot:finalize',
+      'chat:finalize'
     ])
   })
 
@@ -243,37 +238,43 @@ describe('MigrationEngine', () => {
       expect(await freshEngine.needsMigration()).toBe(false)
       expect(markSpy).toHaveBeenCalledTimes(1)
     })
-
-    it('retries durable Agent file finalization without reopening migration', async () => {
-      const completedEngine = new MigrationEngine()
-      ;(completedEngine as any)._paths = mockPaths
-      ;(completedEngine as any).migrationDb = {
-        getDb: () => ({
-          select: () => ({
-            from: () => ({
-              where: () => ({
-                get: () => ({ value: { status: 'completed' } })
-              })
-            })
-          })
-        })
-      }
-      finalizationMocks.finalize.mockRejectedValueOnce(new Error('cleanup busy')).mockResolvedValueOnce(true)
-
-      await expect(completedEngine.needsMigration()).resolves.toBe(false)
-      await expect(completedEngine.needsMigration()).resolves.toBe(false)
-      expect(finalizationMocks.finalize).toHaveBeenCalledTimes(2)
-      expect(finalizationMocks.finalize).toHaveBeenLastCalledWith(expect.anything(), mockPaths.agentsDataDir)
-    })
   })
 
-  it('discards pending Agent file cleanup when the user skips migration', async () => {
+  it('marks migration completed when the user skips migration', async () => {
     const markSpy = vi.spyOn(engine as any, 'markCompleted').mockResolvedValue(undefined)
 
     await engine.skipMigration()
 
-    expect(finalizationMocks.discard).toHaveBeenCalledWith(expect.anything())
     expect(markSpy).toHaveBeenCalledOnce()
+  })
+
+  it('runs every finalizer after global validation and before marking completed', async () => {
+    const events: string[] = []
+    const migrator = createTestMigrator('agents', 1, events)
+    vi.mocked((engine as any).verifyForeignKeys).mockImplementation(() => {
+      events.push('foreign-keys')
+    })
+    vi.mocked((engine as any).markCompleted).mockImplementation(async () => {
+      events.push('completed')
+    })
+    engine.registerMigrators([migrator as any])
+
+    await expect(engine.run({}, '/tmp/dexie_export')).resolves.toMatchObject({ success: true })
+
+    expect(events.slice(-3)).toEqual(['foreign-keys', 'agents:finalize', 'completed'])
+  })
+
+  it('keeps migration retryable when a finalizer fails', async () => {
+    const events: string[] = []
+    const migrator = createTestMigrator('agents', 1, events)
+    migrator.finalize.mockRejectedValueOnce(new Error('filesystem cleanup failed'))
+    engine.registerMigrators([migrator as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result).toMatchObject({ success: false, error: 'filesystem cleanup failed' })
+    expect((engine as any).markCompleted).not.toHaveBeenCalled()
+    expect((engine as any).markFailed).toHaveBeenCalledWith('filesystem cleanup failed')
   })
 
   it('clears new architecture tables inside one transaction', async () => {

@@ -70,7 +70,7 @@ src/main/data/migration/v2/
 
 ## Core Contracts
 
-- `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and marks status in `app_state.key = 'migration_v2_status'`. It will clear new-schema tables before running and abort on any validation failure.
+- `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and uses `app_state.key = 'migration_v2_status'` as the only durable migration marker. It clears new-schema tables before running and aborts on validation, global foreign-key, or finalization failure.
 - `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `~/.cherrystudio/config/config.json`. Called once at the migration gate entry, before engine initialization. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
 - `core/MigrationContext.ts` builds the shared context passed to every migrator:
   - `sources`: `ConfigManager` (ElectronStore), `ReduxStateReader` (parsed Redux Persist data), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
@@ -87,6 +87,7 @@ src/main/data/migration/v2/
   - `prepare(ctx)`: dry-run checks, counts, and staging data; return `PrepareResult`
   - `execute(ctx)`: perform inserts/updates; manage your own transactions; report progress via `reportProgress`; self-check FK integrity of owned tables via `assertOwnedForeignKeys` (see Conventions → Foreign keys)
   - `validate(ctx)`: verify counts and integrity; return `ValidateResult` with stats (`sourceCount`, `targetCount`, `skippedCount`) and any `errors`
+  - `finalize(ctx)`: optional non-database cleanup after all migrators and the global foreign-key check succeed. The engine runs finalizers before recording completion, so a failure remains retryable.
 - Registration: list migrators (in order) in `migrators/migratorRegistry.ts` so the engine can sort and run them.
 - Current migrators (see `migrators/README-<name>.md` for detailed documentation):
   - `PreferencesMigrator` (implemented): maps ElectronStore + Redux settings to the `preference` table using `mappings/PreferencesMappings.ts`.

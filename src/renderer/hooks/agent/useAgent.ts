@@ -7,6 +7,7 @@
  */
 
 import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
@@ -19,7 +20,6 @@ import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { createAgentAndRefresh } from './createAgent'
 import { useAgentTools } from './useAgentTools'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }

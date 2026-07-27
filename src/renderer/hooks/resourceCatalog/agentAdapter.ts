@@ -1,5 +1,5 @@
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
-import { createAgentAndRefresh } from '@renderer/hooks/agent/createAgent'
+import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'

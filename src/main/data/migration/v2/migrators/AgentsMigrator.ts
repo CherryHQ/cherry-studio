@@ -4,7 +4,6 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
-import { systemWorkspacePath } from '@data/services/agentWorkspacePath'
 import { loggerService } from '@logger'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
@@ -16,10 +15,11 @@ import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
-import { replacePendingAgentFilesFinalization } from './agentFilesFinalization'
 import {
   type AgentFileSessionPlan,
+  cleanupLegacyAgentFiles,
   isManagedLegacyAgentWorkspace,
+  type LegacyAgentFilesCleanupPlan,
   legacyAgentWorkspacePath,
   stageLegacyAgentFiles
 } from './agentsFilesystemMigration'
@@ -70,12 +70,14 @@ export class AgentsMigrator extends BaseMigrator {
   private sourceDbPath: string | null | undefined = undefined
   private sourceSchemaInfo: AgentsSchemaInfo = createEmptyAgentsSchemaInfo()
   private reader: LegacyAgentsDbReader | null = null
+  private filesCleanupPlan: LegacyAgentFilesCleanupPlan | null = null
 
   override reset(): void {
     this.sourceCounts = this.createEmptyCounts()
     this.sourceDbPath = undefined
     this.sourceSchemaInfo = createEmptyAgentsSchemaInfo()
     this.reader = null
+    this.filesCleanupPlan = null
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -201,7 +203,7 @@ export class AgentsMigrator extends BaseMigrator {
       const idRemap = remapAgentPrefixIds(ctx.db)
       const finalSessionWorkspaces = finalizeSessionWorkspaces(ctx, derivedSessionWorkspaces, idRemap)
       ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, finalSessionWorkspaces)
-      const filesCleanupPlan = await stageLegacyAgentFiles({
+      this.filesCleanupPlan = await stageLegacyAgentFiles({
         agentsDataRoot: ctx.paths.agentsDataDir,
         agents: legacyAgentIds.map((sourceAgentId) => ({
           sourceAgentId,
@@ -209,8 +211,6 @@ export class AgentsMigrator extends BaseMigrator {
         })),
         sessions: toAgentFileSessionPlans(finalSessionWorkspaces)
       })
-      replacePendingAgentFilesFinalization(ctx.db, filesCleanupPlan)
-
       // Self-check agent-domain referential integrity after import + remap. FK is OFF for
       // the whole migration, so violations only surface here (and at the engine's final
       // verifyForeignKeys). foreign_key_check is read-only and stays on this connection, so
@@ -420,6 +420,12 @@ export class AgentsMigrator extends BaseMigrator {
         mismatchReason: errors.length > 0 ? 'One or more agent_* tables did not match expected row counts' : undefined
       }
     }
+  }
+
+  override async finalize(): Promise<void> {
+    if (!this.filesCleanupPlan) return
+    await cleanupLegacyAgentFiles(this.filesCleanupPlan)
+    this.filesCleanupPlan = null
   }
 
   private createReader(ctx: MigrationContext): LegacyAgentsDbReader {
@@ -765,7 +771,14 @@ function legacyTimestampToMs(value: string | number | null, fallback: number): n
 }
 
 function defaultWorkspacePathForSession(systemWorkspacesDir: string, sessionId: string, createdAt: number): string {
-  return systemWorkspacePath(systemWorkspacesDir, sessionId, createdAt)
+  if (!sessionId || sessionId === '.' || sessionId === '..' || /[\\/]/.test(sessionId)) {
+    throw new Error(`Invalid agent session id for system workspace: ${sessionId}`)
+  }
+  const date = new Date(createdAt)
+  const year = String(date.getUTCFullYear()).padStart(4, '0')
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  return path.join(systemWorkspacesDir, `${year}-${month}-${day}`, sessionId)
 }
 
 function countExpectedSessionWorkspacePaths(derived: DerivedSessionWorkspaces): Map<string, number> {

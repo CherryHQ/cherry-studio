@@ -15,7 +15,6 @@ const engineMock = vi.hoisted(() => ({
   needsMigration: vi.fn(),
   getLastError: vi.fn(),
   skipMigration: vi.fn(),
-  finalizeCompletedMigration: vi.fn(),
   close: vi.fn()
 }))
 const fsMock = vi.hoisted(() => ({
@@ -455,7 +454,6 @@ describe('MigrationIpcHandler', () => {
       durationMs: 4200
     })
     expect(progress.warnings).toEqual(['w1'])
-    expect(engineMock.finalizeCompletedMigration).toHaveBeenCalledOnce()
   })
 
   it('uses the live migrator count for totalMigrators, distinct from completedMigrators', async () => {
@@ -528,8 +526,6 @@ describe('MigrationIpcHandler', () => {
 
       await invoke(MigrationIpcChannels.StartMigration, { reduxData: {}, dexieExportPath: '/dexie' })
       await invoke(MigrationIpcChannels.SkipMigration)
-
-      expect(engineMock.finalizeCompletedMigration).not.toHaveBeenCalled()
     })
 
     it('broadcasts the error stage with carried migrators/progress when the run reports failure', async () => {

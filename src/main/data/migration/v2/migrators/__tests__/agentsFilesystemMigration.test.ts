@@ -1,9 +1,22 @@
-import { access, lstat, mkdir, mkdtemp, readdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises'
+import type * as FsPromises from 'node:fs/promises'
+import {
+  access,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  readlink,
+  rm,
+  stat,
+  symlink,
+  utimes,
+  writeFile
+} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { systemWorkspacePath } from '@data/services/agentWorkspacePath'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   type AgentFileSessionPlan,
@@ -14,6 +27,21 @@ import {
   stageLegacyAgentFiles
 } from '../agentsFilesystemMigration'
 
+const copyMutation = vi.hoisted(() => ({
+  afterCopy: undefined as undefined | ((sourcePath: string) => Promise<void>)
+}))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const original = await importOriginal<typeof FsPromises>()
+  return {
+    ...original,
+    cp: async (...args: Parameters<typeof original.cp>) => {
+      await original.cp(...args)
+      await copyMutation.afterCopy?.(String(args[0]))
+    }
+  }
+})
+
 const SOURCE_AGENT_ID = 'agent_1234567890_keykxlx33'
 const FINAL_AGENT_ID = '5f83c9de-f186-5d86-813f-1a19f190c68c'
 const FINAL_OLD_SESSION_ID = '9a075ce3-c42d-545b-a0b5-f39e43e4a917'
@@ -21,6 +49,10 @@ const FINAL_LATEST_SESSION_ID = '01257168-34a7-5ff9-994d-bf78596c777c'
 
 function cleanupEntryNames(plan: LegacyAgentFilesCleanupPlan): string[] {
   return plan.workspaces.flatMap((workspace) => workspace.entries.map((entry) => entry.entryName))
+}
+
+function systemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
+  return path.join(systemWorkspacesRoot, new Date(createdAt).toISOString().slice(0, 10), sessionId)
 }
 
 describe('agentsFilesystemMigration', () => {
@@ -66,6 +98,7 @@ describe('agentsFilesystemMigration', () => {
   }
 
   afterEach(async () => {
+    copyMutation.afterCopy = undefined
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
   })
 
@@ -317,6 +350,102 @@ describe('agentsFilesystemMigration', () => {
 
     await expect(access(legacyWorkspace)).rejects.toThrow()
     expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'completed.txt'), 'utf8')).toBe('copied value')
+  })
+
+  it('aborts before publishing when a source changes during the copy window', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourcePath = path.join(legacyWorkspace, 'race.txt')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourcePath, 'copied value')
+    const originalStat = await stat(sourcePath)
+    copyMutation.afterCopy = async (copiedSourcePath) => {
+      if (copiedSourcePath !== sourcePath) return
+      await writeFile(sourcePath, 'newest value')
+      await utimes(sourcePath, originalStat.atime, originalStat.mtime)
+    }
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [latestSession]
+      })
+    ).rejects.toThrow(/changed while being copied/)
+
+    expect(await readFile(sourcePath, 'utf8')).toBe('newest value')
+    await expect(access(path.join(latestSession.systemWorkspacePath!, 'race.txt'))).rejects.toThrow()
+  })
+
+  it('keeps a same-size source change even when its mtime is restored after staging', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourcePath = path.join(legacyWorkspace, 'SOUL.md')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourcePath, 'copied source')
+    const cleanupPlan = await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: []
+    })
+    const stagedStat = await stat(sourcePath)
+
+    await writeFile(sourcePath, 'newest source')
+    await utimes(sourcePath, stagedStat.atime, stagedStat.mtime)
+    await cleanupLegacyAgentFiles(cleanupPlan)
+
+    expect(await readFile(sourcePath, 'utf8')).toBe('newest source')
+  })
+
+  it('keeps a source entry when its migrated destination disappears or changes', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const soulPath = path.join(legacyWorkspace, 'SOUL.md')
+    const userPath = path.join(legacyWorkspace, 'USER.md')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(soulPath, 'copied soul')
+    await writeFile(userPath, 'copied user')
+    const cleanupPlan = await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: []
+    })
+    const entries = cleanupPlan.workspaces[0]?.entries ?? []
+    const soulDestination = entries.find((entry) => entry.entryName === 'SOUL.md')?.destinationPath
+    const userDestination = entries.find((entry) => entry.entryName === 'USER.md')?.destinationPath
+    expect(soulDestination).toBeDefined()
+    expect(userDestination).toBeDefined()
+
+    await rm(soulDestination!)
+    const destinationStat = await stat(userDestination!)
+    await writeFile(userDestination!, 'changed user')
+    await utimes(userDestination!, destinationStat.atime, destinationStat.mtime)
+    await cleanupLegacyAgentFiles(cleanupPlan)
+
+    expect(await readFile(soulPath, 'utf8')).toBe('copied soul')
+    expect(await readFile(userPath, 'utf8')).toBe('copied user')
+  })
+
+  it('falls back to content verification when only source metadata changed', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourcePath = path.join(legacyWorkspace, 'SOUL.md')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourcePath, 'copied source')
+    const cleanupPlan = await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: []
+    })
+    const sourceEntry = cleanupPlan.workspaces[0]?.entries[0]
+    expect(sourceEntry).toBeDefined()
+    sourceEntry.sourceMetadataFingerprint = '0'.repeat(64)
+
+    await cleanupLegacyAgentFiles(cleanupPlan)
+
+    await expect(access(sourcePath)).rejects.toThrow()
   })
 
   it.runIf(process.platform !== 'win32')(

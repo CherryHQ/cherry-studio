@@ -64,20 +64,40 @@ different files keep the v1 source in place.
 
 ## Finalization and retry contract
 
-Filesystem staging is copy-only. After staging, the exact cleanup plan is
-stored in `app_state` under `migration_v2_agent_files_finalization`, replacing
-any plan from an earlier attempt.
+Filesystem staging is copy-only. Each entry records its source content and
+metadata before copying, verifies that the source metadata is unchanged after
+the copy, and requires the staging entry and published destination to match the
+same copied-content fingerprint. A source that changes inside that window
+aborts the migration instead of producing a cleanup candidate.
 
-The engine writes the normal migration completion marker only after every
-migrator, validation, and foreign-key check succeeds. It then executes the
-stored cleanup plan. If cleanup fails, the plan remains durable and
-`needsMigration()` retries it on later launches without rerunning migration.
-Choosing **Skip Migration** deletes the pending plan without deleting v1
-sources.
+`AgentsMigrator` keeps the cleanup plan in run-local state. After every
+migrator validates and the global foreign-key check succeeds, the engine calls
+each migrator's `finalize()` hook. Only after finalization succeeds does it
+write `app_state.key = 'migration_v2_status'` as completed. A finalization
+failure marks the migration failed, so retry reruns the idempotent migration;
+there is no second durable migration marker.
 
 Cleanup removes only entry names that the same run copied or verified as
 identical. Every managed root is checked with `lstat` and physical containment
-before removal; links are removed as link objects and never followed.
+before removal; links are removed as link objects and never followed. It checks
+the destination first and the source second. Unchanged metadata takes the fast
+path; metadata changes fall back to content fingerprints, and any content
+change preserves the source.
+
+## Deferred Agent directory GC
+
+This migrator removes only copy-verified v1 entries. General orphan cleanup for
+`Data/Agents` is intentionally deferred until the File GC lifecycle in #16727
+is available. The database already provides lossless ownership:
+
+- `agent.id` owns `Data/Agents/{agentId}`.
+- `agent_workspace` rows own managed system-workspace paths.
+
+That means the later GC can derive live roots from committed rows and remove
+only unowned directories through the shared scan/retry/idle lifecycle.
+Deferring it retains possible residue but does not discard owned data; adding a
+second migration-specific scanner now would duplicate lifecycle and retry
+semantics.
 
 ## Important field mappings
 
@@ -107,6 +127,4 @@ Related user-visible behavior is recorded under
 - `AgentsMigrator.ts` — database preparation, import, validation, and ID remap orchestration.
 - `mappings/AgentsDbMappings.ts` — v1 schema inspection and SQL mapping definitions.
 - `agentsFilesystemMigration.ts` — copy-only identity/workspace staging and safe cleanup.
-- `agentFilesFinalization.ts` — durable cleanup journal and restart finalization.
 - `remapAgentPrefixIds.ts` — deterministic ID and foreign-key remapping.
-

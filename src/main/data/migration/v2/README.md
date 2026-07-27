@@ -103,7 +103,7 @@ Path Safety section above.
 ### Creating a New Migrator
 
 1. Extend `BaseMigrator` in `migrators/`
-2. Implement `prepare`, `execute`, `validate` methods
+2. Implement `prepare`, `execute`, `validate` methods and override `finalize` only for required post-validation cleanup
 3. Add it to the `getAllMigrators()` list in `migrators/migratorRegistry.ts`
 4. Use `ctx.paths` for all filesystem paths — **NEVER** call `app.getPath()` directly
 
@@ -112,6 +112,7 @@ Path Safety section above.
 - `prepare(ctx)`: Dry-run checks, return counts
 - `execute(ctx)`: Perform inserts, report progress
 - `validate(ctx)`: Verify counts and integrity
+- `finalize(ctx)`: Optional cleanup after global validation and before the completed marker
 
 `AssistantMigrator` also owns v1 assistant tag-group migration: it inserts `group(entityType='assistant')` rows and assigns their IDs to `assistant.groupId` in the same transaction.
 

@@ -22,10 +22,6 @@ vi.mock('@application', async () => {
   return mockApplicationFactory(overrides)
 })
 
-vi.mock('../agentFilesFinalization', () => ({
-  replacePendingAgentFilesFinalization: vi.fn()
-}))
-
 import { LegacyAgentsDbReader } from '../../utils/LegacyAgentsDbReader'
 import { AgentsMigrator, backfillAgentOrderKeys, migrateAgentMcps } from '../AgentsMigrator'
 import { AGENTS_TABLE_MIGRATION_SPECS } from '../mappings/AgentsDbMappings'
