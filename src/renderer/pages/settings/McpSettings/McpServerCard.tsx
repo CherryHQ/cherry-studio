@@ -14,7 +14,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { CircleXIcon, SquareArrowOutUpRight } from 'lucide-react'
+import { CircleXIcon, ExternalLink } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -244,7 +244,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
               className="size-7 rounded-md text-muted-foreground shadow-none hover:text-foreground"
               onClick={handleOpenUrl}
               data-no-dnd>
-              <SquareArrowOutUpRight size={13} />
+              <ExternalLink size={13} />
             </Button>
           )}
         </SourceCell>
@@ -280,7 +280,7 @@ const ServerNameCell = ({ className, ...props }: React.ComponentPropsWithoutRef<
 )
 
 const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 truncate font-bold text-[14px] leading-5', className)} {...props} />
+  <span className={cn('min-w-0 truncate text-[14px] leading-5', className)} {...props} />
 )
 
 const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
@@ -326,7 +326,7 @@ const ActiveDot = ({
 const MetaBadge = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Badge>) => (
   <Badge
     variant="secondary"
-    className={cn('h-5 max-w-full rounded-md border-transparent px-2 font-medium text-[11px] leading-none', className)}
+    className={cn('h-5 max-w-full rounded-md border-transparent px-2 text-[11px] leading-none', className)}
     {...props}
   />
 )

@@ -390,6 +390,7 @@ describe('AppShellTabBar', () => {
     const normalTab = screen.getByRole('button', { name: 'A' })
     const pinnedTab = screen.getByRole('button', { name: 'P' })
 
+    expect(tabStrip.closest('header')).toHaveAttribute('data-ui', 'app.tab-bar')
     expect(tabStrip).not.toHaveClass('nodrag')
     expect(tabStrip).not.toHaveClass('[-webkit-app-region:no-drag]')
     expect(chatTab).toHaveClass('nodrag')
@@ -531,7 +532,7 @@ describe('AppShellTabBar', () => {
     expect(icon).toHaveClass('shrink-0')
   })
 
-  it('requests ResourceList reveal when selecting a chat or agent tab from the window tab bar', async () => {
+  it('does not request ResourceList reveal when switching chat or agent tabs', () => {
     const setActiveTab = vi.fn()
     const tabs: Tab[] = [
       { id: 'files', type: 'route', url: '/app/files', title: 'Files' },
@@ -558,8 +559,7 @@ describe('AppShellTabBar', () => {
 
     expect(setActiveTab).toHaveBeenCalledWith('chat')
     expect(setActiveTab).toHaveBeenCalledWith('agents')
-    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'assistants', tabId: 'chat' })
-    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'agents' })
+    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
   it('keeps close and pin menu actions when only a single tab is open', () => {

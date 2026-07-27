@@ -99,6 +99,8 @@ interface AgentMessageListParams {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
+  localSendGeneration?: number
+  onBindRuntime?: MessageListActions['bindRuntime']
   assistantProfile?: {
     name?: string
     avatar?: string
@@ -135,6 +137,8 @@ export function useAgentMessageListProviderValue({
   messages,
   partsByMessageId,
   streamingLayers,
+  localSendGeneration,
+  onBindRuntime,
   assistantProfile,
   assistantId,
   isLoading,
@@ -291,8 +295,9 @@ export function useAgentMessageListProviderValue({
 
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
+      const unbindExternalRuntime = onBindRuntime?.(runtime)
       if (imageActionConsumer === 'capture') {
-        return bindCaptureMessageImageRuntime({
+        const unbindCaptureRuntime = bindCaptureMessageImageRuntime({
           cancelMessage: 'Agent session image export was cancelled',
           consumePendingActions: consumePendingAgentSessionImageActions,
           rejectPendingActions: rejectPendingAgentSessionImageActions,
@@ -300,6 +305,12 @@ export function useAgentMessageListProviderValue({
           settleActionRequest: settleAgentSessionImageActionRequest,
           targetId: sessionId
         })
+        return () => {
+          unbindCaptureRuntime()
+          if (typeof unbindExternalRuntime === 'function') {
+            unbindExternalRuntime()
+          }
+        }
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
@@ -308,9 +319,12 @@ export function useAgentMessageListProviderValue({
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
+        if (typeof unbindExternalRuntime === 'function') {
+          unbindExternalRuntime()
+        }
       }
     },
-    [imageActionConsumer, sessionId, topic.id]
+    [imageActionConsumer, onBindRuntime, sessionId, topic.id]
   )
 
   const bindMessageRuntime = useCallback(
@@ -366,6 +380,7 @@ export function useAgentMessageListProviderValue({
       loadOlderDelayMs: 0,
       loadingResetDelayMs: 600,
       listKey: topic.id,
+      localSendGeneration,
       readonly: true,
       renderConfig,
       menuConfig,
@@ -379,6 +394,7 @@ export function useAgentMessageListProviderValue({
       hasOlder,
       isLoading,
       leafCapabilities,
+      localSendGeneration,
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageNavigation,
