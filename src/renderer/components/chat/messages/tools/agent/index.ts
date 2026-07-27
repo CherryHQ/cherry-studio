@@ -2,6 +2,7 @@ export { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from 
 export { AgentExecutionTimeline, AgentToolRenderer } from './AgentExecutionTimeline'
 export { AskUserQuestionCard } from './AskUserQuestionCard'
 export { AskUserQuestionOptimisticInputProvider } from './AskUserQuestionOptimisticContext'
+export { MessageChannelConfigTool } from './MessageChannelConfigTool'
 export { isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportArtifacts'
 export { getTaskActiveText, getTaskId, getTaskTitle, isTaskRecord, normalizeTaskStatus } from './taskData'
 export { isValidAgentToolsType, renderTool, toolRenderers } from './toolRendererRegistry'
