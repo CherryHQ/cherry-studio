@@ -172,7 +172,34 @@ reset before release ([CLAUDE.md → v2 Refactoring](../../../CLAUDE.md)), the f
 bumped incompatibly rather than accepting archives whose chain identity can no longer be
 interpreted.
 
-### 5.1 Manifest contents
+### 5.1 Archive layout
+
+A published archive is a single ZIP named `<name>.cherrybackup`, mode `0600`
+(`src/main/services/backup/archiveLayout.ts`):
+
+```text
+<name>.cherrybackup            (zip, level 1, zip64)
+├── manifest.json              (strict ManifestV2, at root)
+├── backup.sqlite              (portable DB snapshot)
+└── resources/<payload…>       (Full only; each payload's manifest archivePath is under here)
+```
+
+Lite carries `manifest.json` + `backup.sqlite` only. Publication is **atomic** and
+strictly **no-clobber**: the producer writes into an operation-owned `mkdtemp`
+directory beside the destination (same filesystem) and commits with a single
+`link()`. It never overwrites or deletes a pre-existing sibling or destination,
+and it only ever removes its own temp tree. When a volume cannot hard-link
+(exFAT / some network mounts) publication **fails closed** with a typed
+`HardLinkUnsupportedError` — there is deliberately **no** `copyFile` fallback
+(Node documents `copyFile` as non-atomic), so the frozen atomic contract holds
+and no visible partial archive is ever produced. Before writing, the producer
+verifies the DB payload is a regular file whose size and SHA-256 match the
+manifest, and that the Full resource-presence shape (declared payloads ⇔ staged
+`resources/`) agrees. The producer does NOT run the disk preflight — the export
+orchestrator (Phase 2) sizes the whole export and calls `assertDiskHeadroom`
+before staging; a mid-write `ENOSPC` is the producer's `DiskFullError` backstop.
+
+### 5.1.1 Manifest contents
 
 | Field group | Records |
 |---|---|
@@ -182,11 +209,42 @@ interpreted.
 | DB payload | Hash + size of the portable DB payload |
 | Resource requirements | Existence-oriented requirement inventory (both presets) |
 | Resource payloads (Full) | Included payload inventory + cryptographic hashes |
-| Directory-unit hash spec | Canonical: sorted relative regular-file paths + content, excluding only explicitly derived paths |
+| Directory-unit hash spec | See §5.1.2 |
 | Exclusions/degradations | Explicit product-allowed exclusions and degraded sections |
 
-Archives contain **plaintext credentials**. Output mode `0600` protects local permissions
-only; export and restore UI MUST warn that copied archives expose API keys.
+All cryptographic hashes are **SHA-256, 64 lowercase hex** (the `hashDbFile`
+representation). Archives contain **plaintext credentials**. Output mode `0600`
+protects local permissions only; export and restore UI MUST warn that copied
+archives expose API keys.
+
+### 5.1.2 Canonical directory-unit hash
+
+A directory payload (a Knowledge base, a Skill, a Notes tree) is content-addressed
+by one SHA-256 (`hashDirectoryUnit`). The producer (over the staged tree) and
+admission (over the extracted tree) compute the identical digest via one shared
+scanner (`dirScan.ts`), so they can never disagree on membership or order:
+
+- the unit's **regular files only** — symlink/special nodes and a symlinked root
+  are rejected; **every** relative path (files *and* directories) must pass the
+  Phase-1a portable-path rules and share ONE case/NFC-collision namespace (so an
+  empty directory with a reserved/overlong/colliding name is rejected too); the
+  shared per-entry / total-byte / path depth+length ceilings and an **entry count
+  that includes directory entries** apply during the scan;
+- files sorted by their POSIX relative path (UTF-8 byte order);
+- each file framed **unambiguously** and concatenated into the digest as
+  `u64be(len(relPath)) ‖ relPath ‖ u64be(byteLen(content)) ‖ content`, where
+  `u64be` is an 8-byte big-endian length — the length prefixes make it impossible
+  to shift a path/content boundary to forge a colliding tree.
+
+Node metadata identity uses **bigint** stat (`dev`/`ino`/`size`/`mtimeNs`/`ctimeNs`)
+so a same-size fast rewrite or a metadata-only change is observable to a re-scan.
+
+**Knowledge derived-index exclusion is opt-in and root-exact.** Only the Knowledge
+adapter's `excludeKnowledgeDerivedIndex` option drops artifacts, and it matches
+**only** the exact unit-root paths `.cherry/index.sqlite`, `.cherry/index.sqlite-wal`,
+`.cherry/index.sqlite-shm` (a Knowledge unit is one `{baseId}` directory, §6.7).
+It defaults to **off**; a nested `sub/.cherry/index.sqlite` or any `.cherry`
+content in a Skills/Notes unit is authoritative and never dropped.
 
 ### 5.2 Admission — rejected before journal creation
 
