@@ -213,12 +213,11 @@ export interface AgentConfigurationPatch {
  */
 export function sanitizeAgentAutomation(raw: unknown): CapabilitySanitization<AgentConfigurationPatch> {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
-  if (data === undefined) {
-    // Root is not an object (or is absent): nothing can be preserved, and the
-    // column is NOT NULL with a `{}` default, so `{}` is the fail-closed value.
-    return { patch: { configuration: {} }, malformedFields: invalidKeys }
-  }
 
+  // `data === undefined` means the stored root was absent or not an object, so
+  // nothing can be preserved. It must NOT short-circuit to `{}`: the automation
+  // resets below are opt-OUT, so an empty object would leave the heartbeat ARMED.
+  // Starting from `{}` and applying the same resets is the fail-closed value.
   const configuration: Record<string, unknown> = { ...data }
 
   // Written `false` is REQUIRED, not merely "absent": the reader is opt-OUT —

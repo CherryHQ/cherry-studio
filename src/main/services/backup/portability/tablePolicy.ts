@@ -203,17 +203,38 @@ export const JOB_SCHEDULE_AUTOMATION_PATCH = Object.freeze({ enabled: false } as
 const KNOWLEDGE_ITEM_AUTO_EXECUTING_STATUS = 'deleting' satisfies KnowledgeItemStatus
 
 /**
- * The status a `knowledge_item` row is reset to, or `null` when it needs no
+ * The reason written alongside the reset status. `knowledge_item.error` is a
+ * plain non-empty reason string by convention
+ * (`KnowledgeItemService.failInterruptedItems`, src/main/data/services/KnowledgeItemService.ts:226-237),
+ * not a code the UI translates.
+ */
+const KNOWLEDGE_ITEM_RESET_ERROR = 'Deletion was interrupted by a backup restore; retry it on this device'
+
+/** The status/error pair a `knowledge_item` row is reset to. */
+export interface KnowledgeItemStatusReset {
+  readonly status: Extract<KnowledgeItemStatus, 'failed'>
+  readonly error: string
+}
+
+/**
+ * The reset for one `knowledge_item.status`, or `null` when the row needs no
  * change.
  *
  * `failed` — the same terminal state the owner uses for interrupted work — and
  * NOT `idle`: the delete genuinely did not complete, `failed` stops
  * `recoverDeletingItems` from firing, and it keeps the row out of any automatic
  * re-index. The user can retry the deletion on the target device.
+ *
+ * `status` and `error` MUST move together: `knowledge_item_status_error_check`
+ * admits `failed` only with a non-blank `error` (and requires `error IS NULL` for
+ * every other status), so writing the status alone would abort the whole
+ * materialization transaction and make any archive containing a `deleting` item
+ * unrestorable.
  */
-export function resetKnowledgeItemStatus(status: unknown): Extract<KnowledgeItemStatus, 'failed'> | null {
-  // Return type is pinned to the schema's own union, so removing either literal
-  // from KNOWLEDGE_ITEM_STATUSES breaks this at typecheck rather than emitting a
-  // value the `knowledge_item_status_check` CHECK constraint would reject.
-  return status === KNOWLEDGE_ITEM_AUTO_EXECUTING_STATUS ? 'failed' : null
+export function resetKnowledgeItemStatus(status: unknown): KnowledgeItemStatusReset | null {
+  // The status type is pinned to the schema's own union, so removing either
+  // literal from KNOWLEDGE_ITEM_STATUSES breaks this at typecheck rather than
+  // emitting a value `knowledge_item_status_check` would reject.
+  if (status !== KNOWLEDGE_ITEM_AUTO_EXECUTING_STATUS) return null
+  return { status: 'failed', error: KNOWLEDGE_ITEM_RESET_ERROR }
 }
