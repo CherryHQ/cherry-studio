@@ -2140,7 +2140,7 @@
     "terminal": "терминал",
     "terminal_hint": "Выберите, в каком терминале запускать интерфейс командной строки",
     "terminal_placeholder": "Выбор приложения терминала",
-    "title": "Инструменты кода",
+    "title": "Code Mate",
     "tool_parameters": "Настройки параметров",
     "up_to_date": "Актуальный",
     "update_options": "Параметры обновления",
@@ -8061,7 +8061,7 @@
   "title": {
     "apps": "Приложения",
     "chat": "Чат",
-    "code": "Code",
+    "code": "Code Mate",
     "files": "Файлы",
     "home": "Главная",
     "knowledge": "База знаний",
