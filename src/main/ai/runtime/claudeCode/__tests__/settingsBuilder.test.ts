@@ -223,8 +223,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
     mocks.platform.isMac = false
-    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
-    mocks.getBinaryPath.mockImplementation(async (name: string) => `/usr/local/bin/${name}`)
+    mocks.getShellEnv.mockResolvedValue({})
+    mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.getAppLanguage.mockReturnValue('en-US')
@@ -343,35 +343,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'sonnet-api',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'sonnet-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'haiku-api'
-    })
-  })
-
-  it('prepends package-runner shims and points them at the bundled runtimes', async () => {
-    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin:/app/feature.binary.data/shims' })
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      type: 'claude-code',
-      instructions: 'Follow instructions.',
-      model: 'anthropic::claude-sonnet',
-      planModel: 'anthropic::claude-sonnet',
-      smallModel: 'anthropic::claude-haiku',
-      mcps: [],
-      allowedTools: [],
-      configuration: { env_vars: { PATH: '/custom/bin' } }
-    })
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-
-    expect(settings.env?.PATH?.split(':')[0]).toBe('/app/app.root.resources.agent_cli_shims')
-    expect(settings.env?.PATH).toContain('/custom/bin')
-    expect(settings.env).toMatchObject({
-      CHERRY_STUDIO_BUN_PATH: '/usr/local/bin/bun',
-      CHERRY_STUDIO_UVX_PATH: '/usr/local/bin/uvx'
     })
   })
 
@@ -922,7 +893,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // headlessInteractiveToolHook + headlessConfigMutationHook + disabledToolHook + workspacePathHook + dependencyIsolationHook + bashRewriteHook + steerHook
+    // headlessInteractiveToolHook + headlessConfigMutationHook + disabledToolHook + workspacePathHook + dependencyIsolationHook + rtkRewriteHook + steerHook
     expect(preToolUse).toHaveLength(7)
 
     const steerHook = preToolUse![6] as unknown as (input: {
@@ -956,40 +927,21 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspace: { type: 'user', path: '/workspace/project' }
     }
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const bashRewriteHook = settings.hooks?.PreToolUse?.[0]?.hooks?.[5]
+    const rtkRewriteHook = settings.hooks?.PreToolUse?.[0]?.hooks?.[5]
 
-    const output = await bashRewriteHook?.(
-      { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npx eslint .' } } as never,
+    const output = await rtkRewriteHook?.(
+      { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'eslint .' } } as never,
       'tool-use-1',
       {} as never
     )
 
-    expect(mocks.rtkRewrite).toHaveBeenCalledWith('npx eslint .')
+    expect(mocks.rtkRewrite).toHaveBeenCalledWith('eslint .')
     expect(output).toEqual({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         updatedInput: { command: 'rtk eslint .' }
       }
     })
-  })
-
-  it('does not deny npx forms that are handled later by PATH resolution', async () => {
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const bashRewriteHook = settings.hooks?.PreToolUse?.[0]?.hooks?.[5]
-
-    const output = await bashRewriteHook?.(
-      { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npx --call "echo hi"' } } as never,
-      'tool-use-1',
-      {} as never
-    )
-
-    expect(output).toEqual({})
-    expect(mocks.rtkRewrite).toHaveBeenCalledWith('npx --call "echo hi"')
   })
 
   it('keeps an empty-text steer pending when the PreToolUse hook cannot inject it', async () => {

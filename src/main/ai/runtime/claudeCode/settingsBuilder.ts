@@ -54,7 +54,6 @@ import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getAppLanguage, t } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import { dedupePathSegments } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
@@ -537,8 +536,7 @@ function workspacePathErrorMessage(path: string, status: PathStatus): string {
 async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise<Record<string, string | undefined>> {
   const loginShellEnv = await getShellEnv()
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
-  const [bunPath, uvxPath] = await Promise.all([getBinaryPath('bun'), getBinaryPath('uvx')])
-  const packageRunnerShims = toAsarUnpackedPath(application.getPath('app.root.resources.agent_cli_shims'))
+  const bunPath = await getBinaryPath('bun')
 
   // API key and base URL are injected by the agent-session runtime query builder.
   // This function only builds agent-specific env vars.
@@ -583,7 +581,6 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     ENABLE_TOOL_SEARCH: 'auto',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
-    CHERRY_STUDIO_UVX_PATH: uvxPath,
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
   }
 
@@ -608,7 +605,6 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
       'CHERRY_STUDIO_NODE_PROXY_RULES',
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
       'CHERRY_STUDIO_BUN_PATH',
-      'CHERRY_STUDIO_UVX_PATH',
       'NODE_OPTIONS',
       '__PROTO__',
       'CONSTRUCTOR',
@@ -648,17 +644,6 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
       env.CLAUDE_CONFIG_DIR = loginShellEnv.CLAUDE_CONFIG_DIR || path.join(application.getPath('sys.home'), '.claude')
     }
   }
-
-  // Apply after user env vars so every Agent Bash process resolves the package
-  // runner shims first even when the user supplies a custom PATH.
-  const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
-  const pathSeparator = isWin ? ';' : path.delimiter
-  const runnerPath = dedupePathSegments([
-    packageRunnerShims,
-    ...pathKeys.flatMap((key) => (typeof env[key] === 'string' ? env[key].split(pathSeparator) : []))
-  ]).join(pathSeparator)
-  for (const key of pathKeys) env[key] = runnerPath
-  if (pathKeys.length === 0 || !isWin) env.PATH = runnerPath
 
   return env
 }
@@ -841,9 +826,7 @@ async function buildToolPermissions(
     }
   }
 
-  // Keep RTK as the only Bash text rewrite. npx and pipx run are intercepted at
-  // command resolution by the agent-only PATH shims, including inside scripts.
-  const bashRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+  const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (toolName !== 'Bash') return {}
@@ -852,11 +835,8 @@ async function buildToolPermissions(
     if (typeof command !== 'string' || !command.trim()) return {}
 
     const rewritten = await rtkRewrite(command)
-    if (!rewritten || rewritten === command) return {}
-    logger.info('Rewrote Bash command', {
-      original: command,
-      rewritten
-    })
+    if (!rewritten) return {}
+    logger.info('rtk rewrote Bash command', { original: command, rewritten })
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
@@ -993,7 +973,7 @@ async function buildToolPermissions(
             disabledToolHook,
             workspacePathHook,
             dependencyIsolationHook,
-            bashRewriteHook,
+            rtkRewriteHook,
             steerHook
           ]
         }

@@ -638,20 +638,15 @@ export class BinaryManager extends BaseService {
       const canonicalName = isWin ? name.toLowerCase() : name
       const runnable = name in bundled || (active !== undefined && shimNames.has(canonicalName))
       const operation = operations[name]
-      const status: ManagedCliStatus =
-        operation?.status === 'installing'
-          ? 'installing'
-          : operation?.status === 'removing'
-            ? 'removing'
-            : operation?.status === 'failed'
-              ? 'failed'
-              : runnable
-                ? 'ready'
-                : !this.miseBin || queryFailed
-                  ? 'unknown'
-                  : installs?.length
-                    ? 'failed'
-                    : 'not_installed'
+      const statusRules: ReadonlyArray<readonly [matches: boolean, status: ManagedCliStatus]> = [
+        [operation?.status === 'installing', 'installing'],
+        [operation?.status === 'removing', 'removing'],
+        [operation?.status === 'failed', 'failed'],
+        [runnable, 'ready'],
+        [!this.miseBin || queryFailed, 'unknown'],
+        [Boolean(installs?.length), 'failed']
+      ]
+      const status = statusRules.find(([matches]) => matches)?.[1] ?? 'not_installed'
 
       return {
         name,

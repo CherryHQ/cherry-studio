@@ -180,10 +180,6 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('app.root.resources.binaries')).toBe(false)
     })
 
-    it('returns false for app.root.resources.agent_cli_shims', () => {
-      expect(shouldAutoEnsure('app.root.resources.agent_cli_shims')).toBe(false)
-    })
-
     it('returns false for app.database.migrations (packaged read-only path)', () => {
       expect(shouldAutoEnsure('app.database.migrations')).toBe(false)
     })

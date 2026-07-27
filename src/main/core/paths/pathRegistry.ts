@@ -66,7 +66,6 @@ export function buildPathRegistry() {
     'app.root.resources': appRootResources,
     'app.root.resources.scripts': path.join(appRootResources, 'scripts'),
     'app.root.resources.binaries': path.join(appRootResources, 'binaries'),
-    'app.root.resources.agent_cli_shims': path.join(appRootResources, 'agent-cli-shims'),
     'app.exe_file': app.getPath('exe'),
     'app.install': path.dirname(app.getPath('exe')), // directory containing the executable
     'app.logs': LOGS_DIR,
@@ -222,7 +221,6 @@ const NO_ENSURE = [
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
-  'app.root.resources.agent_cli_shims',
   'app.database.migrations',
   'feature.provider_registry.data',
   'feature.agents.builtin',
