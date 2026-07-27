@@ -4,6 +4,7 @@ export { BACKUP_CEILINGS, type BackupCeilings } from './ceilings'
 export {
   ArchiveAdmissionError,
   BackupBusyError,
+  BackupCancelledError,
   DiskFullError,
   HardLinkUnsupportedError,
   InsufficientDiskSpaceError,

@@ -59,7 +59,8 @@ export interface BackupStatus {
 @Injectable('BackupService')
 @ServicePhase(Phase.WhenReady)
 export class BackupService extends BaseService {
-  private operation: BackupOperation | null = null
+  /** The one operation in flight, with the handle that can abort it; `null` when idle. */
+  private inFlight: { readonly operation: BackupOperation; readonly controller: AbortController } | null = null
   private shuttingDown = false
   /** The post-promotion rebuild, tracked so `onStop` can join it (§6.7). */
   private postPromotionWork: Promise<unknown> | null = null
@@ -110,23 +111,44 @@ export class BackupService extends BaseService {
   }
 
   public getStatus(): BackupStatus {
-    return { operation: this.operation, restore: this.getRestoreStatus() }
+    return { operation: this.inFlight?.operation ?? null, restore: this.getRestoreStatus() }
   }
 
   /**
    * Export an archive to `outPath`. The destination must not exist — this never
    * overwrites a prior backup.
    */
-  public export(outPath: string, preset: BackupPreset, signal?: AbortSignal): Promise<ExportArchiveResult> {
-    return this.runExclusive('export', () => exportArchive({ outPath, preset, signal }))
+  public export(outPath: string, preset: BackupPreset): Promise<ExportArchiveResult> {
+    return this.runExclusive('export', (signal) => exportArchive({ outPath, preset, signal }))
   }
 
   /**
    * Admit an archive and stage a cancellable `prepared` restore. Mutates no live
    * state; {@link armRestore} is what commits to it.
    */
-  public prepareRestore(archivePath: string, signal?: AbortSignal): Promise<RestorePreview> {
-    return this.runExclusive('prepare-restore', () => prepareRestore({ archivePath, signal }))
+  public prepareRestore(archivePath: string): Promise<RestorePreview> {
+    return this.runExclusive('prepare-restore', (signal) => prepareRestore({ archivePath, signal }))
+  }
+
+  /**
+   * Ask the in-flight operation to stop; `false` when there was nothing running.
+   *
+   * The service owns the {@link AbortController} rather than taking a signal from
+   * the caller, because the only caller that can ask for a stop is a *different*
+   * IPC request than the one that started the work — there is no shared object
+   * between them but this service.
+   *
+   * Abort is cooperative: each stage checks the signal at its own checkpoints and
+   * unwinds its own partial work, so `true` means "the request was delivered",
+   * not "it has stopped". The originating call reports the outcome.
+   */
+  public cancelOperation(): boolean {
+    if (this.inFlight === null) {
+      return false
+    }
+    logger.info('Cancelling backup operation', { operation: this.inFlight.operation })
+    this.inFlight.controller.abort()
+    return true
   }
 
   /**
@@ -161,16 +183,21 @@ export class BackupService extends BaseService {
    * cleanup delete the other's staging tree. The claim is synchronous — checked
    * and taken before any `await` — so two callers in the same tick cannot both
    * pass the guard.
+   *
+   * `work` receives the signal that {@link cancelOperation} aborts. It is created
+   * here so the claim and the abort handle have exactly the same lifetime: a
+   * cancellation can never reach the operation that replaced the one it targeted.
    */
-  public async runExclusive<T>(operation: BackupOperation, work: () => Promise<T>): Promise<T> {
-    if (this.operation !== null) {
-      throw new BackupBusyError(this.operation, operation)
+  public async runExclusive<T>(operation: BackupOperation, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    if (this.inFlight !== null) {
+      throw new BackupBusyError(this.inFlight.operation, operation)
     }
-    this.operation = operation
+    const controller = new AbortController()
+    this.inFlight = { operation, controller }
     try {
-      return await work()
+      return await work(controller.signal)
     } finally {
-      this.operation = null
+      this.inFlight = null
     }
   }
 
