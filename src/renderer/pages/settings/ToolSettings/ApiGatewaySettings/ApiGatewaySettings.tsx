@@ -11,9 +11,10 @@ import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { Copy, ExternalLink, Play, RotateCcw, Square, TriangleAlert } from 'lucide-react'
+import { Copy, ExternalLink, Eye, EyeOff, Play, RotateCcw, Square, TriangleAlert } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -25,6 +26,7 @@ const API_SERVER_DEFAULTS = {
 const ApiGatewaySettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
+  const [apiKeyVisible, setApiKeyVisible] = useState(false)
 
   // API Gateway state from useApiGateway hook
   const {
@@ -192,6 +194,7 @@ const ApiGatewaySettings: FC = () => {
         <InlineInputGroup>
           <Input
             className="font-mono text-xs"
+            type={apiKeyVisible ? 'text' : 'password'}
             value={apiKey}
             readOnly
             placeholder={t('apiGateway.fields.apiKey.placeholder')}
@@ -202,6 +205,19 @@ const ApiGatewaySettings: FC = () => {
                 {t('apiGateway.actions.regenerate')}
               </Button>
             )}
+            <Tooltip
+              title={t(apiKeyVisible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key')}>
+              <Button
+                size="icon-sm"
+                variant="outline"
+                aria-label={t(
+                  apiKeyVisible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key'
+                )}
+                onClick={() => setApiKeyVisible((visible) => !visible)}
+                disabled={!apiKey}>
+                {apiKeyVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+              </Button>
+            </Tooltip>
             <Tooltip title={t('apiGateway.fields.apiKey.copyTooltip')}>
               <Button size="icon-sm" variant="outline" onClick={copyApiKey} disabled={!apiKey}>
                 <Copy size={14} />
@@ -218,7 +234,7 @@ const ApiGatewaySettings: FC = () => {
         </FieldText>
         <Input
           className="w-105 font-mono text-xs"
-          value={`Authorization: Bearer ${apiKey || 'your-api-key'}`}
+          value={`Authorization: Bearer ${apiKey ? (apiKeyVisible ? apiKey : '•'.repeat(Math.min(apiKey.length, 40))) : 'your-api-key'}`}
           readOnly
         />
       </SettingRow>
