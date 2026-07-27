@@ -41,6 +41,7 @@ const uiMsg = (id: string, role: string, parentId: string | null): any => ({
 })
 
 function renderActions(rootId: string | null, uiMessages: ReturnType<typeof uiMsg>[], cache = makeCache()) {
+  const captureLocalSendScrollEligibility = vi.fn()
   const onLocalSendStarted = vi.fn()
   const { result } = renderHook(() =>
     useChatWriteActions({
@@ -53,10 +54,11 @@ function renderActions(rootId: string | null, uiMessages: ReturnType<typeof uiMs
       refresh: vi.fn(async () => []),
       cache,
       seedReservedMessages: vi.fn(async () => {}),
+      captureLocalSendScrollEligibility,
       onLocalSendStarted
     })
   )
-  return { actions: result.current.actions, cache, onLocalSendStarted }
+  return { actions: result.current.actions, cache, captureLocalSendScrollEligibility, onLocalSendStarted }
 }
 
 describe('useChatWriteActions — first-turn delete', () => {
@@ -214,10 +216,18 @@ describe('useChatWriteActions — fork and resend', () => {
     const cache = makeCache()
     vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
-    const { actions, onLocalSendStarted } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], cache)
+    const { actions, captureLocalSendScrollEligibility, onLocalSendStarted } = renderActions(
+      'vroot',
+      [uiMsg('u1', 'user', 'vroot')],
+      cache
+    )
 
     await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
 
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
+    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(cache.createSiblingTrigger).mock.invocationCallOrder[0]
+    )
     expect(streamOpen).toHaveBeenCalledWith(
       'ai.stream_open',
       expect.objectContaining({
@@ -233,10 +243,15 @@ describe('useChatWriteActions — fork and resend', () => {
     const cache = makeCache()
     vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
     streamOpen.mockResolvedValueOnce({ mode: 'blocked', message: 'blocked' })
-    const { actions, onLocalSendStarted } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], cache)
+    const { actions, captureLocalSendScrollEligibility, onLocalSendStarted } = renderActions(
+      'vroot',
+      [uiMsg('u1', 'user', 'vroot')],
+      cache
+    )
 
     await expect(actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)).rejects.toThrow('blocked')
 
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
     expect(onLocalSendStarted).not.toHaveBeenCalled()
   })
 })

@@ -18,6 +18,7 @@ export interface ConversationHistoryAdapter {
 export interface UseConversationTurnControllerOptions<TInput, TConversation> {
   scopeKey: string
   historyAdapter: ConversationHistoryAdapter
+  captureLocalSendScrollEligibility?: () => void
   ensureConversation: (input: TInput) => Promise<TConversation | null> | TConversation | null
   buildStreamRequest: (input: TInput, conversation: TConversation) => AiStreamOpenRequest
   refreshMetadata?: (conversation: TConversation, ack: AiStreamOpenResponse) => Promise<unknown> | unknown
@@ -26,6 +27,7 @@ export interface UseConversationTurnControllerOptions<TInput, TConversation> {
 export function useConversationTurnController<TInput, TConversation>({
   scopeKey,
   historyAdapter,
+  captureLocalSendScrollEligibility,
   ensureConversation,
   buildStreamRequest,
   refreshMetadata
@@ -42,6 +44,7 @@ export function useConversationTurnController<TInput, TConversation>({
 
   const send = useCallback(
     async (input: TInput): Promise<AiStreamOpenResponse | null> => {
+      captureLocalSendScrollEligibility?.()
       let conversation: TConversation | null = null
       try {
         setPhase('persisting')
@@ -84,7 +87,14 @@ export function useConversationTurnController<TInput, TConversation>({
         throw err
       }
     },
-    [buildStreamRequest, ensureConversation, historyAdapter, markLocalSendStarted, refreshMetadata]
+    [
+      buildStreamRequest,
+      captureLocalSendScrollEligibility,
+      ensureConversation,
+      historyAdapter,
+      markLocalSendStarted,
+      refreshMetadata
+    ]
   )
 
   return {

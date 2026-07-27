@@ -57,6 +57,7 @@ interface Params {
   refresh: () => Promise<CherryUIMessage[]>
   cache: ReturnType<typeof useTopicMessagesCache>
   seedReservedMessages: (messages: CherryUIMessage[]) => Promise<void>
+  captureLocalSendScrollEligibility: () => void
   onLocalSendStarted: () => void
   assistant?: Assistant
 }
@@ -79,6 +80,7 @@ export function useChatWriteActions(params: Params): Result {
     refresh,
     cache,
     seedReservedMessages,
+    captureLocalSendScrollEligibility,
     onLocalSendStarted,
     assistant
   } = params
@@ -251,6 +253,7 @@ export function useChatWriteActions(params: Params): Result {
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
     async (messageId, editedParts) => {
+      captureLocalSendScrollEligibility()
       const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
@@ -298,6 +301,7 @@ export function useChatWriteActions(params: Params): Result {
     },
     [
       createSiblingTrigger,
+      captureLocalSendScrollEligibility,
       seedReservedMessages,
       refresh,
       setMessages,

@@ -1188,7 +1188,7 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('returns to the live bottom when edit-and-resend starts within one viewport of the bottom', () => {
+  it('uses the pre-fork eligibility when the branch shrinks before edit-and-resend starts', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1223,29 +1223,35 @@ describe('useChatVirtualizerRuntime', () => {
       raf.tick(60)
 
       act(() => runtime!.takeUserControl())
+      act(() => runtime!.captureLocalSendScrollEligibility())
+      scrollHeight = 1000
       view.rerender(
         <RuntimeDomProbe
-          items={['history-message']}
+          items={['edited-user-message', 'pending-assistant']}
           handleRef={handleRef}
-          localSendGeneration={1}
-          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
-        />
-      )
-      expect(scrollTop).toBe(800)
-
-      scrollHeight = 1400
-      view.rerender(
-        <RuntimeDomProbe
-          items={['history-message', 'edited-user-message', 'pending-assistant']}
-          handleRef={handleRef}
-          localSendGeneration={1}
+          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
       act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(500)
+
+      view.rerender(
+        <RuntimeDomProbe
+          items={['edited-user-message', 'pending-assistant']}
+          handleRef={handleRef}
+          localSendGeneration={1}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+
+      expect(scrollTop).toBe(600)
+
+      scrollHeight = 1200
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
       raf.tick(60)
 
-      expect(scrollTop).toBe(1000)
+      expect(scrollTop).toBe(800)
       expect(handle!.isAtBottom()).toBe(true)
     } finally {
       restoreResizeObserver()
@@ -1253,7 +1259,7 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('keeps the reading position when edit-and-resend starts more than one viewport from the bottom', () => {
+  it('keeps the pre-fork reading position when the branch shrinks before edit-and-resend starts', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -1264,8 +1270,8 @@ describe('useChatVirtualizerRuntime', () => {
       const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
         handle = nextHandle
       }
-      let scrollTop = 100
-      let scrollHeight = 1500
+      let scrollTop = 500
+      let scrollHeight = 1800
       const view = render(
         <RuntimeDomProbe
           items={['history-message']}
@@ -1288,29 +1294,30 @@ describe('useChatVirtualizerRuntime', () => {
       raf.tick(60)
 
       act(() => runtime!.takeUserControl())
+      act(() => runtime!.captureLocalSendScrollEligibility())
+      scrollHeight = 1000
       view.rerender(
         <RuntimeDomProbe
-          items={['history-message']}
+          items={['edited-user-message', 'pending-assistant']}
           handleRef={handleRef}
-          localSendGeneration={1}
-          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
-        />
-      )
-      expect(scrollTop).toBe(100)
-
-      scrollHeight = 1700
-      view.rerender(
-        <RuntimeDomProbe
-          items={['history-message', 'edited-user-message', 'pending-assistant']}
-          handleRef={handleRef}
-          localSendGeneration={1}
+          localSendGeneration={0}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
       act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(500)
+
+      view.rerender(
+        <RuntimeDomProbe
+          items={['edited-user-message', 'pending-assistant']}
+          handleRef={handleRef}
+          localSendGeneration={1}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
       raf.tick(60)
 
-      expect(scrollTop).toBe(100)
+      expect(scrollTop).toBe(500)
       expect(handle!.isAtBottom()).toBe(false)
     } finally {
       restoreResizeObserver()

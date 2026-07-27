@@ -200,6 +200,7 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
       liveMessageIds: readonly string[]
     }
     localSendGeneration: number
+    onBindRuntime?: (runtime: { captureLocalSendScrollEligibility: () => void }) => void | (() => void)
     isInitialLoading?: boolean
   }) => ({
     state: {
@@ -209,7 +210,7 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
       localSendGeneration: params.localSendGeneration,
       isInitialLoading: params.isInitialLoading
     },
-    actions: {},
+    actions: { bindRuntime: params.onBindRuntime },
     meta: {}
   })
 }))
@@ -315,6 +316,7 @@ describe('ChatContent', () => {
 
   it('opens a stream against the active branch node', async () => {
     const sendMessage = vi.fn()
+    const captureLocalSendScrollEligibility = vi.fn()
     mockUseChatWithHistory.mockReturnValue({
       sendMessage,
       regenerate: vi.fn(),
@@ -325,6 +327,7 @@ describe('ChatContent', () => {
     })
 
     render(<ChatContent topic={topic} />)
+    mockMessageListValue.current.actions.bindRuntime?.({ captureLocalSendScrollEligibility })
 
     // The composer is lazy-loaded; wait for it to mount and hand out onSend.
     await waitFor(() => expect(capturedOnSend).toBeDefined())
@@ -345,6 +348,7 @@ describe('ChatContent', () => {
       )
     })
     expect(sendMessage).not.toHaveBeenCalled()
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
     expect(mockMessageListValue.current.state.localSendGeneration).toBe(1)
   })
 

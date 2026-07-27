@@ -51,6 +51,8 @@ export interface MessageVirtualListHandle {
   scrollToKey(key: string, align?: 'start' | 'center' | 'end'): void
   /** Smooth-scroll `element`'s top to the viewport top, then freeze the viewport on it. */
   scrollToElement(element: HTMLElement): void
+  /** Capture whether a pending local send may return to the live bottom. */
+  captureLocalSendScrollEligibility(): void
   isAtBottom(): boolean
   getScrollElement(): HTMLElement | null
 }
@@ -134,6 +136,8 @@ export interface ChatVirtualizerRuntime<T> {
   /** Recover runtime ownership after a local disclosure collapses at the real bottom. */
   releaseUserControlIfAtBottomAfterLayout(): void
   scrollToBottom(behavior?: ScrollBehavior): void
+  /** Capture the current one-viewport decision for the next successful local send. */
+  captureLocalSendScrollEligibility(): void
   /**
    * Mark that a real user scroll input just happened. Wheel is wired through
    * `scrollerProps.onWheel`; the host calls this for pointer drags and
@@ -183,6 +187,7 @@ export function useChatVirtualizerRuntime<T>({
   const [isScrollToBottomButtonVisible, setIsScrollToBottomButtonVisible] = useState(false)
   const isScrollToBottomButtonVisibleRef = useRef(false)
   const wasMoreThanOneViewportFromBottomRef = useRef(false)
+  const pendingLocalSendBottomFollowEligibilityRef = useRef<boolean | null>(null)
 
   const atBottom = useAtBottomTracker()
   // Who drives scrollTop right now. 'runtime': bottom-follow and smooth
@@ -267,6 +272,23 @@ export function useChatVirtualizerRuntime<T>({
     isLocked: isBottomFollowSuppressed,
     markStuck: atBottom.notifyProgrammaticStick
   })
+
+  const getLocalSendBottomFollowEligibility = useCallback((): boolean | null => {
+    const el = scrollerRef.current
+    return el ? !isMoreThanOneViewportFromBottom(el, bottomFollowInsetRef.current) : null
+  }, [])
+
+  const captureLocalSendScrollEligibility = useCallback(() => {
+    pendingLocalSendBottomFollowEligibilityRef.current = getLocalSendBottomFollowEligibility()
+  }, [getLocalSendBottomFollowEligibility])
+
+  const refreshPendingLocalSendEligibilityAfterUserInput = useCallback(() => {
+    if (pendingLocalSendBottomFollowEligibilityRef.current === null) return
+    const eligibility = getLocalSendBottomFollowEligibility()
+    if (eligibility !== null) {
+      pendingLocalSendBottomFollowEligibilityRef.current = eligibility
+    }
+  }, [getLocalSendBottomFollowEligibility])
 
   const updateScrollToBottomButtonVisibility = useCallback(() => {
     const el = scrollerRef.current
@@ -394,11 +416,13 @@ export function useChatVirtualizerRuntime<T>({
       }
       captureFreezeAnchor(preferredAnchor, wasUserDriven)
       updateScrollToBottomButtonVisibility()
+      refreshPendingLocalSendEligibilityAfterUserInput()
     },
     [
       atBottom,
       captureFreezeAnchor,
       getNaturalScrollHeight,
+      refreshPendingLocalSendEligibilityAfterUserInput,
       setFreezeSpacerHeight,
       smoothScroll,
       updateScrollToBottomButtonVisibility
@@ -685,6 +709,9 @@ export function useChatVirtualizerRuntime<T>({
       }
     }
     updateScrollToBottomButtonVisibility()
+    if (isUserInitiated) {
+      refreshPendingLocalSendEligibilityAfterUserInput()
+    }
     saveScrollPosition()
     maybeNotifyReachTop(offset)
   }, [
@@ -694,6 +721,7 @@ export function useChatVirtualizerRuntime<T>({
     maintainFreezeScrollRange,
     maybeNotifyReachTop,
     reassertFreeze,
+    refreshPendingLocalSendEligibilityAfterUserInput,
     saveScrollPosition,
     smoothScroll,
     stickToEffectiveBottom,
@@ -794,6 +822,9 @@ export function useChatVirtualizerRuntime<T>({
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = 'instant') => {
+      if (pendingLocalSendBottomFollowEligibilityRef.current !== null) {
+        pendingLocalSendBottomFollowEligibilityRef.current = true
+      }
       readNavigationActiveRef.current = false
       // The user chose the live edge: drop the frozen range before resolving
       // the target.
@@ -823,16 +854,19 @@ export function useChatVirtualizerRuntime<T>({
     const topicChanged = observedTopicIdRef.current !== topicId
     observedLocalSendGenerationRef.current = localSendGeneration
     observedTopicIdRef.current = topicId
-    if (
-      topicChanged ||
-      localSendGeneration === undefined ||
-      localSendGeneration === previousGeneration ||
-      wasMoreThanOneViewportFromBottomRef.current
-    ) {
+    if (topicChanged || localSendGeneration === undefined || localSendGeneration === previousGeneration) {
+      if (topicChanged) {
+        pendingLocalSendBottomFollowEligibilityRef.current = null
+      }
       return
     }
-    // The ref describes the viewport before this local send. Reuse the same
-    // one-viewport boundary as the visible "back to bottom" affordance.
+    const bottomFollowEligible =
+      pendingLocalSendBottomFollowEligibilityRef.current ?? !wasMoreThanOneViewportFromBottomRef.current
+    pendingLocalSendBottomFollowEligibilityRef.current = null
+    if (!bottomFollowEligible) return
+    // The action-time snapshot survives branch replacement and its layout
+    // changes. Without one (for consumers that do not bind the capture API),
+    // fall back to the latest one-viewport decision.
     scrollToBottom('instant')
   }, [localSendGeneration, scrollToBottom, topicId])
 
@@ -878,10 +912,19 @@ export function useChatVirtualizerRuntime<T>({
           () => (element.isConnected ? element : null)
         )
       },
+      captureLocalSendScrollEligibility,
       isAtBottom: atBottom.isAtBottom,
       getScrollElement: () => scrollerRef.current
     }),
-    [atBottom.isAtBottom, findDataIndexByKey, navigateForReading, scrollToBottom, scrollToTop, topPadding]
+    [
+      atBottom.isAtBottom,
+      captureLocalSendScrollEligibility,
+      findDataIndexByKey,
+      navigateForReading,
+      scrollToBottom,
+      scrollToTop,
+      topPadding
+    ]
   )
 
   return {
@@ -898,6 +941,7 @@ export function useChatVirtualizerRuntime<T>({
     takeUserControl,
     releaseUserControlIfAtBottomAfterLayout,
     scrollToBottom,
+    captureLocalSendScrollEligibility,
     markUserInput
   }
 }

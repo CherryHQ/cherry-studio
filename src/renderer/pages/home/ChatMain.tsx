@@ -15,6 +15,7 @@ interface ChatMainProps {
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
   localSendGeneration: number
+  onBindRuntime: NonNullable<MessageListActions['bindRuntime']>
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   loadOlder: () => void
@@ -30,6 +31,7 @@ const ChatMain: FC<ChatMainProps> = ({
   partsByMessageId,
   streamingLayers,
   localSendGeneration,
+  onBindRuntime,
   isInitialLoading,
   isMessagesStale,
   loadOlder,
@@ -44,6 +46,7 @@ const ChatMain: FC<ChatMainProps> = ({
     partsByMessageId,
     streamingLayers,
     localSendGeneration,
+    onBindRuntime,
     isInitialLoading,
     isMessagesStale,
     loadOlder,

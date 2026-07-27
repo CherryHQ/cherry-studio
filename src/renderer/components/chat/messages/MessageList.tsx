@@ -241,6 +241,10 @@ const MessageList = () => {
     messageListRef.current?.scrollToBottom('instant')
   }, [])
 
+  const captureLocalSendScrollEligibility = useCallback(() => {
+    messageListRef.current?.captureLocalSendScrollEligibility()
+  }, [])
+
   // Navigation buttons scroll through the virtua-aware runtime handle (smooth,
   // remeasure-safe) rather than a raw scrollTo on the virtualized scroller.
   const navigateToTop = useCallback(() => {
@@ -420,8 +424,18 @@ const MessageList = () => {
     },
     [data.isInitialLoading, enqueueTopicImageCaptureAction, topic.id]
   )
-  const runtimeActionsRef = useRef({ scrollToBottom, scrollToMessageById, runTopicImageAction })
-  runtimeActionsRef.current = { scrollToBottom, scrollToMessageById, runTopicImageAction }
+  const runtimeActionsRef = useRef({
+    scrollToBottom,
+    captureLocalSendScrollEligibility,
+    scrollToMessageById,
+    runTopicImageAction
+  })
+  runtimeActionsRef.current = {
+    scrollToBottom,
+    captureLocalSendScrollEligibility,
+    scrollToMessageById,
+    runTopicImageAction
+  }
 
   const flushPendingTopicImageAction = useCallback(() => {
     if (data.isInitialLoading || !scrollContainerRef.current) return
@@ -525,6 +539,7 @@ const MessageList = () => {
   useEffect(() => {
     return bindRuntime?.({
       scrollToBottom: () => runtimeActionsRef.current.scrollToBottom(),
+      captureLocalSendScrollEligibility: () => runtimeActionsRef.current.captureLocalSendScrollEligibility(),
       locateMessage: (messageId) => runtimeActionsRef.current.scrollToMessageById(messageId),
       copyTopicImage: () => runtimeActionsRef.current.runTopicImageAction('copy'),
       exportTopicImage: () => runtimeActionsRef.current.runTopicImageAction('export')

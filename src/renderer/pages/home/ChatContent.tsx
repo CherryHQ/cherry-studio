@@ -229,6 +229,7 @@ const ChatContentInner: FC<InnerProps> = ({
         partsByMessageId={runtime.partsByMessageId}
         streamingLayers={runtime.streamingLayers}
         localSendGeneration={runtime.localSendGeneration}
+        onBindRuntime={runtime.bindMessageListRuntime}
         isInitialLoading={isHistoryLoading}
         isMessagesStale={isHistoryStale}
         loadOlder={loadOlder}
