@@ -180,15 +180,15 @@ async function copyIdentityEntry(
   sourcePath: string,
   destinationPath: string,
   sourceWorkspaceRoot: string
-): Promise<void> {
+): Promise<boolean> {
   const sourceSnapshot = await identityCopySourceSnapshot(sourcePath, sourceWorkspaceRoot)
-  if (!sourceSnapshot) return
+  if (!sourceSnapshot) return false
 
   const stagingPrefix = `.${path.basename(destinationPath)}.migration-`
   const stagingPath = path.join(path.dirname(destinationPath), `${stagingPrefix}${randomUUID()}`)
 
   try {
-    if (!(await materializeIdentityEntry(sourcePath, stagingPath, sourceWorkspaceRoot))) return
+    if (!(await materializeIdentityEntry(sourcePath, stagingPath, sourceWorkspaceRoot))) return false
 
     const sourceMetadataFingerprint = await identitySourceMetadataFingerprint(sourcePath, sourceWorkspaceRoot)
     if (sourceMetadataFingerprint !== sourceSnapshot.metadataFingerprint) {
@@ -224,12 +224,17 @@ async function copyIdentityEntry(
     if (destinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
       throw new Error(`Legacy Agent identity changed while being published: ${destinationPath}`)
     }
+    return true
   } finally {
     await removeTreeWithoutFollowing(stagingPath).catch(() => undefined)
   }
 }
 
-async function copyIdentityFromWorkspace(sourceWorkspacePath: string, agentDataPath: string): Promise<void> {
+async function copyIdentityFromWorkspace(
+  sourceWorkspacePath: string,
+  agentDataPath: string,
+  claimedIdentityEntries: Set<string>
+): Promise<void> {
   const sourceStat = await lstatIfExists(sourceWorkspacePath)
   if (!sourceStat) return
 
@@ -256,10 +261,13 @@ async function copyIdentityFromWorkspace(sourceWorkspacePath: string, agentDataP
   }
 
   for (const name of ['SOUL.md', 'USER.md', 'memory']) {
+    if (claimedIdentityEntries.has(name)) continue
     const sourcePath = await findCaseInsensitiveEntry(effectiveWorkspacePath, name)
     if (!sourcePath) continue
     const destinationPath = path.join(agentDataPath, name)
-    await copyIdentityEntry(sourcePath, destinationPath, effectiveWorkspacePath)
+    if (await copyIdentityEntry(sourcePath, destinationPath, effectiveWorkspacePath)) {
+      claimedIdentityEntries.add(name)
+    }
   }
 }
 
@@ -815,11 +823,12 @@ export async function stageLegacyAgentFiles(input: {
     orderedSources.push(defaultWorkspacePath)
 
     const seenSources = new Set<string>()
+    const claimedIdentityEntries = new Set<string>()
     for (const sourcePath of orderedSources) {
       const normalizedSource = path.resolve(sourcePath)
       if (seenSources.has(normalizedSource) || normalizedSource === path.resolve(agentDataPath)) continue
       seenSources.add(normalizedSource)
-      await copyIdentityFromWorkspace(sourcePath, agentDataPath)
+      await copyIdentityFromWorkspace(sourcePath, agentDataPath, claimedIdentityEntries)
     }
 
     await ensureAgentDataDirectory(input.agentsDataRoot, finalAgentId)

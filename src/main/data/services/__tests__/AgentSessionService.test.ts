@@ -13,7 +13,7 @@ import { eq } from 'drizzle-orm'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest'
 
-function systemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
+function buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
   return path.join(systemWorkspacesRoot, new Date(createdAt).toISOString().slice(0, 10), sessionId)
 }
 
@@ -280,7 +280,7 @@ describe('AgentSessionService', () => {
     expect(session.workspaceId).toBeTruthy()
     expect(session.workspace.type).toBe('system')
     expect(session.workspace.path).toBe(
-      systemWorkspacePath(
+      buildSystemWorkspacePath(
         application.getPath('feature.agents.system_workspaces'),
         session.id,
         Date.parse(session.createdAt)
@@ -400,7 +400,7 @@ describe('AgentSessionService', () => {
     expect(updated.workspaceId).not.toBe(userWorkspace.id)
     expect(updated.workspace.type).toBe('system')
     expect(updated.workspace.path).toBe(
-      systemWorkspacePath(
+      buildSystemWorkspacePath(
         application.getPath('feature.agents.system_workspaces'),
         session.id,
         Date.parse(session.createdAt)
@@ -443,7 +443,7 @@ describe('AgentSessionService', () => {
 
       expect(restored.workspace.path).toBe(originalSystemPath)
       expect(restored.workspace.path).toBe(
-        systemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id, firstDay)
+        buildSystemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id, firstDay)
       )
     } finally {
       now.mockRestore()

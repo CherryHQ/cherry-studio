@@ -45,7 +45,7 @@ const FINAL_AGENT_ID = '5f83c9de-f186-5d86-813f-1a19f190c68c'
 const FINAL_OLD_SESSION_ID = '9a075ce3-c42d-545b-a0b5-f39e43e4a917'
 const FINAL_LATEST_SESSION_ID = '01257168-34a7-5ff9-994d-bf78596c777c'
 
-function systemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
+function buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
   return path.join(systemWorkspacesRoot, new Date(createdAt).toISOString().slice(0, 10), sessionId)
 }
 
@@ -84,7 +84,7 @@ describe('agentsFilesystemMigration', () => {
       sourceWorkspacePath: legacyWorkspace,
       isManagedDefault: managed,
       systemWorkspacePath: managed
-        ? systemWorkspacePath(path.join(agentsDataRoot, 'system'), input.finalSessionId, input.createdAt)
+        ? buildSystemWorkspacePath(path.join(agentsDataRoot, 'system'), input.finalSessionId, input.createdAt)
         : undefined,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt
@@ -194,6 +194,78 @@ describe('agentsFilesystemMigration', () => {
       )
     }
   )
+
+  it('keeps the newest identity entry when first-migration sources differ', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const olderWorkspace = path.join(tempRoot, 'older-workspace')
+    const newestWorkspace = path.join(tempRoot, 'newest-workspace')
+    await mkdir(olderWorkspace, { recursive: true })
+    await mkdir(newestWorkspace, { recursive: true })
+    await writeFile(path.join(olderWorkspace, 'SOUL.md'), 'older soul')
+    await writeFile(path.join(newestWorkspace, 'SOUL.md'), 'newest soul')
+
+    const olderSession = sessionPlan(agentsDataRoot, olderWorkspace, {
+      sourceSessionId: 'session_old',
+      finalSessionId: FINAL_OLD_SESSION_ID,
+      createdAt: Date.parse('2026-07-20T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-21T00:00:00Z'),
+      managed: false
+    })
+    const newestSession = sessionPlan(agentsDataRoot, newestWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [olderSession, newestSession]
+    })
+
+    expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'SOUL.md'), 'utf8')).toBe('newest soul')
+    expect(await readFile(path.join(newestWorkspace, 'SOUL.md'), 'utf8')).toBe('newest soul')
+    expect(await readFile(path.join(olderWorkspace, 'SOUL.md'), 'utf8')).toBe('older soul')
+  })
+
+  it('fills identity entries missing from the newest source using the next source', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const olderWorkspace = path.join(tempRoot, 'older-workspace')
+    const newestWorkspace = path.join(tempRoot, 'newest-workspace')
+    await mkdir(path.join(olderWorkspace, 'memory'), { recursive: true })
+    await mkdir(newestWorkspace, { recursive: true })
+    await writeFile(path.join(newestWorkspace, 'SOUL.md'), 'newest soul')
+    await writeFile(path.join(olderWorkspace, 'USER.md'), 'fallback user')
+    await writeFile(path.join(olderWorkspace, 'memory', 'FACT.md'), 'fallback fact')
+
+    const olderSession = sessionPlan(agentsDataRoot, olderWorkspace, {
+      sourceSessionId: 'session_old',
+      finalSessionId: FINAL_OLD_SESSION_ID,
+      createdAt: Date.parse('2026-07-20T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-21T00:00:00Z'),
+      managed: false
+    })
+    const newestSession = sessionPlan(agentsDataRoot, newestWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+
+    await stageLegacyAgentFiles({
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [olderSession, newestSession]
+    })
+
+    const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('newest soul')
+    expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('fallback user')
+    expect(await readFile(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf8')).toBe('fallback fact')
+  })
 
   it('aborts on an identity conflict without overwriting either side', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()

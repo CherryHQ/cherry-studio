@@ -792,7 +792,7 @@ async function deriveSessionWorkspaces(
     const createdAt = legacyTimestampToMs(row.created_at, now)
     const updatedAt = legacyTimestampToMs(row.updated_at, createdAt)
     const workspacePath = isManagedDefault
-      ? agentWorkspaceService.systemWorkspacePath(systemWorkspacesDir, row.session_id, createdAt)
+      ? agentWorkspaceService.buildSystemWorkspacePath(systemWorkspacesDir, row.session_id, createdAt)
       : sourceWorkspacePath
     const workspaceType = isManagedDefault ? 'system' : 'user'
 
@@ -861,7 +861,7 @@ function finalizeSessionWorkspaces(
     const finalAgentId = idRemap.agentIds.get(mapping.agentId) ?? mapping.agentId
     const workspace = workspacesById.get(mapping.workspaceId)
     if (workspace?.type === 'system') {
-      const workspacePath = agentWorkspaceService.systemWorkspacePath(
+      const workspacePath = agentWorkspaceService.buildSystemWorkspacePath(
         ctx.paths.agentSystemWorkspacesDir,
         finalSessionId,
         mapping.createdAt

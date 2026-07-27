@@ -4,7 +4,7 @@ import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/Age
 import { ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { mkdtemp, stat } from 'fs/promises'
+import { mkdtemp, rm, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -25,9 +25,11 @@ function captureError(fn: () => unknown): unknown {
 
 describe('AgentWorkspaceService', () => {
   const dbh = setupTestDatabase()
+  const tempRoots: string[] = []
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks()
+    await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
   })
 
   function workspacePath(...segments: string[]) {
@@ -45,12 +47,12 @@ describe('AgentWorkspaceService', () => {
   it('owns the system workspace path policy', () => {
     const root = workspacePath('system')
 
-    expect(agentWorkspaceService.systemWorkspacePath(root, 'session-1', SYSTEM_WORKSPACE_CREATED_AT)).toBe(
+    expect(agentWorkspaceService.buildSystemWorkspacePath(root, 'session-1', SYSTEM_WORKSPACE_CREATED_AT)).toBe(
       path.join(root, '2026-07-27', 'session-1')
     )
-    expect(() => agentWorkspaceService.systemWorkspacePath(root, '../session-1', SYSTEM_WORKSPACE_CREATED_AT)).toThrow(
-      /invalid agent session id/i
-    )
+    expect(() =>
+      agentWorkspaceService.buildSystemWorkspacePath(root, '../session-1', SYSTEM_WORKSPACE_CREATED_AT)
+    ).toThrow(/invalid agent session id/i)
   })
 
   it('normalizes paths and dedupes rows by path', async () => {
@@ -170,6 +172,7 @@ describe('AgentWorkspaceService', () => {
 
   it('creates system workspace rows without creating the backing directory', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-system-workspace-'))
+    tempRoots.push(root)
     vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
       if (key === 'feature.agents.system_workspaces') {
         return filename ? path.join(root, 'Agents', 'system', filename) : path.join(root, 'Agents', 'system')
