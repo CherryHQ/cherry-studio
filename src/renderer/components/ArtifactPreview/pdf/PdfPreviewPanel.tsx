@@ -1,4 +1,4 @@
-import 'pdfjs-dist/web/pdf_viewer.css'
+import '@renderer/assets/styles/vendor/pdf-viewer.css'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -26,6 +26,7 @@ const PDF_PINCH_WHEEL_PIXEL_DIVISOR = 10
 const PDF_PINCH_WHEEL_IDLE_RESET_MS = 180
 const PDF_PINCH_SCALE_SENSITIVITY = 0.075
 const PDF_PAGE_FOREGROUND = 'CanvasText'
+const PDF_REFIT_DEBOUNCE_MS = 150
 
 type PdfJsViewer = InstanceType<typeof PDFViewer>
 
@@ -52,7 +53,7 @@ const resolveThemeBackground = (element: HTMLElement | null): string | null => {
   const candidates = [element, window.root, document.documentElement].filter(Boolean) as HTMLElement[]
 
   for (const candidate of candidates) {
-    const value = getComputedStyle(candidate).getPropertyValue('--color-background').trim()
+    const value = getComputedStyle(candidate).getPropertyValue('--background').trim()
     if (value) return value
   }
 
@@ -409,6 +410,34 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
       }
     }
   }, [applyViewerBackground, documentProxy, focusContainer])
+
+  // Re-fit the page-width scale when surrounding layout resizes the container
+  // (e.g. the left list auto-collapsing while the pane stays mounted); pdf.js's
+  // built-in observer only refreshes container-height CSS, never the fit scale.
+  // A user-chosen numeric zoom replaces currentScaleValue, so it is never overridden.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || typeof ResizeObserver === 'undefined') return
+
+    let refitTimeout: ReturnType<typeof setTimeout> | null = null
+    let lastWidth = container.clientWidth
+    const observer = new ResizeObserver(([entry]) => {
+      const nextWidth = entry.contentRect.width
+      if (nextWidth <= 0 || Math.round(nextWidth) === Math.round(lastWidth)) return
+      lastWidth = nextWidth
+      if (refitTimeout) clearTimeout(refitTimeout)
+      refitTimeout = setTimeout(() => {
+        const pdfViewer = pdfViewerRef.current
+        if (!pdfViewer || pdfViewer.currentScaleValue !== DEFAULT_PDF_SCALE) return
+        pdfViewer.currentScaleValue = DEFAULT_PDF_SCALE
+      }, PDF_REFIT_DEBOUNCE_MS)
+    })
+    observer.observe(container)
+    return () => {
+      observer.disconnect()
+      if (refitTimeout) clearTimeout(refitTimeout)
+    }
+  }, [documentProxy])
 
   if (loading) {
     return (

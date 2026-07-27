@@ -13,7 +13,12 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
 import { normalizeAssistantMessageCitations } from '../persistence/normalizeCitations'
-import { dropEmptyContentParts, type PersistenceBackend, statsFromTerminal } from '../persistence/PersistenceBackend'
+import {
+  dropEmptyContentParts,
+  finalizeInterruptedParts,
+  type PersistenceBackend,
+  statsFromTerminal
+} from '../persistence/PersistenceBackend'
 import type {
   SemanticTimings,
   StreamDoneResult,
@@ -117,7 +122,10 @@ export class PersistenceListener implements StreamListener {
     // are never written to storage. Applied for all statuses. The `normalizedMessage`
     // guard is for the typed-undefined error path (no finalMessage).
     const finalMessageForPersistence = normalizedMessage
-      ? { ...normalizedMessage, parts: dropEmptyContentParts(normalizedMessage.parts as CherryMessagePart[]) }
+      ? {
+          ...normalizedMessage,
+          parts: finalizeInterruptedParts(dropEmptyContentParts(normalizedMessage.parts as CherryMessagePart[]), status)
+        }
       : normalizedMessage
 
     const stats = statsFromTerminal(

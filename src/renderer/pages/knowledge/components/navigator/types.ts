@@ -10,6 +10,7 @@ export interface BaseNavigatorSearchProps {
 }
 
 export interface BaseNavigatorContentProps {
+  isLoading: boolean
   sections: KnowledgePageBaseGroupSection[]
   groups: Group[]
   groupById: ReadonlyMap<string, Group>

@@ -132,6 +132,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     items,
     onContextMenuAction,
     onReorder,
+    reorderEnabled = true,
     resourceMenuItems,
     selectedId
   }: {
@@ -141,6 +142,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     items: readonly ResourceEntityRailItem[]
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
     onReorder?: unknown
+    reorderEnabled?: boolean
     resourceMenuItems?: readonly { active?: boolean; id: string }[]
     selectedId?: string | null
   }) => {
@@ -153,7 +155,8 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
         data-testid="resource-entity-rail"
         data-active-resource-menu={String(hasActiveResourceMenuItem)}
         data-group-by-group={String(!!groupByGroup)}
-        data-reorder={onReorder ? 'enabled' : 'disabled'}
+        data-reorder={onReorder && reorderEnabled ? 'enabled' : 'disabled'}
+        data-sortable-container={onReorder ? 'enabled' : 'disabled'}
         data-selected-id={selectedId ?? ''}>
         {headerActions}
         {items.map((item) => {
@@ -256,7 +259,7 @@ vi.mock('@renderer/hooks/useGroups', () => ({
   useGroups: () => ({ groups: [], isLoading: false, error: undefined })
 }))
 
-function createAgentSessionsSource(): AgentSessionsSource {
+function createAgentSessionsSource(overrides: Partial<AgentSessionsSource> = {}): AgentSessionsSource {
   return {
     createSession: vi.fn(),
     deleteSession: vi.fn(),
@@ -276,11 +279,12 @@ function createAgentSessionsSource(): AgentSessionsSource {
     reorderSessions: vi.fn(),
     sessions: [{ id: 'session-1', agentId: 'agent-1', name: 'Session 1' }],
     togglePin: vi.fn(),
-    total: 1
+    total: 1,
+    ...overrides
   } as unknown as AgentSessionsSource
 }
 
-function createAssistantTopicsSource(): AssistantTopicsSource {
+function createAssistantTopicsSource(overrides: Partial<AssistantTopicsSource> = {}): AssistantTopicsSource {
   return {
     error: null,
     hasNext: false,
@@ -292,7 +296,8 @@ function createAssistantTopicsSource(): AssistantTopicsSource {
     mutate: vi.fn(),
     pages: [],
     refetch: vi.fn(),
-    topics: assistantDataMocks.topics
+    topics: assistantDataMocks.topics,
+    ...overrides
   } as unknown as AssistantTopicsSource
 }
 
@@ -557,6 +562,33 @@ describe('classic layout entity resource list actions', () => {
     expect(railInTags).toHaveAttribute('data-reorder', 'disabled')
   })
 
+  it('keeps sortable rail containers mounted while refresh temporarily blocks reorder', () => {
+    const { rerender } = render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        assistantTopicsSource={createAssistantTopicsSource({ isRefreshing: true })}
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-sortable-container', 'enabled')
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-reorder', 'disabled')
+
+    rerender(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource({ isValidating: true })}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-sortable-container', 'enabled')
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-reorder', 'disabled')
+  })
+
   it('toggles assistant tag grouping from the context menu (list → tags)', () => {
     render(
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
@@ -741,7 +773,7 @@ describe('classic layout entity resource list actions', () => {
     })
   })
 
-  it('passes skill management entries into the classic agent rail display menu', () => {
+  it('keeps Skill management out of the classic agent rail display menu', () => {
     const onManageSkills = vi.fn()
 
     render(
@@ -766,9 +798,8 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.skill.manage.title' }))
-
-    expect(onManageSkills).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'agent.skill.manage.title' })).not.toBeInTheDocument()
+    expect(onManageSkills).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'agent.manage.title' })).toBeInTheDocument()
   })
 

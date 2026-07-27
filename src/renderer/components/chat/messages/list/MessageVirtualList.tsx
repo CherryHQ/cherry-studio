@@ -7,7 +7,7 @@
  * + ResizeObserver scheduling code that was the source of past jitter.
  *
  * The chat-specific behavior (atBottom state machine, RAF smooth scroll
- * with cancel-on-wheel, scroll-user-message-to-top on send) lives in
+ * with cancel-on-wheel, and user-owned viewport stability) lives in
  * `chatVirtualizerRuntime`. This component is just the JSX integration.
  */
 
@@ -91,14 +91,8 @@ export interface MessageVirtualListProps<T> {
   topPadding?: number
   /** Extra empty space after the newest message. */
   bottomPadding?: number
-  /**
-   * Changes when the caller wants the message with this group key
-   * scrolled to the viewport top. Typically set to the newest user
-   * message's group key after the user sends.
-   */
-  forceScrollToBottomKey?: string
-  /** Keep the top anchor stable while the response below it is still streaming. */
-  preserveScrollAnchor?: boolean
+  /** Monotonic generation from the local conversation turn controller. */
+  localSendGeneration?: number
   /** Stable item keys to retain while their live local UI state is active. */
   keepMountedKeys?: readonly string[]
   /** Whether to render the floating scroll-to-bottom affordance when the runtime is far from bottom. */
@@ -126,8 +120,7 @@ export function MessageVirtualList<T>({
   style,
   topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX,
   bottomPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
-  forceScrollToBottomKey,
-  preserveScrollAnchor,
+  localSendGeneration,
   keepMountedKeys,
   showScrollToBottomButton = false,
   scrollToBottomButtonBottomOffset = MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX,
@@ -143,20 +136,23 @@ export function MessageVirtualList<T>({
     handleRef,
     topReachOverscanItems: overscan,
     topPadding,
-    scrollToTopKey: forceScrollToBottomKey,
     topicId,
     bottomPadding,
-    preserveScrollAnchor,
+    localSendGeneration,
     keepMountedKeys
   })
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
   const { scrollToBottom, markUserInput, takeUserControl } = runtime
   const { onWheel } = runtime.scrollerProps
+  // Latch the captured node like TabRouter does: a background tab detaches the
+  // ref (element === null) while its DOM node lives on, and clearing this state
+  // would unmount the virtualizer below — discarding virtua's measurements and
+  // every message's own state on a plain tab switch.
   const setScrollerRef = useCallback(
     (element: HTMLDivElement | null) => {
       runtime.scrollerRef.current = element
-      setScrollerElement(element)
       if (element) {
+        setScrollerElement(element)
         onScrollContainerReady?.(element)
       }
     },
@@ -242,24 +238,28 @@ export function MessageVirtualList<T>({
             {topPadding > 0 && (
               <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
             )}
-            <Virtualizer
-              ref={runtime.vlistHandleRef}
-              scrollRef={runtime.scrollerRef}
-              data={runtime.wrappedItems}
-              itemSize={estimateSize}
-              bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
-              shift={runtime.shift}
-              keepMounted={runtime.keepMounted}
-              startMargin={topPadding}
-              onScroll={runtime.scrollerProps.onScroll}
-              onScrollEnd={runtime.scrollerProps.onScrollEnd}>
-              {runtime.wrappedRenderItem}
-            </Virtualizer>
+            {/* Virtua reads an external scrollRef only when it mounts. Wait for
+                Scrollbar's ref callback so staged layouts cannot leave it
+                permanently unmeasured with data but no rendered items. */}
+            {scrollerElement && (
+              <Virtualizer
+                ref={runtime.vlistHandleRef}
+                scrollRef={runtime.scrollerRef}
+                data={runtime.wrappedItems}
+                itemSize={estimateSize}
+                bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
+                shift={runtime.shift}
+                keepMounted={runtime.keepMounted}
+                startMargin={topPadding}
+                onScroll={runtime.scrollerProps.onScroll}
+                onScrollEnd={runtime.scrollerProps.onScrollEnd}>
+                {runtime.wrappedRenderItem}
+              </Virtualizer>
+            )}
           </ScrollOwnershipProvider>
         </div>
-        {/* Outside the content wrapper: the anchor derives its natural content
-            size from contentRef.scrollHeight, and this runtime-owned slack must
-            not inflate that measurement (it made the pinned spacer collapse). */}
+        {/* Outside the content wrapper so runtime-owned freeze slack does not
+            inflate the natural content size observed above. */}
         <div ref={runtime.freezeSpacerRef} aria-hidden="true" data-message-virtual-list-freeze-spacer />
       </Scrollbar>
       {shouldShowScrollToBottomButton && (

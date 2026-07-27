@@ -67,6 +67,14 @@ describe('serializeError', () => {
   })
 
   describe('discriminant field extraction (FIX error-2)', () => {
+    it('preserves a renderer translation key from application errors', () => {
+      const error = Object.assign(new Error('fallback message'), {
+        i18nKey: 'tool_call_limit_reached'
+      })
+
+      expect(serializeError(error).i18nKey).toBe('tool_call_limit_reached')
+    })
+
     it('serializes a RetryError with its discriminant fields', () => {
       const retryError = new RetryError({
         message: 'retry failed',

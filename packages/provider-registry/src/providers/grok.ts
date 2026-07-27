@@ -11,7 +11,22 @@ export default defineProvider({
     },
     'openai-responses': {
       adapterFamily: 'xai-responses',
-      baseUrl: 'https://api.x.ai/v1'
+      baseUrl: 'https://api.x.ai/v1',
+      reasoningFormat: {
+        type: 'openai-responses',
+        wire: {
+          off: {
+            operations: [{ target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }]
+          },
+          auto: {
+            operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+            effortMap: { auto: 'medium' }
+          },
+          effort: {
+            operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }]
+          }
+        }
+      }
     }
   },
   metadata: {

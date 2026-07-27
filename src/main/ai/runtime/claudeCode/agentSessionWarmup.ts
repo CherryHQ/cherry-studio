@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 
+import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
@@ -7,13 +8,16 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
+import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isExternalCliProvider, isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
@@ -136,7 +140,8 @@ export type DeriveConnectionConfigResult = { ok: true; config: ConnectionConfig 
  */
 export async function deriveConnectionConfig(
   sessionId: string,
-  connectionModelId?: UniqueModelId
+  connectionModelId?: UniqueModelId,
+  reasoningEffort: ReasoningEffortOption = 'default'
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
@@ -147,7 +152,12 @@ export async function deriveConnectionConfig(
   try {
     return {
       ok: true,
-      config: await deriveConnectionConfigFromSnapshot(session, agent, connectionModelId ?? agent.model)
+      config: await deriveConnectionConfigFromSnapshot(
+        session,
+        agent,
+        connectionModelId ?? agent.model,
+        reasoningEffort
+      )
     }
   } catch {
     // Deleted provider/model rows — the connection cannot be rebuilt to a valid target, so it is
@@ -160,6 +170,7 @@ async function deriveConnectionConfigFromSnapshot(
   session: AgentSessionEntity,
   agent: AgentEntity,
   uniqueModelId: UniqueModelId,
+  reasoningEffort: ReasoningEffortOption,
   materialized?: ConnectionMaterializationFacts
 ): Promise<ConnectionConfig> {
   const cwd = session.workspace?.path
@@ -187,6 +198,7 @@ async function deriveConnectionConfigFromSnapshot(
     : (agentChannelService.findBySessionId(session.id)?.id ?? null)
   const rebuildFacts = {
     modelId: uniqueModelId,
+    reasoningEffort,
     route: routeFacts,
     cwd,
     instructions: agent.instructions ?? null,
@@ -196,6 +208,7 @@ async function deriveConnectionConfigFromSnapshot(
     maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
+    knowledgeBaseIds: [...(agent.knowledgeBaseIds ?? [])].sort(),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     linkedChannelId
   }
@@ -245,7 +258,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Connection-scoped model override: a live turn runs on the model captured at its creation,
    *  which may differ from the agent's latest model after a mid-window edit. Defaults to the
    *  agent's current model (prewarm and turn-less connections). */
-  connectionModelId?: UniqueModelId
+  connectionModelId?: UniqueModelId,
+  /** Canonical reasoning selection frozen when the turn was submitted. */
+  reasoningEffort: ReasoningEffortOption = 'default'
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -259,6 +274,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
+  const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
   // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
@@ -280,7 +296,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       {
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
-        linkedChannelSnapshot
+        linkedChannelSnapshot,
+        thinkingOptions
       },
       agent
     ),
@@ -289,7 +306,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
   // already persisted and the connect-time fingerprint matches later pure reconciles.
-  const connectionConfig = await deriveConnectionConfigFromSnapshot(session, agent, uniqueModelId, {
+  const connectionConfig = await deriveConnectionConfigFromSnapshot(session, agent, uniqueModelId, reasoningEffort, {
     route: toConnectionRouteFacts(route),
     mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
     skills: settings.skills ?? [],
@@ -312,8 +329,43 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
     credentialsFingerprint: route.credentialsFingerprint,
+    knowledgeBaseIds: [...(agent.knowledgeBaseIds ?? [])].sort(),
     settings,
     sdkModelId
+  }
+}
+
+/**
+ * Claude Agent SDK always speaks the Anthropic-native reasoning dialect. When its route points at
+ * Cherry's gateway, the gateway translates those native fields again for the target endpoint.
+ */
+function resolveClaudeCodeThinkingOptions(
+  model: Model,
+  reasoningEffort: ReasoningEffortOption
+): { effort?: Options['effort']; thinking?: Options['thinking'] } {
+  const profile = providerRegistryService.resolveReasoningProfile(
+    {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    },
+    model,
+    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  )
+  const invocationModel = profile.support
+    ? { ...model, reasoning: projectRuntimeReasoning(profile.support, profile.wire) }
+    : model
+  const invocation = resolveReasoningInvocation({
+    selection: reasoningEffort,
+    model: invocationModel,
+    profile: profile.wire,
+    maxTokens: model.maxOutputTokens
+  })
+  const encoded = encodeReasoningInvocation(invocation)
+
+  return {
+    effort: encoded.effort as Options['effort'] | undefined,
+    thinking: encoded.thinking as Options['thinking'] | undefined
   }
 }
 
@@ -550,6 +602,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     key: request.key,
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
-    credentialsFingerprint: request.credentialsFingerprint
+    credentialsFingerprint: request.credentialsFingerprint,
+    knowledgeBaseIds: request.knowledgeBaseIds
   }
 }

@@ -19,13 +19,14 @@ import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { useNavigate } from '@tanstack/react-router'
-import { Check, Filter, Plus } from 'lucide-react'
+import { Check, ChevronDown, Filter, Plus } from 'lucide-react'
 import type { FC } from 'react'
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AddMcpServerModal from './AddMcpServerModal'
 import McpServerCard from './McpServerCard'
+import QuickCreateMcpServerDialog from './QuickCreateMcpServerDialog'
 
 type ImportMethod = 'json' | 'dxt' | 'mcpb'
 type McpServerFilter = 'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'streamableHttp' | 'builtin'
@@ -47,19 +48,16 @@ const McpServersList: FC = () => {
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false)
+  const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
   const [modalType, setModalType] = useState<ImportMethod>('json')
   const [filter, setFilter] = useState<McpServerFilter>('all')
 
-  const [searchText, _setSearchText] = useState('')
-
-  const setSearchText = useCallback((text: string) => {
-    startTransition(() => {
-      _setSearchText(text)
-    })
-  }, [])
+  const [searchText, setSearchText] = useState('')
+  // Keep typing responsive: the list re-filters on the deferred value.
+  const deferredSearchText = useDeferredValue(searchText)
 
   const filteredMcpServers = useMemo(() => {
-    const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+    const keywords = deferredSearchText.toLowerCase().split(/\s+/).filter(Boolean)
 
     return mcpServers.filter((server) => {
       if (filter === 'enabled' && !server.isActive) return false
@@ -74,7 +72,7 @@ const McpServersList: FC = () => {
       const searchTarget = `${server.name} ${server.description} ${server.tags?.join(' ')} ${server.provider ?? ''}`
       return matchKeywordsInString(keywords, searchTarget)
     })
-  }, [filter, mcpServers, searchText])
+  }, [deferredSearchText, filter, mcpServers])
 
   const activeServerCount = useMemo(() => mcpServers.filter((server) => server.isActive).length, [mcpServers])
 
@@ -107,19 +105,14 @@ const McpServersList: FC = () => {
     return () => container?.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const onAddMcpServer = useCallback(async () => {
-    const newServer = await addMcpServer({
-      name: t('settings.mcp.newServer'),
-      description: '',
-      baseUrl: '',
-      command: '',
-      args: [],
-      env: {},
-      isActive: false
-    })
-    void navigate({ to: `/settings/mcp/settings/${newServer.id}` })
-    toast.success(t('settings.mcp.addSuccess'))
-  }, [addMcpServer, navigate, t])
+  const handleQuickCreate = useCallback(
+    async (dto: CreateMcpServerDto) => {
+      const newServer = await addMcpServer(dto)
+      void navigate({ to: `/settings/mcp/settings/${newServer.id}` })
+      toast.success(t('settings.mcp.addSuccess'))
+    },
+    [addMcpServer, navigate, t]
+  )
 
   const handleAddServerSuccess = useCallback(
     async (dto: CreateMcpServerDto): Promise<McpServer> => {
@@ -133,8 +126,8 @@ const McpServersList: FC = () => {
 
   const handleManualAdd = useCallback(() => {
     setIsAddMenuOpen(false)
-    void onAddMcpServer()
-  }, [onAddMcpServer])
+    setIsQuickCreateOpen(true)
+  }, [])
 
   const handleImport = useCallback((importMethod: ImportMethod) => {
     setIsAddMenuOpen(false)
@@ -143,13 +136,13 @@ const McpServersList: FC = () => {
   }, [])
 
   return (
-    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 py-4 pt-3">
+    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-2 pb-6">
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
         <div className="mb-3 flex w-full flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <SettingTitle className="m-0">{t('settings.mcp.allServers')}</SettingTitle>
-              <span className="text-muted-foreground text-sm">
+              <span className="text-muted-foreground text-sm tabular-nums">
                 {activeServerCount}/{mcpServers.length}
               </span>
             </div>
@@ -162,7 +155,7 @@ const McpServersList: FC = () => {
                     className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-accent">
                     <Filter
                       size={14}
-                      color={filter === 'all' ? 'var(--color-foreground-secondary)' : undefined}
+                      color={filter === 'all' ? 'var(--muted-foreground)' : undefined}
                       className={filter === 'all' ? undefined : 'text-primary'}
                     />
                   </button>
@@ -201,9 +194,10 @@ const McpServersList: FC = () => {
             <EnvironmentDependencies mini />
             <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
               <PopoverTrigger asChild>
-                <Button variant="secondary" size="sm" className="rounded-lg text-xs shadow-none">
-                  <Plus size={15} />
+                <Button type="button">
+                  <Plus size={16} />
                   {t('common.add')}
+                  <ChevronDown size={14} />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" side="bottom" className="w-auto p-1">
@@ -255,6 +249,13 @@ const McpServersList: FC = () => {
           </div>
         </div>
       </div>
+
+      <QuickCreateMcpServerDialog
+        open={isQuickCreateOpen}
+        onOpenChange={setIsQuickCreateOpen}
+        existingServers={mcpServers}
+        onCreate={handleQuickCreate}
+      />
 
       <AddMcpServerModal
         visible={isAddModalVisible}

@@ -58,6 +58,9 @@ export interface AgentLoopHooks {
   /** Aggregate per-run state in your own `onStepFinish`; read it here via closure. */
   onFinish?: () => Promise<void> | void
 
+  /** Clean cancellation only; errors continue to use `onError`. */
+  onAbort?: () => Promise<void> | void
+
   /** Return 'retry' to retry the run, 'abort' to stop. Default: 'abort'. Retry is not implemented yet. */
   onError?: (ctx: ErrorContext) => Promise<'retry' | 'abort'> | 'retry' | 'abort'
 }

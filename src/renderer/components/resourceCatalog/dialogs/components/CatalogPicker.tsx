@@ -63,15 +63,26 @@ export const CatalogToggleGrid: FC<{
   disabled?: boolean
   emptyLabel: ReactNode
   portalContainer?: HTMLElement | null
+  trailingItem?: ReactNode
   /** Toggle control style. `switch` (default) suits the edit dialog; `checkbox` suits the multi-select create wizard. */
   variant?: 'switch' | 'checkbox'
-}> = ({ items, enabledIds, onToggle, loading, disabled, emptyLabel, portalContainer, variant = 'switch' }) => {
+}> = ({
+  items,
+  enabledIds,
+  onToggle,
+  loading,
+  disabled,
+  emptyLabel,
+  portalContainer,
+  trailingItem,
+  variant = 'switch'
+}) => {
   const { t } = useTranslation()
 
   if (loading) {
     return <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>
   }
-  if (items.length === 0) {
+  if (items.length === 0 && !trailingItem) {
     return <CatalogEmptyPlaceholder>{emptyLabel}</CatalogEmptyPlaceholder>
   }
 
@@ -153,6 +164,7 @@ export const CatalogToggleGrid: FC<{
           </div>
         )
       })}
+      {trailingItem}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f8ee4c4a-84d7-4358-9238-6c67588137d6",
+  "id": "89e1707b-580e-4d39-8c85-9bd812a65a5b",
   "prevId": "a77f1218-2bec-4fa7-8c19-9ad6e8d3cb30",
   "tables": {
     "agent": {
@@ -1060,6 +1060,68 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "agent_knowledge_base": {
+      "name": "agent_knowledge_base",
+      "columns": {
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "knowledge_base_id": {
+          "name": "knowledge_base_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "agent_knowledge_base_agent_id_agent_id_fk": {
+          "name": "agent_knowledge_base_agent_id_agent_id_fk",
+          "tableFrom": "agent_knowledge_base",
+          "tableTo": "agent",
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_knowledge_base_knowledge_base_id_knowledge_base_id_fk": {
+          "name": "agent_knowledge_base_knowledge_base_id_knowledge_base_id_fk",
+          "tableFrom": "agent_knowledge_base",
+          "tableTo": "knowledge_base",
+          "columnsFrom": ["knowledge_base_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "agent_knowledge_base_agent_id_knowledge_base_id_pk": {
+          "columns": ["agent_id", "knowledge_base_id"],
+          "name": "agent_knowledge_base_agent_id_knowledge_base_id_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -2713,13 +2775,6 @@
         },
         "stats": {
           "name": "stats",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "compaction_summary": {
-          "name": "compaction_summary",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

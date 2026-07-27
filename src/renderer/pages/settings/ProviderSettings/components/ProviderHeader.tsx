@@ -44,18 +44,18 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
 
   return (
     <>
-      <div className="flex items-center gap-3">
+      <div className="flex min-h-7 items-center gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <div className="min-w-0 self-center">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className="truncate font-bold text-[15px] text-foreground leading-tight">
+              <h1 className="truncate font-semibold text-[15px] text-foreground leading-tight">
                 {meta.officialWebsite ? (
                   <a
                     href={meta.officialWebsite}
                     target="_blank"
                     rel="noreferrer"
                     className="truncate"
-                    aria-label={`${meta.fancyProviderName} · ${t('settings.provider.api.official_website')}`}>
+                    aria-label={`${meta.fancyProviderName} · ${t('settings.provider.oauth.official_website')}`}>
                     {meta.fancyProviderName}
                   </a>
                 ) : (

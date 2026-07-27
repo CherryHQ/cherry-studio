@@ -43,7 +43,7 @@ vi.mock('@cherrystudio/provider-registry', async () => {
   const actual: Record<string, unknown> = await vi.importActual('@cherrystudio/provider-registry')
   return {
     ...actual,
-    buildRuntimeEndpointConfigs: vi.fn(() => null)
+    buildPersistedEndpointConfigs: vi.fn(() => null)
   }
 })
 

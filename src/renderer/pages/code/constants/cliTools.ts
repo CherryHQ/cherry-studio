@@ -28,19 +28,6 @@ export const CLI_TOOLS = [
   { value: CodeCli.OPENCLAW, label: 'code.cli_tools.openclaw', icon: Openclaw }
 ] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
 
-/** CLI tool id → installed binary name (the shim mise exposes). */
-export const CLI_BINARY_NAMES: Record<CodeCli, string> = {
-  [CodeCli.CLAUDE_CODE]: 'claude',
-  [CodeCli.OPENAI_CODEX]: 'codex',
-  [CodeCli.OPEN_CODE]: 'opencode',
-  [CodeCli.OPENCLAW]: 'openclaw',
-  [CodeCli.GEMINI_CLI]: 'gemini',
-  [CodeCli.QWEN_CODE]: 'qwen',
-  [CodeCli.KIMI_CODE]: 'kimi',
-  [CodeCli.QODER_CLI]: 'qoderclicn',
-  [CodeCli.GITHUB_COPILOT_CLI]: 'copilot'
-}
-
 /**
  * Provider-less CLI tools: authenticate through their own login flow (OAuth /
  * device code) rather than a Cherry provider + model. They launch with a

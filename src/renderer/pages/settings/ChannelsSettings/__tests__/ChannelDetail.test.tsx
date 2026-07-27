@@ -41,6 +41,9 @@ vi.mock('@renderer/components/Scrollbar', () => ({
 
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingDivider: (props: React.HTMLAttributes<HTMLHRElement>) => <hr {...props} />,
+  SettingGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+    <section {...props}>{children}</section>
+  ),
   SettingsContentBody: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
     <div {...props}>{children}</div>
   ),
@@ -103,6 +106,7 @@ vi.mock('@cherrystudio/ui', () => {
     DialogTitle: passthrough('h2'),
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Label: passthrough('label'),
     Select: ({ children, onValueChange }: { children?: React.ReactNode; onValueChange?: (value: string) => void }) => (
       <SelectContext value={{ onValueChange }}>{children}</SelectContext>
     ),

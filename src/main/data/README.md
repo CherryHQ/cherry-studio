@@ -24,8 +24,15 @@ src/main/data/
 ├── migration/                 # Data migration system
 ├── CacheService.ts            # Cache management
 ├── DataApiService.ts          # API coordination
-└── PreferenceService.ts       # User preferences
+├── PreferenceService.ts       # User preferences
+└── dataApiDataChange.ts       # DataApi data change notification (post-commit broadcast)
 ```
+
+## Data Change Notification
+
+`notifyDataApiDataChange(effects)` is the single publish point for cross-window data convergence: after a business write **successfully commits**, the owning data service states which read models changed (`DataApiDataChangeEffect[]`), and the signal is broadcast to all windows. This is a strictly fenced exception to the "no side effects in data services" rule — see [Fenced Exception: Data Change Notification](../../../docs/references/data/api-design-guidelines.md#fenced-exception-data-change-notification) for the fences, and the notifier's own doc comment for publish invariants (post-commit timing, `*Tx()` never notifies, no-op writes may skip) and the delivery contract.
+
+It deliberately lives at the `data/` top level, NOT in `api/` — `api/` is the portable transport framework (HttpAdapter reserved), while this capability is an Electron/IPC special case depending on `WindowManager`.
 
 ## Quick Reference
 

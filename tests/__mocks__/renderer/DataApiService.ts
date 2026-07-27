@@ -1,6 +1,4 @@
-import type { ConcreteApiPaths } from '@shared/data/api/types'
-import type { SubscriptionCallback, SubscriptionOptions } from '@shared/data/api/types'
-import { SubscriptionEvent } from '@shared/data/api/types'
+import type { ConcreteApiPaths, DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
 import { vi } from 'vitest'
 
 /**
@@ -98,14 +96,8 @@ function getMockDataForPath(path: ConcreteApiPaths, method: string): any {
  * Create a mock DataApiService with realistic behavior
  */
 export const createMockDataApiService = (customBehavior: Partial<ReturnType<typeof createMockDataApiService>> = {}) => {
-  // Track subscriptions
-  const subscriptions = new Map<
-    string,
-    {
-      callback: SubscriptionCallback
-      options: SubscriptionOptions
-    }
-  >()
+  // Data change fan-out (mirrors the real service: endpoint → listeners)
+  const dataChangeListeners = new Map<GetMethodApiPaths, Set<(effects: DataApiDataChangeEffect[]) => void>>()
 
   // Retry configuration
   let retryOptions: RetryOptions = {
@@ -162,21 +154,36 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
       }
     ),
 
-    // ============ Subscription ============
+    // ============ Data Change Notifications ============
 
-    subscribe: vi.fn(<T>(options: SubscriptionOptions, callback: SubscriptionCallback<T>): (() => void) => {
-      const subscriptionId = `sub_${Date.now()}_${Math.random()}`
-
-      subscriptions.set(subscriptionId, {
-        callback: callback as SubscriptionCallback,
-        options
-      })
-
-      // Return unsubscribe function
-      return () => {
-        subscriptions.delete(subscriptionId)
+    onDataChanged: vi.fn(
+      (
+        endpoints: GetMethodApiPaths | GetMethodApiPaths[],
+        listener: (effects: DataApiDataChangeEffect[]) => void
+      ): (() => void) => {
+        // Mirrors production: one unique wrapper per registration.
+        const registered = (effects: DataApiDataChangeEffect[]) => listener(effects)
+        const endpointList = [...new Set(Array.isArray(endpoints) ? endpoints : [endpoints])]
+        for (const endpoint of endpointList) {
+          let listeners = dataChangeListeners.get(endpoint)
+          if (!listeners) {
+            listeners = new Set()
+            dataChangeListeners.set(endpoint, listeners)
+          }
+          listeners.add(registered)
+        }
+        return () => {
+          for (const endpoint of endpointList) {
+            const listeners = dataChangeListeners.get(endpoint)
+            if (!listeners) continue
+            listeners.delete(registered)
+            if (listeners.size === 0) {
+              dataChangeListeners.delete(endpoint)
+            }
+          }
+        }
       }
-    }),
+    ),
 
     // ============ Retry Configuration ============
 
@@ -191,38 +198,15 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
       return { ...retryOptions }
     }),
 
-    // ============ Request Management (Deprecated) ============
-
-    /**
-     * @deprecated This method has no effect with direct IPC
-     */
-    cancelRequest: vi.fn((_requestId: string): void => {
-      // No-op - direct IPC requests cannot be cancelled
-    }),
-
-    /**
-     * @deprecated This method has no effect with direct IPC
-     */
-    cancelAllRequests: vi.fn((): void => {
-      // No-op - direct IPC requests cannot be cancelled
-    }),
-
-    // ============ Statistics ============
-
-    getRequestStats: vi.fn(() => ({
-      pendingRequests: 0,
-      activeSubscriptions: subscriptions.size
-    })),
-
     // ============ Internal State Access for Testing ============
 
     _getMockState: () => ({
-      subscriptions: new Map(subscriptions),
+      dataChangeListeners: new Map(dataChangeListeners),
       retryOptions: { ...retryOptions }
     }),
 
     _resetMockState: () => {
-      subscriptions.clear()
+      dataChangeListeners.clear()
       retryOptions = {
         maxRetries: 2,
         retryDelay: 1000,
@@ -230,12 +214,32 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
       }
     },
 
-    _triggerSubscription: (path: string, data: any, event: SubscriptionEvent) => {
-      subscriptions.forEach(({ callback, options }) => {
-        if (options.path === path) {
-          callback(data, event)
+    /**
+     * Deliver one data change notification exactly like the real fan-out:
+     * exact endpoint match, all matching entries merged into ONE callback per
+     * listener, listener errors swallowed (isolation).
+     */
+    _emitDataChange: (effects: DataApiDataChangeEffect[]) => {
+      const matched = new Map<(effects: DataApiDataChangeEffect[]) => void, DataApiDataChangeEffect[]>()
+      for (const effect of effects) {
+        const listeners = dataChangeListeners.get(effect.endpoint)
+        if (!listeners) continue
+        for (const listener of listeners) {
+          let batch = matched.get(listener)
+          if (!batch) {
+            batch = []
+            matched.set(listener, batch)
+          }
+          batch.push(effect)
         }
-      })
+      }
+      for (const [listener, batch] of matched) {
+        try {
+          listener(batch)
+        } catch {
+          // isolated, mirroring production
+        }
+      }
     },
 
     // Apply custom behavior overrides
@@ -291,9 +295,12 @@ export const MockDataApiService = {
       return mockDataApiService.delete(path, options)
     }
 
-    // ============ Subscription ============
-    subscribe<T>(options: SubscriptionOptions, callback: SubscriptionCallback<T>): () => void {
-      return mockDataApiService.subscribe(options, callback)
+    // ============ Data Change Notifications ============
+    onDataChanged(
+      endpoints: GetMethodApiPaths | GetMethodApiPaths[],
+      listener: (effects: DataApiDataChangeEffect[]) => void
+    ): () => void {
+      return mockDataApiService.onDataChanged(endpoints, listener)
     }
 
     // ============ Retry Configuration ============
@@ -303,20 +310,6 @@ export const MockDataApiService = {
 
     getRetryConfig(): RetryOptions {
       return mockDataApiService.getRetryConfig()
-    }
-
-    // ============ Request Management ============
-    cancelRequest(requestId: string): void {
-      return mockDataApiService.cancelRequest(requestId)
-    }
-
-    cancelAllRequests(): void {
-      return mockDataApiService.cancelAllRequests()
-    }
-
-    // ============ Statistics ============
-    getRequestStats() {
-      return mockDataApiService.getRequestStats()
     }
   },
   dataApiService: mockDataApiService
@@ -385,10 +378,11 @@ export const MockDataApiUtils = {
   },
 
   /**
-   * Trigger a subscription callback for testing
+   * Deliver a data change notification to registered onDataChanged listeners
+   * (same batch-merge and error-isolation semantics as production).
    */
-  triggerSubscription: (path: string, data: any, event: SubscriptionEvent = SubscriptionEvent.UPDATED) => {
-    mockDataApiService._triggerSubscription(path, data, event)
+  emitDataChange: (effects: DataApiDataChangeEffect[]) => {
+    mockDataApiService._emitDataChange(effects)
   },
 
   /**

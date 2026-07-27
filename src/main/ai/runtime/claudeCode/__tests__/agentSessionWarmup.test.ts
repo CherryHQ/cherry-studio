@@ -1,3 +1,4 @@
+import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -17,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
   apiGatewayStart: vi.fn(),
-  apiGatewayGetCurrentConfig: vi.fn()
+  apiGatewayGetCurrentConfig: vi.fn(),
+  resolveReasoningProfile: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -42,6 +44,10 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken }
+}))
+
+vi.mock('@data/services/ProviderRegistryService', () => ({
+  providerRegistryService: { resolveReasoningProfile: mocks.resolveReasoningProfile }
 }))
 
 vi.mock('@data/services/McpServerService', () => ({
@@ -85,6 +91,10 @@ const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = a
 describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.wire
+    })
     mocks.getSessionById.mockReturnValue({
       id: 'session-1',
       agentId: 'agent-1',
@@ -709,6 +719,41 @@ describe('deriveConnectionConfig', () => {
     })
     const mcpDefinitionChanged = await deriveSignature()
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
+  })
+
+  it('fingerprints knowledge-base bindings as a set', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      knowledgeBaseIds: ['kb-b', 'kb-a'],
+      configuration: {}
+    })
+    const bound = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      knowledgeBaseIds: ['kb-a', 'kb-b'],
+      configuration: {}
+    })
+    const reordered = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      knowledgeBaseIds: ['kb-a'],
+      configuration: {}
+    })
+    const unbound = await deriveSignature()
+
+    expect(reordered.rebuildSignature).toBe(bound.rebuildSignature)
+    expect(unbound.rebuildSignature).not.toBe(bound.rebuildSignature)
   })
 
   it('keeps permission mode live-only while disabled tools also require a rebuild', async () => {

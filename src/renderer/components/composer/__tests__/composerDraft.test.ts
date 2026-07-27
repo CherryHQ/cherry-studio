@@ -5,7 +5,8 @@ import {
   createComposerDocumentContent,
   createComposerMessageSnapshot,
   createComposerUserMessageParts,
-  serializeComposerDocument
+  serializeComposerDocument,
+  trimComposerDraftBoundaryBlankLines
 } from '../composerDraft'
 import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
 
@@ -17,6 +18,100 @@ function tokenNode(attrs: Record<string, unknown>): JSONContent {
 }
 
 describe('composer draft serialization', () => {
+  it('trims only boundary blank lines while preserving meaningful-line whitespace and internal blank lines', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: ' \t\n  first line  \n\nlast line \t\n \t\n',
+      tokens: []
+    })
+
+    expect(draft).toEqual({
+      text: '  first line  \n\nlast line \t',
+      tokens: []
+    })
+  })
+
+  it('keeps token-only boundary lines and shifts token offsets past removed blank lines', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: '\n\nbody\n\n',
+      tokens: [
+        { id: 'leading-skill', kind: 'skill', label: 'Browser', index: 0, textOffset: 1 },
+        { id: 'trailing-file', kind: 'file', label: 'notes.md', index: 1, textOffset: 8 }
+      ]
+    })
+
+    expect(draft).toEqual({
+      text: '\nbody\n\n',
+      tokens: [
+        { id: 'leading-skill', kind: 'skill', label: 'Browser', index: 0, textOffset: 0 },
+        { id: 'trailing-file', kind: 'file', label: 'notes.md', index: 1, textOffset: 7 }
+      ]
+    })
+  })
+
+  it('preserves trailing blank lines owned by multiline token prompt text', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: '\nvalue\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 1,
+          promptText: 'value\n\n'
+        }
+      ]
+    })
+
+    expect(draft).toEqual({
+      text: 'value\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 0,
+          promptText: 'value\n\n'
+        }
+      ]
+    })
+  })
+
+  it('still trims trailing blank lines outside token prompt text', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: '\nvalue\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 1,
+          promptText: 'value'
+        }
+      ]
+    })
+
+    expect(draft).toEqual({
+      text: 'value',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 0,
+          promptText: 'value'
+        }
+      ]
+    })
+  })
+
+  it('collapses a draft containing only token-free blank lines to empty text', () => {
+    expect(trimComposerDraftBoundaryBlankLines({ text: ' \t\n\n ', tokens: [] })).toEqual({ text: '', tokens: [] })
+  })
+
   it('serializes tokens before, between, and after text in document order', () => {
     const draft = serializeComposerDocument({
       type: 'doc',
@@ -250,6 +345,65 @@ describe('composer draft serialization', () => {
       { id: 'skill-1', kind: 'skill', label: 'Browser', index: 0, textOffset: 0 },
       { id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 1, textOffset: 5 }
     ])
+  })
+
+  it('serializes reference tokens with inlined context prompt text and persists them without payload', () => {
+    const promptText = '<referenced-conversation type="topic" name="Docs">\n[user]\nhi\n</referenced-conversation>'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'See ' },
+            tokenNode({
+              id: 'reference:topic:t1',
+              kind: 'reference',
+              label: 'Docs',
+              description: 'Docs · Assistant',
+              promptText,
+              payload: { entityType: 'topic', id: 't1', name: 'Docs' }
+            })
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe(`See ${promptText}`)
+    const snapshot = createComposerMessageSnapshot(draft)
+    expect(snapshot).toEqual({
+      version: 1,
+      tokens: [
+        {
+          id: 'reference:topic:t1',
+          kind: 'reference',
+          label: 'Docs',
+          description: 'Docs · Assistant',
+          index: 0,
+          textOffset: 4,
+          promptText
+        }
+      ]
+    })
+
+    expect(createComposerDocumentContent(draft.text, snapshot)).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'See ' },
+            tokenNode({
+              id: 'reference:topic:t1',
+              kind: 'reference',
+              label: 'Docs',
+              description: 'Docs · Assistant',
+              promptText
+            })
+          ]
+        }
+      ]
+    })
   })
 
   it('serializes quote tokens as blockquote prompt text and persists quote metadata', () => {

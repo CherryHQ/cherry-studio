@@ -1,4 +1,4 @@
-import 'og-crd/style.css'
+import '@renderer/assets/styles/vendor/og-crd.css'
 
 import { Skeleton } from '@cherrystudio/ui'
 import { useMetaDataParser } from '@renderer/hooks/useMetaDataParser'
@@ -80,7 +80,7 @@ const Container = ({ children }: PropsWithChildren<{}>) => {
 
   return (
     <div
-      className="aspect-760/420 w-100 max-w-[calc(100vw-32px)] overflow-hidden rounded-lg border border-(--color-border) bg-(--color-background)"
+      className="aspect-760/420 w-100 max-w-[calc(100vw-32px)] overflow-hidden rounded-lg border border-border bg-background"
       style={cardStyle}>
       {children}
     </div>

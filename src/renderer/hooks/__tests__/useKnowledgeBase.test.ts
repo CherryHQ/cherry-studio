@@ -1,5 +1,4 @@
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
-import { LOCAL_EMBEDDING_DIMENSIONS, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { CreateKnowledgeBaseDto, KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
@@ -178,6 +177,35 @@ describe('useCreateKnowledgeBase', () => {
     })
   })
 
+  it('forwards the embedding model with its dimensions when one is picked', async () => {
+    const createdBase = createKnowledgeBase({
+      id: 'base-5',
+      name: 'Base 5',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: 1536
+    })
+    mockIpcRequest.mockResolvedValueOnce(createdBase)
+    const input: CreateKnowledgeBaseInput = {
+      name: 'Base 5',
+      embeddingModelId: '  openai::text-embedding-3-small  ',
+      dimensions: 1536
+    }
+
+    const { result } = renderHook(() => useCreateKnowledgeBase())
+
+    await act(async () => {
+      await result.current.createBase(input)
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
+      base: {
+        name: 'Base 5',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: 1536
+      }
+    })
+  })
+
   it('keeps create rejected when runtime IPC fails without refreshing the list', async () => {
     const createError = new Error('create failed')
     mockIpcRequest.mockRejectedValueOnce(createError)
@@ -196,45 +224,6 @@ describe('useCreateKnowledgeBase', () => {
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to create knowledge base', createError, {
       name: 'Base 4',
       groupId: undefined
-    })
-  })
-
-  it('passes the embedding model and dimensions together when both are provided', async () => {
-    const input: CreateKnowledgeBaseInput = {
-      name: 'Base 5',
-      embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
-      dimensions: LOCAL_EMBEDDING_DIMENSIONS
-    }
-    const { result } = renderHook(() => useCreateKnowledgeBase())
-
-    await act(async () => {
-      await result.current.createBase(input)
-    })
-
-    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
-      base: {
-        name: 'Base 5',
-        embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
-        dimensions: LOCAL_EMBEDDING_DIMENSIONS
-      }
-    })
-  })
-
-  it('omits the embedding model from the runtime IPC payload when its dimensions are missing', async () => {
-    const input: CreateKnowledgeBaseInput = {
-      name: 'Base 6',
-      embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID
-    }
-    const { result } = renderHook(() => useCreateKnowledgeBase())
-
-    await act(async () => {
-      await result.current.createBase(input)
-    })
-
-    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
-      base: {
-        name: 'Base 6'
-      }
     })
   })
 })
@@ -461,7 +450,7 @@ describe('useDeleteKnowledgeBase', () => {
     mockIpcRequest.mockResolvedValue(undefined)
   })
 
-  it('deletes a knowledge base through runtime IPC and refreshes the knowledge base list', async () => {
+  it('deletes a knowledge base through runtime IPC and refreshes dependent caches', async () => {
     const { result } = renderHook(() => useDeleteKnowledgeBase())
 
     await act(async () => {
@@ -470,7 +459,13 @@ describe('useDeleteKnowledgeBase', () => {
 
     expect(mockUseMutation).not.toHaveBeenCalled()
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.delete_base', { baseId: 'base-1' })
-    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
+    expect(mockInvalidateCache).toHaveBeenCalledWith([
+      '/knowledge-bases',
+      '/agents',
+      '/agents/*',
+      '/assistants',
+      '/assistants/*'
+    ])
     expect(result.current.isDeleting).toBe(false)
     expect(result.current.deleteError).toBeUndefined()
   })
@@ -484,7 +479,13 @@ describe('useDeleteKnowledgeBase', () => {
       await expect(result.current.deleteBase('base-1')).rejects.toBe(deleteError)
     })
 
-    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
+    expect(mockInvalidateCache).toHaveBeenCalledWith([
+      '/knowledge-bases',
+      '/agents',
+      '/agents/*',
+      '/assistants',
+      '/assistants/*'
+    ])
     expect(result.current.isDeleting).toBe(false)
     expect(result.current.deleteError).toBe(deleteError)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge base', deleteError, {

@@ -156,6 +156,15 @@ export class AgentSessionService {
     })
   }
 
+  /**
+   * Bump the session's `updatedAt` from a foreign service's transaction —
+   * message writes call this so the session surfaces in recency-ordered lists.
+   * Lives here because this service owns the session table's invariants.
+   */
+  touchUpdatedAtTx(tx: DbOrTx, sessionId: string, timestampMs: number): void {
+    tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
+  }
+
   private assertAgentExistsTx(tx: DbOrTx, agentId: string): void {
     const [agent] = tx
       .select({ id: agentsTable.id })

@@ -8,6 +8,7 @@ import {
   DialogTitle,
   EmptyState,
   Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -21,7 +22,12 @@ import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { SettingDivider, SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingsContentBody,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
@@ -160,9 +166,7 @@ const ChannelLogModal: FC<{
           {logs.map((entry, i) => (
             <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
               <span className="shrink-0 text-muted-foreground">{formatTime(entry.timestamp)}</span>
-              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? '#8c8c8c', fontWeight: 500 }}>
-                [{entry.level.toUpperCase()}]
-              </span>
+              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? '#8c8c8c' }}>[{entry.level.toUpperCase()}]</span>
               <span className="break-all">{entry.message}</span>
             </div>
           ))}
@@ -256,7 +260,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
             </DialogHeader>
             <div className="flex flex-col gap-4">
               <div>
-                <label className="mb-1 block font-medium text-xs">{t('common.name')}</label>
+                <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -265,7 +269,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                 />
               </div>
               <div>
-                <label className="mb-1 block font-medium text-xs">{t('agent.channels.bindAgent')}</label>
+                <Label className="mb-1 block text-xs">{t('agent.channels.bindAgent')}</Label>
                 <Select value={agentId ?? NO_AGENT_VALUE} onValueChange={handleAgentChange}>
                   <SelectTrigger size="sm" className="w-full">
                     <SelectValue placeholder={t('agent.channels.selectAgent')} />
@@ -326,21 +330,21 @@ const ChannelInstanceRow: FC<{
   const isConnected = connectionStatus?.connected ?? false
   const hasError = connectionStatus?.error
 
-  let statusColor = 'bg-gray-400' // inactive or unknown
+  let statusColor = 'bg-muted-foreground' // inactive or unknown
   let statusTag: React.ReactNode = null
   if (channel.isActive) {
     if (isConnected) {
-      statusColor = 'bg-green-500'
+      statusColor = 'bg-success'
       statusTag = (
         <Badge className="border-success/30 bg-success/10 px-1.5 py-0 text-[10px] text-success leading-3.5">
           {t('agent.channels.connected')}
         </Badge>
       )
     } else if (hasError) {
-      statusColor = 'bg-red-500'
+      statusColor = 'bg-error'
       statusTag = (
         <Tooltip title={hasError}>
-          <Badge className="border-destructive/30 bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive leading-3.5">
+          <Badge className="border-error-border bg-error-subtle px-1.5 py-0 text-[10px] text-error-subtle-foreground leading-3.5">
             {t('agent.channels.error')}
           </Badge>
         </Tooltip>
@@ -352,12 +356,12 @@ const ChannelInstanceRow: FC<{
     <div className="flex items-center gap-3 border-border border-b-[0.5px] px-1 py-2.5 last:border-b-0">
       <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 font-medium text-sm">
+        <div className="flex items-center gap-2 text-sm">
           {channel.name}
           {statusTag}
         </div>
         <div className="truncate text-foreground-400 text-xs">
-          {agentName && <span className="mr-2 text-blue-400">{agentName}</span>}
+          {agentName && <span className="mr-2 text-info">{agentName}</span>}
           {summary}
         </div>
       </div>
@@ -522,44 +526,46 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   return (
     <Scrollbar className="flex flex-1 flex-col" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
       <SettingsContentBody>
-        <div className="flex items-center justify-between gap-4 pb-1">
-          <div className="min-w-0">
-            <SettingTitle className="justify-start gap-2">
-              {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
-              <span className="truncate">{channelDef.name}</span>
-            </SettingTitle>
-            <p className="mt-1.5 mb-0 text-foreground-muted text-xs">
-              {channelDef.available ? t(channelDef.description) : t('agent.channels.comingSoon')}
-            </p>
+        <SettingGroup>
+          <div className="flex items-center justify-between gap-4 pb-1">
+            <div className="min-w-0">
+              <SettingTitle className="justify-start gap-2">
+                {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
+                <span className="truncate">{channelDef.name}</span>
+              </SettingTitle>
+              <p className="mt-1.5 mb-0 text-foreground-muted text-xs">
+                {channelDef.available ? t(channelDef.description) : t('agent.channels.comingSoon')}
+              </p>
+            </div>
+            <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
+              <Plus className="size-4" />
+              {t('agent.channels.add')}
+            </Button>
           </div>
-          <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
-            <Plus className="size-4" />
-            {t('agent.channels.add')}
-          </Button>
-        </div>
-        <SettingDivider className="m-0 mt-2" />
-        <div className="flex flex-col">
-          {channelList.length === 0 && (
-            <EmptyState
-              compact
-              preset="no-resource"
-              description={t('agent.channels.noInstances', { type: channelDef.name })}
-              className="py-8"
-            />
-          )}
-          {channelList.map((ch) => (
-            <ChannelInstanceRow
-              key={ch.id}
-              channel={ch}
-              agents={agents}
-              connectionStatus={statuses.get(ch.id)}
-              onEdit={() => setEditingChannelId(ch.id)}
-              onDelete={() => handleDelete(ch.id)}
-              onToggle={(active) => handleToggle(ch.id, active)}
-              onShowLogs={() => setLogChannel({ id: ch.id, name: ch.name })}
-            />
-          ))}
-        </div>
+          <SettingDivider className="m-0 mt-2" />
+          <div className="flex flex-col">
+            {channelList.length === 0 && (
+              <EmptyState
+                compact
+                preset="no-resource"
+                description={t('agent.channels.noInstances', { type: channelDef.name })}
+                className="py-8"
+              />
+            )}
+            {channelList.map((ch) => (
+              <ChannelInstanceRow
+                key={ch.id}
+                channel={ch}
+                agents={agents}
+                connectionStatus={statuses.get(ch.id)}
+                onEdit={() => setEditingChannelId(ch.id)}
+                onDelete={() => handleDelete(ch.id)}
+                onToggle={(active) => handleToggle(ch.id, active)}
+                onShowLogs={() => setLogChannel({ id: ch.id, name: ch.name })}
+              />
+            ))}
+          </div>
+        </SettingGroup>
       </SettingsContentBody>
 
       <ChannelEditModal

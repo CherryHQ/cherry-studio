@@ -16,7 +16,7 @@
  * - topics -> dropped (decoupled)
  * - content/targetLanguage -> dropped (translation-specific)
  * - enableGenerateImage/enableUrlContext/knowledgeRecognition/webSearchProviderId -> dropped
- * - regularPhrases -> dropped (future: FK IDs)
+ * - regularPhrases -> migrated separately by PromptMigrator into the global prompt table
  */
 
 import type { InsertAssistantRow } from '@data/db/schemas/assistant'
@@ -105,7 +105,10 @@ export interface OldMcpServer {
  * Dropped fields (documented for traceability):
  * topics, messages, content, targetLanguage,
  * enableGenerateImage, enableUrlContext, knowledgeRecognition,
- * webSearchProviderId, regularPhrases
+ * webSearchProviderId
+ *
+ * regularPhrases is intentionally omitted from the assistant row shape because
+ * PromptMigrator reads it from Redux and flattens it into the global prompt table.
  */
 export interface OldAssistant {
   id: string

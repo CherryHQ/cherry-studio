@@ -93,6 +93,87 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     })
   })
 
+  it('relocates tool_result images into user file parts and keeps placeholders in the output', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'call_img',
+                content: [
+                  { type: 'text', text: 'done' },
+                  { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+                  { type: 'image', source: { type: 'url', url: 'https://img.example/x.png' } }
+                ]
+              }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+    const output = (msgs[0].parts[0] as { output?: unknown }).output
+    expect(output).toContain('done')
+    expect(output).toContain('[tool-result attachment call_id="call_img" image=1] (image/png)')
+    expect(output).toContain('[tool-result attachment call_id="call_img" image=2] (image/png)')
+    expect(output).not.toContain('AAAA')
+    expect(msgs[1]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', text: expect.stringContaining('call_id="call_img"') },
+        { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' },
+        { type: 'text', text: expect.stringContaining('call_id="call_img"') },
+        { type: 'file', mediaType: 'image/png', url: 'https://img.example/x.png' }
+      ]
+    })
+  })
+
+  it('keeps call ids attached to relocated images when parallel results arrive out of order', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'c1', name: 'generate_image', input: { prompt: 'first' } },
+              { type: 'tool_use', id: 'c2', name: 'generate_image', input: { prompt: 'second' } }
+            ]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'c2',
+                content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'BBBB' } }]
+              },
+              {
+                type: 'tool_result',
+                tool_use_id: 'c1',
+                content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }]
+              }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect((msgs[0].parts[0] as { output?: string }).output).toContain('call_id="c1"')
+    expect((msgs[0].parts[1] as { output?: string }).output).toContain('call_id="c2"')
+    expect(msgs[1].parts).toEqual([
+      { type: 'text', text: expect.stringContaining('call_id="c2"') },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,BBBB' },
+      { type: 'text', text: expect.stringContaining('call_id="c1"') },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' }
+    ])
+  })
+
   it('emits an input-available tool part when there is no matching result', () => {
     const msgs = converter.toUIMessages(
       params({

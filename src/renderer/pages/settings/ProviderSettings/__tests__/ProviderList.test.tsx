@@ -13,6 +13,9 @@ const useReorderMock = vi.fn()
 const useOvmsSupportMock = vi.fn()
 const deleteProviderMock = vi.fn()
 const scrollIntoViewMock = vi.fn()
+const { providerEditorDrawerSpy } = vi.hoisted(() => ({
+  providerEditorDrawerSpy: vi.fn()
+}))
 let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
 let providerListScrollerClientHeight = 100
@@ -117,7 +120,10 @@ vi.mock('../ProviderList/ProviderListItemWithContextMenu', () => ({
 }))
 
 vi.mock('../ProviderList/ProviderEditorDrawer', () => ({
-  default: ({ open }: any) => <div data-testid="provider-editor-drawer" data-open={open ? 'true' : 'false'} />
+  default: (props: any) => {
+    providerEditorDrawerSpy(props)
+    return <div data-testid="provider-editor-drawer" data-open={props.open ? 'true' : 'false'} />
+  }
 }))
 
 // The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
@@ -245,6 +251,47 @@ describe('ProviderList', () => {
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.queryByText('CherryAI')).not.toBeInTheDocument()
     expect(screen.queryByTestId('provider-list-item-cherryai')).not.toBeInTheDocument()
+  })
+
+  it('offers only safe canonical preset sources to the custom provider editor', () => {
+    const canonicalOpenAI = {
+      ...providers[0],
+      presetProviderId: 'openai',
+      authType: 'api-key'
+    }
+    const canonicalNewApi = {
+      id: 'new-api',
+      name: 'New API',
+      presetProviderId: 'new-api',
+      authType: 'api-key',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://localhost:3000' }
+      }
+    }
+    useProvidersMock.mockReturnValue({
+      providers: [
+        canonicalOpenAI,
+        canonicalNewApi,
+        { ...canonicalOpenAI, id: 'openai-work' },
+        {
+          ...providers[1],
+          id: 'claude-code',
+          presetProviderId: 'claude-code',
+          authType: 'api-key',
+          authMethods: ['external-cli']
+        }
+      ],
+      createProvider: vi.fn()
+    })
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(providerEditorDrawerSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        presetSources: [canonicalOpenAI, canonicalNewApi],
+        onSelectPreset: expect.any(Function)
+      })
+    )
   })
 
   it('triggers add and reorder actions', () => {

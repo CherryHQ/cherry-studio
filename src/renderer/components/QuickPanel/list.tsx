@@ -11,6 +11,7 @@ export interface QuickPanelRowData {
   icon?: ReactNode | string
   suffix?: ReactNode | string
   disabled?: boolean
+  isSelected?: boolean
   isMenu?: boolean
   fixedToBottom?: boolean
 }
@@ -156,10 +157,16 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
     <ChevronRight size={14} />
   ) : null
   const canHover = hoverEnabled && !isReadOnlyLocked && !item.disabled
+  const isUnavailable = isReadOnlyLocked || item.disabled
 
   return (
     <div
       ref={rowRef}
+      role="button"
+      aria-current={active ? 'true' : undefined}
+      aria-disabled={isUnavailable}
+      aria-pressed={!isReadOnlyLocked && item.isSelected !== undefined ? selected : undefined}
+      tabIndex={isUnavailable ? -1 : 0}
       className={cn(
         'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
         isReadOnlyLocked ? 'cursor-default' : item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
@@ -174,7 +181,13 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
       data-selected={selected ? '' : undefined}
       onClick={(event) => {
         event.stopPropagation()
-        if (isReadOnlyLocked) return
+        if (isUnavailable) return
+        onSelect()
+      }}
+      onKeyDown={(event) => {
+        if (isUnavailable || !['Enter', ' '].includes(event.key)) return
+        event.preventDefault()
+        event.stopPropagation()
         onSelect()
       }}>
       <div className={cn('flex flex-1 shrink-0 items-center gap-[5px]', contentClassName)}>

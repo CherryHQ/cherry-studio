@@ -1,7 +1,7 @@
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 
-import { createComposerUserMessageParts } from '../../composerDraft'
+import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../../composerDraft'
 import type { ComposerSerializedDraft } from '../../tokens'
 import { getComposerTokenIds } from './composerTokens'
 
@@ -11,8 +11,8 @@ interface BuildComposerQueuedPayloadOptions {
   /** Maps a file to its composer token id (variant-specific namespace). */
   fileTokenId: (file: ComposerAttachment) => string
   /**
-   * When true, an empty trimmed text yields `null` (chat — text is mandatory).
-   * When false, a file-only draft is allowed (agent).
+   * When true, textual content is required even when files are attached.
+   * When false, a file-only draft is allowed.
    */
   requireText?: boolean
   /** Variant-specific extra payload fields (chat: `mentionedModels` + `knowledgeBaseIds`). */
@@ -21,22 +21,24 @@ interface BuildComposerQueuedPayloadOptions {
 
 /**
  * Shared spine for turning a serialized composer draft into a queued message payload:
- * trims the text, filters attached files by the draft's token ids, and builds the text
- * part. The attachments are carried as-is; the `FileEntry` + file parts are created at
- * send time via `buildFilePartsForAttachments`. Variant-specific fields are layered on
- * via `extra`.
+ * trims boundary blank lines, filters attached files by the draft's token ids, and
+ * builds the text part. The attachments are carried as-is; the `FileEntry` + file
+ * parts are created at send time via `buildFilePartsForAttachments`. Variant-specific
+ * fields are layered on via `extra`.
  */
 export function buildComposerQueuedPayload(
   draft: ComposerSerializedDraft,
   { files, fileTokenId, requireText = false, extra }: BuildComposerQueuedPayloadOptions
 ): ComposerQueuedMessagePayload | null {
-  const text = draft.text.trim()
-  const tokenIds = getComposerTokenIds(draft.tokens)
+  const normalizedDraft = trimComposerDraftBoundaryBlankLines(draft)
+  const hasText = normalizedDraft.text.trim().length > 0
+  const text = hasText ? normalizedDraft.text : ''
+  const tokenIds = getComposerTokenIds(normalizedDraft.tokens)
   const attachedFiles = files.filter((file) => tokenIds.has(fileTokenId(file)))
   if (hasUnsyncedComposerAttachments(files, attachedFiles)) return null
-  if (requireText ? !text : !text && attachedFiles.length === 0) return null
+  if (requireText ? !hasText : !hasText && attachedFiles.length === 0) return null
 
-  const userMessageParts = createComposerUserMessageParts(draft)
+  const userMessageParts = createComposerUserMessageParts(normalizedDraft)
 
   return {
     text,

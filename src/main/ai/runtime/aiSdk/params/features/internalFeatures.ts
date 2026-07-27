@@ -28,6 +28,7 @@ import { reasoningExtractionFeature } from './reasoningExtraction'
 import { simulateStreamingFeature } from './simulateStreaming'
 import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
 import { steerYieldFeature } from './steerYield'
+import { terminalToolFailureFeature } from './terminalToolFailure'
 
 export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   devtoolsFeature,
@@ -50,6 +51,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
+  // Stop when a trusted local tool cannot succeed without an external change.
+  terminalToolFailureFeature,
   // Stop condition only (no plugins/hooks) — yields a chat turn when a steer is queued.
   steerYieldFeature,
   // Hook only — `prepareStep` rewrites the in-flight prompt with a compacted

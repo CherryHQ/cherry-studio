@@ -7,6 +7,7 @@
  * exact same logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
+import { markTrustedLocalToolTerminalFailure } from '@main/ai/runtime/aiSdk'
 import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
@@ -31,7 +32,8 @@ const webSearchTool = tool({
   // Provider-level constrained decoding where supported. Repair fallback
   // (in AiService) handles providers that don't honour `strict`.
   strict: true,
-  execute: async ({ query }, options) => searchWeb(query, getToolCallContext(options).request.abortSignal),
+  execute: async ({ query }, options) =>
+    markTrustedLocalToolTerminalFailure(await searchWeb(query, getToolCallContext(options).request.abortSignal)),
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })
 

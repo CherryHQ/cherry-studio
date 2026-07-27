@@ -32,6 +32,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }
 
   return (
     <i
+      data-ui="chat.composer.action.send"
       className="iconfont icon-ic_send"
       onClick={handleClick}
       onKeyDown={handleKeyDown}
@@ -41,7 +42,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }
       tabIndex={disabled ? -1 : 0}
       style={{
         cursor: disabled ? 'not-allowed' : 'pointer',
-        color: disabled ? 'var(--color-foreground-muted)' : 'var(--color-primary)',
+        color: disabled ? 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)' : 'var(--primary)',
         fontSize: 22,
         transition: 'all 0.2s',
         marginTop: 1,

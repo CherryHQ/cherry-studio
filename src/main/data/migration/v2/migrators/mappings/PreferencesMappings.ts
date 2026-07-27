@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-07-21T08:21:58.273Z
+ * Generated at: 2026-07-27T07:32:01.952Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -17,6 +17,10 @@ export const ELECTRON_STORE_MAPPINGS = [
   {
     originalKey: 'ZoomFactor',
     targetKey: 'app.zoom_factor'
+  },
+  {
+    originalKey: 'clientId',
+    targetKey: 'app.user.id'
   }
 ] as const
 
@@ -109,10 +113,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'userName',
       targetKey: 'app.user.name'
-    },
-    {
-      originalKey: 'userId',
-      targetKey: 'app.user.id'
     },
     {
       originalKey: 'showMessageDivider',
@@ -315,10 +315,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'topic.naming.enabled'
     },
     {
-      originalKey: 'customCss',
-      targetKey: 'ui.custom_css'
-    },
-    {
       originalKey: 'topicNamingPrompt',
       targetKey: 'topic.naming_prompt'
     },
@@ -445,6 +441,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'minAppRegion',
       targetKey: 'feature.mini_app.region'
+    },
+    {
+      originalKey: 'privacyPolicyVersion',
+      targetKey: 'app.privacy.policy_version'
     },
     {
       originalKey: 'enableSpellCheck',
@@ -802,8 +802,8 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 
 /**
  * 映射统计:
- * - ElectronStore项: 1
- * - Redux Store项: 176
+ * - ElectronStore项: 2
+ * - Redux Store项: 175
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 5
  * - localStorage项: 0

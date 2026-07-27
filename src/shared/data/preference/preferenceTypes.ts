@@ -31,6 +31,8 @@ export type PreferenceShortcutType = {
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
 
+export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
+
 export enum SelectionTriggerMode {
   Selected = 'selected',
   Ctrlkey = 'ctrlkey',
@@ -365,17 +367,18 @@ export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
 
-export type ManagedBinary = {
+/** User-configurable settings for BinaryManager's isolated mise install environment. */
+export type BinaryInstallSettings = {
+  githubMirror: string
+  githubToken: string
+  npmRegistry: string
+  pipIndexUrl: string
+  verifySignatures: boolean
+}
+
+/** A user-added custom tool definition persisted in the BinaryManager custom registry. */
+export type CustomToolDefinition = {
   name: string
   tool: string
-  version?: string
-}
-
-export interface ToolInstallState {
-  tool: string
-  version: string
-}
-
-export interface BinaryState {
-  tools: Record<string, ToolInstallState>
+  requestedVersion?: string
 }
