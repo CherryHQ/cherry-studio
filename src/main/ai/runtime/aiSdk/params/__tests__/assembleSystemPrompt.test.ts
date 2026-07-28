@@ -105,4 +105,42 @@ describe('assembleSystemPrompt', () => {
     })
     expect(out).toBe('base')
   })
+
+  it('appends citation guidance when web_search is an inline tool', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      tools: { web_search: {} } as unknown as ToolSet
+    })
+    expect(out).toContain('<citations>')
+    expect(out).toContain('[cite:ID]')
+  })
+
+  it('appends citation guidance when kb_search is the only citable tool', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      tools: { kb_search: {} } as unknown as ToolSet
+    })
+    expect(out).toContain('<citations>')
+  })
+
+  it('appends citation guidance when web tools are only available deferred', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      tools: { tool_search: {} } as unknown as ToolSet,
+      deferredEntries: [{ name: 'web_search', namespace: 'web' }] as never
+    })
+    expect(out).toContain('<citations>')
+  })
+
+  it('does not append citation guidance without a citable tool', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      tools: { other_tool: {}, kb_list: {} } as unknown as ToolSet
+    })
+    expect(out).toBe('base')
+  })
 })
