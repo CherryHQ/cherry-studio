@@ -40,6 +40,7 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { maskApiKey } from '@shared/utils/api'
 import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -53,6 +54,39 @@ type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
  * passes a `LogoBindInput` here after creating the `file_entry`.
  */
 export type UpdateProviderInput = UpdateProviderDto & { logo?: LogoBindInput }
+
+/** Safe identity snapshot for the API key selected for one provider request. */
+export interface ProviderApiKeySnapshot {
+  id: string
+  label?: string
+  masked: string
+}
+
+/**
+ * Non-secret result of ProviderService's API-key selection.
+ *
+ * ProviderService owns stored-key selection only. Provider SDK configuration
+ * owns the final serving-credential receipt because a builder may replace this
+ * selection with OAuth, IAM, or another provider-level credential.
+ */
+export type ProviderApiKeySelection =
+  | ({ attribution: 'explicit' | 'matched' } & ProviderApiKeySnapshot)
+  | { attribution: 'unknown' }
+
+/** The selected API-key value and its safe identity, resolved atomically. */
+export interface ResolvedProviderApiKey {
+  value: string
+  apiKeySelection: ProviderApiKeySelection
+}
+
+/**
+ * Persisted credential receipts must never retain a raw short key, even
+ * though the transient display helper intentionally leaves it recognizable.
+ */
+function maskApiKeyForSnapshot(key: string): string {
+  const masked = maskApiKey(key)
+  return masked === key ? '****' : masked
+}
 
 function assertManagedCherryAiProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
   if (!isManagedCherryAiProviderId(providerId) || Object.keys(dto).length === 0) {
@@ -99,6 +133,29 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
     seenIds.add(normalized.id)
     return normalized
   })
+}
+
+function toResolvedProviderApiKey(
+  value: string,
+  attribution: 'explicit' | 'matched',
+  entry: ApiKeyEntry
+): ResolvedProviderApiKey {
+  return {
+    value,
+    apiKeySelection: {
+      attribution,
+      id: entry.id,
+      ...(entry.label ? { label: entry.label } : {}),
+      masked: maskApiKeyForSnapshot(entry.key)
+    }
+  }
+}
+
+function unknownCredential(value: string): ResolvedProviderApiKey {
+  return {
+    value,
+    apiKeySelection: { attribution: 'unknown' }
+  }
 }
 
 /**
@@ -198,12 +255,18 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,
     authOptional: presetMetadata.authOptional,
+    ...(presetMetadata.reportedCostCurrency ? { reportedCostCurrency: presetMetadata.reportedCostCurrency } : {}),
     apiKeys,
     authType,
     apiFeatures,
     settings,
     isEnabled: row.isEnabled
   }
+}
+
+/** Internal cache key holding the rotation pointer (id of the key last handed out). */
+function rotationCacheKey(providerId: string): string {
+  return `settings.provider.${providerId}.last_used_key_id`
 }
 
 /** The provider logo slot for a given providerId. */
@@ -453,10 +516,12 @@ class ProviderService {
   }
 
   /**
-   * Get a rotated API key for a provider (round-robin across enabled keys).
-   * Returns empty string for providers that don't have keys.
+   * Select an API-key candidate and capture its identity atomically. The
+   * provider config builder decides whether this value or provider-level auth
+   * actually serves the request. An explicit override is never rotated, but is
+   * matched back to a stored key when possible.
    */
-  getRotatedApiKey(providerId: string): string {
+  resolveApiKey(providerId: string, override?: string): ResolvedProviderApiKey {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
@@ -464,24 +529,30 @@ class ProviderService {
       throw DataApiErrorFactory.notFound('Provider', providerId)
     }
 
-    const enabledKeys = (row.apiKeys ?? []).filter((k) => k.isEnabled)
+    const allKeys = row.apiKeys ?? []
+    if (override !== undefined) {
+      const matched = allKeys.find((entry) => entry.key === override)
+      return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
+    }
+
+    const enabledKeys = allKeys.filter((k) => k.isEnabled)
 
     if (enabledKeys.length === 0) {
-      return ''
+      return unknownCredential('')
     }
 
     if (enabledKeys.length === 1) {
-      return enabledKeys[0].key
+      return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
     }
 
     // Round-robin using CacheService
     const cache = application.get('CacheService')
-    const cacheKey = `settings.provider.${providerId}.last_used_key_id`
+    const cacheKey = rotationCacheKey(providerId)
     const lastUsedKeyId = cache.get<string>(cacheKey)
 
     if (!lastUsedKeyId) {
       cache.set(cacheKey, enabledKeys[0].id)
-      return enabledKeys[0].key
+      return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
     }
 
     const currentIndex = enabledKeys.findIndex((k) => k.id === lastUsedKeyId)
@@ -489,7 +560,15 @@ class ProviderService {
     const nextKey = enabledKeys[nextIndex]
     cache.set(cacheKey, nextKey.id)
 
-    return nextKey.key
+    return toResolvedProviderApiKey(nextKey.key, 'explicit', nextKey)
+  }
+
+  /**
+   * Compatibility wrapper for consumers that only need the credential value.
+   * Billing-aware callers should use {@link resolveApiKey}.
+   */
+  getRotatedApiKey(providerId: string): string {
+    return this.resolveApiKey(providerId).value
   }
 
   /**
