@@ -2,12 +2,17 @@ import '@testing-library/jest-dom/vitest'
 
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { backupErrorCodes } from '@shared/ipc/errors/backup'
+import { backupErrorCodes, type BackupFormatCompatibilityDiagnostic } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { requestMock, tMock } = vi.hoisted(() => ({ requestMock: vi.fn(), tMock: vi.fn() }))
+const { checkForUpdatesMock, requestMock, tMock, writeTextMock } = vi.hoisted(() => ({
+  checkForUpdatesMock: vi.fn(),
+  requestMock: vi.fn(),
+  tMock: vi.fn(),
+  writeTextMock: vi.fn()
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: tMock })
@@ -17,6 +22,10 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: requestMock } }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
+}))
+
+vi.mock('@renderer/hooks/useManualUpdateCheck', () => ({
+  useManualUpdateCheck: () => ({ checkForUpdates: checkForUpdatesMock })
 }))
 
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
@@ -69,8 +78,14 @@ function click(name: string, index = 0) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: writeTextMock }
+  })
+  writeTextMock.mockResolvedValue(undefined)
   tMock.mockImplementation((key: string) => key)
   vi.mocked(popup.confirm).mockResolvedValue(true)
+  vi.mocked(popup.info).mockResolvedValue(true)
   statusIs({ kind: 'none' })
 })
 
@@ -386,6 +401,132 @@ describe('BackupV2Settings', () => {
     await renderSettings()
 
     await waitFor(() => expect(screen.getByText('settings.data.backup_v2.outcome.unreadable')).toBeInTheDocument())
+  })
+
+  it('explains an ahead packaged backup, copies bounded diagnostics, and reuses the updater action', async () => {
+    const diagnostic = {
+      kind: 'source-ahead',
+      archiveAppVersion: '2.1.0',
+      archiveBuildType: 'packaged',
+      currentAppVersion: '2.0.0',
+      currentBuildType: 'packaged',
+      sourceMigrationCount: 28,
+      targetMigrationCount: 26,
+      sourceTip: { folderMillis: 1785221482684, hashPrefix: 'ab77963210ca' },
+      targetTip: { folderMillis: 1785000000000, hashPrefix: 'f1cecc21626c' },
+      missingMigrationCount: 2,
+      firstExtraIndex: 27
+    }
+    requestMock.mockImplementation(async (route: string) => {
+      if (route === 'backup.prepare_restore') {
+        throw new IpcError(backupErrorCodes.RESTORE_REQUIRES_NEWER_APP, 'raw /Users/private', diagnostic)
+      }
+      return { operation: null, restore: { kind: 'none' } }
+    })
+    await renderSettings()
+
+    click('settings.general.restore.button')
+
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
+    expect(popup.info).not.toHaveBeenCalled()
+    const popupProps = vi.mocked(popup.confirm).mock.calls[0][0]
+    expect(popupProps).toMatchObject({
+      title: 'settings.data.backup_v2.compatibility.ahead_title',
+      okText: 'settings.data.backup_v2.compatibility.check_updates'
+    })
+    expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.compatibility.ahead_update', { count: 2 })
+
+    const details = render(popupProps.content as React.ReactElement)
+    fireEvent.click(details.getByRole('button', { name: 'settings.data.backup_v2.compatibility.copy' }))
+    await waitFor(() => expect(writeTextMock).toHaveBeenCalledOnce())
+    const copied = writeTextMock.mock.calls[0][0] as string
+    expect(copied).toContain('missingMigrationCount: 2')
+    expect(copied).toContain('sourceTip: 1785221482684/ab77963210ca')
+    expect(copied).not.toContain('/Users/private')
+    await waitFor(() => expect(checkForUpdatesMock).toHaveBeenCalledOnce())
+  })
+
+  it('sends development and forked backups to their producing lineage without offering an update', async () => {
+    const diagnostic = {
+      kind: 'lineage-fork',
+      archiveAppVersion: '2.0.0-beta.3',
+      archiveBuildType: 'development',
+      currentAppVersion: '2.0.0-beta.3',
+      currentBuildType: 'packaged',
+      sourceMigrationCount: 28,
+      targetMigrationCount: 26,
+      sourceTip: { folderMillis: 1785221482684, hashPrefix: 'ab77963210ca' },
+      targetTip: { folderMillis: 1785000000000, hashPrefix: 'f1cecc21626c' },
+      firstDivergentIndex: 20
+    }
+    requestMock.mockImplementation(async (route: string) => {
+      if (route === 'backup.prepare_restore') {
+        throw new IpcError(backupErrorCodes.RESTORE_LINEAGE_INCOMPATIBLE, 'fork', diagnostic)
+      }
+      return { operation: null, restore: { kind: 'none' } }
+    })
+    await renderSettings()
+
+    click('settings.general.restore.button')
+
+    await waitFor(() => expect(popup.info).toHaveBeenCalledOnce())
+    expect(popup.confirm).not.toHaveBeenCalled()
+    expect(checkForUpdatesMock).not.toHaveBeenCalled()
+    expect(vi.mocked(popup.info).mock.calls[0][0]).toMatchObject({
+      title: 'settings.data.backup_v2.compatibility.fork_title'
+    })
+  })
+
+  it('guides a newer backup format to the updater but keeps a legacy format on the compatible-build path', async () => {
+    const common = {
+      archiveAppVersion: '2.1.0',
+      archiveBuildType: 'packaged' as const,
+      currentAppVersion: '2.0.0',
+      currentBuildType: 'packaged' as const,
+      currentFormatVersion: 2
+    }
+    let diagnostic: BackupFormatCompatibilityDiagnostic = {
+      ...common,
+      kind: 'archive-newer',
+      archiveFormatVersion: 3
+    }
+    requestMock.mockImplementation(async (route: string) => {
+      if (route === 'backup.prepare_restore') {
+        throw new IpcError(backupErrorCodes.FORMAT_UNSUPPORTED, 'format', diagnostic)
+      }
+      return { operation: null, restore: { kind: 'none' } }
+    })
+    await renderSettings()
+
+    click('settings.general.restore.button')
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
+    await waitFor(() => expect(checkForUpdatesMock).toHaveBeenCalledOnce())
+
+    vi.clearAllMocks()
+    vi.mocked(popup.info).mockResolvedValue(true)
+    diagnostic = { ...common, kind: 'archive-legacy' as const, archiveFormatVersion: 1 }
+    click('settings.general.restore.button')
+    await waitFor(() => expect(popup.info).toHaveBeenCalledOnce())
+    expect(checkForUpdatesMock).not.toHaveBeenCalled()
+  })
+
+  it('treats forged compatibility data as unexpected instead of rendering it', async () => {
+    requestMock.mockImplementation(async (route: string) => {
+      if (route === 'backup.prepare_restore') {
+        throw new IpcError(backupErrorCodes.RESTORE_REQUIRES_NEWER_APP, 'ahead', {
+          kind: 'source-ahead',
+          archiveAppVersion: '/Users/private'
+        })
+      }
+      return { operation: null, restore: { kind: 'none' } }
+    })
+    await renderSettings()
+
+    click('settings.general.restore.button')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup_v2.error.unexpected'))
+    expect(popup.confirm).not.toHaveBeenCalled()
+    expect(popup.info).not.toHaveBeenCalled()
   })
 
   it.each([

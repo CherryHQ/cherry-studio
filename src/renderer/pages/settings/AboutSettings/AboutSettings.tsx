@@ -1,5 +1,4 @@
 import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
-import { debounce } from 'es-toolkit/compat'
 import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, MessageSquareText, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -29,8 +28,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
-import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { useManualUpdateCheck } from '@renderer/hooks/useManualUpdateCheck'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
 import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n/resolver'
@@ -57,7 +55,7 @@ const AboutSettings: FC = () => {
   const search = useSearch({ strict: false }) as Partial<Record<typeof DOCTOR_OPEN_QUERY_PARAM, DoctorPanel>>
   const consumedDoctorPanelRef = useRef<DoctorPanel | undefined>(undefined)
 
-  const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
+  const { appUpdateState, updateAppUpdateState, checkForUpdates } = useManualUpdateCheck()
 
   useEffect(() => {
     const initialPanel = search[DOCTOR_OPEN_QUERY_PARAM]
@@ -79,32 +77,6 @@ const AboutSettings: FC = () => {
     })
     void DoctorPopup.show({ initialPanel })
   }, [location.pathname, navigate, search])
-
-  const onCheckUpdate = debounce(
-    async () => {
-      if (appUpdateState.checking || appUpdateState.downloading) {
-        return
-      }
-
-      if (appUpdateState.downloaded) {
-        void UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
-        return
-      }
-
-      updateAppUpdateState({ checking: true, manualCheck: true })
-
-      try {
-        await ipcApi.request('app.updater.check_for_update')
-      } catch {
-        updateAppUpdateState({ manualCheck: false })
-        toast.error(t('settings.about.updateError'))
-      }
-
-      updateAppUpdateState({ checking: false })
-    },
-    2000,
-    { leading: true, trailing: false }
-  )
 
   const onOpenWebsite = (url: string) => {
     void openExternalWebsite(url)
@@ -267,7 +239,7 @@ const AboutSettings: FC = () => {
                 size="sm"
                 variant={isUpdateReady ? 'default' : 'outline'}
                 loading={appUpdateState.checking}
-                onClick={onCheckUpdate}
+                onClick={checkForUpdates}
                 disabled={appUpdateState.downloading}
                 className={cn(
                   'w-fit! min-w-0! shrink-0',

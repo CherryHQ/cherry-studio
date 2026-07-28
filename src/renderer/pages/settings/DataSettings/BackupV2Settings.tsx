@@ -7,15 +7,22 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useManualUpdateCheck } from '@renderer/hooks/useManualUpdateCheck'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { BACKUP_RESTORE_NOTICE_KEY } from '@renderer/utils/backupRestoreNotice'
-import { backupErrorCodes } from '@shared/ipc/errors/backup'
+import {
+  backupErrorCodes,
+  type BackupFormatCompatibilityDiagnostic,
+  BackupFormatCompatibilityDiagnosticSchema,
+  type BackupMigrationCompatibilityDiagnostic,
+  BackupMigrationCompatibilityDiagnosticSchema
+} from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
-import { FolderOpen, SaveIcon } from 'lucide-react'
+import { Copy, FolderOpen, SaveIcon } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,6 +45,7 @@ type RestorePreview = Extract<OutputFor<'backup.prepare_restore'>, { status: 'pr
 type Preset = 'lite' | 'full'
 type JournalRestore = Extract<NonNullable<BackupStatus['restore']>, { kind: 'journal' }>
 type PresentedDegradation = NonNullable<JournalRestore['degradations']>[number]
+type CompatibilityDiagnostic = BackupMigrationCompatibilityDiagnostic | BackupFormatCompatibilityDiagnostic
 
 /**
  * What is running, identified down to the row that started it — the abortable
@@ -79,6 +87,12 @@ function degradationCount(degradations: readonly PresentedDegradation[]): number
   return degradations.reduce((total, degradation) => total + degradation.count, 0)
 }
 
+const BUILD_TYPE_KEYS: Record<CompatibilityDiagnostic['archiveBuildType'], string> = {
+  packaged: 'settings.data.backup_v2.compatibility.build_type.packaged',
+  development: 'settings.data.backup_v2.compatibility.build_type.development',
+  unknown: 'settings.data.backup_v2.compatibility.build_type.unknown'
+}
+
 const RESTORE_STATE_KEYS: Record<JournalRestore['state'], string> = {
   prepared: 'settings.data.backup_v2.outcome.state.prepared',
   armed: 'settings.data.backup_v2.outcome.state.armed',
@@ -91,9 +105,117 @@ const RESTORE_STATE_KEYS: Record<JournalRestore['state'], string> = {
   expired: 'settings.data.backup_v2.outcome.state.expired'
 }
 
+function compatibilityDiagnosticText(diagnostic: CompatibilityDiagnostic): string {
+  const lines = [
+    'Cherry Studio backup compatibility',
+    `reason: ${diagnostic.kind}`,
+    `archiveAppVersion: ${diagnostic.archiveAppVersion ?? 'unknown'}`,
+    `archiveBuildType: ${diagnostic.archiveBuildType}`,
+    `currentAppVersion: ${diagnostic.currentAppVersion}`,
+    `currentBuildType: ${diagnostic.currentBuildType}`
+  ]
+  if ('sourceMigrationCount' in diagnostic) {
+    lines.push(
+      `sourceMigrationCount: ${diagnostic.sourceMigrationCount}`,
+      `targetMigrationCount: ${diagnostic.targetMigrationCount}`,
+      `sourceTip: ${diagnostic.sourceTip.folderMillis}/${diagnostic.sourceTip.hashPrefix}`,
+      `targetTip: ${diagnostic.targetTip.folderMillis}/${diagnostic.targetTip.hashPrefix}`
+    )
+    if (diagnostic.kind === 'source-ahead') {
+      lines.push(
+        `missingMigrationCount: ${diagnostic.missingMigrationCount}`,
+        `firstExtraIndex: ${diagnostic.firstExtraIndex}`
+      )
+    } else {
+      lines.push(`firstDivergentIndex: ${diagnostic.firstDivergentIndex}`)
+    }
+  } else {
+    lines.push(
+      `archiveFormatVersion: ${diagnostic.archiveFormatVersion}`,
+      `currentFormatVersion: ${diagnostic.currentFormatVersion}`
+    )
+  }
+  return lines.join('\n')
+}
+
+function canOfferUpdate(diagnostic: CompatibilityDiagnostic): boolean {
+  return (
+    diagnostic.currentBuildType === 'packaged' &&
+    diagnostic.archiveBuildType !== 'development' &&
+    (diagnostic.kind === 'source-ahead' || diagnostic.kind === 'archive-newer')
+  )
+}
+
+const CompatibilityDetails: FC<{
+  diagnostic: CompatibilityDiagnostic
+  description: string
+}> = ({ diagnostic, description }) => {
+  const { t } = useTranslation()
+
+  const copyDiagnostics = async () => {
+    try {
+      await navigator.clipboard.writeText(compatibilityDiagnosticText(diagnostic))
+      toast.success(t('settings.data.backup_v2.compatibility.copied'))
+    } catch {
+      toast.error(t('settings.data.backup_v2.compatibility.copy_failed'))
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 text-sm">
+      <p className="text-foreground leading-5">{description}</p>
+      <p className="text-muted-foreground leading-5">{t('settings.data.backup_v2.compatibility.nothing_changed')}</p>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 border-border border-y py-2 text-xs">
+        <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.archive_app')}</dt>
+        <dd className="min-w-0 break-all text-foreground">{diagnostic.archiveAppVersion ?? t('common.unknown')}</dd>
+        <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.current_app')}</dt>
+        <dd className="min-w-0 break-all text-foreground">{diagnostic.currentAppVersion}</dd>
+        <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.archive_build')}</dt>
+        <dd className="text-foreground">{t(BUILD_TYPE_KEYS[diagnostic.archiveBuildType])}</dd>
+        {'sourceMigrationCount' in diagnostic ? (
+          <>
+            <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.migrations')}</dt>
+            <dd className="text-foreground">
+              {t('settings.data.backup_v2.compatibility.migration_counts', {
+                archive: diagnostic.sourceMigrationCount,
+                current: diagnostic.targetMigrationCount
+              })}
+            </dd>
+            <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.archive_tip')}</dt>
+            <dd className="min-w-0 break-all font-mono text-foreground">
+              {diagnostic.sourceTip.folderMillis}/{diagnostic.sourceTip.hashPrefix}
+            </dd>
+            <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.current_tip')}</dt>
+            <dd className="min-w-0 break-all font-mono text-foreground">
+              {diagnostic.targetTip.folderMillis}/{diagnostic.targetTip.hashPrefix}
+            </dd>
+          </>
+        ) : (
+          <>
+            <dt className="text-muted-foreground">{t('settings.data.backup_v2.compatibility.format')}</dt>
+            <dd className="text-foreground">
+              {t('settings.data.backup_v2.compatibility.format_versions', {
+                archive: diagnostic.archiveFormatVersion,
+                current: diagnostic.currentFormatVersion
+              })}
+            </dd>
+          </>
+        )}
+      </dl>
+      <div>
+        <Button size="sm" variant="outline" onClick={() => void copyDiagnostics()}>
+          <Copy className="size-3.5" />
+          {t('settings.data.backup_v2.compatibility.copy')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 const BackupV2Settings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const { checkForUpdates } = useManualUpdateCheck()
   const [status, setStatus] = useState<BackupStatus | null>(null)
   const [preview, setPreview] = useState<RestorePreview | null>(null)
   const [running, setRunning] = useState<Running | null>(null)
@@ -124,11 +246,75 @@ const BackupV2Settings: FC = () => {
 
   /** Turn the closed IPC code set into the one sentence the user can act on. */
   const reportFailure = useCallback(
-    (error: unknown) => {
+    async (error: unknown) => {
       if (!(error instanceof IpcError)) {
         toast.error(t('settings.data.backup_v2.error.unexpected'))
         return
       }
+
+      let diagnostic: CompatibilityDiagnostic | undefined
+      if (
+        error.code === backupErrorCodes.RESTORE_REQUIRES_NEWER_APP ||
+        error.code === backupErrorCodes.RESTORE_LINEAGE_INCOMPATIBLE
+      ) {
+        const parsed = BackupMigrationCompatibilityDiagnosticSchema.safeParse(error.data)
+        if (parsed.success) diagnostic = parsed.data
+      } else if (error.code === backupErrorCodes.FORMAT_UNSUPPORTED) {
+        const parsed = BackupFormatCompatibilityDiagnosticSchema.safeParse(error.data)
+        if (parsed.success) diagnostic = parsed.data
+      }
+
+      if (diagnostic) {
+        const offerUpdate = canOfferUpdate(diagnostic)
+        const title = t(
+          diagnostic.kind === 'source-ahead'
+            ? 'settings.data.backup_v2.compatibility.ahead_title'
+            : diagnostic.kind === 'lineage-fork'
+              ? 'settings.data.backup_v2.compatibility.fork_title'
+              : 'settings.data.backup_v2.compatibility.format_title'
+        )
+        const description =
+          diagnostic.kind === 'source-ahead'
+            ? t(
+                offerUpdate
+                  ? 'settings.data.backup_v2.compatibility.ahead_update'
+                  : 'settings.data.backup_v2.compatibility.ahead_lineage',
+                { count: diagnostic.missingMigrationCount }
+              )
+            : diagnostic.kind === 'lineage-fork'
+              ? t('settings.data.backup_v2.compatibility.fork_lineage')
+              : t(
+                  diagnostic.kind === 'archive-newer'
+                    ? offerUpdate
+                      ? 'settings.data.backup_v2.compatibility.format_newer_update'
+                      : 'settings.data.backup_v2.compatibility.format_newer_lineage'
+                    : 'settings.data.backup_v2.compatibility.format_legacy',
+                  {
+                    archive: diagnostic.archiveFormatVersion,
+                    current: diagnostic.currentFormatVersion
+                  }
+                )
+        const content = <CompatibilityDetails diagnostic={diagnostic} description={description} />
+        if (offerUpdate) {
+          const confirmed = await popup.confirm({
+            title,
+            content,
+            okText: t('settings.data.backup_v2.compatibility.check_updates'),
+            cancelText: t('common.close'),
+            centered: true
+          })
+          if (confirmed) void checkForUpdates()
+        } else {
+          await popup.info({
+            title,
+            content,
+            okText: t('common.close'),
+            centered: true
+          })
+        }
+        return
+      }
+
       switch (error.code) {
         case backupErrorCodes.BUSY:
           return toast.error(t('settings.data.backup_v2.error.busy'))
@@ -156,7 +342,7 @@ const BackupV2Settings: FC = () => {
           return toast.error(t('settings.data.backup_v2.error.unexpected'))
       }
     },
-    [t]
+    [checkForUpdates, t]
   )
 
   /** One operation at a time, and the status is re-read whatever the outcome. */
@@ -167,7 +353,7 @@ const BackupV2Settings: FC = () => {
       try {
         await work()
       } catch (error) {
-        reportFailure(error)
+        await reportFailure(error)
       } finally {
         setRunning(null)
         await refresh()
@@ -190,7 +376,7 @@ const BackupV2Settings: FC = () => {
       await ipcApi.request('backup.cancel_operation')
       await refresh()
     } catch (error) {
-      reportFailure(error)
+      await reportFailure(error)
     }
   }, [refresh, reportFailure])
 
