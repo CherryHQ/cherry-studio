@@ -5861,6 +5861,7 @@
           "degradations": "{{count}} item(s) were restored in a reduced form.",
           "reconfirm_integrations": "Restored integrations that run programs or reach the network stay off until you confirm them on this device.",
           "recovery_incomplete": "This restore could not put every file back, so the app is still holding the originals. Restart Cherry Studio to finish it — nothing can be released until then.",
+          "resources_incomplete": "The restored database is in use, but some restored files are not in place yet. Restart Cherry Studio to finish it — nothing can be released until then.",
           "state": {
             "armed": "A restore is armed and will run at the next start.",
             "completed": "A restore completed.",

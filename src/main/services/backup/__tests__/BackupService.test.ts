@@ -134,6 +134,17 @@ describe('BackupService', () => {
       expect(service.getStatus().restore).toMatchObject({ state: 'promoting', step: 'live-aside' })
     })
 
+    it('reports a completed restore whose units are not all in place', () => {
+      writeRestoreJournalV2({
+        ...preparedJournal(),
+        state: 'completed',
+        summary: { knowledgeBaseIds: [] },
+        resourcesIncomplete: true
+      })
+
+      expect(service.getStatus().restore).toMatchObject({ state: 'completed', resourcesIncomplete: true })
+    })
+
     it('surfaces the degradation report the journal carries', () => {
       const degradations = [{ kind: 'restore-db:note', reason: 'path-unportable (2 rows)' }]
       writeRestoreJournalV2({ ...preparedJournal(), degradations })

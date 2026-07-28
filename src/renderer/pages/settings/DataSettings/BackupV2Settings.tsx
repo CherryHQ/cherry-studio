@@ -374,11 +374,13 @@ const RestoreOutcome: FC<{
   }
   if (restore.kind !== 'journal') return null
 
-  // A rollback that could not finish still owns the only copy of what it moved,
-  // so the button that releases it is withheld rather than shown and refused.
+  // A repair that could not finish — in either direction — still owns the only
+  // copy of what it moved, so the button that releases it is withheld rather
+  // than shown and refused.
   const acknowledgeable =
     (restore.state === 'completed' || restore.state === 'failed' || restore.state === 'expired') &&
-    !restore.recoveryIncomplete
+    !restore.recoveryIncomplete &&
+    !restore.resourcesIncomplete
 
   return (
     <>
@@ -398,6 +400,9 @@ const RestoreOutcome: FC<{
       )}
       {restore.recoveryIncomplete && (
         <Alert type="warning" showIcon message={t('settings.data.backup_v2.outcome.recovery_incomplete')} />
+      )}
+      {restore.resourcesIncomplete && (
+        <Alert type="warning" showIcon message={t('settings.data.backup_v2.outcome.resources_incomplete')} />
       )}
       {/*
         Completed only, and with the lines shown rather than just counted: this is

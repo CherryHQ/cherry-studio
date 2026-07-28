@@ -165,7 +165,15 @@ const journalVariants = [
     ...commonFields,
     state: z.literal('completed'),
     step: PromotionStepSchema.optional(),
-    summary: RestoreSummarySchema
+    summary: RestoreSummarySchema,
+    /**
+     * The database is live, but a resource unit did not reach its installed
+     * state — so somewhere on disk a unit's only remaining copies are its
+     * staging source and its aside. `completed` alone would let acknowledgement
+     * delete both and leave that unit with nothing (§6.5). Absent means every
+     * unit is installed; `true` is the only other value.
+     */
+    resourcesIncomplete: z.literal(true).optional()
   }),
   z.strictObject({
     ...commonFields,
