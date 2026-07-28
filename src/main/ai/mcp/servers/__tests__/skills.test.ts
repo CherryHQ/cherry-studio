@@ -135,7 +135,7 @@ describe('SkillsServer', () => {
       expect(payload).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ source_registry: 'skills.sh', install_source: 'skills.sh:owner/repo/web-search' }),
-          expect.objectContaining({ source_registry: 'clawhub.ai', install_source: 'clawhub:code-review' })
+          expect.objectContaining({ source_registry: 'clawhub.ai', install_source: 'clawhub:owner/code-review' })
         ])
       )
     })

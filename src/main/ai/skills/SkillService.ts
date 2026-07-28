@@ -24,6 +24,7 @@ import type {
   SystemSkillCandidate,
   SystemSkillPlacement
 } from '@shared/types/skill'
+import { ClawhubSkillDetailSchema } from '@shared/types/skill'
 import { Mutex } from 'async-mutex'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
@@ -184,7 +185,8 @@ export class SkillService {
 
   /**
    * Install from a marketplace installSource handle.
-   * Format: "claude-plugins:{owner}/{repo}/{skillName}" or "skills.sh:{owner}/{repo}" or "clawhub:{slug}"
+   * Format: "claude-plugins:{owner}/{repo}/{directoryPath}",
+   * "skills.sh:{owner}/{repo}/{skillId}", or "clawhub:{owner}/{slug}".
    */
   async install(options: SkillInstallOptions): Promise<InstalledSkill> {
     const { installSource } = options
@@ -495,9 +497,16 @@ export class SkillService {
     }
   }
 
-  private async installFromClawhub(slug: string): Promise<InstalledSkill> {
-    const detailUrl = `https://clawhub.ai/api/v1/skills/${slug}`
-    const detailResp = await net.fetch(detailUrl, {
+  private async installFromClawhub(identifier: string): Promise<InstalledSkill> {
+    const [ownerHandle, slug, ...extraParts] = identifier.split('/')
+    const invalidPart = (part: string | undefined) => !part || !/^[a-zA-Z0-9_.-]+$/.test(part)
+    if (extraParts.length > 0 || invalidPart(ownerHandle) || invalidPart(slug)) {
+      throw new Error(`Invalid clawhub identifier: ${identifier}`)
+    }
+
+    const detailUrl = new URL(`https://clawhub.ai/api/v1/skills/${encodeURIComponent(slug)}`)
+    detailUrl.searchParams.set('ownerHandle', ownerHandle)
+    const detailResp = await net.fetch(detailUrl.toString(), {
       headers: { 'User-Agent': 'CherryStudio' }
     })
 
@@ -505,17 +514,23 @@ export class SkillService {
       throw new Error(`clawhub detail failed: HTTP ${detailResp.status}`)
     }
 
-    const detailData = await detailResp.json()
-    const ownerHandle: string | undefined = (detailData as Record<string, unknown>)?.owner
-      ? (((detailData as Record<string, unknown>).owner as Record<string, unknown>)?.handle as string | undefined)
-      : undefined
+    const detailResult = ClawhubSkillDetailSchema.safeParse(await detailResp.json())
+    if (!detailResult.success) {
+      throw new Error('clawhub detail returned invalid metadata')
+    }
+    if (
+      detailResult.data.skill.slug !== slug ||
+      detailResult.data.owner?.handle.toLowerCase() !== ownerHandle.toLowerCase()
+    ) {
+      throw new Error(`clawhub detail did not match the requested skill: ${identifier}`)
+    }
 
-    const sourceUrl = ownerHandle
-      ? `https://clawhub.ai/${ownerHandle}/skills/${slug}`
-      : `https://clawhub.ai/skills/${slug}`
+    const sourceUrl = `https://clawhub.ai/${ownerHandle}/skills/${slug}`
 
-    const downloadUrl = `https://clawhub.ai/api/v1/download?slug=${encodeURIComponent(slug)}`
-    const downloadResp = await net.fetch(downloadUrl, {
+    const downloadUrl = new URL('https://clawhub.ai/api/v1/download')
+    downloadUrl.searchParams.set('slug', slug)
+    downloadUrl.searchParams.set('ownerHandle', ownerHandle)
+    const downloadResp = await net.fetch(downloadUrl.toString(), {
       headers: { 'User-Agent': 'CherryStudio' }
     })
 
@@ -532,7 +547,17 @@ export class SkillService {
       const extractDir = path.join(tempDir, 'extracted')
       await fs.promises.mkdir(extractDir, { recursive: true })
       await this.extractZip(zipPath, extractDir)
-      const skillDir = await this.locateSkillDir(extractDir)
+      // ClawHub serves one published skill bundle whose descriptor is at the archive root. Nested
+      // SKILL.md files are supporting content, not alternative install candidates.
+      const skillMdPath = await findSkillMdPath(extractDir)
+      if (!skillMdPath) {
+        throw new Error(`No SKILL.md found at the clawhub archive root: ${identifier}`)
+      }
+      const skillDir = await this.validateRepositorySkillDirectory(extractDir, extractDir, skillMdPath)
+      const metadata = await parseSkillMetadata(skillDir, slug, 'skills', { calculateSize: false })
+      if (metadata.name !== slug) {
+        throw new Error(`clawhub archive did not match the requested skill: ${identifier}`)
+      }
       return await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
     } finally {
       await this.safeRemoveDirectory(tempDir)
@@ -772,8 +797,30 @@ export class SkillService {
     const candidates = await findAllSkillDirectories(repoDir, repoDir, 8)
 
     if (skillName) {
-      const matched = candidates.find((c) => path.basename(c.folderPath) === skillName)
-      if (matched) return this.validateRepositorySkillDirectory(repoDir, matched.folderPath)
+      const matches: typeof candidates = []
+      for (const candidate of candidates) {
+        try {
+          const metadata = await parseSkillMetadata(
+            candidate.folderPath,
+            candidate.sourcePath || path.basename(candidate.folderPath),
+            'skills',
+            { calculateSize: false }
+          )
+          if (metadata.name === skillName) matches.push(candidate)
+        } catch (error) {
+          logger.warn('Failed to parse repository skill candidate', {
+            folderPath: candidate.folderPath,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+
+      if (matches.length === 1) {
+        return this.validateRepositorySkillDirectory(repoDir, matches[0].folderPath)
+      }
+      if (matches.length > 1) {
+        throw new Error(`Multiple SKILL.md files declare the specified skill: ${skillName}`)
+      }
       throw new Error(`No SKILL.md found for the specified skill: ${skillName}`)
     }
 

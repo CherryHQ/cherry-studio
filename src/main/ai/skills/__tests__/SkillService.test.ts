@@ -516,15 +516,50 @@ describe('SkillService', () => {
     it('delegates to installFromClawhub for clawhub source', async () => {
       const skillService = new SkillService()
       const spy = vi.spyOn(skillService as never, 'installFromClawhub').mockResolvedValue({} as never)
-      await skillService.install({ installSource: 'clawhub:my-skill' })
-      expect(spy).toHaveBeenCalledWith('my-skill')
+      await skillService.install({ installSource: 'clawhub:owner/my-skill' })
+      expect(spy).toHaveBeenCalledWith('owner/my-skill')
     })
 
-    it('installs clawhub skills through current API endpoints and owner source URL', async () => {
+    it('rejects a clawhub source without its publisher identity', async () => {
+      const skillService = new SkillService()
+
+      await expect(skillService.install({ installSource: 'clawhub:my-skill' })).rejects.toThrow(
+        'Invalid clawhub identifier: my-skill'
+      )
+    })
+
+    it('rejects clawhub metadata that does not match the reviewed publisher', async () => {
+      const skillService = new SkillService()
+      vi.mocked(net.fetch).mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            skill: { slug: 'code', displayName: 'Code', summary: 'Coding workflow' },
+            owner: { handle: 'another-owner', displayName: 'Another Owner', image: null },
+            moderation: null
+          }),
+          {
+            headers: { 'Content-Type': 'application/json' },
+            status: 200
+          }
+        )
+      )
+
+      try {
+        await expect(skillService.install({ installSource: 'clawhub:ivangdavila/code' })).rejects.toThrow(
+          'clawhub detail did not match the requested skill: ivangdavila/code'
+        )
+        expect(net.fetch).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.mocked(net.fetch).mockReset()
+      }
+    })
+
+    it('binds clawhub detail and download requests to the reviewed owner and root skill', async () => {
       const skillService = new SkillService()
       const tempDir = await createTempDir('skill-clawhub-install-')
       const extractDir = path.join(tempDir, 'extracted')
-      const locatedSkillDir = path.join(extractDir, 'code')
+      await fs.promises.mkdir(extractDir, { recursive: true })
+      const canonicalExtractDir = await fs.promises.realpath(extractDir)
       const installedSkill = {
         id: '44444444-4444-4444-8444-444444444444',
         name: 'Code',
@@ -543,43 +578,58 @@ describe('SkillService', () => {
 
       vi.mocked(net.fetch)
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ owner: { handle: 'ivangdavila' } }), {
-            headers: { 'Content-Type': 'application/json' },
-            status: 200
-          })
+          new Response(
+            JSON.stringify({
+              skill: { slug: 'code', displayName: 'Code', summary: 'Coding workflow' },
+              owner: { handle: 'ivangdavila', displayName: 'Ivan', image: null },
+              moderation: null
+            }),
+            {
+              headers: { 'Content-Type': 'application/json' },
+              status: 200
+            }
+          )
         )
         .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
       const createTempDirSpy = vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(tempDir as never)
-      const extractZipSpy = vi.spyOn(skillService as never, 'extractZip').mockResolvedValue(undefined as never)
-      const locateSkillDirSpy = vi
-        .spyOn(skillService as never, 'locateSkillDir')
-        .mockResolvedValue(locatedSkillDir as never)
+      const extractZipSpy = vi.spyOn(skillService as never, 'extractZip').mockImplementation(async () => {
+        await fs.promises.writeFile(path.join(extractDir, 'SKILL.md'), '---\nname: code\n---\n')
+        await fs.promises.mkdir(path.join(extractDir, 'nested'), { recursive: true })
+        await fs.promises.writeFile(path.join(extractDir, 'nested', 'SKILL.md'), '---\nname: nested\n---\n')
+      })
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
+      vi.mocked(parseSkillMetadata).mockResolvedValueOnce({ name: 'code' } as never)
       const installSkillDirSpy = vi
         .spyOn(skillService as never, 'installSkillDir')
         .mockResolvedValue(installedSkill as never)
 
       try {
-        const result = await skillService.install({ installSource: 'clawhub:code' })
+        const result = await skillService.install({ installSource: 'clawhub:ivangdavila/code' })
 
         expect(result).toBe(installedSkill)
-        expect(net.fetch).toHaveBeenNthCalledWith(1, 'https://clawhub.ai/api/v1/skills/code', {
+        expect(net.fetch).toHaveBeenNthCalledWith(1, 'https://clawhub.ai/api/v1/skills/code?ownerHandle=ivangdavila', {
           headers: { 'User-Agent': 'CherryStudio' }
         })
-        expect(net.fetch).toHaveBeenNthCalledWith(2, 'https://clawhub.ai/api/v1/download?slug=code', {
-          headers: { 'User-Agent': 'CherryStudio' }
-        })
+        expect(net.fetch).toHaveBeenNthCalledWith(
+          2,
+          'https://clawhub.ai/api/v1/download?slug=code&ownerHandle=ivangdavila',
+          {
+            headers: { 'User-Agent': 'CherryStudio' }
+          }
+        )
         expect(createTempDirSpy).toHaveBeenCalledWith('clawhub')
         expect(extractZipSpy).toHaveBeenCalledWith(path.join(tempDir, 'skill.zip'), extractDir)
-        expect(locateSkillDirSpy).toHaveBeenCalledWith(extractDir)
+        expect(parseSkillMetadata).toHaveBeenCalledWith(canonicalExtractDir, 'code', 'skills', {
+          calculateSize: false
+        })
         expect(installSkillDirSpy).toHaveBeenCalledWith(
-          locatedSkillDir,
+          canonicalExtractDir,
           'marketplace',
           'https://clawhub.ai/ivangdavila/skills/code'
         )
       } finally {
         createTempDirSpy.mockRestore()
         extractZipSpy.mockRestore()
-        locateSkillDirSpy.mockRestore()
         installSkillDirSpy.mockRestore()
         vi.mocked(net.fetch).mockReset()
       }
@@ -640,10 +690,51 @@ describe('SkillService', () => {
       const otherSkill = path.join(repoDir, 'other-skill')
       await fs.promises.mkdir(otherSkill, { recursive: true })
       await fs.promises.writeFile(path.join(otherSkill, 'SKILL.md'), '# other')
-      vi.mocked(findAllSkillDirectories).mockResolvedValue([{ folderPath: otherSkill }] as never)
+      vi.mocked(findAllSkillDirectories).mockResolvedValue([{ folderPath: otherSkill, sourcePath: 'other-skill' }])
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'other-skill' } as never)
 
       await expect(skillService['resolveSkillDirectory'](repoDir, 'requested-skill', null)).rejects.toThrow(
         'No SKILL.md found for the specified skill: requested-skill'
+      )
+    })
+
+    it('selects the unique skills.sh candidate whose metadata name matches the reviewed skill id', async () => {
+      const skillService = new SkillService()
+      const repoDir = await createTempDir('skill-repo-')
+      const first = path.join(repoDir, 'first', 'shared-name')
+      const second = path.join(repoDir, 'second', 'shared-name')
+      await Promise.all([fs.promises.mkdir(first, { recursive: true }), fs.promises.mkdir(second, { recursive: true })])
+      await Promise.all([
+        fs.promises.writeFile(path.join(first, 'SKILL.md'), '# first'),
+        fs.promises.writeFile(path.join(second, 'SKILL.md'), '# second')
+      ])
+      vi.mocked(findAllSkillDirectories).mockResolvedValue([
+        { folderPath: first, sourcePath: 'first/shared-name' },
+        { folderPath: second, sourcePath: 'second/shared-name' }
+      ])
+      vi.mocked(parseSkillMetadata).mockImplementation(async (skillPath) => {
+        return { name: skillPath === second ? 'reviewed-skill' : 'another-skill' } as never
+      })
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
+
+      await expect(skillService['resolveSkillDirectory'](repoDir, 'reviewed-skill', null)).resolves.toBe(
+        await fs.promises.realpath(second)
+      )
+    })
+
+    it('rejects skills.sh candidates only when multiple descriptors claim the reviewed skill id', async () => {
+      const skillService = new SkillService()
+      const repoDir = await createTempDir('skill-repo-')
+      const first = path.join(repoDir, 'first', 'shared-name')
+      const second = path.join(repoDir, 'second', 'shared-name')
+      vi.mocked(findAllSkillDirectories).mockResolvedValue([
+        { folderPath: first, sourcePath: 'first/shared-name' },
+        { folderPath: second, sourcePath: 'second/shared-name' }
+      ])
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'reviewed-skill' } as never)
+
+      await expect(skillService['resolveSkillDirectory'](repoDir, 'reviewed-skill', null)).rejects.toThrow(
+        'Multiple SKILL.md files declare the specified skill: reviewed-skill'
       )
     })
   })
@@ -656,6 +747,7 @@ describe('SkillService', () => {
     let restoreGetPath = () => {}
 
     beforeEach(async () => {
+      vi.mocked(parseSkillMetadata).mockClear()
       const root = await createTempDir('builtin-skill-')
       const sourceRoot = path.join(root, 'resources')
       const storageRoot = path.join(root, 'Data', 'Skills')

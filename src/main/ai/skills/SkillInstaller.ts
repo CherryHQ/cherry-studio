@@ -30,8 +30,10 @@ export class SkillInstaller {
 
     const sourceHash = await this.computeDirectoryHash(sourceDir)
     await this.recoverInterruptedInstall(destPath)
+    await this.removeCommittedCleanup(destPath)
 
     const backupPath = this.getBackupPath(destPath)
+    const cleanupPath = this.getCleanupPath(destPath)
     let hasBackup = false
     let publishStarted = false
 
@@ -55,7 +57,11 @@ export class SkillInstaller {
       logger.debug('Skill folder copied to destination', { destPath })
 
       if (hasBackup) {
-        await deleteDirectoryRecursive(backupPath)
+        // Renaming the rollback marker is the atomic commit point. Once only `.cleanup` remains,
+        // recovery must keep the verified destination even if deleting the old tree is interrupted.
+        await fs.promises.rename(backupPath, cleanupPath)
+        hasBackup = false
+        await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
       }
     } catch (error) {
       // A failed backup rename leaves the old directory intact. Do not delete it unless publishing
@@ -108,9 +114,16 @@ export class SkillInstaller {
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
-      const match = entry.name.match(/^\.(.+)\.bak$/)
-      if (!match?.[1]) continue
-      await this.recoverInterruptedInstall(path.join(storageRoot, match[1]))
+      const backupMatch = entry.name.match(/^\.(.+)\.bak$/)
+      if (backupMatch?.[1]) {
+        await this.recoverInterruptedInstall(path.join(storageRoot, backupMatch[1]))
+        continue
+      }
+
+      const cleanupMatch = entry.name.match(/^\.(.+)\.cleanup$/)
+      if (cleanupMatch?.[1]) {
+        await this.safeRemoveDirectory(path.join(storageRoot, entry.name), 'committed skill backup')
+      }
     }
   }
 
@@ -197,6 +210,25 @@ export class SkillInstaller {
     return path.join(path.dirname(destPath), `.${path.basename(destPath)}.bak`)
   }
 
+  private getCleanupPath(destPath: string): string {
+    return path.join(path.dirname(destPath), `.${path.basename(destPath)}.cleanup`)
+  }
+
+  private async removeCommittedCleanup(destPath: string): Promise<void> {
+    const cleanupPath = this.getCleanupPath(destPath)
+    try {
+      const cleanupStats = await fs.promises.lstat(cleanupPath)
+      if (!cleanupStats.isDirectory()) {
+        throw new Error(`Committed skill cleanup marker is not a directory: ${cleanupPath}`)
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+
+    await deleteDirectoryRecursive(cleanupPath)
+  }
+
   private async safeRename(from: string, to: string, label: string): Promise<void> {
     try {
       await fs.promises.rename(from, to)
@@ -214,7 +246,7 @@ export class SkillInstaller {
     try {
       await deleteDirectoryRecursive(targetPath)
     } catch (error) {
-      logger.error(`Failed to rollback ${label}`, {
+      logger.error(`Failed to remove ${label}`, {
         targetPath,
         error: error instanceof Error ? error.message : String(error)
       })

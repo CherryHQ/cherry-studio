@@ -114,19 +114,21 @@ export function normalizeClawhub(raw: unknown): SkillSearchResult[] {
   const parsed = ClawhubSearchResponseSchema.safeParse(raw)
   if (!parsed.success) throw new Error('Invalid clawhub.ai search response')
 
-  return parsed.data.results.map((skill) => ({
-    slug: skill.slug,
-    name: skill.displayName,
-    description: skill.summary ?? null,
-    author: skill.ownerHandle ?? null,
-    stars: 0,
-    downloads: 0,
-    sourceRegistry: 'clawhub.ai',
-    sourceUrl: skill.ownerHandle
-      ? `https://clawhub.ai/${skill.ownerHandle}/skills/${skill.slug}`
-      : `https://clawhub.ai/skills/${skill.slug}`,
-    installSource: `clawhub:${skill.slug}`
-  }))
+  return parsed.data.results.flatMap((skill) => {
+    if (!skill.ownerHandle) return []
+
+    return {
+      slug: skill.slug,
+      name: skill.displayName,
+      description: skill.summary ?? null,
+      author: skill.ownerHandle,
+      stars: 0,
+      downloads: 0,
+      sourceRegistry: 'clawhub.ai' as const,
+      sourceUrl: `https://clawhub.ai/${skill.ownerHandle}/skills/${skill.slug}`,
+      installSource: `clawhub:${skill.ownerHandle}/${skill.slug}`
+    }
+  })
 }
 
 const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [

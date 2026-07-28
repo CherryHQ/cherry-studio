@@ -68,6 +68,36 @@ describe('SkillInstaller', () => {
       expect(mockCopyDirectoryRecursive).toHaveBeenCalledWith('/tmp/my-skill', '/global-skills/my-skill')
     })
 
+    it('commits a verified replacement before deleting the old skill', async () => {
+      mockPathExists.mockResolvedValue(true)
+      mockCopyDirectoryRecursive.mockResolvedValue(undefined)
+      mockFsRename.mockResolvedValue(undefined)
+      mockDeleteDirectoryRecursive.mockResolvedValue(undefined)
+
+      await installer.install('/tmp/my-skill', '/global-skills/my-skill')
+
+      expect(mockFsRename).toHaveBeenNthCalledWith(1, '/global-skills/my-skill', '/global-skills/.my-skill.bak')
+      expect(mockFsRename).toHaveBeenNthCalledWith(
+        2,
+        '/global-skills/.my-skill.bak',
+        '/global-skills/.my-skill.cleanup'
+      )
+      expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith('/global-skills/.my-skill.cleanup')
+    })
+
+    it('keeps the verified replacement when committed-backup cleanup is interrupted', async () => {
+      mockPathExists.mockResolvedValue(true)
+      mockCopyDirectoryRecursive.mockResolvedValue(undefined)
+      mockFsRename.mockResolvedValue(undefined)
+      mockDeleteDirectoryRecursive.mockRejectedValue(new Error('cleanup interrupted'))
+
+      await expect(installer.install('/tmp/my-skill', '/global-skills/my-skill')).resolves.toBeUndefined()
+
+      expect(mockFsRename).toHaveBeenCalledTimes(2)
+      expect(mockFsRename).not.toHaveBeenCalledWith('/global-skills/.my-skill.bak', '/global-skills/my-skill')
+      expect(mockDeleteDirectoryRecursive).not.toHaveBeenCalledWith('/global-skills/my-skill')
+    })
+
     it('keeps the original skill when moving it to the backup path fails', async () => {
       mockPathExists.mockResolvedValue(true)
       mockFsRename.mockRejectedValue(new Error('rename failed'))
@@ -145,5 +175,18 @@ describe('SkillInstaller', () => {
     await installer.recoverInterruptedInstalls('/global-skills')
 
     expect(mockFsRename).toHaveBeenCalledWith('/global-skills/.first.bak', '/global-skills/first')
+  })
+
+  it('cleans a committed backup without replacing the installed skill', async () => {
+    mockFsReaddir.mockResolvedValue([
+      { name: '.first.cleanup', isDirectory: () => true },
+      { name: 'first', isDirectory: () => true }
+    ])
+    mockDeleteDirectoryRecursive.mockResolvedValue(undefined)
+
+    await installer.recoverInterruptedInstalls('/global-skills')
+
+    expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith('/global-skills/.first.cleanup')
+    expect(mockFsRename).not.toHaveBeenCalled()
   })
 })

@@ -4,7 +4,7 @@ import {
   ClawhubSkillDetailSchema,
   SkillsShSearchResponseSchema
 } from '@shared/types/skill'
-import { normalizeClaudePlugins, normalizeSkillsSh } from '@shared/utils/skillMarketplace'
+import { normalizeClaudePlugins, normalizeClawhub, normalizeSkillsSh } from '@shared/utils/skillMarketplace'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
@@ -257,28 +257,32 @@ describe('Skill search normalizers', () => {
 
   describe('normalizeClawhub', () => {
     it('should normalize fixture to unified results', () => {
-      const parsed = ClawhubSearchResponseSchema.parse(clawhubSearchFixture)
-      const results = parsed.results.map((s) => ({
-        slug: s.slug,
-        name: s.displayName,
-        description: s.summary ?? null,
-        author: s.ownerHandle ?? null,
-        stars: 0,
-        downloads: 0,
-        sourceRegistry: 'clawhub.ai' as const,
-        sourceUrl: s.ownerHandle
-          ? `https://clawhub.ai/${s.ownerHandle}/skills/${s.slug}`
-          : `https://clawhub.ai/skills/${s.slug}`,
-        installSource: `clawhub:${s.slug}`
-      }))
+      const results = normalizeClawhub(clawhubSearchFixture)
 
       expect(results).toHaveLength(2)
       expect(results).toMatchSnapshot()
 
       expect(results[0].name).toBe('Code Reviewer Pro')
-      expect(results[0].installSource).toBe('clawhub:code-reviewer-pro')
+      expect(results[0].installSource).toBe('clawhub:devmaster/code-reviewer-pro')
       expect(results[0].author).toBe('devmaster')
       expect(results[0].sourceUrl).toBe('https://clawhub.ai/devmaster/skills/code-reviewer-pro')
+    })
+
+    it('drops results without an owner because clawhub slugs are not globally unique', () => {
+      const results = normalizeClawhub({
+        results: [
+          {
+            score: 1,
+            slug: 'shared-slug',
+            displayName: 'Shared Slug',
+            summary: 'Ambiguous publisher',
+            version: null,
+            updatedAt: 1
+          }
+        ]
+      })
+
+      expect(results).toEqual([])
     })
   })
 })
