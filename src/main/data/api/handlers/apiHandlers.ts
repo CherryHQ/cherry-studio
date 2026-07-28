@@ -20,6 +20,7 @@ import { agentSessionMessageHandlers } from './agentSessionMessages'
 import { agentSessionHandlers } from './agentSessions'
 import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { assistantHandlers } from './assistants'
+import { englishLearningHandlers } from './englishLearning'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
@@ -48,6 +49,7 @@ import { translateHandlers } from './translate'
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
 export const apiHandlers: ApiImplementation = {
+  ...englishLearningHandlers,
   ...agentHandlers,
   ...assistantHandlers,
   ...agentChannelHandlers,

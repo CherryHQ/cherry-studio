@@ -27,6 +27,8 @@ describe('endpoint classification', () => {
       | '/agents/:agentId/tasks'
       | '/agents/:agentId/tasks/:taskId/logs'
       | '/assistants'
+      | '/english-learning/sources'
+      | '/english-learning/units'
       | '/files/entries'
       | '/files/entries/:id/refs'
       | '/files/entries/ref-counts'

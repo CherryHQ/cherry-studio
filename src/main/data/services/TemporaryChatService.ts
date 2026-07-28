@@ -17,6 +17,10 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { topicProvenanceTable } from '@data/db/schemas/topicProvenance'
+import {
+  englishLearningImportService,
+  extractEnglishLearningMessageText
+} from '@data/services/EnglishLearningImportService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
@@ -196,6 +200,7 @@ export class TemporaryChatService {
     this.messages.delete(topicId)
 
     let createdPersistentTopic = false
+    let persistedProvenanceId: string | undefined
     try {
       application.get('DbService').withWriteTx((tx) => {
         const [existingTopic] = tx.select().from(topicTable).where(eq(topicTable.id, persistentTopicId)).limit(1).all()
@@ -264,7 +269,8 @@ export class TemporaryChatService {
         }
 
         if (dto.provenance && msgs.length > 0) {
-          tx.insert(topicProvenanceTable)
+          const provenance = tx
+            .insert(topicProvenanceTable)
             .values({
               topicId: persistentTopicId,
               kind: dto.provenance.kind,
@@ -272,7 +278,9 @@ export class TemporaryChatService {
               firstMessageId: msgs[0].id,
               lastMessageId: msgs[msgs.length - 1].id
             })
-            .run()
+            .returning({ id: topicProvenanceTable.id })
+            .get()
+          persistedProvenanceId = provenance.id
         }
       })
     } catch (err) {
@@ -290,6 +298,13 @@ export class TemporaryChatService {
       },
       { endpoint: '/topics/:id', entityIds: [persistentTopicId] }
     ])
+    if (persistedProvenanceId && dto.provenance?.kind === 'selection-action' && dto.provenance.actionId === 'refine') {
+      englishLearningImportService.registerSelectionRefineBestEffort({
+        provenanceId: persistedProvenanceId,
+        selectedText: dto.provenance.selectedText,
+        refinedText: extractEnglishLearningMessageText(msgs[msgs.length - 1].data)
+      })
+    }
     logger.info('Persisted temporary topic', {
       temporaryTopicId: topicId,
       persistentTopicId,

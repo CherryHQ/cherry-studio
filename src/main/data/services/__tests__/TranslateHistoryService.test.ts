@@ -1,3 +1,4 @@
+import { learningSourceTable } from '@data/db/schemas/learningSource'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import type { CreateTranslateHistoryDto, UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
@@ -115,6 +116,14 @@ describe('TranslateHistoryService', () => {
 
       const rows = await dbh.db.select().from(translateHistoryTable)
       expect(rows).toHaveLength(1)
+      expect(await dbh.db.select().from(learningSourceTable)).toEqual([
+        expect.objectContaining({
+          kind: 'translation',
+          sourceRecordId: result.id,
+          sourceText: 'Hello',
+          targetText: 'Bonjour'
+        })
+      ])
     })
   })
 
@@ -135,6 +144,17 @@ describe('TranslateHistoryService', () => {
 
       const result = translateHistoryService.update(seeded.id!, {})
       expect(result.id).toBe(seeded.id)
+    })
+
+    it('should create a new learning source revision only for content changes', async () => {
+      const seeded = await seedHistory()
+
+      translateHistoryService.update(seeded.id!, { star: true })
+      translateHistoryService.update(seeded.id!, { targetText: 'Hi' })
+
+      const sources = await dbh.db.select().from(learningSourceTable)
+      expect(sources).toHaveLength(2)
+      expect(sources.map((source) => source.targetText)).toEqual(['Bonjour', 'Hi'])
     })
   })
 

@@ -4,6 +4,7 @@
 
 import { application } from '@application'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
+import { englishLearningImportService } from '@data/services/EnglishLearningImportService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -124,13 +125,14 @@ export class TranslateHistoryService {
     }
 
     logger.info('Created translate history', { id: row.id })
+    englishLearningImportService.registerTranslationBestEffort(row)
     return rowToTranslateHistory(row)
   }
 
   update(id: string, dto: UpdateTranslateHistoryDto): TranslateHistory {
     const db = application.get('DbService').getDb()
 
-    return db.transaction((tx) => {
+    const row = db.transaction((tx) => {
       const [current] = tx.select().from(translateHistoryTable).where(eq(translateHistoryTable.id, id)).limit(1).all()
 
       if (!current) {
@@ -145,7 +147,7 @@ export class TranslateHistoryService {
       if (dto.star !== undefined) updates.star = dto.star
 
       if (Object.keys(updates).length === 0) {
-        return rowToTranslateHistory(current)
+        return current
       }
 
       const [row] = tx
@@ -160,8 +162,10 @@ export class TranslateHistoryService {
       }
 
       logger.info('Updated translate history', { id, changes: Object.keys(dto) })
-      return rowToTranslateHistory(row)
+      return row
     })
+    englishLearningImportService.registerTranslationBestEffort(row)
+    return rowToTranslateHistory(row)
   }
 
   delete(id: string): void {
