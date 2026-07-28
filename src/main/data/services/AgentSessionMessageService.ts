@@ -24,11 +24,11 @@ import {
 } from '@shared/data/api/schemas/agentSessionMessages'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
+import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole, type MessageStats } from '@shared/data/types/message'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
-import { type AgentSessionUsageCapture, aiUsageRecordService } from './aiUsageRecord'
+import { aiUsageRecordService } from './aiUsageRecord'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -67,8 +67,39 @@ type SaveAgentSessionMessageParams = {
   sessionId: string
   runtimeResumeToken?: string
   message: CreateAgentSessionMessageDto
-  /** Route-owned capture policy; omitted by non-runtime callers. */
-  usageCapture?: AgentSessionUsageCapture
+}
+
+function mergeMessageStats(
+  existing: MessageStats | null | undefined,
+  incoming: MessageStats | null | undefined
+): MessageStats | undefined {
+  const merged: MessageStats = {
+    ...(existing?.inputTokens !== undefined ? { inputTokens: existing.inputTokens } : {}),
+    ...(existing?.outputTokens !== undefined ? { outputTokens: existing.outputTokens } : {}),
+    ...(existing?.totalTokens !== undefined ? { totalTokens: existing.totalTokens } : {}),
+    ...(existing?.inputTokenDetails ? { inputTokenDetails: existing.inputTokenDetails } : {}),
+    ...(existing?.outputTokenDetails ? { outputTokenDetails: existing.outputTokenDetails } : {}),
+    ...(existing?.requestCount !== undefined ? { requestCount: existing.requestCount } : {}),
+    ...(existing?.estimatedRequestCount !== undefined ? { estimatedRequestCount: existing.estimatedRequestCount } : {}),
+    ...(existing?.unpricedRequestCount !== undefined ? { unpricedRequestCount: existing.unpricedRequestCount } : {}),
+    ...(existing?.costs ? { costs: existing.costs } : {}),
+    ...(incoming?.timeFirstTokenMs !== undefined
+      ? { timeFirstTokenMs: incoming.timeFirstTokenMs }
+      : existing?.timeFirstTokenMs !== undefined
+        ? { timeFirstTokenMs: existing.timeFirstTokenMs }
+        : {}),
+    ...(incoming?.timeCompletionMs !== undefined
+      ? { timeCompletionMs: incoming.timeCompletionMs }
+      : existing?.timeCompletionMs !== undefined
+        ? { timeCompletionMs: existing.timeCompletionMs }
+        : {}),
+    ...(incoming?.timeThinkingMs !== undefined
+      ? { timeThinkingMs: incoming.timeThinkingMs }
+      : existing?.timeThinkingMs !== undefined
+        ? { timeThinkingMs: existing.timeThinkingMs }
+        : {})
+  }
+  return Object.keys(merged).length > 0 ? merged : undefined
 }
 
 export class AgentSessionMessageService {
@@ -386,7 +417,7 @@ export class AgentSessionMessageService {
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
       const messageSnapshot =
         message.messageSnapshot === undefined ? existingRow.messageSnapshot : message.messageSnapshot
-      const stats = message.stats === undefined ? existingRow.stats : message.stats
+      const stats = mergeMessageStats(existingRow.stats, message.stats) ?? null
 
       withSqliteErrors(
         () =>
@@ -429,7 +460,7 @@ export class AgentSessionMessageService {
       data: message.data,
       modelId: message.modelId,
       messageSnapshot: message.messageSnapshot,
-      stats: message.stats,
+      stats: mergeMessageStats(undefined, message.stats) ?? null,
       runtimeResumeToken,
       createdAt: timestampMs,
       updatedAt: timestampMs
@@ -451,11 +482,11 @@ export class AgentSessionMessageService {
 
   saveMessage(params: SaveAgentSessionMessageParams, db?: DbOrTx): AgentSessionMessageEntity {
     const timestampMs = Date.now()
-    // Caller-managed tx: skip the usage-record hook — we can't observe its commit,
-    // and recording from a transaction that may roll back would ghost-write.
     if (db) return this.saveMessageTx(db, params, timestampMs)
     const saved = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
-    this.recordAiUsageRecord(saved, params.usageCapture)
+    if (saved.role === 'assistant') {
+      aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: saved.id })
+    }
     return saved
   }
 
@@ -471,33 +502,12 @@ export class AgentSessionMessageService {
       agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
       return result
     })
-    for (const entity of saved) this.recordAiUsageRecord(entity)
+    for (const entity of saved) {
+      if (entity.role === 'assistant') {
+        aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: entity.id })
+      }
+    }
     return saved
-  }
-
-  /**
-   * Agent usage has one route-owned capture point. Direct and external-CLI
-   * routes record the final assistant message with the connection's credential
-   * receipt. Gateway routes already record each provider call, so their
-   * cumulative final message is suppressed here. Post-commit and fire-and-forget:
-   * best-effort, never disrupts session persistence.
-   */
-  private recordAiUsageRecord(saved: AgentSessionMessageEntity, usageCapture?: AgentSessionUsageCapture): void {
-    if (usageCapture?.owner === 'provider-requests') return
-    if (saved.role !== 'assistant' || !saved.stats) return
-    void aiUsageRecordService
-      .recordFromMessage({
-        id: saved.id,
-        agentSessionId: saved.sessionId,
-        role: saved.role,
-        modelId: saved.modelId,
-        messageSnapshot: saved.messageSnapshot,
-        stats: saved.stats,
-        credentialReceipt: usageCapture?.credentialReceipt
-      })
-      .catch((err) => {
-        logger.warn('AI usage record failed', { id: saved.id, err })
-      })
   }
 }
 

@@ -380,10 +380,51 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet'
     })
     expect(request?.usageCapture).toEqual({
-      owner: 'agent-message',
-      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
+      owner: 'agent-sdk',
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' },
+      providerId: 'provider-1',
+      providerName: null,
+      source: { type: 'agent', id: 'agent-1', name: null, icon: null },
+      frozenModels: [
+        {
+          modelId: 'model-1',
+          modelName: 'model-1',
+          pricingSnapshot: null,
+          aliases: ['claude-sonnet', 'model-1']
+        }
+      ]
     })
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+
+  it('captures distinct same-provider models for direct-route usage attribution', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-2',
+      smallModel: 'provider-1::model-3'
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'model-1-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-3-api'
+    })
+    expect(request?.usageCapture).toMatchObject({
+      owner: 'agent-sdk',
+      frozenModels: [
+        { modelId: 'model-1', aliases: ['model-1-api', 'model-1'] },
+        { modelId: 'model-2', aliases: ['model-2-api', 'model-2'] },
+        { modelId: 'model-3', aliases: ['model-3-api', 'model-3'] }
+      ]
+    })
   })
 
   it('appends [1m] for a >=1M model on an Anthropic-preset provider repointed at a custom proxy', async () => {
@@ -504,7 +545,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
       'x-cherry-agent-session-id: session-1\nx-cherry-internal-usage-token: internal-token'
     )
-    expect(request?.usageCapture).toEqual({ owner: 'provider-requests' })
+    expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
   it('pins cross-provider plan/small models onto the primary for an external-cli (claude-code) agent instead of routing through the gateway', async () => {
@@ -548,8 +589,19 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
     expect(request?.usageCapture).toEqual({
-      owner: 'agent-message',
-      credentialReceipt: { attribution: 'auth', method: 'external-cli' }
+      owner: 'agent-sdk',
+      credentialReceipt: { attribution: 'auth', method: 'external-cli' },
+      providerId: 'claude-code',
+      providerName: null,
+      source: { type: 'agent', id: 'agent-1', name: null, icon: null },
+      frozenModels: [
+        {
+          modelId: 'sonnet',
+          modelName: 'sonnet',
+          pricingSnapshot: null,
+          aliases: ['sonnet-api', 'sonnet']
+        }
+      ]
     })
   })
 

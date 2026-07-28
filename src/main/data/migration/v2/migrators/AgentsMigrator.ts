@@ -34,7 +34,13 @@ import {
   getTotalAgentsRowCount,
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
-import { type ChatMappingDeps, mergeStats, normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
+import {
+  type ChatMappingDeps,
+  estimateLegacyRequestCount,
+  mergeStats,
+  normalizeStatus,
+  transformBlocksToParts
+} from './mappings/ChatMappings'
 import { AGENT_TABLES, remapAgentPrefixIds } from './remapAgentPrefixIds'
 import { type LegacyModelRef, legacyModelToUniqueId } from './transformers/ModelTransformers'
 
@@ -893,7 +899,13 @@ async function normalizeLegacySessionMessage(
     status: normalizeStatus(message.status),
     modelId: legacyModelToUniqueId(modelRef, rawModelId) ?? rawModelId,
     modelSnapshot: buildModelSnapshot(message.model),
-    stats: mergeStats(message.usage, message.metrics)
+    stats: mergeStats(
+      message.usage,
+      message.metrics,
+      normalizeLegacyRole(typeof message.role === 'string' ? message.role : fallbackRole) === 'assistant'
+        ? estimateLegacyRequestCount(blocks)
+        : undefined
+    )
   }
 }
 

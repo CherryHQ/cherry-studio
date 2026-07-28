@@ -1,11 +1,13 @@
-import type { RuntimeModelPricing } from '@shared/data/types/model'
+import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import { describe, expect, it } from 'vitest'
 
 import { computeLanguageCost } from '../costComputation'
 
-const pricing = (overrides: Partial<RuntimeModelPricing> = {}): RuntimeModelPricing => ({
-  input: { perMillionTokens: 3, currency: 'USD' },
-  output: { perMillionTokens: 15, currency: 'USD' },
+const pricing = (overrides: Partial<AiUsagePricingSnapshot> = {}): AiUsagePricingSnapshot => ({
+  currency: 'USD',
+  inputPerMillionTokens: 3,
+  outputPerMillionTokens: 15,
+  capturedAt: '2026-01-01T00:00:00.000Z',
   ...overrides
 })
 
@@ -13,8 +15,7 @@ describe('computeLanguageCost', () => {
   it('prices input and output at their rates', () => {
     expect(computeLanguageCost({ inputTokens: 1_000_000, outputTokens: 500_000 }, pricing())).toEqual({
       cost: 10.5,
-      breakdown: { input: 3, output: 7.5 },
-      currency: 'USD'
+      breakdown: { input: 3, output: 7.5 }
     })
   })
 
@@ -26,8 +27,8 @@ describe('computeLanguageCost', () => {
         inputTokenDetails: { noCacheTokens: 200_000, cacheReadTokens: 700_000, cacheWriteTokens: 100_000 }
       },
       pricing({
-        cacheRead: { perMillionTokens: 0.3, currency: 'USD' },
-        cacheWrite: { perMillionTokens: 3.75, currency: 'USD' }
+        cacheReadPerMillionTokens: 0.3,
+        cacheWritePerMillionTokens: 3.75
       })
     )
 
@@ -42,7 +43,7 @@ describe('computeLanguageCost', () => {
         outputTokens: 0,
         inputTokenDetails: { cacheReadTokens: 700_000 }
       },
-      pricing({ cacheRead: { perMillionTokens: 0.3, currency: 'USD' } })
+      pricing({ cacheReadPerMillionTokens: 0.3 })
     )
 
     expect(result?.breakdown).toEqual({ input: 0.9, cacheRead: 0.21, output: 0 })
@@ -73,27 +74,25 @@ describe('computeLanguageCost', () => {
     expect(
       computeLanguageCost(
         { inputTokens: 1000, outputTokens: 1000 },
-        { input: { perMillionTokens: null }, output: { perMillionTokens: null } }
+        { currency: 'USD', capturedAt: '2026-01-01T00:00:00.000Z' }
       )
     ).toBeUndefined()
     expect(computeLanguageCost({}, pricing())).toBeUndefined()
   })
 
-  it('skips non-finite rates', () => {
-    const result = computeLanguageCost(
-      { inputTokens: 1000, outputTokens: 1000 },
-      { input: { perMillionTokens: Number.NaN }, output: { perMillionTokens: 15, currency: 'USD' } }
-    )
-    expect(result?.breakdown).not.toHaveProperty('input')
-    expect(result?.cost).toBeCloseTo((1000 * 15) / 1_000_000, 10)
-  })
-
-  it('carries the configured currency', () => {
+  it('does not emit a partial cost when a non-zero bucket has no rate', () => {
     expect(
       computeLanguageCost(
-        { inputTokens: 1_000_000, outputTokens: 0 },
-        pricing({ input: { perMillionTokens: 3, currency: 'CNY' } })
-      )?.currency
-    ).toBe('CNY')
+        { inputTokens: 1000, outputTokens: 1000 },
+        { currency: 'USD', outputPerMillionTokens: 15, capturedAt: '2026-01-01T00:00:00.000Z' }
+      )
+    ).toBeUndefined()
+  })
+
+  it('keeps an explicit zero-priced invocation', () => {
+    expect(computeLanguageCost({ inputTokens: 0, outputTokens: 0 }, pricing())).toEqual({
+      cost: 0,
+      breakdown: { input: 0, output: 0 }
+    })
   })
 })

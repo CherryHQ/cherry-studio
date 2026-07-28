@@ -118,7 +118,11 @@ function commit(listener: StreamListener): void {
 
 describe('processMessage (streaming)', () => {
   it('passes validated internal agent-session correlation to provider-call usage capture', async () => {
-    mockResolveAgentSessionUsage.mockReturnValue('session-1')
+    const usageContext = {
+      agentSessionId: 'session-1',
+      source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
+    }
+    mockResolveAgentSessionUsage.mockReturnValue(usageContext)
     const requestHeaders = new Headers({ 'x-cherry-internal-usage-token': 'proof' })
     const response = processMessage({
       params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
@@ -129,9 +133,7 @@ describe('processMessage (streaming)', () => {
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
     expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
-    expect(mockStreamPrompt).toHaveBeenCalledWith(
-      expect.objectContaining({ usageContext: { agentSessionId: 'session-1' } })
-    )
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ usageContext }))
 
     commit(captured.listener!)
     await captured.listener!.onDone({} as any)

@@ -58,11 +58,7 @@ export function statsToUsage(stats: MessageStats): Usage {
     }),
     ...(stats.inputTokenDetails?.cacheWriteTokens !== undefined && {
       cache_write_tokens: stats.inputTokenDetails.cacheWriteTokens
-    }),
-    ...(stats.cost !== undefined && { cost: stats.cost }),
-    ...(stats.costSource !== undefined && { cost_source: stats.costSource }),
-    ...(stats.costCurrency !== undefined && { cost_currency: stats.costCurrency }),
-    ...(stats.costBreakdown !== undefined && { cost_breakdown: stats.costBreakdown })
+    })
   }
 }
 

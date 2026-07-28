@@ -28,30 +28,12 @@ export const MessageIdSchema = z.uuid()
 export type MessageId = z.infer<typeof MessageIdSchema>
 
 /**
- * Where a cost figure came from: the provider's own reported spend, or a local
- * computation from the model's pricing. Shared with the AI usage record entity
- * and its `ai_usage_record.cost_source` CHECK constraint.
- */
-export const COST_SOURCES = ['provider', 'computed'] as const
-export const CostSourceSchema = z.enum(COST_SOURCES)
-export type CostSource = z.infer<typeof CostSourceSchema>
-
-/**
- * Message Statistics — token usage, cost, and performance for one assistant
- * message. Token fields mirror AI SDK v6 `LanguageModelUsage` 1:1 so the
- * stream accumulator projects provider usage into this shape without
- * translation.
+ * Materialized statistics for one assistant message.
  *
- * Scope: language models only. Image generation (Painting subsystem) and
- * embeddings (knowledge base) do not produce assistant messages and are not
- * modelled here.
- *
- * Cost is resolved at persistence time (`MessageServiceBackend`): computed
- * from the model's pricing (cache-aware) by default, or taken from the
- * provider's reported figure when the provider is flagged
- * `apiFeatures.reportsActualCost` (e.g. OpenRouter). `pricingSnapshot` freezes
- * the per-million rates so historical cost stays auditable if the model's
- * pricing later changes.
+ * Usage, request counts, and costs are a projection of immutable
+ * `ai_usage_record` rows. Performance metrics are message-level end-to-end
+ * measurements owned by message persistence and are never projected from
+ * provider-call records.
  */
 export const MessageStatsSchema = z.strictObject({
   // ── Token usage (AI SDK v6 `LanguageModelUsage` names, minus its
@@ -76,33 +58,18 @@ export const MessageStatsSchema = z.strictObject({
     })
     .optional(),
 
-  // ── Cost (resolved at message completion) ──
-  /** Aggregate cost in `costCurrency`. */
-  cost: z.number().optional(),
-  /** Currency of `cost` / `costBreakdown` / `pricingSnapshot` rates. */
-  costCurrency: z.enum(objectValues(CURRENCY)).optional(),
-  /** Provider-reported actual spend vs locally computed from pricing. */
-  costSource: CostSourceSchema.optional(),
-  /** Per-bucket cost. For provider-reported cost this is a computed cross-check. */
-  costBreakdown: z
-    .strictObject({
-      input: z.number().optional(),
-      output: z.number().optional(),
-      cacheRead: z.number().optional(),
-      cacheWrite: z.number().optional(),
-      /** Per-image cost (image-generation requests; priced via `pricing.perImage`). */
-      image: z.number().optional()
-    })
-    .optional(),
-  /** Per-million-token rates captured at completion time, for historical audit. */
-  pricingSnapshot: z
-    .strictObject({
-      input: z.number().optional(),
-      output: z.number().optional(),
-      cacheRead: z.number().optional(),
-      cacheWrite: z.number().optional(),
-      capturedAt: z.iso.datetime()
-    })
+  requestCount: z.number().int().nonnegative().optional(),
+  estimatedRequestCount: z.number().int().nonnegative().optional(),
+  unpricedRequestCount: z.number().int().nonnegative().optional(),
+  costs: z
+    .array(
+      z.strictObject({
+        currency: z.enum(objectValues(CURRENCY)),
+        amount: z.number().nonnegative(),
+        providerReportedRequestCount: z.number().int().nonnegative(),
+        computedRequestCount: z.number().int().nonnegative()
+      })
+    )
     .optional(),
 
   // ── Performance metrics (measured locally) ──
@@ -136,9 +103,10 @@ export interface MessageData {
 /**
  * Metadata carried on a streamed `CherryUIMessage`.
  *
- * Token usage rides exclusively in the nested `stats` snapshot (the same
- * `MessageStats` shape persisted to the DB) — there are deliberately no flat
- * token mirrors; `statsFromTerminal` and all other consumers read `stats`.
+ * Live cumulative token usage rides in the nested `stats` snapshot — there are
+ * deliberately no flat token mirrors. This stream metadata is not the
+ * persistent fact source: SQLite `MessageStats` usage/cost is rebuilt from
+ * per-invocation records, while message persistence owns only message timing.
  *
  * Shallow-merge invariant: the AI SDK merges each `message-metadata` chunk
  * into the accumulating message as `{ ...prev, ...next }` (shallow). The usage
@@ -176,20 +144,12 @@ export interface CherryUIMessageMetadata {
   updatedAt?: string
 
   /**
-   * Transient provider-reported cost candidate (USD), extracted from
-   * `LanguageModelUsage.raw` (e.g. OpenRouter `usage.cost`). NOT persisted to
-   * `stats`; only consumed by `enrichStatsWithCost`, which decides whether to
-   * trust it based on `provider.apiFeatures.reportsActualCost`.
-   */
-  providerCostUsd?: number
-
-  /**
    * Total-tokens convenience mirror of `MessageStats.totalTokens`, populated by
    * the DB→UI projection so call-sites that only need the single counter can
    * skip the nested `stats` object.
    */
   totalTokens?: number
-  /** Token usage + durations snapshot (the persisted `MessageStats` shape). */
+  /** Live token/timing view using the same shape as persisted `MessageStats`. */
   stats?: MessageStats
 }
 

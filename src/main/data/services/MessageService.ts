@@ -32,6 +32,7 @@ import {
   coerceSearchRole,
   type Message,
   type MessageData,
+  type MessageStats,
   type SiblingsGroup,
   toContentRole,
   TOPIC_MESSAGE_SEARCH_ROLES,
@@ -1225,7 +1226,6 @@ export class MessageService {
       if (dto.parentId !== undefined) updates.parentId = dto.parentId
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
       if (dto.status !== undefined) updates.status = dto.status
-      if (dto.stats !== undefined) updates.stats = dto.stats
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
       if (dto.data !== undefined) {
@@ -1237,16 +1237,68 @@ export class MessageService {
       return rowToMessage(row)
     })
 
-    // An assistant message landing token stats is a usage event. Record it
-    // post-commit and fire-and-forget: the analytical read model is
-    // best-effort and must never disrupt message persistence.
-    if (dto.stats !== undefined && message.role === 'assistant') {
-      void aiUsageRecordService.recordFromMessage(message).catch((err) => {
-        logger.warn('AI usage record failed', { id, err })
-      })
-    }
-
     return message
+  }
+
+  /**
+   * Internal AI-runtime finalizer. Content/status and message-level timings are
+   * message-owned; invocation usage/cost fields already present in `stats` are
+   * preserved for the record projector.
+   */
+  finalizeAssistantMessage(
+    id: string,
+    input: {
+      data: MessageData
+      status: Extract<Message['status'], 'success' | 'paused' | 'error'>
+      timingStats?: Pick<MessageStats, 'timeFirstTokenMs' | 'timeCompletionMs' | 'timeThinkingMs'>
+    }
+  ): Message {
+    application.get('DbService').withWriteTx((tx) => {
+      const row = tx.select().from(messageTable).where(eq(messageTable.id, id)).get()
+      if (!row) throw DataApiErrorFactory.notFound('Message', id)
+      if (row.role !== 'assistant') {
+        throw DataApiErrorFactory.invalidOperation('finalize message', 'only assistant messages can be finalized')
+      }
+
+      const stats: MessageStats = {
+        ...(row.stats?.inputTokens !== undefined ? { inputTokens: row.stats.inputTokens } : {}),
+        ...(row.stats?.outputTokens !== undefined ? { outputTokens: row.stats.outputTokens } : {}),
+        ...(row.stats?.totalTokens !== undefined ? { totalTokens: row.stats.totalTokens } : {}),
+        ...(row.stats?.inputTokenDetails ? { inputTokenDetails: row.stats.inputTokenDetails } : {}),
+        ...(row.stats?.outputTokenDetails ? { outputTokenDetails: row.stats.outputTokenDetails } : {}),
+        ...(row.stats?.requestCount !== undefined ? { requestCount: row.stats.requestCount } : {}),
+        ...(row.stats?.estimatedRequestCount !== undefined
+          ? { estimatedRequestCount: row.stats.estimatedRequestCount }
+          : {}),
+        ...(row.stats?.unpricedRequestCount !== undefined
+          ? { unpricedRequestCount: row.stats.unpricedRequestCount }
+          : {}),
+        ...(row.stats?.costs ? { costs: row.stats.costs } : {}),
+        ...(row.stats?.timeFirstTokenMs !== undefined ? { timeFirstTokenMs: row.stats.timeFirstTokenMs } : {}),
+        ...(row.stats?.timeCompletionMs !== undefined ? { timeCompletionMs: row.stats.timeCompletionMs } : {}),
+        ...(row.stats?.timeThinkingMs !== undefined ? { timeThinkingMs: row.stats.timeThinkingMs } : {}),
+        ...(input.timingStats?.timeFirstTokenMs !== undefined
+          ? { timeFirstTokenMs: input.timingStats.timeFirstTokenMs }
+          : {}),
+        ...(input.timingStats?.timeCompletionMs !== undefined
+          ? { timeCompletionMs: input.timingStats.timeCompletionMs }
+          : {}),
+        ...(input.timingStats?.timeThinkingMs !== undefined ? { timeThinkingMs: input.timingStats.timeThinkingMs } : {})
+      }
+      tx.update(messageTable)
+        .set({
+          data: input.data,
+          status: input.status,
+          stats: Object.keys(stats).length > 0 ? stats : null
+        })
+        .where(eq(messageTable.id, id))
+        .run()
+      replaceChatMessageFileRefsTx(tx, id, input.data)
+    })
+    aiUsageRecordService.refreshMessageProjection({ kind: 'chat', id })
+    const finalized = this.getById(id)
+    if (!finalized) throw DataApiErrorFactory.notFound('Message', id)
+    return finalized
   }
 
   /**
@@ -1599,9 +1651,11 @@ export class MessageService {
    *
    * `rows` must be the ordered chain returned by `getPathRowsToNodeTx`; callers
    * should not pass arbitrary or forked message sets. The copy preserves the
-   * renderable message content and terminal runtime metadata, but intentionally
-   * does not copy `traceId`: trace links describe the original conversation run,
-   * while the duplicated topic starts without trace linkage.
+   * renderable message content and message-owned timings, but not usage/cost:
+   * those remain projected from records associated with the original message
+   * ids. It also intentionally does not copy `traceId`: trace links describe
+   * the original conversation run, while the duplicated topic starts without
+   * trace linkage.
    */
   copyPathRowsTx(
     tx: DbOrTx,
@@ -1620,6 +1674,17 @@ export class MessageService {
     let copiedActiveNodeId = ''
 
     for (const sourceMessage of rows) {
+      const copiedStats: MessageStats = {
+        ...(sourceMessage.stats?.timeFirstTokenMs !== undefined
+          ? { timeFirstTokenMs: sourceMessage.stats.timeFirstTokenMs }
+          : {}),
+        ...(sourceMessage.stats?.timeCompletionMs !== undefined
+          ? { timeCompletionMs: sourceMessage.stats.timeCompletionMs }
+          : {}),
+        ...(sourceMessage.stats?.timeThinkingMs !== undefined
+          ? { timeThinkingMs: sourceMessage.stats.timeThinkingMs }
+          : {})
+      }
       let copiedParentId: string
       if (sourceMessage.parentId && copiedMessageIds.has(sourceMessage.parentId)) {
         copiedParentId = copiedMessageIds.get(sourceMessage.parentId)!
@@ -1640,7 +1705,7 @@ export class MessageService {
           siblingsGroupId: 0,
           modelId: sourceMessage.modelId,
           messageSnapshot: sourceMessage.messageSnapshot,
-          stats: sourceMessage.stats
+          stats: Object.keys(copiedStats).length > 0 ? copiedStats : null
         })
         .returning()
         .all()

@@ -140,7 +140,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
-  const agentSessionId = config.requestHeaders
+  const usageContext = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
     : undefined
 
@@ -314,7 +314,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             messages,
             listener,
             callOverrides,
-            ...(agentSessionId ? { usageContext: { agentSessionId } } : {}),
+            ...(usageContext ? { usageContext } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
         } catch (error) {
@@ -396,7 +396,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       messages,
       listener,
       callOverrides,
-      ...(agentSessionId ? { usageContext: { agentSessionId } } : {}),
+      ...(usageContext ? { usageContext } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })
 

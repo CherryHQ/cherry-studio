@@ -1,312 +1,167 @@
-import { globSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-import type { Model } from '@shared/data/types/model'
-import type { LanguageModelUsage } from 'ai'
-import ts from 'typescript'
+import type { LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AgentLoopHooks } from '../../runtime/aiSdk'
-
-const mockRecordRequest = vi.fn()
+const recordInvocation = vi.fn()
 
 vi.mock('@main/data/services/aiUsageRecord', () => ({
-  aiUsageRecordService: {
-    recordRequest: (...args: unknown[]) => mockRecordRequest(...args)
-  }
+  aiUsageRecordService: { recordInvocation }
 }))
 
-const { BILLABLE_AI_OPERATIONS, createBillingHook, createBillingRecorder, AI_USAGE_RECORD_OPERATION_COVERAGE } =
-  await import('../billingHook')
+const { AI_USAGE_RECORD_OPERATION_COVERAGE, BILLABLE_AI_OPERATIONS, createLanguageUsageMiddleware } = await import(
+  '../billingHook'
+)
 
-const model = { id: 'test-provider::test-model' } as unknown as Model
-
-interface ProviderRequestCallSite {
-  file: string
-  module: string
-  exportName: string
-  callCount: number
+const context = {
+  providerId: 'provider-1',
+  providerName: 'Provider',
+  modelId: 'model-1',
+  modelName: 'Model',
+  pricingSnapshot: null,
+  trustProviderReportedCost: false,
+  credentialReceipt: { attribution: 'unknown' as const },
+  source: null,
+  messageRef: { kind: 'chat' as const, id: 'message-1' }
 }
 
-// These exports only build schemas, tools, middleware, or inspect errors and
-// cannot issue a provider request. Every other value import is review-required
-// by default so a newly added SDK inference API cannot silently bypass billing.
-const AI_SDK_NON_REQUEST_EXPORTS = new Set([
-  'APICallError',
-  'InvalidToolInputError',
-  'Output',
-  'asSchema',
-  'convertToModelMessages',
-  'dynamicTool',
-  'extractReasoningMiddleware',
-  'isToolUIPart',
-  'jsonSchema',
-  'readUIMessageStream',
-  'simulateStreamingMiddleware',
-  'stepCountIs',
-  'tool',
-  'zodSchema'
-])
-const AI_CORE_NON_REQUEST_EXPORTS = new Set(['definePlugin'])
-
-function scanProviderRequestCallSites(): ProviderRequestCallSite[] {
-  const mainRoot = fileURLToPath(new URL('../../..', import.meta.url))
-  const result: ProviderRequestCallSite[] = []
-
-  for (const relativePath of globSync('**/*.ts', { cwd: mainRoot, exclude: ['**/__tests__/**'] })) {
-    const source = ts.createSourceFile(
-      relativePath,
-      readFileSync(join(mainRoot, relativePath), 'utf8'),
-      ts.ScriptTarget.Latest,
-      true
-    )
-    const requestImports = new Map<string, { module: string; exportName: string }>()
-
-    for (const statement of source.statements) {
-      if (
-        !ts.isImportDeclaration(statement) ||
-        !ts.isStringLiteral(statement.moduleSpecifier) ||
-        statement.importClause?.isTypeOnly
-      ) {
-        continue
-      }
-
-      const module = statement.moduleSpecifier.text
-      if (module !== '@cherrystudio/ai-core' && module !== 'ai') continue
-
-      const bindings = statement.importClause?.namedBindings
-      if (!bindings || !ts.isNamedImports(bindings)) {
-        requestImports.set('*', { module, exportName: '*' })
-        continue
-      }
-
-      for (const element of bindings.elements) {
-        if (element.isTypeOnly) continue
-        const exportName = (element.propertyName ?? element.name).text
-        const isRequest =
-          module === '@cherrystudio/ai-core'
-            ? !AI_CORE_NON_REQUEST_EXPORTS.has(exportName)
-            : !AI_SDK_NON_REQUEST_EXPORTS.has(exportName)
-        if (isRequest) requestImports.set(element.name.text, { module, exportName })
-      }
-    }
-
-    const callCounts = new Map<string, number>()
-    const visit = (node: ts.Node): void => {
-      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && requestImports.has(node.expression.text)) {
-        callCounts.set(node.expression.text, (callCounts.get(node.expression.text) ?? 0) + 1)
-      }
-      ts.forEachChild(node, visit)
-    }
-    visit(source)
-
-    for (const [localName, requestImport] of requestImports) {
-      result.push({
-        file: relativePath.replaceAll('\\', '/'),
-        ...requestImport,
-        callCount: callCounts.get(localName) ?? 0
-      })
-    }
-  }
-
-  return result.toSorted((a, b) => a.file.localeCompare(b.file) || a.exportName.localeCompare(b.exportName))
+const usage: LanguageModelV3Usage = {
+  inputTokens: { total: 4, noCache: 4, cacheRead: undefined, cacheWrite: undefined },
+  outputTokens: { total: 2, text: 2, reasoning: undefined },
+  raw: undefined
 }
 
-// The hook only reads `step.usage`; build a minimal fake step (a full
-// StepResult has 20+ fields we don't need here).
-const fakeStep = (usage: Partial<LanguageModelUsage>) =>
-  ({ usage }) as unknown as Parameters<NonNullable<AgentLoopHooks['onStepFinish']>>[0]
+async function readAll(stream: ReadableStream<LanguageModelV3StreamPart>): Promise<LanguageModelV3StreamPart[]> {
+  const result: LanguageModelV3StreamPart[] = []
+  for await (const part of stream) result.push(part)
+  return result
+}
 
-describe('AI usage record operation coverage', () => {
-  it('classifies every billable AiService operation', () => {
-    expect(Object.keys(AI_USAGE_RECORD_OPERATION_COVERAGE)).toEqual(BILLABLE_AI_OPERATIONS)
-    expect(AI_USAGE_RECORD_OPERATION_COVERAGE).toMatchObject({
-      streamText: { status: 'recorded', modality: 'language', capture: 'agent-hook' },
-      generateText: { status: 'recorded', modality: 'language', capture: 'agent-hook' },
-      embedMany: { status: 'recorded', modality: 'embedding', capture: 'direct' },
-      generateImage: { status: 'recorded', modality: 'image', capture: 'direct' },
-      rerank: { status: 'usage-unavailable', reason: 'ai-sdk-rerank-result-has-no-usage-or-cost' }
-    })
+function streamOf(parts: readonly LanguageModelV3StreamPart[]): ReadableStream<LanguageModelV3StreamPart> {
+  return new ReadableStream({
+    start(controller) {
+      for (const part of parts) controller.enqueue(part)
+      controller.close()
+    }
   })
+}
 
-  it('allows raw provider requests only through reviewed capture owners', () => {
-    expect(scanProviderRequestCallSites()).toEqual([
-      {
-        file: 'ai/AiService.ts',
-        module: '@cherrystudio/ai-core',
-        exportName: 'embedMany',
-        callCount: 1
-      },
-      {
-        file: 'ai/AiService.ts',
-        module: '@cherrystudio/ai-core',
-        exportName: 'generateImage',
-        callCount: 1
-      },
-      {
-        file: 'ai/AiService.ts',
-        module: '@cherrystudio/ai-core',
-        exportName: 'rerank',
-        callCount: 1
-      },
-      {
-        file: 'ai/runtime/aiSdk/Agent.ts',
-        module: '@cherrystudio/ai-core',
-        exportName: 'createAgent',
-        callCount: 1
-      },
-      {
-        file: 'ai/tools/adapters/aiSdk/repair.ts',
-        module: '@cherrystudio/ai-core',
-        exportName: 'generateText',
-        callCount: 1
-      }
-    ])
+describe('AI usage capture coverage', () => {
+  it('assigns one capture owner to all five billable operations', () => {
+    expect(Object.keys(AI_USAGE_RECORD_OPERATION_COVERAGE)).toEqual(BILLABLE_AI_OPERATIONS)
+    expect(AI_USAGE_RECORD_OPERATION_COVERAGE).toEqual({
+      streamText: { status: 'recorded', modality: 'language', capture: 'language-middleware' },
+      generateText: { status: 'recorded', modality: 'language', capture: 'language-middleware' },
+      embedMany: { status: 'recorded', modality: 'embedding', capture: 'ai-core-handler' },
+      generateImage: { status: 'recorded', modality: 'image', capture: 'ai-core-handler' },
+      rerank: { status: 'recorded', modality: 'rerank', capture: 'ai-core-handler' }
+    })
   })
 })
 
-// What the usage record must contain, and when it is written. A run ends through
-// exactly one terminal hook, but only `onFinish` means "clean end" — usage
-// accrued before an abort or a throwing step must still reach the record, and
-// exactly once. Wiring details (id threading, zero-guard) live in AiService.test.
-describe('createBillingHook', () => {
+describe('createLanguageUsageMiddleware', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Default: resolve, like the real record store's best-effort contract. Individual
-    // tests override with mockRejectedValueOnce to exercise the failure path.
-    mockRecordRequest.mockResolvedValue(undefined)
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000001')
   })
 
-  it('records the usage accrued across steps when the run is aborted', () => {
-    const credentialReceipt = {
-      attribution: 'explicit',
-      id: 'key-a',
-      label: 'Primary',
-      masked: 'sk-a****aaaa'
-    } as const
-    const hook = createBillingHook(model, 'assistant-abort', credentialReceipt)
+  it('records generate completion without inventing TTFT', async () => {
+    const now = vi.spyOn(performance, 'now').mockReturnValueOnce(10).mockReturnValueOnce(35)
+    const middleware = createLanguageUsageMiddleware(context)
+    const result = { usage, content: [], finishReason: { unified: 'stop', raw: 'stop' }, warnings: [] }
 
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 6, outputTokens: 3, totalTokens: 9 }))
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 4, outputTokens: 2, totalTokens: 6 }))
-    void hook.onAbort?.()
+    await middleware.wrapGenerate!({ doGenerate: async () => result } as never)
 
-    expect(mockRecordRequest).toHaveBeenCalledTimes(1)
-    expect(mockRecordRequest).toHaveBeenCalledWith(
+    expect(recordInvocation).toHaveBeenCalledWith(
       expect.objectContaining({
-        requestId: 'assistant-abort',
-        credentialReceipt,
-        modality: 'language',
-        stats: expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
+        requestId: 'ai-sdk:provider-1:00000000-0000-4000-8000-000000000001',
+        context,
+        usage: expect.objectContaining({ inputTokens: 4, outputTokens: 2, totalTokens: 6 }),
+        metrics: { timeCompletionMs: 25 }
       })
     )
+    expect(recordInvocation.mock.calls[0][0].metrics.timeFirstTokenMs).toBeUndefined()
+    now.mockRestore()
   })
 
-  it('records the usage accrued across steps when a later step errors', () => {
-    const hook = createBillingHook(model, 'assistant-error')
+  it('forwards stream chunks unchanged and records per-call TTFT, completion, and thinking', async () => {
+    const parts: LanguageModelV3StreamPart[] = [
+      { type: 'reasoning-start', id: 'r1' },
+      { type: 'reasoning-delta', id: 'r1', delta: 'think' },
+      { type: 'text-delta', id: 't1', delta: 'answer' },
+      { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage }
+    ]
+    const now = vi
+      .spyOn(performance, 'now')
+      .mockReturnValueOnce(100)
+      .mockReturnValueOnce(110)
+      .mockReturnValueOnce(120)
+      .mockReturnValueOnce(140)
+      .mockReturnValueOnce(180)
+    const middleware = createLanguageUsageMiddleware(context)
+    const wrapped = await middleware.wrapStream!({
+      doStream: async () => ({ stream: streamOf(parts) })
+    } as never)
 
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 6, outputTokens: 3, totalTokens: 9 }))
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 4, outputTokens: 2, totalTokens: 6 }))
-    const outcome = hook.onError?.({ error: new Error('step blew up') })
-
-    // Terminating semantics are unchanged: the hook still stops the run.
-    expect(outcome).toBe('abort')
-    expect(mockRecordRequest).toHaveBeenCalledTimes(1)
-    expect(mockRecordRequest).toHaveBeenCalledWith(
+    expect(await readAll(wrapped.stream)).toEqual(parts)
+    expect(recordInvocation).toHaveBeenCalledWith(
       expect.objectContaining({
-        requestId: 'assistant-error',
-        modality: 'language',
-        stats: expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
+        metrics: { timeFirstTokenMs: 20, timeCompletionMs: 80, timeThinkingMs: 30 }
       })
     )
+    now.mockRestore()
   })
 
-  // An OpenRouter-style `usage.cost` prices a single generation, and every
-  // step is one — the usage record must carry the sum, not the last step's cost.
-  it('records the provider-reported cost summed over every step', () => {
-    const hook = createBillingHook(model, 'assistant-cost')
+  it('records each streaming step as an independent provider invocation', async () => {
+    vi.mocked(crypto.randomUUID)
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000001')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000002')
+    const now = vi
+      .spyOn(performance, 'now')
+      .mockReturnValueOnce(10)
+      .mockReturnValueOnce(20)
+      .mockReturnValueOnce(40)
+      .mockReturnValueOnce(100)
+      .mockReturnValueOnce(130)
+      .mockReturnValueOnce(170)
+    const middleware = createLanguageUsageMiddleware(context)
+    const parts: LanguageModelV3StreamPart[] = [
+      { type: 'text-delta', id: 't1', delta: 'answer' },
+      { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage }
+    ]
 
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 6, outputTokens: 3, totalTokens: 9, raw: { cost: 0.25 } }))
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 4, outputTokens: 2, totalTokens: 6, raw: { cost: 0.5 } }))
-    void hook.onFinish?.()
+    const first = await middleware.wrapStream!({ doStream: async () => ({ stream: streamOf(parts) }) } as never)
+    await readAll(first.stream)
+    const second = await middleware.wrapStream!({ doStream: async () => ({ stream: streamOf(parts) }) } as never)
+    await readAll(second.stream)
 
-    expect(mockRecordRequest).toHaveBeenCalledWith(expect.objectContaining({ providerCostUsd: 0.75 }))
+    expect(
+      recordInvocation.mock.calls.map(([input]) => ({
+        requestId: input.requestId,
+        metrics: input.metrics
+      }))
+    ).toEqual([
+      {
+        requestId: 'ai-sdk:provider-1:00000000-0000-4000-8000-000000000001',
+        metrics: { timeFirstTokenMs: 10, timeCompletionMs: 30 }
+      },
+      {
+        requestId: 'ai-sdk:provider-1:00000000-0000-4000-8000-000000000002',
+        metrics: { timeFirstTokenMs: 30, timeCompletionMs: 70 }
+      }
+    ])
+    now.mockRestore()
   })
 
-  it('records once when a finished run also reports abort or error', () => {
-    const hook = createBillingHook(model, 'assistant-finish')
+  it('does not create a successful record when a partial stream errors before finish', async () => {
+    const middleware = createLanguageUsageMiddleware(context)
+    const stream = new ReadableStream<LanguageModelV3StreamPart>({
+      start(controller) {
+        controller.enqueue({ type: 'text-delta', id: 't1', delta: 'partial' })
+        controller.error(new Error('network'))
+      }
+    })
+    const wrapped = await middleware.wrapStream!({ doStream: async () => ({ stream }) } as never)
 
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 6, outputTokens: 3, totalTokens: 9 }))
-    void hook.onFinish?.()
-    void hook.onAbort?.()
-    void hook.onError?.({ error: new Error('late error') })
-
-    expect(mockRecordRequest).toHaveBeenCalledTimes(1)
-    expect(mockRecordRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        stats: expect.objectContaining({ inputTokens: 6, outputTokens: 3, totalTokens: 9 })
-      })
-    )
-  })
-
-  it('records an observed request whose usage counters are explicitly zero', () => {
-    const hook = createBillingHook(model, 'assistant-zero')
-
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 0, outputTokens: 0, totalTokens: 0 }))
-    void hook.onFinish?.()
-
-    expect(mockRecordRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requestId: 'assistant-zero',
-        stats: expect.objectContaining({ inputTokens: 0, outputTokens: 0, totalTokens: 0 })
-      })
-    )
-  })
-
-  it('records a provider charge even when every usage counter is zero', () => {
-    const hook = createBillingHook(model, 'assistant-provider-cost')
-
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 0, outputTokens: 0, totalTokens: 0, raw: { cost: 0.125 } }))
-    void hook.onFinish?.()
-
-    expect(mockRecordRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requestId: 'assistant-provider-cost',
-        providerCostUsd: 0.125,
-        stats: expect.objectContaining({ totalTokens: 0 })
-      })
-    )
-  })
-
-  it('merges nested repair usage into the parent request and preserves its source snapshot', () => {
-    const source = { type: 'assistant', id: 'assistant-1', name: 'Research', icon: '🔎' } as const
-    const recorder = createBillingRecorder(model, 'assistant-repaired', undefined, source)
-
-    recorder.recordUsage({ inputTokens: 5, outputTokens: 1, totalTokens: 6 } as LanguageModelUsage)
-    void recorder.hook.onStepFinish?.(fakeStep({ inputTokens: 7, outputTokens: 2, totalTokens: 9 }))
-    void recorder.hook.onFinish?.()
-
-    expect(mockRecordRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requestId: 'assistant-repaired',
-        source,
-        stats: expect.objectContaining({ inputTokens: 12, outputTokens: 3, totalTokens: 15 })
-      })
-    )
-  })
-
-  // The central safety claim: a rejecting record write must never surface out of the
-  // hook (there is no request to fail — `onFinish` is void and fire-and-forget).
-  it('does not throw and settles the rejection when the record write fails', async () => {
-    mockRecordRequest.mockRejectedValueOnce(new Error('usage record unavailable'))
-    const hook = createBillingHook(model, 'assistant-reject')
-
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 1, outputTokens: 1, totalTokens: 2 }))
-    expect(() => hook.onFinish?.()).not.toThrow()
-
-    expect(mockRecordRequest).toHaveBeenCalledTimes(1)
-    // Let the rejected promise's `.catch(...)` run — an unattended rejection here
-    // would surface as an unhandled rejection failing the test.
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await expect(readAll(wrapped.stream)).rejects.toThrow('network')
+    expect(recordInvocation).not.toHaveBeenCalled()
   })
 })

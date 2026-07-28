@@ -8,7 +8,6 @@
  */
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import type { AgentSessionUsageCapture } from '@data/services/aiUsageRecord'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -23,8 +22,6 @@ export interface AgentSessionMessageBackendOptions {
   modelId?: UniqueModelId
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
   runtimeResumeToken?: string | (() => string | undefined)
-  /** Connection-route-owned usage capture policy, resolved at terminal persistence. */
-  usageCapture?: AgentSessionUsageCapture | (() => AgentSessionUsageCapture | undefined)
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -41,11 +38,9 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
   persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, stats } = input
     const runtimeResumeToken = this.getRuntimeResumeToken()
-    const usageCapture = this.getUsageCapture()
     agentSessionMessageService.saveMessage({
       sessionId: this.opts.sessionId,
       ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
-      ...(usageCapture ? { usageCapture } : {}),
       message: {
         id: finalMessage?.id ?? this.opts.assistantMessageId,
         role: 'assistant',
@@ -61,9 +56,5 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     return typeof this.opts.runtimeResumeToken === 'function'
       ? this.opts.runtimeResumeToken()
       : this.opts.runtimeResumeToken
-  }
-
-  private getUsageCapture(): AgentSessionUsageCapture | undefined {
-    return typeof this.opts.usageCapture === 'function' ? this.opts.usageCapture() : this.opts.usageCapture
   }
 }

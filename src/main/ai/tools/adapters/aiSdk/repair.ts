@@ -1,11 +1,10 @@
-import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { type AiPlugin, generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import {
   InvalidToolInputError,
   jsonSchema,
   type JSONSchema7,
-  type LanguageModelUsage,
   Output,
   type ToolCallRepairFunction,
   type ToolSet
@@ -24,8 +23,8 @@ export interface AiRepairContext<T extends AppProviderId = AppProviderId> {
   providerSettings: AppProviderSettingsMap[T]
   /** Same model id as the main request. */
   modelId: string
-  /** Merge this nested provider request into the parent request's usage record. */
-  onUsage?: (usage: LanguageModelUsage) => void
+  /** Reuse the request's usage middleware so repair is its own invocation. */
+  getUsagePlugins?: () => AiPlugin[]
 }
 
 export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>): ToolCallRepairFunction<ToolSet> {
@@ -51,12 +50,16 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
 
     let repaired: unknown
     try {
-      const result = await aiCoreGenerateText<AppProviderSettingsMap, T>(ctx.providerId, ctx.providerSettings, {
-        model: ctx.modelId,
-        prompt,
-        output: Output.object({ schema: jsonSchema(schemaJson) })
-      })
-      ctx.onUsage?.(result.usage)
+      const result = await aiCoreGenerateText<AppProviderSettingsMap, T>(
+        ctx.providerId,
+        ctx.providerSettings,
+        {
+          model: ctx.modelId,
+          prompt,
+          output: Output.object({ schema: jsonSchema(schemaJson) })
+        },
+        ctx.getUsagePlugins?.()
+      )
       repaired = result.output
     } catch (err) {
       logger.warn('AI repair generateText failed', err as Error, {

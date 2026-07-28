@@ -243,9 +243,17 @@ describe('importLegacySessionMessages', () => {
       outputTokens: 13,
       totalTokens: 21,
       outputTokenDetails: { reasoningTokens: 5 },
-      cost: 0.012,
-      costSource: 'provider',
-      costCurrency: 'USD',
+      requestCount: 1,
+      estimatedRequestCount: 1,
+      unpricedRequestCount: 0,
+      costs: [
+        {
+          currency: 'USD',
+          amount: 0.012,
+          providerReportedRequestCount: 1,
+          computedRequestCount: 0
+        }
+      ],
       timeFirstTokenMs: 100,
       timeCompletionMs: 200,
       timeThinkingMs: 50

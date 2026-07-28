@@ -1425,8 +1425,9 @@ export class ClaudeCodeStreamAdapter {
   private buildMessageMetadata(usage: LanguageModelV3Usage): CherryUIMessageMetadata {
     // Full cumulative snapshot (Claude Code reports final usage once). Provider
     // cost (`total_cost_usd`) is deliberately NOT used here — it is unreliable
-    // (session-cumulative / subscription-equivalent); cost is computed from
-    // pricing at persistence time. See `enrichStatsWithCost`.
+    // (session-cumulative / subscription-equivalent). Direct Agent SDK
+    // invocations are priced from their frozen model snapshot when their
+    // immutable usage record is captured.
     return {
       modelId: this.modelId,
       stats: v3UsageToStats(usage)

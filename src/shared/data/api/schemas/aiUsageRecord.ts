@@ -109,7 +109,7 @@ export interface AiUsageRecordListResponse extends CursorPaginationResponse<AiUs
 }
 
 export interface AiUsageRecordGroupIdentity {
-  providerId?: string
+  providerId?: string | null
   providerName?: string | null
   sourceType?: AiUsageRecordEntry['sourceType']
   sourceId?: string | null
@@ -126,12 +126,12 @@ export interface AiUsageRecordGroupIdentity {
 export type AiUsageRecordStatsGroupIdentity =
   | {
       groupBy: 'provider'
-      providerId: string
+      providerId: string | null
       providerName: string | null
     }
   | {
       groupBy: 'apiKey'
-      providerId: string
+      providerId: string | null
       providerName: string | null
       apiKeyId: string | null
       apiKeyLabel: string | null
@@ -141,9 +141,9 @@ export type AiUsageRecordStatsGroupIdentity =
     }
   | {
       groupBy: 'model'
-      providerId: string
+      providerId: string | null
       providerName: string | null
-      modelId: string
+      modelId: string | null
     }
   | {
       groupBy: 'source'
@@ -162,7 +162,10 @@ export interface AiUsageRecordStatsMetrics {
   totalNoCacheTokens: number
   totalCacheReadTokens: number
   totalCacheWriteTokens: number
-  entryCount: number
+  recordCount: number
+  requestCount: number
+  estimatedRequestCount: number
+  unpricedRequestCount: number
 }
 
 export type AiUsageRecordStatsBucket = AiUsageRecordStatsGroupIdentity & AiUsageRecordStatsMetrics
@@ -184,7 +187,10 @@ export interface AiUsageRecordTimelineBucket extends AiUsageRecordGroupIdentity 
   totalCacheReadTokens: number
   totalCacheWriteTokens: number
   totalCost: number
-  entryCount: number
+  recordCount: number
+  requestCount: number
+  estimatedRequestCount: number
+  unpricedRequestCount: number
   /** Aggregate of every group outside the server-ranked top-N. */
   isOther?: true
 }

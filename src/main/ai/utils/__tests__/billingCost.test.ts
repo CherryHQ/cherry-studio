@@ -1,39 +1,23 @@
-import type { RuntimeModelPricing } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { computeImageCost, extractProviderCost } from '../billingCost'
+import { extractProviderCostWithCurrency } from '../billingCost'
 
-const pricing = (overrides: Partial<RuntimeModelPricing> = {}): RuntimeModelPricing => ({
-  input: { perMillionTokens: 3, currency: 'USD' },
-  output: { perMillionTokens: 15, currency: 'USD' },
-  ...overrides
-})
-
-describe('computeImageCost', () => {
-  it('prices each successfully generated image', () => {
-    expect(computeImageCost(3, pricing({ perImage: { price: 0.04 } }))).toEqual({
-      cost: 0.12,
+describe('extractProviderCostWithCurrency', () => {
+  it('reads provider cost only when its currency is explicit', () => {
+    expect(extractProviderCostWithCurrency({ cost: 0.0123, currency: 'USD' })).toEqual({
+      amount: 0.0123,
       currency: 'USD'
+    })
+    expect(extractProviderCostWithCurrency({ usage: { cost: 0.5, currency: 'CNY' } })).toEqual({
+      amount: 0.5,
+      currency: 'CNY'
     })
   })
 
-  it('rejects unsupported or empty image pricing', () => {
-    expect(computeImageCost(1, pricing({ perImage: { price: 0.000001, unit: 'pixel' } }))).toBeUndefined()
-    expect(computeImageCost(1, pricing())).toBeUndefined()
-    expect(computeImageCost(0, pricing({ perImage: { price: 0.04 } }))).toBeUndefined()
-  })
-})
-
-describe('extractProviderCost', () => {
-  it('reads supported provider cost shapes', () => {
-    expect(extractProviderCost({ cost: 0.0123 })).toBe(0.0123)
-    expect(extractProviderCost({ usage: { cost: 0.5 } })).toBe(0.5)
-  })
-
-  it('ignores invalid provider cost values', () => {
-    expect(extractProviderCost(undefined)).toBeUndefined()
-    expect(extractProviderCost({})).toBeUndefined()
-    expect(extractProviderCost({ cost: 'free' })).toBeUndefined()
-    expect(extractProviderCost({ cost: Number.NaN })).toBeUndefined()
+  it('does not invent a currency or retain invalid provider costs', () => {
+    expect(extractProviderCostWithCurrency({ cost: 0.0123 })).toBeUndefined()
+    expect(extractProviderCostWithCurrency({ cost: -1, currency: 'USD' })).toBeUndefined()
+    expect(extractProviderCostWithCurrency({ cost: Number.NaN, currency: 'USD' })).toBeUndefined()
+    expect(extractProviderCostWithCurrency({ cost: 1, currency: 'EUR' })).toBeUndefined()
   })
 })

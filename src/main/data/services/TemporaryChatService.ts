@@ -231,23 +231,12 @@ export class TemporaryChatService {
       throw err
     }
 
-    // The generation was already captured under this stable
-    // message id. Upsert it after promotion to add persistent topic/source
-    // attribution without creating a second charge.
+    // Promotion never creates or repairs facts. Rebuild the materialized
+    // projection from the records that were captured while the chat was
+    // temporary.
     for (const m of msgs) {
-      if (m.role !== 'assistant' || !m.stats) continue
-      void aiUsageRecordService
-        .recordFromMessage({
-          id: m.id,
-          topicId: topic.id,
-          role: m.role,
-          modelId: m.modelId ?? null,
-          messageSnapshot: m.messageSnapshot,
-          stats: m.stats
-        })
-        .catch((err) => {
-          logger.warn('AI usage record failed for persisted temporary message', { messageId: m.id, err })
-        })
+      if (m.role !== 'assistant') continue
+      aiUsageRecordService.refreshMessageProjection({ kind: 'chat', id: m.id })
     }
 
     logger.info('Persisted temporary topic', { topicId, messageCount: msgs.length })

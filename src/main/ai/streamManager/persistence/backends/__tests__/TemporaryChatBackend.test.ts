@@ -2,33 +2,31 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const appendMessageMock = vi.fn()
-const enrichStatsWithCostMock = vi.fn()
+const getMessageUsageProjectionMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: { appendMessage: appendMessageMock }
 }))
 
-vi.mock('@main/data/services/utils/costEnrichment', () => ({
-  enrichStatsWithCost: (...args: unknown[]) => enrichStatsWithCostMock(...args)
+vi.mock('@main/data/services/aiUsageRecord', () => ({
+  aiUsageRecordService: {
+    getMessageUsageProjection: (...args: unknown[]) => getMessageUsageProjectionMock(...args)
+  }
 }))
 
 const { TemporaryChatBackend } = await import('../TemporaryChatBackend')
 
 beforeEach(() => {
   appendMessageMock.mockReset()
-  enrichStatsWithCostMock.mockReset()
+  getMessageUsageProjectionMock.mockReset()
 })
 
 describe('TemporaryChatBackend.persistAssistant', () => {
-  it('enriches stats with the provider-reported cost before appending', async () => {
-    // Without this, keeping the chat re-records the usage row from stats that
-    // carry no cost — the promotion write would downgrade the provider charge
-    // to a locally computed estimate.
-    enrichStatsWithCostMock.mockReturnValue({
+  it('combines the record projection with message timing before appending', async () => {
+    getMessageUsageProjectionMock.mockReturnValue({
       totalTokens: 15,
-      cost: 0.9,
-      costCurrency: 'USD',
-      costSource: 'provider'
+      requestCount: 1,
+      costs: [{ currency: 'USD', amount: 0.9, providerReportedRequestCount: 1, computedRequestCount: 0 }]
     })
     const backend = new TemporaryChatBackend({ topicId: 'topic-1', messageId: 'msg-1', modelId: 'openai::gpt-4o' })
 
@@ -37,17 +35,22 @@ describe('TemporaryChatBackend.persistAssistant', () => {
         id: 'final',
         role: 'assistant',
         parts: [{ type: 'text', text: 'yo' }],
-        metadata: { providerCostUsd: 0.9 }
+        metadata: {}
       } as unknown as CherryUIMessage,
       status: 'success',
       modelId: 'openai::gpt-4o',
-      stats: { totalTokens: 15 }
+      stats: { totalTokens: 999, timeCompletionMs: 500 }
     })
 
-    expect(enrichStatsWithCostMock).toHaveBeenCalledWith({ totalTokens: 15 }, 'openai::gpt-4o', 0.9)
+    expect(getMessageUsageProjectionMock).toHaveBeenCalledWith({ kind: 'chat', id: 'msg-1' })
     const [topicId, dto, messageId] = appendMessageMock.mock.calls[0]
     expect(topicId).toBe('topic-1')
     expect(messageId).toBe('msg-1')
-    expect(dto.stats).toMatchObject({ cost: 0.9, costCurrency: 'USD', costSource: 'provider' })
+    expect(dto.stats).toEqual({
+      totalTokens: 15,
+      requestCount: 1,
+      costs: [{ currency: 'USD', amount: 0.9, providerReportedRequestCount: 1, computedRequestCount: 0 }],
+      timeCompletionMs: 500
+    })
   })
 })

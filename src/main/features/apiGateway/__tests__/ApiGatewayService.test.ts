@@ -10,9 +10,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * preference-change handler is captured so the toggle can be driven directly.
  */
 
-const { mockStart, mockStop, captured } = vi.hoisted(() => ({
+const { mockStart, mockStop, mockGetActiveUsageContext, captured } = vi.hoisted(() => ({
   mockStart: vi.fn(),
   mockStop: vi.fn(),
+  mockGetActiveUsageContext: vi.fn(),
   captured: { prefHandler: undefined as ((enabled: boolean) => void) | undefined }
 }))
 
@@ -36,8 +37,9 @@ vi.mock('@application', async () => {
       getMultiple: vi.fn(() => ({ enabled: false, host: '127.0.0.1', port: 23333, apiKey: 'existing-key' })),
       set: vi.fn(async () => {})
     },
-    CacheService: { setShared: vi.fn() }
-  })
+    CacheService: { setShared: vi.fn() },
+    AgentSessionRuntimeService: { getActiveUsageContext: mockGetActiveUsageContext }
+  } as any)
 })
 
 import { ApiGatewayService } from '../ApiGatewayService'
@@ -52,6 +54,11 @@ beforeEach(() => {
   rejectStart = false
   mockStart.mockReset()
   mockStop.mockReset()
+  mockGetActiveUsageContext.mockReset()
+  mockGetActiveUsageContext.mockReturnValue({
+    agentSessionId: 'session-1',
+    source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
+  })
   mockStart.mockImplementation(() =>
     rejectStart
       ? Promise.reject(new Error('port in use'))
@@ -65,7 +72,11 @@ describe('ApiGatewayService reconcile', () => {
     const service = new ApiGatewayService()
     const usageHeaders = service.getAgentSessionUsageHeaders('session-1')
 
-    expect(service.resolveAgentSessionUsage(new Headers(usageHeaders))).toBe('session-1')
+    expect(service.resolveAgentSessionUsage(new Headers(usageHeaders))).toEqual({
+      agentSessionId: 'session-1',
+      source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
+    })
+    expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1')
     expect(
       service.resolveAgentSessionUsage(
         new Headers({

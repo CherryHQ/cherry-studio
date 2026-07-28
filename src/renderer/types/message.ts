@@ -1,7 +1,6 @@
 import type OpenAI from '@cherrystudio/openai'
 import type { GroundingMetadata } from '@google/genai'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import type { MessageStats } from '@shared/data/types/message'
 
 import type { FileMetadata } from './file'
 import type { GenerateImageResponse } from './image'
@@ -15,11 +14,6 @@ export type Usage = OpenAI.Completions.CompletionUsage & {
   // Cache token breakdown (AI SDK v6 `inputTokenDetails`)
   cache_read_tokens?: number
   cache_write_tokens?: number
-  // Cost (provider-reported or computed from pricing at message completion)
-  cost?: number
-  cost_source?: MessageStats['costSource']
-  cost_currency?: MessageStats['costCurrency']
-  cost_breakdown?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; image?: number }
 }
 
 export type Metrics = {

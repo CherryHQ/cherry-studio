@@ -1,7 +1,7 @@
 /**
  * Guards the `reportsActualCost` provider capability flag: defaults to false,
  * and is set for OpenRouter (whose `usage.cost` is trusted over computed
- * pricing). See `enrichStatsWithCost` in the app.
+ * pricing by the per-invocation usage record capture).
  */
 
 import * as fs from 'node:fs'

@@ -122,13 +122,13 @@ function UsageSettings() {
   })
 
   const activeDateKeys = useMemo(
-    () => timelineBuckets.filter((bucket) => bucket.entryCount > 0).map((bucket) => bucket.date),
+    () => timelineBuckets.filter((bucket) => bucket.requestCount > 0).map((bucket) => bucket.date),
     [timelineBuckets]
   )
   const totalTokens = overviewTotals.totalTokens
-  const totalEntries = overviewTotals.entryCount
+  const totalRequests = overviewTotals.requestCount
   const previousTotalTokens = previousOverviewTotals.totalTokens
-  const previousTotalEntries = previousOverviewTotals.entryCount
+  const previousTotalRequests = previousOverviewTotals.requestCount
   const activeDays = activeDateKeys.length
   const longestStreak = useMemo(() => getLongestStreak(activeDateKeys), [activeDateKeys])
   const cacheMetrics = useMemo(() => getCacheUsageMetrics([overviewTotals]), [overviewTotals])
@@ -140,7 +140,7 @@ function UsageSettings() {
     [timelineBuckets, windowRange]
   )
   const requestTrendValues = useMemo(
-    () => getTimelineSeries(timelineBuckets, windowRange, (bucket) => bucket.entryCount),
+    () => getTimelineSeries(timelineBuckets, windowRange, (bucket) => bucket.requestCount),
     [timelineBuckets, windowRange]
   )
   const tokenTrendValues = useMemo(
@@ -289,7 +289,7 @@ function UsageSettings() {
     t(ROLLUP_LABEL_KEYS[rollup]),
     t(CHART_TYPE_LABEL_KEYS[chartType])
   ].join(' / ')
-  const hasUsage = totalEntries > 0 || timelineBuckets.some((bucket) => bucket.entryCount > 0)
+  const hasUsage = totalRequests > 0 || timelineBuckets.some((bucket) => bucket.requestCount > 0)
   // Explore refetches (group-by / heatmap day) must not blank the window-scoped cards;
   // the distribution chart renders its own skeleton.
   const isInitialLoading = timelineLoading || overviewLoading
@@ -392,7 +392,7 @@ function UsageSettings() {
                 {t('settings.usage.summary', {
                   window: t(WINDOW_LABEL_KEYS[windowKey]),
                   tokens: formatCompactNumber(totalTokens),
-                  requests: formatCompactNumber(totalEntries)
+                  requests: formatCompactNumber(totalRequests)
                 })}
               </p>
             </div>
@@ -437,10 +437,10 @@ function UsageSettings() {
               <MetricCell
                 label={t('settings.usage.cards.totalRequests')}
                 trendValues={requestTrendValues}
-                delta={getRatioChange(totalEntries, previousTotalEntries)}
+                delta={getRatioChange(totalRequests, previousTotalRequests)}
                 deltaLabel={t('settings.usage.cards.lastPeriod')}
                 formatDelta={formatDelta}
-                value={formatCompactNumber(totalEntries)}
+                value={formatCompactNumber(totalRequests)}
               />
               <MetricCell
                 label={t('settings.usage.cards.totalTokens')}
@@ -502,7 +502,7 @@ function UsageSettings() {
               <InsightCell
                 label={t('settings.usage.cards.dailyAverage')}
                 value={formatCompactNumber(activeDays > 0 ? totalTokens / activeDays : 0)}
-                helper={t('settings.usage.tooltip.requests', { count: totalEntries })}
+                helper={t('settings.usage.tooltip.requests', { count: totalRequests })}
               />
             </div>
           )}

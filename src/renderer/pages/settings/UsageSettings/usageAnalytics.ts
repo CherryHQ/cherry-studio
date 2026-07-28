@@ -43,7 +43,10 @@ export const EMPTY_STATS_METRICS: AiUsageRecordStatsMetrics = {
   totalNoCacheTokens: 0,
   totalCacheReadTokens: 0,
   totalCacheWriteTokens: 0,
-  entryCount: 0
+  recordCount: 0,
+  requestCount: 0,
+  estimatedRequestCount: 0,
+  unpricedRequestCount: 0
 }
 
 export function selectCostTotal(
@@ -93,7 +96,8 @@ export const ROLLUP_LABEL_KEYS: Record<UsageRollupKey, string> = {
 export const MODALITY_LABEL_KEYS: Record<AiUsageRecordModality, string> = {
   language: 'settings.usage.modality.language',
   embedding: 'settings.usage.modality.embedding',
-  image: 'settings.usage.modality.image'
+  image: 'settings.usage.modality.image',
+  rerank: 'settings.usage.modality.rerank'
 }
 
 export interface TimeRange {
@@ -198,10 +202,10 @@ export function getBucketKey(bucket: AiUsageRecordGroupIdentity & { isOther?: tr
 }
 
 export function getMetricValue(
-  bucket: { totalTokens: number; totalCost: number; entryCount: number },
+  bucket: { totalTokens: number; totalCost: number; requestCount: number },
   metric: UsageMetricKey
 ): number {
-  if (metric === 'requests') return bucket.entryCount
+  if (metric === 'requests') return bucket.requestCount
   if (metric === 'cost') return bucket.totalCost
   return bucket.totalTokens
 }
@@ -302,7 +306,7 @@ export function buildChartSeries(
       {
         totalTokens: bucket.totalTokens,
         totalCost: getScopedCost(bucket, options.currency),
-        entryCount: bucket.entryCount
+        requestCount: bucket.requestCount
       },
       options.metric
     )

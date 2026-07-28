@@ -1,5 +1,5 @@
 /**
- * Per-step token accumulator → `message-metadata` chunk. Reading
+ * Per-step token accumulator → live `message-metadata` chunk. Reading
  * `result.totalUsage` is unreliable because some providers skip the
  * top-level `finish` part; per-step `usage` chunks survive, modulo the
  * Vercel gateway shape bug handled by `gatewayUsageNormalizeFeature`.
@@ -9,7 +9,10 @@
  *   inputTokens / outputTokens / totalTokens               → same
  *   inputTokenDetails{noCache,cacheRead,cacheWrite}Tokens   → same
  *   outputTokenDetails{text,reasoning}Tokens                → same
- *   raw.cost per step, summed (provider-reported)           → metadata.providerCostUsd
+ *
+ * This metadata is a stream/UI view only. Persistent usage and cost are
+ * materialized from per-invocation `ai_usage_record` rows; message persistence
+ * deliberately ignores these cumulative token fields.
  *
  * A FULL cumulative snapshot is emitted every step: the AI SDK deep-merges
  * `message-metadata` into the accumulating message (`updateMessageMetadata`
@@ -21,7 +24,6 @@
 import type { MessageStats } from '@shared/data/types/message'
 import type { LanguageModelUsage } from 'ai'
 
-import { extractProviderCost } from '../../../utils/billingCost'
 import type { Agent } from '../Agent'
 
 const ZERO_USAGE: LanguageModelUsage = {
@@ -58,8 +60,8 @@ export function mergeUsage(a: LanguageModelUsage, b: LanguageModelUsage): Langua
         : (undefined as unknown as LanguageModelUsage['outputTokenDetails']),
     // `raw` is per-step (one upstream request) and opaque, so it cannot be
     // merged — only the latest is retained. Never derive a cumulative
-    // provider-reported cost from it: accumulate `extractProviderCost` per
-    // step instead (see `attachUsageObserver` and `createBillingHook`).
+    // provider-reported cost from it. Per-call cost is captured by the
+    // language-model usage middleware before this cumulative UI projection.
     raw: b.raw ?? a.raw
   }
 }
@@ -75,7 +77,7 @@ function compact<T extends Record<string, number | undefined>>(obj: T): { [K in 
   return Object.keys(out).length > 0 ? (out as { [K in keyof T]?: number }) : undefined
 }
 
-/** Project cumulative AI SDK usage into the persisted `MessageStats` token shape (no cost — that lands at persistence time). */
+/** Project cumulative AI SDK usage into the live `MessageStats` UI shape. */
 export function usageToStats(total: LanguageModelUsage): MessageStats {
   const inputTokenDetails = compact({
     noCacheTokens: total.inputTokenDetails?.noCacheTokens,
@@ -97,26 +99,18 @@ export function usageToStats(total: LanguageModelUsage): MessageStats {
 
 export function attachUsageObserver(agent: Agent): void {
   let total: LanguageModelUsage = ZERO_USAGE
-  let providerCostUsd: number | undefined
 
   agent.on('onStart', () => {
     total = ZERO_USAGE
-    providerCostUsd = undefined
   })
 
   agent.on('onStepFinish', (step) => {
     if (!step.usage) return
     total = mergeUsage(total, step.usage)
-    // Every tool-loop step is a separate generation, and provider-reported
-    // cost covers one request — so sum it per step rather than reading the
-    // merged (last-step-only) `raw`.
-    const stepCostUsd = extractProviderCost(step.usage.raw)
-    if (stepCostUsd !== undefined) providerCostUsd = (providerCostUsd ?? 0) + stepCostUsd
     agent.write({
       type: 'message-metadata',
       messageMetadata: {
-        stats: usageToStats(total),
-        ...(providerCostUsd !== undefined ? { providerCostUsd } : {})
+        stats: usageToStats(total)
       }
     })
   })

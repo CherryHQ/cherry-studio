@@ -1,5 +1,10 @@
 import type { ImageModelV3File } from '@ai-sdk/provider'
 import { application } from '@application'
+import {
+  type AiUsageCaptureContext,
+  aiUsageRecordService,
+  createAiUsageCaptureContext
+} from '@data/services/aiUsageRecord'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
@@ -8,9 +13,7 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
-import { recordImageUsage } from '../../../hooks/billingHook'
 import { resolveProviderAiSdkConfig } from '../../config'
-import type { ServingAuthMethod, ServingCredentialReceipt } from '../../credential'
 import type {
   ImageGenerationSubmitInput,
   ImageGenerationTransport,
@@ -55,8 +58,38 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
 
       const { config, credentialReceipt: selectedCredentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
       const sdkConfig = { ...config, modelId: model.apiModelId ?? model.id }
-      const billingCredentialReceipt =
-        readCredentialReceipt(ctx.metadata.credentialReceipt) ?? selectedCredentialReceipt
+      const persistedTaskId = typeof ctx.metadata.taskId === 'string' ? ctx.metadata.taskId : undefined
+      const persistedCaptureContext = readCaptureContext(ctx.metadata.usageCaptureContext)
+      const captureContext = persistedTaskId
+        ? persistedCaptureContext
+        : createAiUsageCaptureContext({
+            providerId: provider.id,
+            providerName: provider.name,
+            modelId: sdkConfig.modelId,
+            modelName: model.name,
+            pricing: model.pricing,
+            trustProviderReportedCost: provider.apiFeatures.reportsActualCost,
+            credentialReceipt: selectedCredentialReceipt,
+            source: input.source ?? null,
+            messageRef: null
+          })
+      const usageStartedAt = persistedTaskId
+        ? typeof ctx.metadata.usageStartedAt === 'number' && Number.isFinite(ctx.metadata.usageStartedAt)
+          ? ctx.metadata.usageStartedAt
+          : Date.now()
+        : Date.now()
+      if (!persistedTaskId) {
+        await ctx.patchMetadata({
+          usageCaptureContext: captureContext,
+          usageStartedAt,
+          credentialReceipt: selectedCredentialReceipt
+        })
+      } else if (!captureContext) {
+        logger.warn('Resumed image job has no immutable usage context; skipping attribution', {
+          jobId: ctx.jobId,
+          taskId: persistedTaskId
+        })
+      }
       const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
       if (!transport) {
         throw new Error(
@@ -65,7 +98,6 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       }
 
       let urls: string[]
-      const persistedTaskId = typeof ctx.metadata.taskId === 'string' ? ctx.metadata.taskId : undefined
       if (persistedTaskId) {
         // Restart-resume: skip submit, continue polling the persisted remote task.
         logger.debug('Resuming image-generation job from persisted task', { jobId: ctx.jobId, taskId: persistedTaskId })
@@ -89,20 +121,29 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
         }
       }
 
+      // Record before local download: the provider invocation completed even if
+      // file persistence fails. Polling is part of this invocation, not another
+      // billable call; a successful zero-image response is still an observable
+      // invocation. The stable job id keeps restart delivery idempotent.
+      if (captureContext) {
+        const completedAt = Date.now()
+        aiUsageRecordService.recordInvocation({
+          requestId: `custom-image:${ctx.jobId}`,
+          context: captureContext,
+          modality: 'image',
+          imageCount: urls.length,
+          metrics: { timeCompletionMs: Math.max(0, completedAt - usageStartedAt) },
+          completedAt
+        })
+      }
+
       // An empty URL list from a *successful* submit/poll (e.g. content moderation
       // or a degraded vendor response that still charged) must fail rather than
-      // complete as a silent zero-image "success". Covers both submit.imageUrls === []
-      // and poll() === []; the malformed-submit (neither field) case threw above.
+      // complete as a silent zero-image "success". It was recorded above with
+      // imageCount=0 because the provider invocation itself did complete.
       if (urls.length === 0) {
         throw new Error(`Image generation for '${sdkConfig.modelId}' completed but returned no image URLs`)
       }
-
-      // Bill here, not after the download: non-empty URLs mean the vendor already
-      // generated (and charged for) every image, so a partial or total local
-      // download failure must not under-bill. `ctx.jobId` is stable across
-      // retries/restart-resume, so the record upsert stays idempotent.
-      // Fire-and-forget — recording must never fail a paid generation.
-      void recordImageUsage(ctx.jobId, model, urls.length, billingCredentialReceipt, input.source)
 
       const files = await downloadAndPersistImageUrls(urls, ctx.signal)
       ctx.reportProgress(100, { stage: 'done' })
@@ -117,38 +158,25 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
   }
 }
 
-const AUTH_METHODS: ReadonlySet<ServingAuthMethod> = new Set([
-  'oauth',
-  'external-cli',
-  'iam-aws',
-  'api-key-aws',
-  'iam-gcp',
-  'iam-azure'
-])
-
-function readCredentialReceipt(value: unknown): ServingCredentialReceipt | undefined {
+function readCaptureContext(value: unknown): AiUsageCaptureContext | undefined {
   if (!value || typeof value !== 'object') return undefined
-
-  const snapshot = value as Record<string, unknown>
-  if (snapshot.attribution === 'unknown') {
-    return { attribution: 'unknown' }
+  const context = value as Partial<AiUsageCaptureContext>
+  if (
+    typeof context.providerId !== 'string' ||
+    typeof context.modelId !== 'string' ||
+    typeof context.trustProviderReportedCost !== 'boolean' ||
+    !context.credentialReceipt
+  ) {
+    return undefined
   }
-  if (snapshot.attribution === 'auth') {
-    if (typeof snapshot.method !== 'string' || !AUTH_METHODS.has(snapshot.method as ServingAuthMethod)) {
-      return undefined
-    }
-    return { attribution: 'auth', method: snapshot.method as ServingAuthMethod }
+  const cloned = structuredClone(context) as AiUsageCaptureContext
+  const freeze = (candidate: unknown): void => {
+    if (!candidate || typeof candidate !== 'object' || Object.isFrozen(candidate)) return
+    for (const nested of Object.values(candidate)) freeze(nested)
+    Object.freeze(candidate)
   }
-  if (snapshot.attribution !== 'explicit' && snapshot.attribution !== 'matched') return undefined
-  if (typeof snapshot.id !== 'string' || typeof snapshot.masked !== 'string') return undefined
-  if (snapshot.label !== undefined && typeof snapshot.label !== 'string') return undefined
-
-  return {
-    attribution: snapshot.attribution,
-    id: snapshot.id,
-    ...(typeof snapshot.label === 'string' ? { label: snapshot.label } : {}),
-    masked: snapshot.masked
-  }
+  freeze(cloned)
+  return cloned
 }
 
 /**

@@ -152,17 +152,7 @@ const MessageTokenDetailsCard = ({
   const model = getMessageListItemModel(message)
   const providerName = useProviderDisplayName(model?.provider)
   const locale = i18n.resolvedLanguage
-  const costCurrency = stats?.costCurrency
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale])
-  // Cost is always persisted together with its currency, so an absent currency
-  // means an absent cost — never fall back to USD and mislabel a CNY figure.
-  const currencyFormatter = useMemo(
-    () =>
-      costCurrency
-        ? new Intl.NumberFormat(locale, { style: 'currency', currency: costCurrency, maximumFractionDigits: 4 })
-        : undefined,
-    [locale, costCurrency]
-  )
   const percentageFormatter = useMemo(
     () => new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 }),
     [locale]
@@ -232,11 +222,25 @@ const MessageTokenDetailsCard = ({
     t('chat.message.token_details.tokens', { value: numberFormatter.format(value) })
   const formatPercent = (value: number) => percentageFormatter.format(value)
   const formatMilliseconds = (value: number) => formatDuration(value, decimalFormatter)
-  const costLabel = currencyFormatter && stats.cost != null ? formatCost(stats.cost, currencyFormatter) : undefined
+  const costLabel = stats.costs
+    ?.map((cost) =>
+      formatCost(
+        cost.amount,
+        new Intl.NumberFormat(locale, {
+          style: 'currency',
+          currency: cost.currency,
+          maximumFractionDigits: 4
+        })
+      )
+    )
+    .join(' · ')
+  const providerReportedRequestCount =
+    stats.costs?.reduce((sum, cost) => sum + cost.providerReportedRequestCount, 0) ?? 0
+  const computedRequestCount = stats.costs?.reduce((sum, cost) => sum + cost.computedRequestCount, 0) ?? 0
   const costSourceLabel =
-    stats.costSource === 'provider'
+    providerReportedRequestCount > 0 && computedRequestCount === 0
       ? t('chat.message.token_details.cost_billed')
-      : stats.costSource === 'computed'
+      : computedRequestCount > 0 && providerReportedRequestCount === 0
         ? t('chat.message.token_details.cost_estimated')
         : undefined
 

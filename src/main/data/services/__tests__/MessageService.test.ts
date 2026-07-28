@@ -18,7 +18,7 @@ import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, isNull } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -1337,7 +1337,17 @@ describe('MessageService', () => {
             role: 'assistant',
             data: mainText('child'),
             status: 'success',
-            siblingsGroupId: 0
+            siblingsGroupId: 0,
+            stats: {
+              inputTokens: 10,
+              outputTokens: 5,
+              totalTokens: 15,
+              requestCount: 1,
+              estimatedRequestCount: 0,
+              unpricedRequestCount: 1,
+              costs: [],
+              timeCompletionMs: 250
+            }
           }
         ])
       )
@@ -1363,6 +1373,7 @@ describe('MessageService', () => {
       const copiedLeaf = await dbh.db.select().from(messageTable).where(eq(messageTable.id, copiedActiveNodeId))
       expect(copiedLeaf[0].parentId).toBe(targetContent[0].id)
       expect(copiedLeaf[0].data.parts?.[0]).toEqual({ type: 'text', text: 'child' })
+      expect(copiedLeaf[0].stats).toEqual({ timeCompletionMs: 250 })
     })
   })
 
@@ -2272,7 +2283,7 @@ describe('MessageService', () => {
     })
   })
 
-  describe('update — AI usage record hook', () => {
+  describe('update — usage ownership', () => {
     async function seedAssistantMessage(role: 'user' | 'assistant' = 'assistant') {
       await dbh.db.insert(topicTable).values({ id: 'topic-l', activeNodeId: null, orderKey: 'c0' })
       await dbh.db.insert(messageTable).values(
@@ -2290,43 +2301,21 @@ describe('MessageService', () => {
       )
     }
 
-    it('records AI usage when an assistant message lands stats', async () => {
+    it('does not accept or synthesize usage when an assistant message is finalized', async () => {
       await seedAssistantMessage()
 
-      messageService.update('m-usage', {
+      messageService.finalizeAssistantMessage('m-usage', {
         status: 'success',
-        stats: {
-          inputTokens: 10,
-          outputTokens: 5,
-          totalTokens: 15,
-          cost: 0.001,
-          costCurrency: 'USD',
-          costSource: 'computed'
-        }
+        data: mainText('done'),
+        timingStats: { timeCompletionMs: 100 }
       })
 
-      // The hook is fire-and-forget — wait for the async write to settle.
-      await vi.waitFor(async () => {
-        const rows = await dbh.db.select().from(aiUsageRecordTable)
-        expect(rows).toHaveLength(1)
-        expect(rows[0]).toMatchObject({
-          requestId: 'm-usage',
-          topicId: 'topic-l',
-          providerId: 'provider-a',
-          inputTokens: 10,
-          outputTokens: 5,
-          totalTokens: 15,
-          cost: 0.001
-        })
-      })
+      expect(await dbh.db.select().from(aiUsageRecordTable)).toHaveLength(0)
     })
 
     it('does not record for updates without stats or for non-assistant roles', async () => {
       await seedAssistantMessage('user')
 
-      messageService.update('m-usage', {
-        stats: { inputTokens: 10, outputTokens: 5 }
-      })
       messageService.update('m-usage', { status: 'success' })
 
       // Give any (erroneous) async hook a tick to run before asserting.

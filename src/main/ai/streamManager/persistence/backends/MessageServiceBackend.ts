@@ -1,13 +1,9 @@
-/** Finalizes a pending assistant placeholder via `messageService.update`. */
+/** Finalizes a pending assistant placeholder without writing usage/cost. */
 
-import { loggerService } from '@logger'
 import { messageService } from '@main/data/services/MessageService'
-import { enrichStatsWithCost } from '@main/data/services/utils/costEnrichment'
 import type { CherryUIMessage, MessageStats } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
-
-const logger = loggerService.withContext('MessageServiceBackend')
 
 export interface MessageServiceBackendOptions {
   assistantMessageId: string
@@ -26,25 +22,12 @@ export class MessageServiceBackend implements PersistenceBackend {
   }
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
-    const { finalMessage, status, stats, modelId } = input
-    const baseStats = this.opts.stats ?? stats
-    let enrichedStats = baseStats
-    try {
-      enrichedStats = enrichStatsWithCost(baseStats, modelId, finalMessage?.metadata?.providerCostUsd)
-    } catch (err) {
-      // Cost is optional annotation. Even if the enrichment helper regresses
-      // and throws, a successful generation must still persist its content
-      // and raw usage instead of becoming an error bubble.
-      logger.error('Cost enrichment failed before message persistence', {
-        assistantMessageId: this.opts.assistantMessageId,
-        modelId,
-        err
-      })
-    }
-    messageService.update(this.opts.assistantMessageId, {
+    const { finalMessage, status, stats } = input
+    const timingStats = this.opts.stats ?? stats
+    messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
       data: { parts: finalMessage?.parts ?? [] },
       status,
-      stats: enrichedStats
+      timingStats
     })
   }
 

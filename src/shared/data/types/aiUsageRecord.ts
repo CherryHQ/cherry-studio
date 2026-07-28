@@ -2,15 +2,51 @@
  * Best-effort AI usage record entity types
  *
  * Records contain per-request usage and cost attributed to a provider/model
- * and, when captured, a credential identity. They are analytical snapshots,
- * not immutable or financially reconcilable billing events. DTO/query/API
+ * and, when captured, a credential identity. They are immutable analytical
+ * snapshots, not financially reconcilable billing events. DTO/query/API
  * schemas live in `@shared/data/api/schemas/aiUsageRecord`.
  */
 
 import * as z from 'zod'
 
-import { CostSourceSchema, MessageStatsSchema } from './message'
 import { CURRENCY, objectValues } from './model'
+
+const FiniteNonnegativeNumberSchema = z.number().nonnegative().refine(Number.isFinite)
+const FiniteNonnegativeIntegerSchema = z.number().int().nonnegative().refine(Number.isSafeInteger)
+
+export const AiUsageRecordKindSchema = z.enum(['invocation', 'legacy-aggregate'])
+export type AiUsageRecordKind = z.infer<typeof AiUsageRecordKindSchema>
+
+export const AiUsageRecordMessageKindSchema = z.enum(['chat', 'agent-session'])
+export type AiUsageRecordMessageKind = z.infer<typeof AiUsageRecordMessageKindSchema>
+
+export const AiUsageRecordCostSourceSchema = z.enum(['provider', 'computed'])
+export type AiUsageRecordCostSource = z.infer<typeof AiUsageRecordCostSourceSchema>
+
+export const AiUsageCostBreakdownSchema = z.strictObject({
+  input: FiniteNonnegativeNumberSchema.optional(),
+  output: FiniteNonnegativeNumberSchema.optional(),
+  cacheRead: FiniteNonnegativeNumberSchema.optional(),
+  cacheWrite: FiniteNonnegativeNumberSchema.optional(),
+  image: FiniteNonnegativeNumberSchema.optional()
+})
+export type AiUsageCostBreakdown = z.infer<typeof AiUsageCostBreakdownSchema>
+
+export const AiUsagePricingSnapshotSchema = z.strictObject({
+  currency: z.enum(objectValues(CURRENCY)),
+  inputPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
+  outputPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
+  cacheReadPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
+  cacheWritePerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
+  perImage: z
+    .strictObject({
+      price: FiniteNonnegativeNumberSchema,
+      unit: z.enum(['image', 'pixel'])
+    })
+    .optional(),
+  capturedAt: z.iso.datetime()
+})
+export type AiUsagePricingSnapshot = z.infer<typeof AiUsagePricingSnapshotSchema>
 
 /**
  * How the serving credential was attributed at write time:
@@ -40,7 +76,7 @@ export type AiUsageRecordAuthMethod = z.infer<typeof AiUsageRecordAuthMethodSche
  * - `embedding`: embedding calls (token-priced, input only)
  * - `image`: image generation (priced per image via `pricing.perImage`)
  */
-export const AiUsageRecordModalitySchema = z.enum(['language', 'embedding', 'image'])
+export const AiUsageRecordModalitySchema = z.enum(['language', 'embedding', 'image', 'rerank'])
 export type AiUsageRecordModality = z.infer<typeof AiUsageRecordModalitySchema>
 
 /**
@@ -56,18 +92,21 @@ export const AiUsageRecordEntrySchema = z.strictObject({
   id: z.uuidv7(),
   /** Stable per-request idempotency key (plain snapshot, NOT a FK) */
   requestId: z.string(),
-  /** Topic snapshot (null for non-topic sources) */
-  topicId: z.string().nullable(),
-  /** Provider id snapshot */
-  providerId: z.string(),
+  recordKind: AiUsageRecordKindSchema,
+  requestCount: z.number().int().positive(),
+  messageKind: AiUsageRecordMessageKindSchema.nullable(),
+  messageId: z.string().nullable(),
+  /** Provider id snapshot. Legacy aggregates may be unknown. */
+  providerId: z.string().nullable(),
   /** Provider display name at write time */
   providerName: z.string().nullable(),
   sourceType: AiUsageRecordSourceTypeSchema.nullable(),
   sourceId: z.string().nullable(),
   sourceName: z.string().nullable(),
   sourceIcon: z.string().nullable(),
-  /** UniqueModelId ("providerId::modelId") snapshot */
-  modelId: z.string(),
+  /** Provider-native model id snapshot. Legacy aggregates may be unknown. */
+  modelId: z.string().nullable(),
+  modelName: z.string().nullable(),
   modality: AiUsageRecordModalitySchema,
 
   /** API key id snapshot (null when attribution is auth/unknown) */
@@ -81,30 +120,37 @@ export const AiUsageRecordEntrySchema = z.strictObject({
   authMethod: AiUsageRecordAuthMethodSchema.nullable(),
 
   // Token usage (AI SDK v6 names, mirrors MessageStats)
-  inputTokens: z.number().nullable(),
-  outputTokens: z.number().nullable(),
-  totalTokens: z.number().nullable(),
-  reasoningTokens: z.number().nullable(),
-  noCacheTokens: z.number().nullable(),
-  cacheReadTokens: z.number().nullable(),
-  cacheWriteTokens: z.number().nullable(),
+  inputTokens: FiniteNonnegativeIntegerSchema.nullable(),
+  outputTokens: FiniteNonnegativeIntegerSchema.nullable(),
+  totalTokens: FiniteNonnegativeIntegerSchema.nullable(),
+  reasoningTokens: FiniteNonnegativeIntegerSchema.nullable(),
+  noCacheTokens: FiniteNonnegativeIntegerSchema.nullable(),
+  cacheReadTokens: FiniteNonnegativeIntegerSchema.nullable(),
+  cacheWriteTokens: FiniteNonnegativeIntegerSchema.nullable(),
   /** Generated image count (modality `image`) */
-  imageCount: z.number().nullable(),
+  imageCount: FiniteNonnegativeIntegerSchema.nullable(),
 
-  // Cost (mirrors MessageStats cost fields)
-  cost: z.number().nullable(),
+  // Cost and immutable pricing snapshot belong to the invocation fact.
+  cost: FiniteNonnegativeNumberSchema.nullable(),
   costCurrency: z.enum(objectValues(CURRENCY)).nullable(),
-  costSource: CostSourceSchema.nullable(),
-  costBreakdown: MessageStatsSchema.shape.costBreakdown.nullable(),
-  pricingSnapshot: MessageStatsSchema.shape.pricingSnapshot.nullable(),
-  timeFirstTokenMs: z.number().nullable(),
-  timeCompletionMs: z.number().nullable(),
-  timeThinkingMs: z.number().nullable(),
+  costSource: AiUsageRecordCostSourceSchema.nullable(),
+  costBreakdown: AiUsageCostBreakdownSchema.nullable(),
+  pricingSnapshot: AiUsagePricingSnapshotSchema.nullable(),
+  timeFirstTokenMs: FiniteNonnegativeIntegerSchema.nullable(),
+  timeCompletionMs: FiniteNonnegativeIntegerSchema.nullable(),
+  timeThinkingMs: FiniteNonnegativeIntegerSchema.nullable(),
 
   /** ISO 8601 datetime */
-  createdAt: z.iso.datetime(),
-  /** ISO 8601 datetime */
-  updatedAt: z.iso.datetime()
+  createdAt: z.iso.datetime()
 })
 /** Best-effort AI usage record entity. */
 export type AiUsageRecordEntry = z.infer<typeof AiUsageRecordEntrySchema>
+
+type AiUsageRecordTokenFields = Pick<AiUsageRecordEntry, 'inputTokens' | 'outputTokens' | 'totalTokens'>
+
+/** Returns the record's effective total without treating wholly unknown usage as zero. */
+export function getAiUsageRecordTotalTokens(record: AiUsageRecordTokenFields): number | null {
+  if (record.totalTokens !== null) return record.totalTokens
+  if (record.inputTokens === null && record.outputTokens === null) return null
+  return (record.inputTokens ?? 0) + (record.outputTokens ?? 0)
+}

@@ -264,7 +264,7 @@ export default function UsageHeatmap({
                       <div className="flex flex-col gap-1">
                         <span>{dateFormatter.format(day.date)}</span>
                         <span>{tooltipValue}</span>
-                        <span>{t('settings.usage.tooltip.requests', { count: bucket?.entryCount ?? 0 })}</span>
+                        <span>{t('settings.usage.tooltip.requests', { count: bucket?.requestCount ?? 0 })}</span>
                       </div>
                     )
 

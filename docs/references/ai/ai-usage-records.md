@@ -1,355 +1,348 @@
 # AI Usage Records
 
-`ai_usage_record` is a durable, best-effort analytical read model for AI
-request usage, cost, attribution, and performance. It is not an immutable
-billing ledger or a payment-system source of truth: writes can be retried,
-upserted, or lost in a crash window, and some provider operations do not expose
-an honest usage signal.
+`ai_usage_record` is the immutable, best-effort fact source for observable AI
+provider invocations. One successful provider/model invocation produces one
+`invocation` row. During v1 migration, one usage-bearing historical assistant
+message produces one `legacy-aggregate` row whose `requestCount` is estimated
+from its block sequence.
+
+The records drive two read models:
+
+```text
+provider/model/credential selection
+              |
+              v
+   frozen capture context
+              |
+              v
+      provider invocation
+        | usage + cost
+        | per-call metrics
+        v
+      ai_usage_record
+        |             |
+        |             +--> read-only DataApi --> Settings > Usage
+        |
+        +--> SUM by messageKind/messageId --> MessageStats usage/cost
+```
+
+This is analytics, not an invoice ledger. Writes are best effort and SDK retry
+attempts that are not observable to Cherry Studio are not counted. Provider
+invoices remain authoritative.
 
 - Schema: `src/main/data/db/schemas/aiUsageRecord.ts`
 - Service: `src/main/data/services/aiUsageRecord/`
+- Capture coverage: `src/main/ai/hooks/billingHook.ts`
 - Read-only DataApi:
   - `GET /ai-usage-records`
   - `GET /ai-usage-records/stats`
   - `GET /ai-usage-records/timeline`
 
-The main process owns all writes. Renderer code only queries the read model.
+## Invariants and ownership
 
-## Why this is separate from `message.stats`
+- Usage and cost have one fact source: `ai_usage_record`.
+- Records are insert-only. A duplicate `requestId` is ignored; a different
+  payload for the same id logs an integrity warning and does not mutate the
+  first row.
+- Message persistence owns content, status, and message-level end-to-end
+  timings. It never creates or repairs usage records.
+- `MessageStats` usage, cost, and request counts are a materialized aggregate
+  of records linked by `messageKind/messageId`.
+- Record timings describe one provider invocation. Message timings describe
+  the whole assistant message. Neither is projected into the other.
+- Provider, model, source, pricing, and serving credential identity are frozen
+  before the provider call. Completion never consults current configuration or
+  rotation state.
+- Every runtime route has one capture owner. Gateway-backed Agent traffic uses
+  provider-call capture; direct/external Agent traffic uses Agent SDK messages.
 
-`message.stats` remains the per-message usage snapshot used by chat
-persistence. It cannot represent requests that do not create a message, such
-as translation, topic naming, embeddings, image generation, API Gateway
-traffic, or a temporary chat the user discards.
+There is deliberately no operation table or persistence compensation layer.
 
-Usage records also outlive their source objects. The table stores presentation
-and credential identity as snapshots and has no foreign keys to messages,
-topics, providers, models, assistants, agents, or API keys. Deleting or
-renaming those objects does not rewrite historical analytics.
+## Billable operation contract
 
-The two stores deliberately converge for persisted chat:
+`BILLABLE_AI_OPERATIONS` and `AI_USAGE_RECORD_OPERATION_COVERAGE` form the
+closed capture contract:
 
-- the live request collector captures provider usage;
-- the message persistence hook captures message stats and timing;
-- both use the assistant message id as `requestId`, so an upsert enriches one
-  record instead of double-counting the request.
+| Operation | Capture owner | Record behavior |
+| --- | --- | --- |
+| `streamText` | language model middleware | one row per successful `doStream`, written from its `finish` usage |
+| `generateText` | language model middleware | one row per successful `doGenerate` |
+| `embedMany` | aiCore embedding model middleware | one row per actual `doEmbed` batch |
+| `generateImage` | aiCore image model middleware or custom transport owner | one row per actual provider generation |
+| `rerank` | aiCore runtime handler | one row after a successful result; usage and cost may be null |
 
-Stateless operations use a generated stable request id.
+AI SDK batching is observed below `embedMany` and `generateImage`, so each real
+provider call is counted separately. Tool-input repair explicitly reuses the
+language usage middleware, making its `generateText` a separate invocation.
 
-## Capture architecture
+Failed calls do not produce successful records. A streaming call is recorded
+only after its finish chunk supplies final usage; previously completed calls
+remain recorded if a later step fails.
 
-```text
-Provider key selection
-  -> provider config builder
-       -> SDK config + non-secret serving credential receipt
-  -> request construction + assistant/source snapshot
-  -> provider operation
-       Agent text step -----------+
-       nested tool-input repair --+--> request-scoped usage collector
-                                   +--> terminal best-effort record
+Custom async image jobs record after the vendor reports success and before
+local download/FileManager persistence. Submit plus polling is one generation
+invocation, not one invocation per poll. The stable job id makes restart
+delivery idempotent, and a successful response with zero images is retained
+with `imageCount = 0` even though the job is then failed as unusable.
 
-       direct agent session ---------> final message + connection receipt
-       gateway agent session --------> per-provider-call records
-       embedding --------------------> direct best-effort record
-       image result -----------------> record output count before file persistence
+## Immutable capture context
 
-Message / direct agent persistence ---> upsert the same request when possible
-V2 migration ------------------------> project historical message stats
-
-                                 ai_usage_record
-                                       |
-                         bounded read-only DataApi queries
-                                       |
-                                Usage settings page
-```
-
-### Billable operation contract
-
-`BILLABLE_AI_OPERATIONS` and `AI_USAGE_RECORD_OPERATION_COVERAGE` in
-`src/main/ai/hooks/billingHook.ts` form the explicit coverage contract.
-
-| Operation | Capture |
-| --- | --- |
-| `streamText` | Agent step hook plus nested repair collector |
-| `generateText` | Agent step hook plus nested repair collector |
-| `embedMany` | Direct token-usage capture |
-| `generateImage` | Direct provider-output count capture |
-| `rerank` | `usage-unavailable` |
-
-Rerank is intentionally absent because the current AI SDK result exposes
-neither usage nor provider cost. The architecture does not claim that every AI
-request is recorded and does not fabricate a zero-cost rerank row.
-
-The operation list is closed by behavior tests plus a main-process-wide raw
-provider import boundary test that fails when a new request owner appears.
-Adding a provider-backed operation requires choosing one of the two explicit
-states:
-
-- `recorded`, with a defined modality and capture owner; or
-- `usage-unavailable`, with a reason.
-
-### Nested tool repair
-
-Tool-input repair performs another provider `generateText` call. Its usage is
-reported through `createAiRepair(... onUsage)` into the same request-scoped
-collector as the parent Agent steps. The collector merges every step and repair
-call, accumulates provider-reported cost per call, then flushes once on finish,
-abort, or error.
-
-An observed provider call with explicit zero counters remains observable.
-Provider-reported cost is also retained when every token counter is zero.
-
-### Image generation
-
-The synchronous path assigns a request id before calling the provider and
-records `result.images.length` immediately after the provider result. Local
-base64 validation or FileManager persistence happens afterward, so a paid
-generation is not lost merely because local persistence fails.
-
-The async job path uses the stable job id and records the non-empty provider URL
-count before download/persistence. Restarted jobs retain the selected credential
-provenance in job metadata and the request source in the non-secret job payload.
-
-## Identity snapshots
-
-`ProviderService` owns stored API-key selection. The provider config builder
-owns the final serving configuration and must return both the SDK config and a
-non-secret credential receipt. This keeps the declaration beside provider
-branches that may replace a selected key with OAuth, IAM, CLI authentication,
-or no credential.
-
-Key-backed requests carry one of:
+Provider/model/key selection constructs `AiUsageCaptureContext` immediately
+before invocation:
 
 ```ts
-{ attribution: 'explicit' | 'matched', id, label?, masked }
+interface AiUsageCaptureContext {
+  providerId: string
+  providerName: string | null
+  modelId: string
+  modelName: string | null
+  pricingSnapshot: AiUsagePricingSnapshot | null
+  trustProviderReportedCost: boolean
+  credentialReceipt: AiUsageCredentialReceipt
+  source: SourceSnapshot | null
+  messageRef: {
+    kind: 'chat' | 'agent-session'
+    id: string
+  } | null
+}
 ```
 
-Provider-level credentials instead carry the actual non-secret mechanism:
+Construction clones and recursively freezes every nested value. Stateless
+operations explicitly carry a null message/source where appropriate.
+
+The credential receipt contains no secret:
 
 ```ts
-{ attribution: 'auth', method: 'oauth' | 'external-cli' | 'iam-aws' | 'api-key-aws' | 'iam-gcp' | 'iam-azure' }
+type AiUsageCredentialReceipt =
+  | { attribution: 'explicit' | 'matched'; id: string; label?: string; masked: string }
+  | { attribution: 'auth'; method: AiUsageRecordAuthMethod }
+  | { attribution: 'unknown' }
 ```
 
-An unmatched caller override carries `{ attribution: 'unknown' }`; it is never
-misrepresented as the configured rotation key. The raw credential remains
-inside provider configuration. The receipt and assistant/source snapshot travel
-with the request into the usage event, making concurrent multi-key requests
-deterministic without storing a secret.
+`explicit` and `matched` require the selected configured key identity. `auth`
+identifies provider-level OAuth/CLI/IAM authentication and cannot carry a key.
+`unknown` carries neither. An unmatched override is `unknown`; it is never
+attributed to a rotation pointer after the fact.
 
-Agent sessions assign one capture owner when their runtime route is materialized:
+If a prewarmed Claude process is consumed, the connection uses that process's
+stored receipt because it selected the credential that actually serves the
+request.
 
-- direct and external-CLI routes carry the connection's receipt into the final
-  assistant-message event;
-- API Gateway routes keep the individual provider-call events and suppress the
-  cumulative final-message event, avoiding double counting;
-- if a prewarmed Claude process is consumed, its stored receipt replaces the
-  separately materialized connection receipt because the warm process owns the
-  credential that actually serves the request.
+## Record model
 
-Cherry-launched gateway subprocesses send a process-local proof and session id
-to the in-process gateway. The gateway validates the proof before attaching the
-agent source to provider-call records; arbitrary gateway clients cannot claim an
-agent session by supplying only an id.
-
-Writers that do not own request construction cannot infer a credential from
-current provider state; a missing receipt is `unknown`. Attribution is explicit:
-
-| Attribution | Meaning |
-| --- | --- |
-| `explicit` | `ProviderService` selected this configured key for the request |
-| `matched` | A caller override matched this configured key |
-| `auth` | Provider-level authentication; `authMethod` records the mechanism |
-| `unknown` | No trustworthy serving-credential identity is available |
-
-API-key aggregates preserve the complete credential identity:
-`providerId + apiKeyId + apiKeyAttribution + authMethod`. Consequently
-`explicit` selection and a `matched` override remain separate even when they
-refer to the same key, and `auth` mechanisms remain separate from `unknown`
-even though both have a null `apiKeyId`. Historical migration always uses
-`unknown`; it never guesses an old serving key from current provider state.
-
-## Data model and upsert rules
-
-`requestId` is unique and is the idempotency key. The table stores:
+The table stores:
 
 | Group | Fields |
 | --- | --- |
-| Request identity | `requestId`, `captureSource`, `topicId`, `providerId`, `providerName`, `modelId`, `modality` |
+| Identity | `id`, unique `requestId`, `recordKind`, `requestCount` |
+| Optional message link | `messageKind`, `messageId` |
+| Provider/model snapshot | `providerId`, `providerName`, `modelId`, `modelName` |
 | Source snapshot | `sourceType`, `sourceId`, `sourceName`, `sourceIcon` |
+| Operation | `modality` |
 | Credential snapshot | `apiKeyId`, `apiKeyLabel`, `apiKeyMasked`, `apiKeyAttribution`, `authMethod` |
-| Usage | input/output/total/reasoning/cache token fields and `imageCount` |
+| Usage | input/output/total/reasoning/cache token fields, `imageCount` |
 | Cost | `cost`, `costCurrency`, `costSource`, `costBreakdown`, `pricingSnapshot` |
-| Performance | `timeFirstTokenMs`, `timeCompletionMs`, `timeThinkingMs` |
+| Per-call performance | `timeFirstTokenMs`, `timeCompletionMs`, `timeThinkingMs` |
+| Completion time | `createdAt` |
 
-Database checks enforce:
+There are no foreign keys. Renaming or deleting a provider, model, source,
+message, or configured key does not rewrite history. There is no `topicId`,
+`captureSource`, or `updatedAt`.
 
-- supported modality, attribution, source type, cost source, and currency;
-- a cost is either wholly absent or has amount, currency, and source;
-- `explicit`/`matched` requires a key id and no auth mechanism;
-- `auth` requires an auth mechanism and forbids key identity; `unknown` has neither;
-- source metadata is absent together or includes source type and id;
-- image rows have a positive `imageCount`; non-image rows have none.
+Database checks enforce the kind/message/key/cost tuples, nonnegative finite
+cost, nonnegative integer counters and timings, and image-only `imageCount`.
+`invocation` rows have `requestCount = 1` and non-null provider/model identity.
+`legacy-aggregate` rows have a message link and may lack provider/model
+identity.
 
-Null means unreported or not applicable. Explicit zero remains an observed
-value.
+Null means unavailable or not applicable. Explicit zero remains observed data.
 
-When request capture and persistence converge:
+Request id namespaces are:
 
-- topic, source, and presentation snapshots do not regress to null;
-- runtime collector usage is authoritative; later persistence only fills
-  missing usage/timing fields and cannot overwrite repair-inclusive totals;
-- runtime credential provenance replaces `unknown`, while persistence never
-  rewrites stored provenance from mutable provider state;
-- a persisted `messageSnapshot` may replace a current-database source fallback;
-- a provider-reported cost is never replaced or completed with a later local
-  estimate;
-- input/output totals derive `totalTokens` when the provider omits it.
+- language middleware: `ai-sdk:<providerId>:<uuid>`
+- aiCore provider handlers: `ai-core:<modality>:<uuid>`
+- Agent SDK: `claude-agent:<assistant-message-id>`
+- custom async image: `custom-image:<job-id>`
+- migration: `legacy:<message-kind>:<message-id>`
+
+## Per-invocation metrics
+
+Language metrics are measured around the actual model middleware:
+
+- non-streaming `doGenerate`: completion duration only;
+- streaming `doStream`: completion duration, first semantic output, and
+  reasoning duration;
+- the stream wrapper forwards every original chunk without reordering,
+  replacing, or swallowing it.
+
+Tokens per second are not stored. The list query and renderer derive:
+
+```text
+outputTokens / (timeCompletionMs - timeFirstTokenMs)
+```
+
+If TTFT is absent or is not before completion, the denominator is
+`timeCompletionMs`. Missing/non-positive output or duration produces no value.
+
+Embedding, image, and rerank completion time is measured by the owner around
+the actual provider call. Claude Agent SDK assistant messages do not expose
+reliable per-request timestamps, so direct/external Agent record metrics remain
+null. Gateway-backed Agent calls pass through the language middleware and have
+normal per-call metrics. Legacy record metrics are also null; their historical
+message-level timings stay in `MessageStats`.
 
 ## Cost semantics
 
-Cost is computed and stored in the main process. Main-only helpers live under:
+The capture context contains this immutable pricing snapshot:
 
-- `src/main/ai/utils/billingCost.ts` for provider blobs and image pricing;
-- `src/main/data/services/utils/costComputation.ts` for language pricing;
-- `src/main/data/services/utils/costEnrichment.ts` for provider/model lookup.
+```ts
+interface AiUsagePricingSnapshot {
+  currency: Currency
+  inputPerMillionTokens?: number
+  outputPerMillionTokens?: number
+  cacheReadPerMillionTokens?: number
+  cacheWritePerMillionTokens?: number
+  perImage?: { price: number; unit: 'image' | 'pixel' }
+  capturedAt: string
+}
+```
 
-Provider-reported cost is trusted only for providers with
-`apiFeatures.reportsActualCost`. Otherwise current model pricing is snapshotted
-at write time.
+Provider-reported cost is accepted only when the provider declares
+`reportsActualCost` and the cost includes a known currency. Otherwise the
+frozen snapshot is used.
 
-For language input cost:
+Computed language cost is emitted only when every non-zero usage bucket can be
+priced. Cache read/write use their own rates or the input rate, and uncached
+input is derived by subtracting cache buckets when necessary so input is not
+charged twice. Pixel pricing stays unpriced without a reliable pixel count.
+Provider cost breakdown is saved only when complete and equal to the reported
+total.
 
-- `noCacheTokens` uses the normal input rate;
-- cache read/write buckets use their own rates, falling back to input rate;
-- when `noCacheTokens` is absent but some cache buckets are present, uncached
-  input is `max(0, inputTokens - cacheReadTokens - cacheWriteTokens)`;
-- output tokens use the output rate.
+Costs are never converted or summed across currencies.
 
-The subtraction prevents partial cache details from charging the cached tokens
-again at the full input rate.
+## MessageStats projection
 
-Legacy pricing symbols map only when the conversion is known:
+For each linked message, the service rebuilds usage/cost fields in the same
+SQLite transaction as record insertion:
 
-- absent or `$` -> `USD`;
-- `¥` or `￥` -> `CNY`;
-- unsupported symbols such as `€` or `£` are logged and the pricing snapshot is
-  omitted instead of being mislabeled as USD.
+- token fields sum per record; each row uses
+  `totalTokens ?? inputTokens + outputTokens`;
+- `requestCount = SUM(record.requestCount)`;
+- `estimatedRequestCount` sums only legacy rows;
+- `unpricedRequestCount` sums logical requests whose row has null cost;
+- costs are grouped by currency and retain provider/computed request counts;
+- explicit zero-cost rows remain priced;
+- record timings are not aggregated.
+
+The projector replaces only usage/cost/request fields and preserves existing
+message timing. Message finalization performs the inverse ownership merge:
+content/status/timing are updated and the current record projection is
+preserved or rebuilt. Therefore record-first and message-first write order
+converge to the same `MessageStats`.
+
+Temporary message append reads the current projection. Promotion only rebuilds
+that projection; it does not create a record. Agent message upsert follows the
+same rule.
+
+After commit, the service publishes changes for all three usage endpoints and
+for any affected chat/agent message read model. A write failure is logged and
+never changes the AI result.
+
+## Agent runtime ownership
+
+### Direct and external CLI
+
+The connection carries `{ owner: 'agent-sdk', credentialReceipt, frozenModels }`.
+Each Claude SDK assistant message supplies provider request id, actual nested
+model, and usage:
+
+- consecutive updates with the same id merge by maximum field value;
+- a new id, steer boundary, result/error, query close, or connection close
+  flushes the pending invocation;
+- a flushed id is immutable; a late repeat logs an anomaly and is ignored;
+- the driver freezes message association when the SDK assistant event arrives:
+  an active adapter means the current turn, while no adapter means stateless;
+- the host resolves current-turn events to the active assistant message.
+  Stateless events keep `messageRef: null` and the connection's frozen source;
+- primary/plan/small nested models resolve independently against the frozen
+  model map;
+- result-level `modelUsage`, duration, and total cost are reconciliation data,
+  not record inputs.
+
+The driver flushes pending usage before emitting a steer boundary, so the old
+provider call attaches to the pre-steer message and the next call attaches to
+the continuation.
+
+### Gateway-backed Agent
+
+The connection carries `{ owner: 'provider-calls' }`; SDK usage events are
+ignored. Trusted in-process gateway context supplies the active assistant
+message id and frozen source to the normal AiService language middleware.
+After a steer, the next gateway request sees the new active message. If no
+active turn can be resolved, the provider invocation is still recorded as
+stateless and no association is guessed.
 
 ## Historical migration
 
-`AiUsageRecordMigrator` runs after chat/agent migration and before later history
-migrators.
+`AiUsageRecordMigrator` runs after chat and agent message migration.
 
-- Sources: migrated assistant `message` and `agent_session_message` rows.
-- Target: one `ai_usage_record` per usage-bearing source message.
-- Pagination: ascending id keyset batches, never `OFFSET`.
-- Progress: reported after every batch.
-- Cost: existing legacy cost is normalized; compatible model pricing may fill a
-  missing cost; otherwise usage remains unpriced.
-- Source: immutable `messageSnapshot` author identity wins over current
-  assistant/agent joins.
-- Key attribution: always `unknown`.
-- Validation: candidate, skipped, inserted, and target counts are checked; the
-  owned table receives the standard foreign-key self-check.
+- It reads only migrated message rows; it does not join current provider,
+  model, assistant, or agent configuration.
+- Each usage-bearing assistant message becomes one `legacy-aggregate`.
+- `ChatMigrator` and `AgentsMigrator` estimate request count from raw blocks
+  and persist it in the migrated `MessageStats`, so resume does not rely on an
+  in-memory map.
+- The estimate starts at one and adds one for each consecutive/parallel tool
+  group followed by model output. Citation/file/source blocks do not split the
+  group, and a terminal tool group adds nothing.
+- Provider/model may remain unknown. Source comes only from
+  `messageSnapshot`. Credential attribution is always `unknown`.
+- Existing v1 cost is retained according to its stored semantics. Missing cost
+  is never recomputed from current pricing.
+- Legacy invocation metrics remain null; historical message timings are
+  preserved while usage/cost are rebuilt from the inserted record.
+- Stable request ids, keyset batches, progress reporting, rollback, and
+  row-by-row retry keep migration idempotent and resumable.
 
 See
 `src/main/data/migration/v2/migrators/README-AiUsageRecordMigrator.md` for the
-field-level mapping.
+field mapping.
 
-## Query API
+## Query API and freshness
 
-All aggregate queries require a bounded inclusive `from`/`to` range. The
-maximum range is 366 days. Aggregate result cardinality is bounded by a server
-`limit` (default 10, max 50).
+`GET /ai-usage-records` is keyset-paginated (`limit` default 50, max 200) and
+sorts by `createdAt`, `totalTokens`, `cost`, `timeFirstTokenMs`, or
+`tokensPerSecond`. Cost sort requires and filters to one currency.
 
-### `GET /ai-usage-records`
+Stats and timeline queries require an inclusive range of at most 366 days and
+server-limit top-N groups. `recordCount` counts rows; `requestCount` counts
+logical calls. Request ranking uses logical request count. Grouped timeline
+returns explicit Other buckets; monetary series stay separated by currency.
 
-Cursor-paginated request rows:
-
-- `limit`: default 50, max 200;
-- optional `from`, `to`;
-- `sortBy`: `createdAt`, `totalTokens`, `cost`, `timeFirstTokenMs`, or
-  `tokensPerSecond`;
-- `sortOrder`: `asc` or `desc`;
-- `costCurrency`: required when `sortBy=cost`.
-
-Cost sorting filters to the requested currency, so unlike currencies never
-compete in one order.
-
-### `GET /ai-usage-records/stats`
-
-Required query fields:
-
-- `groupBy`: `provider`, `apiKey`, `model`, or `source`;
-- `from`, `to`;
-- `metric`: `tokens`, `requests`, or `cost`;
-- `limit`;
-- `currency` when `metric=cost`.
-
-The response contains:
-
-- `buckets`: server-ranked top-N groups;
-- `totals`: full-range totals independent of the limit;
-- `other`: full totals minus the returned groups.
-
-Usage/request metrics span every row in the range. Monetary totals include only
-the selected currency.
-
-### `GET /ai-usage-records/timeline`
-
-The same bounded range, metric, limit, and conditional currency rules apply.
-`groupBy` is optional.
-
-The response contains:
-
-- `buckets`: one total usage bucket per local day when ungrouped, or daily
-  buckets for the server-ranked top-N identities plus explicit `isOther`
-  remainders when grouped;
-- `costTotals`: one full-range total per currency;
-- `dailyCosts`: one daily total per currency.
-
-Token/request metrics are never duplicated into per-currency buckets. The
-renderer chooses a stable currency and reads its monetary series from
-`dailyCosts`. Explicit zero-cost currency rows remain present, so a priced-free
-request is distinguishable from an unpriced request.
-
-## Usage page freshness
-
-The Usage page queries 30, 90, or 365-day windows. It never requests an
-unbounded all-time aggregate.
-
-After a successful record upsert, `AiUsageRecordService` publishes DataApi
-changes for list membership/projection, stats, and timeline. The mounted page
-subscribes to those read models and debounces a batched revalidation by 300 ms;
-the request list resets to its first cursor before revalidating. This is
-required because global SWR focus/reconnect revalidation is intentionally
-disabled for DataApi IPC queries.
+The Usage page subscribes to the three DataApi change notifications and
+debounces revalidation by 300 ms. This keeps an open page fresh even though
+global SWR focus/reconnect revalidation is disabled.
 
 ## Known limitations
 
-- Rerank is not recorded until its provider result exposes usage or cost.
-- Persistence-only writers without a request-owned receipt record `unknown`.
-- Historical rows cannot identify the serving key.
-- A crash between a stateless request finishing and its best-effort write can
-  lose the record.
-- Stored local cost is an estimate based on the pricing snapshot; provider
-  invoices remain authoritative.
-- Cost totals are displayed per currency and are never converted or summed
-  across currencies.
+- A crash after a provider succeeds but before the best-effort SQLite insert
+  can lose a record.
+- Provider-internal retries invisible to Cherry Studio are not separate calls.
+- Direct Claude Agent SDK and legacy rows have no honest per-call latency.
+- Rerank is counted but may have null usage and cost.
+- Historical serving keys cannot be reconstructed and remain `unknown`.
+- Estimated local cost is not an invoice, and currencies are not converted.
 
 ## File map
 
 | File | Role |
 | --- | --- |
-| `src/shared/data/types/aiUsageRecord.ts` | Cross-process entity types |
-| `src/shared/data/api/schemas/aiUsageRecord.ts` | Bounded read API contracts |
-| `src/main/data/db/schemas/aiUsageRecord.ts` | SQLite schema and constraints |
-| `src/main/data/services/aiUsageRecord/` | Write owner, queries, cursors, mappers, snapshots |
-| `src/main/ai/hooks/billingHook.ts` | Operation coverage and request collector |
-| `src/main/ai/tools/adapters/aiSdk/repair.ts` | Nested repair usage callback |
-| `src/main/data/migration/v2/migrators/AiUsageRecordMigrator.ts` | Historical projection |
-| `src/renderer/pages/settings/UsageSettings/index.ts` | Page export |
-| `src/renderer/pages/settings/UsageSettings/UsageSettings.tsx` | Page composition |
-| `src/renderer/pages/settings/UsageSettings/useUsageData.ts` | Queries, pagination, and freshness subscription |
-| `src/renderer/pages/settings/UsageSettings/usageAnalytics.ts` | Date, metric, and chart-series utilities |
-| `src/renderer/pages/settings/UsageSettings/UsageSettingsPrimitives.tsx` | Private presentation components |
+| `src/shared/data/types/aiUsageRecord.ts` | Entity and snapshot schemas |
+| `src/shared/data/api/schemas/aiUsageRecord.ts` | Bounded read contracts |
+| `src/main/data/db/schemas/aiUsageRecord.ts` | SQLite table and constraints |
+| `src/main/data/services/aiUsageRecord/` | Insert owner, projection, queries, cursors, snapshots |
+| `src/main/ai/hooks/billingHook.ts` | Language middleware and operation coverage |
+| `packages/aiCore/src/core/runtime/` | Embedding/image/rerank provider-call events |
+| `src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts` | Direct Agent SDK capture |
+| `src/main/data/migration/v2/migrators/AiUsageRecordMigrator.ts` | v1 aggregate migration |
+| `src/renderer/pages/settings/UsageSettings/` | Usage read model consumers |

@@ -12,7 +12,7 @@ import {
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecord'
-import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
+import { type AiUsageRecordEntry, getAiUsageRecordTotalTokens } from '@shared/data/types/aiUsageRecord'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -135,6 +135,7 @@ export function UsageEntriesTable({
               <TableBody>
                 {entries.map((entry) => {
                   const tps = getGenerationTokensPerSecond(entry)
+                  const totalTokens = getAiUsageRecordTotalTokens(entry)
                   const sourceName = entry.sourceId
                     ? entry.sourceName || entry.sourceId
                     : t('settings.usage.cards.unattributedSource')
@@ -144,14 +145,14 @@ export function UsageEntriesTable({
                     <TableRow key={entry.id}>
                       <TableCell className="min-w-0">
                         <div className="flex min-w-0 items-start gap-2">
-                          <UsageModelAvatar modelId={entry.modelId} providerId={entry.providerId} size={18} />
+                          <UsageModelAvatar modelId={entry.modelId} providerId={entry.providerId ?? ''} size={18} />
                           <div className="min-w-0">
                             <div className="line-clamp-2 font-medium text-foreground text-sm leading-5">
                               {displayModelId(entry.modelId) || t('settings.usage.cards.none')}
                             </div>
                             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-foreground-muted text-xs">
                               <UsageProviderLabel
-                                provider={getProviderInfo(entry.providerId, entry.providerName)}
+                                provider={getProviderInfo(entry.providerId ?? '', entry.providerName)}
                                 size={14}
                                 className="max-w-full gap-1.5 [&>span:last-child]:truncate"
                               />
@@ -185,7 +186,7 @@ export function UsageEntriesTable({
                         </span>
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {formatCompactNumber(entry.totalTokens ?? 0)}
+                        {totalTokens === null ? t('settings.usage.cards.none') : formatCompactNumber(totalTokens)}
                       </TableCell>
                       <TableCell className="text-right">
                         {entry.cost !== null && entry.cost !== undefined

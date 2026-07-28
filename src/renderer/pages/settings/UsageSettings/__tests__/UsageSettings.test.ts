@@ -12,7 +12,10 @@ function bucket(date: string, totalTokens: number, overrides: Partial<AiUsageRec
     totalCacheReadTokens: 0,
     totalCacheWriteTokens: 0,
     totalCost: 0,
-    entryCount: 1,
+    recordCount: 1,
+    requestCount: 1,
+    estimatedRequestCount: 0,
+    unpricedRequestCount: 0,
     ...overrides
   } satisfies AiUsageRecordTimelineBucket
 }

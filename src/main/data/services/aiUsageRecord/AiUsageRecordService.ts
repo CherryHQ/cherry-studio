@@ -1,15 +1,9 @@
-/**
- * Best-effort per-request AI usage records.
- *
- * Records survive deletion of the message, topic, provider, and credential
- * snapshots they describe. Runtime capture and message persistence converge on
- * `requestId`; later writes enrich missing fields without turning the store
- * into an immutable or financially reconcilable ledger.
- */
+import { isDeepStrictEqual } from 'node:util'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
-import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { aiUsageRecordTable, type InsertAiUsageRecordRow } from '@data/db/schemas/aiUsageRecord'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import type {
   AiUsageRecordListResponse,
@@ -19,284 +13,303 @@ import type {
   AiUsageRecordTimelineResponse
 } from '@shared/data/api/schemas/aiUsageRecord'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
-import type { AiUsageRecordSourceType } from '@shared/data/types/aiUsageRecord'
-import type { Message } from '@shared/data/types/message'
-import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { sql } from 'drizzle-orm'
+import type { AiUsageCostBreakdown, AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
+import { eq } from 'drizzle-orm'
 
-import { enrichStatsWithCost } from '../utils/costEnrichment'
+import { computeLanguageCost } from '../utils/costComputation'
+import { getMessageUsageProjectionTx, rebuildMessageUsageProjectionTx } from './messageProjection'
 import type { AiUsageRecordListServiceQuery } from './recordCursor'
 import { getAiUsageRecordStats, getAiUsageRecordTimeline, listAiUsageRecords } from './recordQueries'
-import {
-  type KeyAttribution,
-  resolveKeyAttribution,
-  resolveSourceSnapshot,
-  type SourceSnapshot,
-  type UsageCredentialReceipt
-} from './recordSnapshots'
+import type { LegacyAggregateInput, MessageRef, MessageUsageProjection, RecordAiInvocationInput } from './types'
 
 const logger = loggerService.withContext('DataApi:AiUsageRecordService')
 
 const AI_USAGE_RECORD_READ_MODEL_CHANGES = [
   { endpoint: '/ai-usage-records', kind: 'membership' },
-  { endpoint: '/ai-usage-records', kind: 'projection' },
   { endpoint: '/ai-usage-records/stats' },
   { endpoint: '/ai-usage-records/timeline' }
 ] satisfies DataApiDataChangeEffect[]
 
-export interface AiUsageRecordMessageInput {
-  id: Message['id']
-  topicId?: string | null
-  agentSessionId?: string | null
-  role: Message['role']
-  modelId?: Message['modelId']
-  messageSnapshot?: Message['messageSnapshot']
-  stats?: Message['stats']
-  credentialReceipt?: UsageCredentialReceipt
+function optionalCount(value: number | undefined, field: string): number | null {
+  if (value === undefined) return null
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${field} must be a nonnegative safe integer`)
+  }
+  return value
 }
 
-function hasUsageSignal(stats: NonNullable<Message['stats']>): boolean {
-  return (
-    stats.inputTokens !== undefined ||
-    stats.outputTokens !== undefined ||
-    stats.totalTokens !== undefined ||
-    stats.cost !== undefined
+function requiredCount(value: number, field: string): number {
+  const validated = optionalCount(value, field)
+  if (validated === null) throw new Error(`${field} is required`)
+  if (validated === 0) throw new Error(`${field} must be positive`)
+  return validated
+}
+
+function requiredTimestamp(value: number, field: string): number {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${field} must be a nonnegative safe integer`)
+  }
+  return value
+}
+
+function requiredAmount(value: number, field: string): number {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${field} must be a nonnegative finite number`)
+  }
+  return value
+}
+
+function validatedBreakdown(breakdown: AiUsageCostBreakdown | undefined, field: string): AiUsageCostBreakdown | null {
+  if (!breakdown) return null
+  for (const [bucket, value] of Object.entries(breakdown)) {
+    requiredAmount(value, `${field}.${bucket}`)
+  }
+  return structuredClone(breakdown)
+}
+
+function computedCost(
+  input: RecordAiInvocationInput,
+  pricing: AiUsagePricingSnapshot | null
+): { amount: number; breakdown: AiUsageCostBreakdown } | undefined {
+  if (!pricing) return undefined
+
+  if (input.modality === 'image') {
+    if (!pricing.perImage || pricing.perImage.unit !== 'image' || input.imageCount === undefined) return undefined
+    const amount = input.imageCount * pricing.perImage.price
+    return { amount, breakdown: { image: amount } }
+  }
+  if (input.modality === 'rerank') return undefined
+
+  const usage = input.usage
+  if (!usage) return undefined
+  const computed = computeLanguageCost(
+    {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      inputTokenDetails: {
+        noCacheTokens: usage.noCacheTokens,
+        cacheReadTokens: usage.cacheReadTokens,
+        cacheWriteTokens: usage.cacheWriteTokens
+      }
+    },
+    pricing
   )
+  return computed ? { amount: computed.cost, breakdown: computed.breakdown } : undefined
 }
 
-function statsToColumns(stats: NonNullable<Message['stats']>) {
-  const derivedTotalTokens =
-    stats.totalTokens ??
-    (stats.inputTokens !== undefined || stats.outputTokens !== undefined
-      ? (stats.inputTokens ?? 0) + (stats.outputTokens ?? 0)
-      : null)
+function completeProviderBreakdown(
+  amount: number,
+  breakdown: AiUsageCostBreakdown | undefined
+): AiUsageCostBreakdown | null {
+  if (!breakdown) return null
+  const values = Object.values(breakdown)
+  if (values.length === 0 || values.some((value) => !Number.isFinite(value) || value < 0)) return null
+  const sum = values.reduce((total, value) => total + value, 0)
+  return Math.abs(sum - amount) <= Math.max(1e-9, Math.abs(amount) * 1e-9) ? structuredClone(breakdown) : null
+}
+
+function invocationToRow(input: RecordAiInvocationInput): InsertAiUsageRecordRow {
+  const { context, usage, metrics } = input
+  const providerCost =
+    context.trustProviderReportedCost &&
+    input.providerCost &&
+    Number.isFinite(input.providerCost.amount) &&
+    input.providerCost.amount >= 0
+      ? input.providerCost
+      : undefined
+  const localCost = providerCost ? undefined : computedCost(input, context.pricingSnapshot)
+  const cost = providerCost?.amount ?? localCost?.amount
+  const credential = context.credentialReceipt
 
   return {
-    inputTokens: stats.inputTokens ?? null,
-    outputTokens: stats.outputTokens ?? null,
-    totalTokens: derivedTotalTokens,
-    reasoningTokens: stats.outputTokenDetails?.reasoningTokens ?? null,
-    noCacheTokens: stats.inputTokenDetails?.noCacheTokens ?? null,
-    cacheReadTokens: stats.inputTokenDetails?.cacheReadTokens ?? null,
-    cacheWriteTokens: stats.inputTokenDetails?.cacheWriteTokens ?? null,
-    cost: stats.cost ?? null,
-    costCurrency: stats.costCurrency ?? null,
-    costSource: stats.costSource ?? null,
-    costBreakdown: stats.costBreakdown ?? null,
-    pricingSnapshot: stats.pricingSnapshot ?? null,
-    timeFirstTokenMs: stats.timeFirstTokenMs ?? null,
-    timeCompletionMs: stats.timeCompletionMs ?? null,
-    timeThinkingMs: stats.timeThinkingMs ?? null
+    requestId: input.requestId,
+    recordKind: 'invocation',
+    requestCount: 1,
+    messageKind: context.messageRef?.kind ?? null,
+    messageId: context.messageRef?.id ?? null,
+    providerId: context.providerId,
+    providerName: context.providerName,
+    modelId: context.modelId,
+    modelName: context.modelName,
+    sourceType: context.source?.type ?? null,
+    sourceId: context.source?.id ?? null,
+    sourceName: context.source?.name ?? null,
+    sourceIcon: context.source?.icon ?? null,
+    modality: input.modality,
+    apiKeyId: credential.attribution === 'explicit' || credential.attribution === 'matched' ? credential.id : null,
+    apiKeyLabel:
+      credential.attribution === 'explicit' || credential.attribution === 'matched' ? (credential.label ?? null) : null,
+    apiKeyMasked:
+      credential.attribution === 'explicit' || credential.attribution === 'matched' ? credential.masked : null,
+    apiKeyAttribution: credential.attribution,
+    authMethod: credential.attribution === 'auth' ? credential.method : null,
+    inputTokens: optionalCount(usage?.inputTokens, 'inputTokens'),
+    outputTokens: optionalCount(usage?.outputTokens, 'outputTokens'),
+    totalTokens: optionalCount(usage?.totalTokens, 'totalTokens'),
+    reasoningTokens: optionalCount(usage?.reasoningTokens, 'reasoningTokens'),
+    noCacheTokens: optionalCount(usage?.noCacheTokens, 'noCacheTokens'),
+    cacheReadTokens: optionalCount(usage?.cacheReadTokens, 'cacheReadTokens'),
+    cacheWriteTokens: optionalCount(usage?.cacheWriteTokens, 'cacheWriteTokens'),
+    imageCount: input.modality === 'image' ? optionalCount(input.imageCount ?? 0, 'imageCount') : null,
+    cost: cost ?? null,
+    costCurrency: providerCost?.currency ?? (localCost ? context.pricingSnapshot?.currency : null) ?? null,
+    costSource: providerCost ? 'provider' : localCost ? 'computed' : null,
+    costBreakdown: providerCost
+      ? completeProviderBreakdown(providerCost.amount, providerCost.breakdown)
+      : (localCost?.breakdown ?? null),
+    pricingSnapshot: context.pricingSnapshot,
+    timeFirstTokenMs: optionalCount(metrics?.timeFirstTokenMs, 'timeFirstTokenMs'),
+    timeCompletionMs: optionalCount(metrics?.timeCompletionMs, 'timeCompletionMs'),
+    timeThinkingMs: optionalCount(metrics?.timeThinkingMs, 'timeThinkingMs'),
+    createdAt: requiredTimestamp(input.completedAt, 'completedAt')
   }
 }
 
-interface RecordRequestBase {
-  /** Stable request key shared by runtime capture and later persistence. */
-  requestId: string
-  topicId?: string | null
-  agentSessionId?: string | null
-  /** Source captured at request construction; database lookup is a source-only fallback. */
-  source?: SourceSnapshot | null
-  /** UniqueModelId (`providerId::modelId`). */
-  modelId: string
-  stats: NonNullable<Message['stats']>
-  /** Provider-reported cost candidate from raw usage (for example OpenRouter). */
-  providerCostUsd?: number
-  /** Non-secret credential receipt captured by provider configuration. */
-  credentialReceipt?: UsageCredentialReceipt
-}
+function legacyToRow(input: LegacyAggregateInput): InsertAiUsageRecordRow {
+  const legacyCost = input.cost
+    ? {
+        amount: requiredAmount(input.cost.amount, 'cost.amount'),
+        currency: input.cost.currency,
+        source: input.cost.source,
+        breakdown: validatedBreakdown(input.cost.breakdown, 'cost.breakdown'),
+        pricingSnapshot: input.cost.pricingSnapshot ? structuredClone(input.cost.pricingSnapshot) : null
+      }
+    : null
 
-export type RecordRequestInput = RecordRequestBase &
-  (
-    | { modality: 'language'; imageCount?: never }
-    | { modality: 'embedding'; imageCount?: never }
-    | { modality: 'image'; imageCount: number }
-  )
-
-type RequestCaptureSource = 'runtime' | 'persistence'
-
-function sourceFromMessageSnapshot(message: AiUsageRecordMessageInput): SourceSnapshot | undefined {
-  const snapshot = message.messageSnapshot
-  if (!snapshot) return undefined
-
-  const type: AiUsageRecordSourceType = message.agentSessionId ? 'agent' : 'assistant'
   return {
-    type,
-    id: snapshot.id,
-    name: snapshot.name,
-    icon: snapshot.emoji ?? null
+    requestId: input.requestId,
+    recordKind: 'legacy-aggregate',
+    requestCount: requiredCount(input.requestCount, 'requestCount'),
+    messageKind: input.messageRef.kind,
+    messageId: input.messageRef.id,
+    providerId: input.providerId ?? null,
+    providerName: input.providerName ?? null,
+    modelId: input.modelId ?? null,
+    modelName: input.modelName ?? null,
+    sourceType: input.source?.type ?? null,
+    sourceId: input.source?.id ?? null,
+    sourceName: input.source?.name ?? null,
+    sourceIcon: input.source?.icon ?? null,
+    modality: input.modality ?? 'language',
+    apiKeyId: null,
+    apiKeyLabel: null,
+    apiKeyMasked: null,
+    apiKeyAttribution: 'unknown',
+    authMethod: null,
+    inputTokens: optionalCount(input.usage?.inputTokens, 'inputTokens'),
+    outputTokens: optionalCount(input.usage?.outputTokens, 'outputTokens'),
+    totalTokens: optionalCount(input.usage?.totalTokens, 'totalTokens'),
+    reasoningTokens: optionalCount(input.usage?.reasoningTokens, 'reasoningTokens'),
+    noCacheTokens: optionalCount(input.usage?.noCacheTokens, 'noCacheTokens'),
+    cacheReadTokens: optionalCount(input.usage?.cacheReadTokens, 'cacheReadTokens'),
+    cacheWriteTokens: optionalCount(input.usage?.cacheWriteTokens, 'cacheWriteTokens'),
+    imageCount: input.modality === 'image' ? 0 : null,
+    cost: legacyCost?.amount ?? null,
+    costCurrency: legacyCost?.currency ?? null,
+    costSource: legacyCost?.source ?? null,
+    costBreakdown: legacyCost?.breakdown ?? null,
+    pricingSnapshot: legacyCost?.pricingSnapshot ?? null,
+    timeFirstTokenMs: null,
+    timeCompletionMs: null,
+    timeThinkingMs: null,
+    createdAt: requiredTimestamp(input.createdAt, 'createdAt')
   }
 }
 
-function modelIdFromMessage(message: AiUsageRecordMessageInput): UniqueModelId | undefined {
-  if (isUniqueModelId(message.modelId)) return message.modelId
+function comparableRow(row: InsertAiUsageRecordRow): Omit<InsertAiUsageRecordRow, 'id'> {
+  const comparable = { ...row }
+  delete comparable.id
+  return comparable
+}
 
-  const snapshot = message.messageSnapshot?.model
-  if (!snapshot?.id || !snapshot.provider) return undefined
-  if (isUniqueModelId(snapshot.id)) return snapshot.id
-
-  try {
-    return createUniqueModelId(snapshot.provider, snapshot.id)
-  } catch (err) {
-    logger.warn('recordFromMessage: invalid model snapshot, skipping', {
-      providerId: snapshot.provider,
-      modelId: snapshot.id,
-      err
-    })
-    return undefined
+function insertRowsTx(
+  db: DbOrTx,
+  rows: readonly InsertAiUsageRecordRow[],
+  warnOnConflict: boolean
+): { inserted: number; affectedMessages: MessageRef[] } {
+  let inserted = 0
+  const affectedMessages = new Map<string, MessageRef>()
+  for (const row of rows) {
+    if (row.messageKind && row.messageId) {
+      const ref = { kind: row.messageKind, id: row.messageId }
+      affectedMessages.set(`${ref.kind}:${ref.id}`, ref)
+    }
+    const result = db.insert(aiUsageRecordTable).values(row).onConflictDoNothing().run()
+    if (result.changes === 0) {
+      if (warnOnConflict) {
+        const existing = db
+          .select()
+          .from(aiUsageRecordTable)
+          .where(eq(aiUsageRecordTable.requestId, row.requestId))
+          .get()
+        if (existing && !isDeepStrictEqual(comparableRow(existing), comparableRow(row))) {
+          logger.warn('duplicate requestId has a different immutable payload', { requestId: row.requestId })
+        }
+      }
+      continue
+    }
+    inserted += 1
   }
+
+  for (const ref of affectedMessages.values()) rebuildMessageUsageProjectionTx(db, ref)
+  return { inserted, affectedMessages: [...affectedMessages.values()] }
+}
+
+function messageReadModelEffects(refs: readonly MessageRef[]): DataApiDataChangeEffect[] {
+  const chatIds = refs.filter((ref) => ref.kind === 'chat').map((ref) => ref.id)
+  const agentIds = refs.filter((ref) => ref.kind === 'agent-session').map((ref) => ref.id)
+  return [
+    ...(chatIds.length > 0
+      ? [
+          { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: chatIds } as const,
+          { endpoint: '/messages/:id', entityIds: chatIds } as const
+        ]
+      : []),
+    ...(agentIds.length > 0
+      ? [
+          { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', entityIds: agentIds } as const,
+          { endpoint: '/agent-sessions/:sessionId/messages/:messageId', entityIds: agentIds } as const
+        ]
+      : [])
+  ]
 }
 
 export class AiUsageRecordService {
-  async recordFromMessage(message: AiUsageRecordMessageInput): Promise<void> {
-    if (message.role !== 'assistant' || !message.stats) return
-    const modelId = modelIdFromMessage(message)
-    if (!modelId) return
-    this.recordBestEffort(
-      {
-        requestId: message.id,
-        topicId: message.topicId,
-        agentSessionId: message.agentSessionId,
-        source: sourceFromMessageSnapshot(message),
-        modelId,
-        stats: message.stats,
-        credentialReceipt: message.credentialReceipt,
-        modality: 'language'
-      },
-      'persistence'
-    )
+  recordInvocation(input: RecordAiInvocationInput): void {
+    this.recordInvocations([input])
   }
 
-  /**
-   * Best-effort upsert for one provider request. Errors are logged and never
-   * escape into the AI request or message-persistence path.
-   */
-  async recordRequest(input: RecordRequestInput): Promise<void> {
-    this.recordBestEffort(input, 'runtime')
-  }
-
-  private recordBestEffort(input: RecordRequestInput, captureSource: RequestCaptureSource): void {
+  recordInvocations(inputs: readonly RecordAiInvocationInput[]): void {
+    if (inputs.length === 0) return
     try {
-      this.writeRequest(input, captureSource)
+      const result = application
+        .get('DbService')
+        .withWriteTx((tx) => insertRowsTx(tx, inputs.map(invocationToRow), true))
+      if (result.inserted === 0) return
+      notifyDataApiDataChange([
+        ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
+        ...messageReadModelEffects(result.affectedMessages)
+      ])
     } catch (err) {
-      logger.error('recordRequest failed', { requestId: input.requestId, modelId: input.modelId, err })
+      logger.error('recordInvocations failed', err as Error, { requestIds: inputs.map((input) => input.requestId) })
     }
   }
 
-  private writeRequest(input: RecordRequestInput, captureSource: RequestCaptureSource): void {
-    if (input.modality === 'image' && input.imageCount <= 0) return
+  getMessageUsageProjection(ref: MessageRef): MessageUsageProjection {
+    return getMessageUsageProjectionTx(application.get('DbService').getDb(), ref)
+  }
 
-    let providerId: string
+  refreshMessageProjection(ref: MessageRef): void {
     try {
-      ;({ providerId } = parseUniqueModelId(input.modelId as `${string}::${string}`))
-    } catch {
-      logger.warn('recordRequest: unparseable modelId, skipping', { modelId: input.modelId })
-      return
+      const changed = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
+      if (changed) notifyDataApiDataChange(messageReadModelEffects([ref]))
+    } catch (err) {
+      logger.error('refreshMessageProjection failed', err as Error, ref)
     }
-
-    // Enrich before deciding whether the request is empty: a provider may
-    // report a charge even when every observed token counter is zero.
-    const stats =
-      input.stats.cost === undefined && input.modality !== 'image'
-        ? (enrichStatsWithCost(input.stats, input.modelId as UniqueModelId, input.providerCostUsd) ?? input.stats)
-        : input.stats
-    if (input.modality !== 'image' && !hasUsageSignal(stats)) return
-
-    const key = resolveKeyAttribution(providerId, input.credentialReceipt)
-    const source = resolveSourceSnapshot(input.source, input.topicId, input.agentSessionId)
-
-    const values = {
-      requestId: input.requestId,
-      captureSource,
-      topicId: input.topicId ?? null,
-      providerId,
-      providerName: key.providerName ?? null,
-      sourceType: source?.type ?? null,
-      sourceId: source?.id ?? null,
-      sourceName: source?.name ?? null,
-      sourceIcon: source?.icon ?? null,
-      modelId: input.modelId,
-      modality: input.modality,
-      apiKeyId: key.keyId ?? null,
-      apiKeyLabel: key.label ?? null,
-      apiKeyMasked: key.masked ?? null,
-      apiKeyAttribution: key.attribution,
-      authMethod: key.authMethod ?? null,
-      ...statsToColumns(stats),
-      imageCount: input.modality === 'image' ? input.imageCount : null
-    }
-
-    const preferStoredUsage =
-      captureSource === 'persistence' ? sql`${aiUsageRecordTable.captureSource} = 'runtime'` : sql`0`
-    const preferStoredSource =
-      captureSource === 'persistence' && input.source === undefined
-        ? sql`${aiUsageRecordTable.captureSource} = 'runtime'`
-        : sql`0`
-    const keepStoredCost = sql`(
-      (${preferStoredUsage} AND ${aiUsageRecordTable.cost} IS NOT NULL)
-      OR (
-        ${aiUsageRecordTable.costSource} = 'provider'
-        AND COALESCE(excluded.cost_source, '') <> 'provider'
-      )
-    )`
-
-    application
-      .get('DbService')
-      .getDb()
-      .insert(aiUsageRecordTable)
-      .values(values)
-      .onConflictDoUpdate({
-        target: aiUsageRecordTable.requestId,
-        set: {
-          ...values,
-          captureSource:
-            captureSource === 'persistence'
-              ? sql`CASE WHEN ${aiUsageRecordTable.captureSource} = 'runtime' THEN 'runtime' ELSE excluded.capture_source END`
-              : sql`excluded.capture_source`,
-          topicId: sql`COALESCE(excluded.topic_id, ${aiUsageRecordTable.topicId})`,
-          providerName: sql`COALESCE(${aiUsageRecordTable.providerName}, excluded.provider_name)`,
-          sourceType: sql`CASE WHEN ${preferStoredSource} THEN COALESCE(${aiUsageRecordTable.sourceType}, excluded.source_type) ELSE COALESCE(excluded.source_type, ${aiUsageRecordTable.sourceType}) END`,
-          sourceId: sql`CASE WHEN ${preferStoredSource} THEN COALESCE(${aiUsageRecordTable.sourceId}, excluded.source_id) ELSE COALESCE(excluded.source_id, ${aiUsageRecordTable.sourceId}) END`,
-          sourceName: sql`CASE WHEN ${preferStoredSource} THEN COALESCE(${aiUsageRecordTable.sourceName}, excluded.source_name) ELSE COALESCE(excluded.source_name, ${aiUsageRecordTable.sourceName}) END`,
-          sourceIcon: sql`CASE WHEN ${preferStoredSource} THEN COALESCE(${aiUsageRecordTable.sourceIcon}, excluded.source_icon) ELSE COALESCE(excluded.source_icon, ${aiUsageRecordTable.sourceIcon}) END`,
-          inputTokens: sql`CASE WHEN ${preferStoredUsage} THEN COALESCE(${aiUsageRecordTable.inputTokens}, excluded.input_tokens) ELSE COALESCE(excluded.input_tokens, ${aiUsageRecordTable.inputTokens}) END`,
-          outputTokens: sql`CASE WHEN ${preferStoredUsage} THEN COALESCE(${aiUsageRecordTable.outputTokens}, excluded.output_tokens) ELSE COALESCE(excluded.output_tokens, ${aiUsageRecordTable.outputTokens}) END`,
-          totalTokens: sql`CASE WHEN ${preferStoredUsage} THEN COALESCE(${aiUsageRecordTable.totalTokens}, excluded.total_tokens) ELSE COALESCE(excluded.total_tokens, ${aiUsageRecordTable.totalTokens}) END`,
-          reasoningTokens: sql`CASE WHEN ${preferStoredUsage} THEN COALESCE(${aiUsageRecordTable.reasoningTokens}, excluded.reasoning_tokens) ELSE COALESCE(excluded.reasoning_tokens, ${aiUsageRecordTable.reasoningTokens}) END`,
-          imageCount: sql`CASE WHEN ${preferStoredUsage} THEN COALESCE(${aiUsageRecordTable.imageCount}, excluded.image_count) ELSE COALESCE(excluded.image_count, ${aiUsageRecordTable.imageCount}) END`,
-          cost: sql`CASE WHEN ${keepStoredCost} THEN ${aiUsageRecordTable.cost} ELSE COALESCE(excluded.cost, ${aiUsageRecordTable.cost}) END`,
-          costCurrency: sql`CASE WHEN ${keepStoredCost} THEN ${aiUsageRecordTable.costCurrency} ELSE COALESCE(excluded.cost_currency, ${aiUsageRecordTable.costCurrency}) END`,
-          costSource: sql`CASE WHEN ${keepStoredCost} THEN ${aiUsageRecordTable.costSource} ELSE COALESCE(excluded.cost_source, ${aiUsageRecordTable.costSource}) END`,
-          costBreakdown: sql`CASE WHEN ${keepStoredCost} THEN ${aiUsageRecordTable.costBreakdown} ELSE COALESCE(excluded.cost_breakdown, ${aiUsageRecordTable.costBreakdown}) END`,
-          pricingSnapshot: sql`CASE WHEN ${keepStoredCost} THEN ${aiUsageRecordTable.pricingSnapshot} ELSE COALESCE(excluded.pricing_snapshot, ${aiUsageRecordTable.pricingSnapshot}) END`,
-          timeFirstTokenMs: sql`CASE WHEN ${preferStoredUsage} THEN COALESCE(${aiUsageRecordTable.timeFirstTokenMs}, excluded.time_first_token_ms) ELSE COALESCE(excluded.time_first_token_ms, ${aiUsageRecordTable.timeFirstTokenMs}) END`,
-          timeCompletionMs: sql`CASE WHEN ${preferStoredUsage} THEN COALESCE(${aiUsageRecordTable.timeCompletionMs}, excluded.time_completion_ms) ELSE COALESCE(excluded.time_completion_ms, ${aiUsageRecordTable.timeCompletionMs}) END`,
-          timeThinkingMs: sql`CASE WHEN ${preferStoredUsage} THEN COALESCE(${aiUsageRecordTable.timeThinkingMs}, excluded.time_thinking_ms) ELSE COALESCE(excluded.time_thinking_ms, ${aiUsageRecordTable.timeThinkingMs}) END`,
-          noCacheTokens: sql`CASE WHEN ${preferStoredUsage} THEN COALESCE(${aiUsageRecordTable.noCacheTokens}, excluded.no_cache_tokens) ELSE COALESCE(excluded.no_cache_tokens, ${aiUsageRecordTable.noCacheTokens}) END`,
-          cacheReadTokens: sql`CASE WHEN ${preferStoredUsage} THEN COALESCE(${aiUsageRecordTable.cacheReadTokens}, excluded.cache_read_tokens) ELSE COALESCE(excluded.cache_read_tokens, ${aiUsageRecordTable.cacheReadTokens}) END`,
-          cacheWriteTokens: sql`CASE WHEN ${preferStoredUsage} THEN COALESCE(${aiUsageRecordTable.cacheWriteTokens}, excluded.cache_write_tokens) ELSE COALESCE(excluded.cache_write_tokens, ${aiUsageRecordTable.cacheWriteTokens}) END`,
-          apiKeyId: captureSource === 'persistence' ? sql`${aiUsageRecordTable.apiKeyId}` : sql`excluded.api_key_id`,
-          apiKeyLabel:
-            captureSource === 'persistence' ? sql`${aiUsageRecordTable.apiKeyLabel}` : sql`excluded.api_key_label`,
-          apiKeyMasked:
-            captureSource === 'persistence' ? sql`${aiUsageRecordTable.apiKeyMasked}` : sql`excluded.api_key_masked`,
-          apiKeyAttribution:
-            captureSource === 'persistence'
-              ? sql`${aiUsageRecordTable.apiKeyAttribution}`
-              : sql`excluded.api_key_attribution`,
-          authMethod:
-            captureSource === 'persistence' ? sql`${aiUsageRecordTable.authMethod}` : sql`excluded.auth_method`,
-          updatedAt: Date.now()
-        }
-      })
-      .run()
-
-    notifyDataApiDataChange(AI_USAGE_RECORD_READ_MODEL_CHANGES)
   }
 
-  /** Public for focused attribution tests. Missing request-owned proof remains unknown. */
-  resolveKeyAttribution(providerId: string, credentialReceipt?: UsageCredentialReceipt): KeyAttribution {
-    return resolveKeyAttribution(providerId, credentialReceipt)
+  recordLegacyAggregatesTx(db: DbOrTx, inputs: readonly LegacyAggregateInput[]): number {
+    return insertRowsTx(db, inputs.map(legacyToRow), false).inserted
   }
 
   list(query: AiUsageRecordListServiceQuery): AiUsageRecordListResponse {

@@ -7,8 +7,8 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
+import { aiUsageRecordService } from '@main/data/services/aiUsageRecord'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import { enrichStatsWithCost } from '@main/data/services/utils/costEnrichment'
 import type { MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
@@ -28,13 +28,15 @@ export class TemporaryChatBackend implements PersistenceBackend {
   constructor(private readonly opts: TemporaryChatBackendOptions) {}
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
-    const { finalMessage, status, stats, modelId } = input
-    const baseStats = this.opts.stats ?? stats
-    // Same enrichment as `MessageServiceBackend` — a temp message keeps the
-    // provider-reported cost so that keeping the chat (which re-records the
-    // usage record from the promoted message) cannot downgrade it to a local
-    // estimate.
-    const enrichedStats = enrichStatsWithCost(baseStats, modelId, finalMessage?.metadata?.providerCostUsd)
+    const { finalMessage, status, stats } = input
+    const timingStats = this.opts.stats ?? stats
+    const projection = aiUsageRecordService.getMessageUsageProjection({ kind: 'chat', id: this.opts.messageId })
+    const combinedStats: MessageStats = {
+      ...projection,
+      ...(timingStats?.timeFirstTokenMs !== undefined ? { timeFirstTokenMs: timingStats.timeFirstTokenMs } : {}),
+      ...(timingStats?.timeCompletionMs !== undefined ? { timeCompletionMs: timingStats.timeCompletionMs } : {}),
+      ...(timingStats?.timeThinkingMs !== undefined ? { timeThinkingMs: timingStats.timeThinkingMs } : {})
+    }
     temporaryChatService.appendMessage(
       this.opts.topicId,
       {
@@ -43,7 +45,7 @@ export class TemporaryChatBackend implements PersistenceBackend {
         status,
         modelId: this.opts.modelId,
         messageSnapshot: this.opts.messageSnapshot,
-        stats: enrichedStats
+        stats: Object.keys(combinedStats).length > 0 ? combinedStats : undefined
       },
       this.opts.messageId
     )

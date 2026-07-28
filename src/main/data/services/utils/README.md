@@ -29,44 +29,31 @@ maskApiKeyForSnapshot('sk-very-long-secret-value') // recognizable masked form
 
 ### `costComputation.ts` — Cache-aware language cost calculation
 
-Provides `computeLanguageCost(usage, pricing)`, the pure pricing calculation
-shared by message cost enrichment and migration-time AI usage record
-projection. The function treats top-level input tokens as an all-in count and
-subtracts known cache-read/write buckets when `noCacheTokens` is absent.
+Provides `computeLanguageCost(usage, pricingSnapshot)`, the pure pricing
+calculation used by AI usage record capture. The function treats top-level
+input tokens as an all-in count and subtracts known cache-read/write buckets
+when `noCacheTokens` is absent.
 
 **Boundaries:**
 
-- Language token pricing only; provider-reported and image costs belong to the
-  main AI billing utilities.
-- Never resolves model/provider state or mutates persisted stats.
-- Returns `undefined` when no finite token/rate pair can be priced.
+- Language token pricing only; provider-reported and image costs stay at the
+  record service boundary.
+- Accepts the immutable request-time pricing snapshot; it never resolves
+  current model/provider state or mutates persisted stats.
+- Returns `undefined` unless every non-zero usage bucket can be priced.
 
 **Example:**
 
 ```ts
 computeLanguageCost(
   { inputTokens: 1000, inputTokenDetails: { cacheReadTokens: 800 } },
-  { input: { perMillionTokens: 10 }, cacheRead: { perMillionTokens: 1 } }
+  {
+    currency: 'USD',
+    inputPerMillionTokens: 10,
+    cacheReadPerMillionTokens: 1,
+    capturedAt: '2026-01-01T00:00:00.000Z'
+  }
 )
-```
-
-### `costEnrichment.ts` — Model/provider-aware stats enrichment
-
-Combines `computeLanguageCost` with model pricing and provider capability
-lookups. `MessageServiceBackend` and `AiUsageRecordService` use it to attach a
-coherent cost tuple while preferring provider-reported cost only for providers
-declared to report actual per-request charges.
-
-**Boundaries:**
-
-- Owns lookups and cost-source selection, not the token pricing formula.
-- Best-effort: lookup failures preserve the original unpriced stats.
-- Produces a new stats object and never mutates the caller's value.
-
-**Example:**
-
-```ts
-enrichStatsWithCost(stats, 'provider-id::model-id', providerCostUsd)
 ```
 
 ### `rowMappers.ts` — Row → Entity mapping utilities

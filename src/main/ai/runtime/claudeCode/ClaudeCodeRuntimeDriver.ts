@@ -4,6 +4,7 @@ import {
   type Options,
   type Query,
   query as createClaudeQuery,
+  type SDKAssistantMessage,
   type SDKCompactBoundaryMessage,
   type SDKMessage,
   type SDKResultMessage,
@@ -68,6 +69,55 @@ import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from 
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
+
+type PendingInvocationUsage = {
+  requestId: string
+  model: string
+  messageAssociation: 'current-turn' | 'stateless'
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  noCacheTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+}
+
+function invocationUsageFromAssistant(
+  message: SDKAssistantMessage,
+  messageAssociation: PendingInvocationUsage['messageAssociation']
+): PendingInvocationUsage {
+  const usage = message.message.usage
+  const noCacheTokens = usage.input_tokens ?? 0
+  const cacheReadTokens = usage.cache_read_input_tokens ?? 0
+  const cacheWriteTokens = usage.cache_creation_input_tokens ?? 0
+  const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
+  const outputTokens = usage.output_tokens ?? 0
+  return {
+    requestId: message.message.id,
+    model: message.message.model,
+    messageAssociation,
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    noCacheTokens,
+    cacheReadTokens,
+    cacheWriteTokens
+  }
+}
+
+function mergeInvocationUsage(current: PendingInvocationUsage, next: PendingInvocationUsage): PendingInvocationUsage {
+  return {
+    requestId: current.requestId,
+    model: next.model || current.model,
+    messageAssociation: current.messageAssociation,
+    inputTokens: Math.max(current.inputTokens, next.inputTokens),
+    outputTokens: Math.max(current.outputTokens, next.outputTokens),
+    totalTokens: Math.max(current.totalTokens, next.totalTokens),
+    noCacheTokens: Math.max(current.noCacheTokens, next.noCacheTokens),
+    cacheReadTokens: Math.max(current.cacheReadTokens, next.cacheReadTokens),
+    cacheWriteTokens: Math.max(current.cacheWriteTokens, next.cacheWriteTokens)
+  }
+}
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
@@ -162,6 +212,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
   private _usageCapture?: AgentSessionUsageCapture
+  private pendingInvocationUsage?: PendingInvocationUsage
+  private readonly flushedInvocationIds = new Set<string>()
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
@@ -351,6 +403,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   close(): void {
+    this.flushPendingInvocationUsage()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
@@ -386,15 +439,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
 
         if (!this.adapter) {
-          if (message.type === 'result') {
+          if (message.type === 'assistant') {
+            this.captureAssistantInvocation(message, 'stateless')
+          } else if (message.type === 'result') {
             this.updateResumeToken(message.session_id)
+            this.flushPendingInvocationUsage()
             logger.warn('Received a result message with no active turn; dropping turn-complete', {
               sessionId: this.input.sessionId
             })
           } else {
             // Background agents and tasks can keep emitting after their turn's result (e.g.
-            // `task_notification`). No turn stream is open to carry them, so they are dropped —
-            // logged rather than vanishing silently, since there is no background-task surface yet.
+            // `task_notification`). No turn stream is open to carry their content/control events, so
+            // those are dropped. Assistant usage is captured above as a stateless invocation.
             logger.debug('Dropping message received with no active turn', {
               sessionId: this.input.sessionId,
               type: message.type,
@@ -437,12 +493,22 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           message.event.type === 'message_start' &&
           message.parent_tool_use_id == null
         ) {
+          this.flushPendingInvocationUsage()
           this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
           this.steerBoundaryPending = undefined
         }
 
-        const result = this.adapter.handleMessage(message)
+        if (message.type === 'assistant') this.captureAssistantInvocation(message, 'current-turn')
+
+        let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
+        try {
+          result = this.adapter.handleMessage(message)
+        } catch (error) {
+          this.flushPendingInvocationUsage()
+          throw error
+        }
         if (result.type === 'result') {
+          this.flushPendingInvocationUsage()
           this.updateResumeToken(result.sessionId)
           // The steer was injected but no post-steer top-level assistant message followed (rare; the
           // turn ended right after the gated tool). Drop the arm — no boundary, no empty A2.
@@ -465,6 +531,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
       }
     } catch (error) {
+      this.flushPendingInvocationUsage()
       // The Claude Code SDK sometimes ends the stream abruptly mid-output. When
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
@@ -484,6 +551,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.teardownSession()
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
     } finally {
+      this.flushPendingInvocationUsage()
       this.query = undefined
       this.eventQueue.close()
     }
@@ -541,6 +609,55 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       chunk: {
         type: 'message-metadata',
         messageMetadata: { stats: v3UsageToStats(convertClaudeCodeUsage(usage)) }
+      }
+    })
+  }
+
+  private captureAssistantInvocation(
+    message: SDKAssistantMessage,
+    messageAssociation: PendingInvocationUsage['messageAssociation']
+  ): void {
+    const capture = this._usageCapture
+    if (capture?.owner !== 'agent-sdk') return
+
+    const next = invocationUsageFromAssistant(message, messageAssociation)
+    if (this.flushedInvocationIds.has(next.requestId)) {
+      logger.warn('Claude SDK emitted an invocation after it was already flushed', {
+        sessionId: this.input.sessionId,
+        requestId: next.requestId,
+        model: next.model
+      })
+      return
+    }
+
+    if (this.pendingInvocationUsage?.requestId === next.requestId) {
+      this.pendingInvocationUsage = mergeInvocationUsage(this.pendingInvocationUsage, next)
+      return
+    }
+
+    this.flushPendingInvocationUsage()
+    this.pendingInvocationUsage = next
+  }
+
+  private flushPendingInvocationUsage(): void {
+    const pending = this.pendingInvocationUsage
+    if (!pending) return
+    this.pendingInvocationUsage = undefined
+    this.flushedInvocationIds.add(pending.requestId)
+    this.eventQueue.push({
+      type: 'usage',
+      invocation: {
+        requestId: pending.requestId,
+        model: pending.model,
+        messageAssociation: pending.messageAssociation,
+        usage: {
+          inputTokens: pending.inputTokens,
+          outputTokens: pending.outputTokens,
+          totalTokens: pending.totalTokens,
+          noCacheTokens: pending.noCacheTokens,
+          cacheReadTokens: pending.cacheReadTokens,
+          cacheWriteTokens: pending.cacheWriteTokens
+        }
       }
     })
   }

@@ -213,15 +213,23 @@ describe('ClaudeCodeRuntimeDriver', () => {
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100,
       usageCapture: {
-        owner: 'agent-message',
-        credentialReceipt: { attribution: 'explicit', id: 'consume-key', masked: 'con-***' }
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'consume-key', masked: 'con-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
       }
     })
     mocks.consumeWarmQuery.mockResolvedValue({
       warmQuery,
       usageCapture: {
-        owner: 'agent-message',
-        credentialReceipt: { attribution: 'explicit', id: 'warm-key', masked: 'war-***' }
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'warm-key', masked: 'war-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
       }
     })
 
@@ -232,7 +240,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
 
     expect(connection.usageCapture).toMatchObject({
-      owner: 'agent-message',
+      owner: 'agent-sdk',
       credentialReceipt: { attribution: 'explicit', id: 'warm-key' }
     })
     expect(warmQuery.query).toHaveBeenCalledOnce()
@@ -832,6 +840,241 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'context-usage', usage: contextUsage }
+    })
+    void connection.close()
+  })
+
+  it('emits one invocation per SDK assistant message and ignores result aggregates', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100,
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [
+          { modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] },
+          { modelId: 'haiku', modelName: 'Haiku', pricingSnapshot: null, aliases: ['haiku-sdk'] }
+        ]
+      }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'assistant',
+      message: {
+        id: 'request-sonnet',
+        model: 'sonnet-sdk',
+        usage: {
+          input_tokens: 10,
+          output_tokens: 5,
+          cache_read_input_tokens: 2,
+          cache_creation_input_tokens: 3
+        }
+      }
+    })
+    // Consecutive SDK updates for the same provider request are cumulative.
+    // Keep the maximum of each field and emit only when the request id changes.
+    queryQueue.push({
+      type: 'assistant',
+      message: {
+        id: 'request-sonnet',
+        model: 'sonnet-sdk',
+        usage: {
+          input_tokens: 10,
+          output_tokens: 7,
+          cache_read_input_tokens: 4,
+          cache_creation_input_tokens: 3
+        }
+      }
+    })
+    queryQueue.push({
+      type: 'assistant',
+      message: {
+        id: 'request-haiku',
+        model: 'haiku-sdk',
+        usage: {
+          input_tokens: 4,
+          output_tokens: 6,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0
+        }
+      }
+    })
+    // Once a different request flushes an id, a late duplicate cannot mutate
+    // or create another immutable invocation.
+    queryQueue.push({
+      type: 'assistant',
+      message: {
+        id: 'request-sonnet',
+        model: 'sonnet-sdk',
+        usage: {
+          input_tokens: 999,
+          output_tokens: 999,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0
+        }
+      }
+    })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-result',
+      usage: { input_tokens: 14, output_tokens: 11, cache_creation_input_tokens: 3, cache_read_input_tokens: 2 },
+      modelUsage: {
+        'sonnet-sdk': {
+          inputTokens: 10,
+          outputTokens: 5,
+          cacheReadInputTokens: 2,
+          cacheCreationInputTokens: 3,
+          webSearchRequests: 0,
+          costUSD: 0.1,
+          contextWindow: 200_000,
+          maxOutputTokens: 8192
+        },
+        'haiku-sdk': {
+          inputTokens: 4,
+          outputTokens: 6,
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 0,
+          webSearchRequests: 0,
+          costUSD: 0.01,
+          contextWindow: 200_000,
+          maxOutputTokens: 8192
+        }
+      }
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen.filter((event) => event?.type === 'usage')).toEqual([
+      {
+        type: 'usage',
+        invocation: {
+          requestId: 'request-sonnet',
+          model: 'sonnet-sdk',
+          messageAssociation: 'current-turn',
+          usage: {
+            inputTokens: 17,
+            outputTokens: 7,
+            totalTokens: 24,
+            noCacheTokens: 10,
+            cacheReadTokens: 4,
+            cacheWriteTokens: 3
+          }
+        }
+      },
+      {
+        type: 'usage',
+        invocation: {
+          requestId: 'request-haiku',
+          model: 'haiku-sdk',
+          messageAssociation: 'current-turn',
+          usage: {
+            inputTokens: 4,
+            outputTokens: 6,
+            totalTokens: 10,
+            noCacheTokens: 4,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0
+          }
+        }
+      }
+    ])
+    void connection.close()
+  })
+
+  it('emits assistant usage without an active turn as a stateless invocation', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100,
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: { type: 'agent', id: 'agent-1', name: 'Frozen Agent', icon: null },
+        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+      }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({
+      type: 'assistant',
+      message: {
+        id: 'background-request',
+        model: 'sonnet-sdk',
+        usage: {
+          input_tokens: 8,
+          output_tokens: 3,
+          cache_read_input_tokens: 2,
+          cache_creation_input_tokens: 1
+        }
+      }
+    })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'background-result',
+      usage: { input_tokens: 8, output_tokens: 3, cache_read_input_tokens: 2, cache_creation_input_tokens: 1 }
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'resume-token', token: 'background-result' }
+    })
+    await expect(events.next()).resolves.toEqual({
+      value: {
+        type: 'usage',
+        invocation: {
+          requestId: 'background-request',
+          model: 'sonnet-sdk',
+          messageAssociation: 'stateless',
+          usage: {
+            inputTokens: 11,
+            outputTokens: 3,
+            totalTokens: 14,
+            noCacheTokens: 8,
+            cacheReadTokens: 2,
+            cacheWriteTokens: 1
+          }
+        }
+      },
+      done: false
     })
     void connection.close()
   })

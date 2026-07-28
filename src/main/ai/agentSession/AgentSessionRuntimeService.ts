@@ -5,7 +5,12 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import type { AgentSessionUsageCapture } from '@data/services/aiUsageRecord'
+import {
+  type AgentSessionUsageCapture,
+  aiUsageRecordService,
+  createAiUsageCaptureContext,
+  type SourceSnapshot
+} from '@data/services/aiUsageRecord'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -52,6 +57,7 @@ import {
   type StreamPausedResult,
   TraceFlushListener
 } from '../streamManager'
+import type { InProcessUsageContext } from '../types'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
@@ -107,6 +113,8 @@ type AgentSessionTurn = {
   assistantMessageId: string
   userMessage: AgentSessionMessageEntity
   modelId: UniqueModelId
+  /** Immutable author snapshot captured when this exact turn was submitted. */
+  messageSnapshot?: MessageSnapshot
   reasoningEffort: ReasoningEffortOption
   admitted: boolean
   abortController: AbortController
@@ -315,12 +323,14 @@ export class AgentSessionRuntimeService extends BaseService {
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
     const turnId = crypto.randomUUID()
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
+    const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
     const existing = this.entries.get(input.sessionId)
     const turn: AgentSessionTurn = {
       turnId,
       assistantMessageId: input.assistantMessageId,
       userMessage,
       modelId: input.modelId,
+      messageSnapshot,
       reasoningEffort: input.reasoningEffort ?? 'default',
       admitted: false,
       abortController: new AbortController(),
@@ -339,7 +349,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.agentId = input.agentId
       existing.agentType = input.agentType
       existing.modelId = input.modelId
-      existing.messageSnapshot = input.messageSnapshot
+      existing.messageSnapshot = messageSnapshot
       existing.status = 'active'
       existing.currentTurn = turn
 
@@ -363,7 +373,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentId: input.agentId,
       agentType: input.agentType,
       modelId: input.modelId,
-      messageSnapshot: input.messageSnapshot,
+      messageSnapshot,
       status: 'active',
       pendingTurns: [],
       currentTurn: turn
@@ -378,6 +388,21 @@ export class AgentSessionRuntimeService extends BaseService {
       ],
       turnId,
       abortController: turn.abortController
+    }
+  }
+
+  /**
+   * Resolve the trusted gateway correlation into the active turn's immutable source.
+   * The gateway calls this at provider-request ingress, before any later agent edit or
+   * deletion can affect usage persistence.
+   */
+  getActiveUsageContext(sessionId: string): InProcessUsageContext | undefined {
+    const turn = this.entries.get(sessionId)?.currentTurn
+    if (!turn || turn.terminalStatus) return undefined
+    return {
+      agentSessionId: sessionId,
+      assistantMessageId: turn.assistantMessageId,
+      source: sourceSnapshotFromMessageSnapshot(turn.messageSnapshot)
     }
   }
 
@@ -603,7 +628,10 @@ export class AgentSessionRuntimeService extends BaseService {
     if (opts.headless === true) (entry.headlessMessageIds ??= new Set()).add(message.id)
     // Store before the redirect check so a native-steer follow-up (redirect → steer-boundary/undelivered)
     // keeps its submit-time snapshot; the continuation and requeue paths both look it up by message id.
-    if (opts.messageSnapshot) (entry.pendingSnapshots ??= new Map()).set(message.id, opts.messageSnapshot)
+    if (opts.messageSnapshot) {
+      const pendingSnapshots = (entry.pendingSnapshots ??= new Map())
+      pendingSnapshots.set(message.id, structuredClone(opts.messageSnapshot))
+    }
     const reasoningEffort = opts.reasoningEffort ?? 'default'
 
     const turn = entry.currentTurn
@@ -941,6 +969,9 @@ export class AgentSessionRuntimeService extends BaseService {
         if (turn?.controller && !turn.terminalStatus) this.enqueueTurnChunk(turn, event.chunk)
         break
       }
+      case 'usage':
+        this.recordRuntimeUsage(entry, event.invocation)
+        break
       case 'steer-boundary':
         // The model is about to emit its post-steer assistant message. Finalise the pre-steer parts as
         // A1a (`closeCurrentTurn` 'success'), then buffer the continuation until `startContinuationTurn`
@@ -1007,6 +1038,47 @@ export class AgentSessionRuntimeService extends BaseService {
       status: 'compacting',
       startedAt: new Date().toISOString(),
       ...(trigger ? { trigger } : {})
+    })
+  }
+
+  private recordRuntimeUsage(
+    entry: AgentSessionRuntimeEntry,
+    invocation: Extract<AgentRuntimeEvent, { type: 'usage' }>['invocation']
+  ): void {
+    const capture = entry.usageCapture
+    if (capture?.owner !== 'agent-sdk') return
+
+    const turn =
+      invocation.messageAssociation === 'current-turn' && !entry.currentTurn?.terminalStatus
+        ? entry.currentTurn
+        : undefined
+    if (invocation.messageAssociation === 'current-turn' && !turn) {
+      logger.warn('Agent SDK usage lost its active turn before persistence; recording stateless', {
+        sessionId: entry.sessionId,
+        requestId: invocation.requestId
+      })
+    }
+
+    const normalizedModel = normalizeClaudeModelAlias(invocation.model)
+    const frozenModel = capture.frozenModels.find((candidate) =>
+      candidate.aliases.some((alias) => normalizeClaudeModelAlias(alias) === normalizedModel)
+    )
+    const modelId = frozenModel?.modelId ?? normalizedModel
+    aiUsageRecordService.recordInvocation({
+      requestId: `claude-agent:${invocation.requestId}`,
+      context: createAiUsageCaptureContext({
+        providerId: capture.providerId,
+        providerName: capture.providerName,
+        modelId,
+        modelName: frozenModel?.modelName ?? invocation.model,
+        pricingSnapshot: frozenModel?.pricingSnapshot ?? null,
+        credentialReceipt: capture.credentialReceipt,
+        source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
+        messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null
+      }),
+      modality: 'language',
+      usage: invocation.usage,
+      completedAt: Date.now()
     })
   }
 
@@ -1256,6 +1328,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessageId,
       userMessage: nextMessage,
       modelId: entry.modelId,
+      messageSnapshot,
       reasoningEffort,
       admitted: false,
       abortController: new AbortController(),
@@ -1359,6 +1432,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessageId,
       userMessage: steerMessage,
       modelId,
+      messageSnapshot,
       reasoningEffort,
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
       admitted: true,
@@ -1489,7 +1563,6 @@ export class AgentSessionRuntimeService extends BaseService {
         assistantMessageId,
         modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
-        usageCapture: () => entry.usageCapture,
         afterPersist: async (finalMessage) => {
           await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
         }
@@ -1596,6 +1669,20 @@ function reconcileSnapshotModel(
   if (createUniqueModelId(snapshot.model.provider, snapshot.model.id) === modelId) return snapshot
   const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
   return { ...snapshot, model: { id: rawModelId, name: modelName ?? rawModelId, provider: providerId } }
+}
+
+function sourceSnapshotFromMessageSnapshot(snapshot: MessageSnapshot | undefined): SourceSnapshot | null {
+  if (!snapshot) return null
+  return {
+    type: 'agent',
+    id: snapshot.id,
+    name: snapshot.name,
+    icon: snapshot.emoji ?? null
+  }
+}
+
+function normalizeClaudeModelAlias(value: string): string {
+  return value.trim().replace(/\[1m\]$/, '')
 }
 
 function createRuntimeSeedMessages(

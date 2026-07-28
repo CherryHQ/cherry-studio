@@ -1,8 +1,11 @@
 import { application } from '@application'
 import {
+  type AiPlugin,
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
-  rerank as aiCoreRerank
+  rerank as aiCoreRerank,
+  type RuntimeProviderCallEvent,
+  type RuntimeProviderCallHandler
 } from '@cherrystudio/ai-core'
 import type { ParamValues } from '@cherrystudio/provider-registry'
 import { assistantDataService } from '@data/services/AssistantService'
@@ -10,7 +13,13 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { aiUsageRecordService, type SourceSnapshot } from '@main/data/services/aiUsageRecord'
+import {
+  type AiUsageCaptureContext,
+  aiUsageRecordService,
+  createAiUsageCaptureContext,
+  type MessageRef,
+  type SourceSnapshot
+} from '@main/data/services/aiUsageRecord'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -22,6 +31,7 @@ import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
@@ -34,7 +44,7 @@ import {
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
-import { createBillingRecorder, recordImageUsage } from './hooks/billingHook'
+import { createAiUsagePlugin } from './hooks/billingHook'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities } from './messages/messageCapabilities'
 import { hasImageTransport } from './provider/custom/imageTransportRegistry'
@@ -86,6 +96,51 @@ function sourceSnapshotForAssistant(assistant: Assistant | undefined): SourceSna
         icon: assistant.emoji
       }
     : undefined
+}
+
+function createCaptureContext(input: {
+  provider: Provider
+  model: Model
+  sdkModelId: string
+  credentialReceipt: Parameters<typeof createAiUsageCaptureContext>[0]['credentialReceipt']
+  source?: SourceSnapshot | null
+  messageRef?: MessageRef | null
+}): AiUsageCaptureContext {
+  return createAiUsageCaptureContext({
+    providerId: input.provider.id,
+    providerName: input.provider.name,
+    modelId: input.sdkModelId,
+    modelName: input.model.name,
+    pricing: input.model.pricing,
+    trustProviderReportedCost: input.provider.apiFeatures.reportsActualCost,
+    credentialReceipt: input.credentialReceipt,
+    source: input.source,
+    messageRef: input.messageRef
+  })
+}
+
+function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProviderCallHandler {
+  return (event: RuntimeProviderCallEvent) => {
+    aiUsageRecordService.recordInvocation({
+      requestId: event.requestId,
+      context,
+      modality: event.modality,
+      ...(event.modality === 'embedding' && event.usage
+        ? { usage: { inputTokens: event.usage.tokens, totalTokens: event.usage.tokens } }
+        : event.modality === 'image' && event.usage
+          ? {
+              usage: {
+                ...(event.usage.inputTokens !== undefined ? { inputTokens: event.usage.inputTokens } : {}),
+                ...(event.usage.outputTokens !== undefined ? { outputTokens: event.usage.outputTokens } : {}),
+                ...(event.usage.totalTokens !== undefined ? { totalTokens: event.usage.totalTokens } : {})
+              }
+            }
+          : {}),
+      ...(event.modality === 'image' ? { imageCount: event.imageCount } : {}),
+      metrics: event.metrics,
+      completedAt: event.completedAt
+    })
+  }
 }
 
 /**
@@ -403,7 +458,7 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
     }
 
-    const repairUsageSink: { current?: (usage: LanguageModelUsage) => void } = {}
+    const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
       credentialReceipt,
@@ -411,20 +466,27 @@ export class AiService extends BaseService {
       plugins,
       system,
       options,
+      provider,
       model,
       assistant,
       hookParts,
       nativeFileSupport,
       fileAttachments
-    } = await this.buildAgentParamsFor(request, signal, extraFeatures, (usage) => repairUsageSink.current?.(usage))
-    const billing = createBillingRecorder(
+    } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    const usageContext = createCaptureContext({
+      provider,
       model,
-      request.messageId,
+      sdkModelId: sdkConfig.modelId,
       credentialReceipt,
-      sourceSnapshotForAssistant(assistant),
-      request.usageContext?.agentSessionId
-    )
-    repairUsageSink.current = billing.recordUsage
+      source: request.usageContext ? request.usageContext.source : sourceSnapshotForAssistant(assistant),
+      messageRef: request.usageContext
+        ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
+        : request.messageId
+          ? { kind: 'chat', id: request.messageId }
+          : null
+    })
+    const usagePlugin = createAiUsagePlugin(usageContext)
+    repairUsagePlugins.current = [usagePlugin]
 
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file).
@@ -440,11 +502,11 @@ export class AiService extends BaseService {
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
       messageId: request.messageId,
-      plugins,
+      plugins: [...plugins, usagePlugin],
       tools,
       system,
       options,
-      hookParts: [this.analyticsHookPart(model), billing.hook, ...hookParts],
+      hookParts: [this.analyticsHookPart(model), ...hookParts],
       mediaCapabilities: resolveMediaCapabilities(model)
     })
 
@@ -464,21 +526,29 @@ export class AiService extends BaseService {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
 
-    const repairUsageSink: { current?: (usage: LanguageModelUsage) => void } = {}
-    const { sdkConfig, credentialReceipt, tools, plugins, system, options, model, assistant, hookParts } =
-      await this.buildAgentParamsFor(request, signal, extraFeatures, (usage) => repairUsageSink.current?.(usage))
-    const billing = createBillingRecorder(model, undefined, credentialReceipt, sourceSnapshotForAssistant(assistant))
-    repairUsageSink.current = billing.recordUsage
+    const repairUsagePlugins: { current?: AiPlugin[] } = {}
+    const { sdkConfig, credentialReceipt, tools, plugins, system, options, provider, model, assistant, hookParts } =
+      await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    const usageContext = createCaptureContext({
+      provider,
+      model,
+      sdkModelId: sdkConfig.modelId,
+      credentialReceipt,
+      source: sourceSnapshotForAssistant(assistant),
+      messageRef: null
+    })
+    const usagePlugin = createAiUsagePlugin(usageContext)
+    repairUsagePlugins.current = [usagePlugin]
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
-      plugins,
+      plugins: [...plugins, usagePlugin],
       tools,
       system: request.system ?? system,
       options,
-      hookParts: [this.analyticsHookPart(model), billing.hook, ...hookParts]
+      hookParts: [this.analyticsHookPart(model), ...hookParts]
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
@@ -583,13 +653,18 @@ export class AiService extends BaseService {
       }
     }
 
-    const usageRecordId = crypto.randomUUID()
-    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(
-      sdkConfig.providerId,
-      sdkConfig.providerSettings,
-      imageParams
-    )
-    await recordImageUsage(usageRecordId, model, result.images?.length ?? 0, credentialReceipt, source)
+    const imageUsageContext = createCaptureContext({
+      provider,
+      model,
+      sdkModelId: sdkConfig.modelId,
+      credentialReceipt,
+      source,
+      messageRef: null
+    })
+    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+      ...imageParams,
+      onProviderCall: createProviderCallHandler(imageUsageContext)
+    })
 
     const dataUrls: Base64String[] = []
     let filteredCount = 0
@@ -722,33 +797,24 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, model, assistant } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.buildAgentParamsFor(request, signal)
+    const usageContext = createCaptureContext({
+      provider,
+      model,
+      sdkModelId: sdkConfig.modelId,
+      credentialReceipt,
+      source: sourceSnapshotForAssistant(assistant),
+      messageRef: null
+    })
 
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
       values: request.values,
+      onProviderCall: createProviderCallHandler(usageContext),
       ...(signal ? { abortSignal: signal } : {})
     })
 
     this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
-
-    // Embeddings are token-priced (input rate only); cost is
-    // enriched inside recordRequest from the model's pricing.
-    if (result.usage?.tokens !== undefined) {
-      const tokens = result.usage.tokens
-      void aiUsageRecordService
-        .recordRequest({
-          requestId: crypto.randomUUID(),
-          modelId: model.id,
-          credentialReceipt,
-          source: sourceSnapshotForAssistant(assistant),
-          modality: 'embedding',
-          stats: { inputTokens: tokens, totalTokens: tokens }
-        })
-        .catch((err) => {
-          logger.warn('AI usage record failed', { modelId: model.id, err })
-        })
-    }
 
     return { embeddings: result.embeddings, usage: result.usage }
   }
@@ -759,7 +825,22 @@ export class AiService extends BaseService {
     logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, options = {} } = await this.buildAgentParamsFor(request, signal)
+    const {
+      sdkConfig,
+      credentialReceipt,
+      options = {},
+      provider,
+      model,
+      assistant
+    } = await this.buildAgentParamsFor(request, signal)
+    const usageContext = createCaptureContext({
+      provider,
+      model,
+      sdkModelId: sdkConfig.modelId,
+      credentialReceipt,
+      source: sourceSnapshotForAssistant(assistant),
+      messageRef: null
+    })
     const headers = options.headers
       ? (Object.fromEntries(Object.entries(options.headers).filter(([, value]) => value !== undefined)) as Record<
           string,
@@ -774,6 +855,7 @@ export class AiService extends BaseService {
       ...(request.topN !== undefined ? { topN: request.topN } : {}),
       ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
       ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
+      onProviderCall: createProviderCallHandler(usageContext),
       ...(signal ? { abortSignal: signal } : {})
     }
 
@@ -879,7 +961,7 @@ export class AiService extends BaseService {
     request: AsInProcess<AiBaseRequest> & { chatId?: string },
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = [],
-    onRepairUsage?: (usage: LanguageModelUsage) => void
+    getRepairUsagePlugins?: () => AiPlugin[]
   ) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({
@@ -889,7 +971,7 @@ export class AiService extends BaseService {
       model,
       assistant,
       extraFeatures,
-      onRepairUsage
+      getRepairUsagePlugins
     })
     return { ...built, provider, model, assistant }
   }

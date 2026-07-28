@@ -45,6 +45,23 @@ export interface AgentRuntimeUserInput {
 
 export type AgentRuntimeEvent =
   | { type: 'chunk'; chunk: UIMessageChunk }
+  | {
+      type: 'usage'
+      invocation: {
+        requestId: string
+        model: string
+        /** Frozen when the SDK assistant message arrives; never inferred later from host turn state. */
+        messageAssociation: 'current-turn' | 'stateless'
+        usage: {
+          inputTokens: number
+          outputTokens: number
+          totalTokens: number
+          noCacheTokens: number
+          cacheReadTokens: number
+          cacheWriteTokens: number
+        }
+      }
+    }
   | { type: 'resume-token'; token: string }
   | { type: 'turn-complete' }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them

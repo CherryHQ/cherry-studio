@@ -4,65 +4,65 @@
 
 - SQLite `message` rows produced by `ChatMigrator`
 - SQLite `agent_session_message` rows produced by `AgentsMigrator`
-- SQLite provider and model tables for display-name and pricing snapshots
 
-Only assistant messages with a model identity, `stats`, and at least one usage or
-cost signal are candidates.
+Only usage-bearing assistant messages are candidates. The migrator does not
+read current provider, model, assistant, agent, API-key, or pricing state.
 
 ## Target
 
 - SQLite `ai_usage_record`
-- One record per source message, keyed by the source message id as `requestId`
+- One `legacy-aggregate` record per source message
+- Stable idempotency key: `legacy:<message-kind>:<message-id>`
 
-The table is a best-effort analytical read model. It is not an immutable billing
-ledger and is not a payment-system source of truth.
+The target row is an immutable, best-effort historical aggregate. Its
+`requestCount` may represent multiple estimated provider calls; it is not
+presented as a single invocation.
 
-## Key Transformations
+## Key transformations
 
-- Resolves the canonical `providerId::modelId` from the migrated model id or its
-  message snapshot.
-- Uses the immutable message author snapshot for assistant or agent identity
-  and presentation metadata, with current joins only as a compatibility
-  fallback.
-- Copies token, latency, and existing cost fields; derives `totalTokens` from
-  input/output counters when the source omitted it.
-- Computes a historical cost snapshot when the source has usage and a compatible
-  model-pricing snapshot but no stored cost.
-- Marks all historical credential attribution as `unknown`; it never infers a
-  serving key from the provider's current state.
-- Reads candidates with an ascending id keyset cursor. Each batch starts after
-  the last processed id, avoiding offset scans on large message tables.
+- Copies token usage from migrated `MessageStats`.
+- Uses the request-count estimate persisted by `ChatMigrator` /
+  `AgentsMigrator`. The estimate begins at one and adds one for each
+  consecutive tool group followed by more model output. Parallel tools are one
+  group; citation/file/source blocks do not split it; a terminal tool group
+  adds nothing.
+- Preserves only explicitly stored v1 cost semantics. Missing historical cost
+  is not recomputed from current pricing.
+- Copies source identity only from the immutable `messageSnapshot`.
+- Retains provider/model identity when the migrated row already carries it;
+  either may remain null when history cannot identify it.
+- Marks credential attribution as `unknown`.
+- Leaves `timeFirstTokenMs`, `timeCompletionMs`, and `timeThinkingMs` null on
+  the record because historical timing describes the whole message, not one of
+  its estimated provider calls.
+- Rebuilds `MessageStats` usage/cost/request fields from the inserted record
+  while preserving historical message-level timing.
+- Reads candidates using an ascending id keyset cursor rather than `OFFSET`.
 
-## Field Mapping
+## Field mapping
 
 | Source | Target |
 | --- | --- |
-| message id | `requestId` |
-| topic id | `topicId` |
-| canonical model identity | `providerId`, `modelId` |
-| provider row / message snapshot | `providerName` |
-| message author snapshot, then current owner fallback | `sourceType`, `sourceId`, `sourceName`, `sourceIcon` |
-| message stats | token, latency, and cost columns |
-| message timestamps | `createdAt`, `updatedAt` |
+| message kind + id | `requestId`, `messageKind`, `messageId` |
+| persisted estimate | `requestCount` |
+| migrated model identity | nullable `providerId`, `modelId` |
+| `messageSnapshot` | nullable source snapshot |
+| message usage | token/cache fields |
+| explicitly stored v1 cost | cost tuple |
+| message creation timestamp | `createdAt` |
+| unavailable per-call timing | null invocation metric fields |
 
-## Dropped Data
+Messages without a usage/cost signal are skipped. Unknown historical identity
+is retained as null instead of being backfilled from mutable configuration.
 
-- Messages without a resolvable model identity
-- Messages without usage or cost signals
-- Historical API-key attribution, because the serving key was not captured when
-  the request ran
-- Partial cost annotations without an amount or compatible pricing snapshot
-
-Skipped candidates are counted during validation. Insert failures are retried
-row by row so one malformed derived record does not abort the user-data
-migration.
-
-## Progress and Validation
+## Progress, retry, and validation
 
 - `prepare()` counts candidate chat and agent-session messages.
 - `execute()` reports progress after each keyset batch.
-- Inserts are idempotent through the unique `requestId` conflict target.
-- `validate()` checks that the target count covers all non-skipped candidates.
-- `execute()` runs the owned-table foreign-key self-check even though the current
-  table has no foreign keys, preserving the migrator contract if the schema
-  evolves.
+- Inserts use the unique request id and never update an existing row.
+- A failed batch is rolled back and retried row by row so one malformed source
+  row does not abort the full user-data migration.
+- The request-count estimate lives in migrated `MessageStats`, so a resumed
+  migration does not depend on an in-memory handoff.
+- `validate()` checks candidate/skipped/target counts and the standard owned
+  table integrity contract.

@@ -42,11 +42,17 @@ function scopedCostSum(currency: Currency | undefined): SQL<number> {
     : sql<number>`0`
 }
 
+function totalTokensValue(): SQL<number | null> {
+  return sql<number | null>`CASE
+    WHEN ${aiUsageRecordTable.totalTokens} IS NOT NULL THEN ${aiUsageRecordTable.totalTokens}
+    WHEN ${aiUsageRecordTable.inputTokens} IS NOT NULL OR ${aiUsageRecordTable.outputTokens} IS NOT NULL
+      THEN coalesce(${aiUsageRecordTable.inputTokens}, 0) + coalesce(${aiUsageRecordTable.outputTokens}, 0)
+    ELSE NULL
+  END`
+}
+
 function totalTokensSum(): SQL<number> {
-  return sql<number>`coalesce(sum(coalesce(
-    ${aiUsageRecordTable.totalTokens},
-    coalesce(${aiUsageRecordTable.inputTokens}, 0) + coalesce(${aiUsageRecordTable.outputTokens}, 0)
-  )), 0)`
+  return sql<number>`coalesce(sum(${totalTokensValue()}), 0)`
 }
 
 function metricsSelect(currency: Currency | undefined) {
@@ -58,7 +64,16 @@ function metricsSelect(currency: Currency | undefined) {
     totalNoCacheTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.noCacheTokens}), 0)`,
     totalCacheReadTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.cacheReadTokens}), 0)`,
     totalCacheWriteTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.cacheWriteTokens}), 0)`,
-    entryCount: sql<number>`count(*)`
+    recordCount: sql<number>`count(*)`,
+    requestCount: sql<number>`coalesce(sum(${aiUsageRecordTable.requestCount}), 0)`,
+    estimatedRequestCount: sql<number>`coalesce(sum(
+      CASE WHEN ${aiUsageRecordTable.recordKind} = 'legacy-aggregate'
+        THEN ${aiUsageRecordTable.requestCount} ELSE 0 END
+    ), 0)`,
+    unpricedRequestCount: sql<number>`coalesce(sum(
+      CASE WHEN ${aiUsageRecordTable.cost} IS NULL
+        THEN ${aiUsageRecordTable.requestCount} ELSE 0 END
+    ), 0)`
   }
 }
 
@@ -76,7 +91,10 @@ function toMetrics(row: MetricsRow, currency: Currency | undefined): AiUsageReco
     totalNoCacheTokens: row.totalNoCacheTokens,
     totalCacheReadTokens: row.totalCacheReadTokens,
     totalCacheWriteTokens: row.totalCacheWriteTokens,
-    entryCount: row.entryCount
+    recordCount: row.recordCount,
+    requestCount: row.requestCount,
+    estimatedRequestCount: row.estimatedRequestCount,
+    unpricedRequestCount: row.unpricedRequestCount
   }
 }
 
@@ -95,14 +113,17 @@ function subtractMetrics(
     totalNoCacheTokens: Math.max(0, total.totalNoCacheTokens - sum((bucket) => bucket.totalNoCacheTokens)),
     totalCacheReadTokens: Math.max(0, total.totalCacheReadTokens - sum((bucket) => bucket.totalCacheReadTokens)),
     totalCacheWriteTokens: Math.max(0, total.totalCacheWriteTokens - sum((bucket) => bucket.totalCacheWriteTokens)),
-    entryCount: Math.max(0, total.entryCount - sum((bucket) => bucket.entryCount))
+    recordCount: Math.max(0, total.recordCount - sum((bucket) => bucket.recordCount)),
+    requestCount: Math.max(0, total.requestCount - sum((bucket) => bucket.requestCount)),
+    estimatedRequestCount: Math.max(0, total.estimatedRequestCount - sum((bucket) => bucket.estimatedRequestCount)),
+    unpricedRequestCount: Math.max(0, total.unpricedRequestCount - sum((bucket) => bucket.unpricedRequestCount))
   }
 }
 
 function aggregateOrder(metric: AiUsageRecordMetric, currency: Currency | undefined): SQL<number> {
   switch (metric) {
     case 'requests':
-      return sql<number>`count(*)`
+      return sql<number>`coalesce(sum(${aiUsageRecordTable.requestCount}), 0)`
     case 'cost':
       return scopedCostSum(currency)
     case 'tokens':
@@ -138,9 +159,10 @@ export function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsag
       END) / 1000.0
     )
   END`
+  const totalTokens = totalTokensValue()
   const sortExpression =
     sortBy === 'totalTokens'
-      ? aiUsageRecordTable.totalTokens
+      ? totalTokens
       : sortBy === 'cost'
         ? aiUsageRecordTable.cost
         : sortBy === 'timeFirstTokenMs'
@@ -235,10 +257,13 @@ function topGroupCondition(groupBy: AiUsageRecordGroupBy, buckets: AiUsageRecord
 
     switch (bucket.groupBy) {
       case 'provider':
-        return [eq(aiUsageRecordTable.providerId, bucket.providerId)]
+        return [nullableIdentity(aiUsageRecordTable.providerId, bucket.providerId)]
       case 'model':
         return [
-          and(eq(aiUsageRecordTable.providerId, bucket.providerId), eq(aiUsageRecordTable.modelId, bucket.modelId))!
+          and(
+            nullableIdentity(aiUsageRecordTable.providerId, bucket.providerId),
+            nullableIdentity(aiUsageRecordTable.modelId, bucket.modelId)
+          )!
         ]
       case 'source':
         return [
@@ -252,7 +277,7 @@ function topGroupCondition(groupBy: AiUsageRecordGroupBy, buckets: AiUsageRecord
       case 'apiKey':
         return [
           and(
-            eq(aiUsageRecordTable.providerId, bucket.providerId),
+            nullableIdentity(aiUsageRecordTable.providerId, bucket.providerId),
             nullableIdentity(aiUsageRecordTable.apiKeyId, bucket.apiKeyId),
             eq(aiUsageRecordTable.apiKeyAttribution, bucket.apiKeyAttribution),
             nullableIdentity(aiUsageRecordTable.authMethod, bucket.authMethod)
@@ -271,7 +296,10 @@ function toTimelineMetrics(
     totalNoCacheTokens: number
     totalCacheReadTokens: number
     totalCacheWriteTokens: number
-    entryCount: number
+    recordCount: number
+    requestCount: number
+    estimatedRequestCount: number
+    unpricedRequestCount: number
   },
   currency: Currency | undefined
 ) {
@@ -282,7 +310,10 @@ function toTimelineMetrics(
     totalNoCacheTokens: row.totalNoCacheTokens,
     totalCacheReadTokens: row.totalCacheReadTokens,
     totalCacheWriteTokens: row.totalCacheWriteTokens,
-    entryCount: row.entryCount
+    recordCount: row.recordCount,
+    requestCount: row.requestCount,
+    estimatedRequestCount: row.estimatedRequestCount,
+    unpricedRequestCount: row.unpricedRequestCount
   }
 }
 
@@ -297,7 +328,16 @@ export function getAiUsageRecordTimeline(query: AiUsageRecordTimelineQuery): AiU
     totalNoCacheTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.noCacheTokens}), 0)`,
     totalCacheReadTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.cacheReadTokens}), 0)`,
     totalCacheWriteTokens: sql<number>`coalesce(sum(${aiUsageRecordTable.cacheWriteTokens}), 0)`,
-    entryCount: sql<number>`count(*)`
+    recordCount: sql<number>`count(*)`,
+    requestCount: sql<number>`coalesce(sum(${aiUsageRecordTable.requestCount}), 0)`,
+    estimatedRequestCount: sql<number>`coalesce(sum(
+      CASE WHEN ${aiUsageRecordTable.recordKind} = 'legacy-aggregate'
+        THEN ${aiUsageRecordTable.requestCount} ELSE 0 END
+    ), 0)`,
+    unpricedRequestCount: sql<number>`coalesce(sum(
+      CASE WHEN ${aiUsageRecordTable.cost} IS NULL
+        THEN ${aiUsageRecordTable.requestCount} ELSE 0 END
+    ), 0)`
   }
 
   const dailyTotals = db
@@ -383,8 +423,8 @@ export function getAiUsageRecordTimeline(query: AiUsageRecordTimelineQuery): AiU
     const dateBuckets = selectedByDate.get(total.date) ?? []
     const sum = (read: (bucket: AiUsageRecordTimelineBucket) => number) =>
       dateBuckets.reduce((value, bucket) => value + read(bucket), 0)
-    const entryCount = Math.max(0, total.entryCount - sum((bucket) => bucket.entryCount))
-    if (entryCount === 0) return []
+    const recordCount = Math.max(0, total.recordCount - sum((bucket) => bucket.recordCount))
+    if (recordCount === 0) return []
 
     return [
       {
@@ -395,7 +435,10 @@ export function getAiUsageRecordTimeline(query: AiUsageRecordTimelineQuery): AiU
         totalNoCacheTokens: Math.max(0, total.totalNoCacheTokens - sum((bucket) => bucket.totalNoCacheTokens)),
         totalCacheReadTokens: Math.max(0, total.totalCacheReadTokens - sum((bucket) => bucket.totalCacheReadTokens)),
         totalCacheWriteTokens: Math.max(0, total.totalCacheWriteTokens - sum((bucket) => bucket.totalCacheWriteTokens)),
-        entryCount,
+        recordCount,
+        requestCount: Math.max(0, total.requestCount - sum((bucket) => bucket.requestCount)),
+        estimatedRequestCount: Math.max(0, total.estimatedRequestCount - sum((bucket) => bucket.estimatedRequestCount)),
+        unpricedRequestCount: Math.max(0, total.unpricedRequestCount - sum((bucket) => bucket.unpricedRequestCount)),
         isOther: true
       }
     ]

@@ -1,9 +1,6 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { LanguageModelUsage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-import type { AgentLoopHooks } from '../runtime/aiSdk'
 
 const mockGenerateImage = vi.fn()
 const mockCreateAgent = vi.fn()
@@ -94,20 +91,61 @@ vi.mock('@main/data/services/MessageService', () => ({
 
 vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: (...args: unknown[]) => mockCreateAgent(...args),
-  embedMany: (...args: unknown[]) => mockEmbedMany(...args),
-  generateImage: (...args: unknown[]) => mockGenerateImage(...args),
-  rerank: (...args: unknown[]) => mockRerank(...args)
-}))
-
-vi.mock('@main/data/services/aiUsageRecord', () => ({
-  aiUsageRecordService: {
-    recordRequest: (...args: unknown[]) => mockRecordRequest(...args)
+  embedMany: async (...args: unknown[]) => {
+    const result = await mockEmbedMany(...args)
+    const params = args[2] as { onProviderCall?: (event: unknown) => void }
+    params.onProviderCall?.({
+      modality: 'embedding',
+      requestId: 'ai-core:embedding:test',
+      providerId: args[0],
+      modelId: 'test-embedding-model',
+      usage: result.usage,
+      metrics: { timeCompletionMs: 10 },
+      completedAt: 100
+    })
+    return result
+  },
+  generateImage: async (...args: unknown[]) => {
+    const result = await mockGenerateImage(...args)
+    const params = args[2] as { onProviderCall?: (event: unknown) => void }
+    params.onProviderCall?.({
+      modality: 'image',
+      requestId: 'ai-core:image:test',
+      providerId: args[0],
+      modelId: 'test-model',
+      imageCount: result.images?.length ?? 0,
+      metrics: { timeCompletionMs: 10 },
+      completedAt: 100
+    })
+    return result
+  },
+  rerank: async (...args: unknown[]) => {
+    const result = await mockRerank(...args)
+    const params = args[2] as { onProviderCall?: (event: unknown) => void }
+    params.onProviderCall?.({
+      modality: 'rerank',
+      requestId: 'ai-core:rerank:test',
+      providerId: args[0],
+      modelId: 'test-reranker',
+      metrics: { timeCompletionMs: 10 },
+      completedAt: 100
+    })
+    return result
   }
 }))
 
+vi.mock('@main/data/services/aiUsageRecord', async (importActual) => {
+  const actual = (await importActual()) as object
+  return {
+    ...actual,
+    aiUsageRecordService: {
+      recordInvocation: (...args: unknown[]) => mockRecordRequest(...args)
+    }
+  }
+})
+
 const { AiService, imageInputEntryParams } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
-const { createBillingHook } = await import('../hooks/billingHook')
 
 /**
  * Instantiate `AiService` directly (without going through the lifecycle
@@ -255,48 +293,6 @@ describe('AiService', () => {
       input_tokens: 3,
       output_tokens: 5
     })
-  })
-
-  it('records language usage with the key and assistant snapshots captured for that request', async () => {
-    const service = createService()
-    const credentialReceipt = {
-      attribution: 'explicit',
-      id: 'key-a',
-      label: 'Primary',
-      masked: 'sk-a****aaaa'
-    } as const
-    const assistant = { id: 'assistant-1', name: 'Research', emoji: '🔎' }
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
-      credentialReceipt,
-      model: { id: 'test-provider::test-model', providerId: 'test-provider' },
-      assistant,
-      tools: {},
-      plugins: [],
-      system: undefined,
-      options: {},
-      hookParts: []
-    } as never)
-    const usage = { inputTokens: 8, outputTokens: 3, totalTokens: 11 }
-    mockCreateAgent.mockImplementation(
-      ({ agentSettings }: { agentSettings: { onStepFinish?: (step: unknown) => Promise<void> } }) => ({
-        generate: async () => {
-          await agentSettings.onStepFinish?.({ usage })
-          return { text: 'done', usage, steps: [] }
-        }
-      })
-    )
-
-    await service.generateText({ uniqueModelId: 'test-provider::test-model', prompt: 'hello' })
-
-    expect(mockRecordRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        modelId: 'test-provider::test-model',
-        credentialReceipt,
-        source: { type: 'assistant', id: 'assistant-1', name: 'Research', icon: '🔎' },
-        stats: expect.objectContaining(usage)
-      })
-    )
   })
 
   it('normalizes base64 and url images from ai-core generateImage', async () => {
@@ -470,9 +466,9 @@ describe('AiService', () => {
     )
   })
 
-  // The direct (non-job) image path bills through `recordImageUsage` (billingHook.ts).
-  // These tests pin both the usage payload and the fact that local persistence
-  // happens after the provider output has been recorded.
+  // The direct (non-job) image path observes the actual ImageModel doGenerate
+  // call in aiCore. These tests pin both the usage payload and the fact that
+  // local persistence happens after the provider output has been recorded.
   describe('generateImage — AI usage record (direct path)', () => {
     function stubDirectImage(service: InstanceType<typeof AiService>) {
       vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
@@ -498,7 +494,11 @@ describe('AiService', () => {
       })
 
       expect(mockRecordRequest).toHaveBeenCalledWith(
-        expect.objectContaining({ modelId: 'test-provider::test-model', modality: 'image', imageCount: 1 })
+        expect.objectContaining({
+          context: expect.objectContaining({ modelId: 'test-model' }),
+          modality: 'image',
+          imageCount: 1
+        })
       )
     })
 
@@ -538,30 +538,14 @@ describe('AiService', () => {
         expect.objectContaining({
           modality: 'image',
           imageCount: 2,
-          source: { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' }
+          context: expect.objectContaining({
+            source: { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' }
+          })
         })
       )
       expect(mockRecordRequest.mock.invocationCallOrder[0]).toBeLessThan(
         createInternalEntry.mock.invocationCallOrder[0]
       )
-    })
-
-    it('still returns the generated files when the usage-record write rejects', async () => {
-      const service = createService()
-      const fileEntry = stubDirectImage(service)
-      mockRecordRequest.mockRejectedValueOnce(new Error('usage record unavailable'))
-
-      const result = await service.generateImage({
-        uniqueModelId: 'test-provider::test-model',
-        prompt: 'draw a cat',
-        paramValues: {}
-      })
-
-      expect(result).toEqual({ files: [fileEntry] })
-      expect(mockRecordRequest).toHaveBeenCalledTimes(1)
-      // Let recordImageUsage's internal try/catch settle — an unattended rejection
-      // here would surface as an unhandled rejection failing the test.
-      await new Promise((resolve) => setTimeout(resolve, 20))
     })
   })
 
@@ -578,7 +562,16 @@ describe('AiService', () => {
           label: 'Primary',
           masked: 'sk-a****aaaa'
         },
-        model: { id: 'test-provider::test-embedding-model', providerId: 'test-provider' },
+        provider: {
+          id: 'test-provider',
+          name: 'Test Provider',
+          apiFeatures: { reportsActualCost: false }
+        },
+        model: {
+          id: 'test-provider::test-embedding-model',
+          providerId: 'test-provider',
+          name: 'Test Embedding Model'
+        },
         assistant: { id: 'assistant-1', name: 'Embedding Assistant', emoji: '📚' }
       } as never)
       mockEmbedMany.mockResolvedValue({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
@@ -590,19 +583,22 @@ describe('AiService', () => {
 
       await service.embedMany({ uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] })
 
-      expect(mockRecordRequest).toHaveBeenCalledWith({
-        requestId: expect.any(String),
-        modelId: 'test-provider::test-embedding-model',
-        credentialReceipt: {
-          attribution: 'explicit',
-          id: 'key-a',
-          label: 'Primary',
-          masked: 'sk-a****aaaa'
-        },
-        source: { type: 'assistant', id: 'assistant-1', name: 'Embedding Assistant', icon: '📚' },
-        modality: 'embedding',
-        stats: { inputTokens: 42, totalTokens: 42 }
-      })
+      expect(mockRecordRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId: 'ai-core:embedding:test',
+          context: expect.objectContaining({
+            credentialReceipt: {
+              attribution: 'explicit',
+              id: 'key-a',
+              label: 'Primary',
+              masked: 'sk-a****aaaa'
+            },
+            source: { type: 'assistant', id: 'assistant-1', name: 'Embedding Assistant', icon: '📚' }
+          }),
+          modality: 'embedding',
+          usage: { inputTokens: 42, totalTokens: 42 }
+        })
+      )
     })
 
     it('records an embedding request when the provider explicitly reports zero tokens', async () => {
@@ -615,24 +611,9 @@ describe('AiService', () => {
       expect(mockRecordRequest).toHaveBeenCalledWith(
         expect.objectContaining({
           modality: 'embedding',
-          stats: { inputTokens: 0, totalTokens: 0 }
+          usage: { inputTokens: 0, totalTokens: 0 }
         })
       )
-    })
-
-    it('still returns the embeddings when the usage-record write rejects', async () => {
-      const service = createService()
-      stubEmbedding(service)
-      mockRecordRequest.mockRejectedValueOnce(new Error('usage record unavailable'))
-
-      await expect(
-        service.embedMany({ uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] })
-      ).resolves.toEqual({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
-
-      expect(mockRecordRequest).toHaveBeenCalledTimes(1)
-      // Let the fire-and-forget `.catch(...)` settle — an unattended rejection here
-      // would surface as an unhandled rejection failing the test.
-      await new Promise((resolve) => setTimeout(resolve, 20))
     })
   })
 })
@@ -1017,6 +998,17 @@ describe('AiService tool approval', () => {
       options: {
         headers: { 'x-test': 'yes' },
         maxRetries: 0
+      },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: {
+        id: 'test-provider',
+        name: 'Test Provider',
+        apiFeatures: { reportsActualCost: false }
+      },
+      model: {
+        id: 'test-provider::test-reranker',
+        providerId: 'test-provider',
+        name: 'Test Reranker'
       }
     } as never)
 
@@ -1059,10 +1051,13 @@ describe('AiService tool approval', () => {
         abortSignal: abortController.signal
       })
     )
-    // AI SDK v6 rerank results expose ranking/provider metadata but no usage
-    // or cost. Do not fabricate a usage record until the upstream result can
-    // supply a billable signal (pinned by the operation coverage contract).
-    expect(mockRecordRequest).not.toHaveBeenCalled()
+    expect(mockRecordRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: 'ai-core:rerank:test',
+        modality: 'rerank',
+        metrics: { timeCompletionMs: 10 }
+      })
+    )
   })
 
   it('checks rerank models with rerank before embedding or text generation', async () => {
@@ -1485,64 +1480,5 @@ describe('AiService.listModels', () => {
     const result = await service.listModels({ providerId: 'ppio' })
 
     expect(result.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
-  })
-})
-
-// The request collector is one of the two converging usage-record sources. These
-// tests pin the wiring (id threading, provider-cost extraction, zero-guard);
-// `recordRequest` itself is covered by AiUsageRecordService.test.
-describe('createBillingHook', () => {
-  const model = { id: 'test-provider::test-model', providerId: 'test-provider' } as any
-  // The hook only reads `step.usage`; build a minimal fake step (a full
-  // StepResult has 20+ fields we don't need here).
-  const fakeStep = (usage: Partial<LanguageModelUsage>) =>
-    ({ usage }) as unknown as Parameters<NonNullable<AgentLoopHooks['onStepFinish']>>[0]
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockRecordRequest.mockResolvedValue(undefined)
-  })
-
-  it('records the accumulated usage with the request message id and provider-reported cost', () => {
-    const hook = createBillingHook(model, 'assistant-1')
-
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 6, outputTokens: 3, totalTokens: 9 }))
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 4, outputTokens: 2, totalTokens: 6, raw: { cost: 0.42 } }))
-    void hook.onFinish?.()
-
-    expect(mockRecordRequest).toHaveBeenCalledTimes(1)
-    expect(mockRecordRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requestId: 'assistant-1',
-        modality: 'language',
-        modelId: 'test-provider::test-model',
-        // usage accumulates across steps; raw.cost is threaded as providerCostUsd
-        stats: expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }),
-        providerCostUsd: 0.42
-      })
-    )
-  })
-
-  it('skips recording when no tokens accumulated (zero-guard)', () => {
-    const hook = createBillingHook(model, 'assistant-2')
-
-    // A finish with no observed provider call must not write a synthetic row.
-    void hook.onFinish?.()
-
-    expect(mockRecordRequest).not.toHaveBeenCalled()
-  })
-
-  it('falls back to a generated per-request id when no requestMessageId is given', () => {
-    const hook = createBillingHook(model)
-
-    void hook.onStepFinish?.(fakeStep({ inputTokens: 1, outputTokens: 0, totalTokens: 1 }))
-    void hook.onFinish?.()
-
-    expect(mockRecordRequest).toHaveBeenCalledTimes(1)
-    const payload = mockRecordRequest.mock.calls[0][0]
-    expect(typeof payload.requestId).toBe('string')
-    expect(payload.requestId.length).toBeGreaterThan(0)
-    // No provider cost in the raw blob → providerCostUsd is undefined.
-    expect(payload.providerCostUsd).toBeUndefined()
   })
 })

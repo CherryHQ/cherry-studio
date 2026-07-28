@@ -6,7 +6,11 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import type { AgentSessionUsageCapture } from '@data/services/aiUsageRecord'
+import {
+  type AgentSessionUsageCapture,
+  createAiUsagePricingSnapshot,
+  type SourceSnapshot
+} from '@data/services/aiUsageRecord'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
@@ -43,6 +47,7 @@ interface RuntimeModelRef {
   apiModelId: string
   contextWindow?: number
   provider?: Provider
+  model?: Model
 }
 
 interface ClaudeCodeRouteFacts {
@@ -56,6 +61,8 @@ interface ClaudeCodeRouteFacts {
     sonnet: string
     haiku: string
   }
+  /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
+  usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
 }
 
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
@@ -81,6 +88,36 @@ function fingerprintCredentials(material: string[]): string {
   return createHash('sha256')
     .update(JSON.stringify([...material].sort()))
     .digest('hex')
+}
+
+function buildUsageModels(
+  entries: Array<{ sdkModelId: string; ref: RuntimeModelRef }>
+): Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels'] {
+  const byModelId = new Map<
+    string,
+    {
+      modelName: string | null
+      pricingSnapshot: ReturnType<typeof createAiUsagePricingSnapshot>
+      aliases: Set<string>
+    }
+  >()
+  for (const { sdkModelId, ref } of entries) {
+    const current = byModelId.get(ref.modelId) ?? {
+      modelName: ref.model?.name ?? ref.modelId,
+      pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
+      aliases: new Set<string>()
+    }
+    current.aliases.add(sdkModelId)
+    current.aliases.add(ref.apiModelId)
+    current.aliases.add(ref.modelId)
+    byModelId.set(ref.modelId, current)
+  }
+  return [...byModelId].map(([modelId, snapshot]) => ({
+    modelId,
+    modelName: snapshot.modelName,
+    pricingSnapshot: snapshot.pricingSnapshot,
+    aliases: [...snapshot.aliases]
+  }))
 }
 
 /**
@@ -297,7 +334,13 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     modelId,
     baseUrl,
     planModel,
-    smallModel
+    smallModel,
+    {
+      type: 'agent',
+      id: agent.id,
+      name: agent.name ?? null,
+      icon: agent.configuration?.avatar ?? null
+    }
   )
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
@@ -402,7 +445,8 @@ function deriveRouteFacts(
     modelId: primaryModelId,
     apiModelId: primaryModel.apiModelId ?? primaryModelId,
     contextWindow: primaryModel.contextWindow,
-    provider: primaryProvider
+    provider: primaryProvider,
+    model: primaryModel
   }
   const opusRef = primaryRef
   // Unset plan/small models fall back to `primaryRef` (the effective connection model). The caller also
@@ -421,17 +465,29 @@ function deriveRouteFacts(
   // the gateway, bricking the agent. Pin every sub-model back onto the primary
   // so the agent still runs on the subscription login.
   if (isExternalCliProvider(primaryProvider)) {
-    const pinToPrimary = (ref: RuntimeModelRef) =>
-      ref.providerId === primaryProvider.id ? ref.apiModelId : primaryRef.apiModelId
+    const pinToPrimary = (ref: RuntimeModelRef) => (ref.providerId === primaryProvider.id ? ref : primaryRef)
+    const externalRefs = {
+      primary: primaryRef,
+      opus: primaryRef,
+      sonnet: pinToPrimary(sonnetRef),
+      haiku: pinToPrimary(haikuRef)
+    }
+    const modelIds = {
+      primary: externalRefs.primary.apiModelId,
+      opus: externalRefs.opus.apiModelId,
+      sonnet: externalRefs.sonnet.apiModelId,
+      haiku: externalRefs.haiku.apiModelId
+    }
     return {
       branch: 'external-cli',
       credentialsFingerprint: 'external-cli',
-      modelIds: {
-        primary: primaryRef.apiModelId,
-        opus: pinToPrimary(opusRef),
-        sonnet: pinToPrimary(sonnetRef),
-        haiku: pinToPrimary(haikuRef)
-      }
+      modelIds,
+      usageModels: buildUsageModels([
+        { sdkModelId: modelIds.primary, ref: externalRefs.primary },
+        { sdkModelId: modelIds.opus, ref: externalRefs.opus },
+        { sdkModelId: modelIds.sonnet, ref: externalRefs.sonnet },
+        { sdkModelId: modelIds.haiku, ref: externalRefs.haiku }
+      ])
     }
   }
 
@@ -456,7 +512,8 @@ function deriveRouteFacts(
         opus: toGatewayModelId(opusRef),
         sonnet: toGatewayModelId(sonnetRef),
         haiku: toGatewayModelId(haikuRef)
-      }
+      },
+      usageModels: []
     }
   }
 
@@ -469,16 +526,23 @@ function deriveRouteFacts(
   // first-party by resolved host, NOT preset origin: a provider copied from the Anthropic preset but
   // repointed at a custom 1M proxy is not first-party and must still get the `[1m]` suffix.
   const isAnthropicNative = isAnthropicOfficialHost(anthropicBaseUrl)
+  const modelIds = {
+    primary: with1mSuffix(primaryRef.apiModelId, primaryRef.contextWindow, isAnthropicNative),
+    opus: with1mSuffix(opusRef.apiModelId, opusRef.contextWindow, isAnthropicNative),
+    sonnet: with1mSuffix(sonnetRef.apiModelId, sonnetRef.contextWindow, isAnthropicNative),
+    haiku: with1mSuffix(haikuRef.apiModelId, haikuRef.contextWindow, isAnthropicNative)
+  }
   return {
     branch: 'direct',
     baseUrl: anthropicBaseUrl,
     credentialsFingerprint: fingerprintCredentials(enabledKeys),
-    modelIds: {
-      primary: with1mSuffix(primaryRef.apiModelId, primaryRef.contextWindow, isAnthropicNative),
-      opus: with1mSuffix(opusRef.apiModelId, opusRef.contextWindow, isAnthropicNative),
-      sonnet: with1mSuffix(sonnetRef.apiModelId, sonnetRef.contextWindow, isAnthropicNative),
-      haiku: with1mSuffix(haikuRef.apiModelId, haikuRef.contextWindow, isAnthropicNative)
-    }
+    modelIds,
+    usageModels: buildUsageModels([
+      { sdkModelId: modelIds.primary, ref: primaryRef },
+      { sdkModelId: modelIds.opus, ref: opusRef },
+      { sdkModelId: modelIds.sonnet, ref: sonnetRef },
+      { sdkModelId: modelIds.haiku, ref: haikuRef }
+    ])
   }
 }
 
@@ -490,7 +554,8 @@ async function resolveClaudeCodeRuntimeRoute(
   primaryModelId: string,
   primaryBaseUrl: string,
   planModel: UniqueModelId | null | undefined,
-  smallModel: UniqueModelId | null | undefined
+  smallModel: UniqueModelId | null | undefined,
+  source: SourceSnapshot
 ): Promise<ClaudeCodeRuntimeRoute> {
   const facts = deriveRouteFacts(primaryProvider, primaryModel, primaryModelId, primaryBaseUrl, planModel, smallModel)
 
@@ -499,8 +564,12 @@ async function resolveClaudeCodeRuntimeRoute(
       return {
         ...facts,
         usageCapture: {
-          owner: 'agent-message',
-          credentialReceipt: { attribution: 'auth', method: 'external-cli' }
+          owner: 'agent-sdk',
+          credentialReceipt: { attribution: 'auth', method: 'external-cli' },
+          providerId: primaryProvider.id,
+          providerName: primaryProvider.name ?? null,
+          source,
+          frozenModels: facts.usageModels
         }
       }
     case 'gateway': {
@@ -510,7 +579,7 @@ async function resolveClaudeCodeRuntimeRoute(
         baseUrl: gateway.baseUrl,
         apiKey: gateway.apiKey,
         customHeaders: gateway.usageHeaders,
-        usageCapture: { owner: 'provider-requests' },
+        usageCapture: { owner: 'provider-calls' },
         credentialsFingerprint: fingerprintCredentials([gateway.apiKey])
       }
     }
@@ -522,8 +591,12 @@ async function resolveClaudeCodeRuntimeRoute(
         ...facts,
         apiKey: runtimeApiKey,
         usageCapture: {
-          owner: 'agent-message',
-          credentialReceipt: resolvedApiKey.apiKeySelection
+          owner: 'agent-sdk',
+          credentialReceipt: resolvedApiKey.apiKeySelection,
+          providerId: primaryProvider.id,
+          providerName: primaryProvider.name ?? null,
+          source,
+          frozenModels: facts.usageModels
         },
         credentialsFingerprint: facts.credentialsFingerprint
       }
@@ -536,7 +609,8 @@ function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteF
     branch: route.branch,
     baseUrl: route.baseUrl,
     credentialsFingerprint: route.credentialsFingerprint,
-    modelIds: route.modelIds
+    modelIds: route.modelIds,
+    usageModels: route.usageModels
   }
 }
 
@@ -566,7 +640,8 @@ function resolveRuntimeModelRef(
       modelId,
       apiModelId: model?.apiModelId ?? modelId,
       contextWindow: model?.contextWindow,
-      provider
+      provider,
+      model
     }
   } catch {
     return { providerId, modelId, apiModelId: modelId }

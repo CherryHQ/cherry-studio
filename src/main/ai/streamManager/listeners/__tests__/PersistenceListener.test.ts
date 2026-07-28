@@ -15,15 +15,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const appendMessageMock = vi.fn()
 const messageUpdateMock = vi.fn()
-// Cost enrichment is the seam between persistAssistant and the DB write; mock it
-// to assert the success-path wiring (args in, enriched stats out) without
-// re-testing its internals (covered by costEnrichment.test.ts). Default is a
-// pass-through so the other backends' tests see stats unchanged.
-const enrichStatsWithCostMock = vi.fn((...args: unknown[]) => args[0])
-
-vi.mock('@main/data/services/utils/costEnrichment', () => ({
-  enrichStatsWithCost: (...args: unknown[]) => enrichStatsWithCostMock(...args)
-}))
+const messageFinalizeMock = vi.fn()
+const getMessageUsageProjectionMock = vi.fn(() => ({}))
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: {
@@ -33,7 +26,14 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
 
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
-    update: messageUpdateMock
+    update: messageUpdateMock,
+    finalizeAssistantMessage: messageFinalizeMock
+  }
+}))
+
+vi.mock('@main/data/services/aiUsageRecord', () => ({
+  aiUsageRecordService: {
+    getMessageUsageProjection: getMessageUsageProjectionMock
   }
 }))
 
@@ -81,6 +81,8 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
   beforeEach(() => {
     appendMessageMock.mockReset()
     appendMessageMock.mockReturnValue({ id: 'msg-a' })
+    getMessageUsageProjectionMock.mockReset()
+    getMessageUsageProjectionMock.mockReturnValue({})
   })
 
   it('appends the assistant message on onDone with status=success', async () => {
@@ -126,6 +128,12 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
   it('derives all token stats fields from finalMessage.metadata', async () => {
     const listener = makeListener()
+    getMessageUsageProjectionMock.mockReturnValue({
+      totalTokens: 42,
+      inputTokens: 30,
+      outputTokens: 12,
+      outputTokenDetails: { reasoningTokens: 3 }
+    })
 
     const finalMessage = {
       id: 'msg-x',
@@ -146,7 +154,8 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
     const payload = appendMessageMock.mock.calls[0][1]
-    // statsFromTerminal copies metadata.stats 1:1 (plus timings).
+    // Temporary persistence reads the usage projection instead of copying
+    // transient stream metadata.
     expect(payload.stats).toEqual({
       totalTokens: 42,
       inputTokens: 30,
@@ -211,6 +220,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
   it('merges token metadata and timings into one stats record', async () => {
     const listener = makeListener()
+    getMessageUsageProjectionMock.mockReturnValue({ totalTokens: 7, inputTokens: 5, outputTokens: 2 })
 
     const nowSpy = vi.spyOn(performance, 'now').mockReturnValueOnce(100)
     listener.onChunk({ type: 'text-delta', id: 't1', delta: 'h' } as UIMessageChunk, undefined)
@@ -286,7 +296,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(payload.stats.timeFirstTokenMs).toBe(300)
   })
 
-  it('omits stats entirely when the provider reports no usage and no timings are available', async () => {
+  it('omits stats entirely when there is no record projection or message timing', async () => {
     const listener = makeListener()
 
     const finalMessage = {
@@ -466,6 +476,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 describe('PersistenceListener + MessageServiceBackend — failed persist recovery', () => {
   beforeEach(() => {
     messageUpdateMock.mockReset()
+    messageFinalizeMock.mockReset()
   })
 
   function makeMessageServiceListener() {
@@ -476,22 +487,24 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   }
 
   it('drives the placeholder row to status=error when the persist write fails', async () => {
-    // First update() is persistAssistant (fails); second is markTerminalError (succeeds).
-    messageUpdateMock
-      .mockImplementationOnce(() => {
-        throw new Error('write failed')
-      })
-      .mockReturnValueOnce({ id: 'assistant-1' })
+    messageFinalizeMock.mockImplementationOnce(() => {
+      throw new Error('write failed')
+    })
+    messageUpdateMock.mockReturnValueOnce({ id: 'assistant-1' })
     const listener = makeMessageServiceListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
 
-    expect(messageUpdateMock).toHaveBeenCalledTimes(2)
+    expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
+    expect(messageUpdateMock).toHaveBeenCalledTimes(1)
     // The recovery write flips the frozen `pending` placeholder to a terminal `error`.
     expect(messageUpdateMock).toHaveBeenLastCalledWith('assistant-1', { status: 'error' })
   })
 
   it('swallows a failure of the terminal-error recovery write itself', async () => {
+    messageFinalizeMock.mockImplementation(() => {
+      throw new Error('db down')
+    })
     messageUpdateMock.mockImplementation(() => {
       throw new Error('db down')
     })
@@ -499,15 +512,15 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
 
-    expect(messageUpdateMock).toHaveBeenCalledTimes(2)
+    expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
+    expect(messageUpdateMock).toHaveBeenCalledTimes(1)
   })
 
   it('notifies onPersistFailed so the live renderer can be corrected (C1)', async () => {
-    messageUpdateMock
-      .mockImplementationOnce(() => {
-        throw new Error('write failed')
-      })
-      .mockReturnValueOnce({ id: 'assistant-1' })
+    messageFinalizeMock.mockImplementationOnce(() => {
+      throw new Error('write failed')
+    })
+    messageUpdateMock.mockReturnValueOnce({ id: 'assistant-1' })
     const onPersistFailed = vi.fn()
     const listener = new PersistenceListener({
       topicId: 'topic-1',
@@ -524,34 +537,20 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   })
 })
 
-describe('PersistenceListener + MessageServiceBackend — success-path cost enrichment', () => {
+describe('PersistenceListener + MessageServiceBackend — projection ownership', () => {
   beforeEach(() => {
     messageUpdateMock.mockReset()
-    messageUpdateMock.mockReturnValue({ id: 'assistant-1' })
-    enrichStatsWithCostMock.mockClear()
-    enrichStatsWithCostMock.mockImplementation((stats: unknown) => stats)
+    messageFinalizeMock.mockReset()
+    messageFinalizeMock.mockReturnValue({ id: 'assistant-1' })
   })
 
-  it('enriches persisted stats with cost and threads providerCostUsd into the DB update', async () => {
-    const enriched = {
-      inputTokens: 10,
-      outputTokens: 5,
-      totalTokens: 15,
-      cost: 0.42,
-      costSource: 'provider',
-      costCurrency: 'USD'
-    }
-    enrichStatsWithCostMock.mockReturnValue(enriched)
-
+  it('persists only message timing and leaves usage/cost to the record projection', async () => {
     const finalMessage = {
       id: 'msg-x',
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }],
-      // token snapshot rides in metadata.stats; providerCostUsd is the transient
-      // provider-reported candidate the backend must thread into enrichment.
       metadata: {
-        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-        providerCostUsd: 0.42
+        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
       }
     } as unknown as CherryUIMessage
 
@@ -561,46 +560,18 @@ describe('PersistenceListener + MessageServiceBackend — success-path cost enri
       backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
     })
 
-    await listener.onDone({ finalMessage, status: 'success', modelId: 'openrouter::x' as UniqueModelId })
-
-    // Wiring in: base stats (from metadata.stats) + modelId + providerCostUsd.
-    expect(enrichStatsWithCostMock).toHaveBeenCalledWith(
-      expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }),
-      'openrouter::x',
-      0.42
-    )
-    // Wiring out: the enriched result (with cost) is exactly what the DB row gets.
-    expect(messageUpdateMock).toHaveBeenCalledWith(
-      'assistant-1',
-      expect.objectContaining({ status: 'success', stats: enriched })
-    )
-  })
-
-  it('persists raw stats when cost enrichment throws', async () => {
-    const rawStats = { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
-    enrichStatsWithCostMock.mockImplementationOnce(() => {
-      throw new Error('pricing unavailable')
-    })
-    const finalMessage = {
-      id: 'msg-x',
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'hi' }],
-      metadata: { stats: rawStats }
-    } as unknown as CherryUIMessage
-    const listener = new PersistenceListener({
-      topicId: 'topic-1',
+    await listener.onDone({
+      finalMessage,
+      status: 'success',
       modelId: 'openrouter::x' as UniqueModelId,
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
+      timings: { startedAt: 100, completedAt: 260 }
     })
 
-    await expect(
-      listener.onDone({ finalMessage, status: 'success', modelId: 'openrouter::x' as UniqueModelId })
-    ).resolves.toBeUndefined()
-
-    expect(messageUpdateMock).toHaveBeenCalledTimes(1)
-    expect(messageUpdateMock).toHaveBeenCalledWith(
-      'assistant-1',
-      expect.objectContaining({ status: 'success', stats: rawStats })
-    )
+    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
+      data: { parts: [{ type: 'text', text: 'hi' }] },
+      status: 'success',
+      timingStats: { timeCompletionMs: 160 }
+    })
+    expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 })

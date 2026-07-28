@@ -1,4 +1,5 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { SourceSnapshot } from '@data/services/aiUsageRecord'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
@@ -20,6 +21,10 @@ export interface AiTransportOptions {
 /** In-process-only usage correlation; never accepted on renderer IPC schemas. */
 export interface InProcessUsageContext {
   agentSessionId: string
+  /** Assistant message active when the gateway request entered the turn. */
+  assistantMessageId: string
+  /** Immutable source captured by the owning Agent turn. `null` means intentionally unavailable. */
+  source: SourceSnapshot | null
 }
 
 /**

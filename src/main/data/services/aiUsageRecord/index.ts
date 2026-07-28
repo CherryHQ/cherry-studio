@@ -1,8 +1,16 @@
+export { AiUsageRecordService, aiUsageRecordService } from './AiUsageRecordService'
 export {
-  type AiUsageRecordMessageInput,
-  AiUsageRecordService,
-  aiUsageRecordService,
-  type RecordRequestInput
-} from './AiUsageRecordService'
-export type { SourceSnapshot } from './recordSnapshots'
-export type { AgentSessionUsageCapture, AiUsageCredentialReceipt } from './types'
+  createAiUsageCaptureContext,
+  type CreateAiUsageCaptureContextInput,
+  createAiUsagePricingSnapshot
+} from './recordSnapshots'
+export type {
+  AgentSessionUsageCapture,
+  AiUsageCaptureContext,
+  AiUsageCredentialReceipt,
+  LegacyAggregateInput,
+  MessageRef,
+  MessageUsageProjection,
+  RecordAiInvocationInput,
+  SourceSnapshot
+} from './types'

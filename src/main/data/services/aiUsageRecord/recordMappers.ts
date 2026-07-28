@@ -19,7 +19,10 @@ export function rowToRecord(row: AiUsageRecordRow): AiUsageRecordEntry {
   return {
     id: row.id,
     requestId: row.requestId,
-    topicId: row.topicId,
+    recordKind: row.recordKind,
+    requestCount: row.requestCount,
+    messageKind: row.messageKind,
+    messageId: row.messageId,
     providerId: row.providerId,
     providerName: row.providerName,
     sourceType: row.sourceType,
@@ -27,6 +30,7 @@ export function rowToRecord(row: AiUsageRecordRow): AiUsageRecordEntry {
     sourceName: row.sourceName,
     sourceIcon: row.sourceIcon,
     modelId: row.modelId,
+    modelName: row.modelName,
     modality: row.modality,
     apiKeyId: row.apiKeyId,
     apiKeyLabel: row.apiKeyLabel,
@@ -49,8 +53,7 @@ export function rowToRecord(row: AiUsageRecordRow): AiUsageRecordEntry {
     timeFirstTokenMs: row.timeFirstTokenMs,
     timeCompletionMs: row.timeCompletionMs,
     timeThinkingMs: row.timeThinkingMs,
-    createdAt: timestampToISO(row.createdAt),
-    updatedAt: timestampToISO(row.updatedAt)
+    createdAt: timestampToISO(row.createdAt)
   }
 }
 
@@ -113,7 +116,7 @@ export function toGroupIdentity(row: GroupIdentityRow, groupBy: GroupDimension):
           sourceIcon: row.sourceIcon
         }
       : {
-          providerId: row.providerId as string,
+          providerId: row.providerId,
           providerName: row.providerName
         }),
     ...(groupBy === 'apiKey'
@@ -137,13 +140,13 @@ export function toStatsGroupIdentity(
     case 'provider':
       return {
         groupBy,
-        providerId: row.providerId as string,
+        providerId: row.providerId,
         providerName: row.providerName
       }
     case 'apiKey':
       return {
         groupBy,
-        providerId: row.providerId as string,
+        providerId: row.providerId,
         providerName: row.providerName,
         apiKeyId: row.apiKeyId,
         apiKeyLabel: row.apiKeyLabel,
@@ -154,9 +157,9 @@ export function toStatsGroupIdentity(
     case 'model':
       return {
         groupBy,
-        providerId: row.providerId as string,
+        providerId: row.providerId,
         providerName: row.providerName,
-        modelId: row.modelId as string
+        modelId: row.modelId
       }
     case 'source':
       return {

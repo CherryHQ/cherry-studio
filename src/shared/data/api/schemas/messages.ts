@@ -71,9 +71,7 @@ export const UpdateMessageSchema = z.strictObject({
   /** Change siblings group */
   siblingsGroupId: z.number().optional(),
   /** Update status */
-  status: MessageStatusSchema.optional(),
-  /** Update statistics */
-  stats: MessageStatsSchema.nullable().optional()
+  status: MessageStatusSchema.optional()
 })
 export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
 

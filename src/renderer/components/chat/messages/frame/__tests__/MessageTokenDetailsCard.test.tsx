@@ -48,14 +48,22 @@ function createMessage(stats: MessageListItem['stats']): MessageListItem {
 }
 
 const usage = { inputTokens: 100, outputTokens: 100, totalTokens: 200 } as const
+const cost = (
+  currency: 'USD' | 'CNY',
+  amount: number,
+  source: 'provider' | 'computed'
+): NonNullable<MessageListItem['stats']>['costs'] => [
+  {
+    currency,
+    amount,
+    providerReportedRequestCount: source === 'provider' ? 1 : 0,
+    computedRequestCount: source === 'computed' ? 1 : 0
+  }
+]
 
 describe('MessageTokenDetailsCard cost', () => {
   it('renders a provider-billed cost in USD', () => {
-    render(
-      <MessageTokenDetailsCard
-        message={createMessage({ ...usage, cost: 0.0123, costCurrency: 'USD', costSource: 'provider' })}
-      />
-    )
+    render(<MessageTokenDetailsCard message={createMessage({ ...usage, costs: cost('USD', 0.0123, 'provider') })} />)
 
     const row = screen.getByTestId('message-cost')
     expect(row).toHaveTextContent('Cost')
@@ -65,11 +73,7 @@ describe('MessageTokenDetailsCard cost', () => {
   })
 
   it('renders the persisted currency instead of assuming USD', () => {
-    render(
-      <MessageTokenDetailsCard
-        message={createMessage({ ...usage, cost: 1.5, costCurrency: 'CNY', costSource: 'computed' })}
-      />
-    )
+    render(<MessageTokenDetailsCard message={createMessage({ ...usage, costs: cost('CNY', 1.5, 'computed') })} />)
 
     const row = screen.getByTestId('message-cost')
     expect(row).toHaveTextContent(formatWith('CNY', 1.5))
@@ -77,11 +81,7 @@ describe('MessageTokenDetailsCard cost', () => {
   })
 
   it('marks a locally computed cost as an estimate', () => {
-    render(
-      <MessageTokenDetailsCard
-        message={createMessage({ ...usage, cost: 0.42, costCurrency: 'USD', costSource: 'computed' })}
-      />
-    )
+    render(<MessageTokenDetailsCard message={createMessage({ ...usage, costs: cost('USD', 0.42, 'computed') })} />)
 
     const row = screen.getByTestId('message-cost')
     expect(row).toHaveTextContent('Estimated')
@@ -95,19 +95,8 @@ describe('MessageTokenDetailsCard cost', () => {
     expect(container.textContent).not.toMatch(/NaN|\$/)
   })
 
-  it('renders no cost row when the persisted cost carries no currency', () => {
-    const { container } = render(<MessageTokenDetailsCard message={createMessage({ ...usage, cost: 0.0123 })} />)
-
-    expect(screen.queryByTestId('message-cost')).not.toBeInTheDocument()
-    expect(container.textContent).not.toMatch(/NaN|\$/)
-  })
-
   it('keeps a sub-cent cost distinguishable from a free request', () => {
-    render(
-      <MessageTokenDetailsCard
-        message={createMessage({ ...usage, cost: 0.000012, costCurrency: 'USD', costSource: 'computed' })}
-      />
-    )
+    render(<MessageTokenDetailsCard message={createMessage({ ...usage, costs: cost('USD', 0.000012, 'computed') })} />)
 
     expect(screen.getByTestId('message-cost')).toHaveTextContent(`<${formatWith('USD', 0.0001)}`)
   })

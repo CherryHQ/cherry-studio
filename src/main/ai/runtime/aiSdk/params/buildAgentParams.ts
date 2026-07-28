@@ -8,14 +8,7 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import {
-  type JSONValue,
-  type LanguageModelUsage,
-  stepCountIs,
-  type StopCondition,
-  type ToolSet,
-  type UIMessage
-} from 'ai'
+import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
@@ -71,8 +64,8 @@ export interface BuildAgentParamsInput {
   assistant?: Assistant
   /** Caller-supplied features merged after `INTERNAL_FEATURES`. */
   extraFeatures?: readonly RequestFeature[]
-  /** Request-scoped sink for nested tool-repair provider usage. */
-  onRepairUsage?: (usage: LanguageModelUsage) => void
+  /** Late-bound request usage middleware for nested tool-repair calls. */
+  getRepairUsagePlugins?: () => AiPlugin[]
 }
 
 export interface BuiltAgentParams {
@@ -159,7 +152,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const contributions = collectFromFeatures(scope, features)
 
   const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
-  const options = buildAgentOptions(scope, contributions.stopConditions, input.onRepairUsage)
+  const options = buildAgentOptions(scope, contributions.stopConditions, input.getRepairUsagePlugins)
 
   return {
     sdkConfig,
@@ -331,7 +324,7 @@ export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, reques
 function buildAgentOptions(
   scope: RequestScope,
   featureStopConditions: StopCondition<ToolSet>[],
-  onRepairUsage?: (usage: LanguageModelUsage) => void
+  getRepairUsagePlugins?: () => AiPlugin[]
 ): AgentOptions {
   const {
     assistant,
@@ -406,7 +399,7 @@ function buildAgentOptions(
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
-      onUsage: onRepairUsage
+      getUsagePlugins: getRepairUsagePlugins
     })
   }
 }

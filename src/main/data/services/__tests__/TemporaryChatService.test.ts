@@ -7,7 +7,7 @@ import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 function fieldsOf(err: unknown): Record<string, string[]> {
   const details = (err as { details?: { fieldErrors?: Record<string, string[]> } }).details
@@ -223,7 +223,7 @@ describe('TemporaryChatService', () => {
       expect(() => service.persist('no-such-id')).toThrow(/not found/i)
     })
 
-    it('records AI usage for stats-bearing assistant messages on persist', async () => {
+    it('rebuilds an assistant projection from an existing invocation without creating another record', async () => {
       // message.modelId is an FK to user_model — seed the chain.
       await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' })
       await dbh.db.insert(userModelTable).values({
@@ -250,34 +250,42 @@ describe('TemporaryChatService', () => {
         'assistant-message-id'
       )
 
-      // Simulate the generation-time billing hook. Promotion must enrich this
-      // same row with topic attribution instead of inserting a second charge.
+      // Simulate the generation-time invocation fact. Promotion only rebuilds
+      // the message projection; it does not mutate or duplicate the record.
       await dbh.db.insert(aiUsageRecordTable).values({
-        requestId: assistant.id,
+        requestId: 'temporary-provider-call',
+        recordKind: 'invocation',
+        requestCount: 1,
+        messageKind: 'chat',
+        messageId: assistant.id,
         providerId: 'openai',
-        modelId: 'openai::gpt-4o',
+        modelId: 'gpt-4o',
         modality: 'language',
         apiKeyAttribution: 'unknown',
         inputTokens: 10,
         outputTokens: 5,
         totalTokens: 15,
-        updatedAt: Date.now()
+        createdAt: Date.now()
       })
 
       service.persist(topic.id)
 
-      // The usage-record write is post-commit fire-and-forget.
-      await vi.waitFor(async () => {
-        const rows = await dbh.db.select().from(aiUsageRecordTable)
-        expect(rows).toHaveLength(1)
-        expect(rows[0]).toMatchObject({
-          requestId: assistant.id,
-          topicId: topic.id,
-          providerId: 'openai',
-          inputTokens: 10,
-          outputTokens: 5,
-          totalTokens: 15
-        })
+      const rows = await dbh.db.select().from(aiUsageRecordTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        requestId: 'temporary-provider-call',
+        messageKind: 'chat',
+        messageId: assistant.id,
+        providerId: 'openai',
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15
+      })
+      expect(dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id)).get()?.stats).toMatchObject({
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        requestCount: 1
       })
     })
 
@@ -306,14 +314,20 @@ describe('TemporaryChatService', () => {
           role: 'assistant',
           data: mainText('yo'),
           modelId: 'openai::gpt-4o',
-          // What the temporary-chat persistence backend writes after cost enrichment.
           stats: {
             inputTokens: 1_000_000,
             outputTokens: 0,
             totalTokens: 1_000_000,
-            cost: 0.9,
-            costCurrency: 'USD',
-            costSource: 'provider'
+            requestCount: 1,
+            unpricedRequestCount: 0,
+            costs: [
+              {
+                currency: 'USD',
+                amount: 0.9,
+                providerReportedRequestCount: 1,
+                computedRequestCount: 0
+              }
+            ]
           }
         },
         'provider-billed-message'
@@ -321,9 +335,13 @@ describe('TemporaryChatService', () => {
 
       // Generation-time request record for the same message id.
       await dbh.db.insert(aiUsageRecordTable).values({
-        requestId: assistant.id,
+        requestId: 'temporary-provider-cost',
+        recordKind: 'invocation',
+        requestCount: 1,
+        messageKind: 'chat',
+        messageId: assistant.id,
         providerId: 'openai',
-        modelId: 'openai::gpt-4o',
+        modelId: 'gpt-4o',
         modality: 'language',
         apiKeyAttribution: 'unknown',
         inputTokens: 1_000_000,
@@ -331,24 +349,27 @@ describe('TemporaryChatService', () => {
         cost: 0.9,
         costCurrency: 'USD',
         costSource: 'provider',
-        updatedAt: Date.now()
+        createdAt: Date.now()
       })
 
       service.persist(topic.id)
 
-      // The usage-record write is post-commit fire-and-forget; `topicId` proves the
-      // re-record landed, so the cost assertions can't pass vacuously.
-      await vi.waitFor(async () => {
-        const rows = await dbh.db.select().from(aiUsageRecordTable)
-        expect(rows).toHaveLength(1)
-        expect(rows[0]).toMatchObject({
-          requestId: assistant.id,
-          topicId: topic.id,
-          cost: 0.9,
-          costCurrency: 'USD',
-          costSource: 'provider'
-        })
+      const rows = await dbh.db.select().from(aiUsageRecordTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        requestId: 'temporary-provider-cost',
+        cost: 0.9,
+        costCurrency: 'USD',
+        costSource: 'provider'
       })
+      expect(dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id)).get()?.stats?.costs).toEqual([
+        {
+          currency: 'USD',
+          amount: 0.9,
+          providerReportedRequestCount: 1,
+          computedRequestCount: 0
+        }
+      ])
     })
 
     it('persisted topic has a non-empty fractional-indexing orderKey', async () => {

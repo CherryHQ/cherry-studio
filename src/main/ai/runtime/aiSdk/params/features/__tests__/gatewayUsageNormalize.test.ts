@@ -34,9 +34,11 @@ describe('normalizeGatewayUsage', () => {
         }
       },
       {
-        input: { perMillionTokens: 10, currency: CURRENCY.USD },
-        output: { perMillionTokens: 30, currency: CURRENCY.USD },
-        cacheRead: { perMillionTokens: 1, currency: CURRENCY.USD }
+        currency: CURRENCY.USD,
+        inputPerMillionTokens: 10,
+        outputPerMillionTokens: 30,
+        cacheReadPerMillionTokens: 1,
+        capturedAt: '2026-01-01T00:00:00.000Z'
       }
     )
 

@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ApiGatewayConfig } from '@shared/types/apiGateway'
@@ -181,11 +182,12 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  /** Validate the process-local proof before trusting the session id as usage context. */
-  resolveAgentSessionUsage(headers: Headers): string | undefined {
+  /** Validate the process-local proof, then capture the active turn's immutable source. */
+  resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
     if (headers.get(INTERNAL_USAGE_TOKEN_HEADER) !== this.internalUsageToken) return undefined
     const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
-    return sessionId || undefined
+    if (!sessionId) return undefined
+    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
   }
 
   private shouldAutoStart(): boolean {

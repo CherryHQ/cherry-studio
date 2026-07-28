@@ -362,7 +362,7 @@ initial pre-first-chunk window:
 `pending → streaming` is a one-time transition (first chunk anywhere).
 The terminal status is derived once when the last execution terminates.
 
-### Stats composition — tokens + timings → MessageStats
+### Stats composition — message timings only
 
 **Ownership** (key invariant: manager does not peek at chunk payloads):
 
@@ -372,7 +372,6 @@ The terminal status is derived once when the last execution terminates.
 | `TransportTimings.completedAt` | `AiStreamManager` | `pipeStreamLoop`'s `broadcastCompletedAt` |
 | `SemanticTimings.firstTextAt` | `PersistenceListener` | own `onChunk`, first `text-delta` |
 | `SemanticTimings.reasoning*` | `PersistenceListener` | own `onChunk`, observing `reasoning-*` boundaries |
-| Token metadata | `agentLoop` usage observer | `finish` chunk projects AI SDK `LanguageModelUsage` → `CherryUIMessageMetadata` |
 
 The manager is chunk-shape-agnostic — multicast, reconnect, abort,
 steer queue/continuation, persistence-triggering, never "what is text /
@@ -381,8 +380,9 @@ what is reasoning". AI SDK chunk type changes (vNext renames) only touch
 
 **Final projection.** The listener first terminalizes interrupted parts so
 their stabilized reasoning duration is available, then calls
-`statsFromTerminal(finalMessage, mergedTimings)`. It merges its
-`SemanticTimings` with `result.timings` (transport) before calling it:
+`statsFromTerminal(finalMessage, mergedTimings)`. It composes only
+message-level timing. Per-invocation usage and cost are captured below the
+stream layer and materialized into `MessageStats` from `ai_usage_record`:
 
 ```typescript
 // inside PersistenceListener
@@ -393,18 +393,20 @@ const stats = statsFromTerminal(finalMessageForPersistence, mergedTimings)
 await this.opts.backend.persistAssistant({ finalMessage: finalMessageForPersistence, status, modelId, stats })
 ```
 
-Projected `MessageStats` fields:
+Persistence-owned `MessageStats` fields:
 
 | Field | Source |
 |---|---|
-| `totalTokens / promptTokens / completionTokens / thoughtsTokens` | `finalMessage.metadata.*` |
 | `timeFirstTokenMs` | `round(firstTextAt - startedAt)` |
 | `timeCompletionMs` | `round(completedAt - startedAt)` |
 | `timeThinkingMs` | Sum of stabilized `providerMetadata.cherry.thinkingMs` values from persisted reasoning parts; does not use the reasoning wall-clock, which can include interleaved tool execution |
 
 Backends never terminalize parts or derive stats themselves; they write the
-listener-normalized `finalMessage` and `input.stats`. One projection path, four
-backends, no duplication.
+listener-normalized `finalMessage` and `input.stats`. SQLite/agent message
+services preserve or rebuild the record-owned usage/cost projection when
+finalizing the row. Temporary chat append reads that projection, and promotion
+only rebuilds it; no persistence path creates or repairs a usage record. See
+[AI Usage Records](./ai-usage-records.md).
 
 ## Public API
 

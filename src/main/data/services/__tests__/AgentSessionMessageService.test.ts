@@ -6,7 +6,7 @@ import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { aiUsageRecordService } from '@data/services/aiUsageRecord'
+import { aiUsageRecordService, createAiUsageCaptureContext } from '@data/services/aiUsageRecord'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -815,7 +815,7 @@ describe('AgentSessionMessageService', () => {
     expect(nonNumericKeyError).toMatchObject({ code: 'VALIDATION_ERROR' })
   })
 
-  describe('saveMessage — AI usage record hook', () => {
+  describe('saveMessage — record projection ownership', () => {
     const USAGE_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d301'
     const USAGE_AGENT_ID = 'agent-usage'
 
@@ -855,7 +855,7 @@ describe('AgentSessionMessageService', () => {
         .run()
     }
 
-    it('records assistant session messages with stats as AI usage records', async () => {
+    it('does not turn cumulative assistant message stats into a usage record', async () => {
       seedModel()
 
       agentSessionMessageService.saveMessage({
@@ -870,72 +870,59 @@ describe('AgentSessionMessageService', () => {
         }
       })
 
-      // The hook is fire-and-forget — wait for the async write to settle.
-      await vi.waitFor(() => {
-        const rows = dbh.db.select().from(aiUsageRecordTable).all()
-        expect(rows).toHaveLength(1)
-        expect(rows[0]).toMatchObject({
-          requestId: USAGE_MESSAGE_ID,
-          providerId: 'anthropic',
-          modelId: 'anthropic::claude-sonnet',
-          totalTokens: 15,
-          topicId: null
-        })
-      })
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
+      expect(
+        dbh.db
+          .select({ stats: agentSessionMessageTable.stats })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.id, USAGE_MESSAGE_ID))
+          .get()?.stats
+      ).toEqual({ requestCount: 0, estimatedRequestCount: 0, unpricedRequestCount: 0, costs: [] })
     })
 
-    it('persists the direct route credential receipt selected by the runtime owner', async () => {
+    it('needs no route-owner flag to suppress cumulative message usage', async () => {
       seedModel()
 
       agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
-        usageCapture: {
-          owner: 'agent-message',
+        message: {
+          id: USAGE_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          modelId: 'anthropic::claude-sonnet',
+          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        }
+      })
+
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
+    })
+
+    it('projects a provider-call record that arrived before the agent message row', async () => {
+      seedModel()
+
+      aiUsageRecordService.recordInvocation({
+        requestId: 'gateway-provider-call',
+        context: createAiUsageCaptureContext({
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          modelId: 'claude-sonnet',
+          modelName: 'Claude Sonnet',
           credentialReceipt: {
             attribution: 'explicit',
             id: 'key-primary',
             label: 'Primary',
             masked: 'sk-a****aaaa'
-          }
-        },
-        message: {
-          id: USAGE_MESSAGE_ID,
-          role: 'assistant',
-          status: 'success',
-          data: { parts: [] },
-          modelId: 'anthropic::claude-sonnet',
-          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
-        }
-      })
-
-      expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
-        requestId: USAGE_MESSAGE_ID,
-        apiKeyAttribution: 'explicit',
-        apiKeyId: 'key-primary',
-        apiKeyLabel: 'Primary',
-        apiKeyMasked: 'sk-a****aaaa'
-      })
-    })
-
-    it('keeps gateway provider-call totals and suppresses the cumulative agent-message duplicate', async () => {
-      seedModel()
-
-      await aiUsageRecordService.recordRequest({
-        requestId: 'gateway-provider-call',
-        agentSessionId: SESSION_ID,
-        modelId: 'anthropic::claude-sonnet',
-        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          },
+          source: { type: 'agent', id: USAGE_AGENT_ID, name: 'Usage Agent', icon: null },
+          messageRef: { kind: 'agent-session', id: USAGE_MESSAGE_ID }
+        }),
         modality: 'language',
-        credentialReceipt: {
-          attribution: 'explicit',
-          id: 'key-primary',
-          label: 'Primary',
-          masked: 'sk-a****aaaa'
-        }
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        completedAt: 1_000
       })
       agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
-        usageCapture: { owner: 'provider-requests' },
         message: {
           id: USAGE_MESSAGE_ID,
           role: 'assistant',
@@ -955,9 +942,16 @@ describe('AgentSessionMessageService', () => {
         sourceType: 'agent',
         sourceId: USAGE_AGENT_ID
       })
+      expect(
+        dbh.db
+          .select({ stats: agentSessionMessageTable.stats })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.id, USAGE_MESSAGE_ID))
+          .get()?.stats
+      ).toMatchObject({ inputTokens: 10, outputTokens: 5, totalTokens: 15, requestCount: 1 })
     })
 
-    it('records usage from the immutable model snapshot after the model row is deleted', async () => {
+    it('does not infer usage from a persisted model snapshot after the model row is deleted', async () => {
       seedModel()
       const messageSnapshot = {
         id: 'agent-at-request-time',
@@ -991,10 +985,6 @@ describe('AgentSessionMessageService', () => {
 
       agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
-        usageCapture: {
-          owner: 'agent-message',
-          credentialReceipt: { attribution: 'unknown' }
-        },
         message: {
           id: USAGE_MESSAGE_ID,
           role: 'assistant',
@@ -1004,14 +994,7 @@ describe('AgentSessionMessageService', () => {
         }
       })
 
-      expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
-        requestId: USAGE_MESSAGE_ID,
-        providerId: 'anthropic',
-        modelId: 'anthropic::claude-sonnet',
-        sourceType: 'agent',
-        sourceId: 'agent-at-request-time',
-        totalTokens: 15
-      })
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(0)
     })
 
     it('does not record user messages or stats-less assistant messages', async () => {

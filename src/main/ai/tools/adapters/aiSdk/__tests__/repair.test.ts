@@ -67,16 +67,15 @@ describe('createAiRepair', () => {
     expect(params.output).toBeDefined()
   })
 
-  it('reports the nested provider usage to the parent request collector', async () => {
-    const onUsage = vi.fn()
+  it('reuses the request usage middleware so repair is an independent invocation', async () => {
+    const plugins = [{ name: 'usage' }]
     const repairWithUsage = createAiRepair({
       providerId: 'openai',
       providerSettings: { apiKey: 'test' },
       modelId: 'gpt-4o-mini',
-      onUsage
+      getUsagePlugins: () => plugins as never
     })
-    const usage = { inputTokens: 12, outputTokens: 4, totalTokens: 16 }
-    generateText.mockResolvedValue({ output: { query: 'hello world' }, usage })
+    generateText.mockResolvedValue({ output: { query: 'hello world' } })
 
     const repaired = await repairWithUsage({
       system: undefined,
@@ -88,8 +87,7 @@ describe('createAiRepair', () => {
     })
 
     expect(repaired).not.toBeNull()
-    expect(onUsage).toHaveBeenCalledOnce()
-    expect(onUsage).toHaveBeenCalledWith(usage)
+    expect(generateText.mock.calls[0][3]).toBe(plugins)
   })
 
   it('returns null when generateText returns no structured output', async () => {

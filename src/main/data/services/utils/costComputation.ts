@@ -1,4 +1,4 @@
-import { CURRENCY, type Currency, type RuntimeModelPricing } from '@shared/data/types/model'
+import type { AiUsageCostBreakdown, AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 
 const PER_MILLION = 1_000_000
 
@@ -12,32 +12,21 @@ export interface LanguageCostUsage {
   }
 }
 
-export interface LanguageCostBreakdown {
-  input?: number
-  output?: number
-  cacheRead?: number
-  cacheWrite?: number
-}
-
 export interface LanguageCostResult {
   cost: number
-  breakdown: LanguageCostBreakdown
-  currency: Currency
+  breakdown: AiUsageCostBreakdown
 }
 
 /**
  * Compute cache-aware language cost from the all-in input count and any
  * provider breakdown. Partial cache details are subtracted from the total so
- * no token can be priced as both regular input and cached input.
+ * no token can be priced as both regular input and cached input. A cost is
+ * returned only when every non-zero usage bucket has a known rate.
  */
 export function computeLanguageCost(
   usage: LanguageCostUsage,
-  pricing: RuntimeModelPricing
+  pricing: AiUsagePricingSnapshot
 ): LanguageCostResult | undefined {
-  const inputRate = pricing.input?.perMillionTokens ?? null
-  const outputRate = pricing.output?.perMillionTokens ?? null
-  const cacheReadRate = pricing.cacheRead?.perMillionTokens ?? inputRate
-  const cacheWriteRate = pricing.cacheWrite?.perMillionTokens ?? inputRate
   const details = usage.inputTokenDetails
   const cacheReadTokens = details?.cacheReadTokens
   const cacheWriteTokens = details?.cacheWriteTokens
@@ -50,22 +39,24 @@ export function computeLanguageCost(
         : usage.inputTokens
       : undefined)
 
-  const breakdown: LanguageCostBreakdown = {}
-  let cost = 0
-  let priced = false
+  const buckets = [
+    ['input', nonCacheInput, pricing.inputPerMillionTokens],
+    ['cacheRead', cacheReadTokens, pricing.cacheReadPerMillionTokens ?? pricing.inputPerMillionTokens],
+    ['cacheWrite', cacheWriteTokens, pricing.cacheWritePerMillionTokens ?? pricing.inputPerMillionTokens],
+    ['output', usage.outputTokens, pricing.outputPerMillionTokens]
+  ] as const
 
-  const add = (key: keyof LanguageCostBreakdown, tokens: number | undefined, rate: number | null): void => {
-    if (tokens == null || rate == null || !Number.isFinite(tokens) || !Number.isFinite(rate)) return
+  if (!buckets.some(([, tokens]) => tokens !== undefined)) return undefined
+  if (buckets.some(([, tokens, rate]) => tokens !== undefined && tokens > 0 && rate === undefined)) return undefined
+
+  const breakdown: AiUsageCostBreakdown = {}
+  let cost = 0
+  for (const [key, tokens, rate] of buckets) {
+    if (tokens === undefined || rate === undefined) continue
     const value = (tokens * rate) / PER_MILLION
     breakdown[key] = value
     cost += value
-    priced = true
   }
 
-  add('input', nonCacheInput, inputRate)
-  add('cacheRead', cacheReadTokens, cacheReadRate)
-  add('cacheWrite', cacheWriteTokens, cacheWriteRate)
-  add('output', usage.outputTokens, outputRate)
-
-  return priced ? { cost, breakdown, currency: pricing.input?.currency ?? CURRENCY.USD } : undefined
+  return Number.isFinite(cost) && cost >= 0 ? { cost, breakdown } : undefined
 }

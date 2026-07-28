@@ -1,130 +1,102 @@
-import { application } from '@application'
-import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { assistantTable } from '@data/db/schemas/assistant'
-import { topicTable } from '@data/db/schemas/topic'
-import { loggerService } from '@logger'
-import type {
-  AiUsageRecordAttribution,
-  AiUsageRecordAuthMethod,
-  AiUsageRecordSourceType
-} from '@shared/data/types/aiUsageRecord'
-import { eq } from 'drizzle-orm'
+import { type AiUsagePricingSnapshot, AiUsagePricingSnapshotSchema } from '@shared/data/types/aiUsageRecord'
+import type { RuntimeModelPricing } from '@shared/data/types/model'
 
-import { providerService } from '../ProviderService'
-import type { AiUsageCredentialReceipt } from './types'
+import type { AiUsageCaptureContext, AiUsageCredentialReceipt, MessageRef, SourceSnapshot } from './types'
 
-const logger = loggerService.withContext('DataApi:AiUsageRecordSnapshots')
-
-export type SourceSnapshot = {
-  type: AiUsageRecordSourceType
-  id: string
-  name: string | null
-  icon: string | null
+export interface CreateAiUsageCaptureContextInput {
+  providerId: string
+  providerName?: string | null
+  modelId: string
+  modelName?: string | null
+  pricing?: RuntimeModelPricing | null
+  pricingSnapshot?: AiUsagePricingSnapshot | null
+  trustProviderReportedCost?: boolean
+  credentialReceipt?: AiUsageCredentialReceipt
+  source?: SourceSnapshot | null
+  messageRef?: MessageRef | null
+  capturedAt?: string
 }
 
-export interface KeyAttribution {
-  attribution: AiUsageRecordAttribution
-  providerName?: string
-  keyId?: string
-  label?: string
-  masked?: string
-  authMethod?: AiUsageRecordAuthMethod
+function deepFreeze<T>(value: T): Readonly<T> {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const nested of Object.values(value as Record<string, unknown>)) deepFreeze(nested)
+    Object.freeze(value)
+  }
+  return value
 }
 
-export type UsageCredentialReceipt = AiUsageCredentialReceipt
-
-function getAgentAvatar(configuration: unknown): string | undefined {
-  if (!configuration || typeof configuration !== 'object' || Array.isArray(configuration)) return undefined
-  const avatar = (configuration as { avatar?: unknown }).avatar
-  return typeof avatar === 'string' ? avatar : undefined
+function cloneAndFreeze<T>(value: T): Readonly<T> {
+  return deepFreeze(structuredClone(value))
 }
 
-export function resolveSourceSnapshot(
-  explicit: SourceSnapshot | null | undefined,
-  topicId: string | null | undefined,
-  sessionId: string | null | undefined
-): SourceSnapshot | null {
-  if (explicit) return explicit
+function pricingCurrency(pricing: RuntimeModelPricing): AiUsagePricingSnapshot['currency'] | undefined {
+  const currencies = [
+    pricing.input?.currency,
+    pricing.output?.currency,
+    pricing.cacheRead?.currency,
+    pricing.cacheWrite?.currency
+  ].filter((currency): currency is AiUsagePricingSnapshot['currency'] => currency !== undefined)
 
-  const db = application.get('DbService').getDb()
-  if (topicId) {
-    const [row] = db
-      .select({
-        assistantId: topicTable.assistantId,
-        assistantName: assistantTable.name,
-        assistantIcon: assistantTable.emoji
-      })
-      .from(topicTable)
-      .leftJoin(assistantTable, eq(topicTable.assistantId, assistantTable.id))
-      .where(eq(topicTable.id, topicId))
-      .limit(1)
-      .all()
-
-    if (row?.assistantId) {
-      return {
-        type: 'assistant',
-        id: row.assistantId,
-        name: row.assistantName ?? null,
-        icon: row.assistantIcon ?? null
-      }
-    }
-  }
-
-  if (sessionId) {
-    const [row] = db
-      .select({
-        agentId: agentSessionTable.agentId,
-        agentName: agentTable.name,
-        agentConfiguration: agentTable.configuration
-      })
-      .from(agentSessionTable)
-      .leftJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
-      .where(eq(agentSessionTable.id, sessionId))
-      .limit(1)
-      .all()
-
-    if (row?.agentId) {
-      return {
-        type: 'agent',
-        id: row.agentId,
-        name: row.agentName ?? null,
-        icon: getAgentAvatar(row.agentConfiguration) ?? null
-      }
-    }
-  }
-
-  return null
+  if (currencies.length === 0 || currencies.some((currency) => currency !== currencies[0])) return undefined
+  return currencies[0]
 }
 
-function fromCredentialReceipt(receipt: UsageCredentialReceipt, providerName: string | undefined): KeyAttribution {
-  if (receipt.attribution === 'explicit' || receipt.attribution === 'matched') {
-    return {
-      attribution: receipt.attribution,
-      providerName,
-      keyId: receipt.id,
-      label: receipt.label,
-      masked: receipt.masked
-    }
-  }
+export function createAiUsagePricingSnapshot(
+  pricing: RuntimeModelPricing | null | undefined,
+  capturedAt = new Date().toISOString()
+): AiUsagePricingSnapshot | null {
+  if (!pricing) return null
+  const currency = pricingCurrency(pricing)
+  if (!currency) return null
 
-  return {
-    attribution: receipt.attribution,
-    providerName,
-    ...(receipt.attribution === 'auth' ? { authMethod: receipt.method } : {})
+  const snapshot = {
+    currency,
+    ...(pricing.input?.perMillionTokens != null ? { inputPerMillionTokens: pricing.input.perMillionTokens } : {}),
+    ...(pricing.output?.perMillionTokens != null ? { outputPerMillionTokens: pricing.output.perMillionTokens } : {}),
+    ...(pricing.cacheRead?.perMillionTokens != null
+      ? { cacheReadPerMillionTokens: pricing.cacheRead.perMillionTokens }
+      : {}),
+    ...(pricing.cacheWrite?.perMillionTokens != null
+      ? { cacheWritePerMillionTokens: pricing.cacheWrite.perMillionTokens }
+      : {}),
+    ...(pricing.perImage
+      ? {
+          perImage: {
+            price: pricing.perImage.price,
+            unit: pricing.perImage.unit ?? 'image'
+          }
+        }
+      : {}),
+    capturedAt
   }
+  const parsed = AiUsagePricingSnapshotSchema.safeParse(snapshot)
+  return parsed.success ? cloneAndFreeze(parsed.data) : null
 }
 
-export function resolveKeyAttribution(providerId: string, credentialReceipt?: UsageCredentialReceipt): KeyAttribution {
-  let providerName: string | undefined
-  try {
-    const provider = providerService.getByProviderId(providerId)
-    providerName = provider.name
-  } catch (err) {
-    logger.debug('resolveKeyAttribution: provider lookup failed', { providerId, err })
-  }
-
-  return credentialReceipt
-    ? fromCredentialReceipt(credentialReceipt, providerName)
-    : { attribution: 'unknown', providerName }
+/**
+ * Freeze every attribution input after provider/model/credential selection and
+ * before the provider call. Record completion must never consult mutable
+ * provider, model, source, or rotation state.
+ */
+export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextInput): AiUsageCaptureContext {
+  return cloneAndFreeze({
+    providerId: input.providerId,
+    providerName: input.providerName ?? null,
+    modelId: input.modelId,
+    modelName: input.modelName ?? null,
+    pricingSnapshot:
+      input.pricingSnapshot === undefined
+        ? createAiUsagePricingSnapshot(input.pricing, input.capturedAt)
+        : input.pricingSnapshot === null
+          ? null
+          : (() => {
+              const parsed = AiUsagePricingSnapshotSchema.safeParse(input.pricingSnapshot)
+              return parsed.success ? cloneAndFreeze(parsed.data) : null
+            })(),
+    trustProviderReportedCost: input.trustProviderReportedCost === true,
+    credentialReceipt: cloneAndFreeze(input.credentialReceipt ?? { attribution: 'unknown' }),
+    source: input.source === undefined ? null : input.source === null ? null : cloneAndFreeze(input.source),
+    messageRef:
+      input.messageRef === undefined ? null : input.messageRef === null ? null : cloneAndFreeze(input.messageRef)
+  })
 }

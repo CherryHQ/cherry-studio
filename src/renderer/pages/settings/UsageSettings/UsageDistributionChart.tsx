@@ -237,7 +237,7 @@ export function UsageDistributionChart({
         plainLabel: getBucketLabel(bucket),
         value,
         tokens: bucket.totalTokens,
-        requests: bucket.entryCount,
+        requests: bucket.requestCount,
         cost: bucket.totalCost,
         share: totalExploreMetric > 0 ? value / totalExploreMetric : 0,
         color: CHART_COLORS[index % CHART_COLORS.length]
@@ -251,7 +251,7 @@ export function UsageDistributionChart({
             plainLabel: t('common.other'),
             value: otherExploreMetric,
             tokens: exploreOther.totalTokens,
-            requests: exploreOther.entryCount,
+            requests: exploreOther.requestCount,
             cost: exploreOther.totalCost,
             share: totalExploreMetric > 0 ? otherExploreMetric / totalExploreMetric : 0,
             color: CHART_COLORS[exploreTopBuckets.length % CHART_COLORS.length]
