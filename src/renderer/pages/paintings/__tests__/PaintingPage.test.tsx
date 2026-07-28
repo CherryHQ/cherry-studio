@@ -27,7 +27,7 @@ vi.mock('../hooks/usePaintingTemplateCatalog', () => ({
       id: index === 0 ? 'human-fragments-motion' : `template-${index}`,
       imageUrl: `/template-${index}.webp`,
       label: index === 0 ? 'Motion Step' : `painting template ${index}`,
-      prompt: index === 0 ? 'Create a poster for ${title}' : `painting prompt ${index}`
+      prompt: index === 0 ? 'Create a poster for ${CITY RHYTHM}' : `painting prompt ${index}`
     }))
   })
 }))
@@ -194,7 +194,7 @@ describe('PaintingPage showcase', () => {
     })
     fireEvent.click(templateButton)
 
-    expect(screen.getByRole('textbox', { name: 'painting prompt' })).toHaveValue('Create a poster for ${title}')
+    expect(screen.getByRole('textbox', { name: 'painting prompt' })).toHaveValue('Create a poster for ${CITY RHYTHM}')
     expect(templateButton).toHaveAttribute('aria-pressed', 'true')
     expect(mocks.generate).not.toHaveBeenCalled()
   })

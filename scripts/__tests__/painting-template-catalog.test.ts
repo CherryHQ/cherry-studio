@@ -25,7 +25,75 @@ const chineseTemplates = JSON.parse(fs.readFileSync(path.join(catalogRoot, 'loca
   LocalizedTemplate
 >
 
-const variableNames = (prompt: string) => [...prompt.matchAll(/\$\{([^{}]+)\}/g)].map((match) => match[1])
+const variableValues = (prompt: string) => [...prompt.matchAll(/\$\{([^{}]+)\}/g)].map((match) => match[1])
+
+const genericVariableLabels = new Set([
+  'action',
+  'age',
+  'author',
+  'color',
+  'destination',
+  'direction',
+  'dress',
+  'expression',
+  'interaction',
+  'location',
+  'mood',
+  'outfit',
+  'pet',
+  'pose',
+  'quote',
+  'scene',
+  'subject',
+  'tagline',
+  'texture',
+  'theme',
+  'title',
+  'traveler',
+  '人物',
+  '动作',
+  '场景',
+  '年龄',
+  '手持物',
+  '新人姓名',
+  '服装',
+  '标题',
+  '配色'
+])
+
+const isConcreteVariableValue = (value: string) =>
+  value === value.trim() &&
+  !/[\r\n{}]/.test(value) &&
+  !/^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/.test(value) &&
+  !genericVariableLabels.has(value)
+
+const expectedVariableCounts: Record<string, number> = {
+  'human-fragments-motion': 9,
+  'human-fragments-sport': 9,
+  'laundromat-dance': 6,
+  'underwater-editorial': 8,
+  'wuxia-swordswoman': 6,
+  'literary-art-poster': 8,
+  'tuscan-residence': 5,
+  'summer-hillside': 6,
+  'slow-shutter-fashion': 8,
+  'crocs-campaign': 9,
+  'tennis-collage': 10,
+  'deadpan-cat': 5,
+  'monochrome-suit': 5,
+  'circular-cutout': 6,
+  'travel-journal': 6,
+  'wedding-invitation': 10,
+  'storyboard-sketch': 6,
+  'anime-companion': 5,
+  'doodle-shadow': 4,
+  'y2k-street': 7,
+  'birthday-poster': 9,
+  'light-trails': 7,
+  'anime-companion-variant': 5,
+  'train-window': 8,
+  'low-angle-fashion': 7
+}
 
 describe('painting template catalog contract', () => {
   it('keeps catalog IDs, localized templates, and WebP previews aligned', () => {
@@ -36,6 +104,7 @@ describe('painting template catalog contract', () => {
     expect(new Set(catalogIds).size).toBe(catalogIds.length)
     expect(Object.keys(englishTemplates).sort()).toEqual([...catalogIds].sort())
     expect(Object.keys(chineseTemplates).sort()).toEqual([...catalogIds].sort())
+    expect(Object.keys(expectedVariableCounts).sort()).toEqual([...catalogIds].sort())
 
     for (const { id, preview } of catalog) {
       expect(id).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
@@ -55,28 +124,48 @@ describe('painting template catalog contract', () => {
     expect([...previews].sort()).toEqual(bundledPreviews)
   })
 
-  it('keeps every localized prompt tokenized with matching variable counts', () => {
+  it('keeps every localized prompt tokenized with matching concrete example values', () => {
     expect(new Set(Object.values(englishTemplates).map((template) => template.label)).size).toBe(catalog.length)
     expect(new Set(Object.values(chineseTemplates).map((template) => template.label)).size).toBe(catalog.length)
+
+    let englishVariableCount = 0
+    let chineseVariableCount = 0
 
     for (const { id } of catalog) {
       const english = englishTemplates[id]
       const chinese = chineseTemplates[id]
-      const englishVariables = variableNames(english.prompt)
-      const chineseVariables = variableNames(chinese.prompt)
+      const englishVariables = variableValues(english.prompt)
+      const chineseVariables = variableValues(chinese.prompt)
 
       expect(english.label.trim()).not.toHaveLength(0)
       expect(chinese.label.trim()).not.toHaveLength(0)
       expect(english.prompt.trim()).not.toHaveLength(0)
       expect(chinese.prompt.trim()).not.toHaveLength(0)
       expect(englishVariables.length).toBeGreaterThan(0)
+      expect(englishVariables).toHaveLength(expectedVariableCounts[id])
       expect(chineseVariables).toHaveLength(englishVariables.length)
       expect(new Set(englishVariables).size).toBe(englishVariables.length)
       expect(new Set(chineseVariables).size).toBe(chineseVariables.length)
-      expect(englishVariables.every((name) => /^[a-z][a-z0-9_]*$/.test(name))).toBe(true)
-      expect(chineseVariables.every((name) => /\p{Script=Han}/u.test(name))).toBe(true)
+      expect(englishVariables.every(isConcreteVariableValue)).toBe(true)
+      expect(chineseVariables.every(isConcreteVariableValue)).toBe(true)
       expect(english.prompt).not.toMatch(/\{argument\b|\[[A-Z][A-Z_ ]+\]/)
       expect(chinese.prompt).not.toMatch(/\{argument\b|\[[A-Z][A-Z_ ]+\]/)
+      expect(english.prompt).not.toMatch(/\$\{[^{}\r\n]*[.!?。！？]\}[.!?。！？]/u)
+      expect(chinese.prompt).not.toMatch(/\$\{[^{}\r\n]*[.!?。！？]\}[.!?。！？]/u)
+      expect(english.prompt).not.toContain('Suggested defaults')
+      expect(chinese.prompt).not.toContain('建议默认')
+
+      englishVariableCount += englishVariables.length
+      chineseVariableCount += chineseVariables.length
     }
+
+    expect(englishVariableCount).toBe(174)
+    expect(chineseVariableCount).toBe(174)
+    expect(englishTemplates['wedding-invitation'].prompt).toContain('${Lin Zhao & Shen Zhiyi}')
+    expect(chineseTemplates['wedding-invitation'].prompt).toContain('${Lin Zhao & Shen Zhiyi}')
+    expect(englishTemplates['birthday-poster'].prompt).toContain('${2}')
+    expect(chineseTemplates['birthday-poster'].prompt).toContain('${2}')
+    expect(variableValues(englishTemplates['storyboard-sketch'].prompt)[2]).toContain('watching the horizon')
+    expect(variableValues(chineseTemplates['storyboard-sketch'].prompt)[2]).toContain('眺望远方')
   })
 })

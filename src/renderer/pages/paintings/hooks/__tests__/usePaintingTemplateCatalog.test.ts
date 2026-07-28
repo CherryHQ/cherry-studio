@@ -35,7 +35,7 @@ describe('painting template catalog', () => {
         JSON.stringify({
           'birthday-poster': {
             label: '生日海报',
-            prompt: '儿童姓名：${儿童姓名}。庆祝年龄：${年龄}。'
+            prompt: '儿童姓名：${MUNONYE}。庆祝年龄：${2}。'
           }
         })
       )
@@ -67,7 +67,7 @@ describe('painting template catalog', () => {
       id: 'birthday-poster',
       imageUrl: 'file:///resources/data/painting-templates/images/birthday-poster.webp',
       label: '生日海报',
-      prompt: '儿童姓名：${儿童姓名}。庆祝年龄：${年龄}。'
+      prompt: '儿童姓名：${MUNONYE}。庆祝年龄：${2}。'
     })
   })
 
