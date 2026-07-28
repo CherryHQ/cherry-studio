@@ -2,8 +2,8 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { makeModel, makeProvider } from './fixtures'
 import { markTrustedLocalToolTerminalFailure } from '../runtime/aiSdk/loop/localToolTerminalOutcome'
+import { makeModel, makeProvider } from './fixtures'
 
 const mockCreateAgent = vi.fn()
 const sharedCache = new Map<string, unknown>()
@@ -20,7 +20,7 @@ const fakeCacheService = {
 const fakeApplicationGet = vi.fn()
 const fakeProvider = makeProvider({ id: 'test-provider', name: 'Test provider' })
 const fakeModel = makeModel({
-  id: 'test-model',
+  id: 'test-provider::test-model',
   providerId: 'test-provider',
   apiModelId: 'test-model',
   name: 'Test model'
@@ -58,6 +58,9 @@ class FakeListener {
   readonly sources: Array<string | undefined> = []
   readonly doneResults: any[] = []
   readonly errorResults: any[] = []
+  terminalSnapshot: any
+
+  constructor(private readonly inspect: () => any) {}
 
   onChunk(chunk: UIMessageChunk, sourceModelId?: string): void {
     this.chunks.push(chunk)
@@ -65,6 +68,7 @@ class FakeListener {
   }
 
   onDone(result: any): void {
+    this.terminalSnapshot = this.inspect()
     this.doneResults.push(result)
   }
 
@@ -135,8 +139,8 @@ describe('chat turn integration trajectory', () => {
     mockCreateAgent.mockResolvedValue({ stream: vi.fn().mockResolvedValue(sdkStream(chunks)) })
 
     const manager = createManager()
-    const listener = new FakeListener()
     const topicId = 'chat-integration-1'
+    const listener = new FakeListener(() => manager.inspect(topicId))
     const modelId = 'test-provider::test-model' as const
 
     manager.send({
@@ -163,7 +167,7 @@ describe('chat turn integration trajectory', () => {
     expect(listener.sources).toEqual(chunks.map(() => modelId))
     expect(listener.errorResults).toEqual([])
 
-    const snapshot = manager.inspect(topicId)!
+    const snapshot = listener.terminalSnapshot!
     expect(snapshot.status).toBe('done')
     expect(listener.doneResults[0].finalMessage).toEqual(snapshot.executions[0].finalMessage)
     expect(snapshot.executions[0].finalMessage).toMatchObject({ id: 'assistant-1', role: 'assistant' })
@@ -193,8 +197,8 @@ describe('chat turn integration trajectory', () => {
     mockCreateAgent.mockResolvedValue({ stream: vi.fn().mockResolvedValue(sdkStream(chunks)) })
 
     const manager = createManager()
-    const listener = new FakeListener()
     const topicId = 'chat-integration-tool-1'
+    const listener = new FakeListener(() => manager.inspect(topicId))
     const modelId = 'test-provider::test-model' as const
 
     manager.send({
@@ -258,8 +262,8 @@ describe('chat turn integration trajectory', () => {
     })
 
     const manager = createManager()
-    const listener = new FakeListener()
     const topicId = 'chat-integration-error-1'
+    const listener = new FakeListener(() => manager.inspect(topicId))
     const modelId = 'test-provider::test-model' as const
 
     manager.send({
