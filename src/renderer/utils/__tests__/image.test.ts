@@ -201,6 +201,47 @@ describe('utils/image', () => {
       expect(result).toBe(finalCanvas)
     })
 
+    it('inlines file image sources while capturing and restores them afterward', async () => {
+      const originalApi = window.api
+      const fsRead = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]))
+      Object.assign(window, {
+        api: {
+          ...originalApi,
+          fs: {
+            ...originalApi?.fs,
+            read: fsRead
+          }
+        }
+      })
+
+      try {
+        const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+        vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node, options) => {
+          expect((node.querySelector('img') as HTMLImageElement).src).toMatch(/^data:image\/webp;base64,/)
+          expect(options?.imagePlaceholder).toMatch(/^data:image\//)
+          return finalCanvas
+        })
+
+        const div = document.createElement('div')
+        const image = document.createElement('img')
+        image.src = 'file:///tmp/avatar.webp'
+        image.srcset = 'file:///tmp/avatar@2x.webp 2x'
+        div.appendChild(image)
+        Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+        Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+        const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+        await expect(captureScrollable(ref)).resolves.toBe(finalCanvas)
+
+        expect(fsRead).toHaveBeenCalledTimes(1)
+        expect(fsRead).toHaveBeenCalledWith('file:///tmp/avatar.webp')
+        expect(image.getAttribute('src')).toBe('file:///tmp/avatar.webp')
+        expect(image.getAttribute('srcset')).toBe('file:///tmp/avatar@2x.webp 2x')
+      } finally {
+        Object.assign(window, { api: originalApi })
+      }
+    })
+
     it('should restore styles when html-to-image capture fails', async () => {
       vi.mocked(htmlToImage.toCanvas).mockRejectedValueOnce(new Error('capture failed'))
 

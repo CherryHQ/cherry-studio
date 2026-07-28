@@ -6,6 +6,7 @@ import { Base64 } from 'js-base64'
 import mime from 'mime'
 
 const logger = loggerService.withContext('Utils:image')
+const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
 
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
 
@@ -15,6 +16,68 @@ const loadHtmlToImage = () => {
     throw error
   })
   return htmlToImagePromise
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+      } else {
+        reject(new Error('Failed to encode image blob'))
+      }
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image blob'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function inlineLocalImageSources(root: HTMLElement): Promise<() => void> {
+  const images = [
+    ...(root instanceof HTMLImageElement ? [root] : []),
+    ...root.querySelectorAll<HTMLImageElement>('img')
+  ].filter((image) => image.src.startsWith('file://'))
+
+  const originalSources = images.map((image) => ({
+    image,
+    src: image.getAttribute('src'),
+    srcset: image.getAttribute('srcset')
+  }))
+  const dataUrlBySource = new Map<string, Promise<string>>()
+
+  await Promise.all(
+    originalSources.map(async ({ image }) => {
+      const source = image.src
+      let dataUrlPromise = dataUrlBySource.get(source)
+      if (!dataUrlPromise) {
+        dataUrlPromise = getImageBlobFromSource(source).then(blobToDataUrl)
+        dataUrlBySource.set(source, dataUrlPromise)
+      }
+
+      try {
+        image.removeAttribute('srcset')
+        image.src = await dataUrlPromise
+      } catch (error) {
+        logger.warn('Failed to inline local image for capture', error as Error, { source })
+      }
+    })
+  )
+
+  return () => {
+    for (const { image, src, srcset } of originalSources) {
+      if (src === null) {
+        image.removeAttribute('src')
+      } else {
+        image.setAttribute('src', src)
+      }
+      if (srcset === null) {
+        image.removeAttribute('srcset')
+      } else {
+        image.setAttribute('srcset', srcset)
+      }
+    }
+  }
 }
 
 /**
@@ -117,6 +180,7 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
     }
 
     const originalScrollTop = el.scrollTop
+    let restoreLocalImageSources: (() => void) | undefined
 
     try {
       // Hide scrollbars during capture
@@ -152,10 +216,13 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         return true
       }
 
+      restoreLocalImageSources = await inlineLocalImageSources(el)
+
       const captureOptions = {
         filter: filterHiddenElements,
         backgroundColor: getComputedStyle(el).getPropertyValue('--background'),
         cacheBust: true,
+        imagePlaceholder: TRANSPARENT_IMAGE_PLACEHOLDER,
         pixelRatio: window.devicePixelRatio,
         skipAutoScale: true,
         canvasWidth: el.scrollWidth,
@@ -175,6 +242,8 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       logger.error('Error capturing scrollable element:', error as Error)
       throw error
     } finally {
+      restoreLocalImageSources?.()
+
       // Restore original styles
       el.style.height = originalStyle.height
       el.style.maxHeight = originalStyle.maxHeight
