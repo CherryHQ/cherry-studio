@@ -11,8 +11,9 @@ import MessageTokens from '../MessageTokens'
 
 const dataApiMocks = vi.hoisted(() => ({
   useInfiniteQuery: vi.fn(() => ({
-    pages: [],
+    pages: [] as Array<{ items: unknown[]; nextCursor?: string }>,
     isLoading: false,
+    isRefreshing: false,
     hasNext: false,
     loadNext: vi.fn()
   })),
@@ -48,6 +49,10 @@ const translations: Record<string, string> = {
   'chat.message.token_details.cache_write': 'Cache write',
   'chat.message.token_details.input': 'Input',
   'chat.message.token_details.input_breakdown': 'Input breakdown',
+  'chat.message.token_details.lane_approval': 'Approval',
+  'chat.message.token_details.lane_model': 'Model',
+  'chat.message.token_details.lane_other': 'Other',
+  'chat.message.token_details.lane_tool': 'Tool',
   'chat.message.token_details.output': 'Output',
   'chat.message.token_details.reasoning': 'Reasoning',
   'chat.message.token_details.reasoning_time': 'Reasoning',
@@ -163,6 +168,28 @@ describe('MessageTokens', () => {
     )
   })
 
+  it('loads remaining invocation pages while the duration distribution is open', () => {
+    const loadNext = vi.fn()
+    dataApiMocks.useInfiniteQuery.mockReturnValue({
+      pages: [{ items: [], nextCursor: 'next' }],
+      isLoading: false,
+      isRefreshing: false,
+      hasNext: true,
+      loadNext
+    })
+
+    renderWithProvider(
+      createMessage('assistant', {
+        outputTokens: 10,
+        runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
+      })
+    )
+
+    expect(loadNext).not.toHaveBeenCalled()
+    fireEvent.mouseEnter(screen.getByTestId('message-token-hover-root'))
+    expect(loadNext).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps user messages compact without rendering the assistant detail card', () => {
     const { container } = renderWithProvider(createMessage('user', { totalTokens: 42 }))
     const tokenStats = container.querySelector('.message-tokens')
@@ -271,6 +298,35 @@ describe('MessageTokens', () => {
 
     fireEvent.pointerEnter(screen.getByTestId('metric-segment-request-duration-text-generation'))
     expect(screen.getByTestId('metric-detail-request-duration')).toHaveTextContent('10s · 71.4%')
+  })
+
+  it('shows the runtime duration distribution without a per-step detail list', () => {
+    renderWithProvider(
+      createMessage('assistant', {
+        outputTokens: 100,
+        runtimeTiming: {
+          startedAt: 1_000,
+          completedAt: 5_000,
+          spans: [
+            {
+              id: 'tool:read',
+              kind: 'tool-execution',
+              toolCallId: 'read',
+              toolName: 'Read',
+              startedAt: 2_000,
+              completedAt: 3_000
+            }
+          ]
+        }
+      })
+    )
+
+    const timeline = screen.getByTestId('message-performance-timeline')
+    expect(within(timeline).getByText('Model')).toBeInTheDocument()
+    expect(within(timeline).getByText('Tool')).toBeInTheDocument()
+    expect(within(timeline).getByText('Approval')).toBeInTheDocument()
+    expect(within(timeline).getByText('Other')).toBeInTheDocument()
+    expect(screen.queryByTestId('message-performance-steps')).not.toBeInTheDocument()
   })
 
   it('omits unavailable performance measurements instead of rendering zero values', () => {

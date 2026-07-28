@@ -11,17 +11,6 @@ export interface MessagePerformanceInterval {
   completedAt: number
 }
 
-export interface MessagePerformanceStep {
-  id: string
-  kind: Exclude<MessagePerformanceLaneId, 'other'>
-  label?: string
-  startedAt?: number
-  completedAt?: number
-  durationMs?: number
-  outputTokens?: number
-  tokensPerSecond?: number
-}
-
 export interface MessagePerformanceViewModel {
   startedAt?: number
   completedAt?: number
@@ -29,15 +18,6 @@ export interface MessagePerformanceViewModel {
   modelTokensPerSecond?: number
   endToEndTokensPerSecond?: number
   intervals: MessagePerformanceInterval[]
-  steps: MessagePerformanceStep[]
-}
-
-function generationDurationMs(record: AiUsageRecordEntry): number | undefined {
-  if (record.timeCompletionMs === null || record.timeCompletionMs <= 0) return undefined
-  if (record.timeFirstTokenMs !== null && record.timeFirstTokenMs < record.timeCompletionMs) {
-    return record.timeCompletionMs - record.timeFirstTokenMs
-  }
-  return record.timeCompletionMs
 }
 
 function intervalFromRuntimeSpan(span: MessageRuntimeSpan, rangeEnd: number): MessagePerformanceInterval | undefined {
@@ -106,16 +86,6 @@ function buildRuntimeViewModel(
   const runtimeIntervals = runtime.spans
     .map((span) => intervalFromRuntimeSpan(span, rangeEnd))
     .filter((span): span is MessagePerformanceInterval => span !== undefined)
-  const steps: MessagePerformanceStep[] = runtime.spans.map((span) => {
-    const completedAt = span.completedAt
-    return {
-      id: span.id,
-      kind: span.kind === 'tool-execution' ? 'tool' : 'approval',
-      label: span.toolName ?? (span.kind === 'tool-execution' ? span.toolCallId : span.approvalId),
-      startedAt: span.startedAt,
-      ...(completedAt !== undefined ? { completedAt, durationMs: Math.max(0, completedAt - span.startedAt) } : {})
-    }
-  })
 
   const modelIntervals: MessagePerformanceInterval[] = []
   for (const record of records) {
@@ -124,21 +94,7 @@ function buildRuntimeViewModel(
     const fullDurationMs = record.timeCompletionMs ?? undefined
     const startedAt =
       Number.isFinite(completedAt) && fullDurationMs !== undefined ? completedAt - fullDurationMs : undefined
-    const generationMs = generationDurationMs(record)
-    const outputTokens = record.outputTokens ?? undefined
-    const tokensPerSecond =
-      outputTokens !== undefined && generationMs !== undefined && generationMs > 0
-        ? outputTokens / (generationMs / 1000)
-        : undefined
     const label = record.modelName ?? record.modelId ?? record.providerName ?? record.providerId ?? record.modality
-    steps.push({
-      id: record.id,
-      kind: 'model',
-      label,
-      ...(startedAt !== undefined ? { startedAt, completedAt, durationMs: fullDurationMs } : {}),
-      ...(outputTokens !== undefined ? { outputTokens } : {}),
-      ...(tokensPerSecond !== undefined ? { tokensPerSecond } : {})
-    })
     if (startedAt !== undefined && completedAt > startedAt) {
       modelIntervals.push({
         id: record.id,
@@ -170,24 +126,17 @@ function buildRuntimeViewModel(
     totalDurationMs,
     modelTokensPerSecond,
     endToEndTokensPerSecond,
-    intervals: [...measuredIntervals, ...complementIntervals(runtime.startedAt, rangeEnd, measuredIntervals)],
-    steps: steps.sort(
-      (left, right) =>
-        (left.startedAt ?? Number.POSITIVE_INFINITY) - (right.startedAt ?? Number.POSITIVE_INFINITY) ||
-        left.id.localeCompare(right.id)
-    )
+    intervals: [...measuredIntervals, ...complementIntervals(runtime.startedAt, rangeEnd, measuredIntervals)]
   }
 }
 
 function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel {
   const completion = stats.timeCompletionMs
-  if (completion === undefined || completion <= 0) return { intervals: [], steps: [] }
+  if (completion === undefined || completion <= 0) return { intervals: [] }
 
   const firstToken = Math.min(stats.timeFirstTokenMs ?? 0, completion)
   const reasoning = Math.min(Math.max(stats.timeThinkingMs ?? 0, 0), completion)
   const waiting = Math.max(0, firstToken - Math.min(reasoning, firstToken))
-  const modelStartedAt = waiting
-  const modelDuration = Math.max(0, completion - modelStartedAt)
   const outputTokens = stats.outputTokens
   const generationDuration = completion - firstToken
   const modelTokensPerSecond =
@@ -232,21 +181,7 @@ function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel 
     totalDurationMs: completion,
     modelTokensPerSecond,
     endToEndTokensPerSecond,
-    intervals,
-    steps:
-      modelDuration > 0
-        ? [
-            {
-              id: 'legacy-model',
-              kind: 'model',
-              startedAt: modelStartedAt,
-              completedAt: completion,
-              durationMs: modelDuration,
-              ...(outputTokens !== undefined ? { outputTokens } : {}),
-              ...(modelTokensPerSecond !== undefined ? { tokensPerSecond: modelTokensPerSecond } : {})
-            }
-          ]
-        : []
+    intervals
   }
 }
 

@@ -47,11 +47,11 @@ function streamOf(parts: readonly LanguageModelV3StreamPart[]): ReadableStream<L
   })
 }
 
-function getGatewayUsageNormalizeMiddleware(): LanguageModelMiddleware {
+async function getGatewayUsageNormalizeMiddleware(): Promise<LanguageModelMiddleware> {
   const [plugin] = gatewayUsageNormalizeFeature.contributeModelAdapters!({} as never)
   if (!plugin) throw new Error('gateway usage plugin was not contributed')
   const requestContext = { middlewares: [] as LanguageModelMiddleware[] }
-  plugin.configureContext!(requestContext as never)
+  await plugin.configureContext!(requestContext as never)
   const middleware = requestContext.middlewares[0]
   if (!middleware) throw new Error('gateway usage middleware was not registered')
   return middleware
@@ -203,7 +203,7 @@ describe('createLanguageUsageMiddleware', () => {
 
   it('records normalized gateway usage instead of the provider flat shape', async () => {
     const capture = createLanguageUsageMiddleware(context)
-    const gatewayUsageNormalizeMiddleware = getGatewayUsageNormalizeMiddleware()
+    const gatewayUsageNormalizeMiddleware = await getGatewayUsageNormalizeMiddleware()
     const rawFinish = {
       type: 'finish',
       finishReason: { unified: 'stop', raw: 'stop' },

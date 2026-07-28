@@ -3,7 +3,7 @@ import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/use
 import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MessageStats } from '@shared/data/types/message'
 import type { FC } from 'react'
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMessageListActions } from '../MessageListProvider'
@@ -43,7 +43,7 @@ function AssistantMessageTokens({
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const contentId = useId()
   const messageKind = isAgentSessionTopicId(message.topicId) ? 'agent-session' : 'chat'
-  const { pages, isLoading, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
+  const { pages, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
     enabled: isDetailsOpen && message.stats?.runtimeTiming !== undefined,
     query: {
       messageKind,
@@ -54,6 +54,18 @@ function AssistantMessageTokens({
     limit: 200
   })
   const records = useInfiniteFlatItems(pages)
+  const requestedPageCountRef = useRef(1)
+
+  useEffect(() => {
+    if (!isDetailsOpen) {
+      requestedPageCountRef.current = pages.length
+      return
+    }
+    if (isRefreshing || !hasNext || requestedPageCountRef.current > pages.length) return
+
+    requestedPageCountRef.current = pages.length + 1
+    loadNext()
+  }, [hasNext, isDetailsOpen, isRefreshing, loadNext, pages.length])
 
   return (
     <HoverCard open={isDetailsOpen} onOpenChange={setIsDetailsOpen} openDelay={200} closeDelay={100}>
@@ -75,14 +87,7 @@ function AssistantMessageTokens({
         sideOffset={8}
         collisionPadding={12}
         className="w-[28rem] max-w-(--radix-hover-card-content-available-width) p-0">
-        <MessageTokenDetailsCard
-          message={message}
-          records={records}
-          isRecordsLoading={isLoading}
-          hasMoreRecords={hasNext}
-          onLoadMoreRecords={loadNext}
-          showAllDetails={showAllDetails}
-        />
+        <MessageTokenDetailsCard message={message} records={records} showAllDetails={showAllDetails} />
       </HoverCardContent>
     </HoverCard>
   )

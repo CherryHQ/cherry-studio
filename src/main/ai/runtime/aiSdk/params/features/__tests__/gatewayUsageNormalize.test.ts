@@ -3,21 +3,21 @@ import { describe, expect, it } from 'vitest'
 
 import { gatewayUsageNormalizeFeature, normalizeGatewayUsage } from '../gatewayUsageNormalize'
 
-function getGatewayUsageNormalizeMiddleware(): LanguageModelMiddleware {
+async function getGatewayUsageNormalizeMiddleware(): Promise<LanguageModelMiddleware> {
   const [plugin] = gatewayUsageNormalizeFeature.contributeModelAdapters!({} as never)
   if (!plugin) throw new Error('gateway usage plugin was not contributed')
   const context = { middlewares: [] as LanguageModelMiddleware[] }
-  plugin.configureContext!(context as never)
+  await plugin.configureContext!(context as never)
   const middleware = context.middlewares[0]
   if (!middleware) throw new Error('gateway usage middleware was not registered')
   return middleware
 }
 
 describe('normalizeGatewayUsage', () => {
-  it('runs as the innermost provider adapter for streaming and non-streaming calls', () => {
+  it('runs as the innermost provider adapter for streaming and non-streaming calls', async () => {
     const [plugin] = gatewayUsageNormalizeFeature.contributeModelAdapters!({} as never)
     if (!plugin) throw new Error('gateway usage plugin was not contributed')
-    const middleware = getGatewayUsageNormalizeMiddleware()
+    const middleware = await getGatewayUsageNormalizeMiddleware()
 
     expect(plugin.enforce).toBe('post')
     expect(middleware.wrapGenerate).toBeDefined()
@@ -25,7 +25,8 @@ describe('normalizeGatewayUsage', () => {
   })
 
   it('normalizes non-streaming gateway usage', async () => {
-    const result = await getGatewayUsageNormalizeMiddleware().wrapGenerate!({
+    const middleware = await getGatewayUsageNormalizeMiddleware()
+    const result = await middleware.wrapGenerate!({
       doGenerate: async () =>
         ({
           usage: { inputTokens: 100, outputTokens: 20, cachedInputTokens: 40 }

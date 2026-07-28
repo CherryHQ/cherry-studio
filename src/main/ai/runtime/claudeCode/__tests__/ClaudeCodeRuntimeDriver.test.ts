@@ -1063,7 +1063,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     })
 
-    connection.close()
+    await connection.close()
     const remaining: any[] = []
     for (;;) {
       const event = await events.next()

@@ -221,16 +221,10 @@ function PerformanceTimeline({
 const MessageTokenDetailsCard = ({
   message,
   records = [],
-  isRecordsLoading = false,
-  hasMoreRecords = false,
-  onLoadMoreRecords,
   showAllDetails = false
 }: {
   message: MessageListItem
   records?: readonly AiUsageRecordEntry[]
-  isRecordsLoading?: boolean
-  hasMoreRecords?: boolean
-  onLoadMoreRecords?: () => void
   showAllDetails?: boolean
 }) => {
   const { t, i18n } = useTranslation()
@@ -461,46 +455,6 @@ const MessageTokenDetailsCard = ({
           }}
           showAllDetails={showAllDetails}
         />
-
-        {performance.steps.length > 0 || isRecordsLoading ? (
-          <section className="space-y-1 border-border-muted border-t pt-2" data-testid="message-performance-steps">
-            <div className="text-[11px] text-foreground-muted leading-4">{t('chat.message.token_details.steps')}</div>
-            {performance.steps.map((step) => {
-              const laneLabel = laneLabels[step.kind]
-              const stepLabel = step.label ? `${laneLabel} · ${step.label}` : laneLabel
-              return (
-                <div key={step.id} className="flex min-w-0 items-start justify-between gap-3 text-xs leading-5">
-                  <span className="min-w-0 truncate text-foreground-secondary" title={stepLabel}>
-                    {stepLabel}
-                  </span>
-                  <span className="shrink-0 text-foreground tabular-nums">
-                    {step.durationMs === undefined
-                      ? t('chat.message.token_details.not_available')
-                      : step.tokensPerSecond !== undefined
-                        ? `${formatMilliseconds(step.durationMs)} · ${t(
-                            'chat.message.token_details.tokens_per_second_value',
-                            { value: decimalFormatter.format(step.tokensPerSecond) }
-                          )}`
-                        : formatMilliseconds(step.durationMs)}
-                  </span>
-                </div>
-              )
-            })}
-            {isRecordsLoading ? (
-              <div className="text-[11px] text-foreground-muted leading-4">
-                {t('chat.message.token_details.loading_steps')}
-              </div>
-            ) : null}
-            {hasMoreRecords && onLoadMoreRecords ? (
-              <button
-                type="button"
-                className="text-[11px] text-primary leading-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                onClick={onLoadMoreRecords}>
-                {t('chat.message.token_details.load_more_steps')}
-              </button>
-            ) : null}
-          </section>
-        ) : null}
       </div>
     </div>
   )

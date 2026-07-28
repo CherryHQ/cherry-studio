@@ -94,7 +94,7 @@ describe('message performance view model', () => {
     expect(view.modelTokensPerSecond).toBe(30)
     expect(view.endToEndTokensPerSecond).toBe(20)
     expect(view.totalDurationMs).toBe(5_000)
-    expect(view.steps.find((step) => step.id.endsWith('2'))?.durationMs).toBeUndefined()
+    expect(view.intervals.some((interval) => interval.id.endsWith('2'))).toBe(false)
   })
 
   it('keeps parallel spans overlapping instead of adding them into percentages', () => {

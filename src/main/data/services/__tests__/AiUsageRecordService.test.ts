@@ -14,8 +14,8 @@ import { createLanguageUsageMiddleware } from '@main/ai/hooks/billingHook'
 import { gatewayUsageNormalizeFeature } from '@main/ai/runtime/aiSdk/params/features/gatewayUsageNormalize'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
 import type { LanguageModelMiddleware } from 'ai'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
@@ -66,11 +66,11 @@ function invocation(overrides: Partial<RecordAiInvocationInput> = {}): RecordAiI
   }
 }
 
-function getGatewayUsageNormalizeMiddleware(): LanguageModelMiddleware {
+async function getGatewayUsageNormalizeMiddleware(): Promise<LanguageModelMiddleware> {
   const [plugin] = gatewayUsageNormalizeFeature.contributeModelAdapters!({} as never)
   if (!plugin) throw new Error('gateway usage plugin was not contributed')
   const requestContext = { middlewares: [] as LanguageModelMiddleware[] }
-  plugin.configureContext!(requestContext as never)
+  await plugin.configureContext!(requestContext as never)
   const middleware = requestContext.middlewares[0]
   if (!middleware) throw new Error('gateway usage middleware was not registered')
   return middleware
@@ -177,7 +177,7 @@ describe('AiUsageRecordService', () => {
 
   it('persists normalized gateway tokens and computed cost from a flat finish chunk', async () => {
     const capture = createLanguageUsageMiddleware(context())
-    const gateway = getGatewayUsageNormalizeMiddleware()
+    const gateway = await getGatewayUsageNormalizeMiddleware()
     const flatFinish = {
       type: 'finish',
       finishReason: { unified: 'stop', raw: 'stop' },

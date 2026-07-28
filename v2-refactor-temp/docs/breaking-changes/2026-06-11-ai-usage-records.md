@@ -91,7 +91,9 @@ Credential attribution shows its confidence:
   tool duration comes from SDK `PostToolUse`/`PostToolUseFailure`, not chunk
   timing.
 - Message details fetch invocation rows lazily through the existing
-  `/ai-usage-records` list with paired `messageKind`/`messageId` filters.
+  `/ai-usage-records` list with paired `messageKind`/`messageId` filters to
+  draw the duration distribution. They do not render an unbounded per-step
+  detail list.
 - Topic duplication copies message content and message-owned timing, but not
   usage/cost/provider-performance facts. The copy therefore does not claim a
   second set of provider invocations.

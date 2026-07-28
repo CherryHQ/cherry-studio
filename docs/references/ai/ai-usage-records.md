@@ -404,9 +404,11 @@ sorts by `createdAt`, `totalTokens`, `cost`, `timeFirstTokenMs`, or
 supplying only one is rejected.
 
 The message details card enables this message-scoped query only while the card
-is open. Its compact model TPS comes from the complete materialized
-`providerPerformance`, so pagination of raw step details cannot change the
-headline value.
+is open and follows its keyset cursor until the message's records are loaded.
+Invocation timestamps supply the Model lane in the duration distribution;
+individual invocation rows are not rendered as a detail list. Its compact
+model TPS comes from the complete materialized `providerPerformance`, so
+record pagination cannot change the headline value.
 
 Stats and timeline queries require an inclusive range of at most 366 days and
 server-limit top-N groups. `recordCount` counts rows; `requestCount` counts
@@ -424,8 +426,9 @@ global SWR focus/reconnect revalidation is disabled.
 - Provider-internal retries invisible to Cherry Studio are not separate calls.
 - Direct Agent SDK steps that omit `ttft_ms`, and all legacy rows, have no
   honest per-call latency.
-- Individual provider steps with missing duration are shown as unavailable and
-  excluded from model TPS rather than estimated from tool/message events.
+- Individual provider steps with missing duration are omitted from the
+  duration distribution and excluded from model TPS rather than estimated
+  from tool/message events.
 - Rerank is counted but may have null usage and cost.
 - Topic duplication copies content and message-owned timing only. It does not
   duplicate usage/cost/provider-performance facts under new message ids.
