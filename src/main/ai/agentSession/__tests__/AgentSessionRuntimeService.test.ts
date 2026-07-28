@@ -539,13 +539,22 @@ describe('AgentSessionRuntimeService', () => {
       service.closeSession('session-1')
     })
 
-    it('reads the steer message scope when the continuation has one', async () => {
-      const { service, entry } = await rollContinuation(false, false)
+    it('inherits the rolled turn knowledge scope over a steer message carrying a different one', async () => {
+      // The fold gate only proved the two *effective* scopes equal under the binding at injection time
+      // (`resolveKnowledgeBaseScope` collapses an out-of-scope selection onto the whole binding), and
+      // A2 opens no connection — so the rolled turn's raw scope is the one the live query still serves.
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
+      const entry = getEntry(service)
 
-      // Behaviour-preserving for real steers: the fold gate already proved both effective scopes equal
-      // before the roll, so the message stays the source of truth.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: userMessage('user-2', ['kb-2']), systemReminder: true }]
+      })
+      await (service as any).startContinuationTurn(entry)
+
       expect(entry.currentTurn.userMessage.id).toBe('user-2')
-      expect(entry.currentTurn.knowledgeBaseIds).toEqual([])
+      expect(entry.currentTurn.knowledgeBaseIds).toEqual(['kb-1'])
 
       service.closeSession('session-1')
     })

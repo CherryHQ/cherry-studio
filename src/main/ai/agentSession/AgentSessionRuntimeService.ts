@@ -1284,17 +1284,15 @@ export class AgentSessionRuntimeService extends BaseService {
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     const modelId = entry.currentTurn?.modelId ?? entry.modelId
     const reasoningEffort = entry.currentTurn?.reasoningEffort ?? 'default'
-    const steerInput = entry.rollSteerInputs?.[0]?.message
-    const steerMessage = steerInput ?? createSyntheticUserMessage(entry.sessionId)
-    // A continuation without steer inputs (the defensive synthetic-message branch — a real roll always
-    // carries them) has no message to read a scope from, so inherit the rolled turn's scope like
-    // modelId/reasoningEffort above: the same SDK query keeps streaming with the kb_* tools it was
-    // built for, and claiming `[]` here would make the fold gate and push reconcile compare A2 against
-    // a scope the connection is not actually serving. With a real steer the fold gate has already
-    // proven both effective scopes equal, so reading it back off the message is equivalent.
-    const knowledgeBaseIds = steerInput
-      ? (getKnowledgeBaseIdsFromParts(steerInput.data.parts ?? []) ?? [])
-      : (entry.currentTurn?.knowledgeBaseIds ?? [])
+    const steerMessage = entry.rollSteerInputs?.[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
+    // A2 opens no connection, so it must report the scope the still-streaming SDK query actually
+    // serves — inherit the rolled turn's, like modelId/reasoningEffort above. Reading the steer's own
+    // selection back off the message looks equivalent, because the fold gate proved both *effective*
+    // scopes equal before the roll, but that equality only holds under the binding at injection time:
+    // `resolveKnowledgeBaseScope` maps an empty or fully out-of-scope selection onto the whole
+    // binding, so a later binding edit can pull the two raw selections apart while the live-turn
+    // rebuild is still deferred, leaving the query serving one set and our bookkeeping claiming another.
+    const knowledgeBaseIds = entry.currentTurn?.knowledgeBaseIds ?? []
     const headless = entry.rollHeadless === true
     entry.rollSteerInputs = undefined
     entry.rollHeadless = undefined
