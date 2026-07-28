@@ -333,6 +333,21 @@ function copiedWorkspaceLinkTarget(
   return path.resolve(path.dirname(finalDestinationPath), migratedTarget)
 }
 
+async function createWorkspaceLink(linkTarget: string, linkPath: string, linkType: WorkspaceLinkType): Promise<void> {
+  if (!isWin || linkType !== 'dir') {
+    await symlink(linkTarget, linkPath, linkType)
+    return
+  }
+
+  try {
+    await symlink(linkTarget, linkPath, 'junction')
+  } catch {
+    // Junctions avoid Windows symlink privileges but cannot represent every
+    // directory target, including network shares. Preserve those as dir links.
+    await symlink(linkTarget, linkPath, 'dir')
+  }
+}
+
 async function copyWorkspaceLink(
   sourcePath: string,
   copiedPath: string,
@@ -352,10 +367,10 @@ async function copyWorkspaceLink(
     agentDataPath
   )
   await mkdir(path.dirname(copiedPath), { recursive: true })
-  await symlink(
+  await createWorkspaceLink(
     copiedWorkspaceLinkTarget(migratedTarget, finalDestinationPath, linkType),
     copiedPath,
-    isWin && linkType === 'dir' ? 'junction' : linkType
+    linkType
   )
 }
 
@@ -709,7 +724,7 @@ async function publishStagedWorkspaceEntry(
   const stagingStat = await lstat(stagingPath)
   if (stagingStat.isSymbolicLink()) {
     const linkType = sourceLinkType ?? (await workspaceLinkType(stagingPath))
-    await symlink(await readlink(stagingPath), destinationPath, isWin && linkType === 'dir' ? 'junction' : linkType)
+    await createWorkspaceLink(await readlink(stagingPath), destinationPath, linkType)
     return
   }
   if (stagingStat.isFile()) {

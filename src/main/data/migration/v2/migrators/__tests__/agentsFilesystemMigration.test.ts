@@ -30,6 +30,7 @@ const { copyMutation, platformState } = vi.hoisted(() => ({
   copyMutation: {
     afterCopy: undefined as undefined | ((sourcePath: string) => Promise<void>),
     beforeRealpath: undefined as undefined | ((sourcePath: string) => Promise<void>),
+    beforeSymlink: undefined as undefined | ((target: string, path: string, type?: string | null) => Promise<void>),
     symlinkCalls: [] as Array<[target: string, path: string, type?: string | null]>
   },
   platformState: { isWin: false }
@@ -71,6 +72,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     },
     symlink: async (...args: Parameters<typeof original.symlink>) => {
       copyMutation.symlinkCalls.push([String(args[0]), String(args[1]), args[2]])
+      await copyMutation.beforeSymlink?.(String(args[0]), String(args[1]), args[2])
       return original.symlink(...args)
     }
   }
@@ -130,6 +132,7 @@ describe('agentsFilesystemMigration', () => {
   afterEach(async () => {
     copyMutation.afterCopy = undefined
     copyMutation.beforeRealpath = undefined
+    copyMutation.beforeSymlink = undefined
     copyMutation.symlinkCalls.length = 0
     platformState.isWin = false
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
@@ -168,6 +171,52 @@ describe('agentsFilesystemMigration', () => {
         expect.stringMatching(/[\\/]\.01257168-34a7-5ff9-994d-bf78596c777c\.migration-[^\\/]+[\\/]find-skills$/),
         'junction'
       ])
+    }
+  )
+
+  it.runIf(process.platform !== 'win32')(
+    'falls back to a directory symlink when publishing a top-level Windows junction fails',
+    async () => {
+      const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
+      const sharedDirectory = path.join(tempRoot, 'shared-directory')
+      const sourceLink = path.join(legacyWorkspace, 'shared-directory')
+      await mkdir(sharedDirectory, { recursive: true })
+      await writeFile(path.join(sharedDirectory, 'shared.txt'), 'shared content')
+      await mkdir(legacyWorkspace, { recursive: true })
+      await symlink(sharedDirectory, sourceLink, 'dir')
+      copyMutation.symlinkCalls.length = 0
+      copyMutation.beforeSymlink = async (_target, _linkPath, type) => {
+        if (type !== 'junction') return
+        const error = new Error('junction target is not supported')
+        Object.assign(error, { code: 'EPERM', syscall: 'symlink' })
+        throw error
+      }
+      platformState.isWin = true
+
+      const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+        sourceSessionId: 'session_latest',
+        finalSessionId: FINAL_LATEST_SESSION_ID,
+        createdAt: Date.parse('2026-07-22T00:00:00Z'),
+        updatedAt: Date.parse('2026-07-23T00:00:00Z')
+      })
+
+      await stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [latestSession]
+      })
+
+      const destinationLink = path.join(latestSession.systemWorkspacePath!, 'shared-directory')
+      const stagingLinkPattern = /[\\/]\.01257168-34a7-5ff9-994d-bf78596c777c\.migration-[^\\/]+$/
+      expect(await readlink(destinationLink)).toBe(sharedDirectory)
+      expect(copyMutation.symlinkCalls).toEqual(
+        expect.arrayContaining([
+          [sharedDirectory, expect.stringMatching(stagingLinkPattern), 'junction'],
+          [sharedDirectory, expect.stringMatching(stagingLinkPattern), 'dir'],
+          [sharedDirectory, destinationLink, 'junction'],
+          [sharedDirectory, destinationLink, 'dir']
+        ])
+      )
     }
   )
 
