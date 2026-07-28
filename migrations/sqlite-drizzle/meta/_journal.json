@@ -179,8 +179,15 @@
     {
       "idx": 25,
       "version": "6",
-      "when": 1785142312164,
-      "tag": "0025_sweet_exiles",
+      "when": 1785156162040,
+      "tag": "0025_cold_whistler",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1785221482684,
+      "tag": "0026_military_wolverine",
       "breakpoints": true
     }
   ],

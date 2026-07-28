@@ -18,7 +18,8 @@ const {
   mockGetPath,
   mockApplicationGet,
   mockLoadBuiltinAgentDefinition,
-  mockGetAppLanguage
+  mockGetAppLanguage,
+  mockBuildPrompt
 } = vi.hoisted(() => ({
   mockFindBySessionId: vi.fn(),
   mockMkdir: vi.fn(),
@@ -26,7 +27,8 @@ const {
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
   mockApplicationGet: vi.fn(),
   mockLoadBuiltinAgentDefinition: vi.fn(),
-  mockGetAppLanguage: vi.fn(() => 'en-US')
+  mockGetAppLanguage: vi.fn(() => 'en-US'),
+  mockBuildPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT')
 }))
 
 vi.mock('@logger', () => ({
@@ -76,7 +78,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT') }))
+  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: mockBuildPrompt }))
 }))
 
 const { buildSystemPrompt } = await import('../settingsBuilder')
@@ -90,6 +92,7 @@ beforeEach(() => {
   mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
   mockFindBySessionId.mockReturnValue(null)
   mockLoadBuiltinAgentDefinition.mockReset()
+  mockBuildPrompt.mockClear()
   mockGetAppLanguage.mockReturnValue('en-US')
 })
 
@@ -102,6 +105,24 @@ function makeAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
 }
 
 describe('buildSystemPrompt — current workspace', () => {
+  it('loads prompt identity and memory from agent data while keeping workspace context on cwd', async () => {
+    const result = await buildSystemPrompt(
+      makeSession(),
+      makeAgent(),
+      '/workspace/project-a',
+      false,
+      '/data/Agents/agent-1'
+    )
+
+    expect(mockBuildPrompt).toHaveBeenCalledWith(
+      '/workspace/project-a',
+      expect.anything(),
+      false,
+      '/data/Agents/agent-1'
+    )
+    expect(result as string).toContain('"/workspace/project-a"')
+  })
+
   it('injects the current workspace and default path resolution for regular agents', async () => {
     const result = await buildSystemPrompt(makeSession(), makeAgent(), '/workspace/project-a')
 

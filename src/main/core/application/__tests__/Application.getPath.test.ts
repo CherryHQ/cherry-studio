@@ -37,6 +37,7 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
         // Cherry-owned directories (eligible for auto-ensure)
         'feature.files.data': '/mock/userData/Data/Files',
         'feature.notes.data': '/mock/userData/Data/Notes',
+        'feature.agents.system_workspaces': '/mock/userData/Data/Agents/system',
         'cherry.bin': '/mock/home/.cherrystudio/bin',
         // Cherry-owned files (auto-ensure dirname only)
         'feature.copilot.token_file': '/mock/home/.cherrystudio/config/.copilot_token',
@@ -156,6 +157,11 @@ describe('Application.getPath', () => {
 
     it('does not mkdir for keys in the NO_ENSURE exact list (app.extra_resources)', () => {
       app.getPath('app.extra_resources')
+      expect(fs.mkdirSync).not.toHaveBeenCalled()
+    })
+
+    it('does not mkdir the system-workspace root while a DataApi service only resolves its path', () => {
+      expect(app.getPath('feature.agents.system_workspaces')).toBe('/mock/userData/Data/Agents/system')
       expect(fs.mkdirSync).not.toHaveBeenCalled()
     })
 
