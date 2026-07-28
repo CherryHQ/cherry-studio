@@ -102,7 +102,20 @@ async function cancellable<T>(work: () => Promise<T>): Promise<T | null> {
 }
 
 export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
-  'backup.get_status': async () => application.get('BackupService').getStatus(),
+  'backup.get_status': async () => {
+    const status = application.get('BackupService').getStatus()
+    const { restore } = status
+    if (restore.kind !== 'journal') {
+      return { operation: status.operation, restore }
+    }
+    const { degradations, ...journal } = restore
+    return {
+      operation: status.operation,
+      restore: degradations
+        ? { ...journal, degradations: degradations.map((degradation) => ({ ...degradation })) }
+        : journal
+    }
+  },
 
   'backup.export': async ({ preset }, ctx) => {
     assertManagedWindow(ctx)

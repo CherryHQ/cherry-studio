@@ -57,7 +57,9 @@ const RestoreStatusSchema = z.discriminatedUnion('kind', [
     preset: PresetSchema,
     step: z.string().optional(),
     /** A `failed` restore still holding the only copy of what it moved (§6.5). */
-    recoveryIncomplete: z.literal(true).optional()
+    recoveryIncomplete: z.literal(true).optional(),
+    /** What materializing this archive on THIS device reduced (§4). Absent when nothing was. */
+    degradations: z.array(DegradationSchema).optional()
   })
 ])
 

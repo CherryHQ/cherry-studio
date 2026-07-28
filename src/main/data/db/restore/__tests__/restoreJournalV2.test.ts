@@ -7,7 +7,7 @@ import {
   RESTORE_JOURNAL_VERSION,
   RestoreJournalV2Schema
 } from '../restoreJournalV2'
-import { MAX_RESOURCE_INSTALL_ENTRIES } from '../restoreLimits'
+import { MAX_JOURNAL_DEGRADATIONS, MAX_RESOURCE_INSTALL_ENTRIES } from '../restoreLimits'
 
 const chain = [{ folderMillis: 1_700_000_000_000, hash: 'h1' }]
 const UUID = '11111111-2222-4333-8444-555555555555'
@@ -177,6 +177,35 @@ describe('RestoreJournalV2Schema — frozen restore-install cap', () => {
   it('rejects a completed summary with more knowledgeBaseIds than the cap', () => {
     const overCap = Array.from({ length: MAX_RESOURCE_INSTALL_ENTRIES + 1 }, (_, i) => `kb-${i}`)
     const j = liteJournal({ state: 'completed', summary: { knowledgeBaseIds: overCap } })
+    expect(RestoreJournalV2Schema.safeParse(j).success).toBe(false)
+  })
+
+  it('rejects more degradation lines than the cap, which is why the producer truncates', () => {
+    const overCap = Array.from({ length: MAX_JOURNAL_DEGRADATIONS + 1 }, (_, i) => ({
+      kind: `restore-db:t${i}`,
+      reason: 'path-unportable (1 row)'
+    }))
+    expect(RestoreJournalV2Schema.safeParse(liteJournal({ degradations: overCap })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(liteJournal({ degradations: overCap.slice(0, -1) })).success).toBe(true)
+  })
+})
+
+describe('RestoreJournalV2Schema — degradation report', () => {
+  it('accepts a journal with no degradations at all', () => {
+    expect(RestoreJournalV2Schema.safeParse(liteJournal()).success).toBe(true)
+  })
+
+  it('accepts a reason string this version has never heard of', () => {
+    // The journal is read by a LATER app version. Pinning the report to today's
+    // reason list would let a new reason quarantine a perfectly good restore.
+    const j = liteJournal({ degradations: [{ kind: 'restore-db:future', reason: 'not-yet-invented (7 rows)' }] })
+    expect(RestoreJournalV2Schema.safeParse(j).success).toBe(true)
+  })
+
+  it('rejects a degradation line carrying anything beyond kind and reason (strict)', () => {
+    const j = liteJournal({
+      degradations: [{ kind: 'restore-db:note', reason: 'path-unportable (1 row)', rowId: 'n' }]
+    })
     expect(RestoreJournalV2Schema.safeParse(j).success).toBe(false)
   })
 })

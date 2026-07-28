@@ -33,6 +33,7 @@ import {
   readRestoreJournalV2,
   writeRestoreJournalV2
 } from '@data/db/restore/restoreJournalV2'
+import { MAX_JOURNAL_DEGRADATIONS } from '@data/db/restore/restoreLimits'
 import { loggerService } from '@logger'
 
 import { admitArchive } from './admission/admitArchive'
@@ -40,7 +41,7 @@ import { RestoreStateError } from './errors'
 import type { BackupManifestDegradation, BackupPreset } from './manifest'
 import { currentBackupPlatform } from './platform'
 import { type ManagedRootRebaseTable, prepareManagedRootRebase } from './portability/managedPathRebase'
-import { materializePortableDatabase } from './portability/materializeDatabase'
+import { materializePortableDatabase, summarizeMaterializationDegradations } from './portability/materializeDatabase'
 import { collectResourceRequirements, resolveResourceRoots } from './resources/collectRequirements'
 import { measureResourceCoverage, type ResourceCoverage } from './resources/coverage'
 import { planResourceInstalls } from './resources/planInstalls'
@@ -194,6 +195,15 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
       )
     }
 
+    // The producer's own reductions PLUS what materializing the archive here
+    // reduced (§4). The second half exists only in this process — the staging
+    // tree that produced it is gone by the time the report is rendered after the
+    // relaunch — so the journal is what carries it across.
+    const degradations = [
+      ...admitted.manifest.degradations,
+      ...summarizeMaterializationDegradations(materialized.summary.degradations, 'restore-db')
+    ]
+
     writeRestoreJournalV2({
       version: 2,
       restoreId,
@@ -205,10 +215,17 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
         aside: dbAsideRelPathV2(restoreId),
         chain: materialized.chain.map((entry) => ({ folderMillis: entry.folderMillis, hash: entry.hash }))
       },
-      resourceInstalls: [...plan.entries]
+      resourceInstalls: [...plan.entries],
+      // TRUNCATED, never rejected: the cap protects the one file the boot path
+      // must be able to parse, so an overlong report degrades to a shorter
+      // report — it can never cost the user the restore itself.
+      ...(degradations.length > 0
+        ? {
+            degradations: degradations.slice(0, MAX_JOURNAL_DEGRADATIONS).map(({ kind, reason }) => ({ kind, reason }))
+          }
+        : {})
     })
 
-    const degradations = admitted.manifest.degradations
     logger.info('Restore prepared', {
       restoreId,
       preset,

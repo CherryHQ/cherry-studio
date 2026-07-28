@@ -347,6 +347,14 @@ prepared → armed → promoting → completed | failed | expired
 Only `armed` enters promotion. Once armed, later local DB writes are intentionally
 replaced.
 
+Every state also carries the **degradation report** — what materializing this
+archive against this device reduced (§4), aggregated per `(table, reason)`. It
+lives in the journal rather than in memory because the report is shown after the
+relaunch, once the staging tree that produced it is gone; without it a degraded
+restore would present as a complete one. The producer **truncates** the list to
+its cap instead of failing the write: a report detail must never be able to
+quarantine an otherwise valid journal.
+
 > **Change from current `origin/main`.** Journal v1 (on main) uses states
 > `staged → promoting → completed|failed|expired` with no `prepared`/`armed` split and a
 > live **fingerprint** captured under renderer write-quiesce. v2 removes the fingerprint

@@ -5858,6 +5858,7 @@
           "acknowledge_button": "Keep restored data",
           "acknowledged": "Restore acknowledged. The previous data has been released.",
           "completed_help": "Until you confirm, the previous database and every replaced file are still on this device as rollback material.",
+          "degradations": "{{count}} item(s) were restored in a reduced form.",
           "reconfirm_integrations": "Restored integrations that run programs or reach the network stay off until you confirm them on this device.",
           "recovery_incomplete": "This restore could not put every file back, so the app is still holding the originals. Restart Cherry Studio to finish it — nothing can be released until then.",
           "state": {

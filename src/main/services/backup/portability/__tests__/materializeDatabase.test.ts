@@ -24,7 +24,11 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { prepareManagedRootRebase } from '../managedPathRebase'
-import { type MaterializeMode, materializePortableDatabase } from '../materializeDatabase'
+import {
+  type MaterializeMode,
+  materializePortableDatabase,
+  summarizeMaterializationDegradations
+} from '../materializeDatabase'
 
 /**
  * Real-database proof for portable materialization (Phase 1c-ii). Every fixture
@@ -697,5 +701,51 @@ describe('materializePortableDatabase', () => {
         materializePortableDatabase({ dbPath, mode: EXPORT_MODE, signal: controller.signal })
       ).rejects.toThrow(/cancel/i)
     })
+  })
+})
+
+describe('summarizeMaterializationDegradations', () => {
+  it('folds rows into one line per (table, reason) with a count', () => {
+    const summary = summarizeMaterializationDegradations(
+      [
+        { table: 'note', rowId: 'n-1', reason: 'path-unportable' },
+        { table: 'note', rowId: 'n-2', reason: 'path-unportable' },
+        { table: 'note', rowId: 'n-3', reason: 'path-collision' },
+        { table: 'agent', rowId: 'a-1', reason: 'capability-malformed' }
+      ],
+      'portable-db'
+    )
+
+    expect(summary).toEqual([
+      { kind: 'portable-db:note', reason: 'path-unportable (2 rows)' },
+      { kind: 'portable-db:note', reason: 'path-collision (1 row)' },
+      { kind: 'portable-db:agent', reason: 'capability-malformed (1 row)' }
+    ])
+  })
+
+  it('never leaks a row id or a stored value', () => {
+    // §5.1.1: the detail is structural, and even that stays out of the report —
+    // these lines travel in a manifest an archive carries and in a journal on
+    // disk, neither of which is a place for profile content.
+    const summary = summarizeMaterializationDegradations(
+      [{ table: 'mcp_server', rowId: 'secret-id', reason: 'capability-malformed', detail: 'args' }],
+      'restore-db'
+    )
+
+    expect(JSON.stringify(summary)).not.toContain('secret-id')
+    expect(JSON.stringify(summary)).not.toContain('args')
+  })
+
+  it('names the device the reduction happened on', () => {
+    // A user reading "this came back reduced" must be able to tell whether the
+    // archive never carried it or whether THIS device could not take it.
+    const degradation = { table: 'note', rowId: 'n-1', reason: 'path-unportable' } as const
+
+    expect(summarizeMaterializationDegradations([degradation], 'portable-db')[0].kind).toBe('portable-db:note')
+    expect(summarizeMaterializationDegradations([degradation], 'restore-db')[0].kind).toBe('restore-db:note')
+  })
+
+  it('reports nothing when nothing was reduced', () => {
+    expect(summarizeMaterializationDegradations([], 'restore-db')).toEqual([])
   })
 })

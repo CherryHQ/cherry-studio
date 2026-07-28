@@ -11,3 +11,13 @@
  * higher count remains operationally bounded.
  */
 export const MAX_RESOURCE_INSTALL_ENTRIES = 50_000
+
+/**
+ * Cap on the aggregated degradation lines a journal carries for post-restore
+ * reporting. The list is already folded per `(table, reason)`, so it is bounded
+ * by the schema in practice; this is the hard stop that keeps a journal — the
+ * one file the boot path must be able to parse — small no matter what. The
+ * producer TRUNCATES to this cap rather than letting the write fail: a report
+ * detail must never be able to turn a valid journal into a quarantined one.
+ */
+export const MAX_JOURNAL_DEGRADATIONS = 200

@@ -5858,6 +5858,7 @@
           "acknowledge_button": "保留恢复结果",
           "acknowledged": "已确认恢复，先前的数据已释放。",
           "completed_help": "在你确认之前，先前的数据库和每个被替换的文件仍保留在本机，可用于回滚。",
+          "degradations": "有 {{count}} 项以降级的形式恢复。",
           "reconfirm_integrations": "恢复后会运行程序或访问网络的集成保持关闭，直到你在本机确认。",
           "recovery_incomplete": "这次恢复没能把每个文件都放回原位，应用仍在保留原件。请重启 Cherry Studio 让它完成 —— 在那之前不会释放任何内容。",
           "state": {
