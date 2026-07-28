@@ -229,7 +229,11 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
       // report — it can never cost the user the restore itself.
       ...(degradations.length > 0
         ? {
-            degradations: degradations.slice(0, MAX_JOURNAL_DEGRADATIONS).map(({ kind, reason }) => ({ kind, reason }))
+            degradations: degradations.slice(0, MAX_JOURNAL_DEGRADATIONS).map((degradation) => {
+              const livePath =
+                'livePath' in degradation && typeof degradation.livePath === 'string' ? degradation.livePath : undefined
+              return { kind: degradation.kind, reason: degradation.reason, ...(livePath ? { livePath } : {}) }
+            })
           }
         : {})
     })
