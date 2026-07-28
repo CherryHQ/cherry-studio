@@ -346,11 +346,12 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
     await listener.onPaused({ finalMessage: undefined, status: 'paused' })
 
-    expect(messageUpdateMock).toHaveBeenCalledWith('assistant-1', {
+    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: { parts: [] },
       status: 'paused',
-      stats: undefined
+      runtimeStats: undefined
     })
+    expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
   it('drives the placeholder row to status=error when the persist write fails', async () => {
