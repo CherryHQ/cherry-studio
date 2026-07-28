@@ -16,16 +16,12 @@ import { copilotService } from './services/CopilotService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import LegacyBackupManager from './services/LegacyBackupManager'
-import * as NutstoreService from './services/nutstore/NutstoreService'
 import { decrypt } from './utils/aes'
 import { getDirectorySize } from './utils/fileOperations'
 import { getHostname } from './utils/system'
 import { decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
-
-const backupManager = new LegacyBackupManager()
 
 export async function registerIpc() {
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
@@ -139,26 +135,6 @@ export async function registerIpc() {
   // Git Bash has no IPC: the Claude Code runtime resolves it in-process via
   // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
-  // backup
-  ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToWebdav, backupManager.backupToWebdav.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToLocalDir, backupManager.backupToLocalDir.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_BackupToS3, backupManager.backupToS3.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
-  ipcMain.handle(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
-
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open.bind(fileManager))
   ipcMain.handle(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
@@ -206,13 +182,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Copilot_GetToken, copilotService.getToken.bind(copilotService))
   ipcMain.handle(IpcChannel.Copilot_Logout, copilotService.logout.bind(copilotService))
   ipcMain.handle(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
-
-  // nutstore
-  ipcMain.handle(IpcChannel.Nutstore_GetSsoUrl, NutstoreService.getNutstoreSSOUrl.bind(NutstoreService))
-  ipcMain.handle(IpcChannel.Nutstore_DecryptToken, (_, token: string) => NutstoreService.decryptToken(token))
-  ipcMain.handle(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
-    NutstoreService.getDirectoryContents(token, path)
-  )
 
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())

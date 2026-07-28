@@ -13,6 +13,10 @@ manifest.json
 backup.sqlite
 ```
 
+## Legacy v1 convergence
+
+Version-1 restore compatibility is read-only upgrade convergence: preboot may read and execute an already-on-disk version-1 journal to reach a terminal state. No running application route creates a version-1 journal, accepts a legacy archive, or exposes a legacy backup/restore IPC or preload API.
+
 `manifest.json` has literal `preset: "lite"`; no alternate preset, empty resource list, or future extension payload is accepted. Its bounded `degradations` report contains only closed `{ code, count }` portable-DB sanitation aggregates—never row IDs, paths, or field details.
 
 ## Safety boundary

@@ -80,8 +80,7 @@ export const PREFERENCE_RESET_KEYS = [
   'app.proxy.bypass_rules',
 
   // -- Producer-local filesystem selections (§3.1 "reset selecting preferences") --
-  // Absolute local backup directory: resolved and read from
-  // (src/renderer/services/BackupService.ts:1152) and written to by auto-backup.
+  // Retained version-1 local backup directory; no version-2 runtime consumes it.
   'data.backup.local.dir',
   // When set, exports are written straight into this absolute directory instead
   // of prompting (src/renderer/services/ExportService.ts:362,403,446), so a
@@ -143,17 +142,10 @@ export const PREFERENCE_RESET_KEYS = [
   // Deleting it regenerates a fresh one.
   'feature.api_gateway.api_key',
 
-  // -- Automatic remote sync (armed capability, §1.5) --
-  // `startAutoSync()` arms a recurring upload for every destination whose
-  // auto-sync flag and endpoint are both set
-  // (src/renderer/services/BackupService.ts:585-593), reachable as soon as the
-  // Data Settings page mounts (e.g.
-  // src/renderer/pages/settings/DataSettings/WebDavSettings.tsx:54). Since the
-  // archive also supplies the destination host and credentials in plaintext,
-  // preserving these flags would let a restored archive automatically upload the
-  // TARGET user's database to a destination the archive chose. The destination
-  // config itself is preserved (as with MCP `command`); only the automation is
-  // reset, so the user re-confirms with one switch.
+  // -- Legacy remote-sync preferences --
+  // These version-1 preferences remain for upgrade compatibility but have no
+  // version-2 runtime consumer. Reset them so restored archives cannot retain
+  // a producer's formerly armed sync configuration.
   'data.backup.local.auto_sync',
   'data.backup.nutstore.auto_sync',
   'data.backup.s3.auto_sync',
