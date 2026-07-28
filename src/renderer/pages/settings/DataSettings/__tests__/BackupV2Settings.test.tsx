@@ -4,7 +4,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { requestMock } = vi.hoisted(() => ({ requestMock: vi.fn() }))
@@ -23,7 +23,9 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingDivider: () => <hr />,
   SettingGroup: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
   SettingHelpText: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SettingRow: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SettingRow: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div className={className}>{children}</div>
+  ),
   SettingRowTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   SettingTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>
 }))
@@ -65,21 +67,30 @@ function click(name: string, index = 0) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(popup.confirm).mockResolvedValue(true)
   statusIs({ kind: 'none' })
 })
 
 describe('BackupV2Settings', () => {
-  it('offers both presets and says a restore replaces the database', async () => {
+  it('keeps the original compact surface and asks for the v2 preset only when backing up', async () => {
     await renderSettings()
 
-    expect(screen.getByText('settings.data.backup_v2.export.lite_help')).toBeInTheDocument()
-    expect(screen.getByText('settings.data.backup_v2.export.full_help')).toBeInTheDocument()
+    const backupButton = screen.getByRole('button', { name: 'settings.general.backup.button' })
+    const restoreButton = screen.getByRole('button', { name: 'settings.general.restore.button' })
+    expect(backupButton.parentElement).toBe(restoreButton.parentElement)
     expect(screen.getByText('settings.data.backup_v2.export.credentials_warning')).toBeInTheDocument()
     expect(screen.getByText('settings.data.backup_v2.export.integrations_warning')).toBeInTheDocument()
     expect(screen.getByText('settings.data.backup_v2.restore.help')).toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+
+    click('settings.general.backup.button')
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
+    const picker = render(vi.mocked(popup.confirm).mock.calls[0][0].content as React.ReactElement)
+    expect(picker.getByText('settings.data.backup_v2.export.lite_help')).toBeInTheDocument()
+    expect(picker.getByText('settings.data.backup_v2.export.full_help')).toBeInTheDocument()
   })
 
-  it('exports the preset whose button was pressed and re-reads the status', async () => {
+  it('exports the preset selected in the backup dialog and re-reads the status', async () => {
     requestMock.mockImplementation(async (route: string) =>
       route === 'backup.export'
         ? {
@@ -91,25 +102,25 @@ describe('BackupV2Settings', () => {
           }
         : { operation: null, restore: { kind: 'none' } }
     )
+    let resolveConfirm: (confirmed: boolean) => void = () => {}
+    vi.mocked(popup.confirm).mockImplementationOnce(
+      async () => new Promise<boolean>((resolve) => (resolveConfirm = resolve))
+    )
     await renderSettings()
 
-    click('settings.data.backup_v2.export.button')
-
-    await waitFor(() =>
-      expect(requestMock).toHaveBeenCalledWith('backup.export', {
-        preset: 'lite'
-      })
-    )
-    expect(toast.success).toHaveBeenCalledWith('settings.data.backup_v2.export.done')
-    expect(requestMock).toHaveBeenCalledWith('backup.get_status')
-
-    click('settings.data.backup_v2.export.button', 1)
+    click('settings.general.backup.button')
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
+    const picker = render(vi.mocked(popup.confirm).mock.calls[0][0].content as React.ReactElement)
+    fireEvent.click(picker.getByText('settings.data.backup_v2.export.full_title'))
+    await act(async () => resolveConfirm(true))
 
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith('backup.export', {
         preset: 'full'
       })
     )
+    expect(toast.success).toHaveBeenCalledWith('settings.data.backup_v2.export.done')
+    expect(requestMock).toHaveBeenCalledWith('backup.get_status')
   })
 
   it('says nothing when the user dismisses the export dialog', async () => {
@@ -118,7 +129,7 @@ describe('BackupV2Settings', () => {
     )
     await renderSettings()
 
-    click('settings.data.backup_v2.export.button')
+    click('settings.general.backup.button')
 
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith('backup.export', {
@@ -139,7 +150,7 @@ describe('BackupV2Settings', () => {
     )
     await renderSettings()
 
-    click('settings.data.backup_v2.restore.choose_button')
+    click('settings.general.restore.button')
 
     await waitFor(() => expect(screen.getByText('settings.data.backup_v2.preview.destructive')).toBeInTheDocument())
     expect(screen.getByText('settings.data.backup_v2.preview.coverage_counts')).toBeInTheDocument()
@@ -159,7 +170,7 @@ describe('BackupV2Settings', () => {
     )
     vi.mocked(popup.confirm).mockResolvedValueOnce(false)
     await renderSettings()
-    click('settings.data.backup_v2.restore.choose_button')
+    click('settings.general.restore.button')
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.data.backup_v2.restore.arm_button' })))
 
     click('settings.data.backup_v2.restore.arm_button')
@@ -176,7 +187,7 @@ describe('BackupV2Settings', () => {
     )
     vi.mocked(popup.confirm).mockResolvedValueOnce(true)
     await renderSettings()
-    click('settings.data.backup_v2.restore.choose_button')
+    click('settings.general.restore.button')
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.data.backup_v2.restore.arm_button' })))
 
     click('settings.data.backup_v2.restore.arm_button')
@@ -340,7 +351,7 @@ describe('BackupV2Settings', () => {
     })
     await renderSettings()
 
-    click('settings.data.backup_v2.restore.choose_button')
+    click('settings.general.restore.button')
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(message))
   })
@@ -352,13 +363,13 @@ describe('BackupV2Settings', () => {
     })
     await renderSettings()
 
-    click('settings.data.backup_v2.restore.choose_button')
+    click('settings.general.restore.button')
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup_v2.error.unexpected'))
   })
 
   describe('cancelling work in flight', () => {
-    const EXPORT_BUTTON = 'settings.data.backup_v2.export.button'
+    const EXPORT_BUTTON = 'settings.general.backup.button'
 
     /** Hold one route open so the component stays in its running state. */
     function stall(route: string): { finish: (outcome: unknown) => void } {
@@ -375,20 +386,20 @@ describe('BackupV2Settings', () => {
       const stalled = stall('backup.export')
       await renderSettings()
 
-      click(EXPORT_BUTTON) // Lite is the first of the two export rows.
+      click(EXPORT_BUTTON)
 
       await waitFor(() => expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument())
-      // Exactly one export label survives — the row that is NOT running — and it
-      // is disabled, so the cancel affordance sits on the row the user pressed.
-      expect(screen.getByRole('button', { name: EXPORT_BUTTON })).toBeDisabled()
+      // The compact export action becomes cancel in place; restore is disabled
+      // while the service owns the one-operation lock.
+      expect(screen.queryByRole('button', { name: EXPORT_BUTTON })).not.toBeInTheDocument()
       expect(
         screen.getByRole('button', {
-          name: 'settings.data.backup_v2.restore.choose_button'
+          name: 'settings.general.restore.button'
         })
       ).toBeDisabled()
 
       stalled.finish({ status: 'canceled' })
-      await waitFor(() => expect(screen.getAllByRole('button', { name: EXPORT_BUTTON })).toHaveLength(2))
+      await waitFor(() => expect(screen.getByRole('button', { name: EXPORT_BUTTON })).toBeEnabled())
     })
 
     it('asks main to abort while the service is busy — the busy guard must not block it', async () => {
@@ -402,7 +413,7 @@ describe('BackupV2Settings', () => {
       await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.cancel_operation'))
 
       stalled.finish({ status: 'canceled' })
-      await waitFor(() => expect(screen.getAllByRole('button', { name: EXPORT_BUTTON })).toHaveLength(2))
+      await waitFor(() => expect(screen.getByRole('button', { name: EXPORT_BUTTON })).toBeEnabled())
     })
 
     it('reports a cancelled operation with silence, not a success or a failure', async () => {
@@ -414,7 +425,7 @@ describe('BackupV2Settings', () => {
 
       stalled.finish({ status: 'canceled' })
 
-      await waitFor(() => expect(screen.getAllByRole('button', { name: EXPORT_BUTTON })).toHaveLength(2))
+      await waitFor(() => expect(screen.getByRole('button', { name: EXPORT_BUTTON })).toBeEnabled())
       expect(toast.success).not.toHaveBeenCalled()
       expect(toast.error).not.toHaveBeenCalled()
     })
@@ -423,7 +434,7 @@ describe('BackupV2Settings', () => {
       const stalled = stall('backup.prepare_restore')
       await renderSettings()
 
-      click('settings.data.backup_v2.restore.choose_button')
+      click('settings.general.restore.button')
 
       await waitFor(() => expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument())
       click('common.cancel')
@@ -433,7 +444,7 @@ describe('BackupV2Settings', () => {
       await waitFor(() =>
         expect(
           screen.getByRole('button', {
-            name: 'settings.data.backup_v2.restore.choose_button'
+            name: 'settings.general.restore.button'
           })
         ).toBeEnabled()
       )

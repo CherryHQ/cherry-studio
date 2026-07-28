@@ -34,14 +34,11 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>
 }))
 
-vi.mock('../BackupPopup', () => ({ default: { show: vi.fn() } }))
-vi.mock('../RestorePopup', () => ({ default: { show: vi.fn() } }))
 vi.mock('../V1RemigrationPopup', () => ({ default: { show: vi.fn() } }))
 vi.mock('../ClearCachePopup', async (importOriginal) => {
   const actual = await importOriginal<typeof ClearCachePopupModule>()
   return { ...actual, default: { show: clearCacheShowMock } }
 })
-
 import BasicDataSettings from '../BasicDataSettings'
 import V1RemigrationPopup from '../V1RemigrationPopup'
 
@@ -73,16 +70,12 @@ describe('BasicDataSettings', () => {
     )
   })
 
-  it('leaves backup and restore actions interactive', async () => {
+  it('embeds one Backup v2 surface in the original data page', async () => {
     await renderSettings()
 
-    expect(screen.getByText('settings.data.backup.skip_file_data_title')).toBeInTheDocument()
-
-    for (const name of ['settings.general.backup.button', 'settings.general.restore.button']) {
-      const action = screen.getByRole('button', { name })
-      expect(action).toBeEnabled()
-      expect(action.closest('[inert]')).toBeNull()
-    }
+    expect(screen.getAllByText('settings.general.backup.title')).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'settings.general.backup.button' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'settings.general.restore.button' })).toHaveLength(1)
   })
 
   it('hides the v1 remigration entry when neither exact v1 source exists', async () => {
