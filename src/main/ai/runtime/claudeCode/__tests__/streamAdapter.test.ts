@@ -307,6 +307,32 @@ describe('ClaudeCodeStreamAdapter', () => {
     ])
   })
 
+  it('maps a stopped task notification to a neutral terminal status', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_notification',
+      session_id: 'sdk-task',
+      uuid: 'task-stopped-uuid',
+      task_id: 'task-1',
+      status: 'stopped',
+      summary: 'Stopped by user'
+    } as any)
+
+    expect(parts).toEqual([
+      {
+        type: 'data-agent-task-event',
+        id: 'task-task-1-notification-task-stopped-uuid',
+        data: expect.objectContaining({
+          event: 'notification',
+          taskId: 'task-1',
+          status: 'stopped'
+        })
+      }
+    ])
+  })
+
   it('maps text content block deltas', () => {
     const { adapter, parts } = createAdapter()
 

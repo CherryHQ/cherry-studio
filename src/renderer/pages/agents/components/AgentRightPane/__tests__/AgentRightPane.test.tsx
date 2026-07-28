@@ -442,7 +442,7 @@ function UserOpenSeqProbe() {
 
 type StatusTaskFixture = {
   id: string
-  status: 'pending' | 'in_progress' | 'completed' | 'error'
+  status: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
   title: string
   taskType?: string
   toolUseId?: string
@@ -901,6 +901,7 @@ describe('AgentRightPane', () => {
     { status: 'pending', iconClassNames: ['text-muted-foreground'] },
     { status: 'in_progress', iconClassNames: ['animate-spin', 'text-info'] },
     { status: 'completed', iconClassNames: ['text-success'] },
+    { status: 'stopped', iconClassNames: ['text-muted-foreground'] },
     { status: 'error', iconClassNames: ['text-destructive'] }
   ] as const)('centers the $status task icon within the first text line', ({ status, iconClassNames }) => {
     const title = `${status} task`

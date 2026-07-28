@@ -61,7 +61,7 @@ export interface AgentRunTask {
   id: string
   toolUseId?: string
   title: string
-  status: 'pending' | 'in_progress' | 'completed' | 'error'
+  status: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
   activeText?: string
   /** SDK task type, e.g. 'subagent' | 'shell' | 'local_workflow'. */
   taskType?: string
@@ -403,7 +403,7 @@ function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | u
   return undefined
 }
 
-const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'error'])
+const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'stopped', 'error'])
 
 function applyAgentTaskEvent(
   runTaskMap: Map<string, AgentRunTask>,

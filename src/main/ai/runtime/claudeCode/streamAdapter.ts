@@ -312,9 +312,10 @@ function mapTaskStatus(status: SDKTaskStatus): AgentTaskEventPartData['status'] 
       return 'in_progress'
     case 'completed':
       return 'completed'
+    case 'stopped':
+      return 'stopped'
     case 'failed':
     case 'killed':
-    case 'stopped':
       return 'error'
     default:
       return undefined

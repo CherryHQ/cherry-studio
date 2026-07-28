@@ -854,7 +854,7 @@ function formatRunTaskUsage(usage: AgentRunTask['usage']): string | undefined {
   return parts.length > 0 ? parts.join(' · ') : undefined
 }
 
-function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
+function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentRunTask['status'] }) {
   let icon: ReactNode
 
   switch (status) {
@@ -866,6 +866,9 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
       break
     case 'error':
       icon = <Circle size={14} className="text-destructive" />
+      break
+    case 'stopped':
+      icon = <CircleStop size={14} className="text-muted-foreground" />
       break
     case 'pending':
     default:

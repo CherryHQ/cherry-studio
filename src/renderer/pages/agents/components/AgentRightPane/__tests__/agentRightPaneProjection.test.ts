@@ -351,6 +351,28 @@ describe('agent right pane projections', () => {
     expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'completed' })])
   })
 
+  it('keeps a stopped task terminal when liveness no longer reports it', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'Fetch latest' }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'notification', taskId: 'bg-1', status: 'stopped', summary: 'stopped by user' }
+      }
+    ] as unknown as CherryMessagePart[]
+
+    const status = buildAgentRightPaneStatus(
+      [message('m1', parts)],
+      { m1: parts },
+      {},
+      { activeMessageIds: new Set(), liveBackgroundTaskIds: new Set() }
+    )
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'stopped' })])
+  })
+
   // A background task's completion arrives after its turn closed, so it never becomes a part.
   // Without merging it the row would stay running for the rest of the session.
   it('settles a run task from lifecycle that arrived after its turn closed', () => {

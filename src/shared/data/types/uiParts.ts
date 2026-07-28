@@ -68,7 +68,7 @@ export interface AgentTaskEventPartData {
   event: 'started' | 'progress' | 'updated' | 'notification'
   taskId: string
   toolUseId?: string
-  status?: 'pending' | 'in_progress' | 'completed' | 'error'
+  status?: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
   title?: string
   activeText?: string
   description?: string

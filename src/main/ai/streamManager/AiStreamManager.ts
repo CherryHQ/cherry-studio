@@ -634,12 +634,12 @@ export class AiStreamManager extends BaseService {
   // tests invoke them directly to simulate chunk/done/error.
 
   /** Multi-model: chunks carry `sourceModelId` for renderer demux. */
-  onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk): void {
+  onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk, expectedExecution?: StreamExecution): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec) return
+    if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
     // Authoritative approval-lifecycle capture, keyed by toolCallId so a sibling tool's output never
     // clears another tool's still-pending approval; `resolveTerminalStatus` reads the set's size.
@@ -714,12 +714,12 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Called when one execution finishes. Topic-level done only when ALL executions finished. */
-  async onExecutionDone(topicId: string, modelId: UniqueModelId): Promise<void> {
+  async onExecutionDone(topicId: string, modelId: UniqueModelId, expectedExecution?: StreamExecution): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec || exec.status !== 'streaming') return
+    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'streaming') return
 
     exec.status = 'done'
     endRootSpan(exec, 'ok')
@@ -758,12 +758,12 @@ export class AiStreamManager extends BaseService {
     }
   }
 
-  async onExecutionPaused(topicId: string, modelId: UniqueModelId): Promise<void> {
+  async onExecutionPaused(topicId: string, modelId: UniqueModelId, expectedExecution?: StreamExecution): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec || exec.status !== 'aborted') return
+    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'aborted') return
 
     // A turn torn down while a tool is still `approval-requested` (or any
     // in-flight tool) gets no `tool-output-*` to clear it. Clear the set so the
@@ -794,12 +794,17 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Called when one execution errors. */
-  async onExecutionError(topicId: string, modelId: UniqueModelId, error: SerializedError): Promise<void> {
+  async onExecutionError(
+    topicId: string,
+    modelId: UniqueModelId,
+    error: SerializedError,
+    expectedExecution?: StreamExecution
+  ): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec) return
+    if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
     exec.status = 'error'
     exec.error = error
@@ -1139,7 +1144,7 @@ export class AiStreamManager extends BaseService {
 
     exec.loopPromise = launchLoop().catch((err) => {
       // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-      return this.onExecutionError(topicId, modelId, serializeError(err))
+      return this.onExecutionError(topicId, modelId, serializeError(err), exec)
     })
 
     return exec
@@ -1165,7 +1170,7 @@ export class AiStreamManager extends BaseService {
       })
     } catch (err) {
       if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
-      await this.onExecutionError(topicId, modelId, serializeError(err))
+      await this.onExecutionError(topicId, modelId, serializeError(err), exec)
       return
     }
 
@@ -1187,7 +1192,7 @@ export class AiStreamManager extends BaseService {
 
     const result = await pipeStreamLoop(stream, signal, {
       onChunk: (chunk) => {
-        this.onChunk(topicId, modelId, chunk)
+        this.onChunk(topicId, modelId, chunk, exec)
         // A tool awaiting human approval emits no chunks while it waits, so the normal (short) idle
         // timeout would kill a legitimate deliberation. Re-arm with the generous approval bound
         // instead of pausing entirely — an unresponsive renderer still can't hang the stream forever.
@@ -1213,7 +1218,7 @@ export class AiStreamManager extends BaseService {
         result.streamErrorText !== undefined && !signal.aborted
           ? errorFromStreamChunk(result.streamErrorText)
           : serializeError(result.threw.error)
-      await this.onExecutionError(topicId, modelId, serialized)
+      await this.onExecutionError(topicId, modelId, serialized, exec)
       return
     }
 
@@ -1223,11 +1228,11 @@ export class AiStreamManager extends BaseService {
       // exit. Promote it so the truncated reply is persisted as `paused`, not `success`
       // (onExecutionPaused is a no-op unless status is 'aborted').
       if (exec.status === 'streaming') exec.status = 'aborted'
-      await this.onExecutionPaused(topicId, modelId)
+      await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
-      await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText))
+      await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
     } else {
-      await this.onExecutionDone(topicId, modelId)
+      await this.onExecutionDone(topicId, modelId, exec)
     }
   }
 
