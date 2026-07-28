@@ -297,13 +297,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
       configuration: { builtin_role: 'assistant' } as never
     })
 
-    const result = await buildSystemPrompt(
-      makeSession(),
-      agent,
-      '/workspace/assistant',
-      false,
-      '/data/Agents/agent-1'
-    )
+    const result = await buildSystemPrompt(makeSession(), agent, '/workspace/assistant', false, '/data/Agents/agent-1')
 
     expect(result as string).toContain('ASSISTANT_MEMORIES')
     expect(mockBuildMemoriesSection).toHaveBeenCalledWith('/data/Agents/agent-1')

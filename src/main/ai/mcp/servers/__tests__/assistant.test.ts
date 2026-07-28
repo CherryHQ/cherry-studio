@@ -32,8 +32,8 @@ vi.mock('@application', async () => {
   }
 })
 
-vi.mock('@data/services/AgentService', () => ({
-  agentService: { createAgent: mocks.agentCreate }
+vi.mock('@main/ai/agents/createAgent', () => ({
+  createAgent: mocks.agentCreate
 }))
 
 vi.mock('@data/services/McpServerService', () => ({
