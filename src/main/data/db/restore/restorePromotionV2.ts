@@ -12,6 +12,7 @@ import { installedKnowledgeBaseIds, installResourceUnits, recoverResourceUnits }
 import type { PromotionStepV2, RestoreJournalV2 } from './restoreJournalV2'
 import {
   DB_COMMIT_STEP,
+  findDbAside,
   PROMOTION_STEP_ORDER_V2,
   readRestoreJournalV2,
   writeRestoreJournalV2
@@ -49,6 +50,7 @@ const logger = loggerService.withContext('RestorePromotionV2')
 type ArmedJournal = Extract<RestoreJournalV2, { state: 'armed' }>
 type PreparedJournal = Extract<RestoreJournalV2, { state: 'prepared' }>
 type PromotingJournal = Extract<RestoreJournalV2, { state: 'promoting' }>
+type FailedJournal = Extract<RestoreJournalV2, { state: 'failed' }>
 type ActiveJournal = ArmedJournal | PromotingJournal
 
 const COMMIT_INDEX = PROMOTION_STEP_ORDER_V2.indexOf(DB_COMMIT_STEP)
@@ -77,6 +79,17 @@ export async function runRestorePromotionV2(): Promise<void> {
     return
   }
   if (read.kind === 'corrupt') {
+    // An unreadable journal proves a restore was in flight but not what it moved,
+    // and quarantine is the right answer to that — UNLESS the live slot is also
+    // empty. Then the crash landed after the live database was parked, the aside
+    // holding it can no longer be named, and quarantining would let the boot go
+    // on to create a fresh empty database beside the user's real one. Refuse
+    // while every artifact is still where the repair needs it.
+    if (isLiveDbStrandedV2()) {
+      throw new Error(
+        'Restore journal is unreadable while the live database is missing and a previous database is parked aside — refusing to boot into an empty database'
+      )
+    }
     quarantineCorruptJournal(read.error)
     return
   }
@@ -88,12 +101,47 @@ export async function runRestorePromotionV2(): Promise<void> {
       return promoteArmed(journal)
     case 'promoting':
       return recoverPromoting(journal)
-    case 'completed':
     case 'failed':
+      // Terminal, with one loose end: a rollback that could not finish holds
+      // asides the user cannot release, so retry it before reporting.
+      if (journal.recoveryIncomplete) retryIncompleteRollback(journal)
+      return
+    case 'completed':
     case 'expired':
       // Terminal. Reporting and acknowledgement cleanup own these.
       return
   }
+}
+
+/**
+ * Retry a rollback a previous boot could not finish.
+ *
+ * The usual causes — a file still open, a directory the OS had locked — do not
+ * survive a restart, and `recoverResourceUnits` decides each unit from its own
+ * triple, so re-entering it is safe and usually resolves. This is the only path
+ * that can release those asides: while the marker stands they are protected from
+ * the sweep and refused to acknowledgement, which is correct while a repair is
+ * outstanding and a permanent cost if nothing ever retries.
+ *
+ * The marker is cleared LAST and the staging tree is left for acknowledgement to
+ * collect. Removing the tree first would put every just-restored unit into the
+ * one triple recovery reads as "an installed backup with no aside", so a crash
+ * before the marker was cleared would send the next boot's retry out to move the
+ * user's own files back out — the exact loss this whole ordering exists to stop.
+ */
+function retryIncompleteRollback(journal: FailedJournal): void {
+  const userData = application.getPath('app.userdata')
+  try {
+    recoverResourceUnits(journal.resourceInstalls, userData, 'pre-commit')
+  } catch (error) {
+    logger.error('Resource rollback still cannot complete — keeping the asides for the next boot', error as Error)
+    return
+  }
+
+  const completed: FailedJournal = { ...journal }
+  delete completed.recoveryIncomplete
+  writeRestoreJournalV2(completed)
+  logger.info('Finished a rollback a previous boot left incomplete', { restoreId: journal.restoreId })
 }
 
 /**
@@ -140,15 +188,25 @@ export function markRestoreFailedAfterCrashV2(): void {
  * machinery's aside still holds the previous one. Booting on from here would
  * create a fresh empty database on first open. A missing live database with no
  * journal is not this machinery's doing and stays out of scope.
+ *
+ * An UNREADABLE journal counts, and cannot ask the journal where its aside is —
+ * so the aside is found by the park-slot naming this module and the producer
+ * share ({@link findDbAside}). Evidence, not assumption: with no aside there is
+ * nothing to strand and nothing to protect, and refusing the boot would only
+ * wedge an app whose data is already gone.
  */
 export function isLiveDbStrandedV2(): boolean {
   const read = readRestoreJournalV2()
-  if (read.kind !== 'ok') {
+  if (read.kind === 'none') {
     return false
   }
-  const livePath = application.getPath('app.database.file')
-  const asidePath = path.resolve(application.getPath('app.userdata'), read.journal.db.aside)
-  return !fs.existsSync(livePath) && fs.existsSync(asidePath)
+  if (fs.existsSync(application.getPath('app.database.file'))) {
+    return false
+  }
+  if (read.kind === 'corrupt') {
+    return findDbAside() !== null
+  }
+  return fs.existsSync(path.resolve(application.getPath('app.userdata'), read.journal.db.aside))
 }
 
 // ─── prepared: expire, never promote ───
@@ -479,19 +537,22 @@ function revertToAside(ctx: PromotionContext, reason: string): void {
  *
  * A wedged unit cannot hold the database hostage — the cardinal invariant is
  * that the live slot ends up holding a complete database — so the failure is
- * carried into the journal's reason instead: the affected units keep their
- * asides, and acknowledgement will not silently drop them while the user still
- * has a repair to make.
+ * carried into the journal instead, as a durable `recoveryIncomplete` marker and
+ * not only as prose in `reason`: it is what keeps the GC guard and
+ * acknowledgement treating those asides as the originals they still are, and
+ * what tells the next boot to retry the rollback.
  */
 function failRolledBack(ctx: PromotionContext, reason: string): void {
   let suffix = ''
+  let incomplete = false
   try {
     recoverResourceUnits(ctx.journal.resourceInstalls, ctx.userData, 'pre-commit')
   } catch (error) {
     logger.error('Resource rollback could not complete — keeping the units and their asides', error as Error)
     suffix = `; resource rollback incomplete: ${(error as Error).message}`
+    incomplete = true
   }
-  finalize(ctx, 'failed', `${reason}${suffix}`)
+  finalize(ctx, 'failed', `${reason}${suffix}`, incomplete)
 }
 
 /**
@@ -533,7 +594,10 @@ function failClosed(ctx: PromotionContext): void {
     ...probeFacts(ctx)
   })
   restoreLiveFromAside(ctx)
-  writeTerminal(ctx, 'failed', 'recovery state was inconsistent; artifacts kept for repair')
+  // `recoveryIncomplete`, because "artifacts kept for repair" has to mean
+  // something to the two paths that could otherwise delete them: an
+  // inconsistent unit's aside may be the only copy of the original target.
+  writeTerminal(ctx, 'failed', 'recovery state was inconsistent; artifacts kept for repair', true)
 }
 
 // ─── terminal bookkeeping ───
@@ -553,8 +617,28 @@ function failClosed(ctx: PromotionContext): void {
  * the window this order opens instead leaves an orphan tree, which the
  * acknowledgement sweep collects.
  */
-function finalize(ctx: PromotionContext, state: 'failed' | 'expired', reason: string): void {
-  writeTerminal(ctx, state, reason)
+function finalize(
+  ctx: PromotionContext,
+  state: 'failed' | 'expired',
+  reason: string,
+  recoveryIncomplete = false
+): void {
+  if (!writeTerminal(ctx, state, reason, recoveryIncomplete)) {
+    // The terminal state never reached the disk, so the journal on disk still
+    // describes a promotion in flight. Dropping the tree now would leave exactly
+    // the triple this ordering exists to avoid — see above — and the next boot
+    // would take the user's own files back out. Keeping it makes the terminal
+    // write retryable instead.
+    logger.error('Keeping the staging tree: the terminal journal is not on disk', {
+      restoreId: ctx.journal.restoreId
+    })
+    return
+  }
+  if (recoveryIncomplete) {
+    // The wedged units' archive copies still need somewhere to go when the
+    // rollback is retried at the next boot.
+    return
+  }
   removeStagingTree(ctx.journal.restoreId)
 }
 
@@ -577,14 +661,32 @@ function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2): void {
   removeStagingTree(ctx.journal.restoreId)
 }
 
-function writeTerminal(ctx: PromotionContext, state: 'failed' | 'expired', reason: string): void {
+/**
+ * Write the terminal journal, reporting whether it is durably on disk.
+ *
+ * The failure is NOT escaped — the filesystem work is already done and correct,
+ * and escaping would send the shell into its last-resort net for no reason. But
+ * it is not swallowed either: the caller decides what may still be deleted, and
+ * nothing may be deleted on the strength of a state that was never recorded.
+ */
+function writeTerminal(
+  ctx: PromotionContext,
+  state: 'failed' | 'expired',
+  reason: string,
+  recoveryIncomplete = false
+): boolean {
   try {
-    writeRestoreJournalV2({ ...ctx.journal, state, reason })
+    writeRestoreJournalV2({
+      ...ctx.journal,
+      state,
+      reason,
+      // Only the `failed` variant declares it, and the journal is strict.
+      ...(state === 'failed' && recoveryIncomplete ? { recoveryIncomplete: true as const } : {})
+    })
+    return true
   } catch (error) {
-    // The filesystem work is already done and correct; a journal that cannot
-    // record it is a reporting loss, not a data loss. Escaping here would send
-    // the shell into its last-resort net for no reason.
     logger.error(`Could not write the terminal '${state}' journal`, error as Error)
+    return false
   }
 }
 

@@ -58,6 +58,9 @@ function toIpcError(error: unknown): unknown {
     if (error.code === 'relaunch-failed') {
       return new IpcError(backupErrorCodes.ARM_FAILED, error.message)
     }
+    if (error.code === 'recovery-incomplete') {
+      return new IpcError(backupErrorCodes.RECOVERY_INCOMPLETE, error.message)
+    }
     return new IpcError(backupErrorCodes.RESTORE_STATE, error.message)
   }
   if (

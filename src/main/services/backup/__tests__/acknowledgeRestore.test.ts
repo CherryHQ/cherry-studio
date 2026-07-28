@@ -152,6 +152,37 @@ describe('acknowledgeRestore', () => {
     expect(hasPendingRestore()).toBe(true)
   })
 
+  it('refuses to release asides a rollback could not put back yet', () => {
+    writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
+    mkdirSync(join(userData, 'restore-aside'), { recursive: true })
+    writeFileSync(join(userData, 'restore-aside', 'blob-1'), 'ORIGINAL-BLOB')
+    writeRestoreJournalV2(
+      journal({
+        state: 'failed',
+        step: undefined,
+        summary: undefined,
+        recoveryIncomplete: true,
+        preset: 'full',
+        resourceInstalls: [
+          {
+            resourceType: 'file',
+            staging: `restore-staging/${RID}/files/blob-1`,
+            live: 'Data/Files/blob-1',
+            aside: 'restore-aside/blob-1'
+          }
+        ]
+      })
+    )
+
+    // These are not spent rollback material — they are the originals the repair
+    // still needs. The refusal is temporary: the next boot retries the rollback
+    // and clears the marker.
+    expect(() => acknowledgeRestore()).toThrow(/could not put every file back/)
+    expect(existsSync(join(userData, asideRel))).toBe(true)
+    expect(existsSync(join(userData, 'restore-aside', 'blob-1'))).toBe(true)
+    expect(hasPendingRestore()).toBe(true)
+  })
+
   it('refuses to guess at an unreadable journal', () => {
     writeFileSync(join(userData, 'restore-journal.json'), '{ not json')
 

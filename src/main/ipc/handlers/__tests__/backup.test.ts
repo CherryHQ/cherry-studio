@@ -204,6 +204,7 @@ describe('backupHandlers', () => {
     it.each([
       ['wrong-state' as const, backupErrorCodes.RESTORE_STATE],
       ['unreadable' as const, backupErrorCodes.JOURNAL_UNREADABLE],
+      ['recovery-incomplete' as const, backupErrorCodes.RECOVERY_INCOMPLETE],
       ['relaunch-failed' as const, backupErrorCodes.ARM_FAILED]
     ])('maps a %s refusal to %s', async (code, expected) => {
       service.armRestore.mockImplementation(() => {

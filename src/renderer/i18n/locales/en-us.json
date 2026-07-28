@@ -5830,6 +5830,7 @@
           "busy": "Another backup operation is still running. Wait for it to finish.",
           "export_destination": "The backup could not be written to that location. Check free space and pick a name that does not already exist.",
           "journal_unreadable": "The restore record on this device cannot be read. The next start will quarantine it.",
+          "recovery_incomplete": "The last restore could not put every file back. Restart the app to finish it before releasing anything.",
           "restore_state": "That does not match the current state of the restore. Finish or discard the pending restore first.",
           "unexpected": "The operation failed unexpectedly."
         },
@@ -5858,6 +5859,7 @@
           "acknowledged": "Restore acknowledged. The previous data has been released.",
           "completed_help": "Until you confirm, the previous database and every replaced file are still on this device as rollback material.",
           "reconfirm_integrations": "Restored integrations that run programs or reach the network stay off until you confirm them on this device.",
+          "recovery_incomplete": "This restore could not put every file back, so the app is still holding the originals. Restart Cherry Studio to finish it — nothing can be released until then.",
           "state": {
             "armed": "A restore is armed and will run at the next start.",
             "completed": "A restore completed.",

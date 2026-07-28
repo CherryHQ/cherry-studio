@@ -12,7 +12,11 @@ import { readRestoreJournalV2, type RestoreJournalV2State } from './restoreJourn
  * rollback path still needs.
  */
 
-/** States during which a restore owns storage. Terminal `failed`/`expired` hold nothing. */
+/**
+ * States during which a restore owns storage. Terminal `failed`/`expired`
+ * normally hold nothing — everything went back where it came from — with one
+ * exception handled below.
+ */
 const PROTECTED_STATES: ReadonlySet<RestoreJournalV2State> = new Set<RestoreJournalV2State>([
   'prepared',
   'armed',
@@ -23,6 +27,12 @@ const PROTECTED_STATES: ReadonlySet<RestoreJournalV2State> = new Set<RestoreJour
 export function hasPendingRestore(): boolean {
   const read = readRestoreJournalV2()
   if (read.kind === 'ok') {
+    // A rollback that could not finish leaves asides that are still the ONLY
+    // copy of what they hold, under a journal that already reads as terminal.
+    // Sweeping against them would delete the repair material.
+    if (read.journal.state === 'failed' && read.journal.recoveryIncomplete) {
+      return true
+    }
     return PROTECTED_STATES.has(read.journal.state)
   }
   // An unparseable journal counts as pending: one skipped sweep is harmless,

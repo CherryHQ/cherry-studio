@@ -15,6 +15,9 @@ import { dirname, join } from 'node:path'
 
 import { applyMigrations } from '@data/db/applyMigrations'
 import { readAppliedChain } from '@data/db/restore/appliedChain'
+import type * as ResourceInstallModule from '@data/db/restore/resourceInstallV2'
+import { hasPendingRestore } from '@data/db/restore/restoreGuard'
+import type * as RestoreJournalModule from '@data/db/restore/restoreJournalV2'
 import type { PromotionStepV2, RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import {
@@ -58,6 +61,49 @@ vi.mock('@application', () => ({
     })
   }
 }))
+
+/**
+ * Fault injection for the journal write itself. A real ENOSPC/EACCES is not
+ * portable (CI runs as root, where permission bits are advisory), and what is
+ * under test is only what the promotion may still delete when the state it is
+ * deleting on the strength of never reached the disk.
+ */
+const failJournalWrite: { when: ((journal: RestoreJournalV2) => boolean) | null } = { when: null }
+
+/**
+ * Fault injection for the rollback of the resource units: while set, the pass
+ * fails the way a locked or still-open node makes it fail — a rename the OS
+ * refuses, which is exactly the class of failure a restart clears and the retry
+ * exists for. Injected at the module boundary because the underlying
+ * `fs.renameSync` cannot be spied on through an ESM namespace.
+ */
+const failResourceRollback = { on: false }
+
+vi.mock('@data/db/restore/resourceInstallV2', async (importOriginal) => {
+  const actual = await importOriginal<typeof ResourceInstallModule>()
+  return {
+    ...actual,
+    recoverResourceUnits: (...args: Parameters<typeof actual.recoverResourceUnits>) => {
+      if (failResourceRollback.on && args[2] === 'pre-commit') {
+        throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
+      }
+      actual.recoverResourceUnits(...args)
+    }
+  }
+})
+
+vi.mock('@data/db/restore/restoreJournalV2', async (importOriginal) => {
+  const actual = await importOriginal<typeof RestoreJournalModule>()
+  return {
+    ...actual,
+    writeRestoreJournalV2: (journal: RestoreJournalV2) => {
+      if (failJournalWrite.when?.(journal)) {
+        throw new Error(`simulated journal write failure for state '${journal.state}'`)
+      }
+      actual.writeRestoreJournalV2(journal)
+    }
+  }
+})
 
 const RID = '11111111-2222-4333-8444-555555555555'
 const MARKER_KEY = 'restore-test-marker'
@@ -175,6 +221,8 @@ describe('restore promotion v2', () => {
 
   afterEach(() => {
     rmSync(userData, { recursive: true, force: true })
+    failJournalWrite.when = null
+    failResourceRollback.on = false
     vi.clearAllMocks()
   })
 
@@ -225,6 +273,56 @@ describe('restore promotion v2', () => {
       expect(readMarker(livePath())).toBe('old')
       expect(existsSync(journalPath())).toBe(false)
       expect(existsSync(join(userData, 'restore-staging'))).toBe(false)
+    })
+
+    it('refuses to boot on an unreadable journal while the live database sits parked aside', async () => {
+      // The crash landed past `live-aside`, and the journal that named the park
+      // slot can no longer be parsed. Quarantining would clear the only record
+      // of the restore and let the boot go on to CREATE a fresh empty database
+      // beside the user's real one — so refuse while every artifact is still
+      // where a repair needs it.
+      makeDb(asidePath(), 'old')
+      makeStagedDb()
+      writeFileSync(journalPath(), '{ "version": 1, "state": "staged" }')
+
+      await expect(runRestorePromotionV2()).rejects.toThrow(/refusing to boot into an empty database/)
+
+      expect(isLiveDbStrandedV2()).toBe(true)
+      expect(existsSync(journalPath())).toBe(true)
+      expect(readMarker(asidePath())).toBe('old')
+      expect(existsSync(stagedPath())).toBe(true)
+    })
+
+    it('quarantines an unreadable journal when no parked database could be stranded', async () => {
+      // A missing live database with nothing parked aside is not this
+      // machinery's doing; refusing would only wedge an app whose data is
+      // already gone, so the boot goes on.
+      makeStagedDb()
+      writeFileSync(journalPath(), '{ not json')
+
+      await runRestorePromotionV2()
+
+      expect(existsSync(journalPath())).toBe(false)
+      expect(existsSync(join(userData, 'restore-staging'))).toBe(false)
+    })
+  })
+
+  describe('a terminal state that never reached the disk', () => {
+    it('keeps the staging tree when the expired journal cannot be written', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ chain: [{ folderMillis: 1, hash: 'forked' }] }))
+      failJournalWrite.when = (journal) => journal.state === 'expired'
+
+      await runRestorePromotionV2()
+
+      // Nothing may be deleted on the strength of a state that was never
+      // recorded: the journal on disk still describes a restore in flight, so
+      // the tree stays and the terminal write stays retryable.
+      expect(journalState()).toBe('armed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(stagedPath())).toBe(true)
+      expect(existsSync(stagingDir())).toBe(true)
     })
   })
 
@@ -472,6 +570,13 @@ describe('restore promotion v2', () => {
       return existsSync(join(userData, ...relative.split('/')))
     }
 
+    /** Whether the failed journal on disk still claims outstanding repair work. */
+    function recoveryIncomplete(): boolean {
+      const read = readRestoreJournalV2()
+      if (read.kind !== 'ok' || read.journal.state !== 'failed') throw new Error(`not failed: ${journalState()}`)
+      return read.journal.recoveryIncomplete === true
+    }
+
     function completedSummary(): string[] {
       const read = readRestoreJournalV2()
       if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error(`not completed: ${journalState()}`)
@@ -576,6 +681,89 @@ describe('restore promotion v2', () => {
       expect(readMarker(livePath())).toBe('old')
       expect(readUnitDir('outside-target')).toBe('OUTSIDE')
       expect(unitExists(unit.aside)).toBe(false)
+    })
+
+    it('keeps the rolled-back units in staging when the failed journal cannot be written', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const unit = baseUnit()
+      makeUnitDir(unit.live, 'ARCHIVE')
+      makeUnitDir(unit.aside, 'TARGET')
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'resources-installed', resourceInstalls: [unit] }))
+      failJournalWrite.when = (journal) => journal.state === 'failed'
+
+      await runRestorePromotionV2()
+
+      // The rollback itself completed — the original is back in place and the
+      // archive copy is parked in staging.
+      expect(readMarker(livePath())).toBe('old')
+      expect(readUnitDir(unit.live)).toBe('TARGET')
+      expect(readUnitDir(unit.staging)).toBe('ARCHIVE')
+      // …but the journal still says `promoting`, and dropping the tree now would
+      // leave every rolled-back unit at "live present, nothing staged, no aside"
+      // — the one triple recovery reads as an installed backup, sending the next
+      // boot out to move the user's own directory back out.
+      expect(journalState()).toBe('promoting')
+      expect(existsSync(stagingDir())).toBe(true)
+    })
+
+    it('marks a rollback it could not finish and completes it at the next boot', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const unit = baseUnit()
+      makeUnitDir(unit.live, 'ARCHIVE')
+      makeUnitDir(unit.aside, 'TARGET')
+      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'resources-installed', resourceInstalls: [unit] }))
+      failResourceRollback.on = true
+
+      await runRestorePromotionV2()
+
+      // A wedged unit may not hold the database hostage: the live slot still
+      // ends up holding a complete database…
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      // …but the failure is durable, because this aside is not spent rollback
+      // material — it is the only copy of the original target.
+      expect(recoveryIncomplete()).toBe(true)
+      expect(readUnitDir(unit.live)).toBe('ARCHIVE')
+      expect(readUnitDir(unit.aside)).toBe('TARGET')
+      expect(existsSync(stagingDir())).toBe(true)
+      // Terminal to the reader, still protected from the sweep.
+      expect(hasPendingRestore()).toBe(true)
+
+      // Next boot: the OS is no longer refusing the rename.
+      failResourceRollback.on = false
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(recoveryIncomplete()).toBe(false)
+      expect(readUnitDir(unit.live)).toBe('TARGET')
+      expect(readUnitDir(unit.staging)).toBe('ARCHIVE')
+      expect(hasPendingRestore()).toBe(false)
+      // The retry deliberately leaves the tree for acknowledgement: removing it
+      // here is exactly what would poison the triple above.
+      expect(existsSync(stagingDir())).toBe(true)
+    })
+
+    it('keeps the marker when the retry still cannot finish the rollback', async () => {
+      makeDb(livePath(), 'old')
+      const unit = baseUnit()
+      makeUnitDir(unit.live, 'ARCHIVE')
+      makeUnitDir(unit.aside, 'TARGET')
+      writeRestoreJournalV2({
+        ...buildJournal({ state: 'failed', resourceInstalls: [unit], chain: chainOf(livePath()) }),
+        recoveryIncomplete: true
+      } as RestoreJournalV2)
+      failResourceRollback.on = true
+
+      await runRestorePromotionV2()
+
+      // No progress is not an excuse to release anything: protection and the
+      // refusal both stand until a boot actually finishes the work.
+      expect(recoveryIncomplete()).toBe(true)
+      expect(readUnitDir(unit.live)).toBe('ARCHIVE')
+      expect(readUnitDir(unit.aside)).toBe('TARGET')
+      expect(hasPendingRestore()).toBe(true)
     })
   })
 

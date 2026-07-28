@@ -55,7 +55,9 @@ const RestoreStatusSchema = z.discriminatedUnion('kind', [
     state: z.enum(['prepared', 'armed', 'promoting', 'completed', 'failed', 'expired']),
     restoreId: z.string(),
     preset: PresetSchema,
-    step: z.string().optional()
+    step: z.string().optional(),
+    /** A `failed` restore still holding the only copy of what it moved (§6.5). */
+    recoveryIncomplete: z.literal(true).optional()
   })
 ])
 
