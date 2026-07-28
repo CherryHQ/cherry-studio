@@ -1,7 +1,12 @@
 import { RESTORE_JOURNAL_VERSION } from '@data/db/restore/restoreJournalV2'
 import { describe, expect, it } from 'vitest'
 
-import { BACKUP_FORMAT_VERSION, BackupManifestSchema, parseBackupManifest } from '../manifest'
+import {
+  BACKUP_FORMAT_VERSION,
+  BackupManifestSchema,
+  parseBackupManifest,
+  parseManifestDiagnosticEnvelope
+} from '../manifest'
 
 const migrationChain = [
   { folderMillis: 1_700_000_000_000, hash: 'a' },
@@ -60,6 +65,15 @@ describe('BackupManifestSchema — valid manifests', () => {
     expect(BackupManifestSchema.safeParse(fullManifest()).success).toBe(true)
   })
 
+  it('accepts legacy v2 producer metadata without buildType and validates new build types', () => {
+    expect(BackupManifestSchema.safeParse(liteManifest()).success).toBe(true)
+    const packaged = liteManifest()
+    ;(packaged.producer as Record<string, unknown>).buildType = 'packaged'
+    expect(BackupManifestSchema.safeParse(packaged).success).toBe(true)
+    ;(packaged.producer as Record<string, unknown>).buildType = 'nightly'
+    expect(BackupManifestSchema.safeParse(packaged).success).toBe(false)
+  })
+
   it('accepts a full manifest with an empty payload list', () => {
     expect(BackupManifestSchema.safeParse(fullManifest({})).success).toBe(true)
     const full = { ...fullManifest(), resourcePayloads: [] }
@@ -104,6 +118,15 @@ describe('BackupManifestSchema — integrity fields', () => {
     const bad = liteManifest()
     ;(bad.producer as Record<string, unknown>).platform = 'freebsd'
     expect(BackupManifestSchema.safeParse(bad).success).toBe(false)
+  })
+
+  it('bounds producer appVersion to printable diagnostic text', () => {
+    const control = liteManifest()
+    ;(control.producer as Record<string, unknown>).appVersion = '2.0.0\nforged'
+    expect(BackupManifestSchema.safeParse(control).success).toBe(false)
+    const oversized = liteManifest()
+    ;(oversized.producer as Record<string, unknown>).appVersion = 'x'.repeat(65)
+    expect(BackupManifestSchema.safeParse(oversized).success).toBe(false)
   })
 
   it('rejects unknown top-level fields (strict)', () => {
@@ -172,6 +195,20 @@ describe('parseBackupManifest', () => {
     const ok = parseBackupManifest(liteManifest())
     expect(ok.kind).toBe('ok')
     expect(parseBackupManifest({ preset: 'lite' }).kind).toBe('invalid')
+  })
+
+  it('reads only bounded producer provenance from an unsupported-format envelope', () => {
+    expect(
+      parseManifestDiagnosticEnvelope({
+        backupFormatVersion: 3,
+        producer: { appVersion: '2.1.0', buildType: 'development', path: '/secret' },
+        resourcePayloads: [{ livePath: '/secret' }]
+      })
+    ).toEqual({
+      backupFormatVersion: 3,
+      producer: { appVersion: '2.1.0', buildType: 'development' }
+    })
+    expect(parseManifestDiagnosticEnvelope({ backupFormatVersion: '3' })).toBeUndefined()
   })
 })
 

@@ -183,6 +183,7 @@ describe('exportArchive', () => {
 
     expect(existsSync(outPath)).toBe(true)
     expect(result.manifest.preset).toBe('lite')
+    expect(result.manifest.producer.buildType).toBe('development')
     expect(result.manifest).not.toHaveProperty('resourcePayloads')
 
     const stagingParent = await mkdtemp(join(tmpdir(), 'cs-admit-'))

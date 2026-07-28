@@ -3,6 +3,10 @@ export {
   ArchiveAdmissionError,
   BackupBusyError,
   BackupCancelledError,
+  BackupFormatCompatibilityError,
+  type BackupMigrationCompatibility,
+  BackupMigrationCompatibilityError,
+  type BackupMigrationTip,
   CeilingExceededError,
   DiskFullError,
   HardLinkUnsupportedError,
@@ -15,3 +19,4 @@ export {
   SourceDriftError,
   UnportableSourceError
 } from './errors'
+export { BACKUP_FORMAT_VERSION } from './manifest'

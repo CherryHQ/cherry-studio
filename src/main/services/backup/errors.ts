@@ -240,8 +240,74 @@ export class DbSealError extends Error {
   }
 }
 
+export interface BackupMigrationTip {
+  readonly folderMillis: number
+  readonly hash: string
+}
+
+interface BackupMigrationCompatibilityCommon {
+  readonly archiveAppVersion: string
+  readonly archiveBuildType: 'packaged' | 'development' | 'unknown'
+  readonly sourceMigrationCount: number
+  readonly targetMigrationCount: number
+  readonly sourceTip: BackupMigrationTip
+  readonly targetTip: BackupMigrationTip
+}
+
+export type BackupMigrationCompatibility =
+  | (BackupMigrationCompatibilityCommon & {
+      readonly kind: 'source-ahead'
+      readonly missingMigrationCount: number
+      readonly firstExtraIndex: number
+    })
+  | (BackupMigrationCompatibilityCommon & {
+      readonly kind: 'lineage-fork'
+      readonly firstDivergentIndex: number
+    })
+
 /**
- * The single fail-closed rejection an untrusted `.cherrybackup` archive raises
+ * A structurally sound archive belongs to a migration lineage this build cannot
+ * consume. Unlike hostile/malformed admission failures, this is safe and useful
+ * to present as a bounded compatibility diagnosis.
+ */
+export class BackupMigrationCompatibilityError extends Error {
+  readonly diagnostic: BackupMigrationCompatibility
+
+  constructor(diagnostic: BackupMigrationCompatibility) {
+    super(
+      diagnostic.kind === 'source-ahead'
+        ? `backup database is ahead by ${diagnostic.missingMigrationCount} migrations`
+        : `backup database forked at migration #${diagnostic.firstDivergentIndex}`
+    )
+    this.name = 'BackupMigrationCompatibilityError'
+    this.diagnostic = diagnostic
+  }
+}
+
+export class BackupFormatCompatibilityError extends Error {
+  readonly archiveFormatVersion: number
+  readonly archiveAppVersion?: string
+  readonly archiveBuildType: 'packaged' | 'development' | 'unknown'
+
+  constructor({
+    archiveFormatVersion,
+    archiveAppVersion,
+    archiveBuildType
+  }: {
+    archiveFormatVersion: number
+    archiveAppVersion?: string
+    archiveBuildType: 'packaged' | 'development' | 'unknown'
+  }) {
+    super(`backup format ${archiveFormatVersion} is not supported by this build`)
+    this.name = 'BackupFormatCompatibilityError'
+    this.archiveFormatVersion = archiveFormatVersion
+    this.archiveAppVersion = archiveAppVersion
+    this.archiveBuildType = archiveBuildType
+  }
+}
+
+/**
+ * The generic fail-closed rejection an untrusted `.cherrybackup` archive raises
  * at admission (Phase 1b-ii, docs/references/backup/README.md §5.2). Admission
  * is the trust boundary: every one of these fires BEFORE any restore journal or
  * live DB/resource write can exist, so a rejected archive never reaches a
@@ -292,7 +358,7 @@ export type AdmissionRejectReason =
   | 'db-corrupt'
   /** The staged database's actual applied chain does not equal the manifest's declared chain. */
   | 'chain-mismatch'
-  /** The staged chain is ahead of or forked from the app's bundled production chain — not migrate-forwardable. */
+  /** Applying the trusted bundled schema failed or did not reach the complete bundled chain. */
   | 'chain-incompatible'
   /** The actual post-migration schema differs from a database built by this app's trusted migrations. */
   | 'schema-mismatch'

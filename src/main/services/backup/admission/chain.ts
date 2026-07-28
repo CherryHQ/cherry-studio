@@ -7,7 +7,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 
 import { assertDbIntegrity, assertNoDbSidecars, sealDetachedDb } from '../dbSeal'
-import { ArchiveAdmissionError, BackupCancelledError, DbSealError } from '../errors'
+import { ArchiveAdmissionError, BackupCancelledError, BackupMigrationCompatibilityError, DbSealError } from '../errors'
 import { sha256FileCancellable } from '../hashing'
 import type { BackupManifest } from '../manifest'
 import { assertTrustedApplicationSchema } from './schema'
@@ -41,8 +41,9 @@ import { assertTrustedApplicationSchema } from './schema'
 
 export type ChainDecision =
   | { readonly kind: 'exact' }
-  | { readonly kind: 'prefix' }
-  | { readonly kind: 'incompatible'; readonly detail: string }
+  | { readonly kind: 'prefix'; readonly missingOnSource: number }
+  | { readonly kind: 'ahead'; readonly extraOnSource: number; readonly firstExtraIndex: number }
+  | { readonly kind: 'fork'; readonly firstDivergentIndex: number }
 
 /**
  * Pure item-wise classification of a source chain against the bundled chain.
@@ -56,13 +57,19 @@ export function classifyChain(
   const shared = Math.min(source.length, bundled.length)
   for (let i = 0; i < shared; i++) {
     if (source[i].folderMillis !== bundled[i].folderMillis || source[i].hash !== bundled[i].hash) {
-      return { kind: 'incompatible', detail: `forked at migration #${i}` }
+      return { kind: 'fork', firstDivergentIndex: i + 1 }
     }
   }
   if (source.length > bundled.length) {
-    return { kind: 'incompatible', detail: `ahead of bundled chain by ${source.length - bundled.length}` }
+    return {
+      kind: 'ahead',
+      extraOnSource: source.length - bundled.length,
+      firstExtraIndex: bundled.length + 1
+    }
   }
-  return source.length === bundled.length ? { kind: 'exact' } : { kind: 'prefix' }
+  return source.length === bundled.length
+    ? { kind: 'exact' }
+    : { kind: 'prefix', missingOnSource: bundled.length - source.length }
 }
 
 function chainsEqual(a: readonly AppliedMigration[], b: readonly { folderMillis: number; hash: string }[]): boolean {
@@ -143,8 +150,25 @@ export async function admitStagedDatabase(
 
     const bundled = readMigrationFiles({ migrationsFolder })
     const decision = classifyChain(actual, bundled)
-    if (decision.kind === 'incompatible') {
-      throw new ArchiveAdmissionError('chain-incompatible', decision.detail)
+    if (decision.kind === 'ahead' || decision.kind === 'fork') {
+      const common = {
+        archiveAppVersion: manifest.producer.appVersion,
+        archiveBuildType: manifest.producer.buildType ?? ('unknown' as const),
+        sourceMigrationCount: actual.length,
+        targetMigrationCount: bundled.length,
+        sourceTip: actual[actual.length - 1],
+        targetTip: bundled[bundled.length - 1]
+      }
+      throw new BackupMigrationCompatibilityError(
+        decision.kind === 'ahead'
+          ? {
+              ...common,
+              kind: 'source-ahead',
+              missingMigrationCount: decision.extraOnSource,
+              firstExtraIndex: decision.firstExtraIndex
+            }
+          : { ...common, kind: 'lineage-fork', firstDivergentIndex: decision.firstDivergentIndex }
+      )
     }
 
     throwIfAborted(signal) // before synchronous schema work
