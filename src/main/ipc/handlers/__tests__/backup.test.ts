@@ -68,7 +68,10 @@ describe('backupHandlers', () => {
       ['backup.cancel_restore', () => backupHandlers['backup.cancel_restore'](undefined, detachedCtx)],
       ['backup.arm_restore', () => backupHandlers['backup.arm_restore']({ restoreId: 'r1' }, detachedCtx)],
       ['backup.rollback_restore', () => backupHandlers['backup.rollback_restore'](undefined, detachedCtx)],
-      ['backup.acknowledge_restore', () => backupHandlers['backup.acknowledge_restore'](undefined, detachedCtx)]
+      [
+        'backup.acknowledge_restore',
+        () => backupHandlers['backup.acknowledge_restore']({ knowledgeRebuild: 'require-complete' }, detachedCtx)
+      ]
     ])('refuses %s from a caller that is not a managed window', async (_route, call) => {
       await expect(call()).rejects.toMatchObject({ code: backupErrorCodes.SENDER_NOT_ALLOWED })
 
@@ -293,11 +296,14 @@ describe('backupHandlers', () => {
     it('returns what acknowledgement released', async () => {
       service.acknowledgeRestore.mockReturnValue({ acknowledged: true, restoreId: 'r1', removed: 3 })
 
-      await expect(backupHandlers['backup.acknowledge_restore'](undefined, ctx)).resolves.toEqual({
-        acknowledged: true,
-        restoreId: 'r1',
-        removed: 3
-      })
+      await expect(backupHandlers['backup.acknowledge_restore']({ knowledgeRebuild: 'abandon' }, ctx)).resolves.toEqual(
+        {
+          acknowledged: true,
+          restoreId: 'r1',
+          removed: 3
+        }
+      )
+      expect(service.acknowledgeRestore).toHaveBeenCalledWith('abandon')
     })
 
     it('lets an unpredicted fault through as itself rather than inventing a code', async () => {
@@ -305,7 +311,10 @@ describe('backupHandlers', () => {
         throw new Error('EPERM')
       })
 
-      const error = await backupHandlers['backup.acknowledge_restore'](undefined, ctx).catch((e) => e)
+      const error = await backupHandlers['backup.acknowledge_restore'](
+        { knowledgeRebuild: 'require-complete' },
+        ctx
+      ).catch((e) => e)
 
       expect(error).not.toBeInstanceOf(IpcError)
       expect((error as Error).message).toBe('EPERM')

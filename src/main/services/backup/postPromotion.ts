@@ -41,6 +41,9 @@ export async function runPostPromotionWork(shouldContinue: () => boolean): Promi
 
   const { restoreId } = read.journal
   const requiredBaseIds = read.journal.summary.knowledgeBaseIds
+  if (read.journal.knowledgeRebuild?.abandoned) {
+    return { ran: true, enqueuedBaseIds: [], pending: false }
+  }
   const completed = new Set(read.journal.knowledgeRebuild?.completedBaseIds ?? [])
   const reconciling: string[] = []
 
@@ -89,6 +92,7 @@ function persistKnowledgeCompletion(restoreId: string, completedBaseIds: readonl
   writeRestoreJournalV2({
     ...current.journal,
     knowledgeRebuild: {
+      ...current.journal.knowledgeRebuild,
       completedBaseIds: current.journal.summary.knowledgeBaseIds.filter((id) => merged.has(id))
     }
   })

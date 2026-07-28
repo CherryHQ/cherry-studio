@@ -138,6 +138,21 @@ describe('RestoreJournalV2Schema — terminal fields', () => {
     ).toBe(false)
   })
 
+  it('persists only an explicit true when the user abandons derived rebuilding', () => {
+    const base = liteJournal({
+      state: 'completed',
+      summary: { knowledgeBaseIds: ['kb-1'] },
+      knowledgeRebuild: { completedBaseIds: [], abandoned: true }
+    })
+    expect(RestoreJournalV2Schema.safeParse(base).success).toBe(true)
+    expect(
+      RestoreJournalV2Schema.safeParse({
+        ...base,
+        knowledgeRebuild: { completedBaseIds: [], abandoned: false }
+      }).success
+    ).toBe(false)
+  })
+
   it('rejects a summary on states that never crossed the commit (strict)', () => {
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'prepared', summary })).success).toBe(false)
   })

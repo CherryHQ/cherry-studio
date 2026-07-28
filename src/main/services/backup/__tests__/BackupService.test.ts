@@ -11,7 +11,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * will: the handlers add sender policy and error mapping, nothing else, so the
  * behaviour worth proving lives on these methods.
  */
-const { loggerMock, postPromotionMock } = vi.hoisted(() => ({
+const { acknowledgeMock, abandonMock, cancelRebuildMock, loggerMock, postPromotionMock } = vi.hoisted(() => ({
+  acknowledgeMock: vi.fn(() => ({ acknowledged: true, restoreId: 'restore-1', removed: 1 })),
+  abandonMock: vi.fn(() => ({ restoreId: 'restore-1', pendingBaseIds: ['kb-1'] })),
+  cancelRebuildMock: vi.fn(async () => undefined),
   loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   postPromotionMock: vi.fn<
     (shouldContinue: () => boolean) => Promise<{ ran: boolean; enqueuedBaseIds: string[]; pending: boolean }>
@@ -22,11 +25,19 @@ vi.mock('@logger', () => ({ loggerService: { withContext: () => loggerMock } }))
 // The derived-work behaviour itself is proven in postPromotion.test.ts; what
 // matters here is that the service tracks the promise it starts.
 vi.mock('../postPromotion', () => ({ runPostPromotionWork: postPromotionMock }))
+vi.mock('../acknowledgeRestore', () => ({
+  acknowledgeRestore: acknowledgeMock,
+  abandonKnowledgeRebuild: abandonMock
+}))
 
 let userDataDir = ''
 
 vi.mock('@application', () => ({
   application: {
+    get: vi.fn((name: string) => {
+      if (name === 'KnowledgeService') return { cancelRestoredMaterialRebuild: cancelRebuildMock }
+      throw new Error(`Unexpected service in BackupService test: ${name}`)
+    }),
     getPath: vi.fn((key: string) => {
       if (key !== 'feature.backup.restore.file') {
         throw new Error(`Unexpected path key in BackupService test: ${key}`)
@@ -160,6 +171,9 @@ describe('BackupService', () => {
 
       writeRestoreJournalV2({ ...completed, knowledgeRebuild: { completedBaseIds: ['kb-1'] } })
       expect(service.getStatus().restore).not.toHaveProperty('knowledgeRebuildPending')
+
+      writeRestoreJournalV2({ ...completed, knowledgeRebuild: { completedBaseIds: [], abandoned: true } })
+      expect(service.getStatus().restore).not.toHaveProperty('knowledgeRebuildPending')
     })
 
     it('surfaces the degradation report the journal carries', () => {
@@ -224,6 +238,29 @@ describe('BackupService', () => {
 
       await expect(stop(service)).resolves.toBeUndefined()
       expect(loggerMock.error).toHaveBeenCalled()
+    })
+
+    it('stops the scheduler, joins its pass, cancels restore jobs, then acknowledges an explicit give-up', async () => {
+      let shouldContinue = (): boolean => true
+      let finish = (): void => {}
+      postPromotionMock.mockImplementationOnce(
+        (probe: () => boolean) =>
+          new Promise((resolve) => {
+            shouldContinue = probe
+            finish = () => resolve({ ran: true, enqueuedBaseIds: ['kb-1'], pending: true })
+          })
+      )
+      allReady(service)
+
+      const acknowledging = service.acknowledgeRestore('abandon')
+      expect(abandonMock).toHaveBeenCalledOnce()
+      expect(shouldContinue()).toBe(false)
+      expect(cancelRebuildMock).not.toHaveBeenCalled()
+
+      finish()
+      await expect(acknowledging).resolves.toMatchObject({ acknowledged: true })
+      expect(cancelRebuildMock).toHaveBeenCalledWith('restore-1')
+      expect(acknowledgeMock).toHaveBeenCalledOnce()
     })
   })
 

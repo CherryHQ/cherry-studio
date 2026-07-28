@@ -230,7 +230,11 @@ describe('BackupV2Settings', () => {
 
     click('settings.data.backup_v2.outcome.acknowledge_button')
 
-    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore'))
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore', {
+        knowledgeRebuild: 'require-complete'
+      })
+    )
     expect(toast.closeToast).toHaveBeenCalledWith('backup-restore-notice')
   })
 
@@ -270,7 +274,11 @@ describe('BackupV2Settings', () => {
     ).not.toBeInTheDocument()
 
     click('settings.data.backup_v2.outcome.keep_previous_button')
-    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore'))
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore', {
+        knowledgeRebuild: 'require-complete'
+      })
+    )
   })
 
   it('names what a completed restore brought back in a reduced form', async () => {
@@ -314,7 +322,7 @@ describe('BackupV2Settings', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('keeps rollback available but withholds acknowledgement while Knowledge rebuilds', async () => {
+  it('offers rollback or an explicit indexed-rebuild give-up while Knowledge rebuilds', async () => {
     statusIs({
       kind: 'journal',
       state: 'completed',
@@ -332,6 +340,12 @@ describe('BackupV2Settings', () => {
         name: 'settings.data.backup_v2.outcome.acknowledge_button'
       })
     ).not.toBeInTheDocument()
+
+    click('settings.data.backup_v2.outcome.abandon_rebuild_button')
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore', { knowledgeRebuild: 'abandon' })
+    )
   })
 
   it('does not offer to acknowledge a restore that is still running', async () => {
