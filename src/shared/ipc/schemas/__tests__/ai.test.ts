@@ -33,3 +33,31 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
     expect(genImage.safeParse(input('bad-id')).success).toBe(false)
   })
 })
+
+describe('ai.agent.create IPC schema', () => {
+  const createAgent = aiRequestSchemas['ai.agent.create'].input
+  const base = {
+    type: 'claude-code',
+    name: 'Agent',
+    model: 'openai::gpt-4'
+  }
+
+  it('rejects fields outside the create command contract', () => {
+    expect(createAgent.safeParse({ ...base, tagIds: [] }).success).toBe(false)
+  })
+
+  it('deduplicates create-only sets at the IPC boundary', () => {
+    expect(
+      createAgent.parse({
+        ...base,
+        disabledTools: ['Bash', 'Read', 'Bash'],
+        skillIds: ['skill-a', 'skill-b', 'skill-a'],
+        knowledgeBaseIds: ['kb-a', 'kb-b', 'kb-a']
+      })
+    ).toMatchObject({
+      disabledTools: ['Bash', 'Read'],
+      skillIds: ['skill-a', 'skill-b'],
+      knowledgeBaseIds: ['kb-a', 'kb-b']
+    })
+  })
+})

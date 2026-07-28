@@ -1,7 +1,7 @@
 import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 import { describe, expect, it } from 'vitest'
 
-import { buildCreateAgentDto, buildCreateAssistantDto } from '../resourceCreate'
+import { buildCreateAgentCommand, buildCreateAssistantDto } from '../resourceCreate'
 
 const values: ResourceCreateValues = {
   avatar: '🤖',
@@ -26,7 +26,7 @@ describe('resource create DTO mapping', () => {
   })
 
   it('maps every agent-specific field', () => {
-    expect(buildCreateAgentDto(values)).toEqual({
+    expect(buildCreateAgentCommand(values)).toEqual({
       type: 'claude-code',
       name: 'Researcher',
       model: 'provider::model',
