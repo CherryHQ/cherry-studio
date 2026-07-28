@@ -1,15 +1,18 @@
 import { Tooltip } from '@cherrystudio/ui'
-import Favicon from '@renderer/components/icons/FallbackFavicon'
-import MarqueeText from '@renderer/components/MarqueeText'
-import { fetchXOEmbed, isXPostUrl, xOembedKey } from '@renderer/utils/fetch'
-import React, { memo, useCallback, useMemo, useState } from 'react'
-import useSWRImmutable from 'swr/immutable'
+import React, { memo, useState } from 'react'
 import * as z from 'zod'
 
-import { useOptionalMessageListActions } from '../MessageListProvider'
+import { KnowledgeCitationHoverContent } from '../../citations/KnowledgeCitation'
+import { WebCitationHoverContent } from '../../citations/WebCitation'
 
+/**
+ * Shape of the `data-citation` JSON carried by inline `<sup>` tags (see
+ * `generateCitationTag`). `type` discriminates the hover card: web citations
+ * link out, knowledge/memory citations have no URL and show a document card.
+ */
 export const CitationSchema = z.object({
-  url: z.url(),
+  type: z.string().optional(),
+  url: z.union([z.url(), z.literal('')]).optional(),
   title: z.string().optional(),
   content: z.string().optional()
 })
@@ -20,94 +23,20 @@ interface CitationTooltipProps {
 }
 
 const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation }) => {
-  const openExternalUrl = useOptionalMessageListActions()?.openExternalUrl
-  const hostname = useMemo(() => {
-    try {
-      return new URL(citation.url).hostname
-    } catch {
-      return citation.url
-    }
-  }, [citation.url])
-
-  const isXPost = useMemo(() => isXPostUrl(citation.url), [citation.url])
-
-  // Defer the X oEmbed network request until the tooltip is actually opened —
-  // firing it on mount for every X-post citation is a perf + privacy leak.
-  // `staleTime: Infinity` keeps the result cached after the first open.
+  // Passed down so the web hover defers its X oEmbed request until opened.
   const [isOpen, setIsOpen] = useState(false)
 
-  const { data: oembedData } = useSWRImmutable(
-    isXPost && !citation.content?.trim() && isOpen ? xOembedKey(citation.url) : null,
-    () => fetchXOEmbed(citation.url),
-    { shouldRetryOnError: false }
-  )
+  const isWeb = Boolean(citation.url) && citation.type !== 'knowledge' && citation.type !== 'memory'
+  const hasHoverContent = isWeb || Boolean(citation.title?.trim() || citation.content?.trim())
+  if (!hasHoverContent) return <>{children}</>
 
-  const sourceTitle = useMemo(() => {
-    if (isXPost && oembedData?.author) return `@${oembedData.author}`
-    return citation.title?.trim() || hostname
-  }, [citation.title, hostname, isXPost, oembedData])
-
-  const displayContent = useMemo(() => {
-    if (citation.content?.trim()) return citation.content
-    if (isXPost && oembedData?.text) return oembedData.text
-    return undefined
-  }, [citation.content, isXPost, oembedData])
-
-  const handleClick = useCallback(
-    (event: React.MouseEvent<HTMLAnchorElement>) => {
-      if (!openExternalUrl) return
-      event.preventDefault()
-      void openExternalUrl(citation.url)
-    },
-    [citation.url, openExternalUrl]
-  )
-
-  // 自定义悬浮卡片内容
-  const tooltipContent = useMemo(
-    () => (
-      <div style={{ userSelect: 'text' }}>
-        <a
-          href={citation.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mb-2 flex cursor-pointer items-center gap-2 hover:opacity-80"
-          aria-label={`Open ${sourceTitle} in new tab`}
-          onClick={handleClick}>
-          <Favicon hostname={hostname} alt={sourceTitle} />
-          <div
-            className="overflow-hidden text-ellipsis whitespace-nowrap text-foreground text-sm leading-[1.4]"
-            role="heading"
-            aria-level={3}
-            title={sourceTitle}>
-            <MarqueeText>{sourceTitle}</MarqueeText>
-          </div>
-        </a>
-        {displayContent && (
-          <div
-            className="mb-2 overflow-hidden text-[13px] text-muted-foreground leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
-            role="article"
-            aria-label="Citation content"
-            style={{
-              display: '-webkit-box',
-              overflow: 'hidden',
-              WebkitBoxOrient: 'vertical',
-              WebkitLineClamp: 3
-            }}>
-            {displayContent}
-          </div>
-        )}
-        <a
-          href={citation.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-link text-xs hover:underline"
-          aria-label={`Visit ${hostname}`}
-          onClick={handleClick}>
-          {hostname}
-        </a>
-      </div>
-    ),
-    [citation.url, displayContent, hostname, handleClick, sourceTitle]
+  const tooltipContent = isWeb ? (
+    <WebCitationHoverContent
+      citation={{ url: citation.url!, title: citation.title, content: citation.content }}
+      isOpen={isOpen}
+    />
+  ) : (
+    <KnowledgeCitationHoverContent citation={{ title: citation.title, content: citation.content }} />
   )
 
   return (

@@ -3,10 +3,11 @@ import { render, screen } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import CitationsPanel from '../CitationsPanel'
+import type { CitationPanelActions } from '../common'
 
 const mocks = vi.hoisted(() => ({
-  citationsPanelContent: vi.fn(),
+  webCitationCard: vi.fn(),
+  knowledgeCitationCard: vi.fn(),
   fileOpenPath: vi.fn()
 }))
 
@@ -37,22 +38,26 @@ vi.mock('@cherrystudio/ui', () => ({
         <button type="button" aria-label={closeLabel} onClick={onClose} />
         {children}
       </section>
-    ) : null
+    ) : null,
+  Scrollbar: ({ children }: { children?: React.ReactNode }) => <div data-testid="citations-scrollbar">{children}</div>
 }))
 
-vi.mock('@renderer/components/chat/messages/blocks/CitationsList', () => ({
-  CitationsPanelContent: (props: {
-    citations: Citation[]
-    actions?: {
-      openPath?: (path: string) => void | Promise<void>
-      openExternalUrl?: (url: string) => void | Promise<void>
-      copyText?: (text: string) => void | Promise<void>
-      notifyError?: (message: string) => void
-    }
-  }) => {
-    mocks.citationsPanelContent(props)
-    return <div data-testid="citations-panel-content">{props.citations.length}</div>
+vi.mock('../WebCitation', () => ({
+  WebCitationCard: (props: { citation: Citation; actions?: CitationPanelActions }) => {
+    mocks.webCitationCard(props)
+    return <div data-testid="web-citation-card">{props.citation.title}</div>
   }
+}))
+
+vi.mock('../KnowledgeCitation', () => ({
+  KnowledgeCitationCard: (props: { citation: Citation; actions?: CitationPanelActions }) => {
+    mocks.knowledgeCitationCard(props)
+    return <div data-testid="knowledge-citation-card">{props.citation.title}</div>
+  }
+}))
+
+vi.mock('../citationPreview', () => ({
+  useCitationPreviewSession: () => ({ load: vi.fn() })
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessagePlatformActions', () => ({
@@ -67,6 +72,8 @@ vi.mock('react-i18next', () => ({
     t: (key: string) => key
   })
 }))
+
+import CitationsPanel from '../CitationsPanel'
 
 describe('CitationsPanel', () => {
   beforeEach(() => {
@@ -83,17 +90,21 @@ describe('CitationsPanel', () => {
   })
 
   it('renders citations in a page side panel and forwards platform actions', () => {
-    const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
+    const citations: Citation[] = [
+      { number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' },
+      { number: 2, url: '', title: 'doc.md', type: 'knowledge' }
+    ]
     const onClose = vi.fn()
 
     render(<CitationsPanel open={true} onClose={onClose} citations={citations} />)
 
     expect(screen.getByText('message.citations')).toBeInTheDocument()
     expect(screen.getByLabelText('common.close')).toBeInTheDocument()
-    expect(screen.getByTestId('citations-panel-content')).toHaveTextContent('1')
+    expect(screen.getByTestId('web-citation-card')).toHaveTextContent('Example')
+    expect(screen.getByTestId('knowledge-citation-card')).toHaveTextContent('doc.md')
 
-    const contentProps = mocks.citationsPanelContent.mock.calls[0][0]
-    expect(contentProps.citations).toBe(citations)
+    const contentProps = mocks.webCitationCard.mock.calls[0][0]
+    expect(contentProps.citation).toBe(citations[0])
 
     contentProps.actions?.openPath?.('/tmp/example.md')
     expect(mocks.fileOpenPath).toHaveBeenCalledWith('/tmp/example.md')

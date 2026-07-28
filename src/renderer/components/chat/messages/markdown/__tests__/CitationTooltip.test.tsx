@@ -110,7 +110,7 @@ describe('CitationTooltip', () => {
     })
 
     it('should fallback to original URL when parsing fails', () => {
-      const testCases = ['not-a-valid-url', '', 'http://']
+      const testCases = ['not-a-valid-url', 'http://']
 
       testCases.forEach((invalidUrl) => {
         const { unmount } = renderCitationTooltip(createCitationData({ url: invalidUrl }))
@@ -118,6 +118,21 @@ describe('CitationTooltip', () => {
         expect(favicon).toHaveAttribute('hostname', invalidUrl)
         unmount()
       })
+    })
+
+    it('should render the knowledge document card when the citation has no URL', () => {
+      renderCitationTooltip(createCitationData({ url: '', type: 'knowledge' }))
+
+      expect(screen.queryByTestId('mock-favicon')).not.toBeInTheDocument()
+      expect(getCitationTitle()).toHaveTextContent('Example Article')
+      expect(getCitationContent()).toBeInTheDocument()
+    })
+
+    it('should render children without a tooltip when a URL-less citation has no content', () => {
+      renderCitationTooltip({ url: '', type: 'knowledge' }, <span>Bare trigger</span>)
+
+      expect(screen.getByText('Bare trigger')).toBeInTheDocument()
+      expect(screen.queryByTestId('tooltip-wrapper')).not.toBeInTheDocument()
     })
   })
 
