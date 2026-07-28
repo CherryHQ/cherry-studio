@@ -13,6 +13,7 @@
  * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
+import { usePreference } from '@data/hooks/usePreference'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import type {
@@ -24,10 +25,13 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
+// Baseline page size when the anchor rail is off — no reason to load more.
+const PAGE_SIZE = 50
+
 // Sized so one page (~75 turns) fills the anchor rail's visible capacity on a
 // typical full-height window (~73 ticks at 10px pitch) — the rail then shows a
 // complete strip on entry instead of visibly growing as older pages stream in.
-const PAGE_SIZE = 150
+const ANCHOR_RAIL_PAGE_SIZE = 150
 
 interface DisplayBranchMessage {
   message: SharedMessage
@@ -184,10 +188,14 @@ export function useTopicMessages(
 ): UseTopicMessagesResult {
   const enabled = options?.enabled !== false
   const fetchOnMount = options?.fetchOnMount ?? enabled
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
+  // `limit` is part of the SWR infinite key, so toggling the preference
+  // mid-session swaps to a fresh cache entry instead of mixing page sizes.
+  const pageSize = messageNavigation === 'anchor' ? ANCHOR_RAIL_PAGE_SIZE : PAGE_SIZE
   const { pages, isLoading, isRefreshing, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
     params: { topicId },
     query: { includeSiblings: true },
-    limit: PAGE_SIZE,
+    limit: pageSize,
     enabled,
     swrOptions: {
       dedupingInterval: 0,
