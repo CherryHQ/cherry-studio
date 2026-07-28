@@ -125,12 +125,12 @@ describe('collectResourceRequirements', () => {
       expect(JSON.stringify(inventory.requirements)).not.toContain('someone')
     })
 
-    it('ignores a soft-deleted entry entirely — it is garbage, not a missing resource', () => {
+    it('keeps a soft-deleted internal blob recoverable from FileManager trash', () => {
       insertInternalFile('44444444-4444-4444-8444-444444444444', 'png', Date.now())
 
       const inventory = collect()
 
-      expect(livePathsOf('file-blob', inventory)).toEqual([])
+      expect(livePathsOf('file-blob', inventory)).toEqual(['Data/Files/44444444-4444-4444-8444-444444444444.png'])
       expect(inventory.unverifiableByKind['file-blob']).toBe(0)
     })
   })

@@ -2,7 +2,6 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { portableCollisionKey, toRelativeSegments } from '@main/utils/relativePath'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { DEFAULT_DIR_SCAN_LIMITS } from '../../dirScan'
@@ -28,11 +27,7 @@ function unit(archivePath: string, resourceType: 'file' | 'directory'): Coverage
     hash: '0'.repeat(64),
     sizeBytes: 0
   }
-  return {
-    payload,
-    segments: toRelativeSegments(portableCollisionKey(archivePath)),
-    isDirectory: resourceType === 'directory'
-  }
+  return { payload, isDirectory: resourceType === 'directory' }
 }
 
 describe('verifyStagedTree', () => {

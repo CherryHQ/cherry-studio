@@ -232,8 +232,9 @@ export function installResourceUnits(entries: readonly ResourceInstallEntry[], u
     const facts = probe(unit)
 
     if (!facts.staged) {
-      // Already installed by an interrupted attempt in this same boot, or gone.
-      if (facts.live) continue
+      // Forward installation is entered exactly once. Crash re-entry is resolved
+      // by recoverResourceUnits() before this path, so a live target cannot prove
+      // that the missing archive payload was ever installed.
       throw new ResourceInstallError('staged-missing', unit.liveRel)
     }
 

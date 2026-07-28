@@ -18,6 +18,7 @@ import { admitArchive } from '../admission/admitArchive'
 import { diskProbe } from '../diskPreflight'
 import { InsufficientDiskSpaceError, OutputPathExistsError } from '../errors'
 import { exportArchive } from '../exportArchive'
+import { driftHooks } from '../sourceDrift'
 
 /**
  * End-to-end proof for the export path: a real migrated database in, a
@@ -55,6 +56,7 @@ describe('exportArchive', () => {
   afterEach(() => {
     rmSync(workDir, { recursive: true, force: true })
     snapshotMock().mockReset()
+    driftHooks.afterInitialLstat = async () => {}
     vi.restoreAllMocks()
   })
 
@@ -150,6 +152,7 @@ describe('exportArchive', () => {
     // Derived state export drops on purpose (§6.7) — it is rebuilt after restore.
     writeFileSync(mkFile(join(userData, 'Data', 'KnowledgeBase', 'kb-1', '.cherry', 'index.sqlite')), 'INDEX')
     writeFileSync(mkFile(join(userData, 'Data', 'Notes', 'a.md')), '# note')
+    mkdirSync(join(userData, 'Data', 'Notes', 'empty', 'nested'), { recursive: true })
     // Declared by a row but not present here: a degraded archive, not a failure.
     expect(existsSync(join(userData, 'Data', 'Agents', 'system', 's-1'))).toBe(false)
 
@@ -182,6 +185,8 @@ describe('exportArchive', () => {
       expect(kb?.hash).toBe(payloads.find((p) => p.livePath === 'Data/KnowledgeBase/kb-1')?.hash)
       expect(existsSync(join(kb!.stagedPath, '.cherry', 'index.sqlite'))).toBe(false)
       expect(readFileSync(join(kb!.stagedPath, 'raw', 'doc.txt'), 'utf8')).toBe('SOURCE')
+      const notes = admitted.resources.find((resource) => resource.livePath === 'Data/Notes')
+      expect(existsSync(join(notes!.stagedPath, 'empty', 'nested'))).toBe(true)
     } finally {
       await admitted.cleanup()
       rmSync(stagingParent, { recursive: true, force: true })
@@ -254,6 +259,29 @@ describe('exportArchive', () => {
     await expect(exportArchive({ outPath, preset: 'lite' })).rejects.toBeInstanceOf(InsufficientDiskSpaceError)
 
     expect(snapshotMock()).not.toHaveBeenCalled()
+    expect(existsSync(outPath)).toBe(false)
+    expect(readdirSync(join(userData, 'backup-temp'))).toEqual([])
+  })
+
+  it('preflights all Full resource bytes before copying the first resource', async () => {
+    dbh.db
+      .insert(fileEntryTable)
+      .values({ id: '22222222-2222-4222-8222-222222222222', origin: 'internal', name: 'b', ext: 'bin', size: 4 })
+      .run()
+    writeFileSync(mkFile(join(userData, 'Data', 'Files', '22222222-2222-4222-8222-222222222222.bin')), 'DATA')
+
+    const statfs = vi.spyOn(diskProbe, 'statfs')
+    statfs.mockResolvedValueOnce({ bavail: 1_000_000_000n, bsize: 4096n } as never)
+    statfs.mockResolvedValueOnce({ bavail: 0n, bsize: 4096n } as never)
+    let copied = false
+    driftHooks.afterInitialLstat = async () => {
+      copied = true
+    }
+
+    await expect(exportArchive({ outPath, preset: 'full' })).rejects.toBeInstanceOf(InsufficientDiskSpaceError)
+
+    expect(snapshotMock()).toHaveBeenCalledOnce()
+    expect(copied).toBe(false)
     expect(existsSync(outPath)).toBe(false)
     expect(readdirSync(join(userData, 'backup-temp'))).toEqual([])
   })

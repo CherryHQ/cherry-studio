@@ -10,6 +10,7 @@ import { assertDbIntegrity, assertNoDbSidecars, sealDetachedDb } from '../dbSeal
 import { ArchiveAdmissionError, BackupCancelledError, DbSealError } from '../errors'
 import { sha256FileCancellable } from '../hashing'
 import type { BackupManifest } from '../manifest'
+import { assertTrustedApplicationSchema } from './schema'
 
 /**
  * Migration-chain compatibility + migrate-forward for archive admission
@@ -27,8 +28,11 @@ import type { BackupManifest } from '../manifest'
  *    is accepted; a prefix migrates forward. AHEAD-of or FORKED-from the bundled
  *    chain is rejected (`migrate()` silently no-ops an ahead DB, so we compare
  *    item-wise, never by tip).
- * 4. After migrate-forward, `integrity_check` runs again and the applied chain
- *    must now equal the bundled chain exactly.
+ * 4. The shared migration/custom-SQL path is applied even for an exact chain,
+ *    then `integrity_check` and the applied chain are re-proved.
+ * 5. The complete `sqlite_schema` must equal a trusted database built from the
+ *    same production migrations. The migration journal alone is not a schema
+ *    proof and cannot authorize archive-supplied triggers.
  *
  * The manifest's chain/DB metadata are NEVER mutated silently — the sealed final
  * DB hash/size/chain are returned SEPARATELY so the caller can record both the
@@ -143,28 +147,24 @@ export async function admitStagedDatabase(
       throw new ArchiveAdmissionError('chain-incompatible', decision.detail)
     }
 
-    if (decision.kind === 'prefix') {
-      throwIfAborted(signal) // before the synchronous migration
-      try {
-        applyMigrations(drizzle({ client: sqlite, casing: 'snake_case' }), migrationsFolder)
-      } catch {
-        // A staged DB that passed integrity + matched the manifest but cannot be
-        // migrated to the bundled chain is not admissible — fail closed within
-        // the taxonomy rather than leaking the raw migrator error.
-        throw new ArchiveAdmissionError('chain-incompatible', 'migrate-forward failed to apply the bundled chain')
-      }
-      throwIfAborted(signal) // after the synchronous migration
-      asAdmissionRejection(() => assertDbIntegrity(sqlite, 'post'))
-      const migrated = readActualChain(sqlite)
-      if (!chainsEqual(migrated, bundled)) {
-        throw new ArchiveAdmissionError('chain-incompatible', 'migrate-forward did not reach the bundled chain')
-      }
-      migratedForward = true
-      finalChain = migrated
-    } else {
-      finalChain = actual
+    throwIfAborted(signal) // before synchronous schema work
+    try {
+      // Exact chains still run this path: migrations no-op, while trusted custom
+      // SQL refreshes the known FTS triggers before the full schema comparison.
+      applyMigrations(drizzle({ client: sqlite, casing: 'snake_case' }), migrationsFolder)
+    } catch {
+      throw new ArchiveAdmissionError('chain-incompatible', 'staged database could not apply the bundled schema')
     }
+    throwIfAborted(signal)
+    asAdmissionRejection(() => assertDbIntegrity(sqlite, 'post'))
+    const migrated = readActualChain(sqlite)
+    if (!chainsEqual(migrated, bundled)) {
+      throw new ArchiveAdmissionError('chain-incompatible', 'schema application did not reach the bundled chain')
+    }
+    migratedForward = decision.kind === 'prefix'
+    finalChain = migrated
 
+    assertTrustedApplicationSchema(sqlite, migrationsFolder)
     asAdmissionRejection(() => sealDetachedDb(sqlite))
   } finally {
     sqlite.close()

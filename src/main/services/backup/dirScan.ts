@@ -153,8 +153,9 @@ export async function scanDirectoryUnit(rootDir: string, options: DirScanOptions
     if (entryCount > limits.maxEntries) throw new CeilingExceededError('entry-count', `${rel}: > ${limits.maxEntries}`)
   }
 
-  const walk = async (dir: string): Promise<void> => {
+  const walk = async (dir: string): Promise<boolean> => {
     throwIfAborted(signal)
+    let hasIncludedNode = false
     const names = await readdir(dir)
     for (const name of names) {
       throwIfAborted(signal)
@@ -166,11 +167,19 @@ export async function scanDirectoryUnit(rootDir: string, options: DirScanOptions
       const rel = toPosixRel(rootDir, abs)
 
       if (st.isDirectory()) {
-        // Directories are archived and counted too — validate their names.
+        // The Knowledge unit-root `.cherry` directory is derived only when all
+        // of its contents are the excluded index sidecars. Preserve every other
+        // empty directory as authoritative user-visible structure.
+        if (excludeKnowledgeDerivedIndex && rel === '.cherry') {
+          const hasAuthoritativeChild = await walk(abs)
+          if (!hasAuthoritativeChild) continue
+        } else {
+          await walk(abs)
+        }
         validatePath(rel)
         countOne(rel)
         dirs.push({ relPath: rel, id: fsIdentityOf(st, 'dir') })
-        await walk(abs)
+        hasIncludedNode = true
         continue
       }
 
@@ -187,7 +196,9 @@ export async function scanDirectoryUnit(rootDir: string, options: DirScanOptions
       }
       countOne(rel)
       entries.push({ relPath: rel, size: Number(size), id: fsIdentityOf(st, 'file') })
+      hasIncludedNode = true
     }
+    return hasIncludedNode
   }
 
   await walk(rootDir)

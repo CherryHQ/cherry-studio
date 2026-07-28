@@ -32,6 +32,7 @@ import { loggerService } from '@logger'
 
 import { RESOURCES_PREFIX } from '../archiveLayout'
 import { BACKUP_CEILINGS } from '../ceilings'
+import { scanDirectoryUnit } from '../dirScan'
 import { BackupCancelledError, CeilingExceededError } from '../errors'
 import { hashDirectoryUnit } from '../hashing'
 import type { BackupManifestDegradation, ResourcePayload, ResourceRequirement } from '../manifest'
@@ -74,26 +75,27 @@ function absoluteOf(userDataPath: string, livePath: string): string {
  * real node of the declared type is "not here", with the reason kept for the
  * manifest so a degraded archive can never look complete.
  */
-function classifySource(sourcePath: string, requirement: ResourceRequirement): { missing: string } | null {
+type SourceInspection =
+  | { readonly kind: 'present'; readonly stats: fs.Stats }
+  | { readonly kind: 'missing'; readonly reason: string }
+
+function inspectSource(sourcePath: string, requirement: ResourceRequirement): SourceInspection {
   let stats: fs.Stats
   try {
     stats = fs.lstatSync(sourcePath)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { missing: 'absent at snapshot time' }
+      return { kind: 'missing', reason: 'absent at snapshot time' }
     }
     throw error
   }
   if (requirement.resourceType === 'file' ? stats.isFile() : stats.isDirectory()) {
-    return null
+    return { kind: 'present', stats }
   }
-  return { missing: `not a ${requirement.resourceType} at snapshot time` }
+  return { kind: 'missing', reason: `not a ${requirement.resourceType} at snapshot time` }
 }
 
-export async function stageResources(input: StageResourcesInput): Promise<StagedResources> {
-  const { requirements, userDataPath, resourcesDir, signal } = input
-  throwIfAborted(signal)
-
+function assertRequirementSet(requirements: readonly ResourceRequirement[]): void {
   if (requirements.length > BACKUP_CEILINGS.maxResourceInstallEntries) {
     // Producing it would produce an archive no device could restore: the journal
     // schema and admission both cap install entries at the same number.
@@ -107,6 +109,47 @@ export async function stageResources(input: StageResourcesInput): Promise<Staged
   if (!pathSet.ok) {
     throw new Error(`resource payloads are not a legal install set: ${pathSet.violation.code}`)
   }
+}
+
+/**
+ * Size the exact resource requirement set before copying it into staging.
+ * Missing/type-mismatched units contribute no bytes, matching stageResources'
+ * degradation rule; directory scans also apply the normal portability and
+ * ceiling checks. A later drift can still fail closed, but ordinary Full work is
+ * preflighted before its first resource copy.
+ */
+export async function measureResourceStageBytes(input: Omit<StageResourcesInput, 'resourcesDir'>): Promise<number> {
+  const { requirements, userDataPath, signal } = input
+  throwIfAborted(signal)
+  assertRequirementSet(requirements)
+
+  let total = 0n
+  for (const requirement of requirements) {
+    throwIfAborted(signal)
+    const sourcePath = absoluteOf(userDataPath, requirement.livePath)
+    const inspected = inspectSource(sourcePath, requirement)
+    if (inspected.kind === 'missing') continue
+
+    if (requirement.resourceType === 'file') {
+      total += BigInt(inspected.stats.size)
+    } else {
+      const scan = await scanDirectoryUnit(sourcePath, {
+        signal,
+        excludeKnowledgeDerivedIndex: requirement.kind === KNOWLEDGE_KIND
+      })
+      total += scan.totalBytes
+    }
+    if (total > BigInt(BACKUP_CEILINGS.maxTotalUncompressedBytes)) {
+      throw new CeilingExceededError('total-bytes', `${total} > ${BACKUP_CEILINGS.maxTotalUncompressedBytes}`)
+    }
+  }
+  return Number(total)
+}
+
+export async function stageResources(input: StageResourcesInput): Promise<StagedResources> {
+  const { requirements, userDataPath, resourcesDir, signal } = input
+  throwIfAborted(signal)
+  assertRequirementSet(requirements)
 
   const payloads: ResourcePayload[] = []
   const degradations: BackupManifestDegradation[] = []
@@ -114,12 +157,12 @@ export async function stageResources(input: StageResourcesInput): Promise<Staged
   for (const requirement of requirements) {
     throwIfAborted(signal)
     const sourcePath = absoluteOf(userDataPath, requirement.livePath)
-    const missing = classifySource(sourcePath, requirement)
-    if (missing) {
+    const inspected = inspectSource(sourcePath, requirement)
+    if (inspected.kind === 'missing') {
       degradations.push({
         kind: `resource:${requirement.kind}`,
         livePath: requirement.livePath,
-        reason: missing.missing
+        reason: inspected.reason
       })
       continue
     }

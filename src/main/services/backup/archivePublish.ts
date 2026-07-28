@@ -4,9 +4,9 @@ import path from 'node:path'
 import { finished } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
-import { portableCollisionKey } from '@main/utils/relativePath'
 import { ZipArchive } from 'archiver'
 
+import { archiveDurability } from './archiveDurability'
 import { DB_ENTRY, MANIFEST_ENTRY, RESOURCES_PREFIX } from './archiveLayout'
 import { BACKUP_CEILINGS } from './ceilings'
 import { type DirScanLimits, scanDirectoryUnit } from './dirScan'
@@ -18,9 +18,9 @@ import {
   ManifestPayloadMismatchError,
   OutputPathExistsError
 } from './errors'
-import { durability } from './fsyncBatch'
 import { hashDirectoryUnit, sha256FileCancellable } from './hashing'
 import { type BackupManifest, parseBackupManifest } from './manifest'
+import { ResourceCoverageIndex } from './resourceCoverageIndex'
 import { validateResourcePathSet } from './resourcePaths'
 
 const logger = loggerService.withContext('backup/archivePublish')
@@ -103,10 +103,6 @@ export function publishArchive(inputs: PublishArchiveInputs): Promise<void> {
   return publishArchiveWithCeilings(inputs, DEFAULT_PRODUCER_CEILINGS)
 }
 
-function sameOrDescendant(pathKey: string, rootKey: string): boolean {
-  return pathKey === rootKey || pathKey.startsWith(`${rootKey}/`)
-}
-
 async function verifyExactResourceInventory(
   resourcesDir: string,
   manifest: BackupManifest,
@@ -120,38 +116,36 @@ async function verifyExactResourceInventory(
     throw new ManifestPayloadMismatchError(`resource payload paths are ${pathSet.violation.code}`)
   }
 
-  const units = manifest.resourcePayloads.map((payload) => {
+  const units = manifest.resourcePayloads
+  for (const payload of units) {
     const expectedArchivePath = `${RESOURCES_PREFIX}${payload.livePath}`
     if (payload.archivePath !== expectedArchivePath) {
       throw new ManifestPayloadMismatchError(
         `resource archivePath ${payload.archivePath} != expected ${expectedArchivePath}`
       )
     }
-    return { payload, key: portableCollisionKey(payload.livePath) }
-  })
+  }
+  const built = ResourceCoverageIndex.build(units, (payload) => ({
+    path: payload.livePath,
+    isDirectory: payload.resourceType === 'directory'
+  }))
+  if (!built.ok) {
+    throw new ManifestPayloadMismatchError(`resource payload paths are ${built.conflict.kind}`)
+  }
 
   for (const entry of scan.entries) {
-    const key = portableCollisionKey(entry.relPath)
-    const covering = units.filter(
-      ({ payload, key: unitKey }) =>
-        (payload.resourceType === 'file' && key === unitKey) ||
-        (payload.resourceType === 'directory' && sameOrDescendant(key, unitKey))
-    )
-    if (covering.length !== 1) {
-      throw new ManifestPayloadMismatchError(`resource file ${entry.relPath} is covered by ${covering.length} payloads`)
+    if (built.index.covering(entry.relPath) === null) {
+      throw new ManifestPayloadMismatchError(`resource file is undeclared: ${entry.relPath}`)
     }
   }
 
   for (const dir of scan.dirs) {
-    const key = portableCollisionKey(dir.relPath)
-    const structural = units.some(
-      ({ payload, key: unitKey }) =>
-        sameOrDescendant(unitKey, key) || (payload.resourceType === 'directory' && sameOrDescendant(key, unitKey))
-    )
-    if (!structural) throw new ManifestPayloadMismatchError(`undeclared resource directory: ${dir.relPath}`)
+    if (!built.index.isStructuralDirectory(dir.relPath)) {
+      throw new ManifestPayloadMismatchError(`undeclared resource directory: ${dir.relPath}`)
+    }
   }
 
-  for (const { payload } of units) {
+  for (const payload of units) {
     const stagedPath = path.join(resourcesDir, ...payload.livePath.split('/'))
     const stagedStat = await lstat(stagedPath).catch((error: NodeJS.ErrnoException) => {
       if (error.code === 'ENOENT') {
@@ -316,7 +310,7 @@ export async function publishArchiveWithCeilings(
     })
 
     // Durability BEFORE publish: flush the temp inode.
-    await durability.fsyncFile(tmpFile)
+    await archiveDurability.fsyncFile(tmpFile)
 
     // Re-check cancellation immediately before the commit point.
     if (signal?.aborted) throw new BackupCancelledError()
@@ -335,7 +329,7 @@ export async function publishArchiveWithCeilings(
 
     // Best-effort durability after the commit (archive already published at 0600).
     try {
-      await durability.fsyncDir(path.dirname(outPath))
+      await archiveDurability.fsyncDir(path.dirname(outPath))
     } catch (e) {
       logger.warn('archive published but directory fsync failed', e as Error)
     }

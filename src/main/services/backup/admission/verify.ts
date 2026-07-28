@@ -7,7 +7,7 @@ import { ArchiveAdmissionError, BackupCancelledError, renderUntrustedName } from
 import { hashDirectoryUnit, sha256FileCancellable } from '../hashing'
 import type { BackupManifest } from '../manifest'
 import { stagedDbName, stagedPathOf } from './extract'
-import { type CoverageUnit, coveringUnits } from './layout'
+import { buildCoverageIndex, type CoverageUnit } from './layout'
 
 /**
  * Post-extraction verification for archive admission (Phase 1b-ii,
@@ -161,6 +161,7 @@ export async function verifyResourcePayloads(
   dirScanLimits: DirScanLimits,
   signal: AbortSignal | undefined
 ): Promise<AdmittedResource[]> {
+  const coverage = buildCoverageIndex(units)
   const resources: AdmittedResource[] = []
   for (const unit of units) {
     if (signal?.aborted) throw new BackupCancelledError()
@@ -194,7 +195,7 @@ export async function verifyResourcePayloads(
   // declared units (the ZIP catalog proved this over entries; re-prove it over
   // the extracted bytes).
   for (const file of stagedResourceFiles) {
-    if (coveringUnits(units, file).length !== 1) {
+    if (coverage.covering(file) === null) {
       throw new ArchiveAdmissionError(
         'payload-mismatch',
         `staged resource file not covered by exactly one unit: ${renderUntrustedName(file)}`

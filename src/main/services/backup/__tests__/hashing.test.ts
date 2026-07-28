@@ -99,6 +99,14 @@ describe('hashDirectoryUnit', () => {
     }
   })
 
+  it('authenticates nested empty directories', async () => {
+    const withoutEmpty = (await hashDirectoryUnit(dir)).hash
+    await mkdir(path.join(dir, 'empty', 'nested'), { recursive: true })
+    const withEmpty = (await hashDirectoryUnit(dir)).hash
+
+    expect(withEmpty).not.toBe(withoutEmpty)
+  })
+
   it('changes when content changes', async () => {
     await write('a.txt', 'one')
     const h1 = (await hashDirectoryUnit(dir)).hash

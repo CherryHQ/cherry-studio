@@ -95,13 +95,13 @@ async function streamFileInto(
 }
 
 /**
- * Canonical hash of a directory unit: over its regular files sorted by POSIX
- * relative path (via the SHARED {@link scanDirectoryUnit} so producer and hash
- * apply identical symlink/special/portability/ceiling/exclusion rules), each
- * framed **unambiguously** as `u64be(len(path))‖path‖u64be(len(content))‖content`.
- * No path or content boundary can be shifted to forge a colliding tree.
- * Deterministic and order-independent of directory-listing order. Cancellation
- * is checked during the scan, between files, AND on every streamed chunk.
+ * Canonical hash of a directory unit over both directory entries and regular
+ * files from the shared scanner. Directories are framed as
+ * `"D"‖u64be(len(path))‖path`; files as
+ * `"F"‖u64be(len(path))‖path‖u64be(len(content))‖content`. Type tags and lengths
+ * make every boundary unambiguous, while authenticating empty folders as part
+ * of the unit instead of merely hashing its bytes. Cancellation is checked
+ * during the scan, between entries, and on every streamed file chunk.
  */
 export async function hashDirectoryUnit(
   rootDir: string,
@@ -114,11 +114,20 @@ export async function hashDirectoryUnit(
   })
 
   const hash = createHash('sha256')
+  for (const dir of scan.dirs) {
+    if (options.signal?.aborted) throw new BackupCancelledError()
+    const pathBuf = Buffer.from(dir.relPath, 'utf8')
+    hash.update('D')
+    hash.update(u64be(pathBuf.length))
+    hash.update(pathBuf)
+  }
+
   const files: DirectoryUnitFile[] = []
   for (const entry of scan.entries) {
     if (options.signal?.aborted) throw new BackupCancelledError()
     const pathBuf = Buffer.from(entry.relPath, 'utf8')
     const abs = path.join(rootDir, ...entry.relPath.split('/'))
+    hash.update('F')
     hash.update(u64be(pathBuf.length))
     hash.update(pathBuf)
     hash.update(u64be(entry.size))

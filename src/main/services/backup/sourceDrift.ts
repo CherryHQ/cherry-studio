@@ -257,6 +257,13 @@ export async function stageDirectoryWithDriftCheck(args: {
   try {
     const initial = await scanDirectoryUnit(sourceDir, { signal, excludeKnowledgeDerivedIndex })
     const dirById = new Map(initial.dirs.map((d) => [d.relPath, d.id]))
+    // Directory entries are authoritative too: create them before copying files
+    // so nested empty folders survive the archive round trip.
+    for (const dir of initial.dirs) {
+      throwIfAborted(signal)
+      await mkdir(path.join(stagingDir, ...dir.relPath.split('/')), { recursive: true })
+    }
+
     const files: StagedDirectoryFile[] = []
     for (const entry of initial.entries) {
       throwIfAborted(signal)
