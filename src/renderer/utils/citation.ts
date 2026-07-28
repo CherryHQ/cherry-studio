@@ -40,7 +40,7 @@ export function withCitationTags(content: string, citations: Citation[], sourceT
   const cleaned = citations.map((c) => (c.content ? { ...c, content: cleanMarkdownContent(c.content) } : c))
   const citationMap = new Map(cleaned.map((c) => [c.number, c]))
   const normalizedContent = normalizeCitationMarks(content, citationMap, sourceType)
-  return mapCitationMarksToTags(normalizedContent, citationMap)
+  return mapCitationMarksToTags(normalizedContent, new Map(cleaned.map((c) => [String(c.number), c])))
 }
 
 /**
@@ -171,11 +171,14 @@ export function normalizeCitationMarks(
   return content
 }
 
-/** Map every `[cite:N]` mark to a rendered `[<sup>…</sup>](url)` tag. */
-export function mapCitationMarksToTags(content: string, citationMap: Map<number, Citation>): string {
-  return content.replace(/\[cite:(\d+)\]/g, (match, num) => {
-    const citationNum = parseInt(num, 10)
-    const citation = citationMap.get(citationNum)
+/**
+ * Map every `[cite:<id>]` mark to a rendered `[<sup>…</sup>](url)` tag. Keys
+ * are wire ids as strings: legacy numeric marks stringify to their number,
+ * tool-result ids keep their `<prefix>-<n>` form.
+ */
+export function mapCitationMarksToTags(content: string, citationMap: Map<string, Citation>): string {
+  return content.replace(/\[cite:([\w-]+)\]/g, (match, id) => {
+    const citation = citationMap.get(id)
     return citation ? generateCitationTag(citation) : match
   })
 }
@@ -186,7 +189,10 @@ export function generateCitationTag(citation: Citation): string {
     id: citation.number,
     url: citation.url,
     title: citation.title || citation.hostname || '',
-    content: citation.content?.substring(0, 200)
+    content: citation.content?.substring(0, 200),
+    // Kind discriminator for the tooltip: knowledge citations have no URL and
+    // render a document card instead of a link preview.
+    type: citation.type
   }
   // encodeHTML only escapes &, <, >, ", ' — also escape | so GFM tables
   // don't treat it as a column separator inside table cells

@@ -48,6 +48,7 @@ import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
+import { type MessageCitations, resolveMessageCitations } from './messageCitations'
 import {
   findOpenTextTailIndex,
   isHiddenPart,
@@ -181,6 +182,7 @@ interface RenderGroupedEntryOptions {
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   enableAnimation?: boolean
   expandedTextPartIds?: ReadonlySet<string>
+  messageCitations?: MessageCitations
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
   onTextPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
@@ -469,7 +471,6 @@ function renderPart(
   options?: RenderGroupedEntryOptions
 ): React.ReactNode {
   const partType = part.type
-  if ((partType as string) === 'data-citation') return null
   const inlineHtmlPreviewMode =
     message.role === 'assistant'
       ? (options?.inlineHtmlPreviewMode ?? (message.status === 'success' ? 'ready' : undefined))
@@ -541,6 +542,7 @@ function renderPart(
           citations={citations}
           citationReferences={citationReferences}
           inlineHtmlPreviewMode={inlineHtmlPreviewMode}
+          messageCitations={message.role === 'assistant' ? options?.messageCitations : undefined}
           role={message.role}
           composer={cherryMeta?.composer}
           readOnlyFilePreviews={options?.readOnlyFilePreviews}
@@ -1381,14 +1383,22 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       ),
     [displayEntries, message.id]
   )
+  const messageCitations = useMemo(() => resolveMessageCitations(messageParts), [messageParts])
   const renderOptions = useMemo(
     () => ({
       expandedTextPartIds,
+      messageCitations,
       readOnlyFilePreviews,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange
     }),
-    [expandedTextPartIds, handleTextPartExpandedChange, handleTextPlayoutSettledChange, readOnlyFilePreviews]
+    [
+      expandedTextPartIds,
+      handleTextPartExpandedChange,
+      handleTextPlayoutSettledChange,
+      messageCitations,
+      readOnlyFilePreviews
+    ]
   )
   const canRenderReportArtifacts =
     !isActiveTurnProcessing && unsettledTextPlayoutPartIds.size === 0 && reportArtifactToolResponses.length > 0

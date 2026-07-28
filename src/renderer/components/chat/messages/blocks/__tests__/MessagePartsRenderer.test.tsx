@@ -154,6 +154,10 @@ vi.mock('../../tools/MessageTools', () => {
 })
 
 vi.mock('../../tools/toolResponse', () => ({
+  normalizeToolOutputResponse: (output: unknown) =>
+    output && typeof output === 'object' && !Array.isArray(output) && 'content' in output
+      ? (output as { content: unknown }).content
+      : output,
   buildToolResponseFromPart: (part: any, fallbackId?: string) => {
     const type = part.type as string
     if (!type.startsWith('tool-') && type !== 'dynamic-tool') return null

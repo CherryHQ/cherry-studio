@@ -20,6 +20,7 @@ import type { Components } from 'streamdown'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import CitationsList from './CitationsList'
+import { type MessageCitations, withToolCitationTags } from './messageCitations'
 import { useScrollAnchor } from './useScrollAnchor'
 
 interface Props {
@@ -29,6 +30,8 @@ interface Props {
   isStreaming: boolean
   citations?: Citation[]
   citationReferences?: CitationReferenceView[]
+  /** Tool/source-derived citations resolved from the message's own parts (assistant messages without legacy reference metadata). */
+  messageCitations?: MessageCitations
   mentions?: Model[]
   role: CherryUIMessage['role']
   composer?: ComposerMessageSnapshot
@@ -250,6 +253,7 @@ const MainTextBlock: React.FC<Props> = ({
   isStreaming,
   citations = [],
   citationReferences,
+  messageCitations,
   role,
   mentions = [],
   composer,
@@ -314,14 +318,26 @@ const MainTextBlock: React.FC<Props> = ({
   const resolvedInlineHtmlPreviewMode =
     inlineHtmlPreviewMode === 'ready' && smoothedContent !== content ? 'generating' : inlineHtmlPreviewMode
 
+  // Legacy reference metadata (migrated v1 messages) wins; otherwise resolve
+  // [cite:id] markers against the message's own tool/source parts.
+  const toolCitations = citations.length === 0 && messageCitations?.all.length ? messageCitations : undefined
   const processContent = useCallback(
     (rawText: string) => {
-      if (!citationReferences?.length || citations.length === 0) return rawText
-      const sourceType = determineCitationSource(citationReferences)
-      return withCitationTags(rawText, citations, sourceType)
+      if (citationReferences?.length && citations.length > 0) {
+        const sourceType = determineCitationSource(citationReferences)
+        return withCitationTags(rawText, citations, sourceType)
+      }
+      if (toolCitations) return withToolCitationTags(rawText, toolCitations).content
+      return rawText
     },
-    [citationReferences, citations]
+    [citationReferences, citations, toolCitations]
   )
+  // The footer lists only the citations the full text actually references.
+  const toolCitedCitations = useMemo(
+    () => (toolCitations ? withToolCitationTags(content, toolCitations).cited : []),
+    [content, toolCitations]
+  )
+  const footerCitations = citations.length > 0 ? citations : toolCitedCitations
   const composerMarkdownContent = useMemo(() => {
     if (!shouldRenderComposerTokens || !renderInputMessageAsMarkdown || !composer) return undefined
     return buildComposerMessageMarkdownContent(userDisplayContent, composer, id)
@@ -384,7 +400,7 @@ const MainTextBlock: React.FC<Props> = ({
         />
       )}
       {/* Parts data stores citation refs per text part, so the list is scoped to the text segment that produced it. */}
-      {citations.length > 0 && <CitationsList citations={citations} />}
+      {footerCitations.length > 0 && <CitationsList citations={footerCitations} />}
     </>
   )
 }

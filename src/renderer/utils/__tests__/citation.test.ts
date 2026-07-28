@@ -430,7 +430,7 @@ Numbered list:
   })
 
   describe('mapCitationMarksToTags', () => {
-    const createCitationMap = (citations: Citation[]) => new Map(citations.map((c) => [c.number, c]))
+    const createCitationMap = (citations: Citation[]) => new Map(citations.map((c) => [String(c.number), c]))
 
     it('should convert cite marks to tags', () => {
       const content = 'Text with [cite:1] citation'
