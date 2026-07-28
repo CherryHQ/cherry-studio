@@ -27,6 +27,10 @@ const updateAgentMock = vi.hoisted(() => ({
 const updateSessionMock = vi.hoisted(() => ({
   updateSession: vi.fn()
 }))
+const modelSwitchConfirmationCacheMock = vi.hoisted(() => ({
+  value: false,
+  set: vi.fn()
+}))
 const agentRightPanePropsMock = vi.hoisted(() => ({
   last: undefined as any,
   openAgentToolFlow: vi.fn(),
@@ -121,7 +125,10 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [false],
-  useSharedCache: () => [null, vi.fn()],
+  useSharedCache: (key: string) =>
+    key === 'agent.model_switch_confirmation.skipped'
+      ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
+      : [null, vi.fn()],
   usePersistCache: () => [undefined, vi.fn()]
 }))
 
@@ -171,6 +178,9 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
         data-can-change-model={String(Boolean(props.canChangeModel))}>
         <button type="button" onClick={() => void props.onWorkspaceChange?.('workspace-next')}>
           change topbar workspace
+        </button>
+        <button type="button" onClick={() => void props.onModelSelect?.({ id: 'provider:model-2', name: 'Model 2' })}>
+          change topbar model
         </button>
       </div>
     )
@@ -306,11 +316,17 @@ describe('AgentChat settings panel', () => {
     activeAgentMock.isLoading = false
     activeModelMock.value = { id: 'provider:model-1', name: 'Model 1' }
     activeModelMock.isLoading = false
+    modelSwitchConfirmationCacheMock.value = false
+    modelSwitchConfirmationCacheMock.set.mockReset()
+    modelSwitchConfirmationCacheMock.set.mockImplementation((value: boolean) => {
+      modelSwitchConfirmationCacheMock.value = value
+    })
     agentRightPanePropsMock.last = undefined
     agentComposerPropsMock.last = undefined
     agentConversationControlsPropsMock.last = undefined
     conversationShellPropsMock.last = undefined
     updateAgentMock.updateModel.mockReset()
+    updateAgentMock.updateModel.mockResolvedValue({ id: 'agent-1' })
     updateSessionMock.updateSession.mockReset()
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
@@ -516,6 +532,77 @@ describe('AgentChat settings panel', () => {
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
+  })
+
+  it('switches the model directly when the session has no messages', async () => {
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock.updateModel).toHaveBeenCalledWith('agent-1', 'provider:model-2', {
+        showSuccessToast: false
+      })
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('asks for confirmation before switching the model when the session has messages', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.session.model_switch_confirm.description')
+    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'agent.session.model_switch_confirm.skip_for_app_run' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
+    expect(
+      screen.getByRole('checkbox', { name: 'agent.session.model_switch_confirm.skip_for_app_run' })
+    ).toHaveAttribute('data-state', 'unchecked')
+    fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock.updateModel).toHaveBeenCalledWith('agent-1', 'provider:model-2', {
+        showSuccessToast: false
+      })
+    )
+  })
+
+  it('shares the model confirmation opt-out for the current app run when requested', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'agent.session.model_switch_confirm.skip_for_app_run' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
+
+    await waitFor(() => expect(modelSwitchConfirmationCacheMock.set).toHaveBeenCalledWith(true))
+  })
+
+  it('skips model confirmations when the app-run shared cache is enabled', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    modelSwitchConfirmationCacheMock.value = true
+
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
+
+    await waitFor(() => expect(updateAgentMock.updateModel).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('replaces the agent inputbar with AskUserQuestionComposer for pending requests', () => {
