@@ -3,29 +3,31 @@ CREATE TABLE `agent` (
 	`type` text NOT NULL,
 	`name` text NOT NULL,
 	`description` text DEFAULT '' NOT NULL,
-	`accessible_paths` text DEFAULT '[]' NOT NULL,
 	`instructions` text NOT NULL,
-	`model` text NOT NULL,
+	`model` text,
 	`plan_model` text,
 	`small_model` text,
-	`mcps` text DEFAULT '[]' NOT NULL,
-	`allowed_tools` text DEFAULT '[]' NOT NULL,
+	`disabled_tools` text DEFAULT '[]' NOT NULL,
 	`configuration` text DEFAULT '{}' NOT NULL,
-	`sort_order` integer DEFAULT 0 NOT NULL,
+	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	`deleted_at` integer
+	`deleted_at` integer,
+	FOREIGN KEY (`model`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`plan_model`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`small_model`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `agent_name_idx` ON `agent` (`name`);--> statement-breakpoint
 CREATE INDEX `agent_type_idx` ON `agent` (`type`);--> statement-breakpoint
-CREATE INDEX `agent_sort_order_idx` ON `agent` (`sort_order`);--> statement-breakpoint
+CREATE INDEX `agent_order_key_idx` ON `agent` (`order_key`);--> statement-breakpoint
 CREATE TABLE `agent_channel` (
 	`id` text PRIMARY KEY NOT NULL,
 	`type` text NOT NULL,
 	`name` text NOT NULL,
 	`agent_id` text,
 	`session_id` text,
+	`workspace` text NOT NULL,
 	`config` text NOT NULL,
 	`is_active` integer DEFAULT true NOT NULL,
 	`active_chat_ids` text DEFAULT '[]' NOT NULL,
@@ -46,7 +48,7 @@ CREATE TABLE `agent_channel_task` (
 	`task_id` text NOT NULL,
 	PRIMARY KEY(`channel_id`, `task_id`),
 	FOREIGN KEY (`channel_id`) REFERENCES `agent_channel`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`task_id`) REFERENCES `agent_task`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`task_id`) REFERENCES `job_schedule`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `agent_channel_task_channel_id_idx` ON `agent_channel_task` (`channel_id`);--> statement-breakpoint
@@ -60,6 +62,7 @@ CREATE TABLE `agent_global_skill` (
 	`source_url` text,
 	`namespace` text,
 	`author` text,
+	`version` text,
 	`tags` text DEFAULT '[]' NOT NULL,
 	`content_hash` text NOT NULL,
 	`is_enabled` integer DEFAULT false NOT NULL,
@@ -72,41 +75,44 @@ CREATE INDEX `agent_global_skill_source_idx` ON `agent_global_skill` (`source`);
 CREATE INDEX `agent_global_skill_is_enabled_idx` ON `agent_global_skill` (`is_enabled`);--> statement-breakpoint
 CREATE TABLE `agent_session` (
 	`id` text PRIMARY KEY NOT NULL,
-	`agent_type` text NOT NULL,
-	`agent_id` text NOT NULL,
+	`agent_id` text,
 	`name` text NOT NULL,
+	`is_name_manually_edited` integer DEFAULT false NOT NULL,
 	`description` text DEFAULT '' NOT NULL,
-	`accessible_paths` text DEFAULT '[]' NOT NULL,
-	`instructions` text NOT NULL,
-	`model` text NOT NULL,
-	`plan_model` text,
-	`small_model` text,
-	`mcps` text DEFAULT '[]' NOT NULL,
-	`allowed_tools` text DEFAULT '[]' NOT NULL,
-	`slash_commands` text DEFAULT '[]' NOT NULL,
-	`configuration` text DEFAULT '{}' NOT NULL,
-	`sort_order` integer DEFAULT 0 NOT NULL,
+	`workspace_id` text NOT NULL,
+	`trace_id` text,
+	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`agent_id`) REFERENCES `agent`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`agent_id`) REFERENCES `agent`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`workspace_id`) REFERENCES `agent_workspace`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `agent_session_agent_id_idx` ON `agent_session` (`agent_id`);--> statement-breakpoint
-CREATE INDEX `agent_session_model_idx` ON `agent_session` (`model`);--> statement-breakpoint
-CREATE INDEX `agent_session_sort_order_idx` ON `agent_session` (`sort_order`);--> statement-breakpoint
+CREATE INDEX `agent_session_order_key_idx` ON `agent_session` (`order_key`);--> statement-breakpoint
+CREATE INDEX `agent_session_updated_at_idx` ON `agent_session` (`updated_at`);--> statement-breakpoint
 CREATE TABLE `agent_session_message` (
 	`id` text PRIMARY KEY NOT NULL,
 	`session_id` text NOT NULL,
 	`role` text NOT NULL,
-	`content` text NOT NULL,
-	`agent_session_id` text,
-	`metadata` text,
+	`data` text NOT NULL,
+	`searchable_text` text DEFAULT '' NOT NULL,
+	`status` text NOT NULL,
+	`model_id` text,
+	`message_snapshot` text,
+	`stats` text,
+	`runtime_resume_token` text,
+	`fts_rowid` integer,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`session_id`) REFERENCES `agent_session`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`session_id`) REFERENCES `agent_session`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
+	CONSTRAINT "agent_session_message_role_check" CHECK("agent_session_message"."role" IN ('user', 'assistant', 'system')),
+	CONSTRAINT "agent_session_message_status_check" CHECK("agent_session_message"."status" IN ('pending', 'success', 'error', 'paused'))
 );
 --> statement-breakpoint
-CREATE INDEX `agent_session_message_session_id_idx` ON `agent_session_message` (`session_id`);--> statement-breakpoint
+CREATE INDEX `agent_session_message_session_created_id_idx` ON `agent_session_message` (`session_id`,`created_at`,`id`);--> statement-breakpoint
+CREATE INDEX `agent_session_message_status_idx` ON `agent_session_message` (`status`);--> statement-breakpoint
+CREATE UNIQUE INDEX `agent_session_message_fts_rowid_uniq` ON `agent_session_message` (`fts_rowid`);--> statement-breakpoint
 CREATE TABLE `agent_skill` (
 	`agent_id` text NOT NULL,
 	`skill_id` text NOT NULL,
@@ -120,44 +126,160 @@ CREATE TABLE `agent_skill` (
 --> statement-breakpoint
 CREATE INDEX `agent_skill_agent_id_idx` ON `agent_skill` (`agent_id`);--> statement-breakpoint
 CREATE INDEX `agent_skill_skill_id_idx` ON `agent_skill` (`skill_id`);--> statement-breakpoint
-CREATE TABLE `agent_task_run_log` (
+CREATE TABLE `agent_workspace` (
 	`id` text PRIMARY KEY NOT NULL,
-	`task_id` text NOT NULL,
-	`session_id` text,
-	`run_at` integer NOT NULL,
-	`duration_ms` integer NOT NULL,
-	`status` text NOT NULL,
-	`result` text,
-	`error` text,
-	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`task_id`) REFERENCES `agent_task`(`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "agent_task_run_log_status_check" CHECK("agent_task_run_log"."status" IN ('running', 'success', 'error'))
-);
---> statement-breakpoint
-CREATE INDEX `agent_task_run_log_task_id_idx` ON `agent_task_run_log` (`task_id`);--> statement-breakpoint
-CREATE TABLE `agent_task` (
-	`id` text PRIMARY KEY NOT NULL,
-	`agent_id` text NOT NULL,
 	`name` text NOT NULL,
-	`prompt` text NOT NULL,
-	`schedule_type` text NOT NULL,
-	`schedule_value` text NOT NULL,
-	`timeout_minutes` integer DEFAULT 2 NOT NULL,
-	`next_run` integer,
-	`last_run` integer,
-	`last_result` text,
-	`status` text NOT NULL,
+	`path` text NOT NULL,
+	`type` text DEFAULT 'user' NOT NULL,
+	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`agent_id`) REFERENCES `agent`(`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "agent_task_schedule_type_check" CHECK("agent_task"."schedule_type" IN ('cron', 'interval', 'once')),
-	CONSTRAINT "agent_task_status_check" CHECK("agent_task"."status" IN ('active', 'paused', 'completed'))
+	CONSTRAINT "agent_workspace_type_check" CHECK("agent_workspace"."type" IN ('user', 'system'))
 );
 --> statement-breakpoint
-CREATE INDEX `agent_task_agent_id_idx` ON `agent_task` (`agent_id`);--> statement-breakpoint
-CREATE INDEX `agent_task_next_run_idx` ON `agent_task` (`next_run`);--> statement-breakpoint
-CREATE INDEX `agent_task_status_idx` ON `agent_task` (`status`);--> statement-breakpoint
+CREATE UNIQUE INDEX `agent_workspace_path_unique_idx` ON `agent_workspace` (`path`);--> statement-breakpoint
+CREATE INDEX `agent_workspace_order_key_idx` ON `agent_workspace` (`order_key`);--> statement-breakpoint
+CREATE TABLE `ai_usage_record` (
+	`id` text PRIMARY KEY NOT NULL,
+	`request_id` text NOT NULL,
+	`record_kind` text NOT NULL,
+	`request_count` integer NOT NULL,
+	`message_kind` text,
+	`message_id` text,
+	`provider_id` text,
+	`provider_name` text,
+	`model_id` text,
+	`model_name` text,
+	`source_type` text,
+	`source_id` text,
+	`source_name` text,
+	`source_icon` text,
+	`modality` text NOT NULL,
+	`api_key_id` text,
+	`api_key_label` text,
+	`api_key_masked` text,
+	`api_key_attribution` text NOT NULL,
+	`auth_method` text,
+	`input_tokens` integer,
+	`output_tokens` integer,
+	`total_tokens` integer,
+	`reasoning_tokens` integer,
+	`no_cache_tokens` integer,
+	`cache_read_tokens` integer,
+	`cache_write_tokens` integer,
+	`image_count` integer,
+	`cost` real,
+	`cost_currency` text,
+	`cost_source` text,
+	`cost_breakdown` text,
+	`pricing_snapshot` text,
+	`time_first_token_ms` integer,
+	`time_completion_ms` integer,
+	`time_thinking_ms` integer,
+	`created_at` integer NOT NULL,
+	CONSTRAINT "ai_usage_record_record_kind_check" CHECK("ai_usage_record"."record_kind" IN ('invocation', 'legacy-aggregate')),
+	CONSTRAINT "ai_usage_record_message_kind_check" CHECK("ai_usage_record"."message_kind" IN ('chat', 'agent-session')),
+	CONSTRAINT "ai_usage_record_source_type_check" CHECK("ai_usage_record"."source_type" IN ('assistant', 'agent')),
+	CONSTRAINT "ai_usage_record_modality_check" CHECK("ai_usage_record"."modality" IN ('language', 'embedding', 'image', 'rerank')),
+	CONSTRAINT "ai_usage_record_attribution_check" CHECK("ai_usage_record"."api_key_attribution" IN ('explicit', 'matched', 'auth', 'unknown')),
+	CONSTRAINT "ai_usage_record_auth_method_check" CHECK("ai_usage_record"."auth_method" IN ('oauth', 'external-cli', 'iam-aws', 'api-key-aws', 'iam-gcp', 'iam-azure')),
+	CONSTRAINT "ai_usage_record_cost_source_check" CHECK("ai_usage_record"."cost_source" IN ('provider', 'computed')),
+	CONSTRAINT "ai_usage_record_cost_currency_check" CHECK("ai_usage_record"."cost_currency" IN ('USD', 'CNY')),
+	CONSTRAINT "ai_usage_record_kind_identity_check" CHECK((
+        "ai_usage_record"."record_kind" = 'invocation'
+        AND "ai_usage_record"."request_count" = 1
+        AND "ai_usage_record"."provider_id" IS NOT NULL
+        AND "ai_usage_record"."model_id" IS NOT NULL
+      ) OR (
+        "ai_usage_record"."record_kind" = 'legacy-aggregate'
+        AND "ai_usage_record"."request_count" >= 1
+        AND "ai_usage_record"."message_kind" IS NOT NULL
+        AND "ai_usage_record"."message_id" IS NOT NULL
+      )),
+	CONSTRAINT "ai_usage_record_message_identity_check" CHECK(("ai_usage_record"."message_kind" IS NULL AND "ai_usage_record"."message_id" IS NULL)
+        OR ("ai_usage_record"."message_kind" IS NOT NULL AND "ai_usage_record"."message_id" IS NOT NULL)),
+	CONSTRAINT "ai_usage_record_source_identity_check" CHECK((
+        "ai_usage_record"."source_type" IS NULL
+        AND "ai_usage_record"."source_id" IS NULL
+        AND "ai_usage_record"."source_name" IS NULL
+        AND "ai_usage_record"."source_icon" IS NULL
+      ) OR (
+        "ai_usage_record"."source_type" IS NOT NULL
+        AND "ai_usage_record"."source_id" IS NOT NULL
+      )),
+	CONSTRAINT "ai_usage_record_api_key_identity_check" CHECK((
+        "ai_usage_record"."api_key_attribution" IN ('explicit', 'matched')
+        AND "ai_usage_record"."api_key_id" IS NOT NULL
+        AND "ai_usage_record"."auth_method" IS NULL
+      ) OR (
+        "ai_usage_record"."api_key_attribution" = 'auth'
+        AND "ai_usage_record"."api_key_id" IS NULL
+        AND "ai_usage_record"."api_key_label" IS NULL
+        AND "ai_usage_record"."api_key_masked" IS NULL
+        AND "ai_usage_record"."auth_method" IS NOT NULL
+      ) OR (
+        "ai_usage_record"."api_key_attribution" = 'unknown'
+        AND "ai_usage_record"."api_key_id" IS NULL
+        AND "ai_usage_record"."api_key_label" IS NULL
+        AND "ai_usage_record"."api_key_masked" IS NULL
+        AND "ai_usage_record"."auth_method" IS NULL
+      )),
+	CONSTRAINT "ai_usage_record_cost_tuple_check" CHECK((
+        "ai_usage_record"."cost" IS NULL
+        AND "ai_usage_record"."cost_currency" IS NULL
+        AND "ai_usage_record"."cost_source" IS NULL
+        AND "ai_usage_record"."cost_breakdown" IS NULL
+      ) OR (
+        "ai_usage_record"."cost" IS NOT NULL
+        AND "ai_usage_record"."cost_currency" IS NOT NULL
+        AND "ai_usage_record"."cost_source" IS NOT NULL
+      )),
+	CONSTRAINT "ai_usage_record_image_count_check" CHECK((
+        "ai_usage_record"."modality" = 'image'
+        AND "ai_usage_record"."image_count" IS NOT NULL
+        AND "ai_usage_record"."image_count" >= 0
+      ) OR (
+        "ai_usage_record"."modality" <> 'image'
+        AND "ai_usage_record"."image_count" IS NULL
+      )),
+	CONSTRAINT "ai_usage_record_nonnegative_check" CHECK(
+        ("ai_usage_record"."input_tokens" IS NULL OR "ai_usage_record"."input_tokens" >= 0)
+        AND ("ai_usage_record"."output_tokens" IS NULL OR "ai_usage_record"."output_tokens" >= 0)
+        AND ("ai_usage_record"."total_tokens" IS NULL OR "ai_usage_record"."total_tokens" >= 0)
+        AND ("ai_usage_record"."reasoning_tokens" IS NULL OR "ai_usage_record"."reasoning_tokens" >= 0)
+        AND ("ai_usage_record"."no_cache_tokens" IS NULL OR "ai_usage_record"."no_cache_tokens" >= 0)
+        AND ("ai_usage_record"."cache_read_tokens" IS NULL OR "ai_usage_record"."cache_read_tokens" >= 0)
+        AND ("ai_usage_record"."cache_write_tokens" IS NULL OR "ai_usage_record"."cache_write_tokens" >= 0)
+        AND ("ai_usage_record"."cost" IS NULL OR "ai_usage_record"."cost" >= 0)
+        AND ("ai_usage_record"."time_first_token_ms" IS NULL OR "ai_usage_record"."time_first_token_ms" >= 0)
+        AND ("ai_usage_record"."time_completion_ms" IS NULL OR "ai_usage_record"."time_completion_ms" >= 0)
+        AND ("ai_usage_record"."time_thinking_ms" IS NULL OR "ai_usage_record"."time_thinking_ms" >= 0)
+      ),
+	CONSTRAINT "ai_usage_record_integer_check" CHECK(
+        typeof("ai_usage_record"."request_count") = 'integer'
+        AND ("ai_usage_record"."input_tokens" IS NULL OR typeof("ai_usage_record"."input_tokens") = 'integer')
+        AND ("ai_usage_record"."output_tokens" IS NULL OR typeof("ai_usage_record"."output_tokens") = 'integer')
+        AND ("ai_usage_record"."total_tokens" IS NULL OR typeof("ai_usage_record"."total_tokens") = 'integer')
+        AND ("ai_usage_record"."reasoning_tokens" IS NULL OR typeof("ai_usage_record"."reasoning_tokens") = 'integer')
+        AND ("ai_usage_record"."no_cache_tokens" IS NULL OR typeof("ai_usage_record"."no_cache_tokens") = 'integer')
+        AND ("ai_usage_record"."cache_read_tokens" IS NULL OR typeof("ai_usage_record"."cache_read_tokens") = 'integer')
+        AND ("ai_usage_record"."cache_write_tokens" IS NULL OR typeof("ai_usage_record"."cache_write_tokens") = 'integer')
+        AND ("ai_usage_record"."image_count" IS NULL OR typeof("ai_usage_record"."image_count") = 'integer')
+        AND ("ai_usage_record"."time_first_token_ms" IS NULL OR typeof("ai_usage_record"."time_first_token_ms") = 'integer')
+        AND ("ai_usage_record"."time_completion_ms" IS NULL OR typeof("ai_usage_record"."time_completion_ms") = 'integer')
+        AND ("ai_usage_record"."time_thinking_ms" IS NULL OR typeof("ai_usage_record"."time_thinking_ms") = 'integer')
+        AND typeof("ai_usage_record"."created_at") = 'integer'
+      ),
+	CONSTRAINT "ai_usage_record_finite_cost_check" CHECK("ai_usage_record"."cost" IS NULL OR "ai_usage_record"."cost" <= 1.7976931348623157e308)
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `ai_usage_record_request_id_idx` ON `ai_usage_record` (`request_id`);--> statement-breakpoint
+CREATE INDEX `ai_usage_record_created_at_idx` ON `ai_usage_record` (`created_at`);--> statement-breakpoint
+CREATE INDEX `ai_usage_record_message_created_idx` ON `ai_usage_record` (`message_kind`,`message_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `ai_usage_record_provider_created_idx` ON `ai_usage_record` (`provider_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `ai_usage_record_model_created_idx` ON `ai_usage_record` (`model_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `ai_usage_record_api_key_created_idx` ON `ai_usage_record` (`api_key_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `ai_usage_record_source_created_idx` ON `ai_usage_record` (`source_type`,`source_id`,`created_at`);--> statement-breakpoint
 CREATE TABLE `app_state` (
 	`key` text PRIMARY KEY NOT NULL,
 	`value` text NOT NULL,
@@ -173,14 +295,38 @@ CREATE TABLE `assistant` (
 	`emoji` text NOT NULL,
 	`description` text DEFAULT '' NOT NULL,
 	`model_id` text,
+	`group_id` text,
 	`settings` text NOT NULL,
+	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	`deleted_at` integer,
-	FOREIGN KEY (`model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null
+	FOREIGN KEY (`model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`group_id`) REFERENCES `group`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `assistant_created_at_idx` ON `assistant` (`created_at`);--> statement-breakpoint
+CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);--> statement-breakpoint
+CREATE TABLE `agent_knowledge_base` (
+	`agent_id` text NOT NULL,
+	`knowledge_base_id` text NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	PRIMARY KEY(`agent_id`, `knowledge_base_id`),
+	FOREIGN KEY (`agent_id`) REFERENCES `agent`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`knowledge_base_id`) REFERENCES `knowledge_base`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `agent_mcp_server` (
+	`agent_id` text NOT NULL,
+	`mcp_server_id` text NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	PRIMARY KEY(`agent_id`, `mcp_server_id`),
+	FOREIGN KEY (`agent_id`) REFERENCES `agent`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`mcp_server_id`) REFERENCES `mcp_server`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `assistant_knowledge_base` (
 	`assistant_id` text NOT NULL,
 	`knowledge_base_id` text NOT NULL,
@@ -221,20 +367,60 @@ CREATE INDEX `fe_deleted_at_idx` ON `file_entry` (`deleted_at`);--> statement-br
 CREATE INDEX `fe_created_at_idx` ON `file_entry` (`created_at`);--> statement-breakpoint
 CREATE UNIQUE INDEX `fe_external_path_lower_unique_idx` ON `file_entry` (lower("external_path"));--> statement-breakpoint
 CREATE INDEX `fe_external_path_idx` ON `file_entry` (`external_path`);--> statement-breakpoint
-CREATE TABLE `file_ref` (
+CREATE TABLE `chat_message_file_ref` (
 	`id` text PRIMARY KEY NOT NULL,
 	`file_entry_id` text NOT NULL,
-	`source_type` text NOT NULL,
 	`source_id` text NOT NULL,
 	`role` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`file_entry_id`) REFERENCES `file_entry`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`file_entry_id`) REFERENCES `file_entry`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`source_id`) REFERENCES `message`(`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "cmfr_role_check" CHECK("chat_message_file_ref"."role" IN ('attachment'))
 );
 --> statement-breakpoint
-CREATE INDEX `file_ref_entry_id_idx` ON `file_ref` (`file_entry_id`);--> statement-breakpoint
-CREATE INDEX `file_ref_source_idx` ON `file_ref` (`source_type`,`source_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `file_ref_unique_idx` ON `file_ref` (`file_entry_id`,`source_type`,`source_id`,`role`);--> statement-breakpoint
+CREATE INDEX `cmfr_entry_id_idx` ON `chat_message_file_ref` (`file_entry_id`);--> statement-breakpoint
+CREATE INDEX `cmfr_source_id_idx` ON `chat_message_file_ref` (`source_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `cmfr_unique_idx` ON `chat_message_file_ref` (`file_entry_id`,`source_id`,`role`);--> statement-breakpoint
+CREATE TABLE `mini_app_logo_file_ref` (
+	`id` text PRIMARY KEY NOT NULL,
+	`file_entry_id` text NOT NULL,
+	`source_id` text NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	FOREIGN KEY (`file_entry_id`) REFERENCES `file_entry`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`source_id`) REFERENCES `mini_app`(`app_id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `malfr_entry_id_idx` ON `mini_app_logo_file_ref` (`file_entry_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `malfr_source_id_idx` ON `mini_app_logo_file_ref` (`source_id`);--> statement-breakpoint
+CREATE TABLE `painting_file_ref` (
+	`id` text PRIMARY KEY NOT NULL,
+	`file_entry_id` text NOT NULL,
+	`source_id` text NOT NULL,
+	`role` text NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	FOREIGN KEY (`file_entry_id`) REFERENCES `file_entry`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`source_id`) REFERENCES `painting`(`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "pfr_role_check" CHECK("painting_file_ref"."role" IN ('output', 'input'))
+);
+--> statement-breakpoint
+CREATE INDEX `pfr_entry_id_idx` ON `painting_file_ref` (`file_entry_id`);--> statement-breakpoint
+CREATE INDEX `pfr_source_id_idx` ON `painting_file_ref` (`source_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `pfr_unique_idx` ON `painting_file_ref` (`file_entry_id`,`source_id`,`role`);--> statement-breakpoint
+CREATE TABLE `provider_logo_file_ref` (
+	`id` text PRIMARY KEY NOT NULL,
+	`file_entry_id` text NOT NULL,
+	`source_id` text NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	FOREIGN KEY (`file_entry_id`) REFERENCES `file_entry`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`source_id`) REFERENCES `user_provider`(`provider_id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `plfr_entry_id_idx` ON `provider_logo_file_ref` (`file_entry_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `plfr_source_id_idx` ON `provider_logo_file_ref` (`source_id`);--> statement-breakpoint
 CREATE TABLE `group` (
 	`id` text PRIMARY KEY NOT NULL,
 	`entity_type` text NOT NULL,
@@ -299,7 +485,6 @@ CREATE TABLE `knowledge_base` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`group_id` text,
-	`emoji` text NOT NULL,
 	`dimensions` integer,
 	`embedding_model_id` text,
 	`status` text NOT NULL,
@@ -308,24 +493,32 @@ CREATE TABLE `knowledge_base` (
 	`file_processor_id` text,
 	`chunk_size` integer NOT NULL,
 	`chunk_overlap` integer NOT NULL,
+	`chunk_strategy` text DEFAULT 'structured' NOT NULL,
+	`chunk_separator` text DEFAULT '\n\n' NOT NULL,
 	`threshold` real,
 	`document_count` integer,
-	`search_mode` text NOT NULL,
-	`hybrid_alpha` real,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`group_id`) REFERENCES `group`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`embedding_model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`rerank_model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
-	CONSTRAINT "knowledge_base_search_mode_check" CHECK("knowledge_base"."search_mode" IN ('default', 'bm25', 'hybrid')),
+	CONSTRAINT "knowledge_base_chunk_strategy_check" CHECK("knowledge_base"."chunk_strategy" IN ('structured', 'delimiter')),
 	CONSTRAINT "knowledge_base_status_check" CHECK("knowledge_base"."status" IN ('completed', 'failed')),
 	CONSTRAINT "knowledge_base_status_error_check" CHECK(
         (
           "knowledge_base"."status" = 'completed'
-          AND "knowledge_base"."embedding_model_id" IS NOT NULL
-          AND "knowledge_base"."dimensions" IS NOT NULL
-          AND "knowledge_base"."dimensions" > 0
           AND "knowledge_base"."error" IS NULL
+          AND (
+            (
+              "knowledge_base"."embedding_model_id" IS NOT NULL
+              AND "knowledge_base"."dimensions" IS NOT NULL
+              AND "knowledge_base"."dimensions" > 0
+            )
+            OR (
+              "knowledge_base"."embedding_model_id" IS NULL
+              AND "knowledge_base"."dimensions" IS NULL
+            )
+          )
         )
         OR (
           "knowledge_base"."status" = 'failed'
@@ -347,11 +540,11 @@ CREATE TABLE `knowledge_item` (
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`base_id`) REFERENCES `knowledge_base`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`base_id`,`group_id`) REFERENCES `knowledge_item`(`base_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "knowledge_item_type_check" CHECK("knowledge_item"."type" IN ('file', 'url', 'note', 'sitemap', 'directory')),
+	CONSTRAINT "knowledge_item_type_check" CHECK("knowledge_item"."type" IN ('file', 'url', 'note', 'directory')),
 	CONSTRAINT "knowledge_item_status_check" CHECK("knowledge_item"."status" IN ('idle', 'preparing', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting')),
 	CONSTRAINT "knowledge_item_type_status_check" CHECK(
         ("knowledge_item"."type" IN ('file', 'url', 'note') AND "knowledge_item"."status" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))
-        OR ("knowledge_item"."type" IN ('directory', 'sitemap') AND "knowledge_item"."status" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))
+        OR ("knowledge_item"."type" = 'directory' AND "knowledge_item"."status" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))
       ),
 	CONSTRAINT "knowledge_item_status_error_check" CHECK(
         (
@@ -419,28 +612,31 @@ CREATE TABLE `message` (
 	`status` text NOT NULL,
 	`siblings_group_id` integer DEFAULT 0 NOT NULL,
 	`model_id` text,
-	`model_snapshot` text,
-	`trace_id` text,
+	`message_snapshot` text,
 	`stats` text,
+	`fts_rowid` integer,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	`deleted_at` integer,
 	FOREIGN KEY (`topic_id`) REFERENCES `topic`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`parent_id`) REFERENCES `message`(`id`) ON UPDATE no action ON DELETE set null,
-	CONSTRAINT "message_role_check" CHECK("message"."role" IN ('user', 'assistant', 'system')),
-	CONSTRAINT "message_status_check" CHECK("message"."status" IN ('pending', 'success', 'error', 'paused'))
+	FOREIGN KEY (`parent_id`) REFERENCES `message`(`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "message_role_check" CHECK("message"."role" IN ('user', 'assistant', 'system', 'root')),
+	CONSTRAINT "message_status_check" CHECK("message"."status" IN ('pending', 'success', 'error', 'paused')),
+	CONSTRAINT "message_root_parent_check" CHECK(("message"."role" = 'root') = ("message"."parent_id" is null))
 );
 --> statement-breakpoint
 CREATE INDEX `message_parent_id_idx` ON `message` (`parent_id`);--> statement-breakpoint
 CREATE INDEX `message_topic_created_idx` ON `message` (`topic_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `message_trace_id_idx` ON `message` (`trace_id`);--> statement-breakpoint
+CREATE INDEX `message_status_idx` ON `message` (`status`);--> statement-breakpoint
+CREATE UNIQUE INDEX `message_topic_root_uniq` ON `message` (`topic_id`) WHERE "message"."parent_id" is null and "message"."deleted_at" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX `message_fts_rowid_uniq` ON `message` (`fts_rowid`);--> statement-breakpoint
 CREATE TABLE `mini_app` (
 	`app_id` text PRIMARY KEY NOT NULL,
 	`preset_mini_app_id` text,
 	`name` text NOT NULL,
 	`url` text NOT NULL,
-	`logo` text,
+	`logo_key` text,
 	`status` text DEFAULT 'enabled' NOT NULL,
 	`order_key` text NOT NULL,
 	`bordered` integer DEFAULT true NOT NULL,
@@ -467,6 +663,17 @@ CREATE TABLE `note` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `note_root_path_path_unique_idx` ON `note` (`root_path`,`path`);--> statement-breakpoint
+CREATE TABLE `painting` (
+	`id` text PRIMARY KEY NOT NULL,
+	`provider_id` text NOT NULL,
+	`model_id` text,
+	`prompt` text NOT NULL,
+	`order_key` text NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX `painting_order_key_idx` ON `painting` (`order_key`);--> statement-breakpoint
 CREATE TABLE `pin` (
 	`id` text PRIMARY KEY NOT NULL,
 	`entity_type` text NOT NULL,
@@ -523,18 +730,16 @@ CREATE TABLE `topic` (
 	`is_name_manually_edited` integer DEFAULT false NOT NULL,
 	`assistant_id` text,
 	`active_node_id` text,
-	`group_id` text,
+	`trace_id` text,
 	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	`deleted_at` integer,
-	FOREIGN KEY (`assistant_id`) REFERENCES `assistant`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`group_id`) REFERENCES `group`(`id`) ON UPDATE no action ON DELETE set null
+	FOREIGN KEY (`assistant_id`) REFERENCES `assistant`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
-CREATE INDEX `topic_group_updated_idx` ON `topic` (`group_id`,`updated_at`);--> statement-breakpoint
 CREATE INDEX `topic_updated_at_idx` ON `topic` (`updated_at`);--> statement-breakpoint
-CREATE INDEX `topic_group_id_order_key_idx` ON `topic` (`group_id`,`order_key`);--> statement-breakpoint
+CREATE INDEX `topic_order_key_idx` ON `topic` (`order_key`);--> statement-breakpoint
 CREATE INDEX `topic_assistant_id_idx` ON `topic` (`assistant_id`);--> statement-breakpoint
 CREATE TABLE `translate_history` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -564,18 +769,17 @@ CREATE TABLE `user_model` (
 	`provider_id` text NOT NULL,
 	`model_id` text NOT NULL,
 	`preset_model_id` text,
-	`name` text NOT NULL,
+	`name` text,
 	`description` text,
 	`group` text,
-	`capabilities` text NOT NULL,
+	`capabilities` text,
 	`input_modalities` text,
 	`output_modalities` text,
 	`endpoint_types` text,
-	`custom_endpoint_url` text,
 	`context_window` integer,
 	`max_input_tokens` integer,
 	`max_output_tokens` integer,
-	`supports_streaming` integer DEFAULT true NOT NULL,
+	`supports_streaming` integer,
 	`reasoning` text,
 	`parameters` text,
 	`pricing` text,
@@ -584,10 +788,10 @@ CREATE TABLE `user_model` (
 	`is_deprecated` integer DEFAULT false NOT NULL,
 	`order_key` text NOT NULL,
 	`notes` text,
-	`user_overrides` text,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`provider_id`) REFERENCES `user_provider`(`provider_id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`provider_id`) REFERENCES `user_provider`(`provider_id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "user_model_custom_config_check" CHECK("user_model"."preset_model_id" IS NOT NULL OR ("user_model"."name" IS NOT NULL AND "user_model"."capabilities" IS NOT NULL AND "user_model"."supports_streaming" IS NOT NULL))
 );
 --> statement-breakpoint
 CREATE INDEX `user_model_preset_idx` ON `user_model` (`preset_model_id`);--> statement-breakpoint
@@ -598,13 +802,14 @@ CREATE TABLE `user_provider` (
 	`provider_id` text PRIMARY KEY NOT NULL,
 	`preset_provider_id` text,
 	`name` text NOT NULL,
+	`logo_key` text,
 	`endpoint_configs` text,
 	`default_chat_endpoint` text,
 	`api_keys` text DEFAULT '[]',
 	`auth_config` text,
 	`api_features` text,
 	`provider_settings` text,
-	`is_enabled` integer DEFAULT true NOT NULL,
+	`is_enabled` integer DEFAULT false NOT NULL,
 	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL

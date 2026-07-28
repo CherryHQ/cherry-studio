@@ -287,6 +287,90 @@ async function removeTreeWithoutFollowing(targetPath: string): Promise<void> {
   await rmdir(targetPath)
 }
 
+/**
+ * Copy the v1 global Claude Agent SDK config into its v2 Agent-data location.
+ * The source remains intact for downgrade compatibility. Publication is
+ * atomic, retries accept an identical destination, conflicts fail closed, and
+ * symlinks are skipped so the copy does not require Windows symlink privileges.
+ */
+export async function copyLegacyClaudeConfig(sourcePath: string, destinationPath: string): Promise<boolean> {
+  const sourceStat = await lstatIfExists(sourcePath)
+  if (!sourceStat) return false
+  if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink()) {
+    throw new Error(`Legacy Claude config source is not a directory: ${sourcePath}`)
+  }
+
+  const sourceSnapshot = await requiredFilesystemEntrySnapshot(sourcePath, true)
+  const sourceMetadataFingerprint = await filesystemEntryMetadataFingerprint(sourcePath)
+  if (!sourceMetadataFingerprint) {
+    throw new Error(`Legacy Claude config source disappeared: ${sourcePath}`)
+  }
+
+  await mkdir(path.dirname(destinationPath), { recursive: true })
+  const stagingPath = path.join(
+    path.dirname(destinationPath),
+    `.${path.basename(destinationPath)}.migration-${randomUUID()}`
+  )
+
+  try {
+    await cp(sourcePath, stagingPath, {
+      recursive: true,
+      force: false,
+      errorOnExist: true,
+      dereference: false,
+      verbatimSymlinks: true,
+      mode: constants.COPYFILE_FICLONE,
+      filter: async (entryPath) => {
+        if (!(await lstat(entryPath)).isSymbolicLink()) return true
+        logger.warn('Skipping symlink while copying legacy Claude config', { entryPath })
+        return false
+      }
+    })
+
+    if ((await filesystemEntryMetadataFingerprint(sourcePath)) !== sourceMetadataFingerprint) {
+      throw new Error(`Legacy Claude config changed while being copied: ${sourcePath}`)
+    }
+
+    const stagingSnapshot = await requiredFilesystemEntrySnapshot(stagingPath)
+    if (stagingSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
+      throw new Error(`Legacy Claude config copy verification failed: ${sourcePath}`)
+    }
+
+    let destinationSnapshot = await filesystemEntrySnapshot(destinationPath)
+    if (destinationSnapshot) {
+      if (destinationSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
+        throw new Error(`Legacy Claude config destination conflict: ${destinationPath}`)
+      }
+      logger.info('Reusing identical Claude config from an earlier migration attempt', {
+        sourcePath,
+        destinationPath
+      })
+    } else {
+      try {
+        await publishStagedWorkspaceEntry(stagingPath, destinationPath)
+      } catch (error) {
+        destinationSnapshot = await filesystemEntrySnapshot(destinationPath)
+        if (!destinationSnapshot || destinationSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
+          throw error
+        }
+      }
+      destinationSnapshot = await requiredFilesystemEntrySnapshot(destinationPath)
+    }
+
+    if (destinationSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
+      throw new Error(`Legacy Claude config changed while being published: ${destinationPath}`)
+    }
+
+    logger.info('Copied legacy Claude config into the v2 Agents data directory', {
+      sourcePath,
+      destinationPath
+    })
+    return true
+  } finally {
+    await removeTreeWithoutFollowing(stagingPath).catch(() => undefined)
+  }
+}
+
 function migratedLinkTarget(
   sourceLinkPath: string,
   destinationLinkPath: string,
@@ -459,11 +543,16 @@ function initializeMetadataFingerprint(targetStat: BigIntStats): Hash {
   return hash
 }
 
-async function filesystemEntrySnapshot(targetPath: string): Promise<FilesystemEntrySnapshot | undefined> {
+async function filesystemEntrySnapshot(
+  targetPath: string,
+  skipSymlinks = false
+): Promise<FilesystemEntrySnapshot | undefined> {
   const targetStat = await lstatBigIntIfExists(targetPath)
   if (!targetStat) return undefined
 
   const kind = filesystemEntryKind(targetStat)
+  if (skipSymlinks && kind === 'symlink') return undefined
+
   const contentHash = createHash('sha256')
   updateFingerprintField(contentHash, kind)
 
@@ -477,9 +566,11 @@ async function filesystemEntrySnapshot(targetPath: string): Promise<FilesystemEn
     const entries = await readdir(targetPath)
     entries.sort()
     for (const entry of entries) {
-      const childSnapshot = await filesystemEntrySnapshot(path.join(targetPath, entry))
+      const childPath = path.join(targetPath, entry)
+      const childSnapshot = await filesystemEntrySnapshot(childPath, skipSymlinks)
       if (!childSnapshot) {
-        throw new Error(`Agent migration fingerprint source disappeared: ${path.join(targetPath, entry)}`)
+        if (skipSymlinks && (await lstatBigIntIfExists(childPath))?.isSymbolicLink()) continue
+        throw new Error(`Agent migration fingerprint source disappeared: ${childPath}`)
       }
       updateFingerprintField(contentHash, entry)
       updateFingerprintField(contentHash, childSnapshot.fingerprint)
@@ -708,8 +799,11 @@ async function workspaceCopySourceSnapshot(
   }
 }
 
-async function requiredFilesystemEntrySnapshot(targetPath: string): Promise<FilesystemEntrySnapshot> {
-  const snapshot = await filesystemEntrySnapshot(targetPath)
+async function requiredFilesystemEntrySnapshot(
+  targetPath: string,
+  skipSymlinks = false
+): Promise<FilesystemEntrySnapshot> {
+  const snapshot = await filesystemEntrySnapshot(targetPath, skipSymlinks)
   if (!snapshot) {
     throw new Error(`Agent migration fingerprint source disappeared: ${targetPath}`)
   }

@@ -21,6 +21,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   type AgentFileSessionPlan,
+  copyLegacyClaudeConfig,
   isManagedLegacyAgentWorkspace,
   legacyAgentWorkspacePath,
   stageLegacyAgentFiles
@@ -136,6 +137,80 @@ describe('agentsFilesystemMigration', () => {
     copyMutation.symlinkCalls.length = 0
     platformState.isWin = false
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
+  })
+
+  it('copies the legacy Claude config recursively and preserves the source', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    await mkdir(path.join(source, 'plugins'), { recursive: true })
+    await writeFile(path.join(source, 'settings.json'), '{"theme":"dark"}')
+    await writeFile(path.join(source, 'plugins', 'installed.json'), '{"version":1}')
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+
+    expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"theme":"dark"}')
+    expect(await readFile(path.join(destination, 'plugins', 'installed.json'), 'utf8')).toBe('{"version":1}')
+    expect(await readFile(path.join(source, 'settings.json'), 'utf8')).toBe('{"theme":"dark"}')
+    expect(await readFile(path.join(source, 'plugins', 'installed.json'), 'utf8')).toBe('{"version":1}')
+  })
+
+  it('skips symlinks while copying the legacy Claude config', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    await mkdir(path.join(source, 'plugins'), { recursive: true })
+    await writeFile(path.join(source, 'settings.json'), '{"theme":"dark"}')
+    await writeFile(path.join(source, 'plugins', 'installed.json'), '{"version":1}')
+    await symlink(
+      process.platform === 'win32' ? path.join(source, 'plugins') : 'plugins',
+      path.join(source, 'plugins-link'),
+      process.platform === 'win32' ? 'junction' : undefined
+    )
+    if (process.platform !== 'win32') {
+      await symlink('settings.json', path.join(source, 'settings-link.json'))
+      await symlink('missing.json', path.join(source, 'dangling-link.json'))
+    }
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+
+    expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"theme":"dark"}')
+    expect(await readFile(path.join(destination, 'plugins', 'installed.json'), 'utf8')).toBe('{"version":1}')
+    await expect(lstat(path.join(destination, 'plugins-link'))).rejects.toThrow()
+    if (process.platform !== 'win32') {
+      await expect(lstat(path.join(destination, 'settings-link.json'))).rejects.toThrow()
+      await expect(lstat(path.join(destination, 'dangling-link.json'))).rejects.toThrow()
+    }
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+  })
+
+  it('reuses an identical Claude config destination on retry', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    await mkdir(source)
+    await writeFile(path.join(source, 'settings.json'), '{"theme":"dark"}')
+
+    await copyLegacyClaudeConfig(source, destination)
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+    expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"theme":"dark"}')
+  })
+
+  it('rejects a conflicting Claude config destination without overwriting either side', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    await mkdir(source)
+    await mkdir(destination)
+    await writeFile(path.join(source, 'settings.json'), '{"source":true}')
+    await writeFile(path.join(destination, 'settings.json'), '{"destination":true}')
+
+    await expect(copyLegacyClaudeConfig(source, destination)).rejects.toThrow('destination conflict')
+
+    expect(await readFile(path.join(source, 'settings.json'), 'utf8')).toBe('{"source":true}')
+    expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"destination":true}')
   })
 
   it.runIf(process.platform !== 'win32')(

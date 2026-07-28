@@ -28,6 +28,7 @@ import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import {
   type AgentFileSessionPlan,
+  copyLegacyClaudeConfig,
   isManagedLegacyAgentWorkspace,
   legacyAgentWorkspacePath,
   stageLegacyAgentFiles
@@ -79,7 +80,7 @@ const logger = loggerService.withContext('AgentsMigrator')
 export class AgentsMigrator extends BaseMigrator {
   readonly id = 'agents'
   readonly name = 'Agents'
-  readonly description = 'Migrate legacy agents.db data into the main SQLite database'
+  readonly description = 'Migrate legacy Agent data and Claude config into v2 storage'
   readonly order = 2.5
 
   private sourceCounts: AgentsTableRowCounts = this.createEmptyCounts()
@@ -127,6 +128,8 @@ export class AgentsMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
+    await copyLegacyClaudeConfig(ctx.paths.legacyClaudeConfigDir, ctx.paths.claudeConfigDir)
+
     const reader = this.createReader(ctx)
     const dbPath = this.resolveSourceDbPath(reader)
 
