@@ -49,8 +49,22 @@ export interface FileTreeProps {
   /** When provided, applies shimmer/reveal animations to row names during auto-rename. */
   animationSlot?: FileTreeAnimationSlot
 
+  /**
+   * Override how a row's name is rendered - e.g. highlighting a search keyword.
+   * Returning null falls back to the plain name. The surrounding truncation and
+   * rename/animation behaviour stay with the row.
+   */
+  renderName?: (node: FileTreeNode) => React.ReactNode
+
   /** Optional trailing slot per row - e.g. ContextMenu trigger, action buttons, badges. */
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
+  /**
+   * Optional block rendered beneath a row - e.g. the match list of a search hit.
+   * Unlike `renderRowExtras` it sits outside the row itself, so it spans the full
+   * width and owns its own clicks. The default virtualizer measures rows, so the
+   * block may be any height.
+   */
+  renderRowBelow?: (node: FileTreeNode) => React.ReactNode
   /** Optional command-system context menu items for the whole row (Cherry/Native presentation). */
   getMenuItems?: (node: FileTreeNode) => readonly CommandContextMenuExtraItem[]
 

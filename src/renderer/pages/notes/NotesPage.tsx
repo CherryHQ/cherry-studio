@@ -139,7 +139,15 @@ const NotesPage: FC = () => {
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
-  const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
+  const pendingScrollRef = useRef<{
+    lineNumber: number
+    lineContent?: string
+    matchIndex?: number
+    lineMatchCount?: number
+  } | null>(null)
+  // Keyword mirrored from the sidebar search, highlighted in the open note the way
+  // VS Code highlights panel results without opening the editor's find widget.
+  const [searchKeyword, setSearchKeyword] = useState('')
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
 
@@ -418,7 +426,7 @@ const NotesPage: FC = () => {
   useEffect(() => {
     if (!pendingScrollRef.current || !currentContent) return
 
-    const { lineNumber, lineContent } = pendingScrollRef.current
+    const { lineNumber, lineContent, matchIndex, lineMatchCount } = pendingScrollRef.current
     pendingScrollRef.current = null
 
     // Wait for DOM to update before scrolling
@@ -430,15 +438,24 @@ const NotesPage: FC = () => {
         try {
           if (codeEditor?.scrollToLine) {
             codeEditor.scrollToLine(lineNumber, { highlight: true })
-          } else if (richEditor?.scrollToLine) {
-            richEditor.scrollToLine(lineNumber, { highlight: true, lineContent })
+          } else if (richEditor) {
+            if (searchKeyword && matchIndex !== undefined && richEditor.focusSearchMatch) {
+              richEditor.focusSearchMatch(searchKeyword, {
+                activeIndex: matchIndex,
+                lineMatchCount: lineMatchCount ?? 0,
+                lineNumber,
+                lineContent
+              })
+            } else {
+              richEditor.scrollToLine?.(lineNumber, { highlight: true, lineContent })
+            }
           }
         } catch (error) {
           logger.error('Failed to execute pending scroll:', error as Error)
         }
       })
     })
-  }, [activeFilePath, currentContent])
+  }, [activeFilePath, currentContent, searchKeyword])
 
   // 获取目标文件夹路径（选中文件夹或根目录）
   const getTargetFolderPath = useCallback(
@@ -1013,11 +1030,15 @@ const NotesPage: FC = () => {
     const handleLocateNoteLine = ({
       noteId,
       lineNumber,
-      lineContent
+      lineContent,
+      matchIndex,
+      lineMatchCount
     }: {
       noteId: string
       lineNumber: number
       lineContent?: string
+      matchIndex?: number
+      lineMatchCount?: number
     }) => {
       const targetNode = findNode(notesTree, noteId)
 
@@ -1031,7 +1052,7 @@ const NotesPage: FC = () => {
       if (needsSwitchFile) {
         // switch to target note first then scroll to line (the session re-reads)
         requestFileTransition(() => {
-          pendingScrollRef.current = { lineNumber, lineContent }
+          pendingScrollRef.current = { lineNumber, lineContent, matchIndex, lineMatchCount }
           setActiveFilePath(AbsoluteFilePathSchema.parse(targetNode.externalPath))
         })
       } else {
@@ -1041,8 +1062,19 @@ const NotesPage: FC = () => {
         try {
           if (codeEditor?.scrollToLine) {
             codeEditor.scrollToLine(lineNumber, { highlight: true })
-          } else if (richEditor?.scrollToLine) {
-            richEditor.scrollToLine(lineNumber, { highlight: true, lineContent })
+          } else if (richEditor) {
+            // Prefer emphasising the matched span; fall back to the whole-line overlay
+            // when there is no keyword to locate (or the source mode is active).
+            if (searchKeyword && matchIndex !== undefined && richEditor.focusSearchMatch) {
+              richEditor.focusSearchMatch(searchKeyword, {
+                activeIndex: matchIndex,
+                lineMatchCount: lineMatchCount ?? 0,
+                lineNumber,
+                lineContent
+              })
+            } else {
+              richEditor.scrollToLine?.(lineNumber, { highlight: true, lineContent })
+            }
           }
         } catch (error) {
           logger.error('Failed to scroll to line:', error as Error)
@@ -1054,7 +1086,7 @@ const NotesPage: FC = () => {
     return () => {
       unsubscribe()
     }
-  }, [activeNode?.id, activeFilePath, notesTree, requestFileTransition, setActiveFilePath])
+  }, [activeNode?.id, activeFilePath, notesTree, requestFileTransition, setActiveFilePath, searchKeyword])
 
   return (
     <div id="notes-page" className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
@@ -1082,6 +1114,7 @@ const NotesPage: FC = () => {
                 onMoveNode={handleMoveNode}
                 onSortNodes={handleSortNodes}
                 onUploadFiles={handleUploadFiles}
+                onSearchKeywordChange={setSearchKeyword}
               />
             </motion.div>
           )}
@@ -1130,6 +1163,7 @@ const NotesPage: FC = () => {
           ) : (
             <NotesEditor
               activeNodeId={editorNodeId}
+              searchHighlightKeyword={searchKeyword}
               currentContent={currentContent}
               contentLoadError={contentLoadError}
               tokenCount={tokenCount}

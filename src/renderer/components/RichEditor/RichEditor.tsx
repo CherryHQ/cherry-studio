@@ -30,6 +30,9 @@ import type { FormattingCommand, RichEditorProps, RichEditorRef } from './types'
 import { useRichEditor } from './useRichEditor'
 const logger = loggerService.withContext('RichEditor')
 
+/** Debounce before re-scanning the document for an external highlight after an edit. */
+const EXTERNAL_HIGHLIGHT_RESCAN_DELAY_MS = 300
+
 /**
  * Create fixed-position highlight overlay at element location
  * with boundary detection to prevent overflow and toolbar overlap
@@ -154,6 +157,7 @@ const RichEditor = ({
   onCommandsReady,
   showTableOfContents = false,
   enableContentSearch = false,
+  searchHighlightKeyword,
   isFullWidth = false,
   fontFamily = 'default',
   fontSize = 16,
@@ -203,6 +207,36 @@ const RichEditor = ({
     }),
     []
   )
+
+  // Re-applied whenever the keyword, the editor instance or the rendered content
+  // changes. The editor is remounted on view-mode switches, so an imperative call
+  // from the page would simply be lost; a prop-driven effect restores itself.
+  const appliedSearchKeywordRef = useRef('')
+  useEffect(() => {
+    if (!enableContentSearch || !editor) return
+    const keyword = searchHighlightKeyword ?? ''
+    const keywordChanged = appliedSearchKeywordRef.current !== keyword
+    appliedSearchKeywordRef.current = keyword
+    // With no external keyword there is nothing to project and — unless it was just
+    // retracted — nothing to retract either. Skipping matters: the editor's own find
+    // bar owns the highlight state the rest of the time, and firing an empty apply on
+    // every keystroke would reset the user's Cmd+F results as they type.
+    if (!keyword && !keywordChanged) return
+
+    // Re-scanning means walking every text node in the document, so an edit must not
+    // trigger it per keystroke; only a keyword change is worth applying immediately.
+    const timer = setTimeout(
+      () => {
+        try {
+          contentSearchRef.current?.highlightExternal(keyword)
+        } catch (error) {
+          logger.error('Failed to apply external search highlight:', error as Error)
+        }
+      },
+      keywordChanged ? 0 : EXTERNAL_HIGHLIGHT_RESCAN_DELAY_MS
+    )
+    return () => clearTimeout(timer)
+  }, [enableContentSearch, editor, searchHighlightKeyword, markdown])
 
   const onKeyDownEditor = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -488,6 +522,18 @@ const RichEditor = ({
           logger.error('Failed in scrollToLine:', error as Error)
         }
       },
+      focusSearchMatch: (keyword, { activeIndex, lineMatchCount, lineNumber, lineContent }) => {
+        if (!editor) return
+        // Scope the ordinal to the block the markdown line renders as: counted over
+        // the source it is only trustworthy within that one line.
+        const totalLines = editor.getMarkdown().split('\n').length
+        const scope = findElementByLine(editor.view.dom, lineNumber, lineContent, totalLines)
+        contentSearchRef.current?.highlightExternal(keyword, {
+          activeIndex,
+          scope,
+          expectedScopeMatches: lineMatchCount
+        })
+      },
       // Dynamic command management
       registerCommand,
       registerToolbarCommand,
@@ -518,35 +564,41 @@ const RichEditor = ({
           scrollContainer={scrollContainerRef}
         />
       )}
-      <Scrollbar
-        ref={scrollContainerRef}
-        className="rich-editor-content"
-        style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <StyledEditorContent>
-          <PlusButton editor={editor} onElementClick={handlePlusButtonClick}>
-            <Tooltip content={t('richEditor.plusButton')}>
-              <Plus />
-            </Tooltip>
-          </PlusButton>
-          <DragHandle editor={editor} onElementDragEnd={handleDragEnd}>
-            <Tooltip content={t('richEditor.dragHandle')}>
-              <GripVertical />
-            </Tooltip>
-          </DragHandle>
-          <EditorContent style={{ minHeight: '100%' }} editor={editor} />
-        </StyledEditorContent>
-      </Scrollbar>
-      {enableContentSearch && (
-        <ContentSearch
-          ref={contentSearchRef}
-          searchTarget={scrollContainerRef as React.RefObject<HTMLElement>}
-          filter={contentSearchFilter}
-          includeUser={false}
-          onIncludeUserChange={() => {}}
-          showUserToggle={false}
-          positionMode="absolute"
-        />
-      )}
+      {/* The find bar is absolutely positioned against this box rather than the whole
+          wrapper, so it floats over the content instead of landing on the toolbar. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <Scrollbar
+          ref={scrollContainerRef}
+          className="rich-editor-content"
+          style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+          <StyledEditorContent>
+            <PlusButton editor={editor} onElementClick={handlePlusButtonClick}>
+              <Tooltip content={t('richEditor.plusButton')}>
+                <Plus />
+              </Tooltip>
+            </PlusButton>
+            <DragHandle editor={editor} onElementDragEnd={handleDragEnd}>
+              <Tooltip content={t('richEditor.dragHandle')}>
+                <GripVertical />
+              </Tooltip>
+            </DragHandle>
+            <EditorContent style={{ minHeight: '100%' }} editor={editor} />
+          </StyledEditorContent>
+        </Scrollbar>
+        {enableContentSearch && (
+          <ContentSearch
+            ref={contentSearchRef}
+            searchTarget={scrollContainerRef as React.RefObject<HTMLElement>}
+            filter={contentSearchFilter}
+            includeUser={false}
+            onIncludeUserChange={() => {}}
+            showUserToggle={false}
+            positionMode="absolute"
+            followChatNarrowMode={false}
+            widthMode="compact"
+          />
+        )}
+      </div>
       {showTableOfContents && (
         <ToC items={tableOfContentsItems} editor={editor} scrollContainerRef={scrollContainerRef} />
       )}

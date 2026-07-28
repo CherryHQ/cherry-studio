@@ -134,6 +134,83 @@ describe('FileTree - editable form (all callbacks)', () => {
     expect(onSelectedChange).not.toHaveBeenCalled()
   })
 
+  it('renders renderName in place of the plain name', () => {
+    render(
+      <FileTree
+        nodes={nodes}
+        defaultExpandedIds={new Set(['root'])}
+        renderName={(n) => <em data-testid={`name-${n.id}`}>{n.name.toUpperCase()}</em>}
+        renderList={passthroughRenderList}
+      />
+    )
+    expect(screen.getByTestId('name-a')).toHaveTextContent('A.MD')
+    // The row keeps the untouched name as its tooltip.
+    expect(screen.getByTestId('name-a').closest('[data-node-id="a"]')).toHaveAttribute('title', 'A.md')
+  })
+
+  it('falls back to the plain name when renderName returns null', () => {
+    render(
+      <FileTree
+        nodes={nodes}
+        defaultExpandedIds={new Set(['root'])}
+        renderName={(n) => (n.id === 'a' ? null : <em>custom</em>)}
+        renderList={passthroughRenderList}
+      />
+    )
+    expect(screen.getByText('A.md')).toBeInTheDocument()
+  })
+
+  it('keeps the rename input rather than renderName while a row is being renamed', () => {
+    render(
+      <FileTree
+        nodes={nodes}
+        defaultExpandedIds={new Set(['root'])}
+        renameSlot={{ isRenaming: (n) => n.id === 'a', inputProps: { value: 'A.md', onChange: () => {} } }}
+        renderName={(n) => <em data-testid={`name-${n.id}`}>custom</em>}
+        renderList={passthroughRenderList}
+      />
+    )
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
+    expect(screen.queryByTestId('name-a')).toBeNull()
+  })
+
+  it('renders renderRowBelow outside the row, so its clicks do not select the node', async () => {
+    const onSelectedChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <FileTree
+        nodes={nodes}
+        defaultExpandedIds={new Set(['root'])}
+        onSelectedChange={onSelectedChange}
+        renderRowBelow={(n) => (
+          <button type="button" data-testid={`below-${n.id}`}>
+            below {n.name}
+          </button>
+        )}
+        renderList={passthroughRenderList}
+      />
+    )
+
+    const below = screen.getByTestId('below-a')
+    expect(below).toBeInTheDocument()
+    expect(below.closest('[data-node-id="a"]')).toBeNull()
+
+    await user.click(below)
+    expect(onSelectedChange).not.toHaveBeenCalled()
+  })
+
+  it('does not render a row-below block when renderRowBelow returns null', () => {
+    render(
+      <FileTree
+        nodes={nodes}
+        defaultExpandedIds={new Set(['root'])}
+        renderRowBelow={() => null}
+        renderList={passthroughRenderList}
+      />
+    )
+    expect(screen.getByText('A.md')).toBeInTheDocument()
+  })
+
   it('stops row context-menu events after opening the row menu', () => {
     const onWrapperContextMenu = vi.fn()
 

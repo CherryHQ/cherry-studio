@@ -12,7 +12,9 @@ interface FileTreeRowProps {
   args: RenderRowArgs<FileTreeNode>
   renameSlot?: FileTreeRenameSlot
   animationSlot?: FileTreeAnimationSlot
+  renderName?: (node: FileTreeNode) => React.ReactNode
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
+  renderRowBelow?: (node: FileTreeNode) => React.ReactNode
   getMenuItems?: (node: FileTreeNode) => readonly CommandContextMenuExtraItem[]
   fileIcon?: (node: FileTreeNode) => React.ReactNode
   folderIcon?: (node: FileTreeNode, expanded: boolean) => React.ReactNode
@@ -25,7 +27,17 @@ const CHEVRON_SIZE_PX = 11
 const MATERIAL_ICON_PREFIX = 'material-icon-theme:'
 
 export function FileTreeRow(props: FileTreeRowProps) {
-  const { args, renameSlot, animationSlot, renderRowExtras, getMenuItems, fileIcon, folderIcon } = props
+  const {
+    args,
+    renameSlot,
+    animationSlot,
+    renderName,
+    renderRowExtras,
+    renderRowBelow,
+    getMenuItems,
+    fileIcon,
+    folderIcon
+  } = props
   const { node, depth, isExpanded, isSelected, isDragging, dragPosition, toggleExpanded, selectNode, dragHandleProps } =
     args
 
@@ -82,7 +94,9 @@ export function FileTreeRow(props: FileTreeRowProps) {
       title={node.name}
       style={indent}
       className={cn(
-        'group relative flex select-none items-center gap-1.5 rounded-3xs py-1 pr-2 text-left text-sm',
+        // rounded-sm matches the shared menu/command items — the same "row that takes an
+        // accent background when selected" shape this row is.
+        'group relative flex select-none items-center gap-1.5 rounded-sm py-1 pr-2 text-left text-sm',
         'transition-colors',
         isFolder
           ? 'text-foreground hover:bg-accent/50'
@@ -130,7 +144,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
           autoFocus
         />
       ) : (
-        <span className={cn('min-w-0 flex-1 truncate', nameAnimationClassName)}>{node.name}</span>
+        <span className={cn('min-w-0 flex-1 truncate', nameAnimationClassName)}>{renderName?.(node) ?? node.name}</span>
       )}
 
       {renderRowExtras ? (
@@ -142,13 +156,26 @@ export function FileTreeRow(props: FileTreeRowProps) {
   )
 
   const menuItems = getMenuItems?.(node)
-  if (!menuItems || menuItems.length === 0) {
-    return row
+  const rowWithMenu =
+    menuItems && menuItems.length > 0 ? (
+      <CommandContextMenu location="webcontents.context" extraItems={menuItems}>
+        {row}
+      </CommandContextMenu>
+    ) : (
+      row
+    )
+
+  // Kept outside `row` so the block spans the full width and its clicks never reach
+  // the row's select/expand handler.
+  const belowRow = renderRowBelow?.(node)
+  if (!belowRow) {
+    return rowWithMenu
   }
 
   return (
-    <CommandContextMenu location="webcontents.context" extraItems={menuItems}>
-      {row}
-    </CommandContextMenu>
+    <>
+      {rowWithMenu}
+      {belowRow}
+    </>
   )
 }

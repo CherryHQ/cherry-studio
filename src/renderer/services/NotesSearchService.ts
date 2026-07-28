@@ -19,6 +19,13 @@ export interface SearchMatch {
  */
 export interface SearchResult extends NotesTreeNode {
   matchType: 'filename' | 'content' | 'both'
+  /** Keyword occurrences in the note's name — 0 when only its content matched. */
+  nameMatchCount: number
+  /**
+   * The name windowed around its first hit, so a match sitting past the row's
+   * truncation point stays visible. Undefined when the name did not match.
+   */
+  nameContext?: string
   matches?: SearchMatch[]
   score: number
 }
@@ -39,6 +46,83 @@ export interface SearchOptions {
  */
 export function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Build the keyword matcher, so the name and content lanes agree on what counts
+ * as a match.
+ */
+function buildKeywordPattern(keyword: string, caseSensitive: boolean, useRegex: boolean): RegExp {
+  const flags = caseSensitive ? 'g' : 'gi'
+  return useRegex ? new RegExp(keyword, flags) : new RegExp(escapeRegex(keyword), flags)
+}
+
+/** Characters of lead-in kept before a match, so the hit sits near the start. */
+const CONTEXT_LEAD_CHARS = 2
+
+/** Characters kept after a match in a windowed note name. */
+const NAME_CONTEXT_LENGTH = 50
+
+/**
+ * Window `text` around one match so the hit stays visible in a space-constrained row:
+ * keep a couple of characters of lead-in, then run on past the match. A `...` prefix
+ * marks a trimmed head; the tail is left to the row's CSS truncation, so no suffix is
+ * added. Returned offsets are relative to the returned `context`.
+ */
+function buildMatchContext(
+  text: string,
+  matchStart: number,
+  matchEnd: number,
+  contextLength: number
+): { context: string; matchStart: number; matchEnd: number } {
+  const lead = Math.min(CONTEXT_LEAD_CHARS, matchStart)
+  const contextStart = matchStart - lead
+  const contextEnd = Math.min(text.length, matchEnd + contextLength)
+  const prefix = contextStart > 0 ? '...' : ''
+
+  return {
+    context: prefix + text.substring(contextStart, contextEnd),
+    matchStart: lead + prefix.length,
+    matchEnd: matchEnd - matchStart + lead + prefix.length
+  }
+}
+
+/**
+ * The note's name windowed around its first keyword hit (see
+ * {@link buildMatchContext}). Undefined when the name does not match.
+ */
+export function buildNameContext(
+  node: NotesTreeNode,
+  keyword: string,
+  options: SearchOptions = {}
+): string | undefined {
+  const { caseSensitive = false, useRegex = false } = options
+  const match = buildKeywordPattern(keyword, caseSensitive, useRegex).exec(node.name)
+  if (!match) {
+    return undefined
+  }
+
+  return buildMatchContext(node.name, match.index, match.index + match[0].length, NAME_CONTEXT_LENGTH).context
+}
+
+/**
+ * Count non-overlapping keyword occurrences in `text`. `lastIndex` is advanced past
+ * a zero-length match so a regex keyword that can match empty cannot spin forever.
+ */
+export function countOccurrences(text: string, keyword: string, options: SearchOptions = {}): number {
+  const { caseSensitive = false, useRegex = false } = options
+  const pattern = buildKeywordPattern(keyword, caseSensitive, useRegex)
+
+  let count = 0
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(text)) !== null) {
+    count += 1
+    if (match[0].length === 0) {
+      pattern.lastIndex += 1
+    }
+  }
+
+  return count
 }
 
 /**
@@ -101,8 +185,7 @@ export async function searchFileContent(
       return null
     }
 
-    const flags = caseSensitive ? 'g' : 'gi'
-    const pattern = useRegex ? new RegExp(keyword, flags) : new RegExp(escapeRegex(keyword), flags)
+    const pattern = buildKeywordPattern(keyword, caseSensitive, useRegex)
 
     const lines = content.split('\n')
     const matches: SearchMatch[] = []
@@ -113,24 +196,14 @@ export async function searchFileContent(
 
       let match: RegExpExecArray | null
       while ((match = pattern.exec(line)) !== null) {
-        const matchStart = match.index
-        const matchEnd = matchStart + match[0].length
-
-        // Keep context short: only 2 chars before match, more after
-        const beforeMatch = Math.min(2, matchStart)
-        const contextStart = matchStart - beforeMatch
-        const contextEnd = Math.min(line.length, matchEnd + contextLength)
-
-        // Add ellipsis if context doesn't start at line beginning
-        const prefix = contextStart > 0 ? '...' : ''
-        const contextText = prefix + line.substring(contextStart, contextEnd)
+        const windowed = buildMatchContext(line, match.index, match.index + match[0].length, contextLength)
 
         matches.push({
           lineNumber: i + 1,
           lineContent: line,
-          matchStart: beforeMatch + prefix.length,
-          matchEnd: matchEnd - matchStart + beforeMatch + prefix.length,
-          context: contextText
+          matchStart: windowed.matchStart,
+          matchEnd: windowed.matchEnd,
+          context: windowed.context
         })
 
         if (matches.length >= maxMatchesPerFile) {
@@ -152,6 +225,7 @@ export async function searchFileContent(
     return {
       ...node,
       matchType: 'content',
+      nameMatchCount: 0,
       matches,
       score
     }
@@ -162,12 +236,10 @@ export async function searchFileContent(
 }
 
 /**
- * Check if filename matches keyword
+ * Count keyword occurrences in a node's name. Zero means the name did not match.
  */
-export function matchFileName(node: NotesTreeNode, keyword: string, caseSensitive = false): boolean {
-  const name = caseSensitive ? node.name : node.name.toLowerCase()
-  const key = caseSensitive ? keyword : keyword.toLowerCase()
-  return name.includes(key)
+export function countFileNameMatches(node: NotesTreeNode, keyword: string, options: SearchOptions = {}): number {
+  return countOccurrences(node.name, keyword, options)
 }
 
 /**
@@ -221,19 +293,23 @@ export async function searchAllFiles(
       const node = queue.shift()
       if (!node) break
 
-      const nameMatch = matchFileName(node, keyword, options.caseSensitive)
+      const nameMatchCount = countFileNameMatches(node, keyword, options)
       const contentResult = await searchFileContent(node, keyword, options)
 
-      if (nameMatch && contentResult) {
+      if (nameMatchCount > 0 && contentResult) {
         results.push({
           ...contentResult,
           matchType: 'both',
+          nameMatchCount,
+          nameContext: buildNameContext(node, keyword, options),
           score: contentResult.score + 100
         })
-      } else if (nameMatch) {
+      } else if (nameMatchCount > 0) {
         results.push({
           ...node,
           matchType: 'filename',
+          nameMatchCount,
+          nameContext: buildNameContext(node, keyword, options),
           matches: [],
           score: 100
         })
