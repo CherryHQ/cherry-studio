@@ -5,6 +5,7 @@ import {
   knowledgeIndexIdempotencyKey,
   knowledgePrepareIdempotencyKey,
   knowledgeReindexSubtreeIdempotencyKey,
+  knowledgeRestoreIndexIdempotencyKey,
   reportKnowledgeProgress,
   toKnowledgeBaseId,
   toKnowledgeItemId,
@@ -27,6 +28,9 @@ describe('knowledge idempotency keys', () => {
     expect(knowledgeIndexIdempotencyKey(baseId, toKnowledgeItemId('note-1'))).toBe('knowledge:kb-1:note-1:index')
     expect(knowledgeIndexIdempotencyKey(baseId, toKnowledgeItemId('note-1'), 'reindex-job')).toBe(
       'knowledge:kb-1:note-1:index:reindex-job'
+    )
+    expect(knowledgeRestoreIndexIdempotencyKey(baseId, toKnowledgeItemId('note-1'), 'restore-1')).toBe(
+      'knowledge:kb-1:note-1:restore-index:restore-1'
     )
   })
 

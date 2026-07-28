@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
-import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
+import { readRestoreJournalV2, restoreJournalIo, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -52,6 +52,7 @@ describe('restoreJournalV2 file I/O', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     rmSync(userDataDir, { recursive: true, force: true })
   })
 
@@ -135,6 +136,27 @@ describe('restoreJournalV2 file I/O', () => {
 
       expect(readRestoreJournalV2()).toEqual({ kind: 'ok', journal: armed })
       expect(() => JSON.parse(readFileSync(journalPath(), 'utf8'))).not.toThrow()
+    })
+
+    it('loops until a sequence of short writes has persisted the complete journal', () => {
+      const realWrite = restoreJournalIo.writeSync
+      const shortWrite = vi
+        .spyOn(restoreJournalIo, 'writeSync')
+        .mockImplementation((fd, bytes, offset, length) => realWrite(fd, bytes, offset, Math.min(length, 17), null))
+
+      writeRestoreJournalV2(preparedJournal())
+
+      expect(shortWrite.mock.calls.length).toBeGreaterThan(1)
+      expect(readRestoreJournalV2()).toEqual({ kind: 'ok', journal: preparedJournal() })
+    })
+
+    it('does not replace the last valid journal when a short write stops making progress', () => {
+      writeRestoreJournalV2(preparedJournal())
+      vi.spyOn(restoreJournalIo, 'writeSync').mockReturnValue(0)
+      const armed: RestoreJournalV2 = { ...preparedJournal(), state: 'armed' }
+
+      expect(() => writeRestoreJournalV2(armed)).toThrow(/made no progress/)
+      expect(readRestoreJournalV2()).toEqual({ kind: 'ok', journal: preparedJournal() })
     })
   })
 })

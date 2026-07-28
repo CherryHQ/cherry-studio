@@ -206,8 +206,9 @@ class DirBatch {
 
   /**
    * One fsync per affected directory, never one per entry (§5.3). Windows cannot
-   * fsync a directory handle; its renames are write-through, the same trade-off
-   * the journal writer makes.
+   * fsync a directory handle and Node/libuv rename does not request
+   * `MOVEFILE_WRITE_THROUGH`; Windows therefore guarantees process-crash
+   * recovery here, not sudden-power-loss metadata durability.
    */
   flush(): readonly string[] {
     const dirs = [...this.dirs].sort()

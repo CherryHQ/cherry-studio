@@ -1,5 +1,8 @@
 import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type {
@@ -19,6 +22,8 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
+import { isIndexableKnowledgeItem, toMaterialRelativePath } from './items'
+import { probeKnowledgeFile } from './pathStorage'
 import type {
   KnowledgeConceptContent,
   KnowledgeConceptGrep,
@@ -32,7 +37,20 @@ import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
-import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from './types'
+import {
+  knowledgeQueueName,
+  knowledgeRestoreIndexIdempotencyKey,
+  type KnowledgeBaseDiscoveryOptions,
+  type KnowledgeBaseDiscoveryPage,
+  toKnowledgeBaseId,
+  toKnowledgeItemId
+} from './types'
+
+class ProfileMutationKeyedMutex extends KeyedMutex {
+  override async runExclusive<T>(key: string, task: () => T | Promise<T>): Promise<T> {
+    return super.runExclusive(key, () => profileMutationBarrier.runMutation(task))
+  }
+}
 
 /**
  * Facade of the knowledge feature: registers the job handlers, runs boot-time
@@ -44,7 +62,7 @@ import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from '
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService', 'WebSearchService'])
 export class KnowledgeService extends BaseService {
-  private readonly knowledgeLockManager = new KeyedMutex()
+  private readonly knowledgeLockManager = new ProfileMutationKeyedMutex()
   private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)
   private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
   private readonly queryService = new KnowledgeQueryService()
@@ -74,7 +92,7 @@ export class KnowledgeService extends BaseService {
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    return await this.baseAdmin.createBase(dto)
+    return profileMutationBarrier.runMutation(() => this.baseAdmin.createBase(dto))
   }
 
   async deleteBase(baseId: string): Promise<void> {
@@ -90,7 +108,7 @@ export class KnowledgeService extends BaseService {
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
-    return await this.baseAdmin.restoreBase(dto)
+    return profileMutationBarrier.runMutation(() => this.baseAdmin.restoreBase(dto))
   }
 
   listBasesForDiscovery(options: KnowledgeBaseDiscoveryOptions): KnowledgeBaseDiscoveryPage {
@@ -118,7 +136,67 @@ export class KnowledgeService extends BaseService {
     await this.ingestionService.reindexItems(baseId, itemIds)
   }
 
-  /** Configure an embedding model on a BM25-only base and backfill embeddings in place (see KnowledgeIngestionService.enableEmbeddingModel). */
+  /**
+   * Reconcile the derived index for a base installed by Backup v2. This path is
+   * intentionally narrower than user reindex: it reads only material files
+   * already transported under the managed base directory and never follows a
+   * directory item's original `data.source`, fetches a URL, or scans an external
+   * folder. Completion means every completed leaf has a material row, not merely
+   * that `index.sqlite` exists.
+   */
+  async reconcileRestoredBaseFromMaterial(baseId: string, restoreId: string): Promise<'completed' | 'pending'> {
+    const base = knowledgeBaseService.getById(baseId)
+    const items = knowledgeItemService
+      .getItemsByBaseId(baseId)
+      .filter(isIndexableKnowledgeItem)
+      .filter((item) => item.status === 'completed')
+    const expected = items.map((item) => ({ item, relativePath: toMaterialRelativePath(item) }))
+
+    for (const { item, relativePath } of expected) {
+      const readability = await probeKnowledgeFile(baseId, relativePath)
+      if (readability !== 'readable') {
+        throw new Error(
+          `Restored knowledge material is ${readability}: base=${baseId} item=${item.id} path=${relativePath}`
+        )
+      }
+    }
+
+    if (expected.length === 0) return 'completed'
+    const store = application.get('KnowledgeVectorStoreService').getIndexStore(base)
+    const missing: typeof expected = []
+    for (const entry of expected) {
+      if (!store.getMaterialByRelativePath(entry.relativePath)) missing.push(entry)
+    }
+    if (missing.length === 0) return 'completed'
+
+    const jobManager = application.get('JobManager')
+    const knowledgeBaseId = toKnowledgeBaseId(baseId)
+    for (const { item } of missing) {
+      const itemId = toKnowledgeItemId(item.id)
+      jobManager.enqueue(
+        'knowledge.index-documents',
+        { baseId, itemId, restoreId },
+        {
+          idempotencyKey: knowledgeRestoreIndexIdempotencyKey(knowledgeBaseId, itemId, restoreId),
+          queue: knowledgeQueueName(knowledgeBaseId)
+        }
+      )
+    }
+    return 'pending'
+  }
+
+  /**
+   * Configures an embedding model on a base that has never had one (BM25-only), then
+   * backfills embeddings for its existing items in place — no restore-into-a-new-base
+   * needed, since a BM25-only base has no vectors to invalidate. `knowledgeBaseService.
+   * update` still rejects switching an already-configured model this way; that case
+   * keeps going through `restoreBase` because it does invalidate existing vectors.
+   *
+   * Runs the same admission checks `reindexItems` would run, but before committing the
+   * model — a base whose backfill is doomed (missing source, subtree still running, ...)
+   * must never end up with a model set and no vectors to back it, since there is nothing
+   * to roll back to once it is committed.
+   */
   async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
     return await this.ingestionService.enableEmbeddingModel(baseId, patch)
   }

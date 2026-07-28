@@ -162,6 +162,9 @@ async function verifyExactResourceInventory(
           `resource size ${stagedStat.size} != manifest ${payload.sizeBytes}: ${payload.livePath}`
         )
       }
+      if (((stagedStat.mode & 0o111) !== 0) !== payload.executable) {
+        throw new ManifestPayloadMismatchError(`resource executable flag mismatch: ${payload.livePath}`)
+      }
       const hash = await sha256FileCancellable(stagedPath, signal)
       if (hash !== payload.hash) {
         throw new ManifestPayloadMismatchError(

@@ -50,7 +50,7 @@ export class BackupBusyError extends Error {
 export type RestoreStateErrorCode =
   /** No journal, or one whose state this action does not accept. */
   | 'wrong-state'
-  /** The journal exists but no version can parse it; the next boot quarantines it. */
+  /** The journal exists but no version can parse it; preboot preserves it and refuses unsafe startup. */
   | 'unreadable'
   /** Arming succeeded but the relaunch it exists for could not be started. */
   | 'relaunch-failed'

@@ -130,7 +130,7 @@ function clearWayForPreparation(): void {
   const read = readRestoreJournalV2()
   if (read.kind === 'none') return
   if (read.kind === 'corrupt') {
-    throw new RestoreStateError('unreadable', 'the restore journal is unreadable; the next boot will quarantine it')
+    throw new RestoreStateError('unreadable', 'the restore journal is unreadable and requires explicit repair')
   }
   if (read.journal.state === 'prepared') {
     cancelPreparedRestore()
@@ -197,10 +197,9 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
       )
     }
 
-    // The journal may name this tree only after every staged inode and directory
-    // entry is durable. Otherwise a power loss can preserve `prepared` while
-    // losing a payload, and preboot could mistake the old live target for an
-    // already-installed archive resource.
+    // The journal may name this tree only after its platform durability tail:
+    // file + directory fsync on POSIX; file fsync and process-crash ordering on
+    // Windows, where Node cannot make directory metadata power-loss durable.
     durabilizeRestoreStaging(path.dirname(promotePath))
 
     // The producer's own reductions PLUS what materializing the archive here
@@ -281,9 +280,9 @@ export function cancelPreparedRestore(): void {
   const read = readRestoreJournalV2()
   if (read.kind === 'none') return
   if (read.kind === 'corrupt') {
-    // Nothing can be proven about what it staged, so the promotion gate
-    // quarantines it at the next boot rather than this path deleting blindly.
-    throw new RestoreStateError('unreadable', 'the restore journal is unreadable; the next boot will quarantine it')
+    // Nothing can be proven about what it staged, so preboot preserves it and
+    // refuses unsafe startup rather than this path deleting blindly.
+    throw new RestoreStateError('unreadable', 'the restore journal is unreadable and requires explicit repair')
   }
   if (read.journal.state !== 'prepared') {
     throw new RestoreStateError(

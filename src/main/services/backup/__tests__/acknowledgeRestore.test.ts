@@ -243,6 +243,23 @@ describe('acknowledgeRestore', () => {
     expect(hasPendingRestore()).toBe(true)
   })
 
+  it('keeps the durable retry marker until every restored Knowledge base is rebuilt', () => {
+    writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
+    writeRestoreJournalV2(journal({ summary: { knowledgeBaseIds: ['kb-1'] } }))
+
+    expect(() => acknowledgeRestore()).toThrow(/knowledge index is still rebuilding/)
+    expect(existsSync(join(userData, asideRel))).toBe(true)
+    expect(hasPendingRestore()).toBe(true)
+
+    writeRestoreJournalV2(
+      journal({
+        summary: { knowledgeBaseIds: ['kb-1'] },
+        knowledgeRebuild: { completedBaseIds: ['kb-1'] }
+      })
+    )
+    expect(acknowledgeRestore().acknowledged).toBe(true)
+  })
+
   it('refuses to guess at an unreadable journal', () => {
     writeFileSync(join(userData, 'restore-journal.json'), '{ not json')
 

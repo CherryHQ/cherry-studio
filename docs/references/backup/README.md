@@ -223,7 +223,7 @@ producer's `DiskFullError` backstop for races after those checks.
 | Migration identity | The **complete** source migration chain, not just its tip |
 | DB payload | Hash + size of the portable DB payload |
 | Resource requirements | Existence-oriented requirement inventory (both presets) |
-| Resource payloads (Full) | Included payload inventory + cryptographic hashes |
+| Resource payloads (Full) | Included payload inventory + cryptographic hashes; file units authenticate one portable `executable` bit |
 | Directory-unit hash spec | See §5.1.2 |
 | Exclusions/degradations | Explicit product-allowed exclusions and degraded sections |
 
@@ -248,8 +248,10 @@ scanner (`dirScan.ts`), so they can never disagree on membership or order:
 - directories and files each sorted by their POSIX relative path (UTF-8 byte order);
 - each directory framed as `"D" ‖ u64be(len(relPath)) ‖ relPath`, followed by
   each file framed as
-  `"F" ‖ u64be(len(relPath)) ‖ relPath ‖ u64be(byteLen(content)) ‖ content`;
-  type tags and length prefixes make every boundary unambiguous.
+  `"F" ‖ ("X" | "-") ‖ u64be(len(relPath)) ‖ relPath ‖ u64be(byteLen(content)) ‖ content`;
+  the second tag authenticates owner-executable vs non-executable, while type tags and length
+  prefixes make every boundary unambiguous. No other permission bits cross devices: staged and
+  restored files map safely to `0700` or `0600`.
 
 Node metadata identity uses **bigint** stat (`dev`/`ino`/`size`/`mtimeNs`/`ctimeNs`)
 so a same-size fast rewrite or a metadata-only change is observable to a re-scan.
@@ -295,19 +297,14 @@ migration/custom-SQL refresh, admission compares the complete `sqlite_schema`
 against a trusted in-memory production database before portable sanitation can
 execute any data write. It then checkpoint-seals the DB into one main file,
 requires both WAL/SHM sidecars to be absent, and returns final hash/size/chain
-separately from the unchanged original manifest. A **downgraded binary** reading a v2 journal fails safely through strict-version
-quarantine without touching live data (the journal schema is a `strictObject` with a
-literal version — an unrecognized version parses as corrupt, so the gate cleans up rather
-than misinterpreting; see `RestoreJournalSchema`).
-
-**Quarantine has one exception: a stranded live slot.** An unreadable journal beside a
-**missing** live DB while a park slot still exists means the crash landed after the live DB
-was parked and the journal can no longer name what it parked. Quarantining there would clear
-the last record of the restore and let the boot create a fresh **empty** DB beside the
-user's real one, so the gate refuses to boot instead, leaving every artifact where a repair
-needs it (the park slot is found by the naming contract in `dbAsideRelPathV2`/`findDbAside`,
-which is why that name may not drift). With no park slot there is nothing to strand —
-refusing would only wedge an app whose data is already gone — so quarantine proceeds.
+separately from the unchanged original manifest. A **downgraded binary** reading a v2 journal
+fails safely through strict-version refusal without touching live data (the journal schema is
+a `strictObject` with a literal version). A corrupt, unreadable, or future-version journal is
+never quarantined or cleared automatically: it may be the only durable evidence naming a
+partially moved database/resource set. Preboot preserves the journal, staging tree, and
+asides, then refuses normal startup until a compatible build or explicit repair can prove a
+coherent state. This applies even when the live DB currently exists—presence alone does not
+prove that every resource matches it.
 
 ### 5.3 Frozen operating ceilings
 
@@ -325,8 +322,10 @@ per-entry and total uncompressed bytes, compression ratio, and staging disk head
   other. `maxManifestBytes` is 32 MiB for exactly this reason, and a test builds a manifest at
   the install ceiling to prove the two constants still agree.
 - Before `prepared` is written, restore `fsync`s every staged DB/resource file, then all
-  staging directories bottom-up and the staging parent's entry. A durable journal therefore
-  never names payload bytes that a power loss can discard.
+  staging directories bottom-up and the staging parent's entry on POSIX. This provides the
+  stated sudden-power-loss ordering on POSIX. Windows cannot fsync directory handles, and
+  Node/libuv rename does not request `MOVEFILE_WRITE_THROUGH`; Windows guarantees
+  process-crash recovery, not sudden-power-loss metadata durability.
 - Resource-install `fsync`s affected parent directories in **bounded batches** before the
   global step marker — including the parents whose entries create a new
   `restore-aside/<restoreId>` tree — not once per entry. A ceiling fixture proves this bound;
@@ -334,7 +333,12 @@ per-entry and total uncompressed bytes, compression ratio, and staging disk head
 
 ### 5.4 Source-drift detection (export staging)
 
-- **Files:** source-handle pre/post metadata compared while streaming to the staged hash.
+- **Cross-store boundary:** Full export waits for complete owner-enrolled DB↔filesystem
+  mutations, freezes new ones, snapshots SQLite, and captures every required resource identity
+  before releasing the barrier. Managed mutations remain concurrent with one another outside
+  this short boundary; bulk byte copying happens after release against the captured baseline.
+- **Files:** snapshot-boundary identity plus source-handle pre/post metadata are compared while
+  streaming to the staged hash.
 - **Directories:** a deterministic initial tree manifest, per-file pre/post checks, and a
   final tree rescan.
 - Cancellation is checked per chunk/file. Any drift or disk-full removes only
@@ -384,8 +388,8 @@ archive against this device reduced (§4), aggregated per `(table, reason)`. It
 lives in the journal rather than in memory because the report is shown after the
 relaunch, once the staging tree that produced it is gone; without it a degraded
 restore would present as a complete one. The producer **truncates** the list to
-its cap instead of failing the write: a report detail must never be able to
-quarantine an otherwise valid journal.
+its cap instead of failing the write: a report detail must never make an otherwise
+valid journal unparsable and block startup.
 
 > **Change from current `origin/main`.** Journal v1 (on main) uses states
 > `staged → promoting → completed|failed|expired` with no `prepared`/`armed` split and a
@@ -511,16 +515,19 @@ artifacts until the rolled-back result is acknowledged, then released. It does n
 long-term history or offer redo.
 
 **Acknowledgement is the commit-to-keep action.** From `completed` it removes the previous
-state; from `rolled-back` it removes the displaced restored state. Cleanup idempotently
-removes operation-owned artifacts **first**, clears the journal **last**, then releases GC
-protection. A crash before the last step leaves protection active and cleanup resumable.
+state; from `rolled-back` it removes the displaced restored state. A completed Full restore
+cannot be acknowledged while any summary-listed Knowledge base lacks owner-proven rebuild
+completion, because clearing the journal would also erase its durable retry marker. Cleanup
+idempotently removes operation-owned artifacts **first**, clears the journal **last**, then
+releases GC protection. A crash before the last step leaves protection active and cleanup
+resumable.
 
 **No newly executed path terminalizes an incomplete direction.** A blocked pre-commit
 rollback remains `promoting`; a blocked post-commit reverse remains `reverting`; a blocked
 committed install remains `promoting`. The gate fails the launch and retries before normal
 services can open either database. The schema still accepts the older defensive
 `failed.recoveryIncomplete` and `completed.resourcesIncomplete` markers so an interrupted
-development build can be repaired rather than quarantined; those markers retain their asides,
+development build can be repaired rather than rejected as corrupt; those markers retain their asides,
 refuse acknowledgement, and retry at boot, but current execution does not create them.
 
 **The user must be asked, not waited on.** Because protection holds double storage and keeps
@@ -542,13 +549,18 @@ restore survives relocation and promotes only under the relocated tree.
 
 ### 6.7 Post-promotion derived work
 
-Post-promotion filesystem-derived work is **not** a staged-DB adapter hook. A tracked
-Knowledge reindex is scheduled from lifecycle `onAllReady` after any successful promotion
-whose restored DB contains Knowledge rows: Lite queues only bases with existing managed
-resource directories; Full queues installed/existing bases from the durable restore
-summary. The background Promise is tracked and joined/cancelled from `onStop` per lifecycle
-rules. Export and directory payload hashing exclude only
-`{baseId}/.cherry/index.sqlite{,-wal,-shm}`.
+Post-promotion filesystem-derived work is **not** a staged-DB adapter hook. After a Full
+promotion, lifecycle `onAllReady` asks the Knowledge owner to rebuild only base IDs recorded
+in the durable restore summary—i.e. material this archive actually transported. The
+restore-only path indexes managed material files directly; it never follows an item's
+original `data.source`, scans an external folder, or fetches a URL. Lite transported no
+Knowledge material and schedules none.
+
+Completion is owner-proven (every completed leaf has an index material row), then persisted
+per base in the restore journal; existence of `index.sqlite` alone is not completion. A
+bounded reconciliation pass schedules/reuses jobs and returns immediately, while a tracked
+poll retries until completion without making shutdown wait for embedding work. Export and
+directory payload hashing exclude only `{baseId}/.cherry/index.sqlite{,-wal,-shm}`.
 
 ---
 

@@ -1,105 +1,95 @@
 /**
  * Post-promotion derived work (docs/references/backup/README.md §6.7).
  *
- * A restored Knowledge base arrives as raw content with NO vector index — the
- * index is derived state that export excludes on purpose, and an empty one never
- * rebuilds itself, so search would silently return nothing forever. This
- * schedules that rebuild once, after boot, for the bases this device actually
- * has directories for.
+ * Full restore transports Knowledge source material but deliberately excludes
+ * each rebuildable `.cherry` index. Only Knowledge owns the material-to-index
+ * contract, so this module asks that owner to reconcile the exact base IDs the
+ * promotion installed. It never calls ordinary reindex, which may follow an
+ * archive-supplied original `data.source` or fetch a URL.
  *
- * It is deliberately NOT a staged-database hook: the work needs the restored
- * database to be live, the Knowledge service to be running, and the job queue to
- * exist — none of which is true at promotion time.
- *
- * Cross-boot idempotency needs no marker: only bases whose index file is still
- * absent are enqueued, so once a rebuild has started later boots skip it. That
- * matters because the journal legitimately survives until acknowledgement, which
- * may be several boots away.
+ * Completion is persisted in the restore journal per base. An index file merely
+ * existing is not completion: Knowledge reports complete only after every
+ * completed leaf has a corresponding material row. A failed or interrupted job
+ * therefore remains pending and is safely retried on a later poll or boot.
  */
 
-import path from 'node:path'
-
 import { application } from '@application'
-import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
-import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 
-import { collectResourceRequirementsFrom } from './resources/collectRequirements'
-import { measureResourceCoverage } from './resources/coverage'
-
 const logger = loggerService.withContext('backupPostPromotion')
-
-/** The requirement kind the Knowledge adapter emits. */
-const KNOWLEDGE_KIND = 'knowledge-base'
 
 export interface PostPromotionOutcome {
   /** False when the last restore did not complete, so there is nothing to rebuild. */
   readonly ran: boolean
+  /** Bases whose material is still being reconciled. */
   readonly enqueuedBaseIds: readonly string[]
+  /** True while at least one required base lacks durable completion. */
+  readonly pending: boolean
 }
 
 /**
- * Run the derived work a completed restore left behind. `shouldContinue` is
- * checked between steps so a shutdown arriving mid-flight short-circuits instead
- * of enqueuing into a tearing-down job manager.
+ * Run one bounded reconciliation pass. The caller polls while `pending`; this
+ * function never waits for long-running embedding jobs, so shutdown is not held
+ * hostage by derived work.
  */
 export async function runPostPromotionWork(shouldContinue: () => boolean): Promise<PostPromotionOutcome> {
   const read = readRestoreJournalV2()
   if (read.kind !== 'ok' || read.journal.state !== 'completed') {
-    return { ran: false, enqueuedBaseIds: [] }
+    return { ran: false, enqueuedBaseIds: [], pending: false }
   }
 
-  // The restored database is the live one by now, so the inventory comes off
-  // the live connection rather than a second one opened onto the same file.
-  const { coverage, present } = measureResourceCoverage({
-    inventory: collectResourceRequirementsFrom(application.get('DbService').getDb())
-  })
-  // Disclosure, not a silent skip (§2): a restored profile whose resources this
-  // device does not have is a degraded restore, and the numbers say how much.
-  logger.info('Post-restore resource coverage', {
-    restoreId: read.journal.restoreId,
-    ...coverage
-  })
+  const { restoreId } = read.journal
+  const requiredBaseIds = read.journal.summary.knowledgeBaseIds
+  const completed = new Set(read.journal.knowledgeRebuild?.completedBaseIds ?? [])
+  const reconciling: string[] = []
 
-  // The bases to rebuild come from THIS device's filesystem, not from the
-  // promotion's `summary.knowledgeBaseIds`. Every base the restore installed has
-  // a row in the database it installed with it, so the inventory below already
-  // contains all of them — plus the ones that were here before. The summary
-  // stays the durable record of what the promotion moved; using it as a second
-  // input could only ever add a base whose directory has since disappeared.
-  const enqueued: string[] = []
-  for (const requirement of present) {
+  for (const baseId of requiredBaseIds) {
     if (!shouldContinue()) break
-    if (requirement.kind !== KNOWLEDGE_KIND) continue
-    const baseId = path.basename(requirement.livePath)
-    // Per-base isolation: one un-reindexable base (missing row, blocked subtree,
-    // absent source) must not stop the others.
+    if (completed.has(baseId)) continue
     try {
-      if (await enqueueBaseReindex(baseId)) {
-        enqueued.push(baseId)
+      const status = await application.get('KnowledgeService').reconcileRestoredBaseFromMaterial(baseId, restoreId)
+      if (status === 'completed') {
+        completed.add(baseId)
+      } else {
+        reconciling.push(baseId)
       }
     } catch (error) {
-      logger.error('Post-restore knowledge reindex could not be enqueued', error as Error, { baseId })
+      reconciling.push(baseId)
+      logger.error('Post-restore knowledge material rebuild could not be reconciled', error as Error, { baseId })
     }
   }
 
-  if (enqueued.length > 0) {
-    logger.info('Enqueued post-restore knowledge reindex', { count: enqueued.length })
+  if (!shouldContinue()) {
+    return { ran: true, enqueuedBaseIds: reconciling, pending: true }
   }
-  return { ran: true, enqueuedBaseIds: enqueued }
+
+  const completedBaseIds = requiredBaseIds.filter((id) => completed.has(id))
+  if (completedBaseIds.length !== (read.journal.knowledgeRebuild?.completedBaseIds.length ?? 0)) {
+    persistKnowledgeCompletion(restoreId, completedBaseIds)
+  }
+
+  const pending = completedBaseIds.length !== requiredBaseIds.length
+  if (reconciling.length > 0) {
+    logger.info('Reconciled post-restore knowledge jobs', { count: reconciling.length, pending })
+  }
+  return { ran: true, enqueuedBaseIds: reconciling, pending }
 }
 
-async function enqueueBaseReindex(baseId: string): Promise<boolean> {
-  if (await application.get('KnowledgeVectorStoreService').hasIndexStore(baseId)) {
-    return false
+/** Re-read before writing so acknowledgement or rollback cannot be resurrected. */
+function persistKnowledgeCompletion(restoreId: string, completedBaseIds: readonly string[]): void {
+  const current = readRestoreJournalV2()
+  if (current.kind !== 'ok' || current.journal.state !== 'completed' || current.journal.restoreId !== restoreId) return
+
+  const allowed = new Set(current.journal.summary.knowledgeBaseIds)
+  const merged = new Set(current.journal.knowledgeRebuild?.completedBaseIds ?? [])
+  for (const id of completedBaseIds) {
+    if (allowed.has(id)) merged.add(id)
   }
-  const rootItemIds = knowledgeItemService
-    .getRootItemsByBaseId(baseId)
-    .filter((item) => item.status === 'completed')
-    .map((item) => item.id)
-  if (rootItemIds.length === 0) {
-    return false
-  }
-  await application.get('KnowledgeService').reindexItems(baseId, rootItemIds)
-  return true
+  writeRestoreJournalV2({
+    ...current.journal,
+    knowledgeRebuild: {
+      completedBaseIds: current.journal.summary.knowledgeBaseIds.filter((id) => merged.has(id))
+    }
+  })
 }

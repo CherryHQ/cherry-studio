@@ -9,8 +9,10 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
+import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import Database from 'better-sqlite3'
 import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,6 +29,14 @@ import { driftHooks } from '../sourceDrift'
  * that proves the producer and the hostile-input consumer still agree on layout,
  * hashes, chain identity, and manifest shape.
  */
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
 
 describe('exportArchive', () => {
   const dbh = setupTestDatabase()
@@ -119,6 +129,52 @@ describe('exportArchive', () => {
       })
       .run()
   }
+
+  it('waits for an FS-before-DB managed mutation before capturing a Full snapshot', async () => {
+    const id = '11111111-1111-4111-8111-111111111111'
+    dbh.db.insert(fileEntryTable).values({ id, origin: 'internal', name: 'a', ext: 'txt', size: 3 }).run()
+    const blobPath = mkFile(join(userData, 'Data', 'Files', `${id}.txt`))
+    writeFileSync(blobPath, 'OLD')
+    const fsWritten = deferred()
+    const allowDbCommit = deferred()
+    const mutation = profileMutationBarrier.runMutation(async () => {
+      writeFileSync(blobPath, 'NEWER')
+      fsWritten.resolve()
+      await allowDbCommit.promise
+      dbh.sqlite.prepare('UPDATE file_entry SET size = ? WHERE id = ?').run(5, id)
+    })
+    await fsWritten.promise
+
+    const exporting = exportArchive({ outPath, preset: 'full' })
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(snapshotMock()).not.toHaveBeenCalled()
+
+    allowDbCommit.resolve()
+    await mutation
+    const result = await exporting
+    expect(result.manifest.preset).toBe('full')
+
+    const stagingParent = await mkdtemp(join(tmpdir(), 'cs-admit-'))
+    const admitted = await admitArchive({
+      archivePath: outPath,
+      stagingParent,
+      migrationsFolder: resolveMigrationsPath()
+    })
+    try {
+      const file = admitted.resources.find((resource) => resource.resourceType === 'file')
+      expect(file).toBeDefined()
+      expect(readFileSync(file!.stagedPath, 'utf8')).toBe('NEWER')
+      const restored = new Database(admitted.db.path, { readonly: true })
+      try {
+        expect(restored.prepare('SELECT size FROM file_entry WHERE id = ?').get(id)).toEqual({ size: 5 })
+      } finally {
+        restored.close()
+      }
+    } finally {
+      await admitted.cleanup()
+      rmSync(stagingParent, { recursive: true, force: true })
+    }
+  })
 
   it('publishes a Lite archive that admission accepts unchanged', async () => {
     seedResources()

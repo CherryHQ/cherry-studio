@@ -68,6 +68,7 @@ const PRESET_EXPORT_HELP_KEYS: Record<Preset, string> = {
 
 const DEGRADATION_KEYS: Record<PresentedDegradation['code'], string> = {
   'capability-malformed': 'settings.data.backup_v2.outcome.degradation.capability_malformed',
+  'external-file-dropped': 'settings.data.backup_v2.outcome.degradation.external_file_dropped',
   'path-unportable': 'settings.data.backup_v2.outcome.degradation.path_unportable',
   'path-collision': 'settings.data.backup_v2.outcome.degradation.path_collision',
   'resource-unavailable': 'settings.data.backup_v2.outcome.degradation.resource_unavailable',
@@ -97,6 +98,7 @@ const BackupV2Settings: FC = () => {
   const [preview, setPreview] = useState<RestorePreview | null>(null)
   const [running, setRunning] = useState<Running | null>(null)
   const busy = running !== null
+  const knowledgeRebuildPending = status?.restore.kind === 'journal' && status.restore.knowledgeRebuildPending === true
 
   const refresh = useCallback(async () => {
     setStatus(await ipcApi.request('backup.get_status'))
@@ -105,6 +107,12 @@ const BackupV2Settings: FC = () => {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useEffect(() => {
+    if (!knowledgeRebuildPending) return
+    const timer = window.setInterval(() => void refresh(), 2_000)
+    return () => window.clearInterval(timer)
+  }, [knowledgeRebuildPending, refresh])
 
   /** Turn the closed IPC code set into the one sentence the user can act on. */
   const reportFailure = useCallback(
@@ -479,7 +487,8 @@ const RestoreOutcome: FC<{
       restore.state === 'failed' ||
       restore.state === 'expired') &&
     !restore.recoveryIncomplete &&
-    !restore.resourcesIncomplete
+    !restore.resourcesIncomplete &&
+    !restore.knowledgeRebuildPending
   const rollbackable = restore.state === 'completed' && !restore.resourcesIncomplete
 
   return (
@@ -519,6 +528,9 @@ const RestoreOutcome: FC<{
       )}
       {restore.resourcesIncomplete && (
         <Alert type="warning" showIcon message={t('settings.data.backup_v2.outcome.resources_incomplete')} />
+      )}
+      {restore.knowledgeRebuildPending && (
+        <Alert type="info" showIcon message={t('settings.data.backup_v2.outcome.knowledge_rebuild_pending')} />
       )}
       {/*
         Completed only, and with the lines shown rather than just counted: this is

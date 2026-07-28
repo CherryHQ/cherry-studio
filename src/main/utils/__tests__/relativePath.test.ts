@@ -83,6 +83,12 @@ describe('isSafeRelativeSubpath', () => {
     }
   })
 
+  it('rejects the ISO-8859-1 superscript COM/LPT aliases reserved by Windows', () => {
+    for (const p of ['COM¹', 'com².txt', 'Com³.log', 'LPT¹', 'lpt².md', 'Lpt³']) {
+      expect(isSafeRelativeSubpath(p)).toBe(false)
+    }
+  })
+
   it('still accepts names that merely contain reserved stems', () => {
     for (const p of ['console/log', 'coma', 'coms/1', 'coma.txt', 'lpt10']) {
       expect(isSafeRelativeSubpath(p)).toBe(true)

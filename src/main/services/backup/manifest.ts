@@ -92,14 +92,18 @@ const ResourceRequirementSchema = z.strictObject({
  * where the payload sits inside the archive; `livePath` its userData-relative
  * destination.
  */
-const ResourcePayloadSchema = z.strictObject({
+const commonResourcePayloadFields = {
   kind: z.string().min(1),
-  resourceType: ResourceTypeSchema,
   archivePath: RelativeSubpathSchema,
   livePath: RelativeSubpathSchema,
   hash: Sha256HexSchema,
   sizeBytes: z.number().int().nonnegative()
-})
+}
+
+const ResourcePayloadSchema = z.discriminatedUnion('resourceType', [
+  z.strictObject({ ...commonResourcePayloadFields, resourceType: z.literal('file'), executable: z.boolean() }),
+  z.strictObject({ ...commonResourcePayloadFields, resourceType: z.literal('directory') })
+])
 
 /** An explicit product-allowed degradation recorded at snapshot time (§4). */
 const DegradationSchema = z.strictObject({

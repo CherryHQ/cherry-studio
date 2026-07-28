@@ -22,6 +22,7 @@ import type { PromotionStepV2, RestoreJournalV2 } from '@data/db/restore/restore
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import {
   isLiveDbStrandedV2,
+  isRestoreRecoveryPendingV2,
   markRestoreFailedAfterCrashV2,
   runRestorePromotionV2
 } from '@data/db/restore/restorePromotionV2'
@@ -279,17 +280,17 @@ describe('restore promotion v2', () => {
       }
     )
 
-    it('quarantines a journal it cannot parse and clears the whole staging root', async () => {
+    it('fails closed on a journal it cannot parse and preserves all recovery evidence', async () => {
       makeDb(livePath(), 'old')
       makeStagedDb()
-      // A v1 journal reads exactly like this: unparseable, so unpromotable.
-      writeFileSync(journalPath(), '{ "version": 1, "state": "staged" }')
+      writeFileSync(journalPath(), '{ "version": 3, "state": "future" }')
 
-      await runRestorePromotionV2()
+      await expect(runRestorePromotionV2()).rejects.toThrow(/refusing to discard recovery evidence/)
 
       expect(readMarker(livePath())).toBe('old')
-      expect(existsSync(journalPath())).toBe(false)
-      expect(existsSync(join(userData, 'restore-staging'))).toBe(false)
+      expect(existsSync(journalPath())).toBe(true)
+      expect(existsSync(stagingDir())).toBe(true)
+      expect(isRestoreRecoveryPendingV2()).toBe(true)
     })
 
     it('refuses to boot on an unreadable journal while the live database sits parked aside', async () => {
@@ -302,7 +303,7 @@ describe('restore promotion v2', () => {
       makeStagedDb()
       writeFileSync(journalPath(), '{ "version": 1, "state": "staged" }')
 
-      await expect(runRestorePromotionV2()).rejects.toThrow(/refusing to boot into an empty database/)
+      await expect(runRestorePromotionV2()).rejects.toThrow(/refusing to discard recovery evidence/)
 
       expect(isLiveDbStrandedV2()).toBe(true)
       expect(existsSync(journalPath())).toBe(true)
@@ -310,17 +311,15 @@ describe('restore promotion v2', () => {
       expect(existsSync(stagedPath())).toBe(true)
     })
 
-    it('quarantines an unreadable journal when no parked database could be stranded', async () => {
-      // A missing live database with nothing parked aside is not this
-      // machinery's doing; refusing would only wedge an app whose data is
-      // already gone, so the boot goes on.
+    it('preserves an unreadable journal even when no parked database can be named', async () => {
       makeStagedDb()
       writeFileSync(journalPath(), '{ not json')
 
-      await runRestorePromotionV2()
+      await expect(runRestorePromotionV2()).rejects.toThrow(/refusing to discard recovery evidence/)
 
-      expect(existsSync(journalPath())).toBe(false)
-      expect(existsSync(join(userData, 'restore-staging'))).toBe(false)
+      expect(existsSync(journalPath())).toBe(true)
+      expect(existsSync(stagingDir())).toBe(true)
+      expect(isRestoreRecoveryPendingV2()).toBe(true)
     })
   })
 
@@ -1035,10 +1034,11 @@ describe('restore promotion v2', () => {
       } as RestoreJournalV2)
       failResourceInstall.on = true
 
-      await runRestorePromotionV2()
+      await expect(runRestorePromotionV2()).rejects.toThrow(/EPERM/)
 
-      // No progress is not an excuse to release anything.
+      // No progress is not an excuse to release anything or start normal services.
       expect(resourcesIncomplete()).toBe(true)
+      expect(isRestoreRecoveryPendingV2()).toBe(true)
       expect(readUnitDir(unit.staging)).toBe('ARCHIVE')
       expect(readUnitDir(unit.aside)).toBe('TARGET')
       expect(existsSync(stagingDir())).toBe(true)
@@ -1060,11 +1060,12 @@ describe('restore promotion v2', () => {
       } as RestoreJournalV2)
       failResourceRollback.on = true
 
-      await runRestorePromotionV2()
+      await expect(runRestorePromotionV2()).rejects.toThrow(/EPERM/)
 
       // No progress is not an excuse to release anything: protection and the
       // refusal both stand until a boot actually finishes the work.
       expect(recoveryIncomplete()).toBe(true)
+      expect(isRestoreRecoveryPendingV2()).toBe(true)
       expect(readUnitDir(unit.live)).toBe('ARCHIVE')
       expect(readUnitDir(unit.aside)).toBe('TARGET')
       expect(hasPendingRestore()).toBe(true)

@@ -54,6 +54,7 @@ export interface DirectoryUnitFile {
   /** POSIX relative path from the unit root. */
   readonly relPath: string
   readonly size: number
+  readonly executable: boolean
 }
 
 export interface DirectoryUnitHash {
@@ -63,6 +64,8 @@ export interface DirectoryUnitHash {
 
 export interface HashDirectoryUnitOptions {
   readonly signal?: AbortSignal
+  /** Admission override from authenticated ZIP metadata on platforms that cannot materialize Unix execute bits. */
+  readonly executableByRelPath?: ReadonlyMap<string, boolean>
   readonly excludeKnowledgeDerivedIndex?: boolean
   readonly limits?: DirScanLimits
 }
@@ -98,7 +101,8 @@ async function streamFileInto(
  * Canonical hash of a directory unit over both directory entries and regular
  * files from the shared scanner. Directories are framed as
  * `"D"‖u64be(len(path))‖path`; files as
- * `"F"‖u64be(len(path))‖path‖u64be(len(content))‖content`. Type tags and lengths
+ * `"F"‖("X"|"-")‖u64be(len(path))‖path‖u64be(len(content))‖content`, where
+ * the second tag authenticates the one portable mode bit. Type tags and lengths
  * make every boundary unambiguous, while authenticating empty folders as part
  * of the unit instead of merely hashing its bytes. Cancellation is checked
  * during the scan, between entries, and on every streamed file chunk.
@@ -127,7 +131,12 @@ export async function hashDirectoryUnit(
     if (options.signal?.aborted) throw new BackupCancelledError()
     const pathBuf = Buffer.from(entry.relPath, 'utf8')
     const abs = path.join(rootDir, ...entry.relPath.split('/'))
+    const executable = options.executableByRelPath?.get(entry.relPath) ?? entry.executable
+    if (options.executableByRelPath && !options.executableByRelPath.has(entry.relPath)) {
+      throw new Error(`hashDirectoryUnit: executable metadata missing for ${entry.relPath}`)
+    }
     hash.update('F')
+    hash.update(executable ? 'X' : '-')
     hash.update(u64be(pathBuf.length))
     hash.update(pathBuf)
     hash.update(u64be(entry.size))
@@ -137,7 +146,7 @@ export async function hashDirectoryUnit(
         `hashDirectoryUnit: file size changed during hashing (scan=${entry.size}, read=${streamed}): ${abs}`
       )
     }
-    files.push({ relPath: entry.relPath, size: entry.size })
+    files.push({ relPath: entry.relPath, size: entry.size, executable })
   }
   return { hash: hash.digest('hex'), files }
 }

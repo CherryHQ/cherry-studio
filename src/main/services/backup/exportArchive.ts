@@ -31,6 +31,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { readAppliedChain } from '@data/db/restore/appliedChain'
 import { loggerService } from '@logger'
+import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 
@@ -43,7 +44,7 @@ import { REBASABLE_MANAGED_ROOT_KEYS } from './portability/managedPathRebase'
 import type { MaterializationSummary } from './portability/materializeDatabase'
 import { materializePortableDatabase, summarizeMaterializationDegradations } from './portability/materializeDatabase'
 import { collectResourceRequirements } from './resources/collectRequirements'
-import { measureResourceStageBytes, stageResources } from './resources/stageResources'
+import { captureResourceStageBaseline, type ResourceStageBaseline, stageResources } from './resources/stageResources'
 
 const logger = loggerService.withContext('backupExport')
 
@@ -107,26 +108,42 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     const liveDbBytes = (await stat(application.getPath('app.database.file'))).size
     await assertDiskHeadroom({ target: stagingRoot, neededBytes: liveDbBytes })
 
-    dbService.createSnapshot(stagedDbPath)
+    const userDataPath = application.getPath('app.userdata')
+    let snapshotRequirements: ReturnType<typeof collectResourceRequirements>['requirements'] = []
+    let resourceBaseline: ResourceStageBaseline | undefined
+    if (preset === 'full') {
+      // This is the cross-store consistency point: wait for complete managed
+      // DB↔FS mutations, freeze new ones, snapshot SQLite, then capture the
+      // identity of every resource named by that snapshot. Expensive byte copies
+      // happen after release and must still match this baseline.
+      await profileMutationBarrier.runSnapshot(async () => {
+        dbService.createSnapshot(stagedDbPath)
+        const snapshotInventory = collectResourceRequirements({ dbPath: stagedDbPath })
+        snapshotRequirements = snapshotInventory.requirements
+        resourceBaseline = await captureResourceStageBaseline({
+          requirements: snapshotRequirements,
+          userDataPath,
+          signal
+        })
+      })
+    } else {
+      dbService.createSnapshot(stagedDbPath)
+    }
     throwIfAborted(signal)
 
     const materialized = await materializePortableDatabase({ dbPath: stagedDbPath, mode: { kind: 'export' }, signal })
     throwIfAborted(signal)
 
     const inventory = collectResourceRequirements({ dbPath: stagedDbPath })
+    if (preset === 'full' && JSON.stringify(inventory.requirements) !== JSON.stringify(snapshotRequirements)) {
+      throw new Error('portable database materialization changed the managed resource closure')
+    }
 
-    // Full only. The inventory is read from the SEALED database, so the payloads
-    // are exactly what the archive's own database references — never what the
-    // live profile happens to hold at this moment.
+    // Full only. The baseline was captured while the database snapshot boundary
+    // was frozen; staging later proves every copied unit still has that identity.
     const resourcesDir = path.join(stagingRoot, RESOURCES_DIR_NAME)
-    const userDataPath = application.getPath('app.userdata')
-    if (preset === 'full') {
-      const resourceStageBytes = await measureResourceStageBytes({
-        requirements: inventory.requirements,
-        userDataPath,
-        signal
-      })
-      await assertDiskHeadroom({ target: stagingRoot, neededBytes: resourceStageBytes })
+    if (resourceBaseline) {
+      await assertDiskHeadroom({ target: stagingRoot, neededBytes: resourceBaseline.totalBytes })
     }
     const resources =
       preset === 'full'
@@ -134,6 +151,7 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
             requirements: inventory.requirements,
             userDataPath,
             resourcesDir,
+            baseline: resourceBaseline,
             signal
           })
         : null
