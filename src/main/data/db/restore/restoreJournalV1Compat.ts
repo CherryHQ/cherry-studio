@@ -96,6 +96,7 @@ const commonFields = {
 export const RestoreJournalSchema = z.discriminatedUnion('state', [
   z.strictObject({ ...commonFields, state: z.literal('staged') }),
   z.strictObject({ ...commonFields, state: z.literal('promoting'), step: PromotionStepSchema }),
+  z.strictObject({ ...commonFields, state: z.literal('reverting'), step: PromotionStepSchema }),
   z.strictObject({ ...commonFields, state: z.literal('completed'), step: PromotionStepSchema.optional() }),
   z.strictObject({ ...commonFields, state: z.literal('failed'), step: PromotionStepSchema.optional() }),
   z.strictObject({ ...commonFields, state: z.literal('expired'), step: PromotionStepSchema.optional() })
@@ -197,5 +198,8 @@ export function hasPendingRestore(): boolean {
   if (result.kind === 'corrupt') {
     return true
   }
-  return result.kind === 'ok' && (result.journal.state === 'staged' || result.journal.state === 'promoting')
+  return (
+    result.kind === 'ok' &&
+    (result.journal.state === 'staged' || result.journal.state === 'promoting' || result.journal.state === 'reverting')
+  )
 }

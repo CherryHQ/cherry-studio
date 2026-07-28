@@ -25,6 +25,8 @@ function assertNever(x: never): never {
 
 type StagedJournal = Extract<RestoreJournal, { state: 'staged' }>
 type PromotingJournal = Extract<RestoreJournal, { state: 'promoting' }>
+type RevertingJournal = Extract<RestoreJournal, { state: 'reverting' }>
+type ActiveJournal = StagedJournal | PromotingJournal | RevertingJournal
 type FileResource = RestoreJournal['fileResources'][number]
 
 /**
@@ -35,7 +37,7 @@ type FileResource = RestoreJournal['fileResources'][number]
 const COMMIT_STEP: PromotionStep = 'work-promoted'
 
 interface PromotionContext {
-  readonly journal: StagedJournal | PromotingJournal
+  readonly journal: ActiveJournal
   readonly userData: string
   readonly livePath: string
   readonly workPath: string
@@ -73,6 +75,8 @@ export async function runRestorePromotion(): Promise<void> {
       return promoteStaged(journal)
     case 'promoting':
       return recoverPromoting(journal)
+    case 'reverting':
+      return finishPostCommitRevert(journal)
   }
 }
 
@@ -86,7 +90,7 @@ export function cleanupTerminalRestoreArtifacts(): void {
     return
   }
   const journal = read.journal
-  if (journal.state === 'staged' || journal.state === 'promoting') {
+  if (journal.state === 'staged' || journal.state === 'promoting' || journal.state === 'reverting') {
     return
   }
 
@@ -103,16 +107,10 @@ export function cleanupTerminalRestoreArtifacts(): void {
 /**
  * Last-resort net for a crash that ESCAPED runRestorePromotion — called only
  * by the gate shell's catch. Escaped throws are precisely the cases in-band
- * recovery could not handle. Two-way triage on the commit boundary:
- *
- * - Commit already landed (commitLanded): the new DB is live — freezing that
- *   to failed would strand a half-promoted DB and delete the staging tree the
- *   resume still needs. Leave the promoting journal for the next boot.
- * - Otherwise, restore the cardinal invariant first: if the live slot is
- *   empty but the aside still holds the old DB, put it back — else the next
- *   boot would silently create a fresh EMPTY database while the user's data
- *   sits stranded in the aside. Then apply the standard terminal cleanup
- *   (journal write + staging tree removal).
+ * recovery could not handle. A promoting or reverting journal may still need
+ * its staging tree to retry an incomplete inverse, so the crash net preserves
+ * all active evidence and lets the gate block boot. Only a staged journal has
+ * not crossed a destructive boundary and can be terminalized here.
  *
  * Must never throw beyond what the shell already guards.
  */
@@ -122,43 +120,19 @@ export function markRestoreFailedAfterCrash(): void {
     return
   }
   const journal = read.journal
-  if (journal.state !== 'staged' && journal.state !== 'promoting') {
-    return
-  }
-  const ctx = buildContext(journal)
-  if (journal.state === 'promoting' && commitLanded(ctx, journal)) {
-    // The commit rename is durably on disk: the new DB is live with the old
-    // DB parked aside. Freezing THAT to failed would strand a half-promoted
-    // DB as the live one and delete the staging tree the resume still needs
-    // — the forbidden third state. Leave the promoting journal untouched;
-    // the next boot's recoverPromoting resumes it idempotently.
-    logger.warn('Escaped crash left a committed promotion — keeping it resumable for the next boot', {
-      restoreId: journal.restoreId
+  if (journal.state === 'reverting' || journal.state === 'promoting') {
+    // A promotion may have failed while its inverse was still returning old
+    // resources or moving the old DB back. Its journal and staging tree are
+    // the only retry evidence, so the crash net must never terminalize it.
+    logger.warn('Escaped crash left active restore recovery — preserving retry evidence', {
+      restoreId: journal.restoreId,
+      state: journal.state
     })
     return
   }
-  restoreLiveFromAside(ctx)
-  finalize(ctx, 'failed', journal.state === 'promoting' ? journal.step : undefined)
-}
-
-/**
- * Whether the commit rename has durably landed AND the committed state is
- * still intact, judged by the journal marker plus filesystem reality (markers
- * are write-behind, so the FS wins ties). Both branches require the new DB
- * live AND the old DB still aside — a revert that already re-installed the
- * old DB clears the aside and correctly re-enables freezing. Below the
- * commit marker only the probe pattern (marker lagging one step behind the
- * landed rename) proves the commit; the same aside requirement keeps an
- * interrupted revert from matching it (see recoverPromoting).
- */
-function commitLanded(ctx: PromotionContext, journal: PromotingJournal): boolean {
-  if (!fs.existsSync(ctx.livePath) || !fs.existsSync(ctx.asidePath)) {
-    return false
-  }
-  if (PROMOTION_STEP_ORDER.indexOf(journal.step) >= PROMOTION_STEP_ORDER.indexOf(COMMIT_STEP)) {
-    return true
-  }
-  return journal.step === 'live-aside' && !fs.existsSync(ctx.workPath)
+  if (journal.state !== 'staged') return
+  const ctx = buildContext(journal)
+  finalize(ctx, 'failed')
 }
 
 /**
@@ -182,10 +156,12 @@ export function isLiveDbStranded(): boolean {
 /** Active or corrupt v1 evidence must keep preboot from exposing a mixed restore. */
 export function isRestoreRecoveryPending(): boolean {
   const read = readRestoreJournal()
-  return read.kind === 'corrupt' || (read.kind === 'ok' && ['staged', 'promoting'].includes(read.journal.state))
+  return (
+    read.kind === 'corrupt' || (read.kind === 'ok' && ['staged', 'promoting', 'reverting'].includes(read.journal.state))
+  )
 }
 
-function buildContext(journal: StagedJournal | PromotingJournal): PromotionContext {
+function buildContext(journal: ActiveJournal): PromotionContext {
   const userData = application.getPath('app.userdata')
   return {
     journal,
@@ -307,6 +283,18 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
   const ctx = buildContext(journal)
   const order = PROMOTION_STEP_ORDER.indexOf(journal.step)
   const commit = PROMOTION_STEP_ORDER.indexOf(COMMIT_STEP)
+  // A parked candidate is reverse-direction evidence even if the old marker
+  // lagged before the commit step. Mark that direction before inspecting or
+  // mutating anything else; a pre-existing parked file plus both live and
+  // aside is ambiguous and must fail closed rather than delete it.
+  if (fs.existsSync(parkedDbPath(ctx))) {
+    logger.warn('Crash left post-commit reverse evidence — recording and finishing the revert', {
+      restoreId: journal.restoreId,
+      step: journal.step
+    })
+    beginPostCommitRevert(journal)
+    return
+  }
   if (order < commit) {
     // Commit-boundary marker lag: the work→live rename (fsynced) can outlive
     // its own journal marker when the crash lands between the two writes.
@@ -357,11 +345,11 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
   // integrity-check the (valid) old DB and misreport the restore as
   // completed. Finish the revert instead (idempotent by its aside guards).
   if (!fs.existsSync(ctx.asidePath)) {
-    logger.warn('Crash inside an interrupted post-commit revert — finishing the revert', {
+    logger.warn('Crash inside an interrupted post-commit revert — recording and finishing the revert', {
       restoreId: journal.restoreId,
       step: journal.step
     })
-    revertPostCommit(ctx)
+    beginPostCommitRevert(journal)
     return
   }
   logger.warn('Crash at/after the commit point — resuming promotion', {
@@ -417,7 +405,7 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
       if (i <= commitIndex) {
         rollbackPreCommit(ctx)
       } else {
-        revertPostCommit(ctx)
+        beginPostCommitRevert(current)
       }
       return
     }
@@ -529,32 +517,52 @@ function applyEntry(ctx: PromotionContext, entry: FileResource): void {
  * re-run from the backup archive, never resumed from half-moved files.
  */
 function rollbackPreCommit(ctx: PromotionContext): void {
-  inverseManifest(ctx)
-  restoreLiveFromAside(ctx)
+  const failures = inverseManifest(ctx)
+  collectFailure(failures, 'restoring the old database', () => restoreLiveFromAside(ctx))
+  collectFailure(failures, 'proving the old database was restored', () => assertOldDatabaseRestored(ctx))
+  failures.push(...manifestRollbackFailures(ctx))
+  if (failures.length > 0) throw restoreRecoveryIncomplete('pre-commit rollback', failures)
   finalize(ctx, 'failed')
 }
 
+/** Persist the reverse direction before touching either database rename. */
+function beginPostCommitRevert(journal: PromotingJournal): void {
+  const reverting: RevertingJournal = { ...journal, state: 'reverting' }
+  writeRestoreJournal(reverting)
+  finishPostCommitRevert(reverting)
+}
+
 /**
- * Post-commit failure (integrity or a later step): the promoted DB is live
- * but unacceptable. Park it for forensics, restore the aside, and undo ALL
- * file operations — entries were applied by now, so reverting only the DB
- * would leave an "old DB + new files" inconsistent state.
- *
- * Idempotent under re-entry (a crash mid-revert routes back here next boot):
- * the park guard requires the aside to still exist — once the aside restore
- * has run, the live slot holds the OLD DB and parking it would destroy the
- * very database the revert is protecting.
+ * Resume a marked post-commit revert. The parked candidate is never removed:
+ * its presence is evidence of a completed first reverse rename, and any
+ * unrecognized combination is ambiguous rather than a deletion opportunity.
  */
-function revertPostCommit(ctx: PromotionContext): void {
-  if (fs.existsSync(ctx.livePath) && fs.existsSync(ctx.asidePath)) {
-    const parked = path.join(ctx.userData, `work-failed-${ctx.journal.restoreId}.sqlite`)
-    fs.rmSync(parked, { force: true })
+function finishPostCommitRevert(journal: RevertingJournal): void {
+  const ctx = buildContext(journal)
+  const parked = parkedDbPath(ctx)
+  const live = fs.existsSync(ctx.livePath)
+  const aside = fs.existsSync(ctx.asidePath)
+  const parkedExists = fs.existsSync(parked)
+
+  if (live && aside && !parkedExists) {
+    assertRegularFile(ctx.livePath, 'promoted database')
+    assertRegularFile(ctx.asidePath, 'previous database')
     renameDurable(ctx.livePath, parked)
+    renameDurable(ctx.asidePath, ctx.livePath)
     logger.warn('Promoted DB failed post-commit checks — parked for forensics', { parked })
+  } else if (!live && aside && parkedExists) {
+    assertRegularFile(ctx.asidePath, 'previous database')
+    assertRegularFile(parked, 'parked promoted database')
+    renameDurable(ctx.asidePath, ctx.livePath)
+  } else if (!(live && !aside && parkedExists)) {
+    throw new Error('post-commit revert cannot prove a complete old database')
   }
-  restoreLiveFromAside(ctx)
-  inverseManifest(ctx)
-  finalize(ctx, 'failed')
+
+  const failures = inverseManifest(ctx)
+  collectFailure(failures, 'proving the old database was restored', () => assertOldDatabaseRestored(ctx))
+  failures.push(...manifestRollbackFailures(ctx))
+  if (failures.length > 0) throw restoreRecoveryIncomplete('post-commit revert', failures)
+  finalize(ctx, 'failed', journal.step)
 }
 
 function restoreLiveFromAside(ctx: PromotionContext): void {
@@ -565,20 +573,22 @@ function restoreLiveFromAside(ctx: PromotionContext): void {
 
 /**
  * Undo every manifest operation that (may) have happened, in reverse of the
- * apply direction. Idempotent by construction: adds are renamed back to
- * their staging source (only when this promotion provably moved them in),
- * overwrites are restored only while their aside exists. Best-effort per
- * entry: one stuck entry must not abort the rest of the inverse — the aside
- * restore of the live DB and the terminal bookkeeping still have to follow.
+ * apply direction. Every entry is attempted even when one is blocked, but a
+ * failed inverse is deliberately returned to its caller: terminal cleanup
+ * would otherwise erase the only retry source and leave old DB + new files.
  */
-function inverseManifest(ctx: PromotionContext): void {
+function inverseManifest(ctx: PromotionContext): Error[] {
+  const failures: Error[] = []
   for (const entry of ctx.journal.fileResources) {
     try {
       inverseEntry(ctx, entry)
     } catch (error) {
-      logger.error(`Manifest inverse failed for '${entry.livePath}' (${entry.kind}) — continuing`, error as Error)
+      const failure = error as Error
+      logger.error(`Manifest inverse failed for '${entry.livePath}' (${entry.kind}) — continuing`, failure)
+      failures.push(failure)
     }
   }
+  return failures
 }
 
 function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
@@ -614,13 +624,83 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
   }
 }
 
+function manifestRollbackFailures(ctx: PromotionContext): Error[] {
+  const failures: Error[] = []
+  for (const entry of ctx.journal.fileResources) {
+    try {
+      assertEntryRestored(ctx, entry)
+    } catch (error) {
+      failures.push(error as Error)
+    }
+  }
+  return failures
+}
+
+function assertEntryRestored(ctx: PromotionContext, entry: FileResource): void {
+  const live = resolveEntry(ctx, entry.livePath)
+  const staging = resolveEntry(ctx, entry.stagingPath)
+  switch (entry.kind) {
+    case 'blob-add':
+    case 'note-add':
+    case 'dir-add':
+      // Both present means this promotion never moved the staging source; the
+      // live target is therefore foreign data that rollback must not delete.
+      if (!fs.existsSync(staging) && fs.existsSync(live)) {
+        throw new Error(`added resource remains live: ${entry.livePath}`)
+      }
+      if (!fs.existsSync(staging) && !fs.existsSync(live)) {
+        throw new Error(`added resource cannot be proven restored: ${entry.livePath}`)
+      }
+      return
+    case 'note-overwrite':
+    case 'overwrite': {
+      const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
+      if (!fs.existsSync(live)) throw new Error(`overwritten resource is missing: ${entry.livePath}`)
+      if (aside && fs.existsSync(aside)) throw new Error(`original resource remains aside: ${entry.livePath}`)
+      return
+    }
+    default:
+      assertNever(entry.kind)
+  }
+}
+
+function assertOldDatabaseRestored(ctx: PromotionContext): void {
+  if (fs.existsSync(ctx.asidePath)) throw new Error('previous database remains parked aside')
+  assertRegularFile(ctx.livePath, 'restored database')
+  const result = integrityCheck(ctx.livePath)
+  if (result !== 'ok') throw new Error(`integrity_check on the restored DB failed: ${result}`)
+}
+
+function assertRegularFile(filePath: string, role: string): void {
+  const stats = fs.lstatSync(filePath)
+  if (!stats.isFile() || stats.isSymbolicLink()) throw new Error(`${role} is not a regular file`)
+}
+
+function parkedDbPath(ctx: PromotionContext): string {
+  return path.join(ctx.userData, `work-failed-${ctx.journal.restoreId}.sqlite`)
+}
+
+function collectFailure(failures: Error[], action: string, operation: () => void): void {
+  try {
+    operation()
+  } catch (error) {
+    const failure = error as Error
+    logger.error(`Restore recovery failed while ${action}`, failure)
+    failures.push(failure)
+  }
+}
+
+function restoreRecoveryIncomplete(phase: string, failures: readonly Error[]): Error {
+  return new Error(`${phase} is incomplete: ${failures.map((failure) => failure.message).join('; ')}`)
+}
+
 // ─── terminal bookkeeping ───
 
 /**
  * Every terminal outcome writes the journal state and deletes the staging
  * tree (the staging tree's lifecycle is wholly owned by this state machine).
- * The gate shell removes the terminal journal only after its stranded-DB
- * safety check, so the crash net can still locate the parked aside.
+ * Callers reach here only after proving the old/new terminal state, so a
+ * failed inverse leaves the active journal and staging evidence untouched.
  */
 function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expired', step?: PromotionStep): void {
   writeRestoreJournal({ ...ctx.journal, state, step } as RestoreJournal)

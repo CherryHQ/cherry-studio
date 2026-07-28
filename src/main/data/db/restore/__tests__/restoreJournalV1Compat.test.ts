@@ -82,8 +82,8 @@ describe('restoreJournalV1Compat', () => {
       expect(result).toEqual({ kind: 'ok', journal: stagedJournal() })
     })
 
-    it('round-trips a promoting journal (step required)', () => {
-      const journal: RestoreJournal = { ...stagedJournal(), state: 'promoting', step: 'live-aside' }
+    it.each(['promoting', 'reverting'] as const)('round-trips a %s journal (step required)', (state) => {
+      const journal: RestoreJournal = { ...stagedJournal(), state, step: 'live-aside' }
       writeRestoreJournal(journal)
 
       const result = readRestoreJournal()
@@ -155,6 +155,7 @@ describe('restoreJournalV1Compat', () => {
     it.each([
       ['staged', true],
       ['promoting', true],
+      ['reverting', true],
       ['completed', false],
       ['failed', false],
       ['expired', false]
