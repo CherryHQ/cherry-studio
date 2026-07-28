@@ -16,12 +16,15 @@
  *   `TopicStreamSubscription`'s auto-created branches (attached) or are
  *   replayed from Main's bounded buffer on the next attach (entry dropped);
  *   SQLite persistence is the durable fallback past the buffer.
- * - Terminal handoff is dual-mode. With a consumer mounted, the existing
+ * - Terminal handoff is dual-mode. With a consumer mounted, the
  *   status-edge handoff (`useTopicOverlayHandoffOnTerminal` → refresh →
  *   `reset`) owns disposal, unchanged. With `refCount === 0`, the edge
- *   would be unobservable (it is tracked per component instance), so the
- *   entry is dropped as soon as its last reader ends — the next mount
- *   rebuilds from DB + shared cache exactly like today's remount path.
+ *   would be unobservable (it is tracked per component instance), so a
+ *   naturally-finished execution drops its overlay immediately — the
+ *   persisted DB row owns it — and the entry drops once the last reader
+ *   ends. Finished keys are tombstoned in `settledKeys`: a remount
+ *   re-reporting a stale set cannot restart them; only an open transport
+ *   branch holding a new turn's chunks overrides the tombstone.
  * - `MAX_ENTRIES` LRU eviction of refCount-0 entries is a leak backstop
  *   (lost terminal events, abandoned routing scopes); it cancels readers
  *   first so a truncated stream is never reported as a successful finish.
@@ -288,7 +291,15 @@ export class ExecutionStreamOverlayService {
     }
 
     for (const [key, item] of union) {
-      if (entry.readers.has(key) || entry.settledKeys.has(key)) continue
+      if (entry.readers.has(key)) continue
+      if (entry.settledKeys.has(key)) {
+        // A finished key restarts only on fresh transport evidence: a new
+        // turn's chunks queue in an open branch, while a stale consumer
+        // report has none — restarting on the latter would orphan a zombie
+        // reader on a stream that already ended (A7).
+        if (!entry.sub.hasOpenBranch(item.executionId, item.anchorMessageId)) continue
+        entry.settledKeys.delete(key)
+      }
       this.#startReader(entry, key, item.executionId, item.anchorMessageId, item.seed.getSeedMessages)
     }
   }
@@ -517,30 +528,42 @@ export class ExecutionStreamOverlayService {
           entry.readers.delete(key)
         }
         if (!cancelled) {
-          const remainsDesired = [...entry.desired.values()].some((contribution) =>
-            contribution.executions.some(
-              (execution) => executionKey(execution.executionId, execution.anchorMessageId) === key
-            )
-          )
-          if (remainsDesired) entry.settledKeys.add(key)
-          // Terminal frames must be visible before the overlay handoff. This
-          // and the acquire()-time stall flush are the intentional commits
-          // outside the animation-frame cadence.
-          this.#flushPending(entry, readerEpoch)
-          const t = terminal ?? { isAbort: false, isError: false }
-          const isError = t.isError || readerFailed
-          const message = last ?? seed
-          if (message || isError) {
-            const event: ExecutionFinishEvent = {
-              message: message ?? { id: '', role: 'assistant', parts: [] },
-              isAbort: t.isAbort,
-              isError
+          // Tombstone the finished key: a consumer remounting with a stale
+          // execution set must not restart it. Only fresh transport evidence
+          // (an open branch holding a new turn's chunks) may override — see
+          // the start loop in syncExecutions.
+          entry.settledKeys.add(key)
+          if (entry.refCount === 0) {
+            // Natural end in the background: the persisted DB row is the
+            // authority and the next mount rebuilds from it — this
+            // execution's overlay is not worth carrying.
+            entry.pendingSnapshots.delete(executionId)
+            entry.readerVersions.set(executionId, (entry.readerVersions.get(executionId) ?? 0) + 1)
+            if (executionId in entry.snapshots) {
+              const next = { ...entry.snapshots }
+              delete next[executionId]
+              this.#commitSnapshots(entry, next)
             }
-            for (const listener of [...entry.finishListeners]) {
-              try {
-                listener(executionId, event)
-              } catch (err) {
-                logger.warn('finish listener threw', { topicId, executionId, err })
+          } else {
+            // Terminal frames must be visible before the overlay handoff. This
+            // and the acquire()-time stall flush are the intentional commits
+            // outside the animation-frame cadence.
+            this.#flushPending(entry, readerEpoch)
+            const t = terminal ?? { isAbort: false, isError: false }
+            const isError = t.isError || readerFailed
+            const message = last ?? seed
+            if (message || isError) {
+              const event: ExecutionFinishEvent = {
+                message: message ?? { id: '', role: 'assistant', parts: [] },
+                isAbort: t.isAbort,
+                isError
+              }
+              for (const listener of [...entry.finishListeners]) {
+                try {
+                  listener(executionId, event)
+                } catch (err) {
+                  logger.warn('finish listener threw', { topicId, executionId, err })
+                }
               }
             }
           }

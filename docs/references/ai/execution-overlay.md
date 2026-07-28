@@ -172,10 +172,10 @@ Destruction policy:
 |---|---|
 | Stream running | Entry retained regardless of mounts |
 | Stream ends, view mounted | Terminal status edge → `refresh()` DB → `reset()` drops the settled snapshots |
-| Stream ends, no view | Entry dropped as soon as its last reader ends — the next mount rebuilds from SQLite |
-| Leak backstop | `MAX_ENTRIES` LRU eviction of refCount-0 entries |
+| Stream ends, no view | That execution's overlay is dropped immediately (the persisted DB row owns it); the entry drops once its last reader ends |
+| Leak backstop | `MAX_ENTRIES` LRU eviction of refCount-0 entries (readers cancelled first) |
 
-Two guards keep the handoff race-free without any turn-identity
+Three guards keep the lifecycle race-free without any turn-identity
 machinery:
 
 - **`reset()` / `disposeOverlay()` never touch an execution whose
@@ -186,6 +186,11 @@ machinery:
 - **A failed `ai.stream.attach` error-terminates its branches** so
   readers finish instead of hanging forever; the next mount re-attaches
   through a fresh subscription.
+- **A finished execution key is tombstoned** (`settledKeys`), so a
+  remount whose Activity-preserved consumer state still lists it cannot
+  restart it into a zombie reader. The tombstone yields only to fresh
+  transport evidence — an open branch already queueing a new turn's
+  chunks — which the restarted reader then replays losslessly.
 
 ### Overlay teardown is monotonic
 

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => {
     executionId: string
     stream: ReadableStream<unknown>
     controller: ReadableStreamDefaultController<unknown>
+    closed: boolean
   }
 
   class FakeSubscription {
@@ -30,16 +31,25 @@ const mocks = vi.hoisted(() => {
       this.listenCalls += 1
     }
 
-    register(executionId: string, anchorMessageId?: string) {
+    #getOrCreate(executionId: string, anchorMessageId?: string) {
       const key = this.#key(executionId, anchorMessageId)
       let branch = this.branches.get(key)
       if (!branch) {
         let controller!: ReadableStreamDefaultController<unknown>
         const stream = new ReadableStream<unknown>({ start: (c) => (controller = c) })
-        branch = { executionId, stream, controller }
+        branch = { executionId, stream, controller, closed: false }
         this.branches.set(key, branch)
       }
-      return branch.stream
+      return branch
+    }
+
+    register(executionId: string, anchorMessageId?: string) {
+      return this.#getOrCreate(executionId, anchorMessageId).stream
+    }
+
+    hasOpenBranch(executionId: string, anchorMessageId?: string) {
+      const branch = this.branches.get(this.#key(executionId, anchorMessageId))
+      return branch !== undefined && !branch.closed
     }
 
     #find(executionId: string, anchorMessageId?: string) {
@@ -50,10 +60,14 @@ const mocks = vi.hoisted(() => {
 
     unregister(executionId: string, anchorMessageId?: string) {
       const key = this.#key(executionId, anchorMessageId)
-      try {
-        this.branches.get(key)?.controller.close()
-      } catch {
-        /* already closed */
+      const branch = this.branches.get(key)
+      if (branch) {
+        branch.closed = true
+        try {
+          branch.controller.close()
+        } catch {
+          /* already closed */
+        }
       }
       this.branches.delete(key)
     }
@@ -66,6 +80,7 @@ const mocks = vi.hoisted(() => {
     dispose() {
       this.disposed = true
       for (const branch of this.branches.values()) {
+        branch.closed = true
         try {
           branch.controller.close()
         } catch {
@@ -78,15 +93,23 @@ const mocks = vi.hoisted(() => {
 
     // test helpers
     emit(executionId: string, chunk: CherryUIMessageChunk, anchorMessageId?: string) {
-      this.#find(executionId, anchorMessageId)?.controller.enqueue(chunk)
+      // Mirror production #routeChunk: a chunk with no branch auto-creates
+      // one under the exact key and queues there until a reader registers.
+      if (this.disposed) return
+      const branch = this.#find(executionId, anchorMessageId) ?? this.#getOrCreate(executionId, anchorMessageId)
+      if (!branch.closed) branch.controller.enqueue(chunk)
     }
 
     terminal(executionId: string, t: { isAbort: boolean; isError: boolean }, anchorMessageId?: string) {
       for (const cb of [...this.terminalCbs]) cb(executionId, { ...t, anchorMessageId })
-      try {
-        this.#find(executionId, anchorMessageId)?.controller.close()
-      } catch {
-        /* already closed */
+      const branch = this.#find(executionId, anchorMessageId)
+      if (branch) {
+        branch.closed = true
+        try {
+          branch.controller.close()
+        } catch {
+          /* already closed */
+        }
       }
     }
   }
@@ -325,20 +348,57 @@ describe('ExecutionStreamOverlayService', () => {
 
     service.release(TOPIC, consumer)
     // A terminates while no consumer is mounted — the status edge that would
-    // hand its frame off to the DB row fires unobserved.
+    // hand its frame off to the DB row fires unobserved, so the frame is
+    // dropped immediately: the persisted DB row owns it.
     sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
     await drainStreamMicrotasks()
-    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('finished-while-away')
+    expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
 
     service.acquire(TOPIC)
     service.syncExecutions(TOPIC, consumer, [exec(B, 'anchor-b')], seed)
 
-    // A's retained frame yields to DB truth (fresh fetch on remount); B streams on.
+    // B streams on across the remount.
     expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('still-live')
   })
 
-  it('restarts a reader with the same execution and anchor after it finishes while released', async () => {
+  it('A7: does not restart an execution that finished in the background when a stale set is re-reported', async () => {
+    const B = 'anthropic::claude' as UniqueModelId
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const seed = () => [asst('anchor-a'), asst('anchor-b')]
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    const sub = mocks.subs.get(TOPIC)!
+
+    streamText(sub, A, 't1', 'first')
+    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
+    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
+    await nextFrame()
+    service.release(TOPIC, consumer)
+
+    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
+    await drainStreamMicrotasks()
+
+    // Natural end in the background: A's overlay is dropped outright — the
+    // persisted DB row owns it and the next mount rebuilds from there.
+    expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
+    expect(sub.disposed).toBe(false)
+
+    // Remount with the stale Activity-preserved set that still lists A.
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    await drainStreamMicrotasks()
+
+    // Tombstoned: no zombie reader, no new branch for A; B is untouched.
+    expect(sub.branches.has(JSON.stringify([A, 'anchor-a']))).toBe(false)
+    expect(sub.branches.size).toBe(1)
+    sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b')
+    await nextFrame()
+    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live-more')
+  })
+
+  it('restarts a finished execution only when a new turn’s chunks are already queued in the transport', async () => {
     const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()
     const consumer = {}
@@ -354,15 +414,16 @@ describe('ExecutionStreamOverlayService', () => {
     sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
     await drainStreamMicrotasks()
 
-    expect(sub.branches.size).toBe(1)
-    expect(sub.disposed).toBe(false)
+    // A new turn on the same key starts while hidden: the transport
+    // auto-creates an open branch and queues its chunks.
+    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-a')
+    sub.emit(A, { type: 'text-delta', id: 't2', delta: 'second' } as CherryUIMessageChunk, 'anchor-a')
 
     service.acquire(TOPIC)
     service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
-    expect(sub.branches.size).toBe(2)
-
-    streamText(sub, A, 't2', 'second')
     await nextFrame()
+
+    // Fresh transport evidence overrides the tombstone and replays the queue.
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('second')
   })
 

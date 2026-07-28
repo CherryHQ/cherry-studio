@@ -71,6 +71,14 @@ export class TopicStreamSubscription {
     return branch.stream
   }
 
+  /** True when the branch for this exact key exists and is still open —
+   *  i.e. a stream (typically a new turn's auto-created branch) has produced
+   *  chunks that no reader has claimed yet. */
+  hasOpenBranch(executionId: UniqueModelId, anchorMessageId?: string): boolean {
+    const branch = this.#branches.get(branchKey(executionId, anchorMessageId))
+    return branch !== undefined && !branch.closed
+  }
+
   unregister(executionId: UniqueModelId, anchorMessageId?: string): void {
     const key = branchKey(executionId, anchorMessageId)
     const branch = this.#branches.get(key)

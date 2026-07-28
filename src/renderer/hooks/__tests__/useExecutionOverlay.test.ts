@@ -17,6 +17,7 @@ const { fake } = vi.hoisted(() => {
     anchorMessageId?: string
     stream: ReadableStream<unknown>
     controller: ReadableStreamDefaultController<unknown>
+    closed: boolean
   }
   const branches = new Map<string, Branch>()
   const terminalCbs = new Set<(id: string, t: ExecutionTerminal) => void>()
@@ -36,10 +37,14 @@ const { fake } = vi.hoisted(() => {
       if (!b) {
         let controller!: ReadableStreamDefaultController<unknown>
         const stream = new ReadableStream<unknown>({ start: (c) => (controller = c) })
-        b = { executionId, anchorMessageId, stream, controller }
+        b = { executionId, anchorMessageId, stream, controller, closed: false }
         branches.set(key, b)
       }
       return b.stream
+    },
+    hasOpenBranch(executionId: string, anchorMessageId?: string) {
+      const b = branches.get(keyOf(executionId, anchorMessageId))
+      return !!b && !b.closed
     },
     unregister(executionId: string, anchorMessageId?: string) {
       const key = keyOf(executionId, anchorMessageId)
@@ -60,8 +65,10 @@ const { fake } = vi.hoisted(() => {
       findBranch(executionId, anchorMessageId)?.controller.enqueue(chunk)
     },
     close(executionId: string, anchorMessageId?: string) {
+      const b = findBranch(executionId, anchorMessageId)
+      if (b) b.closed = true
       try {
-        findBranch(executionId, anchorMessageId)?.controller.close()
+        b?.controller.close()
       } catch {
         /* noop */
       }
