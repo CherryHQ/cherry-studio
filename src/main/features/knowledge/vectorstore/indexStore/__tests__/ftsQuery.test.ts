@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractMatchTerms, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from '../ftsQuery'
+import { extractMatchTerms, extractShortTerms, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from '../ftsQuery'
 
 describe('extractMatchTerms', () => {
   it('keeps space-delimited tokens whole — they are already words', () => {
@@ -17,7 +17,15 @@ describe('extractMatchTerms', () => {
     expect(extractMatchTerms('RAG检索增强')).toEqual(['RAG', '检索增', '索增强'])
   })
 
-  it('drops terms too short to produce a trigram instead of letting them poison the query', () => {
+  it('keeps a katakana run whole across the prolonged sound mark', () => {
+    // ー is Script=Common but Script_Extensions={Hiragana, Katakana}. Matching on
+    // plain Script= terminated the run at every ー, splitting サーバー into
+    // fragments too short to index — 'サーバーエラー' yielded no term at all.
+    expect(extractMatchTerms('サーバーエラー')).toEqual(['サーバ', 'ーバー', 'バーエ', 'ーエラ', 'エラー'])
+    expect(extractMatchTerms('データベース設計')).toEqual(['データ', 'ータベ', 'タベー', 'ベース', 'ース設', 'ス設計'])
+  })
+
+  it('omits sub-trigram terms from MATCH — extractShortTerms surfaces them instead', () => {
     // 'to' and '天气' cannot be indexed, but the indexable terms must still be searched.
     expect(extractMatchTerms('how to configure')).toEqual(['how', 'configure'])
     expect(extractMatchTerms('the 天气 today')).toEqual(['the', 'today'])
@@ -34,9 +42,20 @@ describe('extractMatchTerms', () => {
   })
 
   it('caps the term count so a long CJK question cannot explode the FTS query', () => {
-    // 100 distinct Han characters — one trigram per character, none de-duplicated.
+    // 100 distinct Han characters — an n-char run yields n−2 = 98 trigram windows,
+    // none de-duplicated, so the cap is what limits the result.
     const longQuery = String.fromCodePoint(...Array.from({ length: 100 }, (_, index) => 0x4e00 + index))
     expect(extractMatchTerms(longQuery).length).toBe(64)
+  })
+
+  it('ranks whole words ahead of trigram windows, so the cap sheds a long clause tail, not a rare word', () => {
+    // 70 Han characters yield 68 trigrams; with 'Kubernetes' appended the query
+    // exceeds the 64-term cap. Insertion order alone would shed the *end* of the
+    // query — exactly where the discriminating word of a question usually sits.
+    const longCjk = String.fromCodePoint(...Array.from({ length: 70 }, (_, index) => 0x4e00 + index))
+    const terms = extractMatchTerms(`${longCjk} Kubernetes`)
+    expect(terms.length).toBe(64)
+    expect(terms[0]).toBe('Kubernetes')
   })
 
   it('is empty when nothing in the text can be indexed', () => {
@@ -46,10 +65,30 @@ describe('extractMatchTerms', () => {
   })
 })
 
+describe('extractShortTerms', () => {
+  it('returns the sub-trigram terms MATCH cannot see, so the store can AND them as LIKE filters', () => {
+    // 2-character words are the modal word length in Chinese — dropping them
+    // outright would turn 「公司 年假 政策 PDF」 into a bare MATCH "PDF".
+    expect(extractShortTerms('系统 architecture')).toEqual(['系统'])
+    expect(extractShortTerms('公司 年假 政策 PDF')).toEqual(['公司', '年假', '政策'])
+    expect(extractShortTerms('how to configure')).toEqual(['to'])
+  })
+
+  it('splits mixed-script tokens the same way as extractMatchTerms', () => {
+    expect(extractShortTerms('RAG检索')).toEqual(['检索'])
+  })
+
+  it('de-duplicates, and is empty when every term is indexable', () => {
+    expect(extractShortTerms('天气 天气 hello')).toEqual(['天气'])
+    expect(extractShortTerms('configure proxy timeout')).toEqual([])
+    expect(extractShortTerms('报销流程')).toEqual([])
+  })
+})
+
 describe('toFtsMatchQuery', () => {
   it('ORs the terms so a natural-language question is not required to match in full', () => {
-    // Regression: these were AND-ed, so a question carrying filler its target chunk
-    // lacks ("how to …") matched nothing at all.
+    // Regression: MATCH terms were AND-ed, so a query whose target chunk lacks one
+    // word ('hello world' against a chunk containing only 'world') matched nothing.
     expect(toFtsMatchQuery('hello world')).toBe('"hello" OR "world"')
     expect(toFtsMatchQuery('how to configure proxy timeout')).toBe('"how" OR "configure" OR "proxy" OR "timeout"')
   })
@@ -60,7 +99,7 @@ describe('toFtsMatchQuery', () => {
     expect(toFtsMatchQuery('公司的报销流程')).toBe('"公司的" OR "司的报" OR "的报销" OR "报销流" OR "销流程"')
   })
 
-  it('quotes each term and escapes embedded quotes', () => {
+  it('quotes each term; embedded quotes cannot pass the token charset but are escaped defensively', () => {
     expect(toFtsMatchQuery('rag2 系统 v_2')).toBe('"rag2" OR "v_2"')
   })
 
@@ -77,9 +116,10 @@ describe('needsLikeFallback', () => {
   it('is false when at least one term is indexable', () => {
     expect(needsLikeFallback('hello world')).toBe(false)
     expect(needsLikeFallback('rag2 系统统')).toBe(false)
+    expect(needsLikeFallback('サーバーエラー')).toBe(false)
   })
 
-  it('is false for a mixed query, whose short tokens are dropped rather than routed to LIKE', () => {
+  it('is false for a mixed query, whose short terms become LIKE filters rather than a LIKE reroute', () => {
     // A short token no longer poisons the query, so the ranked MATCH path is kept.
     expect(needsLikeFallback('the 天气 today')).toBe(false)
   })
