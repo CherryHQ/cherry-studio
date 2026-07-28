@@ -1,9 +1,7 @@
 /**
- * @deprecated v2 upgrade pending. BackupService/NutstoreService are slated for replacement, and v2
- * can no longer perform real backups. As an interim measure, the transient sync status that used to
- * live in the Redux `backup` slice is now held in a session-local, non-reactive module object
- * (`backupSyncState` below) — just enough to keep the auto-sync scheduler internally consistent,
- * not a real implementation. Do not build on this.
+ * @deprecated v2 replacement pending. The retained v1 engine currently creates real compatibility
+ * archives, including the v2 SQLite database and cache.json. Transient sync status remains in the
+ * session-local, non-reactive `backupSyncState` below until the native v2 service replaces it.
  */
 //TODO Data Refactor
 // The code is messy, need to refactor all the backup related code
@@ -30,9 +28,8 @@ export interface RemoteSyncState {
   lastSyncError: string | null
 }
 
-// Session-local, non-reactive sync status. BackupService is slated for replacement and v2 can no
-// longer perform real backups, so this only needs to stay internally consistent: the auto-sync
-// scheduler writes timestamps here and reads them back; the settings UI reads it best-effort.
+// Session-local, non-reactive sync status. The auto-sync scheduler writes timestamps here and reads
+// them back; the settings UI reads it best-effort until the native v2 service replaces this module.
 const backupSyncState: Record<'webdavSync' | 'localBackupSync' | 's3Sync', RemoteSyncState> = {
   webdavSync: { lastSyncTime: null, syncing: false, lastSyncError: null },
   localBackupSync: { lastSyncTime: null, syncing: false, lastSyncError: null },
@@ -107,7 +104,7 @@ export async function backup(skipBackupFile: boolean) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
   const selectFolder = await window.api.file.selectFolder()
   if (selectFolder) {
-    // Use direct backup method - copy IndexedDB/LocalStorage directories directly
+    // Use the direct compatibility archive (SQLite/cache.json plus the retained v1 directories).
     await window.api.backup.backup(filename, selectFolder, skipBackupFile)
     toast.success(i18n.t('message.backup.success'))
   }
@@ -115,38 +112,11 @@ export async function backup(skipBackupFile: boolean) {
 
 export async function restore() {
   // notificationService is imported as a module-level singleton
-  const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
+  const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['zip'] }] })
 
   if (file) {
     try {
-      // zip backup file
-      if (file?.fileName.endsWith('.zip')) {
-        const restoreData = await window.api.backup.restore(file.filePath)
-
-        // Direct backup format returns void (app needs to relaunch)
-        // Legacy format returns JSON string that needs to be processed
-        if (restoreData !== undefined && restoreData !== null) {
-          const data = JSON.parse(restoreData)
-          await handleData(data)
-        } else {
-          // Direct backup was restored, app will relaunch
-          void notificationService.send({
-            id: uuid(),
-            type: 'success',
-            title: i18n.t('common.success'),
-            message: i18n.t('message.restore.success'),
-            silent: false,
-            timestamp: Date.now(),
-            source: 'backup'
-          })
-          // App will relaunch automatically
-          return
-        }
-      } else {
-        // Legacy .bak format
-        const data = JSON.parse(await window.api.zip.decompress(file.content))
-        await handleData(data)
-      }
+      await window.api.backup.restore(file.filePath)
 
       void notificationService.send({
         id: uuid(),
@@ -157,6 +127,8 @@ export async function restore() {
         timestamp: Date.now(),
         source: 'backup'
       })
+      // The main process has committed the restore journal and will relaunch.
+      return
     } catch (error) {
       logger.error('restore: Error restoring backup file:', error as Error)
       void popup.error({
@@ -344,31 +316,15 @@ export async function restoreFromWebdav(fileName?: string) {
     webdavPass: 'data.backup.webdav.pass',
     webdavPath: 'data.backup.webdav.path'
   })
-  let data = ''
-
   try {
-    data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
+    await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
+    logger.info('[WebDAVBackup] Backup restore staged, app will restart')
   } catch (error: any) {
     logger.error('[Backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
     void popup.error({
       title: i18n.t('message.restore.failed'),
       content: error.message
     })
-    return
-  }
-
-  // Direct backup format (version 6+) returns undefined - app needs to relaunch
-  if (!data) {
-    logger.info('[WebDAVBackup] Direct backup restored, app will restart')
-    return
-  }
-
-  // Legacy backup format (version <= 5) returns JSON string
-  try {
-    await handleData(JSON.parse(data))
-  } catch (error) {
-    logger.error('[Backup] Error downloading file from WebDAV:', error as Error)
-    toast.error(i18n.t('error.backup.file_format'))
   }
 }
 
@@ -532,20 +488,11 @@ export async function restoreFromS3(fileName?: string) {
   }
 
   if (fileName) {
-    const restoreData = await window.api.backup.restoreFromS3({
+    await window.api.backup.restoreFromS3({
       ...s3Config,
       fileName
     })
-
-    // Direct backup format (version 6+) returns undefined - app needs to relaunch
-    if (!restoreData) {
-      logger.info('[S3Backup] Direct backup restored, app will restart')
-      return
-    }
-
-    // Legacy backup format (version <= 5) returns JSON string
-    const data = JSON.parse(restoreData)
-    await handleData(data)
+    logger.info('[S3Backup] Backup restore staged, app will restart')
   }
 }
 
@@ -1151,17 +1098,8 @@ export async function restoreFromLocal(fileName: string) {
   try {
     const localBackupDirSetting = await preferenceService.get('data.backup.local.dir')
     const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
-    const restoreData = await window.api.backup.restoreFromLocalBackup(fileName, localBackupDir)
-
-    // Direct backup format (version 6+) returns undefined - app needs to relaunch
-    if (!restoreData) {
-      logger.info('[LocalBackup] Direct backup restored, app will restart')
-      return true
-    }
-
-    // Legacy backup format (version <= 5) returns JSON string
-    const data = JSON.parse(restoreData)
-    await handleData(data)
+    await window.api.backup.restoreFromLocalBackup(fileName, localBackupDir)
+    logger.info('[LocalBackup] Backup restore staged, app will restart')
 
     return true
   } catch (error) {

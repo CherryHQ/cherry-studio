@@ -33,7 +33,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
-import { BACKUP_V2_READY, BackupUnavailableGate } from './BackupUnavailableGate'
+import { BACKUP_V1_ENABLED, BackupUnavailableGate } from './BackupUnavailableGate'
 import NutstorePathPopup from './NutstorePathPopup'
 
 const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
@@ -80,8 +80,8 @@ const NutstoreSettings: FC = () => {
         if (decrypted) {
           setNutstoreUsername(decrypted.username)
           setNutstorePass(decrypted.access_token)
-          // Don't seed the v1 Nutstore path default while v2 backup is gated (silent v1 pref write)
-          if (!nutstorePath && BACKUP_V2_READY) {
+          // Seed the v1 Nutstore path only while its compatibility backup surface is enabled.
+          if (!nutstorePath && BACKUP_V1_ENABLED) {
             void setNutstorePath('/cherry-studio')
             // setStoragePath('/cherry-studio')
           }

@@ -1,28 +1,34 @@
 /**
  * @deprecated LEGACY v1 CODE — removed when the v2 migration is dropped.
  * --------------------------------------------------------------------------
- * DO NOT MODIFY. This is v1's BackupManager, preserved verbatim for the v2
- * migration only: it creates/restores v1-format backups so users can still
- * recover them in v1. It is kept strictly in sync with v1's BackupManager and
- * may be overwritten wholesale from the v1 source.
+ * This is v1's BackupManager, retained as the active compatibility backup
+ * engine while v2 backup is unfinished. Keep it aligned with v1 except for
+ * the explicit v2 data and restore-safety integrations below.
  *
  * Rules:
- * - No v2 features, no refactors.
+ * - No unrelated v2 features or refactors.
  * - Do NOT rename the `BackupManager` class, its exports, or the logger
  *   context. The filename is intentionally `LegacyBackupManager.ts` while the
  *   class stays `BackupManager`, so this file remains a drop-in mirror of v1.
- * - When re-syncing from v1, re-apply this banner.
+ * - When re-syncing from v1, re-apply this banner and the v2 integrations.
  * --------------------------------------------------------------------------
  */
+import { randomUUID } from 'node:crypto'
 import type { Stats } from 'node:fs'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
+import { readAppliedChain } from '@main/data/db/restore/appliedChain'
+import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
+import { hashDbFile } from '@main/data/db/restore/hashDbFile'
+import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
 import { ZipArchive } from 'archiver'
+import { Mutex } from 'async-mutex'
+import Database from 'better-sqlite3'
 import { app } from 'electron'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
@@ -33,6 +39,25 @@ import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 
 const logger = loggerService.withContext('BackupManager')
+const DIRECT_BACKUP_VERSION = 7
+const QUIESCE_TIMEOUT_MS = 30_000
+
+interface DirectBackupMetadata {
+  version: number
+  timestamp: number
+  appName: string
+  appVersion: string
+  platform: string
+  arch: string
+  resources: {
+    database: true
+    cache: true
+    indexedDB: true
+    localStorage: true
+    appClaude: true
+    data: boolean
+  }
+}
 
 interface CopyDirOptions {
   dereferenceSymlinks: boolean
@@ -51,8 +76,7 @@ interface ProgressData {
 }
 
 class BackupManager {
-  private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
-  private backupDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup')
+  private readonly operationMutex = new Mutex()
 
   // Cached instance to avoid recreating
   private s3Storage: S3Storage | null = null
@@ -75,103 +99,38 @@ class BackupManager {
     webdavPath?: string
   } | null = null
 
-  /**
-   * Handle backup restoration on app startup
-   * Called after window is created but before renderer is loaded
-   */
-  static async handleStartupRestore(): Promise<void> {
-    const userDataPath = app.getPath('userData')
-
-    // BackupManager is v1 legacy and intentionally does NOT consume the v2
-    // path registry — every path it touches is hand-rolled from
-    // app.getPath('userData'). Two reasons:
-    //
-    //   1. handleStartupRestore (this method) runs from src/main/main.ts
-    //      BEFORE application.bootstrap() — it has to move restore markers
-    //      off disk before any service grabs file handles. Calling
-    //      application.getPath() pre-bootstrap throws.
-    //   2. The whole class is scheduled for v2 refactor (see the file
-    //      header). Until that lands, mixing v1 instantiation with v2 path
-    //      lookups just creates timing footguns. Stay self-contained.
-    //
-    // Application.ts:132-137 explicitly carves out this exception for
-    // "legacy backup restore" pipelines.
-
-    // Define restore paths
-    const indexedDBRestore = path.join(userDataPath, 'IndexedDB.restore')
-    const localStorageRestore = path.join(userDataPath, 'Local Storage.restore')
-    const dataRestore = path.join(userDataPath, 'Data') + '.restore'
-
-    // Define target paths
-    const indexedDBDest = path.join(userDataPath, 'IndexedDB')
-    const localStorageDest = path.join(userDataPath, 'Local Storage')
-    const dataDest = path.join(userDataPath, 'Data')
-
-    try {
-      // Check if any restore markers exist
-      const hasIndexedDBRestore = await fs.pathExists(indexedDBRestore)
-      const hasLocalStorageRestore = await fs.pathExists(localStorageRestore)
-      const hasDataRestore = await fs.pathExists(dataRestore)
-
-      if (!hasIndexedDBRestore && !hasLocalStorageRestore && !hasDataRestore) {
-        return
-      }
-
-      // Restore IndexedDB
-      if (hasIndexedDBRestore) {
-        logger.info('[handleStartupRestore] Found IndexedDB.restore directories, completing restoration...')
-        await fs.remove(indexedDBDest).catch(() => {})
-        await fs.rename(indexedDBRestore, indexedDBDest)
-      }
-
-      // Restore Local Storage
-      if (hasLocalStorageRestore) {
-        logger.info('[handleStartupRestore] Found Local Storage.restore directories, completing restoration...')
-        await fs.remove(localStorageDest).catch(() => {})
-        await fs.rename(localStorageRestore, localStorageDest)
-      }
-
-      // Restore Data
-      if (hasDataRestore) {
-        logger.info('[handleStartupRestore] Found Local Data.restore directories, completing restoration...')
-        await fs.remove(dataDest).catch(() => {})
-        await fs.rename(dataRestore, dataDest)
-      }
-
-      logger.info('[handleStartupRestore] Restoration completed successfully')
-    } catch (error) {
-      logger.error('[handleStartupRestore] Failed to complete restoration:', error as Error)
-      // Clean up restore markers to avoid endless retry loop
-      await fs.remove(indexedDBRestore).catch(() => {})
-      await fs.remove(localStorageRestore).catch(() => {})
-      await fs.remove(dataRestore).catch(() => {})
-    }
+  private get backupDir(): string {
+    return application.getPath('feature.backup.temp')
   }
 
   /**
-   * Backup metadata for direct backup format (version 6+)
+   * Backup metadata for direct backup format.
+   *
+   * Version 7 adds the v2 SQLite database and cache.json. Restore requires an
+   * exact version match so v1's version 6 archives cannot overwrite v2 data.
    */
-  private createDirectBackupMetadata(): {
-    version: number
-    timestamp: number
-    appName: string
-    appVersion: string
-    platform: string
-    arch: string
-  } {
+  private createDirectBackupMetadata(skipBackupFile: boolean): DirectBackupMetadata {
     return {
-      version: 6,
+      version: DIRECT_BACKUP_VERSION,
       timestamp: Date.now(),
       appName: 'Cherry Studio',
       appVersion: app.getVersion(),
       platform: process.platform,
-      arch: process.arch
+      arch: process.arch,
+      resources: {
+        database: true,
+        cache: true,
+        indexedDB: true,
+        localStorage: true,
+        appClaude: true,
+        data: !skipBackupFile
+      }
     }
   }
 
   /**
-   * Direct backup method - copies IndexedDB and Local Storage directories directly.
-   * No JSON serialization, better performance for large databases.
+   * Direct backup method - snapshots SQLite and copies cache.json plus the
+   * retained IndexedDB and Local Storage directories.
    * @param _ - Electron IPC event
    * @param fileName - Name of the backup file
    * @param destinationPath - Path to save the backup (defaults to this.backupDir)
@@ -181,77 +140,101 @@ class BackupManager {
   async backup(
     _: Electron.IpcMainInvokeEvent,
     fileName: string,
-    destinationPath: string = this.backupDir,
+    destinationPath?: string,
     skipBackupFile: boolean = false
   ): Promise<string> {
+    return this.operationMutex.runExclusive(() => this.backupDirect(fileName, destinationPath, skipBackupFile))
+  }
+
+  private async backupDirect(
+    fileName: string,
+    destinationPath: string | undefined,
+    skipBackupFile: boolean
+  ): Promise<string> {
     const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
+    const workDir = await this.createOperationDir('create')
+    const outputDirectory = destinationPath ?? this.backupDir
+    const outputFileName = destinationPath ? fileName : `${randomUUID()}-${path.basename(fileName)}`
+    const backupedFilePath = path.join(outputDirectory, outputFileName)
+    let outputStarted = false
 
     try {
-      await fs.ensureDir(this.tempDir)
+      await fs.ensureDir(outputDirectory)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
-      const userDataPath = app.getPath('userData')
-      let currentProgress = 10
-
-      // Step 2: Copy IndexedDB and Local Storage directories
+      const userDataPath = application.getPath('app.userdata')
       onProgress({ stage: 'copying_database', progress: 15, total: 100 })
-      logger.debug('[backupDirect] Copying database directories...')
+      logger.debug('[backupDirect] Capturing a consistent v2 data snapshot')
 
-      const indexedDBSource = path.join(userDataPath, 'IndexedDB')
-      const indexedDBDest = path.join(this.tempDir, 'IndexedDB')
-      if (await fs.pathExists(indexedDBSource)) {
-        await fs.copy(indexedDBSource, indexedDBDest)
-      } else {
-        logger.debug('[backupDirect] IndexedDB directory not found, skipping')
-      }
+      const jobManager = application.get('JobManager')
+      const quiesceHold = jobManager.pause('backup: capture consistent snapshot')
+      try {
+        await this.assertJobsDrained(jobManager)
+        this.assertNoActiveDataWriters()
 
-      const localStorageSource = path.join(userDataPath, 'Local Storage')
-      const localStorageDest = path.join(this.tempDir, 'Local Storage')
-      if (await fs.pathExists(localStorageSource)) {
-        await fs.copy(localStorageSource, localStorageDest)
-      } else {
-        logger.debug('[backupDirect] Local Storage directory not found, skipping')
-      }
+        const dbService = application.get('DbService')
+        const liveDatabasePath = application.getPath('app.database.file')
+        dbService.checkpointTruncate()
+        const fingerprintBefore = await hashDbFile(liveDatabasePath)
 
-      currentProgress = 50
-      onProgress({ stage: 'copying_database', progress: currentProgress, total: 100 })
+        dbService.createSnapshot(path.join(workDir, 'cherrystudio.sqlite'))
 
-      // Step 3: Write metadata.json
-      const metadata = this.createDirectBackupMetadata()
-      await fs.writeJson(path.join(this.tempDir, 'metadata.json'), metadata, { spaces: 2 })
-      onProgress({ stage: 'copying_database', progress: 52, total: 100 })
-
-      // Step 4: Copy Data directory (if not skipped)
-      if (!skipBackupFile) {
-        const sourcePath = path.join(userDataPath, 'Data')
-        const tempDataDir = path.join(this.tempDir, 'Data')
-
-        if (await fs.pathExists(sourcePath)) {
-          const totalSize = await this.getDirSize(sourcePath, { dereferenceSymlinks: true })
-
-          await this.copyDirWithProgress(
-            sourcePath,
-            tempDataDir,
-            this.createCopyProgressHandler(totalSize, 52, 80, 'copying_files', onProgress),
-            { dereferenceSymlinks: true }
-          )
+        application.get('CacheService').flushPersistForBackup()
+        const cacheSource = application.getPath('app.userdata', 'cache.json')
+        if (!(await fs.pathExists(cacheSource))) {
+          throw new Error('Failed to persist cache.json for backup')
         }
-      } else {
-        logger.debug('[backupDirect] Skip the backup of the file')
-        await fs.promises.mkdir(path.join(this.tempDir, 'Data'))
+        await fs.copy(cacheSource, path.join(workDir, 'cache.json'))
+
+        await this.copyDirectoryOrCreate(path.join(userDataPath, 'IndexedDB'), path.join(workDir, 'IndexedDB'))
+        await this.copyDirectoryOrCreate(path.join(userDataPath, 'Local Storage'), path.join(workDir, 'Local Storage'))
+        await this.copyAppClaudeState(path.join(workDir, '.claude'))
+
+        onProgress({ stage: 'copying_database', progress: 50, total: 100 })
+
+        if (!skipBackupFile) {
+          const sourcePath = application.getPath('app.userdata.data')
+          const tempDataDir = path.join(workDir, 'Data')
+
+          if (await fs.pathExists(sourcePath)) {
+            const totalSize = await this.getDirSize(sourcePath, { dereferenceSymlinks: true })
+            await this.copyDirWithProgress(
+              sourcePath,
+              tempDataDir,
+              this.createCopyProgressHandler(totalSize, 52, 80, 'copying_files', onProgress),
+              { dereferenceSymlinks: true }
+            )
+          } else {
+            await fs.ensureDir(tempDataDir)
+          }
+        }
+
+        await fs.writeJson(path.join(workDir, 'metadata.json'), this.createDirectBackupMetadata(skipBackupFile), {
+          spaces: 2
+        })
+
+        this.assertNoActiveDataWriters()
+        dbService.checkpointTruncate()
+        const fingerprintAfter = await hashDbFile(liveDatabasePath)
+        if (fingerprintAfter !== fingerprintBefore) {
+          throw new Error('Data changed while the backup snapshot was being captured. Please retry the backup.')
+        }
+      } finally {
+        quiesceHold.dispose()
       }
+
       onProgress({ stage: 'compressing', progress: 80, total: 100 })
 
-      // Step 5: Create ZIP archive
-      const backupedFilePath = path.join(destinationPath, fileName)
       const output = fs.createWriteStream(backupedFilePath)
+      outputStarted = true
       const archive = new ZipArchive({
-        zlib: { level: 1 }, // Use lowest compression level for speed (same as legacy backup)
+        zlib: { level: 1 },
         zip64: true
       })
 
       await new Promise<void>((resolve, reject) => {
         output.on('close', () => resolve())
+        output.on('error', reject)
         archive.on('error', reject)
         archive.on('warning', (err: any) => {
           if (err.code !== 'ENOENT') {
@@ -259,21 +242,21 @@ class BackupManager {
           }
         })
         archive.pipe(output)
-        archive.directory(this.tempDir, false)
+        archive.directory(workDir, false)
         archive.finalize()
       })
 
-      // Clean up temp directory
-      await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
-
       logger.info('[backupDirect] Backup completed successfully')
       return backupedFilePath
     } catch (error) {
       logger.error('[backupDirect] Backup failed:', error as Error)
-      await fs.remove(this.tempDir).catch(() => {})
-
+      if (outputStarted) {
+        await fs.remove(backupedFilePath).catch(() => {})
+      }
       throw error
+    } finally {
+      await fs.remove(workDir).catch(() => {})
     }
   }
 
@@ -294,14 +277,25 @@ class BackupManager {
     destinationPath: string = this.backupDir,
     skipBackupFile: boolean = false
   ): Promise<string> {
+    return this.operationMutex.runExclusive(() =>
+      this.backupLegacyUnlocked(fileName, data, destinationPath, skipBackupFile)
+    )
+  }
+
+  private async backupLegacyUnlocked(
+    fileName: string,
+    data: string,
+    destinationPath: string,
+    skipBackupFile: boolean
+  ): Promise<string> {
     const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
+    const workDir = await this.createOperationDir('lan-create')
 
     try {
-      await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       // Write data.json using streaming
-      const tempDataPath = path.join(this.tempDir, 'data.json')
+      const tempDataPath = path.join(workDir, 'data.json')
 
       await new Promise<void>((resolve, reject) => {
         const writeStream = fs.createWriteStream(tempDataPath)
@@ -318,8 +312,8 @@ class BackupManager {
 
       if (!skipBackupFile) {
         // Copy Data directory to temp directory
-        const sourcePath = path.join(app.getPath('userData'), 'Data')
-        const tempDataDir = path.join(this.tempDir, 'Data')
+        const sourcePath = application.getPath('app.userdata.data')
+        const tempDataDir = path.join(workDir, 'Data')
 
         // Get total size of source directory
         const totalSize = await this.getDirSize(sourcePath, { dereferenceSymlinks: true })
@@ -335,7 +329,7 @@ class BackupManager {
         onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
       } else {
         logger.debug('Skip the backup of the file')
-        await fs.promises.mkdir(path.join(this.tempDir, 'Data')) // Creating empty Data dir is required, otherwise restore will fail
+        await fs.promises.mkdir(path.join(workDir, 'Data')) // Creating empty Data dir is required, otherwise restore will fail
       }
 
       // Create output file stream
@@ -374,7 +368,7 @@ class BackupManager {
         }
       }
 
-      await calculateTotals(this.tempDir)
+      await calculateTotals(workDir)
 
       // Listen for file entry events
       archive.on('entry', () => {
@@ -417,23 +411,21 @@ class BackupManager {
         archive.pipe(output)
 
         // Add entire temp directory to archive
-        archive.directory(this.tempDir, false)
+        archive.directory(workDir, false)
 
         // Finalize compression
         archive.finalize()
       })
 
-      // Clean up temp directory
-      await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
       logger.info('Backup completed successfully')
       return backupedFilePath
     } catch (error) {
       logger.error('[BackupManager] Backup failed:', error as Error)
-      // Ensure temp directory is cleaned up
-      await fs.remove(this.tempDir).catch(() => {})
       throw error
+    } finally {
+      await fs.remove(workDir).catch(() => {})
     }
   }
 
@@ -526,79 +518,81 @@ class BackupManager {
 
   /**
    * Restore from a backup file
-   * Automatically detects backup format (direct v6+ or legacy) and restores accordingly.
-   * For direct backup: replaces IndexedDB and Local Storage directories, then relaunches app.
-   * For legacy backup: restores data from data.json and Data directory.
+   * Only the complete v2 direct format is accepted. Every v1 format — direct
+   * version 6, metadata-less ZIP versions 1-5, and renderer-side .bak — is
+   * intentionally incompatible with the v2 SQLite ownership model.
    * @param _ - Electron IPC event
    * @param backupPath - Path to the backup ZIP file
-   * @returns For legacy backup: the data string from data.json. For direct backup: void (app will relaunch)
    */
-  async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<string | void> {
+  async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<void> {
+    return this.operationMutex.runExclusive(() => this.restoreUnlocked(backupPath))
+  }
+
+  private async restoreUnlocked(backupPath: string): Promise<void> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
+    const extractionDir = await this.createOperationDir('extract')
 
     try {
-      // Create temp directory
-      await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
-
-      logger.debug(`step 1: unzip backup file: ${this.tempDir}`)
+      logger.debug(`Extracting backup file into ${extractionDir}`)
 
       const zip = new StreamZip.async({ file: backupPath })
-      onProgress({ stage: 'extracting', progress: 15, total: 100 })
-      await zip.extract(null, this.tempDir)
+      try {
+        onProgress({ stage: 'extracting', progress: 15, total: 100 })
+        await zip.extract(null, extractionDir)
+      } finally {
+        await zip.close()
+      }
       onProgress({ stage: 'extracted', progress: 20, total: 100 })
 
-      // Check for backup type: direct (version 6+) or legacy (version <= 5)
-      const metadataPath = path.join(this.tempDir, 'metadata.json')
-      const isDirectBackup = await fs.pathExists(metadataPath)
-
-      if (isDirectBackup) {
-        // Direct backup format (version 6+)
-        logger.debug('Detected direct backup format (version 6+)')
-        // Note: tempDir is NOT cleaned up here - restoreDirect will use and clean it
-        await this.restoreDirect()
-        // Direct restore doesn't return data - app needs to relaunch
-        return
+      if (!(await fs.pathExists(path.join(extractionDir, 'metadata.json')))) {
+        throw new Error(
+          `Unsupported v1 backup. Cherry Studio v2 can only restore backup version ${DIRECT_BACKUP_VERSION}.`
+        )
       }
 
-      // Legacy backup format (version <= 5)
-      logger.debug('Detected legacy backup format (version <= 5)')
-
-      const data = await this.restoreLegacy()
-
-      return data
+      await this.restoreDirect(extractionDir)
     } catch (error) {
       logger.error('Restore failed:', error as Error)
-      await fs.remove(this.tempDir).catch(() => {})
       throw error
+    } finally {
+      await fs.remove(extractionDir).catch(() => {})
     }
   }
 
   /**
-   * Restore from direct backup format (version 6+).
-   * Writes to `*.restore` directories; `handleStartupRestore` performs the atomic
-   * swap on next launch, before any DB connection or window opens. Avoids
-   * overwriting live IndexedDB / SQLite database files (issue #14774).
+   * Stage a complete version 7 restore journal. The preboot promotion gate
+   * validates the live DB fingerprint and migration chain, then swaps the DB
+   * and file resources with aside-first rollback semantics.
    */
-  private async restoreDirect(): Promise<void> {
+  private async restoreDirect(extractionDir: string): Promise<void> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
+    const userDataPath = application.getPath('app.userdata')
+    const stagingRoot = application.getPath('feature.backup.restore.staging')
+    const restoreId = randomUUID()
+    const restoreDir = path.join(stagingRoot, restoreId)
+    let journalCommitted = false
 
-    const userDataPath = app.getPath('userData')
-    const indexedDBDest = path.join(userDataPath, 'IndexedDB.restore')
-    const localStorageDest = path.join(userDataPath, 'Local Storage.restore')
-    const dataDest = path.join(userDataPath, 'Data.restore')
+    const existingJournal = readRestoreJournal()
+    if (existingJournal.kind === 'corrupt') {
+      throw new Error('A corrupt restore journal already exists. Restart Cherry Studio before trying again.')
+    }
+    if (
+      existingJournal.kind === 'ok' &&
+      (existingJournal.journal.state === 'staged' || existingJournal.journal.state === 'promoting')
+    ) {
+      throw new Error('Another restore is already pending. Restart Cherry Studio before trying again.')
+    }
+
+    // No restore is pending: terminal journals have already released their
+    // staging tree, and any remaining directory is an orphan from a crash
+    // before the durable journal commit.
+    await fs.remove(stagingRoot)
+    await fs.ensureDir(restoreDir)
 
     try {
-      // Read and validate metadata
-      const metadataPath = path.join(this.tempDir, 'metadata.json')
-      const metadata = await fs.readJson(metadataPath)
+      const metadata = await this.readDirectBackupMetadata(extractionDir)
 
-      // Validate appName to ensure backup is from Cherry Studio
-      if (metadata.appName !== 'Cherry Studio') {
-        throw new Error('This backup file is not from Cherry Studio and cannot be restored')
-      }
-
-      // Warn about cross-platform restore
       if (metadata.platform && metadata.platform !== process.platform) {
         logger.warn(
           `[restoreDirect] Cross-platform restore: backup from ${metadata.platform}, current is ${process.platform}`
@@ -606,124 +600,279 @@ class BackupManager {
       }
 
       onProgress({ stage: 'validating', progress: 25, total: 100 })
-
       onProgress({ stage: 'restoring_database', progress: 30, total: 100 })
 
-      // IndexedDB & Local Storage Path
-      const indexedDBSource = path.join(this.tempDir, 'IndexedDB')
-      const localStorageSource = path.join(this.tempDir, 'Local Storage')
+      const workDatabase = path.join(restoreDir, 'work.sqlite')
+      const stagedCache = path.join(restoreDir, 'resources', 'cache.json')
+      const stagedIndexedDB = path.join(restoreDir, 'resources', 'IndexedDB')
+      const stagedLocalStorage = path.join(restoreDir, 'resources', 'Local Storage')
+      const stagedClaude = path.join(restoreDir, 'resources', '.claude')
+      const stagedData = path.join(restoreDir, 'resources', 'Data')
 
-      logger.debug('[restoreDirect] Staging database directories...')
+      await this.assertArchiveFile(path.join(extractionDir, 'cherrystudio.sqlite'), 'SQLite database')
+      await this.assertArchiveFile(path.join(extractionDir, 'cache.json'), 'cache.json')
+      await fs.copy(path.join(extractionDir, 'cherrystudio.sqlite'), workDatabase)
+      await fs.copy(path.join(extractionDir, 'cache.json'), stagedCache)
 
-      if (await fs.pathExists(indexedDBSource)) {
-        await fs.remove(indexedDBDest).catch(() => {})
-        await fs.copy(indexedDBSource, indexedDBDest)
+      await this.stageArchiveDirectory(path.join(extractionDir, 'IndexedDB'), stagedIndexedDB)
+      await this.stageArchiveDirectory(path.join(extractionDir, 'Local Storage'), stagedLocalStorage)
+      await this.copyClaudeState(path.join(extractionDir, '.claude'), stagedClaude)
+
+      if (metadata.resources.data) {
+        const dataSource = path.join(extractionDir, 'Data')
+        await this.assertArchiveDirectory(dataSource, 'Data')
+        await this.stageArchiveDirectory(
+          dataSource,
+          stagedData,
+          this.createCopyProgressHandler(
+            await this.getDirSize(dataSource, { dereferenceSymlinks: false }),
+            65,
+            95,
+            'restoring_data',
+            onProgress
+          )
+        )
       }
 
-      if (await fs.pathExists(localStorageSource)) {
-        await fs.remove(localStorageDest).catch(() => {})
-        await fs.copy(localStorageSource, localStorageDest)
-      }
-
+      const chain = this.validateStagedDatabase(workDatabase)
       onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
 
-      //  Restore Data directory
-      const dataSource = path.join(this.tempDir, 'Data')
-      const dataExists = await fs.pathExists(dataSource)
-      const dataFiles = dataExists ? await fs.readdir(dataSource) : []
-
-      if (dataExists && dataFiles.length > 0) {
-        logger.debug('[restoreDirect] Staging Data directory...')
-
-        const totalSize = await this.getDirSize(dataSource, { dereferenceSymlinks: false })
-
-        await fs.remove(dataDest).catch(() => {})
-
-        await this.copyDirWithProgress(
-          dataSource,
-          dataDest,
-          this.createCopyProgressHandler(totalSize, 65, 95, 'restoring_data', onProgress),
-          { dereferenceSymlinks: false }
+      const fileResources: RestoreJournal['fileResources'] = []
+      fileResources.push(
+        await this.createJournalResource({
+          restoreDir,
+          stagingPath: stagedCache,
+          livePath: application.getPath('app.userdata', 'cache.json'),
+          directory: false
+        }),
+        await this.createJournalResource({
+          restoreDir,
+          stagingPath: stagedIndexedDB,
+          livePath: path.join(userDataPath, 'IndexedDB'),
+          directory: true
+        }),
+        await this.createJournalResource({
+          restoreDir,
+          stagingPath: stagedLocalStorage,
+          livePath: path.join(userDataPath, 'Local Storage'),
+          directory: true
+        }),
+        await this.createJournalResource({
+          restoreDir,
+          stagingPath: stagedClaude,
+          livePath: application.getPath('feature.agents.claude.root'),
+          directory: true
+        })
+      )
+      if (metadata.resources.data) {
+        fileResources.push(
+          await this.createJournalResource({
+            restoreDir,
+            stagingPath: stagedData,
+            livePath: application.getPath('app.userdata.data'),
+            directory: true
+          })
         )
-      } else {
-        logger.debug('[restoreDirect] No Data directory to restore')
       }
 
-      // Clean up
-      await fs.remove(this.tempDir)
-      onProgress({ stage: 'completed', progress: 100, total: 100 })
+      // Flush both the staged contents and the staging root's restoreId
+      // directory entry before publishing the durable journal.
+      this.fsyncTree(stagingRoot)
 
-      logger.info('[restoreDirect] Restore staged successfully, relaunching app to apply...')
+      const jobManager = application.get('JobManager')
+      const quiesceHold = jobManager.pause('backup restore: stage promotion journal')
+      try {
+        await this.assertJobsDrained(jobManager)
+        this.assertNoActiveDataWriters()
+        const dbService = application.get('DbService')
+        dbService.checkpointTruncate()
+        const fingerprint = await hashDbFile(application.getPath('app.database.file'))
 
-      application.relaunch()
+        const journal: Extract<RestoreJournal, { state: 'staged' }> = {
+          version: 1,
+          restoreId,
+          createdAt: new Date().toISOString(),
+          state: 'staged',
+          db: {
+            promote: path.relative(userDataPath, workDatabase),
+            aside: path.relative(userDataPath, path.join(restoreDir, 'aside', 'cherrystudio.sqlite')),
+            fingerprint,
+            chain
+          },
+          fileResources
+        }
+        writeRestoreJournal(journal)
+        journalCommitted = true
+
+        onProgress({ stage: 'completed', progress: 100, total: 100 })
+        logger.info('[restoreDirect] Restore journal committed, relaunching app to promote it', { restoreId })
+        application.relaunch()
+      } finally {
+        if (!journalCommitted) {
+          quiesceHold.dispose()
+        }
+      }
     } catch (error) {
-      logger.error('[restoreDirect] Restore failed:', error as Error)
-      await Promise.all([
-        fs.remove(this.tempDir).catch(() => {}),
-        fs.remove(indexedDBDest).catch(() => {}),
-        fs.remove(localStorageDest).catch(() => {}),
-        fs.remove(dataDest).catch(() => {})
-      ])
+      logger.error('[restoreDirect] Restore staging failed:', error as Error)
       throw error
+    } finally {
+      if (!journalCommitted) {
+        await fs.remove(restoreDir).catch(() => {})
+      }
     }
   }
 
-  /**
-   * Restore from legacy backup format (version <= 5)
-   * Restores data from data.json and Data directory.
-   * @param onProgress - Callback function to report restore progress
-   * @returns The data string read from data.json
-   */
-  private async restoreLegacy(): Promise<string> {
-    const onProgress = this.onProgress(IpcChannel.RestoreProgress, false)
+  private async readDirectBackupMetadata(extractionDir: string): Promise<DirectBackupMetadata> {
+    const raw = (await fs.readJson(path.join(extractionDir, 'metadata.json'))) as Record<string, unknown>
 
+    if (!raw || typeof raw !== 'object' || raw.appName !== 'Cherry Studio') {
+      throw new Error('This backup file is not from Cherry Studio and cannot be restored')
+    }
+    if (raw.version !== DIRECT_BACKUP_VERSION) {
+      throw new Error(
+        `Unsupported backup version ${String(raw.version)}. Cherry Studio v2 can only restore backup version ${DIRECT_BACKUP_VERSION}.`
+      )
+    }
+
+    const resources = raw.resources as Record<string, unknown> | undefined
+    if (
+      !resources ||
+      resources.database !== true ||
+      resources.cache !== true ||
+      resources.indexedDB !== true ||
+      resources.localStorage !== true ||
+      resources.appClaude !== true ||
+      typeof resources.data !== 'boolean'
+    ) {
+      throw new Error('Backup version 7 metadata is incomplete')
+    }
+
+    return raw as unknown as DirectBackupMetadata
+  }
+
+  private async assertArchiveFile(filePath: string, label: string): Promise<void> {
+    let stats: Stats
     try {
-      logger.debug('[restoreLegacy] read data.json')
+      stats = await fs.lstat(filePath)
+    } catch {
+      throw new Error(`Backup is missing its ${label}`)
+    }
+    if (stats.isSymbolicLink() || !stats.isFile()) {
+      throw new Error(`Backup ${label} is not a regular file`)
+    }
+  }
 
-      // Read data.json
-      const dataPath = path.join(this.tempDir, 'data.json')
-      const data = await fs.readFile(dataPath, 'utf-8')
-      onProgress({ stage: 'reading_data', progress: 35, total: 100 })
+  private async assertArchiveDirectory(directoryPath: string, label: string): Promise<void> {
+    let stats: Stats
+    try {
+      stats = await fs.lstat(directoryPath)
+    } catch {
+      throw new Error(`Backup is missing its ${label} directory`)
+    }
+    if (stats.isSymbolicLink() || !stats.isDirectory()) {
+      throw new Error(`Backup ${label} is not a directory`)
+    }
+  }
 
-      logger.debug('[restoreLegacy] restore Data directory')
+  private async stageArchiveDirectory(
+    source: string,
+    destination: string,
+    onProgress: (size: number) => void = () => {}
+  ): Promise<void> {
+    await this.assertArchiveDirectory(source, path.basename(source))
+    await this.copyDirWithProgress(source, destination, onProgress, { dereferenceSymlinks: false })
+  }
 
-      const userDataPath = app.getPath('userData')
-      const dataSourcePath = path.join(this.tempDir, 'Data')
-      const dataDestPath = path.join(userDataPath, 'Data.restore')
-
-      const dataExists = await fs.pathExists(dataSourcePath)
-      const dataFiles = dataExists ? await fs.readdir(dataSourcePath) : []
-
-      if (dataExists && dataFiles.length > 0) {
-        // Get total size of source directory
-        const dataTotalSize = await this.getDirSize(dataSourcePath, { dereferenceSymlinks: false })
-
-        await fs.remove(dataDestPath).catch(() => {})
-
-        // Use streaming copy
-        await this.copyDirWithProgress(
-          dataSourcePath,
-          dataDestPath,
-          this.createCopyProgressHandler(dataTotalSize, 35, 85, 'copying_files', onProgress),
-          { dereferenceSymlinks: false }
-        )
-      } else {
-        logger.debug('[restoreLegacy] skipBackupFile is true, skip restoring Data directory')
+  private validateStagedDatabase(databasePath: string): RestoreJournal['db']['chain'] {
+    const sqlite = new Database(databasePath, { fileMustExist: true })
+    let chain: RestoreJournal['db']['chain']
+    try {
+      checkpointTruncateAssert(sqlite)
+      const integrity = String(sqlite.pragma('integrity_check', { simple: true }))
+      if (integrity !== 'ok') {
+        throw new Error(`Backup SQLite integrity check failed: ${integrity}`)
       }
+      chain = readAppliedChain(sqlite)
+      if (chain.length === 0) {
+        throw new Error('Backup SQLite migration chain is empty')
+      }
+    } finally {
+      sqlite.close()
+    }
 
-      // Clean up temp directory
-      logger.debug('[restoreLegacy] clean up temp directory')
-      await fs.remove(this.tempDir)
+    if (fs.existsSync(`${databasePath}-wal`) || fs.existsSync(`${databasePath}-shm`)) {
+      throw new Error('Backup SQLite database could not be sealed without WAL sidecars')
+    }
+    return chain
+  }
 
-      onProgress({ stage: 'completed', progress: 100, total: 100 })
+  private async createJournalResource(input: {
+    restoreDir: string
+    stagingPath: string
+    livePath: string
+    directory: boolean
+  }): Promise<RestoreJournal['fileResources'][number]> {
+    const stagingPath = this.toUserDataRelative(input.stagingPath)
+    const livePath = this.toUserDataRelative(input.livePath)
 
-      logger.info('[restoreLegacy] Restore completed successfully')
+    if (!(await fs.pathExists(input.livePath))) {
+      return {
+        kind: input.directory ? 'dir-add' : 'blob-add',
+        stagingPath,
+        livePath
+      }
+    }
 
-      return data
-    } catch (error) {
-      logger.error('[restoreLegacy] Restore failed:', error as Error)
-      await fs.remove(this.tempDir).catch(() => {})
-      throw error
+    return {
+      kind: 'overwrite',
+      stagingPath,
+      livePath,
+      asidePath: this.toUserDataRelative(path.join(input.restoreDir, 'aside', path.basename(input.livePath)))
+    }
+  }
+
+  private toUserDataRelative(absolutePath: string): string {
+    const userDataPath = application.getPath('app.userdata')
+    const relativePath = path.relative(userDataPath, absolutePath)
+    if (
+      !relativePath ||
+      relativePath === '..' ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativePath)
+    ) {
+      throw new Error(`Restore path is outside userData: ${absolutePath}`)
+    }
+    return relativePath
+  }
+
+  private fsyncTree(entryPath: string): void {
+    const stats = fs.lstatSync(entryPath)
+    if (stats.isSymbolicLink()) {
+      throw new Error(`Refusing to commit a symlink in restore staging: ${entryPath}`)
+    }
+
+    if (stats.isDirectory()) {
+      for (const child of fs.readdirSync(entryPath)) {
+        this.fsyncTree(path.join(entryPath, child))
+      }
+      if (process.platform !== 'win32') {
+        const fd = fs.openSync(entryPath, 'r')
+        try {
+          fs.fsyncSync(fd)
+        } finally {
+          fs.closeSync(fd)
+        }
+      }
+      return
+    }
+
+    if (stats.isFile()) {
+      const fd = fs.openSync(entryPath, 'r')
+      try {
+        fs.fsyncSync(fd)
+      } finally {
+        fs.closeSync(fd)
+      }
     }
   }
 
@@ -759,13 +908,10 @@ class BackupManager {
   async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const webdavClient = this.getWebDavInstance(webdavConfig)
+    const downloadDir = await this.createOperationDir('webdav-download')
+    const backupedFilePath = path.join(downloadDir, path.basename(filename))
     try {
       const retrievedFile = await webdavClient.getFileContents(filename)
-      const backupedFilePath = path.join(this.backupDir, filename)
-
-      if (!fs.existsSync(this.backupDir)) {
-        fs.mkdirSync(this.backupDir, { recursive: true })
-      }
 
       // Write file using streaming
       await new Promise<void>((resolve, reject) => {
@@ -781,6 +927,8 @@ class BackupManager {
     } catch (error: any) {
       logger.error('Failed to restore from WebDAV:', error)
       throw new Error(error.message || 'Failed to restore backup file')
+    } finally {
+      await fs.remove(downloadDir).catch(() => {})
     }
   }
 
@@ -797,12 +945,10 @@ class BackupManager {
     logger.debug(`Starting restore from S3: ${filename}`)
 
     const s3Client = this.getS3Storage(s3Config)
+    const downloadDir = await this.createOperationDir('s3-download')
+    const backupedFilePath = path.join(downloadDir, path.basename(filename))
     try {
       const retrievedFile = await s3Client.getFileContents(filename)
-      const backupedFilePath = path.join(this.backupDir, filename)
-      if (!fs.existsSync(this.backupDir)) {
-        fs.mkdirSync(this.backupDir, { recursive: true })
-      }
       await new Promise<void>((resolve, reject) => {
         const writeStream = fs.createWriteStream(backupedFilePath)
         writeStream.write(retrievedFile)
@@ -816,12 +962,93 @@ class BackupManager {
     } catch (error: any) {
       logger.error('[BackupManager] Failed to restore from S3:', error)
       throw new Error(error.message || 'Failed to restore backup file')
+    } finally {
+      await fs.remove(downloadDir).catch(() => {})
     }
   }
 
   // ==================== File Utility Methods ====================
   // These are helper methods for file operations like size calculation,
   // directory copying with progress, and permission management.
+
+  private async createOperationDir(prefix: string): Promise<string> {
+    const operationDir = path.join(this.backupDir, `${prefix}-${randomUUID()}`)
+    await fs.ensureDir(operationDir)
+    return operationDir
+  }
+
+  private async assertJobsDrained(jobManager: {
+    drainInFlight(options: { timeoutMs: number }): Promise<{ stragglerIds: string[]; startupRecoveryPending: boolean }>
+  }): Promise<void> {
+    const verdict = await jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
+    if (verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending) {
+      throw new Error('Background data writes did not quiesce in time. Please retry after current tasks finish.')
+    }
+  }
+
+  private assertNoActiveDataWriters(): void {
+    if (
+      application.get('AiStreamManager').hasLiveStreams() ||
+      application.get('AgentSessionRuntimeService').hasBusySessions()
+    ) {
+      throw new Error('A conversation is still running. Wait for it to finish, then retry the backup or restore.')
+    }
+  }
+
+  private async copyDirectoryOrCreate(source: string, destination: string): Promise<void> {
+    if (!(await fs.pathExists(source))) {
+      await fs.ensureDir(destination)
+      return
+    }
+
+    const stats = await fs.lstat(source)
+    if (stats.isSymbolicLink() || !stats.isDirectory()) {
+      throw new Error(`Expected an application data directory: ${source}`)
+    }
+    await this.copyDirWithProgress(source, destination, () => {}, { dereferenceSymlinks: false })
+  }
+
+  private async copyAppClaudeState(destination: string): Promise<void> {
+    const source = application.getPath('feature.agents.claude.root')
+    if (!(await fs.pathExists(source))) {
+      await fs.ensureDir(destination)
+      return
+    }
+    await this.copyClaudeState(source, destination)
+  }
+
+  /**
+   * Copy Cherry Studio's private CLAUDE_CONFIG_DIR while excluding the
+   * generated `skills/` mirror. Never follows symlinks, so an archive cannot
+   * pull in the user's external ~/.claude or another external tree.
+   */
+  private async copyClaudeState(source: string, destination: string): Promise<void> {
+    const rootStats = await fs.lstat(source).catch(() => null)
+    if (!rootStats || rootStats.isSymbolicLink() || !rootStats.isDirectory()) {
+      throw new Error('Backup is missing its application .claude directory')
+    }
+
+    await fs.ensureDir(destination)
+    const entries = await fs.readdir(source, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.name === 'skills') {
+        continue
+      }
+
+      const sourcePath = path.join(source, entry.name)
+      const destinationPath = path.join(destination, entry.name)
+      const stats = await fs.lstat(sourcePath)
+      if (stats.isSymbolicLink()) {
+        logger.warn('[backupDirect] Skipping symlink in application .claude state', { path: sourcePath })
+        continue
+      }
+      if (stats.isDirectory()) {
+        await this.copyDirWithProgress(sourcePath, destinationPath, () => {}, { dereferenceSymlinks: false })
+      } else if (stats.isFile()) {
+        await fs.copy(sourcePath, destinationPath)
+      }
+    }
+  }
 
   /**
    * Create a progress callback that sends IPC message and optionally logs.
@@ -913,21 +1140,6 @@ class BackupManager {
     }
 
     return size
-  }
-
-  /**
-   * Stage an empty Data directory; handleStartupRestore swaps it in on next launch.
-   * Avoids races with the SQLite DB / MemoryService / KnowledgeService recreating files
-   * before relaunch.
-   */
-  public async resetData() {
-    // Hand-rolled {userData}/Data — BackupManager bypasses the v2 path
-    // registry entirely. See handleStartupRestore above for the rationale.
-    const dataPath = path.join(app.getPath('userData'), 'Data')
-
-    const dataRestorePath = dataPath + '.restore'
-    await fs.remove(dataRestorePath).catch(() => {})
-    await fs.ensureDir(dataRestorePath)
   }
 
   /**
@@ -1254,7 +1466,7 @@ class BackupManager {
       .slice(0, 14)
 
     const fileName = `cherry-studio.${timestamp}.zip`
-    const tempPath = path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer')
+    const tempPath = application.getPath('feature.lan_transfer.temp')
     const targetPath = destinationPath || tempPath
 
     // Ensure temp directory exists
@@ -1274,7 +1486,7 @@ class BackupManager {
   async deleteLanTransferBackup(_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> {
     try {
       // Security check: only allow deletion within temp directory
-      const tempBase = path.normalize(path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer'))
+      const tempBase = path.normalize(application.getPath('feature.lan_transfer.temp'))
       const resolvedPath = path.normalize(path.resolve(filePath))
 
       // Use normalized paths with trailing separator to prevent prefix attacks (e.g., /temp-evil)

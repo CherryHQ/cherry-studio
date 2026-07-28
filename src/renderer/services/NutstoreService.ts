@@ -1,8 +1,7 @@
 /**
- * @deprecated v2 upgrade pending. Like BackupService, this service is slated for replacement and v2
- * can no longer perform real backups. The transient sync status that used to live in the Redux
- * `nutstore` slice is now held in a session-local, non-reactive module object (`nutstoreSyncState`
- * below) as a temporary, internally-consistent stopgap. Do not build on this.
+ * @deprecated v2 replacement pending. Like BackupService, this currently uses the retained v1
+ * compatibility engine for real archives. Transient sync status remains in the session-local,
+ * non-reactive `nutstoreSyncState` below until the native v2 service replaces it.
  */
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
@@ -15,7 +14,7 @@ import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
 import { type CreateDirectoryOptions } from 'webdav'
 
-import { handleData, type RemoteSyncState } from './BackupService'
+import type { RemoteSyncState } from './BackupService'
 
 const logger = loggerService.withContext('NutstoreService')
 
@@ -201,23 +200,15 @@ export async function restoreFromNutstore(fileName?: string) {
     return
   }
 
-  let data = ''
-
   try {
-    data = await window.api.backup.restoreFromWebdav({ ...config, fileName })
+    await window.api.backup.restoreFromWebdav({ ...config, fileName })
+    logger.info('[Nutstore] Backup restore staged, app will restart')
   } catch (error: any) {
     logger.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
     void popup.error({
       title: i18n.t('message.restore.failed'),
       content: error.message
     })
-  }
-
-  try {
-    await handleData(JSON.parse(data))
-  } catch (error) {
-    logger.error('[backup] Error downloading file from WebDAV:', error as Error)
-    toast.error(i18n.t('error.backup.file_format'))
   }
 }
 

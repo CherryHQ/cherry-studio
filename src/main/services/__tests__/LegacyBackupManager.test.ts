@@ -1,3 +1,5 @@
+import type * as CryptoModule from 'node:crypto'
+
 import type * as PathModule from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,12 +40,88 @@ vi.mock('path', async () => {
 })
 
 // Use vi.hoisted to define mocks that are available during hoisting
-const { mockLogger } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn()
+const {
+  mockLogger,
+  mockDbService,
+  mockCacheService,
+  mockJobManager,
+  mockJobHold,
+  mockAiStreamManager,
+  mockAgentSessionRuntime,
+  mockWindowManager,
+  mockRelaunch,
+  mockHashDbFile,
+  mockReadRestoreJournal,
+  mockWriteRestoreJournal,
+  mockCheckpointTruncateAssert,
+  mockReadAppliedChain,
+  mockRandomUUID,
+  mockZipExtract,
+  mockZipClose,
+  MockStreamZipAsync
+} = vi.hoisted(() => {
+  const mockJobHold = { dispose: vi.fn() }
+  const mockZipExtract = vi.fn()
+  const mockZipClose = vi.fn()
+  return {
+    mockLogger: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    },
+    mockDbService: { createSnapshot: vi.fn(), checkpointTruncate: vi.fn() },
+    mockCacheService: { flushPersistForBackup: vi.fn() },
+    mockJobManager: {
+      pause: vi.fn(() => mockJobHold),
+      drainInFlight: vi.fn(async () => ({ stragglerIds: [], startupRecoveryPending: false }))
+    },
+    mockJobHold,
+    mockAiStreamManager: { hasLiveStreams: vi.fn(() => false) },
+    mockAgentSessionRuntime: { hasBusySessions: vi.fn(() => false) },
+    mockWindowManager: { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) },
+    mockRelaunch: vi.fn(),
+    mockHashDbFile: vi.fn(),
+    mockReadRestoreJournal: vi.fn(),
+    mockWriteRestoreJournal: vi.fn(),
+    mockCheckpointTruncateAssert: vi.fn(),
+    mockReadAppliedChain: vi.fn(),
+    mockRandomUUID: vi.fn(),
+    mockZipExtract,
+    mockZipClose,
+    MockStreamZipAsync: vi.fn(function () {
+      return { extract: mockZipExtract, close: mockZipClose }
+    })
   }
+})
+
+vi.mock('node:crypto', async () => {
+  const actual = await vi.importActual<typeof CryptoModule>('node:crypto')
+  return { ...actual, randomUUID: mockRandomUUID }
+})
+
+vi.mock('@main/data/db/restore/hashDbFile', () => ({
+  hashDbFile: mockHashDbFile
+}))
+
+vi.mock('@main/data/db/restore/restoreJournal', () => ({
+  readRestoreJournal: mockReadRestoreJournal,
+  writeRestoreJournal: mockWriteRestoreJournal
+}))
+
+vi.mock('@main/data/db/restore/checkpoint', () => ({
+  checkpointTruncateAssert: mockCheckpointTruncateAssert
+}))
+
+vi.mock('@main/data/db/restore/appliedChain', () => ({
+  readAppliedChain: mockReadAppliedChain
+}))
+
+vi.mock('better-sqlite3', () => ({
+  default: vi.fn(() => ({
+    pragma: vi.fn(() => 'ok'),
+    close: vi.fn()
+  }))
 }))
 
 vi.mock('@logger', () => ({
@@ -58,7 +136,8 @@ vi.mock('electron', () => ({
       if (key === 'temp') return '/tmp'
       if (key === 'userData') return '/mock/userData'
       return '/mock/unknown'
-    })
+    }),
+    getVersion: vi.fn(() => '2.0.0')
   }
 }))
 
@@ -66,7 +145,9 @@ vi.mock('fs-extra', () => ({
   default: {
     pathExists: vi.fn(),
     remove: vi.fn(),
+    rename: vi.fn(),
     ensureDir: vi.fn(),
+    emptyDir: vi.fn(),
     copy: vi.fn(),
     readdir: vi.fn(),
     lstat: vi.fn(),
@@ -74,12 +155,26 @@ vi.mock('fs-extra', () => ({
     realpath: vi.fn(),
     readFile: vi.fn(),
     writeFile: vi.fn(),
+    readJson: vi.fn(),
+    writeJson: vi.fn(),
     createWriteStream: vi.fn(),
-    createReadStream: vi.fn()
+    createReadStream: vi.fn(),
+    lstatSync: vi.fn(),
+    readdirSync: vi.fn(),
+    openSync: vi.fn(),
+    fsyncSync: vi.fn(),
+    closeSync: vi.fn(),
+    existsSync: vi.fn(),
+    promises: {
+      mkdir: vi.fn(),
+      readFile: vi.fn()
+    }
   },
   pathExists: vi.fn(),
   remove: vi.fn(),
+  rename: vi.fn(),
   ensureDir: vi.fn(),
+  emptyDir: vi.fn(),
   copy: vi.fn(),
   readdir: vi.fn(),
   lstat: vi.fn(),
@@ -87,8 +182,20 @@ vi.mock('fs-extra', () => ({
   realpath: vi.fn(),
   readFile: vi.fn(),
   writeFile: vi.fn(),
+  readJson: vi.fn(),
+  writeJson: vi.fn(),
   createWriteStream: vi.fn(),
-  createReadStream: vi.fn()
+  createReadStream: vi.fn(),
+  lstatSync: vi.fn(),
+  readdirSync: vi.fn(),
+  openSync: vi.fn(),
+  fsyncSync: vi.fn(),
+  closeSync: vi.fn(),
+  existsSync: vi.fn(),
+  promises: {
+    mkdir: vi.fn(),
+    readFile: vi.fn()
+  }
 }))
 
 vi.mock('@application', () => ({
@@ -98,14 +205,40 @@ vi.mock('@application', () => ({
         return { getMainWindow: vi.fn() }
       }
       if (name === 'WindowManager') {
-        return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
+        return mockWindowManager
+      }
+      if (name === 'DbService') {
+        return mockDbService
+      }
+      if (name === 'CacheService') {
+        return mockCacheService
+      }
+      if (name === 'JobManager') {
+        return mockJobManager
+      }
+      if (name === 'AiStreamManager') {
+        return mockAiStreamManager
+      }
+      if (name === 'AgentSessionRuntimeService') {
+        return mockAgentSessionRuntime
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
-    // Mirrors tests/__mocks__/main/application.ts so that BackupManager methods
-    // calling application.getPath('app.userdata.data') still work in this test
-    // (this file overrides the global application mock from main.setup.ts).
-    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
+    getPath: vi.fn((key: string, filename?: string) => {
+      const paths: Record<string, string> = {
+        'app.userdata': '/mock/userData',
+        'app.userdata.data': '/mock/userData/Data',
+        'app.database.file': '/mock/userData/cherrystudio.sqlite',
+        'feature.backup.temp': '/mock/temp/backup',
+        'feature.backup.restore.file': '/mock/userData/restore-journal.json',
+        'feature.backup.restore.staging': '/mock/userData/restore-staging',
+        'feature.agents.claude.root': '/mock/userData/.claude',
+        'feature.lan_transfer.temp': '/tmp/cherry-studio/lan-transfer'
+      }
+      const base = paths[key] ?? '/mock/unknown'
+      return filename ? `${base}/${filename}` : base
+    }),
+    relaunch: mockRelaunch
   }
 }))
 
@@ -122,10 +255,11 @@ vi.mock('archiver', () => ({
 }))
 
 vi.mock('node-stream-zip', () => ({
-  default: vi.fn()
+  default: { async: MockStreamZipAsync }
 }))
 
 // Import after mocks
+import { ZipArchive } from 'archiver'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
@@ -142,6 +276,327 @@ const createStats = (type: 'directory' | 'file' | 'symlink', size = 0) => ({
   isDirectory: () => type === 'directory',
   isFile: () => type === 'file',
   isSymbolicLink: () => type === 'symlink'
+})
+
+describe('BackupManager direct v2 data compatibility', () => {
+  let backupManager: BackupManager
+  const metadata = {
+    version: 7,
+    appName: 'Cherry Studio',
+    appVersion: '2.0.0',
+    timestamp: 1,
+    platform: process.platform,
+    arch: process.arch,
+    resources: {
+      database: true,
+      cache: true,
+      indexedDB: true,
+      localStorage: true,
+      appClaude: true,
+      data: false
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    backupManager = new BackupManager()
+    mockRandomUUID.mockReturnValue('operation-id')
+    mockHashDbFile.mockResolvedValue('same-fingerprint')
+    mockReadRestoreJournal.mockReturnValue({ kind: 'none' })
+    mockReadAppliedChain.mockReturnValue([{ folderMillis: 1, hash: 'migration-hash' }])
+    mockZipExtract.mockResolvedValue(undefined)
+    mockZipClose.mockResolvedValue(undefined)
+    vi.mocked(fs.remove).mockResolvedValue(undefined as never)
+    vi.mocked(fs.rename).mockResolvedValue(undefined as never)
+    vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.copy).mockResolvedValue(undefined as never)
+    vi.mocked(fs.writeJson).mockResolvedValue(undefined as never)
+    vi.mocked(fs.readdir).mockResolvedValue([] as never)
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('file') as never)
+    vi.mocked(fs.promises.mkdir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.pathExists).mockResolvedValue(false as never)
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+  })
+
+  const mockArchiveClose = () => {
+    let closeOutput: (() => void) | undefined
+    const output = {
+      on: vi.fn((event: string, callback: () => void) => {
+        if (event === 'close') closeOutput = callback
+        return output
+      })
+    }
+    const archive = {
+      on: vi.fn().mockReturnThis(),
+      pipe: vi.fn(),
+      directory: vi.fn(),
+      finalize: vi.fn(() => closeOutput?.())
+    }
+    vi.mocked(fs.createWriteStream).mockReturnValue(output as never)
+    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    return archive
+  }
+
+  it('writes a version 7 archive with SQLite, strict cache, and app-owned .claude state', async () => {
+    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
+      return String(entryPath) === '/mock/userData/cache.json'
+    })
+    const copyDirectories = vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
+    const copyClaude = vi.spyOn(backupManager as any, 'copyAppClaudeState').mockResolvedValue(undefined)
+    const archive = mockArchiveClose()
+
+    const result = await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', true)
+
+    expect(result).toBe('/backups/backup.zip')
+    expect(mockJobManager.pause).toHaveBeenCalledOnce()
+    expect(mockJobManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockDbService.checkpointTruncate).toHaveBeenCalledTimes(2)
+    expect(mockDbService.createSnapshot).toHaveBeenCalledWith(
+      '/mock/temp/backup/create-operation-id/cherrystudio.sqlite'
+    )
+    expect(mockCacheService.flushPersistForBackup).toHaveBeenCalledOnce()
+    expect(fs.copy).toHaveBeenCalledWith(
+      '/mock/userData/cache.json',
+      '/mock/temp/backup/create-operation-id/cache.json'
+    )
+    expect(copyDirectories).toHaveBeenCalledTimes(2)
+    expect(copyClaude).toHaveBeenCalledWith('/mock/temp/backup/create-operation-id/.claude')
+    expect(fs.writeJson).toHaveBeenCalledWith(
+      '/mock/temp/backup/create-operation-id/metadata.json',
+      expect.objectContaining({
+        version: 7,
+        appName: 'Cherry Studio',
+        resources: expect.objectContaining({ appClaude: true, data: false })
+      }),
+      { spaces: 2 }
+    )
+    expect(archive.directory).toHaveBeenCalledWith('/mock/temp/backup/create-operation-id', false)
+    expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('fails instead of archiving a stale cache.json when the strict flush fails', async () => {
+    vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
+    vi.spyOn(backupManager as any, 'copyAppClaudeState').mockResolvedValue(undefined)
+    mockCacheService.flushPersistForBackup.mockImplementationOnce(() => {
+      throw new Error('cache write failed')
+    })
+
+    await expect(
+      backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', true)
+    ).rejects.toThrow('cache write failed')
+
+    expect(mockCacheService.flushPersistForBackup).toHaveBeenCalledOnce()
+    expect(fs.createWriteStream).not.toHaveBeenCalled()
+    expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('fails closed when the live database changes while resources are copied', async () => {
+    vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
+    vi.spyOn(backupManager as any, 'copyAppClaudeState').mockResolvedValue(undefined)
+    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => String(entryPath).endsWith('cache.json'))
+    mockHashDbFile.mockResolvedValueOnce('before').mockResolvedValueOnce('after')
+
+    await expect(
+      backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', true)
+    ).rejects.toThrow('Data changed while the backup snapshot was being captured')
+
+    expect(fs.createWriteStream).not.toHaveBeenCalled()
+    expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('refuses to snapshot while a conversation can still write DB or .claude state', async () => {
+    mockAiStreamManager.hasLiveStreams.mockReturnValueOnce(true)
+
+    await expect(
+      backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', true)
+    ).rejects.toThrow('A conversation is still running')
+
+    expect(mockDbService.createSnapshot).not.toHaveBeenCalled()
+    expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+  })
+
+  const arrangeDirectRestore = (restoreMetadata = metadata) => {
+    vi.mocked(fs.readJson).mockResolvedValue(restoreMetadata as never)
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('file') as never)
+    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => String(entryPath).startsWith('/mock/userData/'))
+    vi.spyOn(backupManager as any, 'stageArchiveDirectory').mockResolvedValue(undefined)
+    vi.spyOn(backupManager as any, 'copyClaudeState').mockResolvedValue(undefined)
+    vi.spyOn(backupManager as any, 'validateStagedDatabase').mockReturnValue([
+      { folderMillis: 1, hash: 'migration-hash' }
+    ])
+    vi.spyOn(backupManager as any, 'fsyncTree').mockImplementation(() => {})
+  }
+
+  it('commits one crash-safe restore journal before relaunching', async () => {
+    arrangeDirectRestore()
+
+    await (backupManager as any).restoreDirect('/extract')
+
+    expect(mockWriteRestoreJournal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: 1,
+        restoreId: 'operation-id',
+        state: 'staged',
+        db: {
+          promote: 'restore-staging/operation-id/work.sqlite',
+          aside: 'restore-staging/operation-id/aside/cherrystudio.sqlite',
+          fingerprint: 'same-fingerprint',
+          chain: [{ folderMillis: 1, hash: 'migration-hash' }]
+        },
+        fileResources: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'overwrite',
+            livePath: 'cache.json',
+            stagingPath: 'restore-staging/operation-id/resources/cache.json'
+          }),
+          expect.objectContaining({ kind: 'overwrite', livePath: 'IndexedDB' }),
+          expect.objectContaining({ kind: 'overwrite', livePath: 'Local Storage' }),
+          expect.objectContaining({ kind: 'overwrite', livePath: '.claude' })
+        ])
+      })
+    )
+    expect((backupManager as any).fsyncTree).toHaveBeenCalledWith('/mock/userData/restore-staging')
+    expect(mockRelaunch).toHaveBeenCalledOnce()
+    expect(mockJobHold.dispose).not.toHaveBeenCalled()
+    expect(fs.remove).not.toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
+  })
+
+  it('journals an included Data directory even when it is empty', async () => {
+    arrangeDirectRestore({
+      ...metadata,
+      resources: { ...metadata.resources, data: true }
+    })
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) =>
+      String(entryPath).endsWith('/Data') ? (createStats('directory') as never) : (createStats('file') as never)
+    )
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(0)
+
+    await (backupManager as any).restoreDirect('/extract')
+
+    expect(mockWriteRestoreJournal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileResources: expect.arrayContaining([expect.objectContaining({ livePath: 'Data' })])
+      })
+    )
+  })
+
+  it('rejects a version 7 archive that is missing cache.json without committing a journal', async () => {
+    vi.mocked(fs.readJson).mockResolvedValue(metadata as never)
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      if (String(entryPath).endsWith('cache.json')) {
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+      }
+      return createStats('file') as never
+    })
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow('Backup is missing its cache.json')
+
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    expect(mockRelaunch).not.toHaveBeenCalled()
+    expect(fs.remove).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
+  })
+
+  it('rejects a v1 version 6 archive before staging any resources', async () => {
+    vi.mocked(fs.readJson).mockResolvedValue({ version: 6, appName: 'Cherry Studio' } as never)
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      'Unsupported backup version 6. Cherry Studio v2 can only restore backup version 7.'
+    )
+
+    expect(fs.copy).not.toHaveBeenCalled()
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    expect(mockRelaunch).not.toHaveBeenCalled()
+  })
+
+  it('rejects metadata-less v1 ZIP backups', async () => {
+    vi.mocked(fs.pathExists).mockResolvedValue(false as never)
+
+    await expect(backupManager.restore({} as Electron.IpcMainInvokeEvent, '/backup/v1.zip')).rejects.toThrow(
+      'Unsupported v1 backup'
+    )
+
+    expect(mockZipExtract).toHaveBeenCalledOnce()
+    expect(mockZipClose).toHaveBeenCalledOnce()
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+  })
+
+  it('does not clobber a pending restore journal', async () => {
+    mockReadRestoreJournal.mockReturnValue({
+      kind: 'ok',
+      journal: { state: 'staged' }
+    })
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow('Another restore is already pending')
+
+    expect(fs.remove).not.toHaveBeenCalledWith('/mock/userData/restore-staging')
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+  })
+
+  it('cleans incomplete staging and releases the write hold when journal commit fails', async () => {
+    arrangeDirectRestore()
+    mockWriteRestoreJournal.mockImplementationOnce(() => {
+      throw new Error('journal fsync failed')
+    })
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow('journal fsync failed')
+
+    expect(fs.remove).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
+    expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+    expect(mockRelaunch).not.toHaveBeenCalled()
+  })
+
+  it('serializes overlapping backup operations', async () => {
+    let releaseFirst!: () => void
+    const firstDone = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const direct = vi
+      .spyOn(backupManager as any, 'backupDirect')
+      .mockImplementationOnce(async () => {
+        await firstDone
+        return '/backups/first.zip'
+      })
+      .mockResolvedValueOnce('/backups/second.zip')
+
+    const first = backupManager.backup({} as Electron.IpcMainInvokeEvent, 'first.zip', '/backups')
+    await Promise.resolve()
+    const second = backupManager.backup({} as Electron.IpcMainInvokeEvent, 'second.zip', '/backups')
+    await Promise.resolve()
+
+    expect(direct).toHaveBeenCalledTimes(1)
+    releaseFirst()
+    await expect(first).resolves.toBe('/backups/first.zip')
+    await expect(second).resolves.toBe('/backups/second.zip')
+    expect(direct).toHaveBeenCalledTimes(2)
+  })
+
+  it('backs up application .claude state but excludes the generated skills mirror', async () => {
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      return createStats(String(entryPath).endsWith('settings.json') ? 'file' : 'directory') as never
+    })
+    vi.mocked(fs.readdir).mockResolvedValue([
+      createDirent('skills'),
+      createDirent('projects'),
+      createDirent('settings.json')
+    ] as never)
+    const copyDirectory = vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+
+    await (backupManager as any).copyClaudeState('/mock/userData/.claude', '/archive/.claude')
+
+    expect(copyDirectory).toHaveBeenCalledWith(
+      '/mock/userData/.claude/projects',
+      '/archive/.claude/projects',
+      expect.any(Function),
+      { dereferenceSymlinks: false }
+    )
+    expect(fs.copy).toHaveBeenCalledWith('/mock/userData/.claude/settings.json', '/archive/.claude/settings.json')
+    expect(copyDirectory).not.toHaveBeenCalledWith(
+      expect.stringContaining('/skills'),
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    )
+  })
 })
 
 describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {

@@ -10,13 +10,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 /**
  * Integration guard for the archiver 7 -> 8 migration.
  *
- * The consumer of this API — `LegacyBackupManager` — is `@deprecated` v1-verbatim
- * code marked "DO NOT MODIFY", so instead of refactoring it for testability this
- * exercises the exact archiver-8 surface it depends on with a real (unmocked)
- * archive: `new ZipArchive({ zlib })` + `.pipe()` + `.directory(dir, false)` +
- * `.append()` + `.finalize()`. The ZIP is then read back with `node-stream-zip`
- * — the same library `LegacyBackupManager` uses on the restore path — so the
- * full create -> read round-trip is covered, not just the constructor shape.
+ * The consumer of this API — `LegacyBackupManager` — is retained v1 compatibility
+ * code, so instead of refactoring it for testability this exercises the exact
+ * archiver-8 surface it depends on with a real (unmocked) archive:
+ * `new ZipArchive({ zlib })` + `.pipe()` + `.directory(dir, false)` + `.append()`
+ * + `.finalize()`. The ZIP is then read back with `node-stream-zip` — the same
+ * library `LegacyBackupManager` uses on the restore path — so the full create ->
+ * read round-trip is covered, not just the constructor shape.
  */
 describe('archiver 8 ZIP round-trip (LegacyBackupManager API contract)', () => {
   let workDir: string
@@ -34,6 +34,8 @@ describe('archiver 8 ZIP round-trip (LegacyBackupManager API contract)', () => {
     // `archive.directory(this.tempDir, false)`.
     const srcDir = join(workDir, 'src')
     await mkdir(join(srcDir, 'nested'), { recursive: true })
+    await mkdir(join(srcDir, '.claude'), { recursive: true })
+    await mkdir(join(srcDir, 'IndexedDB'), { recursive: true })
     await writeFile(join(srcDir, 'root.txt'), 'root-content')
     await writeFile(join(srcDir, 'nested', 'inner.txt'), 'inner-content')
 
@@ -59,6 +61,11 @@ describe('archiver 8 ZIP round-trip (LegacyBackupManager API contract)', () => {
       expect(names).toContain('root.txt')
       expect(names).toContain('nested/inner.txt')
       expect(names).toContain('extra.txt')
+      // A fresh profile can legitimately have empty state directories. The
+      // v7 restore contract requires their entries so it can distinguish
+      // "restore an empty directory" from "archive is incomplete".
+      expect(names).toContain('.claude/')
+      expect(names).toContain('IndexedDB/')
 
       expect((await zip.entryData('root.txt')).toString()).toBe('root-content')
       expect((await zip.entryData('nested/inner.txt')).toString()).toBe('inner-content')

@@ -3,15 +3,13 @@ import type { FC, PropsWithChildren } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
- * Temporary gate for the v1 backup surfaces.
+ * Compatibility gate for the v1 backup surfaces.
  *
- * v2 backup & restore has not shipped yet, but every entry under Data Settings
- * still drives the v1 backup engine. To stop users from assuming the new backup
- * is already in place, we gray out and disable each v1 backup entry and show a
- * "coming soon" notice. Flip this to `true` (or remove the `BackupUnavailableGate`
- * usages) once v2 backup lands.
+ * The retained v1 engine is active again and its direct archive now includes
+ * the v2 SQLite database and cache.json. Keep the wrapper as a transparent
+ * passthrough until the settings surfaces move to the future v2 engine.
  */
-export const BACKUP_V2_READY: boolean = false
+export const BACKUP_V1_ENABLED: boolean = true
 
 const BackupUnavailableNotice: FC = () => {
   const { t } = useTranslation()
@@ -19,13 +17,14 @@ const BackupUnavailableNotice: FC = () => {
 }
 
 /**
- * Wraps a v1 backup section. While v2 backup is unavailable it renders a notice
- * above the section and makes the wrapped controls non-interactive (`inert`,
- * which also drops them from tab order and the accessibility tree) and grayed
- * out. Once `BACKUP_V2_READY` is true it becomes a transparent passthrough.
+ * Wraps a v1 backup section. When the compatibility engine is disabled it
+ * renders a notice above the section and makes the wrapped controls
+ * non-interactive (`inert`, which also drops them from tab order and the
+ * accessibility tree) and grayed out. While the retained v1 engine is enabled
+ * it becomes a transparent passthrough.
  */
 export const BackupUnavailableGate: FC<PropsWithChildren> = ({ children }) => {
-  if (BACKUP_V2_READY) {
+  if (BACKUP_V1_ENABLED) {
     return <>{children}</>
   }
 

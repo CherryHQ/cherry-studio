@@ -483,6 +483,14 @@ export class AiStreamManager extends BaseService {
     return Boolean(stream && isLiveStatus(stream.status))
   }
 
+  /** Whether any chat or agent turn is still able to write persisted stream state. */
+  hasLiveStreams(): boolean {
+    for (const stream of this.activeStreams.values()) {
+      if (isLiveStatus(stream.status)) return true
+    }
+    return false
+  }
+
   pauseRuntimeTurn(topicId: string, reason: string): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) return false

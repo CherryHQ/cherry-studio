@@ -568,7 +568,9 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
     case 'overwrite': {
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
       if (aside && fs.existsSync(aside)) {
-        fs.rmSync(live, { force: true })
+        // `overwrite` covers both files and whole directories. A failed
+        // promotion must clear either shape before restoring its aside.
+        fs.rmSync(live, { recursive: true, force: true })
         renameDurable(aside, live)
       }
       return

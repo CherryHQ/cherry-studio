@@ -623,6 +623,14 @@ export class AgentSessionRuntimeService extends BaseService {
     )
   }
 
+  /** Whether any agent session can still mutate its DB row or external runtime files. */
+  hasBusySessions(): boolean {
+    for (const sessionId of this.entries.keys()) {
+      if (this.isSessionBusy(sessionId)) return true
+    }
+    return false
+  }
+
   /**
    * Whether the agent runtime will open another turn for this topic once the current one ends — a
    * queued steer/follow-up, or a next-turn drain already in progress. `AiStreamManager.onExecutionDone`
