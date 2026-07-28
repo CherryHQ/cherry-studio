@@ -51,6 +51,7 @@ type ArmedJournal = Extract<RestoreJournalV2, { state: 'armed' }>
 type PreparedJournal = Extract<RestoreJournalV2, { state: 'prepared' }>
 type PromotingJournal = Extract<RestoreJournalV2, { state: 'promoting' }>
 type FailedJournal = Extract<RestoreJournalV2, { state: 'failed' }>
+type CompletedJournal = Extract<RestoreJournalV2, { state: 'completed' }>
 type ActiveJournal = ArmedJournal | PromotingJournal
 
 const COMMIT_INDEX = PROMOTION_STEP_ORDER_V2.indexOf(DB_COMMIT_STEP)
@@ -107,10 +108,43 @@ export async function runRestorePromotionV2(): Promise<void> {
       if (journal.recoveryIncomplete) retryIncompleteRollback(journal)
       return
     case 'completed':
+      // Terminal, with the mirror-image loose end: a unit that never reached its
+      // installed slot is holding storage the user cannot release.
+      if (journal.resourcesIncomplete) retryIncompleteInstall(journal)
+      return
     case 'expired':
       // Terminal. Reporting and acknowledgement cleanup own these.
       return
   }
+}
+
+/**
+ * Retry the post-commit install a previous boot could not finish.
+ *
+ * The database is already live, so this is not a promotion — it is the same
+ * committed-direction repair {@link finishResources} runs, re-entered once the
+ * transient cause (an open handle, a locked directory) is gone with the process
+ * that held it. Every unit is decided from its own triple, so re-entry is safe.
+ *
+ * The marker is cleared FIRST and the staging tree only after. A crash between
+ * them leaves a plain `completed` journal and an orphan tree, which
+ * acknowledgement collects; the reverse order would delete the units' only
+ * remaining source while the journal still promises a retry.
+ */
+function retryIncompleteInstall(journal: CompletedJournal): void {
+  const userData = application.getPath('app.userdata')
+  try {
+    recoverResourceUnits(journal.resourceInstalls, userData, 'committed')
+  } catch (error) {
+    logger.error('Resource units still cannot be put in place — keeping them for the next boot', error as Error)
+    return
+  }
+
+  const settled: CompletedJournal = { ...journal }
+  delete settled.resourcesIncomplete
+  writeRestoreJournalV2(settled)
+  removeStagingTree(journal.restoreId)
+  logger.info('Finished an install a previous boot left incomplete', { restoreId: journal.restoreId })
 }
 
 /**
@@ -308,13 +342,11 @@ function recoverPromoting(journal: PromotingJournal): Promise<void> | void {
     case 'complete':
       // The commit landed. Persist it so a later crash needs no probe, then run
       // whatever follows it (integrity).
-      finishResources(ctx)
-      return executeForward(ctx, persistCommitMarker(journal), COMMIT_INDEX + 1)
+      return executeForward(ctx, persistCommitMarker(journal), COMMIT_INDEX + 1, finishResources(ctx))
     case 'install-forward':
       // Defensive: the marker claims committed while the staged DB is still
       // there, so the rename cannot have landed. Re-run it.
-      finishResources(ctx)
-      return executeForward(ctx, journal, COMMIT_INDEX)
+      return executeForward(ctx, journal, COMMIT_INDEX, finishResources(ctx))
     case 'discard-staged':
       discardStaged(ctx)
       return failRolledBack(ctx, `rolled back from step '${journal.step}'`)
@@ -394,8 +426,17 @@ function persistCommitMarker(journal: PromotingJournal): PromotingJournal {
  * still exists, so roll back. At or past it the rename is durable and the marker
  * is only a hint, so continue in memory — the on-disk marker then lags at most
  * to `live-aside`, exactly where the probe fires.
+ *
+ * `resourcesOk` is false only on a crash re-entry whose post-commit repair could
+ * not finish; it travels to the completed journal, which is where it changes
+ * what may be deleted.
  */
-async function executeForward(ctx: PromotionContext, journal: PromotingJournal, startIndex: number): Promise<void> {
+async function executeForward(
+  ctx: PromotionContext,
+  journal: PromotingJournal,
+  startIndex: number,
+  resourcesOk = true
+): Promise<void> {
   let current = journal
   for (let i = startIndex; i < PROMOTION_STEP_ORDER_V2.length; i++) {
     const step = PROMOTION_STEP_ORDER_V2[i]
@@ -431,7 +472,7 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal, 
     }
   }
   logger.info('Restore promoted — the new database is live', { restoreId: ctx.journal.restoreId })
-  finalizeCompleted(ctx, current.step)
+  finalizeCompleted(ctx, current.step, resourcesOk)
 }
 
 function runStep(ctx: PromotionContext, step: PromotionStepV2): void {
@@ -557,21 +598,29 @@ function failRolledBack(ctx: PromotionContext, reason: string): void {
 
 /**
  * Bring the resource units to their committed terminal state on a crash re-entry
- * past the commit boundary.
+ * past the commit boundary. Reports whether they all got there.
  *
  * Normally a no-op: the install and its marker both precede the commit, so by
  * this point every unit is already installed. A unit that says otherwise is an
  * anomaly, and past the commit there is no rollback left to offer — the database
- * is live. Record it and finish the promotion rather than strand the boot.
+ * is live, and stranding the boot over a file would be the worse trade.
+ *
+ * But the promotion may not then report unqualified success. A unit that got as
+ * far as "old file parked aside, new file not yet in place" has its only two
+ * copies in the aside and the staging tree — exactly the two things
+ * acknowledgement deletes. The caller carries this into the journal so both
+ * survive until a retry puts the unit where it belongs.
  */
-function finishResources(ctx: PromotionContext): void {
+function finishResources(ctx: PromotionContext): boolean {
   try {
     recoverResourceUnits(ctx.journal.resourceInstalls, ctx.userData, 'committed')
+    return true
   } catch (error) {
     logger.error('Resource units were inconsistent after the commit — continuing with the restored database', {
       restoreId: ctx.journal.restoreId,
       error: (error as Error).message
     })
+    return false
   }
 }
 
@@ -642,7 +691,16 @@ function finalize(
   removeStagingTree(ctx.journal.restoreId)
 }
 
-function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2): void {
+/**
+ * The database is live. `resourcesOk` decides whether that is the whole story.
+ *
+ * When a unit did not reach its installed state, the journal says so and the
+ * STAGING TREE STAYS: it holds that unit's new copy, and its aside holds the old
+ * one, so dropping the tree here would leave the retry with nothing to install
+ * and the user with a gap. Acknowledgement is refused for the same reason until
+ * a boot repairs it.
+ */
+function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2, resourcesOk: boolean): void {
   writeRestoreJournalV2({
     ...ctx.journal,
     state: 'completed',
@@ -656,8 +714,15 @@ function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2): void {
         ctx.userData,
         application.getPath('feature.knowledgebase.data')
       )
-    }
+    },
+    ...(resourcesOk ? {} : { resourcesIncomplete: true as const })
   })
+  if (!resourcesOk) {
+    logger.error('Restore completed with resource units still out of place — keeping them for the next boot', {
+      restoreId: ctx.journal.restoreId
+    })
+    return
+  }
   removeStagingTree(ctx.journal.restoreId)
 }
 

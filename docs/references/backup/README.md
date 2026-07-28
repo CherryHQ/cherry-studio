@@ -340,7 +340,7 @@ prepared → armed → promoting → completed | failed | expired
 | `prepared` | Staged and sealed. **Not** permission to restore — UI can cancel it and clean its staging tree. |
 | `armed` | Durably written *immediately before* `application.relaunch()` on explicit user confirmation. If relaunch initiation fails, the service clears the arm and reports failure. |
 | `promoting` | Preboot is executing; `step` is the durable last-completed global-step marker (compare via `indexOf` on the step-order table, never lexicographically). |
-| `completed` | New DB (and, for Full, all resources) live. Asides retained until acknowledgement. |
+| `completed` | New DB (and, for Full, all resources) live. Asides retained until acknowledgement. `resourcesIncomplete: true` marks a post-commit install that could not put every unit in place (§6.5). |
 | `failed` | Crash rollback or integrity failure; old DB is live. `recoveryIncomplete: true` marks a rollback that could not put every unit back (§6.5). |
 | `expired` | An **unarmed** `prepared` journal an unrelated restart found; cleaned rather than promoted. |
 
@@ -470,6 +470,16 @@ repair needs), and the next boot **retries** the rollback before reporting — c
 only once every unit is back, and deliberately leaving the staging tree for acknowledgement to
 collect (per §6.4, removing it first is what poisons the recovery triple). The retry is what
 keeps the refusal temporary rather than an unbounded hold.
+
+**An incomplete post-commit install keeps its staging tree.** The mirror image, past the
+commit boundary: the database is live, so there is no rollback left to offer, but a unit that
+did not reach its installed slot has its new copy only in the staging tree and its old one only
+in its aside. The journal records `resourcesIncomplete: true` on `completed`, which keeps the
+tree (`finalizeCompleted` skips the removal), **refuses** acknowledgement — it would delete
+both copies and leave that unit with neither — and makes the next boot **retry** the
+committed-direction repair, clearing the marker first and dropping the tree only after. A
+completed restore therefore never reports unqualified success while a file is still out of
+place.
 
 **The user must be asked, not waited on.** Because protection holds double storage and keeps
 orphan sweep standing aside, an unacknowledged `completed` restore that is never revisited

@@ -181,6 +181,20 @@ describe('BackupV2Settings', () => {
     expect(screen.getByText(/restore-db:note/)).toBeInTheDocument()
   })
 
+  it('withholds acknowledgement while a completed restore still owes a file', async () => {
+    statusIs({ kind: 'journal', state: 'completed', restoreId: 'r1', resourcesIncomplete: true })
+    await renderSettings()
+
+    await waitFor(() =>
+      expect(screen.getByText('settings.data.backup_v2.outcome.resources_incomplete')).toBeInTheDocument()
+    )
+    // The staging tree and the aside are that unit's only two copies, and this
+    // button deletes both.
+    expect(
+      screen.queryByRole('button', { name: 'settings.data.backup_v2.outcome.acknowledge_button' })
+    ).not.toBeInTheDocument()
+  })
+
   it('does not offer to acknowledge a restore that is still running', async () => {
     statusIs({ kind: 'journal', state: 'promoting', restoreId: 'r1' })
     await renderSettings()
