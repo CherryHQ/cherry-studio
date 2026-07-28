@@ -299,7 +299,7 @@ interface FileMetadata {
 
 v2 建议：AI SDK Files Upload API **Phase 1 暂不做**（`src/main/data/db/schemas/file.ts:7-9` 注释）。
 
-### 4.3 Preload 层 (`src/preload/index.ts:218-286`)
+### 4.3 Preload 层 (`src/preload/preload.ts:218-286`)
 
 `window.api.file.*` 47 个方法（名字有改写，见上面表的列 2-3）。`window.api.fileService.*` 4 个方法。
 
@@ -593,7 +593,7 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 | `src/main/services/FileStorage.ts` 整个文件                                                                                            | 2043 行全删；功能拆分到 `src/main/file/{FileManager,ops/*}`                                                 |
 | `src/main/services/remotefile/*` 的 `FileMetadata` 参数                                                                                | Phase 2+ 切为 FileEntryId                                                                                   |
 | `src/renderer/services/db/DexieMessageDataSource.ts:400-416`（引用计数维护）                                                       | file_ref 取代                                                                                               |
-| `src/preload/index.ts:218-286` 的 `file: {...}` 47 个方法                                                                              | 改用新 FileIpcApi（接口已在 `src/shared/file/types/ipc.ts`）                                           |
+| `src/preload/preload.ts:218-286` 的 `file: {...}` 47 个方法                                                                              | 改用新 FileIpcApi（接口已在 `src/shared/types/file/ipc.ts`）                                           |
 
 ### 8.2 需要分阶段清理（中置信）
 
