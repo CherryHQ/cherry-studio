@@ -433,11 +433,7 @@ const ChatComposerInner = ({
     updateAssistantSettings
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
-  const {
-    bases: allKnowledgeBases,
-    isLoading: isKnowledgeBasesLoading,
-    error: knowledgeBasesError
-  } = useKnowledgeBases()
+  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
   const { providers: loadedProviders } = useProviders(undefined, { enabled: !externalContextControls })
   const providers = resolvedProviders ?? loadedProviders
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -751,7 +747,6 @@ const ChatComposerInner = ({
     configuredKnowledgeBaseIds: assistant?.knowledgeBaseIds,
     allKnowledgeBases,
     isKnowledgeBasesLoading,
-    knowledgeBasesError,
     scopeKey: selectedKnowledgeBasesScopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases

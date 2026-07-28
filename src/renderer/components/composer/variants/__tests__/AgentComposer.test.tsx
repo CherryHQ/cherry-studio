@@ -9,7 +9,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { LocalSkill } from '@shared/types/skill'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -284,7 +284,22 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
 })
 
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
-  ComposerToolRuntimeProvider: ({ children }: { children: ReactNode }) => {
+  ComposerToolRuntimeProvider: ({
+    children,
+    initialState
+  }: {
+    children: ReactNode
+    initialState?: { selectedKnowledgeBases?: KnowledgeBase[] }
+  }) => {
+    // The real provider seeds its selection state from `initialState` before children render, which is
+    // what lets a cached knowledge chip survive the surface's managed-token sync. Mirror that here or
+    // the seed is invisible to these tests. An EMPTY seed has to reset too — the real `useState` does,
+    // and treating it as a no-op would let one agent's selection survive a switch to another.
+    const seededRef = useRef(false)
+    if (!seededRef.current) {
+      seededRef.current = true
+      mocks.selectedKnowledgeBases = initialState?.selectedKnowledgeBases ?? []
+    }
     useEffect(() => {
       mocks.runtimeProviderMounts += 1
       return () => {
@@ -1822,6 +1837,50 @@ describe('AgentComposer', () => {
     expect(mocks.files).toEqual([file])
     expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ id: 'file:source-file-1' })])
   })
+  it('parks the knowledge selection while previewing plain-text history and restores it on exit', async () => {
+    // A history entry is stored as plain text with the knowledge sentence already folded in. Leaving
+    // the pick selected would re-insert its chip on top of that sentence and send the claim twice —
+    // skills and files already step aside for exactly this reason.
+    seedInputHistory(['history entry'])
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: mocks.surfaceProps?.tokens.map((token, index) => ({ ...token, index, textOffset: 0 })) ?? []
+    }))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseOne]))
+    act(() => {
+      mocks.surfaceProps?.onTextChange('agent draft')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('agent draft'))
+    expect(mocks.surfaceProps?.tokens).toEqual([
+      expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}`, kind: 'knowledge' })
+    ])
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(mocks.surfaceProps?.tokens).toEqual([])
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('agent draft'))
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
+  })
+
   it('passes attachment capabilities through the provider without effect mirroring', () => {
     render(
       <AgentComposer
@@ -2508,6 +2567,82 @@ describe('AgentComposer', () => {
         textOffset: 0
       }
     ])
+  })
+
+  it('restores a cached knowledge chip together with the selection its prompt text needs', () => {
+    // The cached text carries the sentence the chip contributed. The pick has to come back with it —
+    // seeded synchronously from the token payload — or the surface's managed-token sync drops the chip
+    // as unselected and the sentence survives as prose claiming a base that nothing scopes.
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
+    vi.mocked(cacheService.getCasual).mockReturnValue({
+      text: 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.',
+      tokens: [cachedToken]
+    })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.draftTokens).toEqual([cachedToken])
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
+    expect(mocks.surfaceProps?.tokens).toContainEqual(
+      expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}`, kind: 'knowledge' })
+    )
+  })
+
+  it('persists a knowledge chip into the agent draft cache alongside its sentence', () => {
+    // The write side of the round-trip: the text handed to the cache already contains the sentence the
+    // chip contributed, so persisting the text while dropping the token is what strands it as prose.
+    mocks.knowledgeBases = [knowledgeBaseOne]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
+    act(() => {
+      mocks.surfaceProps?.onTokensChange?.([cachedToken])
+    })
+
+    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+      'agent-session-draft-agent-1',
+      expect.objectContaining({ tokens: [cachedToken] }),
+      expect.any(Number)
+    )
+  })
+
+  it('drops a cached knowledge pick the agent no longer configures', () => {
+    mocks.knowledgeBases = [knowledgeBaseOne, knowledgeBaseTwo]
+    mocks.agentKnowledgeBaseIds = [knowledgeBaseTwo.id]
+    vi.mocked(cacheService.getCasual).mockReturnValue({
+      text: 'cached',
+      tokens: [knowledgeBaseToken(knowledgeBaseOne)]
+    })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.selectedKnowledgeBases).toEqual([])
   })
 
   it('removes selected skill state when the skill token is deleted', async () => {

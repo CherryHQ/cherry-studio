@@ -11,11 +11,17 @@ interface UseComposerKnowledgeBaseScopeParams {
   configuredKnowledgeBaseIds: readonly string[] | undefined
   allKnowledgeBases: KnowledgeBase[]
   isKnowledgeBasesLoading: boolean
-  /** Set once the knowledge-base query has failed. See `areKnowledgeBasesUnusable` below. */
-  knowledgeBasesError?: unknown
   scopeKey: string
   selectedKnowledgeBases: KnowledgeBase[]
   setSelectedKnowledgeBases: Dispatch<SetStateAction<KnowledgeBase[]>>
+  /**
+   * The caller remounts this hook whenever `scopeKey` changes — the Agent composer's tool provider is
+   * keyed by agent + session, the same granularity as the scope. That makes a selection already
+   * present at mount a draft-cache seed belonging to `scopeKey`, to be pruned like any other, rather
+   * than another conversation's leftover to clear. Chat keeps one provider across topics and so omits
+   * this.
+   */
+  remountsOnScopeChange?: boolean
 }
 
 interface UseComposerKnowledgeBaseScopeResult {
@@ -30,13 +36,12 @@ export function useComposerKnowledgeBaseScope({
   configuredKnowledgeBaseIds,
   allKnowledgeBases,
   isKnowledgeBasesLoading,
-  knowledgeBasesError,
   scopeKey,
   selectedKnowledgeBases,
-  setSelectedKnowledgeBases
+  setSelectedKnowledgeBases,
+  remountsOnScopeChange
 }: UseComposerKnowledgeBaseScopeParams): UseComposerKnowledgeBaseScopeResult {
-  const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(null)
-  const pendingRestoreKnowledgeBaseIdsRef = useRef<readonly string[] | null>(null)
+  const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(remountsOnScopeChange ? scopeKey : null)
 
   const configuredKnowledgeBaseIdsKey = (configuredKnowledgeBaseIds ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
   const configuredKnowledgeBaseIdSet = useMemo(
@@ -93,7 +98,12 @@ export function useComposerKnowledgeBaseScope({
     [filterSelectableKnowledgeBases, isSelectedKnowledgeBasesScopeCurrent, selectedKnowledgeBases]
   )
 
-  const applyKnowledgeBaseSelection = useCallback(
+  /**
+   * Re-select a persisted scope by id — used when editing a queued follow-up back into the composer.
+   * Mapped through `selectableKnowledgeBases`, not the raw list, so a payload naming a base the
+   * assistant no longer configures cannot come back as a checked-but-unsendable pick.
+   */
+  const restoreKnowledgeBaseSelection = useCallback(
     (baseIds: readonly string[]) => {
       const wanted = new Set(baseIds)
       setSelectedKnowledgeBases(selectableKnowledgeBases.filter((base) => wanted.has(base.id)))
@@ -101,53 +111,15 @@ export function useComposerKnowledgeBaseScope({
     [selectableKnowledgeBases, setSelectedKnowledgeBases]
   )
 
-  /**
-   * The bases cannot be mapped yet — either still loading, or the query failed. The failed case needs
-   * naming because it does NOT look like one: the knowledge-base query runs with
-   * `shouldRetryOnError: false`, so a rejected fetch settles at `isLoading === false` with an empty
-   * list and never retries, i.e. indistinguishable from "the user has no knowledge bases".
-   */
-  const areKnowledgeBasesUnusable =
-    isKnowledgeBasesLoading || (knowledgeBasesError != null && allKnowledgeBases.length === 0)
-
-  /**
-   * Re-select a persisted scope by id — used when editing a queued follow-up back into the composer.
-   * The follow-up queue outlives a reload, so a restore can land before the bases are usable; mapping
-   * ids through the then-empty list would drop the entire scope, and the queue entry is discarded
-   * right after, making the loss unrecoverable. Park the ids and apply them on arrival instead.
-   */
-  const restoreKnowledgeBaseSelection = useCallback(
-    (baseIds: readonly string[]) => {
-      if (areKnowledgeBasesUnusable) {
-        pendingRestoreKnowledgeBaseIdsRef.current = baseIds
-        return
-      }
-      pendingRestoreKnowledgeBaseIdsRef.current = null
-      applyKnowledgeBaseSelection(baseIds)
-    },
-    [applyKnowledgeBaseSelection, areKnowledgeBasesUnusable]
-  )
-
   useEffect(() => {
     const scopeChanged = selectedKnowledgeBasesScopeKeyRef.current !== scopeKey
     selectedKnowledgeBasesScopeKeyRef.current = scopeKey
-    // A pending restore belongs to the scope it was captured in — never replay it into a new one.
-    if (scopeChanged) pendingRestoreKnowledgeBaseIdsRef.current = null
     setSelectedKnowledgeBases((prev) => {
       const next = scopeChanged ? [] : filterSelectableKnowledgeBases(prev)
       if (next.length === prev.length && next.every((base, index) => base.id === prev[index]?.id)) return prev
       return next
     })
   }, [filterSelectableKnowledgeBases, scopeKey, setSelectedKnowledgeBases])
-
-  // Declared after the pruning effect so a landing restore wins over the prune of the empty selection
-  // it is replacing.
-  useEffect(() => {
-    const pending = pendingRestoreKnowledgeBaseIdsRef.current
-    if (!pending || areKnowledgeBasesUnusable) return
-    pendingRestoreKnowledgeBaseIdsRef.current = null
-    applyKnowledgeBaseSelection(pending)
-  }, [applyKnowledgeBaseSelection, areKnowledgeBasesUnusable])
 
   return {
     selectableKnowledgeBases,
