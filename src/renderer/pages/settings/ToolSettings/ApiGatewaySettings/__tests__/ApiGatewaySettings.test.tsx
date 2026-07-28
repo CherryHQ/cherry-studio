@@ -15,19 +15,6 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
-  CopyButton: ({
-    textToCopy,
-    onCopyError,
-    onCopySuccess,
-    ...props
-  }: ComponentProps<'button'> & {
-    textToCopy: string
-    onCopyError?: (error: unknown) => void
-    onCopySuccess?: () => void
-  }) => {
-    void onCopyError
-    return <button type="button" data-copy-text={textToCopy} onClick={onCopySuccess} {...props} />
-  },
   IndicatorLight: () => <span />,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
   InputGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
@@ -47,6 +34,20 @@ vi.mock('@cherrystudio/ui', () => ({
     ),
   InputGroupInput: (props: ComponentProps<'input'>) => <input {...props} />,
   Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+}))
+
+vi.mock('@renderer/components/CopyButton', () => ({
+  default: ({
+    textToCopy,
+    successFeedback,
+    ...props
+  }: ComponentProps<'button'> & {
+    textToCopy: string
+    successFeedback?: 'toast' | 'icon'
+  }) => {
+    void successFeedback
+    return <button type="button" data-copy-text={textToCopy} {...props} />
+  }
 }))
 
 vi.mock('@renderer/components/icons/GatewayIcon', () => ({

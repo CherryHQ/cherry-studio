@@ -1,6 +1,5 @@
 import {
   Button,
-  CopyButton,
   IndicatorLight,
   Input,
   InputGroup,
@@ -9,6 +8,7 @@ import {
   InputGroupInput,
   Tooltip
 } from '@cherrystudio/ui'
+import CopyButton from '@renderer/components/CopyButton'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import {
   SettingGroup,
@@ -68,8 +68,6 @@ const ApiGatewaySettings: FC = () => {
   const handleApiGatewayRestart = async () => {
     await restartApiGateway()
   }
-
-  const showCopyError = () => toast.error(t('apiGateway.messages.operationFailed'))
 
   const generateApiKey = () => {
     return `cs-sk-${uuidv4()}`
@@ -177,7 +175,7 @@ const ApiGatewaySettings: FC = () => {
                           textToCopy={serverUrl}
                           size={16}
                           aria-label={t('apiGateway.fields.url.copyTooltip')}
-                          onCopyError={showCopyError}
+                          successFeedback="icon"
                         />
                       </InputGroupButton>
                     </Tooltip>
@@ -244,7 +242,7 @@ const ApiGatewaySettings: FC = () => {
                         textToCopy={apiKey}
                         size={16}
                         aria-label={t('apiGateway.fields.apiKey.copyTooltip')}
-                        onCopyError={showCopyError}
+                        successFeedback="icon"
                         disabled={!apiKey}
                       />
                     </InputGroupButton>
@@ -269,7 +267,7 @@ const ApiGatewaySettings: FC = () => {
                         textToCopy={authorizationHeader}
                         size={16}
                         aria-label={t('common.copy')}
-                        onCopyError={showCopyError}
+                        successFeedback="icon"
                       />
                     </InputGroupButton>
                   </Tooltip>
