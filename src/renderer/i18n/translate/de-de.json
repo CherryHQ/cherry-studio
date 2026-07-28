@@ -5800,8 +5800,7 @@
       },
       "backup": {
         "skip_file_data_help": "Bilder und Wissensdatenbank-Dateien beim Backup überspringen, nur Chat-Verlauf und Einstellungen sichern. Spart Speicher und beschleunigt Backup",
-        "skip_file_data_title": "Kompaktes Backup",
-        "v2_unavailable": "Backup & Restore V2 ist noch nicht verfügbar. Bald erhältlich."
+        "skip_file_data_title": "Kompaktes Backup"
       },
       "clear_cache": {
         "button": "Cache löschen",

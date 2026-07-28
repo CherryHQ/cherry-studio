@@ -5800,8 +5800,7 @@
       },
       "backup": {
         "skip_file_data_help": "Omite salvarea fișierelor de date precum imagini și baze de cunoștințe în timpul backup-ului și salvează doar înregistrările de chat și setările. Reduce ocuparea spațiului și accelerează viteza de backup.",
-        "skip_file_data_title": "Backup simplificat",
-        "v2_unavailable": "Backup & restore V2 nu este încă disponibil. În curând."
+        "skip_file_data_title": "Backup simplificat"
       },
       "clear_cache": {
         "button": "Golește memoria cache",

@@ -5800,8 +5800,7 @@
       },
       "backup": {
         "skip_file_data_help": "Omitir la copia de seguridad de archivos de datos como imágenes y bases de conocimiento durante la copia de seguridad, respaldando únicamente historial de chat y configuraciones. Reduce el uso de espacio y acelera el proceso de copia de seguridad",
-        "skip_file_data_title": "Copia de seguridad reducida",
-        "v2_unavailable": "La copia de seguridad y restauración V2 aún no está disponible. Próximamente."
+        "skip_file_data_title": "Copia de seguridad reducida"
       },
       "clear_cache": {
         "button": "Limpiar caché",

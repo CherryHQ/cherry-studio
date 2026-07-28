@@ -5800,8 +5800,7 @@
       },
       "backup": {
         "skip_file_data_help": "バックアップ時に、画像や知識ベースなどのデータファイルをバックアップ対象から除外し、チャット履歴と設定のみをバックアップします。スペースの占有を減らし、バックアップ速度を向上させます。",
-        "skip_file_data_title": "精簡バックアップ",
-        "v2_unavailable": "Backup & restore V2はまだ利用できません。近日公開予定です。"
+        "skip_file_data_title": "精簡バックアップ"
       },
       "clear_cache": {
         "button": "キャッシュをクリア",

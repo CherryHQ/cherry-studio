@@ -32,9 +32,6 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
 }))
 
 vi.mock('../BackupPopup', () => ({ default: { show: vi.fn() } }))
-vi.mock('../BackupUnavailableGate', () => ({
-  BackupUnavailableGate: ({ children }: { children: React.ReactNode }) => <>{children}</>
-}))
 vi.mock('../RestorePopup', () => ({ default: { show: vi.fn() } }))
 
 import BasicDataSettings from '../BasicDataSettings'
@@ -45,11 +42,21 @@ async function renderSettings() {
   requestMock.mockClear()
 }
 
-describe('BasicDataSettings data reset', () => {
+describe('BasicDataSettings', () => {
   beforeEach(() => {
     getCacheSizeMock.mockResolvedValue('0')
     requestMock.mockResolvedValue(undefined)
     vi.stubGlobal('api', { getCacheSize: getCacheSizeMock })
+  })
+
+  it('leaves backup and restore actions interactive', async () => {
+    await renderSettings()
+
+    for (const name of ['settings.general.backup.button', 'settings.general.restore.button']) {
+      const action = screen.getByRole('button', { name })
+      expect(action).toBeEnabled()
+      expect(action.closest('[inert]')).toBeNull()
+    }
   })
 
   it('does not send IPC when the renderer confirmation is cancelled', async () => {
