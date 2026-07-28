@@ -172,7 +172,11 @@ const MessageList = () => {
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
   const partsByMessageId = usePartsMap()
-  const { setForceWideLayout, setRailGutterPx: publishRailGutter } = useChatLayoutMode()
+  // The rail gutter lives in the chat layout context (single source of truth) so
+  // the composer yields the same right-hand space and stays aligned with the
+  // message column; this component both writes it (via the resize observer
+  // below) and renders from it.
+  const { setForceWideLayout, railGutterPx, setRailGutterPx } = useChatLayoutMode()
   const { topic, messages, beforeList, messageTail, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
@@ -180,7 +184,6 @@ const MessageList = () => {
   const selectedMessageIds = selection?.selectedMessageIds ?? []
   const [activeOutline, setActiveOutline] = useState<ActiveMessageOutline | null>(null)
   const [activeAnchorMessageId, setActiveAnchorMessageId] = useState<string | null>(null)
-  const [railGutterPx, setRailGutterPx] = useState(0)
   const bottomOverlayInsets = useChatBottomOverlayInset()
 
   // The gutter follows only the width (and the anchor preference) — NOT the turn
@@ -255,13 +258,6 @@ const MessageList = () => {
     setForceWideLayout(useWideMessageLayout)
     return () => setForceWideLayout(false)
   }, [setForceWideLayout, useWideMessageLayout])
-
-  // Publish the rail gutter so the composer yields the same right-hand space and
-  // stays aligned with the message column as it shifts.
-  useEffect(() => {
-    publishRailGutter(railGutterPx)
-    return () => publishRailGutter(0)
-  }, [publishRailGutter, railGutterPx])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
@@ -643,7 +639,7 @@ const MessageList = () => {
       // jumps, and the gutter collapses to 0 when narrow so no space is wasted.
       const ramp = (scrollElement.clientWidth - RAIL_GUTTER_START_PX) / RAIL_GUTTER_FADE_PX
       const gutter = Math.round(Math.max(0, Math.min(1, ramp)) * RAIL_GUTTER_MAX_PX)
-      setRailGutterPx((current) => (current === gutter ? current : gutter))
+      setRailGutterPx(gutter)
     }
     updateRailGutter()
     const resizeObserver = new ResizeObserver(updateRailGutter)
@@ -665,8 +661,10 @@ const MessageList = () => {
       if (frame !== null) cancelAnimationFrame(frame)
       scrollElement.removeEventListener('scroll', handleAnchorUpdate)
       window.removeEventListener('resize', handleAnchorUpdate)
+      // On unmount the composer must not keep yielding rail space.
+      setRailGutterPx(0)
     }
-  }, [data.isInitialLoading, data.listKey, shouldTrackAnchorPosition, topic.id])
+  }, [data.isInitialLoading, data.listKey, setRailGutterPx, shouldTrackAnchorPosition, topic.id])
 
   useEffect(() => {
     return bindRuntime?.({
