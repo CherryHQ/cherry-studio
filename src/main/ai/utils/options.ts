@@ -189,7 +189,7 @@ export function buildCapabilityProviderOptions(
       providerSpecificOptions = buildBedrockProviderOptions(assistant, model, reasoningOptions.options)
       break
     case SystemProviderIds.ollama:
-      providerSpecificOptions = buildOllamaProviderOptions(reasoningOptions.options)
+      providerSpecificOptions = buildOllamaProviderOptions(model, reasoningOptions.options)
       break
     case 'cherryin':
     case 'cherryin-chat':
@@ -440,9 +440,18 @@ function buildBedrockProviderOptions(
 }
 
 function buildOllamaProviderOptions(
+  model: Model,
   reasoningOptions: Record<string, unknown>
 ): Record<string, Record<string, unknown>> {
-  return { ollama: reasoningOptions }
+  return {
+    ollama: {
+      ...reasoningOptions,
+      // Ollama defaults to a 2048-token context window unless num_ctx is supplied;
+      // forward the model's configured contextWindow so large-context models are
+      // not silently truncated.
+      ...(model.contextWindow ? { options: { num_ctx: model.contextWindow } } : {})
+    }
+  }
 }
 
 function buildGenericProviderOptions(

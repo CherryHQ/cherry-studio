@@ -389,9 +389,9 @@
         "placeholder": "Sélectionner des outils pré-approuvés"
       },
       "api_retry": {
-        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
-        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
-        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
+        "reason": "La requête a échoué ({{error}}, HTTP {{status}}) — nouvelle tentative",
+        "retrying": "Nouvelle tentative {{attempt}}/{{max}}…",
+        "retrying_in": "Réessai {{attempt}}/{{max}} dans {{seconds}}s"
       },
       "auto_rename": "Générer le nom de la tâche",
       "create": {
@@ -693,7 +693,7 @@
         "deleteFailed": "Échec de la suppression de la tâche",
         "loadFailed": "Échec du chargement des tâches",
         "runFailed": "Échec de l'exécution de la tâche",
-        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
+        "triggerInvalid": "Expression de planification invalide : vérifiez l'expression, le fuseau horaire ou la plage d'intervalle",
         "updateFailed": "Échec de la mise à jour de la tâche"
       },
       "frequency": {
@@ -736,6 +736,38 @@
       "run": "Exécuter",
       "runTriggered": "Tâche déclenchée",
       "save": "Enregistrer",
+      "schedule": {
+        "custom": "Horaire personnalisé",
+        "daily": "Quotidien",
+        "hour": "Heure",
+        "hourly": "Par heure",
+        "interval": "Intervalle personnalisé",
+        "intervalMinutes": "Intervalle",
+        "invalid": "Entrez une fréquence d'exécution valide.",
+        "minute": "Minute",
+        "once": "Une fois",
+        "runAt": "Courir à",
+        "summary": {
+          "daily": "Tous les jours à {{time}}",
+          "hourly": "Au début de chaque heure",
+          "interval": "Toutes les {{count}} minutes",
+          "weekdays": "Les jours de la semaine à {{time}}",
+          "weekly": "Chaque {{weekday}} à {{time}}"
+        },
+        "time": "Temps",
+        "weekday": "Jour de la semaine",
+        "weekdays": {
+          "friday": "Vendredi",
+          "monday": "Lundi",
+          "saturday": "Samedi",
+          "sunday": "Dimanche",
+          "thursday": "Jeudi",
+          "tuesday": "Mardi",
+          "wednesday": "Mercredi"
+        },
+        "weekdaysOnly": "Jours de la semaine",
+        "weekly": "Hebdomadaire"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Intervalle",
@@ -885,7 +917,7 @@
       "expired": "Expiré",
       "inputPreview": "Aperçu de l'entrée de l'outil",
       "pending": "En attente ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "En attente",
       "permissionExpired": "Demande de permission expirée. En attente de nouvelles instructions...",
       "requiresElevatedPermissions": "Cet outil nécessite des autorisations élevées.",
       "suggestion": {
@@ -1013,7 +1045,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copier",
       "regenerate": "Régénérer",
       "restart": {
         "button": "Redémarrer",
@@ -1025,8 +1056,6 @@
     "authHeader": {
       "title": "En-tête d'autorisation"
     },
-    "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
-    "configuration": "Configuration",
     "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
     "documentation": {
       "title": "Documentation API"
@@ -1034,13 +1063,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copier la Clé API",
-        "description": "Jeton d'authentification sécurisé pour l'accès à l'API",
         "label": "Clé API",
         "placeholder": "La clé API sera générée automatiquement"
       },
       "port": {
-        "description": "Numéro de port TCP pour le serveur HTTP (1000-65535)",
-        "helpText": "Arrêtez le serveur pour changer le port",
         "label": "Port"
       },
       "url": {
@@ -1049,7 +1075,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Clé API copiée dans le presse-papiers",
       "apiKeyRegenerated": "Clé API régénérée",
       "notEnabled": "Le serveur API n'est pas activé.",
       "operationFailed": "Opération du Serveur API échouée : ",
@@ -1059,8 +1084,7 @@
       "startError": "Échec du démarrage du Serveur API : ",
       "startSuccess": "Serveur API démarré avec succès",
       "stopError": "Échec de l'arrêt du Serveur API : ",
-      "stopSuccess": "Serveur API arrêté avec succès",
-      "urlCopied": "URL du serveur copiée dans le presse-papiers"
+      "stopSuccess": "Serveur API arrêté avec succès"
     },
     "status": {
       "running": "En cours d'exécution",
@@ -1443,21 +1467,21 @@
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Échec du chargement de la conversation référencée",
+        "no_room": "Pas assez d'espace restant dans le message pour ajouter cette conversation",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Aucune session ne correspond à votre recherche",
+            "label": "Aucune session trouvée"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Séances"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Aucun sujet ne correspond à votre recherche",
+            "label": "Aucun sujet trouvé"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Sujets"
         }
       },
       "resize_height": "Redimensionner la hauteur d'entrée",
@@ -2156,7 +2180,7 @@
     "terminal": "Terminal",
     "terminal_hint": "Choisissez l'application de terminal dans laquelle exécuter le CLI",
     "terminal_placeholder": "Choisir une application de terminal",
-    "title": "Outils de code",
+    "title": "Code Mate",
     "tool_parameters": "Paramètres",
     "up_to_date": "À jour",
     "update_options": "Options de mise à jour",
@@ -2309,7 +2333,7 @@
     "provider": "Fournisseur",
     "reasoning_content": "Réflexion approfondie",
     "refresh": "Actualiser",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Impossible de rafraîchir la liste. Affichage de la dernière version chargée.",
     "regenerate": "Regénérer",
     "remove_image": "Supprimer l'image",
     "rename": "Renommer",
@@ -2625,7 +2649,7 @@
     "empty": {
       "no_match_description": "Aucun fichier ne correspond aux filtres actuels",
       "no_match_title": "Aucun fichier correspondant trouvé",
-      "title": "[to be translated]:No files yet"
+      "title": "Aucun fichier pour l'instant"
     },
     "empty_trash": "Vider la corbeille",
     "error": {
@@ -3023,6 +3047,7 @@
     "embedding_model": "Modèle d'embedding",
     "embedding_model_required": "Un modèle d'embedding de base de connaissances est requis",
     "empty": "Aucune base de connaissances",
+    "empty_action": "Créer une base de connaissances",
     "empty_description": "Vous n'avez pas encore de bases de connaissances. Créez-en une pour commencer à organiser et rechercher vos documents.",
     "error": {
       "directory_not_migrated": "Échec de la migration du dossier. Veuillez le supprimer et le télécharger à nouveau.",
@@ -3797,8 +3822,8 @@
         "title": "Confirmation de suppression"
       },
       "failed": "Échec de la suppression",
-      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
-      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
+      "first_turn_not_supported": "Le premier message de l'utilisateur ne peut pas être supprimé.",
+      "root_unavailable": "Les messages sont encore en cours de chargement et ne peuvent pas encore être supprimés.",
       "success": "Suppression réussie"
     },
     "dialog": {
@@ -6419,6 +6444,7 @@
       "viewErrorDetails": "Voir les détails"
     },
     "developer": {
+      "client_id": "ID client",
       "enable_developer_mode": "Activer le mode développeur",
       "help": "Une fois le mode développeur activé, vous pourrez utiliser la fonctionnalité de chaînage d'appels pour consulter le flux de données du processus d'appel du modèle.",
       "title": "Mode Développeur"
@@ -6601,7 +6627,9 @@
       "active": "Activer",
       "addError": "Échec de l'ajout du serveur",
       "addServer": {
+        "advanced": "Avancé",
         "create": "Création rapide",
+        "createDescription": "Remplissez les détails de connexion pour créer le serveur ; tout le reste peut être ajusté plus tard.",
         "importFrom": {
           "connectionFailed": "Échec de la connexion",
           "dxt": "Importer le paquet DXT",
@@ -6681,7 +6709,11 @@
         "success": "Serveurs MCP récupérés avec succès"
       },
       "filter": {
-        "label": "Filtre"
+        "allStatuses": "Tous les statuts",
+        "allTypes": "Tous les types",
+        "builtinOnly": "Intégré uniquement",
+        "status": "Filtrer par statut",
+        "type": "Filtrer par type"
       },
       "findMore": "Plus de serveurs MCP",
       "headers": "Заголовки запроса",
@@ -6738,6 +6770,7 @@
         "usage": "Utilisation",
         "version": "Version"
       },
+      "pageDescription": "Gérer les serveurs MCP. Une fois activés, les agents peuvent appeler les outils et ressources qu'ils fournissent.",
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Invites disponibles",
@@ -7701,12 +7734,39 @@
       "titlePlaceholder": "Veuillez saisir le titre de la phrase"
     },
     "scheduledTasks": {
+      "agentCreate": "Créer avec Agent",
+      "allAgents": "Tous les agents",
+      "allStatuses": "Tous les statuts",
+      "clearFilters": "Effacer les filtres",
+      "createDescription": "Définissez ce que l'Agent doit faire et quand il doit s'exécuter.",
+      "createTitle": "Nouvelle tâche planifiée",
       "description": "Gérez les tâches planifiées sur tous les agents. Les tâches s'exécutent automatiquement selon le planning configuré.",
+      "editDescription": "Mettez à jour ce que l'Agent doit faire et quand il doit s'exécuter.",
+      "editTitle": "Modifier la tâche planifiée",
+      "filterAgent": "Filtrer par Agent",
+      "filterStatus": "Filtrer par statut",
+      "manualCreate": "Créer manuellement",
+      "newTask": "Nouveau",
       "noAgents": "Aucun agent trouvé. Créez d'abord un agent pour ajouter des tâches planifiées.",
       "noAgentsTip": "Conseil : vous pouvez également demander à votre agent de créer des tâches planifiées via le chat.",
+      "noAgentsTitle": "Pas d'agents",
+      "noMatches": "Essayez une recherche ou un filtre différent.",
+      "noMatchesTitle": "Aucune tâche correspondante",
       "noTasks": "Aucune tâche planifiée. Cliquez sur « + Ajouter » pour en créer une pour un agent.",
+      "noTasksTitle": "Aucune tâche planifiée",
+      "notFoundDescription": "Cette tâche a peut-être été supprimée, ou le lien est invalide.",
+      "notFoundTitle": "Tâche non trouvée",
+      "paginationLabel": "Pagination des tâches planifiées",
+      "paginationStatus": "Page {{page}} sur {{pageCount}} · {{total}} tâches",
+      "search": "Rechercher les tâches planifiées",
+      "searchPlaceholder": "Rechercher des tâches ou des Agents",
       "selectTask": "Sélectionnez une tâche pour afficher les détails",
-      "title": "Tâches planifiées"
+      "title": "Tâches planifiées",
+      "validation": {
+        "agent": "Sélectionner un Agent.",
+        "name": "Entrez un nom de tâche.",
+        "prompt": "Entrez une invite de tâche."
+      }
     },
     "shortcuts": {
       "action": "Action",
@@ -7795,6 +7855,7 @@
       "noInstalled": "Aucune compétence installée",
       "noResults": "Aucune compétence trouvée",
       "noSkillFile": "Aucun SKILL.md trouvé",
+      "pageDescription": "Gérer les compétences installées. Les compétences étendent ce que vos agents peuvent faire et sont invoquées à la demande.",
       "searchPlaceholder": "Découvrir plus de compétences...",
       "searchRegistryTitle": "Rechercher des registres de compétences en ligne",
       "searchTitle": "Compétences de recherche",
@@ -8080,7 +8141,7 @@
   "title": {
     "apps": "Mini-programmes",
     "chat": "Chat",
-    "code": "Code",
+    "code": "Code Mate",
     "files": "Fichiers",
     "home": "Page d'accueil",
     "knowledge": "Base de connaissances",

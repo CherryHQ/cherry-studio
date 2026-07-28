@@ -36,8 +36,14 @@ function testIdOf(node: React.ReactNode): string | null {
 }
 
 describe('chooseTool', () => {
-  it('routes the kb_search / web_search wire names to their title cards', () => {
+  it('renders all knowledge-base wire names', () => {
     expect(testIdOf(chooseTool(resp('kb_search')))).toBe('kb-card')
+    expect(testIdOf(chooseTool(resp('kb_list')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('kb_read')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('kb_manage')))).toBe('agent-card')
+  })
+
+  it('routes the web_search wire name to its title card', () => {
     expect(testIdOf(chooseTool(resp('web_search')))).toBe('web-card')
   })
 

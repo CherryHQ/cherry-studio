@@ -41,7 +41,6 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeUserInput,
-  AgentSessionLiveIndex,
   AgentSessionRuntimeDriver
 } from '../types'
 import {
@@ -50,7 +49,6 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import { sweepClaudeSessionFiles } from './sessionFileSweep'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -720,16 +718,5 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     // `prewarmAgentSession` bakes the session's trace env when trace mode is on, so the park it
     // leaves behind matches what the next turn asks for either way — no driver-side guard needed.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
-  }
-
-  async sweepSessionFiles(live: AgentSessionLiveIndex): Promise<void> {
-    // A deleted session's prewarmed query can outlive its DB row within the warm TTL, still
-    // holding the workspace cwd and appending its transcript — the whole-directory removals
-    // below (and the host's workspace-dir sweep that follows) are only safe once it is closed.
-    const warmManager = application.get('ClaudeCodeWarmQueryManager')
-    for (const sessionId of warmManager.getWarmAgentSessionIds()) {
-      if (!live.isSessionLive(sessionId)) warmManager.closeAgentSessionWarm(sessionId)
-    }
-    await sweepClaudeSessionFiles(live)
   }
 }

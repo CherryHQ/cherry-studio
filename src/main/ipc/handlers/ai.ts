@@ -2,6 +2,7 @@ import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
+import { createAgent } from '@main/ai/agents/createAgent'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -141,7 +142,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.tool.respond_approval': (payload, { senderId }) =>
     application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
 
-  // ── Agent session warm-connection lifecycle. ──
+  // ── Agent creation + session warm-connection lifecycle. ──
+  'ai.agent.create': createAgent,
   // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
   // catalog is read into the cache before the first message — the warm-query handle can't expose it.
   // Trace mode is no exception: the primed connection resolves the session's container trace up front

@@ -389,9 +389,9 @@
         "placeholder": "Seleccionar herramientas preaprobadas"
       },
       "api_retry": {
-        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
-        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
-        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
+        "reason": "Solicitud fallida ({{error}}, HTTP {{status}}) — reintentando",
+        "retrying": "Reintentando {{attempt}}/{{max}}…",
+        "retrying_in": "Reintentando {{attempt}}/{{max}} en {{seconds}}s"
       },
       "auto_rename": "Generar nombre de tarea",
       "create": {
@@ -693,7 +693,7 @@
         "deleteFailed": "Error al eliminar la tarea",
         "loadFailed": "Error al cargar las tareas",
         "runFailed": "Error al ejecutar la tarea",
-        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
+        "triggerInvalid": "Horario no válido: verifique la expresión, la zona horaria o el rango de intervalo",
         "updateFailed": "Error al actualizar la tarea"
       },
       "frequency": {
@@ -736,6 +736,38 @@
       "run": "Ejecutar",
       "runTriggered": "Tarea activada",
       "save": "Guardar",
+      "schedule": {
+        "custom": "Horario personalizado",
+        "daily": "Diario",
+        "hour": "Hora",
+        "hourly": "Por hora",
+        "interval": "Intervalo personalizado",
+        "intervalMinutes": "Intervalo",
+        "invalid": "Introduzca una frecuencia de ejecución válida.",
+        "minute": "Minuto",
+        "once": "Una vez",
+        "runAt": "Ejecutar en",
+        "summary": {
+          "daily": "Diariamente a las {{time}}",
+          "hourly": "Al comienzo de cada hora",
+          "interval": "Cada {{count}} minutos",
+          "weekdays": "Días laborables a las {{time}}",
+          "weekly": "Cada {{weekday}} a las {{time}}"
+        },
+        "time": "Tiempo",
+        "weekday": "Día de la semana",
+        "weekdays": {
+          "friday": "Viernes",
+          "monday": "Lunes",
+          "saturday": "Sábado",
+          "sunday": "Domingo",
+          "thursday": "Jueves",
+          "tuesday": "Martes",
+          "wednesday": "Miércoles"
+        },
+        "weekdaysOnly": "Días de la semana",
+        "weekly": "Semanal"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Intervalo",
@@ -885,7 +917,7 @@
       "expired": "Caducado",
       "inputPreview": "Vista previa de entrada de herramienta",
       "pending": "Pendiente ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Pendiente",
       "permissionExpired": "Solicitud de permiso expirada. Esperando nuevas instrucciones...",
       "requiresElevatedPermissions": "Esta herramienta requiere permisos elevados.",
       "suggestion": {
@@ -1013,7 +1045,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copiar",
       "regenerate": "Regenerar",
       "restart": {
         "button": "Reiniciar",
@@ -1025,8 +1056,6 @@
     "authHeader": {
       "title": "Encabezado de autorización"
     },
-    "authHeaderText": "Usar en el encabezado de autorización:",
-    "configuration": "Configuración",
     "description": "Expone las capacidades de IA de Cherry Studio a través de APIs HTTP compatibles con OpenAI",
     "documentation": {
       "title": "Documentación API"
@@ -1034,13 +1063,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copiar Clave API",
-        "description": "Token de autenticación seguro para el acceso a la API",
         "label": "Clave API",
         "placeholder": "La clave API se generará automáticamente"
       },
       "port": {
-        "description": "Número de puerto TCP para el servidor HTTP (1000-65535)",
-        "helpText": "Detén el servidor para cambiar el puerto",
         "label": "Puerto"
       },
       "url": {
@@ -1049,7 +1075,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Clave API copiada al portapapeles",
       "apiKeyRegenerated": "Clave API regenerada",
       "notEnabled": "El servidor de API no está habilitado.",
       "operationFailed": "Falló la operación del Servidor API: ",
@@ -1059,8 +1084,7 @@
       "startError": "Error al iniciar el Servidor API: ",
       "startSuccess": "Servidor API iniciado exitosamente",
       "stopError": "Error al detener el Servidor API: ",
-      "stopSuccess": "Servidor API detenido exitosamente",
-      "urlCopied": "URL del servidor copiada al portapapeles"
+      "stopSuccess": "Servidor API detenido exitosamente"
     },
     "status": {
       "running": "Ejecutándose",
@@ -1443,21 +1467,21 @@
       "placeholder": "Escribe aquí tu mensaje...",
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Error al cargar la conversación referenciada",
+        "no_room": "No queda suficiente espacio en el mensaje para añadir esta conversación",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "No hay sesiones que coincidan con tu búsqueda",
+            "label": "No se encontraron sesiones"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Sesiones"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "No hay temas que coincidan con tu búsqueda",
+            "label": "No se encontraron temas"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Temas"
         }
       },
       "resize_height": "Ajustar altura de entrada",
@@ -2156,7 +2180,7 @@
     "terminal": "terminal",
     "terminal_hint": "Elige qué aplicación de terminal utilizar para ejecutar la CLI",
     "terminal_placeholder": "Seleccionar aplicación de terminal",
-    "title": "Herramientas de código",
+    "title": "Code Mate",
     "tool_parameters": "Configuración de Parámetros",
     "up_to_date": "Actualizado",
     "update_options": "Opciones de actualización",
@@ -2309,7 +2333,7 @@
     "provider": "Proveedor",
     "reasoning_content": "Pensamiento profundo",
     "refresh": "Actualizar",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "No se pudo actualizar la lista. Se muestra la última versión cargada.",
     "regenerate": "Regenerar",
     "remove_image": "Quitar imagen",
     "rename": "Renombrar",
@@ -2625,7 +2649,7 @@
     "empty": {
       "no_match_description": "No hay archivos que coincidan con los filtros actuales",
       "no_match_title": "No se encontraron archivos coincidentes",
-      "title": "[to be translated]:No files yet"
+      "title": "Sin archivos todavía"
     },
     "empty_trash": "Vaciar papelera",
     "error": {
@@ -3023,6 +3047,7 @@
     "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "Se requiere un modelo de incrustación de base de conocimiento",
     "empty": "Sin bases de conocimiento",
+    "empty_action": "Crear Base de Conocimientos",
     "empty_description": "Aún no tienes ninguna base de conocimientos. Crea una para empezar a organizar y buscar tus documentos.",
     "error": {
       "directory_not_migrated": "La migración de la carpeta falló. Por favor, elimínala y vuelve a subirla.",
@@ -3797,8 +3822,8 @@
         "title": "Confirmación de eliminación"
       },
       "failed": "Eliminación fallida",
-      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
-      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
+      "first_turn_not_supported": "El primer mensaje de usuario no se puede eliminar.",
+      "root_unavailable": "Los mensajes aún se están cargando y no se pueden eliminar todavía.",
       "success": "Eliminación exitosa"
     },
     "dialog": {
@@ -6419,6 +6444,7 @@
       "viewErrorDetails": "Ver detalles"
     },
     "developer": {
+      "client_id": "ID de cliente",
       "enable_developer_mode": "Habilitar modo de desarrollador",
       "help": "Una vez habilitado el modo de desarrollador, se podrá utilizar la función de cadena de llamadas para ver el flujo de datos del proceso de invocación del modelo.",
       "title": "Modo de Desarrollador"
@@ -6601,7 +6627,9 @@
       "active": "Activar",
       "addError": "Fallo al agregar servidor",
       "addServer": {
+        "advanced": "Avanzado",
         "create": "Creación rápida",
+        "createDescription": "Complete los detalles de conexión para crear el servidor; todo lo demás se puede ajustar más tarde.",
         "importFrom": {
           "connectionFailed": "Conexión fallida",
           "dxt": "Importar paquete DXT",
@@ -6681,7 +6709,11 @@
         "success": "Servidores MCP obtenidos con éxito"
       },
       "filter": {
-        "label": "Filtro"
+        "allStatuses": "Todos los estados",
+        "allTypes": "Todos los tipos",
+        "builtinOnly": "Solo integrado",
+        "status": "Filtrar por estado",
+        "type": "Filtrar por tipo"
       },
       "findMore": "Más servidores MCP",
       "headers": "Encabezados",
@@ -6738,6 +6770,7 @@
         "usage": "Uso",
         "version": "Versión"
       },
+      "pageDescription": "Gestionar servidores MCP. Una vez habilitados, los agentes pueden llamar a las herramientas y recursos que proporcionan.",
       "prompts": {
         "arguments": "Argumentos",
         "availablePrompts": "Indicaciones disponibles",
@@ -7701,12 +7734,39 @@
       "titlePlaceholder": "Por favor ingrese el título de la frase"
     },
     "scheduledTasks": {
+      "agentCreate": "Crear con Agente",
+      "allAgents": "Todos los agentes",
+      "allStatuses": "Todos los estados",
+      "clearFilters": "Limpiar filtros",
+      "createDescription": "Establece lo que el Agente debe hacer y cuándo debe ejecutarse.",
+      "createTitle": "Nueva tarea programada",
       "description": "Administrar tareas programadas en todos los agentes. Las tareas se ejecutan automáticamente según el horario configurado.",
+      "editDescription": "Actualiza lo que el Agente debe hacer y cuándo debe ejecutarse.",
+      "editTitle": "Editar tarea programada",
+      "filterAgent": "Filtrar por Agente",
+      "filterStatus": "Filtrar por estado",
+      "manualCreate": "Crear manualmente",
+      "newTask": "Nuevo",
       "noAgents": "No se encontraron agentes. Crea primero un agente para añadir tareas programadas.",
       "noAgentsTip": "Consejo: También puedes pedirle a tu agente que cree tareas programadas mediante el chat.",
+      "noAgentsTitle": "Sin Agentes",
+      "noMatches": "Prueba una búsqueda o filtro diferente.",
+      "noMatchesTitle": "No se encontraron tareas coincidentes",
       "noTasks": "No hay tareas programadas. Haz clic en \"+ Agregar\" para crear una para un agente.",
+      "noTasksTitle": "Tareas no programadas",
+      "notFoundDescription": "Esta tarea puede haber sido eliminada, o el enlace no es válido.",
+      "notFoundTitle": "Tarea no encontrada",
+      "paginationLabel": "Paginación de tareas programadas",
+      "paginationStatus": "Página {{page}} de {{pageCount}} · {{total}} tareas",
+      "search": "Buscar tareas programadas",
+      "searchPlaceholder": "Buscar tareas o Agentes",
       "selectTask": "Selecciona una tarea para ver los detalles",
-      "title": "Tareas programadas"
+      "title": "Tareas programadas",
+      "validation": {
+        "agent": "Seleccione un Agente.",
+        "name": "Introduzca un nombre de tarea.",
+        "prompt": "Introduce un indicador de tarea."
+      }
     },
     "shortcuts": {
       "action": "Acción",
@@ -7795,6 +7855,7 @@
       "noInstalled": "Sin habilidades instaladas",
       "noResults": "Sin habilidades encontradas",
       "noSkillFile": "No se encontró SKILL.md",
+      "pageDescription": "Gestiona las habilidades instaladas. Las habilidades amplían lo que tus agentes pueden hacer y se invocan bajo demanda.",
       "searchPlaceholder": "Descubrir más habilidades...",
       "searchRegistryTitle": "Buscar registros de habilidades en línea",
       "searchTitle": "Habilidades de búsqueda",
@@ -8080,7 +8141,7 @@
   "title": {
     "apps": "Aplicaciones",
     "chat": "Chat",
-    "code": "Código",
+    "code": "Code Mate",
     "files": "Archivos",
     "home": "Inicio",
     "knowledge": "Base de conocimiento",

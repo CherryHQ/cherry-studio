@@ -1,14 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
-import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
-import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
-import { useMessageExportActions } from '@renderer/components/chat/messages/hooks/useMessageExportActions'
-import { useMessageHeaderCapabilities } from '@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities'
-import { useMessageLeafCapabilities } from '@renderer/components/chat/messages/hooks/useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
-import { useMessageMenuConfig } from '@renderer/components/chat/messages/hooks/useMessageMenuConfig'
-import { useMessageSelectionController } from '@renderer/components/chat/messages/hooks/useMessageSelectionController'
-import { useMessageUiStateCache } from '@renderer/components/chat/messages/hooks/useMessageUiStateCache'
+import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
   pickMessageLeafActions,
@@ -214,10 +206,6 @@ export function useAgentMessageListProviderValue({
     })
   }, [assistantId, visibleMessages, topic.assistantId, topic.id])
 
-  const getMessageActivityState = useMessageActivityState(topic.id, displayPartsByMessageId)
-  const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
-  const menuConfig = useMessageMenuConfig()
-  const exportActions = useMessageExportActions({ topicName: topic.name })
   const persistDiagnosis = useCallback(
     async (partId: string, diagnosis: DiagnosisResult) => {
       const parsed = parseMessagePartId(partId)
@@ -235,22 +223,27 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId]
   )
-  const errorActions = useMessageErrorActions({ persistDiagnosis })
-  const leafCapabilities = useMessageLeafCapabilities({
-    partsByMessageId: displayPartsByMessageId,
-    streamingLayers: displayStreamingLayers
-  })
-  const headerCapabilities = useMessageHeaderCapabilities()
-  const messageUiStateCache = useMessageUiStateCache()
-  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
-  const selectionController = useMessageSelectionController({
+  const {
+    errorActions,
+    exportActions,
+    getMessageActivityState,
+    headerCapabilities,
+    leafCapabilities,
+    menuConfig,
+    messageUiStateCache,
+    renderConfig,
+    selectionController,
+    updateRenderConfig
+  } = useMessageListAdapterCapabilities({
     topicId: topic.id,
+    topicName: topic.name,
     messages: messageItems,
     partsByMessageId: displayPartsByMessageId,
+    streamingLayers: displayStreamingLayers,
     deleteMessage,
-    saveTextFile: exportActions.saveTextFile,
-    copyRichContent: leafCapabilities.copyRichContent
+    persistDiagnosis
   })
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
 
   const openPath = useCallback(
     (path: string) => {
