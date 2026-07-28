@@ -27,8 +27,10 @@ export interface ExecutionOverlayApi {
   liveAssistants: CherryUIMessage[]
   /** Drop one overlay/snapshot entry by its message id (post-persist handoff). */
   disposeOverlay: (messageId: string) => void
-  /** Drop every overlay/snapshot entry (e.g. quick-assistant clear()). */
+  /** Drop settled overlay/snapshot entries (terminal handoff); live readers survive. */
   reset: () => void
+  /** Destructively drop every overlay/snapshot entry (quick-assistant clear()). */
+  clear: () => void
 }
 
 export function useExecutionOverlay(
@@ -82,7 +84,8 @@ export function useExecutionOverlay(
       liveAssistants: view.liveAssistants,
       disposeOverlay: (messageId: string) =>
         executionStreamOverlayService.disposeOverlay(topicIdRef.current, messageId),
-      reset: () => executionStreamOverlayService.reset(topicIdRef.current)
+      reset: () => executionStreamOverlayService.reset(topicIdRef.current),
+      clear: () => executionStreamOverlayService.clear(topicIdRef.current)
     }
   }
   api.current.overlay = view.overlay

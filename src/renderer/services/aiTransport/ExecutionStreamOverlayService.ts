@@ -299,18 +299,20 @@ export class ExecutionStreamOverlayService {
     return () => entry.finishListeners.delete(listener)
   }
 
-  /** Drop one overlay/snapshot entry by its message id (post-persist handoff). */
+  /** Drop one overlay/snapshot entry by its message id (post-persist handoff).
+   *  Skipped when the execution has a live reader: `#startReader` already
+   *  replaced the old snapshot, so the state now belongs to the newer turn and
+   *  a delayed handoff for the finished one must not invalidate it. */
   disposeOverlay(topicId: string, messageId: string): void {
     const entry = this.#entries.get(topicId)
     if (!entry) return
     const snapshotEntry = Object.entries(entry.snapshots).find(([, snapshot]) => snapshot.id === messageId)
     const pendingEntry = [...entry.pendingSnapshots].find(([, item]) => item.snapshot.id === messageId)
     const executionId = snapshotEntry?.[0] ?? pendingEntry?.[0]
-    if (executionId) {
-      entry.pendingSnapshots.delete(executionId)
-      entry.readerVersions.set(executionId, (entry.readerVersions.get(executionId) ?? 0) + 1)
-      if (entry.pendingSnapshots.size === 0) this.#cancelFrame(entry)
-    }
+    if (!executionId || this.#liveReaderExecutionIds(entry).has(executionId)) return
+    entry.pendingSnapshots.delete(executionId)
+    entry.readerVersions.set(executionId, (entry.readerVersions.get(executionId) ?? 0) + 1)
+    if (entry.pendingSnapshots.size === 0) this.#cancelFrame(entry)
     if (snapshotEntry) {
       const next = { ...entry.snapshots }
       delete next[snapshotEntry[0]]
@@ -318,8 +320,34 @@ export class ExecutionStreamOverlayService {
     }
   }
 
-  /** Drop every overlay/snapshot entry for a routing scope (terminal handoff, quick-assistant clear()). */
+  /** Drop settled overlay/snapshot entries for a routing scope (terminal handoff).
+   *  Executions with a live reader are left untouched: a delayed handoff for a
+   *  finished turn must not freeze a newer turn already streaming on this topic. */
   reset(topicId: string): void {
+    const entry = this.#entries.get(topicId)
+    if (!entry) return
+    const liveExecutionIds = this.#liveReaderExecutionIds(entry)
+    if (liveExecutionIds.size === 0) {
+      this.clear(topicId)
+      return
+    }
+    let next = entry.snapshots
+    for (const executionId of new Set([...Object.keys(entry.snapshots), ...entry.pendingSnapshots.keys()])) {
+      if (liveExecutionIds.has(executionId)) continue
+      entry.pendingSnapshots.delete(executionId)
+      entry.readerVersions.set(executionId, (entry.readerVersions.get(executionId) ?? 0) + 1)
+      if (executionId in next) {
+        if (next === entry.snapshots) next = { ...entry.snapshots }
+        delete next[executionId]
+      }
+    }
+    if (entry.pendingSnapshots.size === 0) this.#cancelFrame(entry)
+    this.#commitSnapshots(entry, next)
+  }
+
+  /** Destructively drop every overlay/snapshot entry, including live readers'
+   *  future frames (quick-assistant clear()). Not for terminal handoff. */
+  clear(topicId: string): void {
     const entry = this.#entries.get(topicId)
     if (!entry) return
     this.#invalidatePending(entry)
@@ -375,6 +403,12 @@ export class ExecutionStreamOverlayService {
   #maybeDrop(entry: Entry): void {
     if (entry.refCount > 0 || entry.liveReaderCount > 0) return
     this.#dropEntry(entry)
+  }
+
+  #liveReaderExecutionIds(entry: Entry): Set<string> {
+    const ids = new Set<string>()
+    for (const handle of entry.readers.values()) ids.add(handle.executionId as string)
+    return ids
   }
 
   #pruneSettledKeys(entry: Entry): void {

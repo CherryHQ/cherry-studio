@@ -229,6 +229,55 @@ describe('ExecutionStreamOverlayService', () => {
     expect(sub.disposed).toBe(true)
   })
 
+  it('reset drops only settled snapshots — a newer turn already streaming keeps its reader publishing', async () => {
+    const B = 'anthropic::claude' as UniqueModelId
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const seed = () => [asst('anchor-a'), asst('anchor-b')]
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    const sub = mocks.subs.get(TOPIC)!
+
+    // Turn A finishes (reader settled, snapshot retained); turn B keeps streaming.
+    streamText(sub, A, 't1', 'finished')
+    sub.terminal(A, { isAbort: false, isError: false })
+    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
+    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
+    await nextFrame()
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('finished')
+    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
+
+    // The delayed DB handoff for turn A must not invalidate turn B.
+    service.reset(TOPIC)
+    expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
+    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
+
+    sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b')
+    await nextFrame()
+    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live-more')
+  })
+
+  it('clear destructively drops everything, including a live reader’s future frames', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
+    const sub = mocks.subs.get(TOPIC)!
+
+    sub.emit(A, { type: 'text-start', id: 't1' } as CherryUIMessageChunk)
+    sub.emit(A, { type: 'text-delta', id: 't1', delta: 'live' } as CherryUIMessageChunk)
+    await nextFrame()
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('live')
+
+    service.clear(TOPIC)
+    expect(service.getView(TOPIC).overlay).toEqual({})
+
+    // Frames from the (stopped) stream after clear must stay dropped.
+    sub.emit(A, { type: 'text-delta', id: 't1', delta: '-stale' } as CherryUIMessageChunk)
+    await nextFrame()
+    expect(service.getView(TOPIC).overlay).toEqual({})
+  })
+
   it('reconciles on remount: drops snapshots of no-longer-active executions, keeps streaming ones', async () => {
     const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()

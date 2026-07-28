@@ -92,16 +92,24 @@ the chunk routes there; otherwise it's dropped with a warning.
 ## useExecutionOverlay
 
 `src/renderer/hooks/useExecutionOverlay.ts`. The per-execution
-overlay, built on `useTopicStreamSubscription`.
+overlay, built on `ExecutionStreamOverlayService` +
+`TopicStreamSubscription`.
 
 ```ts
-const { overlay, liveAssistants, disposeOverlay, reset } = useExecutionOverlay(
+const { overlay, liveAssistants, disposeOverlay, reset, clear } = useExecutionOverlay(
   topicId,
   activeExecutions,      // ActiveExecution[] from useTopicStreamStatus
   uiMessages,            // current DB snapshot
   { onFinish }
 )
 ```
+
+The hook is a thin React binding for the window-level
+`ExecutionStreamOverlayService`, which owns readers, snapshots and
+rAF batching keyed by `topicId`. The hook only acquires/releases a
+refcounted view and reads it via `useSyncExternalStore` — unmounting
+(route/tab/conversation switch) does **not** tear the stream down,
+and remounting restores the live overlay synchronously.
 
 ### One reader per turn, zero cross-turn state
 
@@ -142,20 +150,42 @@ never touches the SWR row. Combined with the fresh reader, this is the
 **structural** anti-pollution guarantee — not "force empty parts" or "diff
 against last frame".
 
-### Lifecycle
+### Lifecycle (light cache, DB is the source of truth)
 
-1. **Topic switch** — every reader is cancelled, every branch
-   unregistered, `snapshots` cleared. `prevTopicRef` is checked in the
-   render body so the cleanup runs synchronously before the new topic's
-   readers start.
-2. **`activeExecutions` change** — diff against the current reader
+The overlay is a **temporary stash of in-flight streamed content**;
+SQLite is authoritative. Losing the stash costs at most one DB
+refresh on the next mount, which bounds how much machinery it earns.
+
+1. **`activeExecutions` change** — diff against the current reader
    map: cancel + unregister executions no longer in the active list;
    for newly-active executions, register a branch, clear any retained
    prior snapshot, kick a new reader.
-3. **Terminal** — the branch is closed by `TopicStreamSubscription`;
+2. **Terminal** — the branch is closed by `TopicStreamSubscription`;
    the reader's `for await` exits. The `onFinish(executionId, event)`
    callback fires with the final snapshot + `{ isAbort, isError }`.
-4. **Unmount** — every reader is cancelled, every branch unregistered.
+3. **Unmount / tab switch** — the view is released (refcount), but
+   running readers keep assembling in the service.
+
+Destruction policy:
+
+| Situation | What happens |
+|---|---|
+| Stream running | Entry retained regardless of mounts |
+| Stream ends, view mounted | Terminal status edge → `refresh()` DB → `reset()` drops the settled snapshots |
+| Stream ends, no view | Entry dropped as soon as its last reader ends — the next mount rebuilds from SQLite |
+| Leak backstop | `MAX_ENTRIES` LRU eviction of refCount-0 entries |
+
+Two guards keep the handoff race-free without any turn-identity
+machinery:
+
+- **`reset()` / `disposeOverlay()` never touch an execution whose
+  reader is live.** A delayed DB handoff for a finished turn must not
+  freeze a newer turn already streaming on the same topic; the
+  "reader still running" check is the whole identity test. The
+  destructive full drop is a separate `clear()` (quick-assistant).
+- **A failed `ai.stream.attach` error-terminates its branches** so
+  readers finish instead of hanging forever; the next mount re-attaches
+  through a fresh subscription.
 
 ### Overlay teardown is monotonic
 
@@ -171,34 +201,24 @@ race the DB-authoritative refresh and cause flicker.
 
 ### Why retained snapshots after terminal
 
-The hook keeps the final snapshot in `snapshots` until one of:
+The service keeps the final snapshot in `snapshots` until one of:
 
 - the same execution restarts (next turn clears it),
 - the caller calls `disposeOverlay(messageId)` (post-persist handoff),
-- the caller calls `reset()` (e.g. quick-assistant clear),
-- the topic switches (effect clears all snapshots).
+- the caller calls `reset()` (whole-turn post-persist handoff) or
+  `clear()` (destructive, quick-assistant),
+- the entry is dropped (last reader ended at refCount 0, or eviction).
 
 That retention lets consumers read the final frame for the brief window
 between stream-end and DB-refresh-complete without going through SWR.
 
-## React binding
-
-`useTopicStreamSubscription(topicId)` is the React wrapper:
-
-- Lazy-init per `topicId` (idiom mirrors `useState(() => ...)`).
-- Disposed on unmount or topic switch — drops the Main listener and
-  closes every branch.
-
-Each mounted topic gets one `TopicStreamSubscription` instance, shared
-by every consumer in that React tree (today: `useExecutionOverlay`).
-
 ## Code map
 
 ```
-src/renderer/services/aiTransport/TopicStreamSubscription.ts  ← class
-src/renderer/hooks/useTopicStreamSubscription.ts             ← React binding
-src/renderer/hooks/useExecutionOverlay.ts                    ← per-execution readers + overlay
-src/renderer/pages/home/V2ChatContent.tsx                    ← consumer + dispose-after-refresh
+src/renderer/services/aiTransport/TopicStreamSubscription.ts       ← IPC attach + branch demux (one per retained topic)
+src/renderer/services/aiTransport/ExecutionStreamOverlayService.ts ← window-level readers/snapshots/rAF, keyed by topicId
+src/renderer/hooks/useExecutionOverlay.ts                          ← React binding (refcounted view lease)
+src/renderer/pages/home/useChatRuntimeState.ts                     ← consumer + dispose-after-refresh
 ```
 
 ## Invariants reviewers should check

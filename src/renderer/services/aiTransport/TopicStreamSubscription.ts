@@ -260,6 +260,10 @@ export class TopicStreamSubscription {
         if (this.#branches.size === 0 && !this.#disposed) this.#detach()
       } catch (err) {
         logger.warn('streamAttach failed', { topicId: this.#topicId, err })
+        // Close open branches so their readers finish with an error terminal
+        // instead of hanging forever on a stream that never attached. Recovery
+        // happens through a fresh subscription on the next mount.
+        if (!this.#disposed) this.#terminateAll({ isAbort: false, isError: true })
       } finally {
         this.#attachInFlight = null
       }

@@ -363,4 +363,16 @@ describe('TopicStreamSubscription', () => {
     expect(await readAll(sa)).toEqual([])
     sub.dispose()
   })
+
+  it('attach failure closes branches with an error terminal instead of hanging readers', async () => {
+    mock.mockApi.streamAttach.mockRejectedValueOnce(new Error('ipc down'))
+    const sub = new TopicStreamSubscription(TOPIC)
+    const terminals: Array<{ isAbort: boolean; isError: boolean }> = []
+    sub.onExecutionTerminal((_id, terminal) => terminals.push(terminal))
+    const sa = sub.register(A)
+    await tick()
+    expect(await readAll(sa)).toEqual([])
+    expect(terminals).toEqual([expect.objectContaining({ isAbort: false, isError: true })])
+    sub.dispose()
+  })
 })

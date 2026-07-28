@@ -353,7 +353,7 @@ describe('useExecutionOverlay', () => {
     expect(frames.cancel).toHaveBeenCalledTimes(1)
   })
 
-  it('prevents a cancelled frame from restoring snapshots after reset', async () => {
+  it('prevents a cancelled frame from restoring snapshots after a destructive clear', async () => {
     const frames = installControlledAnimationFrames()
     const ui = [asst('anchor-a')]
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
@@ -365,7 +365,7 @@ describe('useExecutionOverlay', () => {
     })
     const staleFrame = frames.callbacks.values().next().value as FrameRequestCallback
 
-    act(() => result.current.reset())
+    act(() => result.current.clear())
     expect(frames.callbacks.size).toBe(0)
 
     act(() => staleFrame(performance.now()))
@@ -415,11 +415,16 @@ describe('useExecutionOverlay', () => {
     })
   })
 
-  it('disposeOverlay drops a single entry by message id', async () => {
+  it('disposeOverlay drops a single settled entry by message id', async () => {
     const ui = [asst('anchor-a')]
     const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
     streamText(A, 't', 'bye')
     await waitFor(() => expect(result.current.overlay['anchor-a']).toBeDefined())
+    // Dispose happens post-persist, after the execution's stream ended.
+    await act(async () => {
+      fake.terminal(A, { isAbort: false, isError: false })
+      await drainStreamMicrotasks()
+    })
     act(() => result.current.disposeOverlay('anchor-a'))
     await waitFor(() => expect(result.current.overlay['anchor-a']).toBeUndefined())
   })
