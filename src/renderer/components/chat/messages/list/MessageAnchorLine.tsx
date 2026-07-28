@@ -276,8 +276,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
         // scrollbar; scrollbar-gutter:stable only keeps it reserved while hidden.
         // top-2.5 sits just below the header; bottom-8 keeps the last tick clear
         // of the very bottom edge. The composer is inset to the left of this
-        // gutter, so the ticks clear it. Opacity is driven by railOpacity, which
-        // already tracks width continuously, so no transition is needed. The
+        // gutter, so the ticks clear it. The fade opacity lives on the tick
+        // strip below — NOT here — so the hover preview card stays fully
+        // opaque and readable even while the ticks are still fading in. The
         // strip's width (hitStripWidth) grows with the gutter so it never
         // covers message content mid-fade — the visible ticks are clickable at
         // any fade stage, and clicks left of the strip reach the messages.
@@ -287,7 +288,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
       // inert keeps the hidden rail out of the Tab order and the accessibility
       // tree — an invisible layer must not take keyboard focus.
       inert={!visible}
-      style={{ opacity: visible ? railOpacity : 0, width: hitStripWidth }}
+      style={{ width: hitStripWidth }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}>
       <div
@@ -298,12 +299,15 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
           // so those margins sit OUTSIDE the scroll and never move while the strip
           // scrolls. Ticks fill the viewport (centred when few) and scroll only
           // once they overflow it. It never auto-follows the conversation.
-          'absolute inset-x-0 flex flex-col items-end overflow-y-auto transition-opacity duration-150 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-          isHovering ? 'opacity-100' : 'opacity-70'
+          'absolute inset-x-0 flex flex-col items-end overflow-y-auto transition-opacity duration-150 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
         )}
         style={{
           top: RAIL_MIN_EDGE_MARGIN_PX,
           bottom: RAIL_MIN_EDGE_MARGIN_PX,
+          // The width-driven fade (railOpacity needs no transition — it already
+          // ramps continuously) combines with the resting 70% dim that hover
+          // lifts (the transition-opacity above eases that lift).
+          opacity: (visible ? railOpacity : 0) * (isHovering ? 1 : 0.7),
           maskImage: railMask,
           WebkitMaskImage: railMask
         }}>

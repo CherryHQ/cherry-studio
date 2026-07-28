@@ -229,8 +229,11 @@ describe('MessageAnchorLine', () => {
       // (8px inset margin + railOpacity × 24 gutter), so message text left of
       // it keeps its clicks and selection.
       expect(rail.style.width).toBe('20px')
-      // The visual fade keeps tracking railOpacity through the ramp.
-      expect(rail.style.opacity).toBe('0.5')
+      // The visual fade lives on the tick strip (railOpacity × the resting 70%
+      // dim) so the hover preview card itself stays fully opaque.
+      const strip = rail.querySelector<HTMLElement>('.overflow-y-auto')
+      expect(strip?.style.opacity).toBe('0.35')
+      expect(rail.style.opacity).toBe('')
     })
 
     it('spans the full 32px strip once the gutter has fully yielded', () => {
@@ -247,7 +250,7 @@ describe('MessageAnchorLine', () => {
       const rail = container.firstElementChild as HTMLElement
       expect(rail).toHaveClass('pointer-events-none')
       expect(rail).toHaveAttribute('inert')
-      expect(rail.style.opacity).toBe('0')
+      expect(rail.querySelector<HTMLElement>('.overflow-y-auto')?.style.opacity).toBe('0')
     })
 
     it('clears the hover preview when the rail fades out mid-hover', () => {
