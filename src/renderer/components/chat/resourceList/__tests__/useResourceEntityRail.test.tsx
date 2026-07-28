@@ -7,6 +7,7 @@ import { useResourceEntityRail } from '../useResourceEntityRail'
 type TestEntity = {
   id: string
   name: string
+  icon: string
   orderKey?: string
   pinned?: boolean
 }
@@ -18,8 +19,8 @@ type TestResource = {
 }
 
 const ENTITIES: TestEntity[] = [
-  { id: 'assistant-a', name: 'Assistant A', orderKey: 'a' },
-  { id: 'assistant-b', name: 'Assistant B', orderKey: 'b' }
+  { id: 'assistant-a', name: 'Assistant A', icon: 'A', orderKey: 'a' },
+  { id: 'assistant-b', name: 'Assistant B', icon: 'B', orderKey: 'b' }
 ]
 
 const RESOURCES: TestResource[] = [
@@ -102,7 +103,7 @@ describe('useResourceEntityRail', () => {
 
   it('hides a brand-new entity that owns no resources while keeping the others shown', () => {
     const { result } = renderRail({
-      entities: [...ENTITIES, { id: 'assistant-c', name: 'Assistant C', orderKey: 'c' }],
+      entities: [...ENTITIES, { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }],
       // assistant-c owns no resources yet; only a and b do.
       resources: RESOURCES
     })
@@ -148,9 +149,9 @@ describe('useResourceEntityRail', () => {
   it('floats pinned entities to the top while preserving relative order of each partition', () => {
     const { result } = renderRail({
       entities: [
-        { id: 'assistant-a', name: 'Assistant A', orderKey: 'a' },
-        { id: 'assistant-b', name: 'Assistant B', orderKey: 'b', pinned: true },
-        { id: 'assistant-c', name: 'Assistant C', orderKey: 'c' }
+        { id: 'assistant-a', name: 'Assistant A', icon: 'A', orderKey: 'a' },
+        { id: 'assistant-b', name: 'Assistant B', icon: 'B', orderKey: 'b', pinned: true },
+        { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }
       ],
       resources: [
         { id: 'topic-a', entityId: 'assistant-a', updatedAt: 3 },
@@ -166,7 +167,7 @@ describe('useResourceEntityRail', () => {
     const onCreateResource = vi.fn()
     const { result } = renderRail({ onCreateResource })
 
-    result.current.handleSelect({ id: 'assistant-c', name: 'Assistant C', orderKey: 'c' })
+    result.current.handleSelect({ id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' })
 
     expect(onCreateResource).toHaveBeenCalledWith('assistant-c')
   })

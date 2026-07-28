@@ -34,48 +34,35 @@ export type ResourceListGroupReorderPayload = {
 type TimestampInput = dayjs.ConfigType
 type GroupRankResolver<T> = (item: T) => number
 
-/**
- * Resolves time buckets against boundaries derived once from `now`.
- *
- * Bucketing runs once per item in both the grouping resolver and the sort rank, so deriving the
- * day/week boundaries inside the per-item call allocates five dayjs objects per item for an answer
- * that is identical across the whole list. Callers that bucket a list should create one resolver
- * and reuse it; {@link getResourceTimeBucket} stays available for one-off lookups.
- */
-export function createResourceTimeBucketResolver(
-  now?: TimestampInput
-): (timestamp: TimestampInput) => ResourceListTimeBucket {
-  const current = now === undefined ? dayjs() : dayjs(now)
-  if (!current.isValid()) {
-    return () => 'earlier' as const
-  }
-
-  const todayStart = current.startOf('day')
-  const todayStartMs = todayStart.valueOf()
-  const tomorrowStartMs = todayStart.add(1, 'day').valueOf()
-  const yesterdayStartMs = todayStart.subtract(1, 'day').valueOf()
-  const weekStartMs = todayStart.startOf('week').valueOf()
-
-  return (timestamp: TimestampInput): ResourceListTimeBucket => {
-    if (timestamp === undefined) return 'earlier'
-
-    const itemMs =
-      typeof timestamp === 'number'
-        ? timestamp
-        : timestamp instanceof Date
-          ? timestamp.valueOf()
-          : dayjs(timestamp).valueOf()
-    if (!Number.isFinite(itemMs)) return 'earlier'
-
-    if (itemMs >= todayStartMs && itemMs < tomorrowStartMs) return 'today'
-    if (itemMs >= yesterdayStartMs && itemMs < todayStartMs) return 'yesterday'
-    if (itemMs >= weekStartMs && itemMs < yesterdayStartMs) return 'this-week'
+export function getResourceTimeBucket(timestamp: TimestampInput, now?: TimestampInput): ResourceListTimeBucket {
+  if (timestamp === undefined) {
     return 'earlier'
   }
-}
 
-export function getResourceTimeBucket(timestamp: TimestampInput, now?: TimestampInput): ResourceListTimeBucket {
-  return createResourceTimeBucketResolver(now)(timestamp)
+  const item = dayjs(timestamp)
+  const current = now === undefined ? dayjs() : dayjs(now)
+  if (!item.isValid() || !current.isValid()) {
+    return 'earlier'
+  }
+
+  const itemStart = item.startOf('day')
+  const todayStart = current.startOf('day')
+
+  if (itemStart.isSame(todayStart)) {
+    return 'today'
+  }
+
+  const yesterdayStart = todayStart.subtract(1, 'day')
+  if (itemStart.isSame(yesterdayStart)) {
+    return 'yesterday'
+  }
+
+  const weekStart = todayStart.startOf('week')
+  if (itemStart.isSame(weekStart) || (itemStart.isAfter(weekStart) && itemStart.isBefore(yesterdayStart))) {
+    return 'this-week'
+  }
+
+  return 'earlier'
 }
 
 export function composeResourceListGroupResolvers<T>(
@@ -109,10 +96,8 @@ export function createTimeGroupResolver<T>({
   labels: Record<ResourceListTimeBucket, string>
   now?: TimestampInput
 }): ResourceListGroupResolver<T> {
-  const resolveBucket = createResourceTimeBucketResolver(now)
-
   return (item) => {
-    const bucket = resolveBucket(getTimestamp(item))
+    const bucket = getResourceTimeBucket(getTimestamp(item), now)
     return { id: `time:${bucket}`, label: labels[bucket] }
   }
 }
@@ -152,46 +137,13 @@ export function sortRankedResourceItems<T>(
     .map(({ item }) => item)
 }
 
-/**
- * Time-list specialization of `sortRankedResourceItems`.
- *
- * Parse each timestamp once before sorting instead of inside the O(n log n)
- * comparator path, and share the parsed value with time-bucket ranking.
- * Invalid timestamps retain their stable input order.
- */
-export function sortRankedResourceItemsByRecency<T>(
-  items: readonly T[],
-  {
-    getRank,
-    getUpdatedAt,
-    isPinned
-  }: {
-    getRank: (item: T, updatedAtMs: number) => number
-    getUpdatedAt: (item: T) => string
-    isPinned: (item: T) => boolean
+export function compareResourceRecency<T>(getUpdatedAt: (item: T) => string): (a: T, b: T) => number {
+  return (a, b) => {
+    const aMs = Date.parse(getUpdatedAt(a))
+    const bMs = Date.parse(getUpdatedAt(b))
+    if (Number.isFinite(aMs) && Number.isFinite(bMs)) return bMs - aMs
+    return 0
   }
-): T[] {
-  return items
-    .map((item, index) => {
-      const updatedAtMs = Date.parse(getUpdatedAt(item))
-      return {
-        item,
-        index,
-        rank: getRank(item, updatedAtMs),
-        pinned: isPinned(item),
-        updatedAtMs
-      }
-    })
-    .sort((a, b) => {
-      if (a.rank !== b.rank) return a.rank - b.rank
-      if (a.pinned || b.pinned) return a.index - b.index
-      if (Number.isFinite(a.updatedAtMs) && Number.isFinite(b.updatedAtMs)) {
-        const recencyDelta = b.updatedAtMs - a.updatedAtMs
-        if (recencyDelta !== 0) return recencyDelta
-      }
-      return a.index - b.index
-    })
-    .map(({ item }) => item)
 }
 
 export type ResourceListOrderAnchor = { before: string } | { after: string } | { position: 'last' }

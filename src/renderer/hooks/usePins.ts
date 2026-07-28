@@ -12,13 +12,6 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('usePins')
 
-/**
- * Stable empty-array constant so `rawPins` identity doesn't churn while `/pins` is undefined
- * (initial load, `enabled: false`, or error). A fresh `[]` default would give every downstream
- * memo — including the pin predicates that list projections depend on — a new identity per render.
- */
-const EMPTY_PINS: readonly never[] = Object.freeze([])
-
 export interface UsePinsResult {
   /** Initial pin list load only. */
   isLoading: boolean
@@ -43,7 +36,7 @@ export interface UsePinsOptions {
 export function usePins(entityType: EntityType, options: UsePinsOptions = {}): UsePinsResult {
   const enabled = options.enabled ?? true
   const {
-    data: rawPins = EMPTY_PINS,
+    data: rawPins = [],
     isLoading,
     isRefreshing,
     error: queryError,

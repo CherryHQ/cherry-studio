@@ -1506,8 +1506,7 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' }))
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-composer-empty')
-    // The `POST /topics` mutation already invalidates `/topics`, so no manual refresh is issued.
-    expect(homeMocks.refreshTopics).not.toHaveBeenCalled()
+    expect(homeMocks.refreshTopics).toHaveBeenCalled()
   })
 
   it('creates a new topic when the assistant latest topic is chatted-in with a blank name (auto-naming off) in the classic-layout picker', async () => {
@@ -2074,8 +2073,7 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
-    // The `POST /topics` mutation already invalidates `/topics`, so no manual refresh is issued.
-    expect(homeMocks.refreshTopics).not.toHaveBeenCalled()
+    expect(homeMocks.refreshTopics).toHaveBeenCalled()
   })
 
   it('unlocks first-launch empty topic creation after a failure', async () => {

@@ -11,14 +11,6 @@ vi.mock('react-i18next', async (importOriginal) => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/components/EmojiIcon', () => ({
-  default: ({ emoji }: { emoji: string }) => <span data-testid={`emoji-icon-${emoji}`} />
-}))
-
-vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
-  default: () => <span data-testid="model-avatar" />
-}))
-
 vi.mock('@renderer/components/command', () => {
   return {
     CommandContextMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -135,9 +127,13 @@ vi.mock('@renderer/components/VirtualList', () => {
   }
 })
 
-const ITEMS: ResourceEntityRailItem[] = [
-  { id: 'assistant-a', name: 'Assistant A', icon: { type: 'emoji', emoji: 'A' } },
-  { id: 'assistant-b', name: 'Assistant B', icon: { type: 'emoji', emoji: 'B' } }
+type TestEntity = ResourceEntityRailItem & {
+  icon: ReactNode
+}
+
+const ITEMS: TestEntity[] = [
+  { id: 'assistant-a', name: 'Assistant A', icon: <span data-testid="assistant-a-icon" /> },
+  { id: 'assistant-b', name: 'Assistant B', icon: <span data-testid="assistant-b-icon" /> }
 ]
 
 const EDIT_ACTION: ResolvedAction<unknown> = {
@@ -149,32 +145,6 @@ const EDIT_ACTION: ResolvedAction<unknown> = {
 }
 
 describe('ResourceEntityRail', () => {
-  it('does not rerender unchanged entity rows when only reorder availability changes', () => {
-    const getContextMenuActions = vi.fn(() => [])
-    const onAdd = vi.fn()
-    const onReorder = vi.fn()
-    const onSelect = vi.fn()
-    const renderRail = (reorderEnabled: boolean) => (
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants"
-        getContextMenuActions={getContextMenuActions}
-        items={ITEMS}
-        onAdd={onAdd}
-        onReorder={onReorder}
-        onSelect={onSelect}
-        reorderEnabled={reorderEnabled}
-        variant="assistant"
-      />
-    )
-    const view = render(renderRail(true))
-    const renderCount = getContextMenuActions.mock.calls.length
-
-    view.rerender(renderRail(false))
-
-    expect(getContextMenuActions).toHaveBeenCalledTimes(renderCount)
-  })
-
   it('renders a history button next to add that fires onOpenHistoryRecords', () => {
     const onOpenHistoryRecords = vi.fn()
 
@@ -289,37 +259,44 @@ describe('ResourceEntityRail', () => {
     requestAnimationFrameSpy.mockRestore()
   })
 
-  it('renders the create-resource button next to the more menu without selecting the entity', () => {
+  it('renders row trailing actions next to the more menu without selecting the entity', () => {
     const onContextMenuAction = vi.fn()
-    const onCreateResource = vi.fn()
     const onSelect = vi.fn()
+    const onTrailingAction = vi.fn()
 
     render(
       <ResourceEntityRail
         addLabel="New"
         ariaLabel="Assistants"
-        createResourceLabel="Create"
         getContextMenuActions={() => [EDIT_ACTION]}
-        items={[ITEMS[0], { ...ITEMS[1], canCreateResource: false }]}
+        items={[
+          {
+            ...ITEMS[0],
+            trailingAction: (
+              <button type="button" aria-label="Create" onClick={onTrailingAction}>
+                Create
+              </button>
+            )
+          },
+          ITEMS[1]
+        ]}
         variant="assistant"
         onAdd={vi.fn()}
         onContextMenuAction={onContextMenuAction}
-        onCreateResource={onCreateResource}
         onSelect={onSelect}
       />
     )
 
-    // The opted-out entity (canCreateResource: false) gets no create button.
-    const createButtons = screen.getAllByRole('button', { name: 'Create' })
+    const createButton = screen.getByRole('button', { name: 'Create' })
     const moreButton = screen.getAllByRole('button', { name: 'common.more' })[0]
 
-    expect(createButtons).toHaveLength(1)
+    expect(createButton).toBeInTheDocument()
     expect(moreButton).toBeInTheDocument()
-    expect(moreButton.compareDocumentPosition(createButtons[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(moreButton.compareDocumentPosition(createButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
-    fireEvent.click(createButtons[0])
+    fireEvent.click(createButton)
 
-    expect(onCreateResource).toHaveBeenCalledWith('assistant-a')
+    expect(onTrailingAction).toHaveBeenCalledTimes(1)
     expect(onSelect).not.toHaveBeenCalled()
     expect(onContextMenuAction).not.toHaveBeenCalled()
   })
@@ -552,8 +529,8 @@ describe('ResourceEntityRail', () => {
         ariaLabel="Assistants list"
         defaultGroupLabel="Assistants"
         items={[
-          { id: 'assistant-b', name: 'Assistant B', icon: { type: 'emoji', emoji: 'B' }, pinned: true },
-          { id: 'assistant-a', name: 'Assistant A', icon: { type: 'emoji', emoji: 'A' } }
+          { id: 'assistant-b', name: 'Assistant B', icon: <span data-testid="assistant-b-icon" />, pinned: true },
+          { id: 'assistant-a', name: 'Assistant A', icon: <span data-testid="assistant-a-icon" /> }
         ]}
         variant="assistant"
         onAdd={vi.fn()}
@@ -569,8 +546,8 @@ describe('ResourceEntityRail', () => {
     // Both rows keep their avatar in a visible leading slot (not collapsed away by the section).
     const pinnedRow = screen.getByText('Assistant B').closest('[role="option"]')
     expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]')).not.toBeNull()
-    expect(screen.getByTestId('emoji-icon-B')).toBeInTheDocument()
-    expect(screen.getByTestId('emoji-icon-A')).toBeInTheDocument()
+    expect(screen.getByTestId('assistant-b-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('assistant-a-icon')).toBeInTheDocument()
   })
 
   it('groups non-pinned entities into per-group sections while keeping pinned on top', () => {
@@ -584,7 +561,7 @@ describe('ResourceEntityRail', () => {
           {
             id: 'pinned-home',
             name: 'Pinned Home',
-            icon: { type: 'emoji', emoji: 'P' },
+            icon: <span />,
             pinned: true,
             groupId: 'group-home',
             groupName: 'home',
@@ -593,7 +570,7 @@ describe('ResourceEntityRail', () => {
           {
             id: 'pinned-grouped',
             name: 'Pinned Grouped',
-            icon: { type: 'emoji', emoji: 'Q' },
+            icon: <span />,
             pinned: true,
             groupId: 'group-work',
             groupName: 'work',
@@ -602,7 +579,7 @@ describe('ResourceEntityRail', () => {
           {
             id: 'work-a',
             name: 'Work A',
-            icon: { type: 'emoji', emoji: 'W' },
+            icon: <span data-testid="work-a-icon" />,
             groupId: 'group-work',
             groupName: 'work',
             groupOrderKey: 'aa'
@@ -610,12 +587,12 @@ describe('ResourceEntityRail', () => {
           {
             id: 'home-a',
             name: 'Home A',
-            icon: { type: 'emoji', emoji: 'H' },
+            icon: <span />,
             groupId: 'group-home',
             groupName: 'home',
             groupOrderKey: 'aZ'
           },
-          { id: 'loose', name: 'Loose', icon: { type: 'emoji', emoji: 'L' } }
+          { id: 'loose', name: 'Loose', icon: <span /> }
         ]}
         variant="assistant"
         onAdd={vi.fn()}
@@ -644,7 +621,7 @@ describe('ResourceEntityRail', () => {
     ).toEqual(['Pinned Home', 'Pinned Grouped'])
     // The flat default "Assistants" header never appears while grouping by group.
     expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
-    expect(screen.getByTestId('emoji-icon-W')).toBeInTheDocument()
+    expect(screen.getByTestId('work-a-icon')).toBeInTheDocument()
     const listbox = screen.getByRole('listbox', { name: 'Assistants list' })
     expect(listbox).toHaveAttribute('data-draggable', 'true')
     expect(JSON.parse(listbox.getAttribute('data-drag-capabilities') ?? '{}')).toMatchObject({
@@ -663,20 +640,8 @@ describe('ResourceEntityRail', () => {
         defaultGroupLabel="Assistants"
         groupByGroup
         items={[
-          {
-            id: 'work-a',
-            name: 'Work A',
-            icon: { type: 'emoji', emoji: 'W' },
-            groupId: 'group-work',
-            groupName: 'work'
-          },
-          {
-            id: 'home-a',
-            name: 'Home A',
-            icon: { type: 'emoji', emoji: 'H' },
-            groupId: 'group-home',
-            groupName: 'home'
-          }
+          { id: 'work-a', name: 'Work A', icon: <span />, groupId: 'group-work', groupName: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, groupId: 'group-home', groupName: 'home' }
         ]}
         variant="assistant"
         onAdd={vi.fn()}
@@ -705,11 +670,11 @@ describe('ResourceEntityRail', () => {
           {
             id: 'sentinel-grouped',
             name: 'Sentinel Grouped',
-            icon: { type: 'emoji', emoji: 'S' },
+            icon: <span />,
             groupId: 'group-sentinel',
             groupName: '__untagged__'
           },
-          { id: 'loose', name: 'Loose', icon: { type: 'emoji', emoji: 'L' } }
+          { id: 'loose', name: 'Loose', icon: <span /> }
         ]}
         variant="assistant"
         onAdd={vi.fn()}
@@ -728,20 +693,8 @@ describe('ResourceEntityRail', () => {
         ariaLabel="Assistants list"
         defaultGroupLabel="Assistants"
         items={[
-          {
-            id: 'work-a',
-            name: 'Work A',
-            icon: { type: 'emoji', emoji: 'W' },
-            groupId: 'group-work',
-            groupName: 'work'
-          },
-          {
-            id: 'home-a',
-            name: 'Home A',
-            icon: { type: 'emoji', emoji: 'H' },
-            groupId: 'group-home',
-            groupName: 'home'
-          }
+          { id: 'work-a', name: 'Work A', icon: <span />, groupId: 'group-work', groupName: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, groupId: 'group-home', groupName: 'home' }
         ]}
         variant="assistant"
         onAdd={vi.fn()}
@@ -761,7 +714,10 @@ describe('ResourceEntityRail', () => {
         addLabel="New"
         ariaLabel="Assistants list"
         defaultGroupLabel="Assistants"
-        items={ITEMS}
+        items={[
+          { id: 'assistant-a', name: 'Assistant A', icon: <span data-testid="assistant-a-icon" /> },
+          { id: 'assistant-b', name: 'Assistant B', icon: <span data-testid="assistant-b-icon" /> }
+        ]}
         variant="assistant"
         onAdd={vi.fn()}
         onReorder={vi.fn()}
@@ -772,7 +728,7 @@ describe('ResourceEntityRail', () => {
     // Single section → no header shown (mirrors the modern layout), avatars still visible.
     expect(screen.queryByText('selector.common.pinned_title')).not.toBeInTheDocument()
     expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
-    expect(screen.getByTestId('emoji-icon-A')).toBeInTheDocument()
-    expect(screen.getByTestId('emoji-icon-B')).toBeInTheDocument()
+    expect(screen.getByTestId('assistant-a-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('assistant-b-icon')).toBeInTheDocument()
   })
 })

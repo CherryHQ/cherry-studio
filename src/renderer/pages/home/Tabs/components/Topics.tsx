@@ -143,31 +143,6 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
 }
 
-/**
- * Detects the reordering that must discard the optimistic drag overlay, by comparing only the
- * fields that overlay depends on. Element-wise rather than via a joined signature string: a 10k
- * history costs scalar comparisons instead of one interpolated string per topic plus a
- * multi-hundred-KB join, on a path that runs for every refreshed snapshot.
- */
-function hasSameTopicOrdering(previous: readonly Topic[], next: readonly Topic[]) {
-  if (previous.length !== next.length) return false
-
-  for (let index = 0; index < previous.length; index += 1) {
-    const topic = previous[index]
-    const nextTopic = next[index]
-    if (
-      topic.id !== nextTopic.id ||
-      (topic.assistantId ?? '') !== (nextTopic.assistantId ?? '') ||
-      (topic.orderKey ?? '') !== (nextTopic.orderKey ?? '') ||
-      !!topic.pinned !== !!nextTopic.pinned
-    ) {
-      return false
-    }
-  }
-
-  return true
-}
-
 function matchesAssistantFilter(topic: Topic, assistantIdFilter: string | null | undefined) {
   if (assistantIdFilter === undefined) return false
   if (assistantIdFilter === null) return !topic.assistantId
@@ -400,8 +375,7 @@ export function Topics({
     () =>
       apiTopics.map((apiTopic) => {
         const topic = mapApiTopicToRendererTopic(apiTopic)
-        topic.pinned = isTopicPinned(apiTopic.id)
-        return topic
+        return { ...topic, pinned: isTopicPinned(apiTopic.id) }
       }),
     [apiTopics, isTopicPinned]
   )
@@ -409,7 +383,13 @@ export function Topics({
     payload: ResourceListItemReorderPayload
     targetAssistantId: string | null
   } | null>(null)
-  const topicOrderingRef = useRef(apiBackedTopics)
+  const apiTopicOrderSignature = useMemo(
+    () =>
+      apiBackedTopics
+        .map((topic) => `${topic.id}:${topic.assistantId ?? ''}:${topic.orderKey ?? ''}:${topic.pinned ? '1' : '0'}`)
+        .join('|'),
+    [apiBackedTopics]
+  )
   const topics = apiBackedTopics
   const topicsRef = useRef(topics)
   const activeTopicRef = useRef(activeTopic)
@@ -428,12 +408,8 @@ export function Topics({
   }, [activeTopic])
 
   useEffect(() => {
-    const previousOrdering = topicOrderingRef.current
-    topicOrderingRef.current = apiBackedTopics
-    if (!hasSameTopicOrdering(previousOrdering, apiBackedTopics)) {
-      setOptimisticMove(null)
-    }
-  }, [apiBackedTopics])
+    setOptimisticMove(null)
+  }, [apiTopicOrderSignature])
 
   const [optimisticAssistantOrderIds, setOptimisticAssistantOrderIds] = useState<readonly string[] | null>(null)
   const assistantOrderSignature = useMemo(
@@ -545,11 +521,9 @@ export function Topics({
 
   const removeTopic = useCallback((topic: Topic) => deleteTopicById(topic.id), [deleteTopicById])
 
-  // Reads the topic snapshot via ref: this callback feeds the ResourceList actions context, so a
-  // dependency on the refreshed `topics` array would rebuild the context and re-render every row.
   const handleRenameTopic = useCallback(
     (topicId: string, name: string) => {
-      const topic = topicsRef.current.find((candidate) => candidate.id === topicId)
+      const topic = topics.find((candidate) => candidate.id === topicId)
       const trimmedName = name.trim()
       if (!topic || !trimmedName || trimmedName === topic.name) {
         return
@@ -558,7 +532,7 @@ export function Topics({
       void updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
       toast.success(t('common.saved'))
     },
-    [t, updateTopic]
+    [topics, t, updateTopic]
   )
 
   const isRenaming = useCallback((topicId: string) => renamingTopics.includes(topicId), [renamingTopics])
@@ -765,10 +739,6 @@ export function Topics({
     if (!isRightPanel) return groupedTopics
     return groupedTopics.filter((topic) => matchesAssistantFilter(topic, assistantIdFilter))
   }, [assistantIdFilter, groupedTopics, isRightPanel])
-  const filteredTopicsRef = useRef(filteredTopics)
-  useEffect(() => {
-    filteredTopicsRef.current = filteredTopics
-  }, [filteredTopics])
   const assistantIdsWithTopics = useMemo(() => {
     const assistantIds = new Set<string>()
 
@@ -787,16 +757,14 @@ export function Topics({
     ? () => void onAddAssistant?.()
     : () => void onNewTopic?.(headerCreateTopicPayload)
   const showHeaderCreateItem = !(isAssistantDisplayMode && resolvedPanePosition === 'right')
-  // Ref read for the same reason as `handleRenameTopic`: keep the actions context stable across
-  // topic list refreshes.
   const handleGroupHeaderSelectTopic = useCallback(
     (topicId: string) => {
-      const topic = filteredTopicsRef.current.find((candidate) => candidate.id === topicId)
+      const topic = filteredTopics.find((candidate) => candidate.id === topicId)
       if (topic && (historyRecordsActive || topic.id !== activeTopicIdRef.current)) {
         setActiveTopic(topic)
       }
     },
-    [historyRecordsActive, setActiveTopic]
+    [filteredTopics, historyRecordsActive, setActiveTopic]
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: { id: string }) => {
@@ -827,12 +795,6 @@ export function Topics({
         ? 'empty'
         : 'idle'
   const dragReady = isAssistantDisplayMode && isFullyLoaded && !isLoadingAll && !isRefreshing
-  // Keep the list meta stable when drag readiness has not changed, so unrelated renders do not
-  // wake the virtual drag wrapper and its visible rows.
-  const dragCapabilities = useMemo(
-    () => ({ groups: dragReady, items: dragReady, itemSameGroup: dragReady, itemCrossGroup: dragReady }),
-    [dragReady]
-  )
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
@@ -1271,9 +1233,7 @@ export function Topics({
       if (payload.sourceGroupId === TOPIC_PINNED_GROUP_ID || payload.targetGroupId === TOPIC_PINNED_GROUP_ID) return
       if (payload.targetGroupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return
 
-      // Ref read for the same reason as `handleRenameTopic`: keep the actions context stable across
-      // topic list refreshes.
-      const topic = topicsRef.current.find((candidate) => candidate.id === payload.activeId)
+      const topic = topics.find((candidate) => candidate.id === payload.activeId)
       if (!topic || topic.pinned) return
 
       const targetAssistantId = resolveAssistantIdForTopicGroup(payload.targetGroupId, assistantById)
@@ -1299,7 +1259,7 @@ export function Topics({
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
       }
     },
-    [assistantById, isAssistantDisplayMode, moveTopic, orderedAssistants, refreshAssistants, t]
+    [assistantById, isAssistantDisplayMode, moveTopic, orderedAssistants, refreshAssistants, t, topics]
   )
   const canSetPanePosition = isAssistantDisplayMode || isRightPanel
 
@@ -1322,7 +1282,12 @@ export function Topics({
         getGroupHeaderIcon={getGroupHeaderIcon}
         isGroupHeaderIconVisible={isGroupHeaderIconVisible}
         groupHeaderClickBehavior={getGroupHeaderClickBehavior}
-        dragCapabilities={dragCapabilities}
+        dragCapabilities={{
+          groups: dragReady,
+          items: dragReady,
+          itemSameGroup: dragReady,
+          itemCrossGroup: dragReady
+        }}
         canDragGroup={canDragTopicGroup}
         canDropGroup={canDropTopicGroup}
         canDragItem={canDragTopicItem}
@@ -1420,6 +1385,7 @@ export function Topics({
           onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
           onSwitchTopic={setActiveTopic}
           panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
+          topicsLength={topics.length}
           variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
         />
         {historyLoading && visibleFilteredTopics.length > 0 && (
@@ -1518,6 +1484,7 @@ interface TopicListBodyProps {
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onSwitchTopic: (topic: Topic) => void
   panePosition?: TopicTabPosition
+  topicsLength: number
   variant: TopicListBodyVariant
 }
 
@@ -1549,6 +1516,7 @@ function TopicListBody(props: TopicListBodyProps) {
     onSetPanePosition,
     onSwitchTopic,
     panePosition,
+    topicsLength,
     variant
   } = props
 
@@ -1573,7 +1541,8 @@ function TopicListBody(props: TopicListBodyProps) {
       onRequestTopicImageAction,
       onSetPanePosition,
       onSwitchTopic,
-      panePosition
+      panePosition,
+      topicsLength
     }),
     [
       assistantMoveTargets,
@@ -1595,7 +1564,8 @@ function TopicListBody(props: TopicListBodyProps) {
       onRequestTopicImageAction,
       onSetPanePosition,
       onSwitchTopic,
-      panePosition
+      panePosition,
+      topicsLength
     ]
   )
 
@@ -1628,51 +1598,6 @@ interface TopicRowWithStatusProps extends TopicRowSharedProps {
 
 type TopicRowProps = TopicRowWithStatusProps
 
-function hasSameTopicRowData(previous: Topic, next: Topic) {
-  return (
-    previous.id === next.id &&
-    previous.type === next.type &&
-    previous.assistantId === next.assistantId &&
-    previous.name === next.name &&
-    previous.createdAt === next.createdAt &&
-    previous.updatedAt === next.updatedAt &&
-    previous.activeNodeId === next.activeNodeId &&
-    previous.orderKey === next.orderKey &&
-    previous.traceId === next.traceId &&
-    previous.pinned === next.pinned &&
-    previous.prompt === next.prompt &&
-    previous.isNameManuallyEdited === next.isNameManuallyEdited &&
-    (previous.messages === next.messages || (previous.messages.length === 0 && next.messages.length === 0))
-  )
-}
-
-function hasSameTopicRowProps(previous: Readonly<TopicRowProps>, next: Readonly<TopicRowProps>) {
-  return (
-    hasSameTopicRowData(previous.topic, next.topic) &&
-    previous.assistantMoveTargets === next.assistantMoveTargets &&
-    previous.deletingTopicId === next.deletingTopicId &&
-    previous.displayMode === next.displayMode &&
-    previous.exportMenuOptions === next.exportMenuOptions &&
-    previous.isActive === next.isActive &&
-    previous.isNewlyRenamed === next.isNewlyRenamed &&
-    previous.isRenaming === next.isRenaming &&
-    previous.notesPath === next.notesPath &&
-    previous.onAutoRename === next.onAutoRename &&
-    previous.onClearMessages === next.onClearMessages &&
-    previous.onConfirmDelete === next.onConfirmDelete &&
-    previous.onDeleteClick === next.onDeleteClick &&
-    previous.onDeleteFromMenu === next.onDeleteFromMenu &&
-    previous.onMoveToAssistant === next.onMoveToAssistant &&
-    previous.onOpenInNewTab === next.onOpenInNewTab &&
-    previous.onOpenInNewWindow === next.onOpenInNewWindow &&
-    previous.onPinTopic === next.onPinTopic &&
-    previous.onRequestTopicImageAction === next.onRequestTopicImageAction &&
-    previous.onSetPanePosition === next.onSetPanePosition &&
-    previous.onSwitchTopic === next.onSwitchTopic &&
-    previous.panePosition === next.panePosition
-  )
-}
-
 const TopicRow = memo(function TopicRow({
   assistantMoveTargets,
   deletingTopicId,
@@ -1695,7 +1620,8 @@ const TopicRow = memo(function TopicRow({
   onSetPanePosition,
   onSwitchTopic,
   panePosition,
-  topic
+  topic,
+  topicsLength
 }: TopicRowProps) {
   const { t } = useTranslation()
   const rightPanelState = useOptionalRightPanelState()
@@ -1749,7 +1675,8 @@ const TopicRow = memo(function TopicRow({
     onStartRename: startMenuRename,
     panePosition,
     t,
-    topic
+    topic,
+    topicsLength
   })
 
   const row = (
@@ -1856,7 +1783,7 @@ const TopicRow = memo(function TopicRow({
       />
     </>
   )
-}, hasSameTopicRowProps)
+})
 
 const TopicStreamIndicator = ({
   isErrored,

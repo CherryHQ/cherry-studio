@@ -99,7 +99,7 @@ import {
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { Folder, FolderOpen, MoreHorizontal, Plus, SquarePen } from 'lucide-react'
-import { memo, type RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -156,29 +156,6 @@ type CreateSessionSeed = {
   agentId: string
   workspace?: AgentSessionWorkspaceSource
   workspacePath?: string
-}
-
-/**
- * Detects only the persisted ordering changes that invalidate the optimistic drag overlay.
- * Element-wise scalar checks avoid allocating a multi-hundred-KB signature for a large history.
- */
-function hasSameSessionOrdering(previous: readonly SessionListItem[], next: readonly SessionListItem[]) {
-  if (previous.length !== next.length) return false
-
-  for (let index = 0; index < previous.length; index += 1) {
-    const session = previous[index]
-    const nextSession = next[index]
-    if (
-      session.id !== nextSession.id ||
-      (session.agentId ?? '') !== (nextSession.agentId ?? '') ||
-      session.orderKey !== nextSession.orderKey ||
-      !!session.pinned !== !!nextSession.pinned
-    ) {
-      return false
-    }
-  }
-
-  return true
 }
 
 function AgentGroupMoreMenu({
@@ -483,7 +460,6 @@ const Sessions = ({
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
     [pinIdBySessionId, sessions]
   )
-  const sessionOrderingRef = useRef(sessionItems)
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
   const requestFileNavigation = useOptionalAgentFileNavigation()
@@ -567,17 +543,6 @@ const Sessions = ({
     displayMode === 'workdir' && dragReady && !isWorkdirMetadataLoading && !isWorkdirMetadataRefreshing
   const agentDragReady = displayMode === 'agent' && dragReady && !isAgentsLoading
   const itemDragReady = displayMode === 'workdir' ? workdirDragReady : agentDragReady
-  // Keep the list meta stable when drag readiness has not changed, so unrelated renders do not
-  // wake the virtual drag wrapper and its visible rows.
-  const dragCapabilities = useMemo(
-    () => ({
-      groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,
-      items: itemDragReady,
-      itemSameGroup: itemDragReady,
-      itemCrossGroup: false
-    }),
-    [agentDragReady, displayMode, itemDragReady, workdirDragReady]
-  )
   const workspaceRowsForDisplay = useMemo(() => {
     if (!optimisticWorkspaceOrderIds) return workspaceRows
 
@@ -629,13 +594,17 @@ const Sessions = ({
     return groupedSessions.filter((session) => session.agentId === agentIdFilter)
   }, [agentIdFilter, groupedSessions, isRightPanel])
 
+  const sessionOrderSignature = useMemo(
+    () =>
+      sessionItems
+        .map((session) => `${session.id}:${session.agentId ?? ''}:${session.orderKey}:${session.pinned ? '1' : '0'}`)
+        .join('|'),
+    [sessionItems]
+  )
+
   useEffect(() => {
-    const previousOrdering = sessionOrderingRef.current
-    sessionOrderingRef.current = sessionItems
-    if (!hasSameSessionOrdering(previousOrdering, sessionItems)) {
-      setOptimisticMove(null)
-    }
-  }, [sessionItems])
+    setOptimisticMove(null)
+  }, [sessionOrderSignature])
 
   useEffect(() => {
     setOptimisticWorkspaceOrderIds(null)
@@ -734,29 +703,23 @@ const Sessions = ({
     },
     [displayMode, isRightPanel, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )
-  const filteredGroupedSessionsRef = useRef(filteredGroupedSessions)
-  useEffect(() => {
-    filteredGroupedSessionsRef.current = filteredGroupedSessions
-  }, [filteredGroupedSessions])
-
   const handleDeleteSession = useCallback(
     async (id: string) => {
-      const currentFilteredSessions = filteredGroupedSessionsRef.current
       // Capture the deleted session before removal so selection can be scoped to its agent even
       // after the list refetches.
       const deletedSession =
-        currentFilteredSessions.find((session) => session.id === id) ??
+        filteredGroupedSessions.find((session) => session.id === id) ??
         sessionItemsRef.current.find((session) => session.id === id)
 
       const success = await deleteSession(id)
-      if (!success || activeSessionIdRef.current !== id) return
+      if (!success || activeSessionId !== id) return
 
       // Deleting the active session selects a neighbour within the *same agent* (both layouts), so we
       // never jump to an unrelated agent's session. When that agent has no other session left, open a
       // fresh empty one for it instead of stranding the view.
       const agentScopedSessions = deletedSession
-        ? currentFilteredSessions.filter((session) => session.agentId === deletedSession.agentId)
-        : currentFilteredSessions
+        ? filteredGroupedSessions.filter((session) => session.agentId === deletedSession.agentId)
+        : filteredGroupedSessions
       const next = pickNeighbourAfterRemoval(agentScopedSessions, id)
       if (next) {
         setActiveSessionId(next.id)
@@ -792,14 +755,12 @@ const Sessions = ({
         if (!createdSession) setActiveSessionId(null)
       }
     },
-    [agentIdFilter, deleteSession, onCreateSession, setActiveSessionId, t]
+    [activeSessionId, agentIdFilter, deleteSession, filteredGroupedSessions, onCreateSession, setActiveSessionId, t]
   )
 
-  // Reads the session snapshot via ref: this callback feeds the ResourceList actions context, so a
-  // dependency on the refreshed `sessionItems` array would rebuild the context and re-render every row.
   const handleRenameSession = useCallback(
     async (id: string, name: string) => {
-      const session = sessionItemsRef.current.find((candidate) => candidate.id === id)
+      const session = sessionItems.find((candidate) => candidate.id === id)
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
@@ -816,7 +777,7 @@ const Sessions = ({
         toast.error(t('agent.session.update.error.failed'))
       }
     },
-    [t, updateSession]
+    [sessionItems, t, updateSession]
   )
 
   const handleAutoRenameSession = useCallback(
@@ -1357,53 +1318,8 @@ const Sessions = ({
     [agentById, agentDragReady, displayMode, workdirDragReady, workdirDisplay]
   )
 
-  const sessionReorderStateRef = useRef({
-    agentById,
-    agentDragReady,
-    agentsForDisplay,
-    displayMode,
-    itemDragReady,
-    workdirDisplay,
-    workdirDragReady,
-    workspaceRowsForDisplay
-  })
-  useLayoutEffect(() => {
-    sessionReorderStateRef.current = {
-      agentById,
-      agentDragReady,
-      agentsForDisplay,
-      displayMode,
-      itemDragReady,
-      workdirDisplay,
-      workdirDragReady,
-      workspaceRowsForDisplay
-    }
-  }, [
-    agentById,
-    agentDragReady,
-    agentsForDisplay,
-    displayMode,
-    itemDragReady,
-    workdirDisplay,
-    workdirDragReady,
-    workspaceRowsForDisplay
-  ])
-
-  // Keep the actions context stable across session refreshes while reading the latest reorder state
-  // at invocation time.
   const handleSessionReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {
-      const {
-        agentById,
-        agentDragReady,
-        agentsForDisplay,
-        displayMode,
-        itemDragReady,
-        workdirDisplay,
-        workdirDragReady,
-        workspaceRowsForDisplay
-      } = sessionReorderStateRef.current
-
       if (payload.type === 'group') {
         if (displayMode === 'agent') {
           if (!agentDragReady) return
@@ -1503,7 +1419,7 @@ const Sessions = ({
         return
       }
 
-      const session = sessionItemsRef.current.find((candidate) => candidate.id === payload.activeId)
+      const session = sessionItems.find((candidate) => candidate.id === payload.activeId)
       if (!session || session.pinned) return
 
       const normalizedPayload = normalizeSessionDropPayload(payload)
@@ -1515,7 +1431,23 @@ const Sessions = ({
         setOptimisticMove(null)
       }
     },
-    [refetchAgents, refetchWorkspaces, reorderAgent, reorderSession, reorderWorkspace, t]
+    [
+      displayMode,
+      agentById,
+      agentDragReady,
+      agentsForDisplay,
+      itemDragReady,
+      refetchAgents,
+      refetchWorkspaces,
+      reorderAgent,
+      reorderSession,
+      reorderWorkspace,
+      sessionItems,
+      t,
+      workdirDragReady,
+      workdirDisplay,
+      workspaceRowsForDisplay
+    ]
   )
 
   const getGroupHeaderAction = useCallback(
@@ -1856,7 +1788,12 @@ const Sessions = ({
       isGroupHeaderIconVisible={isGroupHeaderIconVisible}
       getGroupHeaderTooltip={getGroupHeaderTooltip}
       groupHeaderClickBehavior={getGroupHeaderClickBehavior}
-      dragCapabilities={dragCapabilities}
+      dragCapabilities={{
+        groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,
+        items: itemDragReady,
+        itemSameGroup: itemDragReady,
+        itemCrossGroup: false
+      }}
       canDragGroup={canDragSessionGroup}
       canDropGroup={canDropSessionGroup}
       canDragItem={canDragSessionItem}

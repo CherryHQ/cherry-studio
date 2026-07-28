@@ -31,51 +31,10 @@ function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null 
   }
 }
 
-/** Plain-data description of an entity icon rendered by the resource rail. */
-export type ResourceEntityIconDescriptor =
-  | { type: 'model'; modelId: string; modelName?: string | null }
-  | { type: 'emoji'; emoji: string }
-  | { type: 'bot' }
-
-export function getAssistantEntityIconDescriptor(
-  iconType: AssistantIconType,
-  assistant: { emoji?: string | null; modelId?: string | null; modelName?: string | null },
-  fallbackModelId?: string | null
-): ResourceEntityIconDescriptor | undefined {
-  if (iconType === 'none') return undefined
-
-  const uniqueModelId = assistant.modelId ?? fallbackModelId
-  if (iconType === 'model' && isUniqueModelId(uniqueModelId)) {
-    return { type: 'model', modelId: uniqueModelId, modelName: assistant.modelName }
-  }
-
-  return assistant.emoji ? { type: 'emoji', emoji: assistant.emoji } : { type: 'bot' }
-}
-
-export function getAgentEntityIconDescriptor(
-  iconType: AssistantIconType,
-  agent: { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null } | undefined,
-  fallbackModelId?: string | null
-): ResourceEntityIconDescriptor | undefined {
-  if (iconType === 'none') return undefined
-
-  const uniqueModelId = agent?.model ?? fallbackModelId
-  if (iconType === 'model' && isUniqueModelId(uniqueModelId)) {
-    return { type: 'model', modelId: uniqueModelId, modelName: agent?.modelName }
-  }
-
-  return { type: 'emoji', emoji: getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI }
-}
-
-export function ResourceEntityIcon({ descriptor }: { descriptor: ResourceEntityIconDescriptor }) {
-  if (descriptor.type === 'model') {
-    const model = buildModelAvatarModel(descriptor.modelId, descriptor.modelName)
-    if (model) return <ModelAvatar model={model} size={24} />
-  }
-  if (descriptor.type === 'emoji')
-    return <EmojiIcon emoji={descriptor.emoji} size={24} fontSize={14} className="mr-0" />
-
-  return (
+function renderFallbackAssistantIcon(emoji?: string | null) {
+  return emoji ? (
+    <EmojiIcon emoji={emoji} size={24} fontSize={14} className="mr-0" />
+  ) : (
     <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
       <Bot size={14} />
     </span>
@@ -87,8 +46,12 @@ export function renderAssistantEntityIcon(
   assistant: { emoji?: string | null; modelId?: string | null; modelName?: string | null },
   fallbackModelId?: string | null
 ) {
-  const descriptor = getAssistantEntityIconDescriptor(iconType, assistant, fallbackModelId)
-  return descriptor ? <ResourceEntityIcon descriptor={descriptor} /> : undefined
+  if (iconType === 'none') return undefined
+
+  const modelAvatarModel = buildModelAvatarModel(assistant.modelId ?? fallbackModelId, assistant.modelName)
+  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
+
+  return renderFallbackAssistantIcon(assistant.emoji)
 }
 
 export function renderAgentEntityIcon(
@@ -96,8 +59,19 @@ export function renderAgentEntityIcon(
   agent: { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null } | undefined,
   fallbackModelId?: string | null
 ) {
-  const descriptor = getAgentEntityIconDescriptor(iconType, agent, fallbackModelId)
-  return descriptor ? <ResourceEntityIcon descriptor={descriptor} /> : undefined
+  if (iconType === 'none') return undefined
+
+  const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
+  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
+
+  return (
+    <EmojiIcon
+      emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI}
+      size={24}
+      fontSize={14}
+      className="mr-0"
+    />
+  )
 }
 
 export function buildResolvedIconTypeActions(

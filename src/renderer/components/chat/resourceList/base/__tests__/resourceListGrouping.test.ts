@@ -1,15 +1,14 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
+  compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedFirstSorter,
   createPinnedGroupResolver,
-  createResourceTimeBucketResolver,
   createTimeGroupResolver,
   getResourceTimeBucket,
   sortByResourceGroupRank,
-  sortRankedResourceItems,
-  sortRankedResourceItemsByRecency
+  sortRankedResourceItems
 } from '../resourceListGrouping'
 import { compareResourceOrderKey } from '../resourceListReorder'
 
@@ -31,34 +30,6 @@ describe('resourceListGrouping', () => {
     expect(getResourceTimeBucket(localIso(2026, 5, 14, 9), now)).toBe('yesterday')
     expect(getResourceTimeBucket(localIso(2026, 5, 13, 9), now)).toBe('this-week')
     expect(getResourceTimeBucket(localIso(2026, 5, 8, 23), now)).toBe('earlier')
-  })
-
-  it('keeps day boundaries exclusive so future and unparseable timestamps stay in earlier', () => {
-    const now = new Date(2026, 4, 15, 12)
-
-    // Boundaries are half-open [start, nextStart): the first instant of a day belongs to that day,
-    // and anything past today — a clock-skewed or scheduled row — falls back to earlier rather than
-    // leading the list.
-    expect(getResourceTimeBucket(new Date(2026, 4, 15, 0, 0, 0).toISOString(), now)).toBe('today')
-    expect(getResourceTimeBucket(new Date(2026, 4, 14, 23, 59, 59, 999).toISOString(), now)).toBe('yesterday')
-    expect(getResourceTimeBucket(new Date(2026, 4, 16, 0, 0, 0).toISOString(), now)).toBe('earlier')
-    expect(getResourceTimeBucket('nonsense', now)).toBe('earlier')
-    expect(getResourceTimeBucket(undefined, now)).toBe('earlier')
-    expect(getResourceTimeBucket(localIso(2026, 5, 15, 9), 'nonsense')).toBe('earlier')
-  })
-
-  it('createResourceTimeBucketResolver buckets a list exactly like the one-off lookup', () => {
-    const now = new Date(2026, 4, 15, 12)
-    const resolveBucket = createResourceTimeBucketResolver(now)
-    const timestamps = [
-      localIso(2026, 5, 15, 9),
-      localIso(2026, 5, 14, 9),
-      localIso(2026, 5, 13, 9),
-      localIso(2026, 5, 8, 23),
-      'nonsense'
-    ]
-
-    expect(timestamps.map(resolveBucket)).toEqual(timestamps.map((ts) => getResourceTimeBucket(ts, now)))
   })
 
   it('composes pinned and time resolvers with the first matching group winning', () => {
@@ -132,7 +103,7 @@ describe('resourceListGrouping', () => {
       const sorted = sortRankedResourceItems(items, {
         getRank: (item) => (item.pinned === true ? 0 : 1),
         isPinned: (item) => item.pinned === true,
-        compareWithinGroup: (a, b) => b.updatedAt.localeCompare(a.updatedAt)
+        compareWithinGroup: compareResourceRecency((item) => item.updatedAt)
       })
 
       expect(sorted.map((item) => item.id)).toEqual(['p-a', 'p-b', 'n-new', 'n-old'])
@@ -159,25 +130,14 @@ describe('resourceListGrouping', () => {
     })
   })
 
-  it('sorts by recency while reading and parsing each timestamp once', () => {
-    const items: TestItem[] = [
-      { id: 'invalid-first', updatedAt: 'nonsense' },
-      { id: 'older', updatedAt: localIso(2026, 5, 1) },
-      { id: 'newer', updatedAt: localIso(2026, 5, 10) },
-      { id: 'invalid-second', updatedAt: 'also bad' }
-    ]
-    const getUpdatedAt = vi.fn((item: TestItem) => item.updatedAt)
-    const parseSpy = vi.spyOn(Date, 'parse')
+  it('compareResourceRecency ranks newer first and treats unparseable timestamps as equal', () => {
+    const compare = compareResourceRecency<{ updatedAt: string }>((item) => item.updatedAt)
+    const newer = { updatedAt: localIso(2026, 5, 10) }
+    const older = { updatedAt: localIso(2026, 5, 1) }
 
-    const sorted = sortRankedResourceItemsByRecency(items, {
-      getRank: () => 1,
-      getUpdatedAt,
-      isPinned: () => false
-    })
-
-    expect(sorted.map((item) => item.id)).toEqual(['invalid-first', 'newer', 'older', 'invalid-second'])
-    expect(getUpdatedAt).toHaveBeenCalledTimes(items.length)
-    expect(parseSpy).toHaveBeenCalledTimes(items.length)
-    parseSpy.mockRestore()
+    expect(compare(newer, older)).toBeLessThan(0)
+    expect(compare(older, newer)).toBeGreaterThan(0)
+    expect(compare({ updatedAt: 'nonsense' }, older)).toBe(0)
+    expect(compare({ updatedAt: 'nonsense' }, { updatedAt: 'also bad' })).toBe(0)
   })
 })

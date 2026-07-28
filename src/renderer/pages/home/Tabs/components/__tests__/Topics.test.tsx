@@ -10,27 +10,19 @@ import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const virtualMocks = vi.hoisted(() => ({
-  useVirtualizer: vi.fn(
-    (options: {
-      count: number
-      estimateSize: (index: number) => number
-      getItemKey?: (index: number) => string | number
-    }) => ({
-      getVirtualItems: () =>
-        Array.from({ length: options.count }, (_, index) => ({
-          index,
-          // Mirror the real virtualizer: honor getItemKey so stable row keys survive list
-          // refreshes; index keys would remount every shifted row and defeat row memoization.
-          key: options.getItemKey?.(index) ?? `row-${index}`,
-          start: index * options.estimateSize(index),
-          size: options.estimateSize(index)
-        })),
-      getTotalSize: () => options.count * 56,
-      measureElement: vi.fn(),
-      scrollElement: null,
-      scrollToIndex: virtualMocks.scrollToIndex
-    })
-  ),
+  useVirtualizer: vi.fn((options: { count: number; estimateSize: (index: number) => number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: options.count }, (_, index) => ({
+        index,
+        key: `row-${index}`,
+        start: index * options.estimateSize(index),
+        size: options.estimateSize(index)
+      })),
+    getTotalSize: () => options.count * 56,
+    measureElement: vi.fn(),
+    scrollElement: null,
+    scrollToIndex: virtualMocks.scrollToIndex
+  })),
   scrollToIndex: vi.fn()
 }))
 
@@ -620,15 +612,10 @@ function renderTopicList({
   resourceMenuItems?: ComponentProps<typeof Topics>['resourceMenuItems']
 } = {}) {
   const setActiveTopic = vi.fn()
-  const initialAssistantTopicsSource = assistantTopicsSource ?? createAssistantTopicsSource()
-  const renderNode = (
-    nextRevealRequest = revealRequest,
-    nextActiveTopic = activeTopic,
-    nextAssistantTopicsSource = initialAssistantTopicsSource
-  ) => (
+  const renderNode = (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) => (
     <Topics
       activeTopic={nextActiveTopic}
-      assistantTopicsSource={nextAssistantTopicsSource}
+      assistantTopicsSource={assistantTopicsSource ?? createAssistantTopicsSource()}
       assistantIdFilter={assistantIdFilter}
       historyRecordsActive={historyRecordsActive}
       onActiveAssistantDeleted={onActiveAssistantDeleted}
@@ -651,11 +638,8 @@ function renderTopicList({
     onCreateTopicAfterClear,
     onNewTopic,
     onOpenHistoryRecords,
-    rerenderTopicList: (
-      nextRevealRequest = revealRequest,
-      nextActiveTopic = activeTopic,
-      nextAssistantTopicsSource = initialAssistantTopicsSource
-    ) => view.rerender(renderNode(nextRevealRequest, nextActiveTopic, nextAssistantTopicsSource)),
+    rerenderTopicList: (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) =>
+      view.rerender(renderNode(nextRevealRequest, nextActiveTopic)),
     setActiveTopic
   }
 }
@@ -1919,7 +1903,7 @@ describe('Topics', () => {
     expect(screen.queryByText(/^Prompt:/)).not.toBeInTheDocument()
   })
 
-  it('rerenders only topic rows whose data or active state changes', () => {
+  it('rerenders only the previous and next active topic rows when selection changes', () => {
     const setPanePosition = vi.fn()
     const exportMenuOptions = {
       docx: true,
@@ -1983,16 +1967,6 @@ describe('Topics', () => {
     expect(topicRowRenderMocks.counts.get('topic-1')).toBeGreaterThan(initialRenderCounts.get('topic-1') ?? 0)
     expect(topicRowRenderMocks.counts.get('topic-2')).toBeGreaterThan(initialRenderCounts.get('topic-2') ?? 0)
     expect(topicRowRenderMocks.counts.get('topic-3')).toBe(initialRenderCounts.get('topic-3'))
-
-    const countsBeforeAppend = new Map(topicRowRenderMocks.counts)
-    const refreshedTopicsSource = createAssistantTopicsSource(createTopicPageItems(4))
-
-    rerenderTopicList(undefined, createRendererTopic({ id: 'topic-4', name: 'Topic 4' }), refreshedTopicsSource)
-
-    expect(topicRowRenderMocks.counts.get('topic-1')).toBe(countsBeforeAppend.get('topic-1'))
-    expect(topicRowRenderMocks.counts.get('topic-2')).toBeGreaterThan(countsBeforeAppend.get('topic-2') ?? 0)
-    expect(topicRowRenderMocks.counts.get('topic-3')).toBe(countsBeforeAppend.get('topic-3'))
-    expect(topicRowRenderMocks.counts.get('topic-4')).toBeGreaterThan(0)
   })
 
   it('keeps inactive topic stream indicator visible and opens fulfilled topics', () => {

@@ -5,17 +5,15 @@ import { ResourceListActionContextMenu } from '@renderer/components/chat/actions
 import { CommandPopupMenu } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { cn } from '@renderer/utils/style'
-import { History, MoreHorizontal, SquarePen } from 'lucide-react'
-import type { ReactElement, ReactNode, RefObject } from 'react'
-import { memo, useCallback, useMemo, useRef } from 'react'
+import { History, MoreHorizontal } from 'lucide-react'
+import type { ReactNode, RefObject } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   compareResourceOrderKey,
   ConversationResourceMenu,
   type ConversationResourceMenuItem,
-  ResourceEntityIcon,
-  type ResourceEntityIconDescriptor,
   ResourceList,
   type ResourceListGroup,
   type ResourceListReorderPayload,
@@ -26,7 +24,7 @@ import {
 export type ResourceEntityRailItem = {
   id: string
   name: string
-  icon?: ResourceEntityIconDescriptor
+  icon?: ReactNode
   orderKey?: string
   reorderable?: boolean
   /**
@@ -38,8 +36,7 @@ export type ResourceEntityRailItem = {
   groupId?: string
   groupName?: string
   groupOrderKey?: string
-  /** Set false to hide the rail-level create-resource trailing button for this entity. */
-  canCreateResource?: boolean
+  trailingAction?: ReactNode
 }
 
 // Pinned entities float into a "已固定" section at the top; the rest sit under the "助手" / "智能体"
@@ -82,13 +79,6 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   addIcon?: ReactNode
   addLabel: string
   ariaLabel: string
-  /** Tooltip / aria label for the per-entity create-resource button. Required with `onCreateResource`. */
-  createResourceLabel?: string
-  /**
-   * Renders a trailing create-resource button on every entity row (unless the item opts out via
-   * `canCreateResource: false`).
-   */
-  onCreateResource?: (entityId: string) => void | Promise<unknown>
   /** Header for the non-pinned group ("助手" for assistants, "智能体" for agents). */
   defaultGroupLabel?: string
   /**
@@ -138,150 +128,10 @@ function getEntityRailTrailingActionPaddingClassName(actionCount: number) {
   return ''
 }
 
-type ResourceEntityRailRowProps<T extends ResourceEntityRailItem, TActionContext> = {
-  createResourceLabel?: string
-  getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
-  item: T
-  moreLabel: string
-  onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
-  onCreateResource?: (entityId: string) => void | Promise<unknown>
-  runContextMenuAction: (item: T, action: ResolvedAction<TActionContext>) => Promise<void>
-}
-
-function hasSameResourceEntityIcon(
-  previous: ResourceEntityIconDescriptor | undefined,
-  next: ResourceEntityIconDescriptor | undefined
-) {
-  if (previous === next) return true
-  if (!previous || !next || previous.type !== next.type) return false
-
-  if (previous.type === 'model' && next.type === 'model') {
-    return previous.modelId === next.modelId && previous.modelName === next.modelName
-  }
-  if (previous.type === 'emoji' && next.type === 'emoji') {
-    return previous.emoji === next.emoji
-  }
-  return previous.type === 'bot' && next.type === 'bot'
-}
-
-function hasSameResourceEntityRowItem(previous: ResourceEntityRailItem, next: ResourceEntityRailItem) {
-  return (
-    previous.id === next.id &&
-    previous.name === next.name &&
-    hasSameResourceEntityIcon(previous.icon, next.icon) &&
-    previous.orderKey === next.orderKey &&
-    previous.reorderable === next.reorderable &&
-    previous.pinned === next.pinned &&
-    previous.groupId === next.groupId &&
-    previous.groupName === next.groupName &&
-    previous.groupOrderKey === next.groupOrderKey &&
-    previous.canCreateResource === next.canCreateResource
-  )
-}
-
-function hasSameResourceEntityRailRowProps(
-  previous: Readonly<ResourceEntityRailRowProps<ResourceEntityRailItem, unknown>>,
-  next: Readonly<ResourceEntityRailRowProps<ResourceEntityRailItem, unknown>>
-) {
-  return (
-    hasSameResourceEntityRowItem(previous.item, next.item) &&
-    previous.createResourceLabel === next.createResourceLabel &&
-    previous.getContextMenuActions === next.getContextMenuActions &&
-    previous.moreLabel === next.moreLabel &&
-    previous.onContextMenuAction === next.onContextMenuAction &&
-    previous.onCreateResource === next.onCreateResource &&
-    previous.runContextMenuAction === next.runContextMenuAction
-  )
-}
-
-function ResourceEntityRailRowComponent<T extends ResourceEntityRailItem, TActionContext>({
-  createResourceLabel,
-  getContextMenuActions,
-  item,
-  moreLabel,
-  onContextMenuAction,
-  onCreateResource,
-  runContextMenuAction
-}: ResourceEntityRailRowProps<T, TActionContext>) {
-  const actions = getContextMenuActions?.(item) ?? []
-  const hasVisibleMenuActions = !!onContextMenuAction && actions.some((action) => action.availability.visible)
-  const hasCreateAction = !!onCreateResource && !!createResourceLabel && item.canCreateResource !== false
-  const trailingActionCount = (hasCreateAction ? 1 : 0) + (hasVisibleMenuActions ? 1 : 0)
-  const trailingActionPaddingClassName = getEntityRailTrailingActionPaddingClassName(trailingActionCount)
-  const extraItems = hasVisibleMenuActions
-    ? actionsToCommandMenuExtraItems(actions, (action) => runContextMenuAction(item, action))
-    : []
-  // No row onClick: selection for mouse, row-Enter, and listbox-keyboard all funnel through
-  // the list's selectItem action → onSelectItem, so every path stays consistent and fires exactly once.
-  const row = (
-    <ResourceList.Item item={item} data-testid="resource-entity-rail-row">
-      {item.icon && (
-        <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
-          <ResourceEntityIcon descriptor={item.icon} />
-        </ResourceList.ItemLeadingSlot>
-      )}
-      <ResourceList.ItemTitle
-        className={cn(ENTITY_RAIL_TITLE_CLASS, 'transition-[padding]', trailingActionPaddingClassName)}
-        title={item.name}>
-        {item.name}
-      </ResourceList.ItemTitle>
-      {(hasCreateAction || hasVisibleMenuActions) && (
-        // Stop clicks bubbling to the row's onClick: the "more" menu portals its content out of
-        // the DOM but React still routes the menu-item click up the React tree (…→ ItemActions →
-        // row), which would otherwise select the entity when a menu action (e.g. edit) is picked.
-        <ResourceList.ItemActions onClick={(event) => event.stopPropagation()}>
-          {hasVisibleMenuActions && (
-            <Tooltip title={moreLabel} delay={500}>
-              <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
-                <ResourceList.GroupHeaderActionButton
-                  type="button"
-                  aria-label={moreLabel}
-                  onClick={(event) => event.stopPropagation()}>
-                  <MoreHorizontal className="block" />
-                </ResourceList.GroupHeaderActionButton>
-              </CommandPopupMenu>
-            </Tooltip>
-          )}
-          {hasCreateAction && (
-            <Tooltip title={createResourceLabel} delay={500}>
-              <ResourceList.GroupHeaderActionButton
-                type="button"
-                aria-label={createResourceLabel}
-                onClick={() => {
-                  void onCreateResource(item.id)
-                }}>
-                <SquarePen className="block" />
-              </ResourceList.GroupHeaderActionButton>
-            </Tooltip>
-          )}
-        </ResourceList.ItemActions>
-      )}
-    </ResourceList.Item>
-  )
-  if (!actions.length || !onContextMenuAction) return row
-
-  return (
-    <ResourceListActionContextMenu
-      item={item}
-      actions={actions}
-      onAction={(action) => onContextMenuAction(item, action)}>
-      {row}
-    </ResourceListActionContextMenu>
-  )
-}
-
-const ResourceEntityRailRow = memo(ResourceEntityRailRowComponent, hasSameResourceEntityRailRowProps) as <
-  T extends ResourceEntityRailItem,
-  TActionContext
->(
-  props: ResourceEntityRailRowProps<T, TActionContext>
-) => ReactElement
-
 export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionContext = unknown>({
   addIcon,
   addLabel,
   ariaLabel,
-  createResourceLabel,
   defaultGroupLabel,
   groupByGroup = false,
   emptyFallback,
@@ -290,7 +140,6 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   historyRecordsActive = false,
   listRef,
   onAdd,
-  onCreateResource,
   onOpenHistoryRecords,
   resourceMenuItems,
   onContextMenuAction,
@@ -356,21 +205,66 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     },
     [onContextMenuAction]
   )
-  const moreLabel = t('common.more')
   const renderItem = useCallback(
-    (item: T) => (
-      <ResourceEntityRailRow
-        key={item.id}
-        createResourceLabel={createResourceLabel}
-        getContextMenuActions={getContextMenuActions}
-        item={item}
-        moreLabel={moreLabel}
-        onContextMenuAction={onContextMenuAction}
-        onCreateResource={onCreateResource}
-        runContextMenuAction={runContextMenuAction}
-      />
-    ),
-    [createResourceLabel, getContextMenuActions, moreLabel, onContextMenuAction, onCreateResource, runContextMenuAction]
+    (item: T) => {
+      const actions = getContextMenuActions?.(item) ?? []
+      const hasVisibleMenuActions = !!onContextMenuAction && actions.some((action) => action.availability.visible)
+      const hasTrailingAction = Boolean(item.trailingAction)
+      const trailingActionCount = (hasTrailingAction ? 1 : 0) + (hasVisibleMenuActions ? 1 : 0)
+      const trailingActionPaddingClassName = getEntityRailTrailingActionPaddingClassName(trailingActionCount)
+      const extraItems = hasVisibleMenuActions
+        ? actionsToCommandMenuExtraItems(actions, (action) => runContextMenuAction(item, action))
+        : []
+      // No row onClick: selection for mouse, row-Enter, and listbox-keyboard all funnel through
+      // the list's selectItem action → onSelectItem (handleSelectItemById → handleItemClick), so
+      // every path stays consistent and fires exactly once.
+      const row = (
+        <ResourceList.Item item={item} data-testid="resource-entity-rail-row">
+          {item.icon && (
+            <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
+              {item.icon}
+            </ResourceList.ItemLeadingSlot>
+          )}
+          <ResourceList.ItemTitle
+            className={cn(ENTITY_RAIL_TITLE_CLASS, 'transition-[padding]', trailingActionPaddingClassName)}
+            title={item.name}>
+            {item.name}
+          </ResourceList.ItemTitle>
+          {(hasTrailingAction || hasVisibleMenuActions) && (
+            // Stop clicks bubbling to the row's onClick: the "more" menu portals its content out of
+            // the DOM but React still routes the menu-item click up the React tree (…→ ItemActions →
+            // row), which would otherwise select the entity when a menu action (e.g. edit) is picked.
+            <ResourceList.ItemActions onClick={(event) => event.stopPropagation()}>
+              {hasVisibleMenuActions && (
+                <Tooltip title={t('common.more')} delay={500}>
+                  <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
+                    <ResourceList.GroupHeaderActionButton
+                      type="button"
+                      aria-label={t('common.more')}
+                      onClick={(event) => event.stopPropagation()}>
+                      <MoreHorizontal className="block" />
+                    </ResourceList.GroupHeaderActionButton>
+                  </CommandPopupMenu>
+                </Tooltip>
+              )}
+              {item.trailingAction}
+            </ResourceList.ItemActions>
+          )}
+        </ResourceList.Item>
+      )
+      if (!actions.length || !onContextMenuAction) return row
+
+      return (
+        <ResourceListActionContextMenu
+          key={item.id}
+          item={item}
+          actions={actions}
+          onAction={(action) => onContextMenuAction(item, action)}>
+          {row}
+        </ResourceListActionContextMenu>
+      )
+    },
+    [getContextMenuActions, onContextMenuAction, runContextMenuAction, t]
   )
   const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
   const providerItems = useMemo(
@@ -408,34 +302,6 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     [groupByGroup]
   )
 
-  // The list's `meta` memo depends on all three. Stable values keep unrelated parent renders from
-  // waking the virtual drag wrapper and its visible rows.
-  const dragCapabilities = useMemo(
-    () => ({ groups: false, items: reorderEnabled, itemSameGroup: reorderEnabled, itemCrossGroup: false }),
-    [reorderEnabled]
-  )
-  const canDragItem = useCallback(
-    ({ item }: { item: T }) => reorderEnabled && item.reorderable !== false && !item.pinned,
-    [reorderEnabled]
-  )
-  const canDropItem = useCallback(
-    ({
-      activeItem,
-      sourceGroupId,
-      targetGroupId
-    }: {
-      activeItem: T
-      sourceGroupId: string | null
-      targetGroupId: string | null
-    }) =>
-      reorderEnabled &&
-      activeItem.reorderable !== false &&
-      !activeItem.pinned &&
-      targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID &&
-      sourceGroupId === targetGroupId,
-    [reorderEnabled]
-  )
-
   // Alias the compound provider to a local before rendering — same pattern as TopicResourceList/SessionResourceList.
   // Written inline as `<ResourceList.Provider>` it gets auto-rewritten to `<ResourceList>` by the
   // React-19 "drop Context .Provider" lint fixer (ResourceList.Provider only looks like a Context).
@@ -451,9 +317,20 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       groupBy={groupBy}
       sectionBy={sectionBy}
       defaultGroupVisibleCount={Number.POSITIVE_INFINITY}
-      dragCapabilities={dragCapabilities}
-      canDragItem={canDragItem}
-      canDropItem={canDropItem}
+      dragCapabilities={{
+        groups: false,
+        items: reorderEnabled,
+        itemSameGroup: reorderEnabled,
+        itemCrossGroup: false
+      }}
+      canDragItem={({ item }) => reorderEnabled && item.reorderable !== false && !item.pinned}
+      canDropItem={({ activeItem, sourceGroupId, targetGroupId }) =>
+        reorderEnabled &&
+        activeItem.reorderable !== false &&
+        !activeItem.pinned &&
+        targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID &&
+        sourceGroupId === targetGroupId
+      }
       onReorder={reorderEnabled ? onReorder : undefined}>
       <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`}>
         <ResourceList.Header className="gap-1">

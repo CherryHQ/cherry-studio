@@ -1,12 +1,12 @@
-import type { getResourceTimeBucket } from '@renderer/utils/chat/resourceListBase'
 import {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
   compareResourceOrderKey,
+  compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
-  createResourceTimeBucketResolver,
   createTimeGroupResolver,
+  getResourceTimeBucket,
   moveResourceListStringGroupAfterDrop,
   type ResourceListGroup,
   type ResourceListGroupReorderPayload,
@@ -14,7 +14,6 @@ import {
   type ResourceListItemReorderPayload,
   type ResourceListTimeBucket,
   sortRankedResourceItems,
-  sortRankedResourceItemsByRecency,
   withResourceListGroupIdPrefix
 } from '@renderer/utils/chat/resourceListBase'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -370,13 +369,11 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
   const isPinned = (session: T) => session.pinned === true
 
   if (options.mode === 'time') {
-    const resolveTimeBucket = createResourceTimeBucketResolver(options.now)
-
-    return sortRankedResourceItemsByRecency(sessions, {
-      getRank: (session, updatedAtMs) =>
-        session.pinned === true ? 0 : SESSION_TIME_BUCKET_RANK[resolveTimeBucket(updatedAtMs)],
+    return sortRankedResourceItems(sessions, {
+      getRank: (session) =>
+        session.pinned === true ? 0 : SESSION_TIME_BUCKET_RANK[getResourceTimeBucket(session.updatedAt, options.now)],
       isPinned,
-      getUpdatedAt: (session) => session.updatedAt
+      compareWithinGroup: compareResourceRecency((session) => session.updatedAt)
     })
   }
 

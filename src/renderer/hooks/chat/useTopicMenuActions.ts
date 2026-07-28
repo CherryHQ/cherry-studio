@@ -51,6 +51,7 @@ export interface TopicMenuActionOptions {
   panePosition?: TopicTabPosition
   t: TFunction
   topic: Topic
+  topicsLength: number
 }
 
 export function createTopicActionContext({
@@ -72,7 +73,8 @@ export function createTopicActionContext({
   onStartRename,
   panePosition,
   t,
-  topic
+  topic,
+  topicsLength
 }: TopicMenuActionOptions): TopicActionContext {
   return {
     exportMenuOptions,
@@ -132,7 +134,8 @@ export function createTopicActionContext({
     onStartRename,
     panePosition,
     t,
-    topic
+    topic,
+    topicsLength
   }
 }
 
@@ -208,7 +211,8 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onStartRename,
     panePosition,
     t,
-    topic
+    topic,
+    topicsLength
   } = options
   const actionContext = useMemo(
     () =>
@@ -231,7 +235,8 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onStartRename,
         panePosition,
         t,
-        topic
+        topic,
+        topicsLength
       }),
     [
       exportMenuOptions,
@@ -252,7 +257,8 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onStartRename,
       panePosition,
       t,
-      topic
+      topic,
+      topicsLength
     ]
   )
   const getMenuActions = useCallback(() => getTopicMenuActions(actionContext), [actionContext])

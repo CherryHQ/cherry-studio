@@ -202,7 +202,7 @@ const HomePage: FC = () => {
 
   const shouldAutoCreateTopic = !state?.topic && !isMessageOnlyView
 
-  const { createTopic } = useTopicMutations()
+  const { createTopic, refreshTopics } = useTopicMutations()
   const {
     assistants,
     hasLoaded: hasAssistantsLoaded,
@@ -458,6 +458,11 @@ const HomePage: FC = () => {
         const rendererTopic = reusableTopic ?? mapApiTopicToRendererTopic(await createTopic({ assistantId }))
 
         setActiveTopicAndCloseResourceView(rendererTopic)
+        if (!reusableTopic) {
+          void refreshTopics().catch((err) => {
+            logger.warn('Failed to refresh topics after assistant picker topic create', err as Error)
+          })
+        }
       } catch (err) {
         logger.error('Failed to create assistant conversation from classic-layout picker', err as Error)
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
@@ -465,7 +470,14 @@ const HomePage: FC = () => {
         isCreatingTopicRef.current = false
       }
     },
-    [createTopic, resolveAssistantIdForSelection, setActiveTopicAndCloseResourceView, t, topicReuseCandidates]
+    [
+      createTopic,
+      refreshTopics,
+      resolveAssistantIdForSelection,
+      setActiveTopicAndCloseResourceView,
+      t,
+      topicReuseCandidates
+    ]
   )
 
   const createAndActivateEmptyTopic = useCallback(
@@ -493,6 +505,11 @@ const HomePage: FC = () => {
           )
 
         setActiveTopicAndCloseResourceView(rendererTopic)
+        if (!reusableTopic) {
+          void refreshTopics().catch((err) => {
+            logger.warn('Failed to refresh topics after composer topic create', err as Error)
+          })
+        }
         return rendererTopic
       } catch (err) {
         logger.error('Failed to create empty topic', err as Error)
@@ -502,7 +519,14 @@ const HomePage: FC = () => {
         isCreatingTopicRef.current = false
       }
     },
-    [createTopic, resolveNewTopicAssistantTarget, setActiveTopicAndCloseResourceView, t, topicReuseCandidates]
+    [
+      createTopic,
+      refreshTopics,
+      resolveNewTopicAssistantTarget,
+      setActiveTopicAndCloseResourceView,
+      t,
+      topicReuseCandidates
+    ]
   )
 
   const createAndActivateFreshTopic = useCallback(
@@ -515,6 +539,9 @@ const HomePage: FC = () => {
           ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
         })
         setActiveTopicAndCloseResourceView(mapApiTopicToRendererTopic(topic))
+        void refreshTopics().catch((err) => {
+          logger.warn('Failed to refresh topics after fresh topic create', err as Error)
+        })
       } catch (err) {
         logger.error('Failed to create fresh topic', err as Error)
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
@@ -522,7 +549,7 @@ const HomePage: FC = () => {
         isCreatingTopicRef.current = false
       }
     },
-    [createTopic, resolveNewTopicAssistantTarget, setActiveTopicAndCloseResourceView, t]
+    [createTopic, refreshTopics, resolveNewTopicAssistantTarget, setActiveTopicAndCloseResourceView, t]
   )
 
   const handleCreateEmptyTopic = useCallback(

@@ -12,13 +12,9 @@ export {
   buildIconTypeActionDescriptors,
   buildResolvedIconTypeActions,
   buildResolvedIconTypeMenuAction,
-  getAgentEntityIconDescriptor,
-  getAssistantEntityIconDescriptor,
   renderAgentEntityIcon,
   renderAssistantEntityIcon,
-  RESOURCE_ICON_TYPE_OPTIONS,
-  ResourceEntityIcon,
-  type ResourceEntityIconDescriptor
+  RESOURCE_ICON_TYPE_OPTIONS
 } from './resourceEntityIcon'
 export type {
   ResourceListActionMap,
@@ -57,15 +53,14 @@ export {
 export { remapResourceListCollapsedGroupIds } from './resourceListExpansion'
 export type { ResourceListGroupResolver, ResourceListTimeBucket } from './resourceListGrouping'
 export {
+  compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedFirstSorter,
   createPinnedGroupResolver,
-  createResourceTimeBucketResolver,
   createTimeGroupResolver,
   getResourceTimeBucket,
   sortByResourceGroupRank,
-  sortRankedResourceItems,
-  sortRankedResourceItemsByRecency
+  sortRankedResourceItems
 } from './resourceListGrouping'
 export {
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
