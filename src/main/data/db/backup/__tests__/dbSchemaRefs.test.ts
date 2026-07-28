@@ -213,8 +213,7 @@ describe('DB_JSON_COLUMNS', () => {
       'endpointTypes',
       'reasoning',
       'parameters',
-      'pricing',
-      'userOverrides'
+      'pricing'
     ])
   })
 
@@ -223,9 +222,9 @@ describe('DB_JSON_COLUMNS', () => {
     expect(DB_JSON_COLUMNS.topic).toEqual([])
   })
 
-  it('lists exactly 46 JSON columns in total', () => {
+  it('lists exactly 45 JSON columns in total', () => {
     const total = Object.values(DB_JSON_COLUMNS).reduce((sum, cols) => sum + cols.length, 0)
-    expect(total).toBe(46)
+    expect(total).toBe(45)
   })
 
   it('every listed column is a known column of its table', () => {

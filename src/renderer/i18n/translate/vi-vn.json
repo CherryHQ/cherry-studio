@@ -379,9 +379,9 @@
         "placeholder": "Chọn công cụ được phê duyệt trước"
       },
       "api_retry": {
-        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
-        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
-        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
+        "reason": "Yêu cầu thất bại ({{error}}, HTTP {{status}}) — đang thử lại",
+        "retrying": "Đang thử lại {{attempt}}/{{max}}…",
+        "retrying_in": "Đang thử lại {{attempt}}/{{max}} sau {{seconds}} giây"
       },
       "auto_rename": "Tạo tên nhiệm vụ",
       "create": {
@@ -683,7 +683,7 @@
         "deleteFailed": "Không xóa được tác vụ",
         "loadFailed": "Không tải được nhiệm vụ",
         "runFailed": "Không thể chạy tác vụ",
-        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
+        "triggerInvalid": "Lịch trình không hợp lệ: kiểm tra biểu thức, múi giờ hoặc khoảng thời gian",
         "updateFailed": "Không thể cập nhật tác vụ"
       },
       "frequency": {
@@ -726,6 +726,38 @@
       "run": "Chạy",
       "runTriggered": "Nhiệm vụ được kích hoạt",
       "save": "Lưu",
+      "schedule": {
+        "custom": "Lịch trình tùy chỉnh",
+        "daily": "Hàng ngày",
+        "hour": "Giờ",
+        "hourly": "Hàng giờ",
+        "interval": "Khoảng thời gian tùy chỉnh",
+        "intervalMinutes": "Khoảng thời gian",
+        "invalid": "Nhập tần suất thực thi hợp lệ.",
+        "minute": "Phút",
+        "once": "Một lần",
+        "runAt": "Chạy lúc",
+        "summary": {
+          "daily": "Hàng ngày lúc {{time}}",
+          "hourly": "Vào đầu mỗi giờ",
+          "interval": "Mỗi {{count}} phút",
+          "weekdays": "Các ngày trong tuần lúc {{time}}",
+          "weekly": "Mỗi {{weekday}} lúc {{time}}"
+        },
+        "time": "Thời gian",
+        "weekday": "Ngày trong tuần",
+        "weekdays": {
+          "friday": "Thứ Sáu",
+          "monday": "Thứ Hai",
+          "saturday": "Thứ Bảy",
+          "sunday": "Chủ nhật",
+          "thursday": "Thứ năm",
+          "tuesday": "Thứ Ba",
+          "wednesday": "Thứ Tư"
+        },
+        "weekdaysOnly": "Ngày trong tuần",
+        "weekly": "Hàng tuần"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Interval",
@@ -875,7 +907,7 @@
       "expired": "Hết hạn",
       "inputPreview": "Xem trước đầu vào công cụ",
       "pending": "Đang chờ phê duyệt",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Đang chờ xử lý",
       "permissionExpired": "Yêu cầu quyền đã hết hạn. Đang chờ hướng dẫn mới...",
       "requiresElevatedPermissions": "Công cụ này yêu cầu quyền truy cập nâng cao.",
       "suggestion": {
@@ -1434,21 +1466,21 @@
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
       "placeholder_without_triggers": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Không thể tải cuộc trò chuyện được tham chiếu",
+        "no_room": "Không còn đủ chỗ trong tin nhắn để thêm cuộc trò chuyện này",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Không có phiên nào khớp với tìm kiếm của bạn",
+            "label": "Không tìm thấy phiên làm việc nào"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Phiên họp"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Không có chủ đề nào khớp với tìm kiếm của bạn",
+            "label": "Không Tìm Thấy Chủ Đề Nào"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Chủ đề"
         }
       },
       "resize_height": "Điều chỉnh chiều cao đầu vào",
@@ -2147,7 +2179,7 @@
     "terminal": "Thiết bị đầu cuối",
     "terminal_hint": "Chọn ứng dụng terminal để chạy CLI",
     "terminal_placeholder": "Chọn ứng dụng thiết bị đầu cuối",
-    "title": "Công cụ mã",
+    "title": "Code Mate",
     "tool_parameters": "Cài đặt tham số",
     "up_to_date": "Cập nhật",
     "update_options": "Tùy chọn Cập nhật",
@@ -2300,7 +2332,7 @@
     "provider": "Nhà cung cấp",
     "reasoning_content": "Reasoning profundo",
     "refresh": "Làm mới",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Không thể làm mới danh sách. Đang hiển thị phiên bản đã tải cuối cùng.",
     "regenerate": "Tái tạo",
     "remove_image": "Xóa hình ảnh",
     "rename": "Đổi tên",
@@ -2616,7 +2648,7 @@
     "empty": {
       "no_match_description": "Không có tệp nào khớp với bộ lọc hiện tại",
       "no_match_title": "Không tìm thấy tệp phù hợp",
-      "title": "[to be translated]:No files yet"
+      "title": "Chưa có tệp nào"
     },
     "empty_trash": "Xóa thùng rác",
     "error": {
@@ -3014,6 +3046,7 @@
     "embedding_model": "Mô hình Nhúng",
     "embedding_model_required": "Mô hình nhúng cơ sở tri thức là bắt buộc",
     "empty": "Không có cơ sở kiến thức",
+    "empty_action": "Tạo Cơ sở Tri thức",
     "empty_description": "Bạn chưa có cơ sở kiến thức nào. Hãy tạo một cơ sở kiến thức để bắt đầu tổ chức và tìm kiếm tài liệu của bạn.",
     "error": {
       "directory_not_migrated": "Di chuyển thư mục không thành công. Vui lòng xóa và tải lên lại.",
@@ -3788,8 +3821,8 @@
         "title": "Xác nhận xóa"
       },
       "failed": "Xóa thất bại",
-      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
-      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
+      "first_turn_not_supported": "Tin nhắn của người dùng đầu tiên không thể bị xóa.",
+      "root_unavailable": "Tin nhắn vẫn đang tải và chưa thể xóa được.",
       "success": "Xóa thành công"
     },
     "dialog": {
@@ -6485,6 +6518,7 @@
       "viewErrorDetails": "Xem chi tiết"
     },
     "developer": {
+      "client_id": "ID khách hàng",
       "enable_developer_mode": "Kích hoạt Chế độ Nhà phát triển",
       "help": "Sau khi bật chế độ nhà phát triển, bạn có thể sử dụng tính năng dò dữ liệu để xem luồng dữ liệu trong quá trình gọi mô hình.",
       "title": "Chế độ Nhà phát triển"
@@ -6667,7 +6701,9 @@
       "active": "Đang hoạt động",
       "addError": "Gagal menambahkan server",
       "addServer": {
+        "advanced": "Nâng cao",
         "create": "Tạo nhanh",
+        "createDescription": "Điền thông tin kết nối để tạo máy chủ; mọi thứ khác có thể điều chỉnh sau.",
         "importFrom": {
           "connectionFailed": "Kết nối thất bại",
           "dxt": "Nhập gói DXT",
@@ -6747,7 +6783,11 @@
         "success": "Đã lấy thành công các máy chủ MCP"
       },
       "filter": {
-        "label": "Lọc"
+        "allStatuses": "Tất cả trạng thái",
+        "allTypes": "Tất cả các loại",
+        "builtinOnly": "Chỉ tích hợp sẵn",
+        "status": "Lọc theo trạng thái",
+        "type": "Lọc theo loại"
       },
       "findMore": "Tìm thêm MCP",
       "headers": "Tiêu đề",
@@ -6804,6 +6844,7 @@
         "usage": "Cách sử dụng",
         "version": "Phiên bản"
       },
+      "pageDescription": "Quản lý máy chủ MCP. Sau khi được kích hoạt, các tác nhân có thể gọi các công cụ và tài nguyên mà chúng cung cấp.",
       "prompts": {
         "arguments": "Lập luận",
         "availablePrompts": "Prompts Disponibles",
@@ -7767,12 +7808,39 @@
       "titlePlaceholder": "Vui lòng nhập tiêu đề cụm từ"
     },
     "scheduledTasks": {
+      "agentCreate": "Tạo với Agent",
+      "allAgents": "Tất cả các đại lý",
+      "allStatuses": "Tất cả các trạng thái",
+      "clearFilters": "Xóa bộ lọc",
+      "createDescription": "Thiết lập những gì Agent cần làm và khi nào nó sẽ chạy.",
+      "createTitle": "Tác vụ đã lên lịch mới",
       "description": "Quản lý các tác vụ đã lên lịch trên tất cả các tác nhân. Các tác vụ sẽ tự động chạy theo lịch đã cấu hình.",
+      "editDescription": "Cập nhật những việc Agent nên làm và thời điểm nó nên chạy.",
+      "editTitle": "Chỉnh sửa tác vụ đã lên lịch",
+      "filterAgent": "Lọc theo Đại lý",
+      "filterStatus": "Lọc theo trạng thái",
+      "manualCreate": "Tạo thủ công",
+      "newTask": "Mới",
       "noAgents": "Không tìm thấy tác nhân nào. Hãy tạo một tác nhân trước để thêm các tác vụ theo lịch trình.",
       "noAgentsTip": "Mẹo: Bạn cũng có thể yêu cầu đại lý của mình tạo các tác vụ theo lịch trình qua trò chuyện.",
+      "noAgentsTitle": "Không có tác nhân",
+      "noMatches": "Thử tìm kiếm hoặc lọc khác.",
+      "noMatchesTitle": "Không có tác vụ phù hợp",
       "noTasks": "Không có tác vụ nào được lên lịch. Nhấp vào \"+ Thêm\" để tạo một tác vụ cho tác nhân.",
+      "noTasksTitle": "Không có tác vụ đã lên lịch",
+      "notFoundDescription": "Nhiệm vụ này có thể đã bị xóa hoặc liên kết không hợp lệ.",
+      "notFoundTitle": "Không tìm thấy nhiệm vụ",
+      "paginationLabel": "Phân trang tác vụ đã lên lịch",
+      "paginationStatus": "Trang {{page}} của {{pageCount}} · {{total}} nhiệm vụ",
+      "search": "Tìm kiếm tác vụ đã lên lịch",
+      "searchPlaceholder": "Tìm kiếm tác vụ hoặc Đại lý",
       "selectTask": "Chọn một nhiệm vụ để xem chi tiết",
-      "title": "Tác vụ đã lên lịch"
+      "title": "Tác vụ đã lên lịch",
+      "validation": {
+        "agent": "Chọn một Đại lý.",
+        "name": "Nhập tên tác vụ.",
+        "prompt": "Nhập một lời nhắc nhiệm vụ."
+      }
     },
     "shortcuts": {
       "action": "Hành động",
@@ -7861,6 +7929,7 @@
       "noInstalled": "Không có kỹ năng nào được cài đặt",
       "noResults": "Không tìm thấy kỹ năng nào",
       "noSkillFile": "Không tìm thấy SKILL.md",
+      "pageDescription": "Quản lý các kỹ năng đã cài đặt. Kỹ năng mở rộng khả năng của tác nhân của bạn và được gọi khi cần thiết.",
       "searchPlaceholder": "Khám phá thêm kỹ năng...",
       "searchRegistryTitle": "Tìm kiếm sổ đăng ký kỹ năng trực tuyến",
       "searchTitle": "Kỹ năng tìm kiếm",
@@ -8146,7 +8215,7 @@
   "title": {
     "apps": "Ứng dụng",
     "chat": "Trò chuyện",
-    "code": "Mã",
+    "code": "Code Mate",
     "files": "Tập tin",
     "home": "Trang chủ",
     "knowledge": "Cơ sở tri thức",

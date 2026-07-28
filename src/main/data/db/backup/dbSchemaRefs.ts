@@ -546,14 +546,13 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'providerId', dbName: 'providerId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'modelId', dbName: 'modelId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'presetModelId', dbName: 'presetModelId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
-    { name: 'name', dbName: 'name', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'name', dbName: 'name', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'description', dbName: 'description', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'group', dbName: 'group', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
-    { name: 'capabilities', dbName: 'capabilities', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'capabilities', dbName: 'capabilities', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'inputModalities', dbName: 'inputModalities', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'outputModalities', dbName: 'outputModalities', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'endpointTypes', dbName: 'endpointTypes', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
-    { name: 'customEndpointUrl', dbName: 'customEndpointUrl', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'contextWindow', dbName: 'contextWindow', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
     { name: 'maxInputTokens', dbName: 'maxInputTokens', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
     { name: 'maxOutputTokens', dbName: 'maxOutputTokens', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
@@ -561,7 +560,7 @@ export const DB_COLUMNS_BY_TABLE = {
       name: 'supportsStreaming',
       dbName: 'supportsStreaming',
       isPrimaryKey: false,
-      isNullable: false,
+      isNullable: true,
       sqlType: 'integer'
     },
     { name: 'reasoning', dbName: 'reasoning', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
@@ -572,7 +571,6 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'isDeprecated', dbName: 'isDeprecated', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'orderKey', dbName: 'orderKey', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'notes', dbName: 'notes', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
-    { name: 'userOverrides', dbName: 'userOverrides', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
   ],
@@ -910,8 +908,7 @@ export const DB_JSON_COLUMNS = {
     'endpointTypes',
     'reasoning',
     'parameters',
-    'pricing',
-    'userOverrides'
+    'pricing'
   ],
   user_provider: ['endpointConfigs', 'apiKeys', 'authConfig', 'apiFeatures', 'providerSettings']
 } as const satisfies Readonly<Record<DbTableName, readonly DbColumnName[]>>
@@ -926,5 +923,5 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-07-25T15:40:44.442Z'
+  generatedAt: '2026-07-28T02:26:48.606Z'
 } as const

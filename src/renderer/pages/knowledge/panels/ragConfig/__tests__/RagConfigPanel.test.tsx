@@ -210,7 +210,7 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
 // Stub the download button as a plain button that fires onSelected with the local
 // model id, so tests can drive the "download finished → auto-select + save" path.
 // Async factory + dynamic import keeps the id out of the hoisted-factory scope rules.
-vi.mock('../LocalEmbeddingDownloadButton', async () => {
+vi.mock('../../../components/LocalEmbeddingDownloadButton', async () => {
   const { LOCAL_EMBEDDING_UNIQUE_MODEL_ID: localModelId } = await import('@shared/data/presets/localEmbedding')
   return {
     default: ({ onSelected }: { onSelected: (modelId: string) => void }) => (

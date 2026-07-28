@@ -155,12 +155,7 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         column: column('parameters'),
         reason: 'no soft refs — holds default sampling parameters'
       },
-      { table: table('user_model'), column: column('pricing'), reason: 'no soft refs — holds per-token pricing tiers' },
-      {
-        table: table('user_model'),
-        column: column('userOverrides'),
-        reason: 'no soft refs — holds user overrides on top of preset model config'
-      }
+      { table: table('user_model'), column: column('pricing'), reason: 'no soft refs — holds per-token pricing tiers' }
     ]
   },
   backupPolicy: {

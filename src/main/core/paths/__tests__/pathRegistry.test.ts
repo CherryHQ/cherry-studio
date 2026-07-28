@@ -74,10 +74,8 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('feature.file_processing.temp')).toBe(true)
     })
 
-    it('returns true for the new feature.agents.workspaces key', () => {
-      // Registered for BaseService's per-agent workspace parent dir
-      // (`userData/Data/Agents`). Cherry-owned, writable, not opted out.
-      expect(shouldAutoEnsure('feature.agents.workspaces')).toBe(true)
+    it('returns true for the Agent data root', () => {
+      expect(shouldAutoEnsure('feature.agents.data')).toBe(true)
     })
 
     it('returns true for feature.agents.skills (now that its value is fixed)', () => {
@@ -159,6 +157,10 @@ describe('pathRegistry.shouldAutoEnsure', () => {
   })
 
   describe('NO_ENSURE exact keys — read-only build artifacts', () => {
+    it('returns false for the system-workspace root so DataApi can store paths without creating directories', () => {
+      expect(shouldAutoEnsure('feature.agents.system_workspaces')).toBe(false)
+    })
+
     it('returns false for app.exe_file', () => {
       expect(shouldAutoEnsure('app.exe_file')).toBe(false)
     })

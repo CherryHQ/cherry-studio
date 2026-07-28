@@ -27,7 +27,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
-import { Check, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
+import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -246,6 +246,7 @@ const NutstoreSettings: FC = () => {
           ) : (
             <Button onClick={handleClickNutstoreSSO} variant="outline">
               {t('settings.data.nutstore.login.button')}
+              <ExternalLink size={13} />
             </Button>
           )}
         </SettingRow>

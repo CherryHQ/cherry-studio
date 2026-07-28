@@ -106,9 +106,8 @@ export function reduceAtBottom(
           : state
       }
       // An upward USER gesture is intent to read — it must never (re-)latch
-      // at-bottom, even within tolerance. Right after a top-pin releases, the
-      // pinned viewport still measures within (even past) the effective bottom,
-      // so without this a small upward wheel would hand the turn straight to
+      // at-bottom, even within tolerance. A small upward wheel near the live
+      // edge is still explicit reading intent and must not hand control back to
       // bottom-follow.
       if (input.direction === 'up') {
         return { atBottom: false, reason: 'user-scrolled-up' }

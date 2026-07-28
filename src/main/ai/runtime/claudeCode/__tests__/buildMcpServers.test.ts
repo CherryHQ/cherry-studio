@@ -5,18 +5,30 @@
  */
 
 import type * as NodeFs from 'node:fs'
+import path from 'node:path'
 
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetAgent, mockGetPathStatus, mockMkdir, mockRealpath, mockGetPath, mockPreferenceGet } = vi.hoisted(() => ({
+const {
+  mockGetAgent,
+  mockGetPathStatus,
+  mockMkdir,
+  mockRealpath,
+  mockGetPath,
+  mockPreferenceGet,
+  mockMemoryConstructor,
+  mockEnsureManagedDirectory
+} = vi.hoisted(() => ({
   mockGetAgent: vi.fn(),
   mockGetPathStatus: vi.fn(),
   mockMkdir: vi.fn(),
   mockRealpath: vi.fn(),
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
-  mockPreferenceGet: vi.fn(() => undefined)
+  mockPreferenceGet: vi.fn(() => undefined),
+  mockMemoryConstructor: vi.fn(),
+  mockEnsureManagedDirectory: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -56,6 +68,11 @@ vi.mock('@main/utils/file', () => ({
   getPathStatus: mockGetPathStatus
 }))
 
+vi.mock('@main/ai/agents/agentDataDirectory', () => ({
+  ensureAgentDataDirectory: vi.fn(),
+  ensureAgentStorageDirectory: mockEnsureManagedDirectory
+}))
+
 vi.mock('@main/i18n', () => ({
   getAppLanguage: vi.fn(() => 'en-US'),
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
@@ -67,6 +84,16 @@ vi.mock('@data/services/AgentChannelService', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mockGetAgent }
+}))
+
+vi.mock('@main/ai/mcp/servers/agentMemory', () => ({
+  default: class {
+    mcpServer = {}
+
+    constructor(agentId: string, agentDataPath: string) {
+      mockMemoryConstructor(agentId, agentDataPath)
+    }
+  }
 }))
 
 const {
@@ -146,12 +173,14 @@ describe('adjustAllowedToolsForMcp', () => {
 describe('buildMcpServers', () => {
   beforeEach(() => {
     mockGetAgent.mockReset()
+    mockMemoryConstructor.mockClear()
   })
 
   it('injects the agent-memory server for every agent (REGRESSION agents-jobs-3)', async () => {
-    const result = buildMcpServers(session, agent, false)
+    const result = buildMcpServers(session, agent, false, undefined, undefined, '/data/Agents/agent-1')
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory']))
     expect(Object.keys(result ?? {})).not.toContain('skills')
+    expect(mockMemoryConstructor).toHaveBeenCalledWith('agent-1', '/data/Agents/agent-1')
   })
 
   it('injects cherry-tools for every session; the standalone cherry server and exa are gone', async () => {
@@ -210,6 +239,14 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     mockRealpath.mockReset()
     mockRealpath.mockImplementation(async (targetPath: string) => targetPath)
     mockGetPath.mockReturnValue('/tmp/managed-workspaces')
+    mockEnsureManagedDirectory.mockImplementation(async (root: string, target: string) => {
+      const [resolvedRoot, resolvedTarget] = await Promise.all([mockRealpath(root), mockRealpath(target)])
+      const relative = path.relative(resolvedRoot, resolvedTarget)
+      if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+        throw new Error('managed path escape')
+      }
+      await mockMkdir(target, { recursive: true })
+    })
   })
 
   it('does not create a missing user workspace', async () => {
@@ -224,9 +261,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
 
   it('creates a missing system workspace before asserting it', async () => {
     const workspacePath = '/tmp/managed-workspaces/sess-workspace'
-    mockGetPathStatus
-      .mockResolvedValueOnce({ ok: false, reason: 'missing' })
-      .mockResolvedValueOnce({ ok: true, kind: 'directory' })
+    mockGetPathStatus.mockResolvedValueOnce({ ok: true, kind: 'directory' })
     mockMkdir.mockResolvedValueOnce(undefined)
 
     await prepareClaudeCodeWorkspaceDirectory(makeSession(workspacePath, 'system'))

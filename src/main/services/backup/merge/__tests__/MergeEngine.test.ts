@@ -779,9 +779,9 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     })
 
     expect(result).toMatchObject({ degradedToSkips: [] })
-    const row = dbh.sqlite
-      .prepare(`SELECT file_entry_id FROM chat_message_file_ref WHERE id = 'fr-p2'`)
-      .get() as { file_entry_id: string }
+    const row = dbh.sqlite.prepare(`SELECT file_entry_id FROM chat_message_file_ref WHERE id = 'fr-p2'`).get() as {
+      file_entry_id: string
+    }
     expect(row.file_entry_id).toBe('fe-local')
     expect(dbh.sqlite.pragma('foreign_key_check')).toHaveLength(0)
   })
