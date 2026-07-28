@@ -26,7 +26,7 @@
  */
 
 import fs from 'node:fs'
-import { lstat, mkdir } from 'node:fs/promises'
+import { lstat, mkdir, rmdir } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -280,6 +280,7 @@ export async function stageResources(input: StageResourcesInput): Promise<Staged
       const reason = classifyStagingDegradation(error, sourcePath)
       if (!reason) throw error
       await assertNoStagedUnit(stagingPath)
+      await removeEmptyStagingAncestors(stagingPath, resourcesDir)
       degradations.push({ kind: `resource:${requirement.kind}`, livePath: requirement.livePath, reason })
     }
   }
@@ -310,6 +311,31 @@ async function assertNoStagedUnit(stagingPath: string): Promise<void> {
     throw error
   }
   throw new Error(`resource staging retained output after degradation: ${stagingPath}`)
+}
+
+/** Remove only empty operation-owned parents left by a unit that was discarded. */
+async function removeEmptyStagingAncestors(stagingPath: string, resourcesDir: string): Promise<void> {
+  const root = path.resolve(resourcesDir)
+  let current = path.dirname(path.resolve(stagingPath))
+  const relative = path.relative(root, current)
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error(`resource staging path escaped its owned root: ${stagingPath}`)
+  }
+
+  while (current !== root) {
+    try {
+      await rmdir(current)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'ENOENT') {
+        current = path.dirname(current)
+        continue
+      }
+      if (code === 'ENOTEMPTY' || code === 'EEXIST') return
+      throw error
+    }
+    current = path.dirname(current)
+  }
 }
 
 async function stageFileUnit(

@@ -1,4 +1,14 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -223,6 +233,30 @@ describe('stageResources', () => {
       { kind: 'resource:note-root', livePath: 'Data/Notes', reason: 'changed-after-snapshot' }
     ])
     expect(() => readFileSync(join(resourcesDir, 'Data', 'Notes', 'a', '1.md'))).toThrow()
+  })
+
+  it('removes orphaned structural parents after omitting a deeply nested unit', async () => {
+    writeSource('Data/Files/stable.pdf', 'STABLE')
+    writeSource('Data/Agents/system/2026-07-28/session-1/session.json', 'SESSION')
+    driftHooks.afterStagePreVerify = async (sourcePath) => {
+      if (sourcePath.endsWith('session.json')) writeSource('Data/Agents/system/2026-07-28/session-1/new.json', 'NEW')
+    }
+
+    const result = await stage([
+      req('file-blob', 'file', 'Data/Files/stable.pdf'),
+      req('agent-workspace', 'directory', 'Data/Agents/system/2026-07-28/session-1')
+    ])
+
+    expect(result.payloads.map((payload) => payload.livePath)).toEqual(['Data/Files/stable.pdf'])
+    expect(result.degradations).toEqual([
+      {
+        kind: 'resource:agent-workspace',
+        livePath: 'Data/Agents/system/2026-07-28/session-1',
+        reason: 'changed-after-snapshot'
+      }
+    ])
+    expect(existsSync(join(resourcesDir, 'Data', 'Agents'))).toBe(false)
+    expect(existsSync(join(resourcesDir, 'Data', 'Files', 'stable.pdf'))).toBe(true)
   })
 
   it('omits a changed directory as one atomic unit while retaining a stable later unit', async () => {
