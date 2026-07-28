@@ -8,7 +8,7 @@ import type {
   ResourceType
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
-import { buildCreateAgentDto, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Group } from '@shared/data/types/group'
@@ -183,7 +183,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
         if (kind === 'assistant') {
           await createAssistant(buildCreateAssistantDto(values))
         } else {
-          await createAgent(buildCreateAgentDto(values))
+          await createAgent(buildCreateAgentCommand(values))
         }
 
         setCreateDialogOpen(false)

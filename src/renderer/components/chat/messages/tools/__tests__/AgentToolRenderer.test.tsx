@@ -659,6 +659,51 @@ describe('AgentToolRenderer', () => {
       expect(container).toBeEmptyDOMElement()
     })
 
+    it('hides AskUserQuestion message card while its input is still streaming', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'streaming',
+        toolCallId: 'call-ask',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        }
+      })
+
+      const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(container).toBeEmptyDOMElement()
+    })
+
+    it('shows a completed AskUserQuestion message card when no answer was submitted', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'done',
+        toolCallId: 'call-ask',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Questions from Agent')).toBeInTheDocument()
+      expect(screen.getByText('Choose logger')).toBeInTheDocument()
+    })
+
     it('shows AskUserQuestion answers from tool output when input only has questions', () => {
       const questions = [
         {
@@ -709,8 +754,8 @@ describe('AgentToolRenderer', () => {
             type: 'tool-AskUserQuestion',
             toolName: 'AskUserQuestion',
             toolCallId: toolResponse.toolCallId,
-            state: 'approval-responded',
-            approval: { id: 'approval-ask', approved: true },
+            state: 'approval-requested',
+            approval: { id: 'approval-ask' },
             input: toolResponse.arguments
           }
         ]

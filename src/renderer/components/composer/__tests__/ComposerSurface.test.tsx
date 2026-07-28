@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { flushSync } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ComposerContextProvider } from '../ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurface'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
@@ -148,7 +149,7 @@ vi.mock('@renderer/components/chat/layout/NarrowLayout', () => ({
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
-  QuickPanelView: () => null,
+  QuickPanelView: () => <div data-testid="quick-panel-view" />,
   useQuickPanel: () => ({
     close: mocks.quickPanelClose,
     dispatchKeyDown: mocks.quickPanelDispatchKeyDown,
@@ -507,7 +508,7 @@ describe('ComposerSurface', () => {
     expect(mocks.editorOptions?.immediatelyRender).toBe(false)
   })
 
-  it('mounts deferred dynamic controls on the first frame after the editor is ready', () => {
+  it('renders controls immediately while mounting the quick panel after the editor is ready', () => {
     mocks.stabilizeEditor = true
     const animationFrames: FrameRequestCallback[] = []
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -525,26 +526,27 @@ describe('ComposerSurface', () => {
       render(
         <ComposerSurface
           {...baseProps}
-          deferDynamicControls
+          quickPanelEnabled
+          deferQuickPanel
           renderLeftControls={() => <button type="button">dynamic control</button>}
         />
       )
 
       expect(screen.getByTestId('editor-content')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
-      expect(document.querySelector('[data-composer-controls-loading]')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
+      expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
 
       act(() => {
         mocks.editorOptions.onCreate({ editor: mocks.editorInstance })
       })
 
-      expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
-      expect(document.querySelector('[data-composer-controls-loading]')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
+      expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
 
       flushAnimationFrame()
-
-      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
-      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
+      expect(screen.getByTestId('quick-panel-view')).toBeInTheDocument()
     } finally {
       requestAnimationFrameSpy.mockRestore()
     }
@@ -561,6 +563,26 @@ describe('ComposerSurface', () => {
 
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-narrow-mode', 'true')
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-with-side-padding', 'true')
+  })
+
+  it('closes an open QuickPanel before an override is shown', () => {
+    mocks.quickPanelIsVisible = true
+
+    render(
+      <ComposerContextProvider
+        value={{
+          overrides: [
+            {
+              id: 'tool-permission:approval-1',
+              render: () => null
+            }
+          ]
+        }}>
+        <ComposerSurface {...baseProps} quickPanelEnabled />
+      </ComposerContextProvider>
+    )
+
+    expect(mocks.quickPanelClose).toHaveBeenCalledWith('composer_override')
   })
 
   it('exposes stable UI contract anchors', () => {
