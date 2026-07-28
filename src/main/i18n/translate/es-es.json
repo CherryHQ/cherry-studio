@@ -15,29 +15,26 @@
   },
   "apiGateway": {
     "docs": {
-      "description": "API HTTP compatible con OpenAI y Anthropic para Cherry Studio, además de endpoints específicos de Cherry (modelos, bases de conocimiento)",
-      "summaries": {
-        "chat_completion": "Crear completado de chat",
-        "count_tokens": "Contar tokens de los mensajes",
-        "create_message": "Crear mensaje",
-        "create_response": "Crear una respuesta",
-        "generate_content": "Generar contenido (dialecto Gemini)",
-        "get_knowledge_base": "Obtener una base de conocimiento por ID",
-        "health": "Endpoint de comprobación de estado",
-        "info": "Información de la API",
-        "list_knowledge_bases": "Listar todas las bases de conocimiento",
-        "list_models": "Listar los modelos disponibles",
-        "search_knowledge_bases": "Buscar en las bases de conocimiento"
+      "description": "API HTTP de Cherry Studio compatible con OpenAI, Anthropic y Gemini, más los endpoints propios de Cherry (modelos, bases de conocimiento)",
+      "language_switcher_label": "Idioma de la documentación",
+      "operations": {
+        "chat_completions": "Crea una respuesta de chat. El cuerpo de la petición y de la respuesta sigue el formato de OpenAI Chat Completions; con `stream: true` la salida es incremental.",
+        "count_tokens": "Estima cuántos tokens de entrada consume un conjunto de mensajes en formato Anthropic.",
+        "generate_content": "Genera contenido mediante el método `generateContent` de Gemini. El cuerpo de la petición y de la respuesta sigue el formato de la API de Gemini; `streamGenerateContent` se sirve en la misma ruta.",
+        "get_knowledge_base": "Obtiene una base de conocimiento por su ID.",
+        "health": "Estado del servicio, hora actual y versión. No requiere autenticación.",
+        "info": "Nombre y versión de la API y sus endpoints principales. No requiere autenticación.",
+        "list_knowledge_bases": "Lista las bases de conocimiento disponibles en esta instancia de Cherry Studio.",
+        "list_models": "Lista los modelos disponibles en esta pasarela, en formato de modelos de OpenAI.",
+        "messages": "Crea un mensaje. El cuerpo de la petición y de la respuesta sigue el formato de Anthropic Messages; con `stream: true` la salida es incremental.",
+        "responses": "Crea una respuesta. El cuerpo de la petición y de la respuesta sigue el formato de OpenAI Responses.",
+        "search_knowledge_bases": "Busca en una o varias bases de conocimiento y devuelve los fragmentos de documento coincidentes."
       },
       "tags": {
-        "chat": "Chat",
-        "gemini": "Gemini",
-        "general": "General",
-        "health": "Estado",
-        "knowledge": "Base de conocimiento",
-        "messages": "Mensajes",
-        "models": "Modelos",
-        "responses": "Respuestas"
+        "anthropic": "Endpoints compatibles con Anthropic. Apunta la URL base de un SDK de Anthropic a esta pasarela para usarlos.",
+        "cherry": "Endpoints propios de Cherry Studio: bases de conocimiento, información del servicio y comprobación de estado.",
+        "gemini": "Endpoints compatibles con Gemini, servidos bajo `/v1beta` como en la API original.",
+        "openai": "Endpoints compatibles con OpenAI. Apunta la URL base de un SDK de OpenAI a esta pasarela para usarlos."
       }
     }
   },

@@ -15,29 +15,26 @@
   },
   "apiGateway": {
     "docs": {
-      "description": "与 OpenAI 和 Anthropic 兼容的 Cherry Studio HTTP API，另含 Cherry 专有接口（模型、知识库）",
-      "summaries": {
-        "chat_completion": "创建对话补全",
-        "count_tokens": "统计消息的 Token 数量",
-        "create_message": "创建消息",
-        "create_response": "创建响应",
-        "generate_content": "生成内容（Gemini 方言）",
-        "get_knowledge_base": "根据 ID 获取知识库",
-        "health": "健康检查接口",
-        "info": "API 信息",
-        "list_knowledge_bases": "列出所有知识库",
-        "list_models": "列出可用模型",
-        "search_knowledge_bases": "搜索知识库"
+      "description": "与 OpenAI、Anthropic、Gemini 兼容的 Cherry Studio HTTP API，另含 Cherry 专有接口（模型、知识库）",
+      "language_switcher_label": "文档语言",
+      "operations": {
+        "chat_completions": "创建一次对话补全。请求与响应格式与 OpenAI Chat Completions 一致；设置 `stream: true` 可流式输出。",
+        "count_tokens": "估算一组 Anthropic 格式消息占用的输入 token 数量。",
+        "generate_content": "通过 Gemini 的 `generateContent` 方法生成内容。请求与响应格式与 Gemini API 一致；`streamGenerateContent` 走同一路径。",
+        "get_knowledge_base": "按 ID 获取单个知识库。",
+        "health": "服务健康状态、当前时间与版本号。无需鉴权。",
+        "info": "API 名称、版本与主要端点列表。无需鉴权。",
+        "list_knowledge_bases": "列出当前 Cherry Studio 实例中的知识库。",
+        "list_models": "以 OpenAI models 格式列出该网关可用的模型。",
+        "messages": "创建一条消息。请求与响应格式与 Anthropic Messages 一致；设置 `stream: true` 可流式输出。",
+        "responses": "创建一次响应。请求与响应格式与 OpenAI Responses 一致。",
+        "search_knowledge_bases": "在一个或多个知识库中检索，返回匹配的文档片段。"
       },
       "tags": {
-        "chat": "对话",
-        "gemini": "Gemini",
-        "general": "通用",
-        "health": "健康检查",
-        "knowledge": "知识库",
-        "messages": "消息",
-        "models": "模型",
-        "responses": "响应"
+        "anthropic": "兼容 Anthropic 的接口。把 Anthropic SDK 的 base URL 指向本网关即可使用。",
+        "cherry": "Cherry Studio 自有接口：知识库、服务信息与健康检查。",
+        "gemini": "兼容 Gemini 的接口，与上游一样挂在 `/v1beta` 下。",
+        "openai": "兼容 OpenAI 的接口。把 OpenAI SDK 的 base URL 指向本网关即可使用。"
       }
     }
   },

@@ -36,12 +36,12 @@ vi.mock('@logger', () => ({
   }
 }))
 
-// OpenAPI `detail`/`documentation` fields hold i18n *keys*; app.ts translates them
+// Route `detail.description` fields hold i18n *keys*; openapiDocs.ts resolves them
 // per request via `t()`. Stub `t` as `key::lang` (rather than a pure passthrough) so
-// the docs tests below can assert the requested language actually reached translation,
-// without needing the real catalog. `getAppLanguage`/`SUPPORTED_LANGUAGES` back the
-// docs' default language + language-switcher list — stub them since app.ts calls them
-// directly.
+// the docs tests below can assert the requested language actually reached translation
+// — and so a key that never went through `t()` is visibly missing its `::lang` suffix
+// — without needing the real catalog. `getAppLanguage`/`SUPPORTED_LANGUAGES` back the
+// docs' default language + language-switcher list.
 vi.mock('@main/i18n', () => ({
   t: (key: string, _params?: unknown, lang?: string) => (lang ? `${key}::${lang}` : key),
   getAppLanguage: () => 'en-US',
@@ -119,16 +119,50 @@ describe('API gateway routes (integration)', () => {
       const { status, body } = await read(await get(app, '/openapi/json', {}))
       expect(status).toBe(200)
       expect(body.info.description).toBe('apiGateway.docs.description::en-US')
-      expect(body.tags).toContainEqual({ name: 'apiGateway.docs.tags.health::en-US' })
       const health = body.paths['/health'].get
-      expect(health.tags).toEqual(['apiGateway.docs.tags.health::en-US'])
-      expect(health.summary).toBe('apiGateway.docs.summaries.health::en-US')
+      expect(health.tags).toEqual(['Cherry Studio'])
+      expect(health.summary).toBe('Health')
+      expect(health.description).toBe('apiGateway.docs.operations.health::en-US')
+    })
+
+    it('groups endpoints by the upstream API they are compatible with, keeping canonical names', async () => {
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      expect(body.tags.map((tag: { name: string }) => tag.name)).toEqual([
+        'OpenAI API',
+        'Anthropic API',
+        'Gemini API',
+        'Cherry Studio'
+      ])
+      // Tag names and operation summaries are upstream identifiers: never translated,
+      // so generated clients keep stable module/method names. Only prose is localized.
+      expect(body.tags[0].description).toBe('apiGateway.docs.tags.openai::en-US')
+      expect(body.paths['/v1/chat/completions'].post.tags).toEqual(['OpenAI API'])
+      expect(body.paths['/v1/chat/completions'].post.summary).toBe('Chat Completions')
+      expect(body.paths['/v1/messages/'].post.tags).toEqual(['Anthropic API'])
+      expect(body.paths['/v1/messages/'].post.summary).toBe('Messages')
+    })
+
+    it('routes every documented operation through translation (no raw i18n key survives)', async () => {
+      const { body } = await read(await get(app, '/openapi/json?lang=zh-CN', {}))
+      const operations = Object.values<any>(body.paths).flatMap((pathItem) => Object.values<any>(pathItem))
+      expect(operations.length).toBeGreaterThan(0)
+      for (const operation of operations) {
+        // The stubbed `t()` appends `::lang`; a description a route declared but
+        // openapiDocs.ts never resolved would show up here as a bare key.
+        expect(operation.description).toMatch(/^apiGateway\.docs\.operations\.[a-z_]+::zh-CN$/)
+      }
+    })
+
+    it('keeps the docs routes themselves out of the spec', async () => {
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      expect(Object.keys(body.paths)).not.toContain('/openapi')
+      expect(Object.keys(body.paths)).not.toContain('/openapi/json')
     })
 
     it('GET /openapi/json?lang=zh-CN translates against the requested language', async () => {
       const { body } = await read(await get(app, '/openapi/json?lang=zh-CN', {}))
       expect(body.info.description).toBe('apiGateway.docs.description::zh-CN')
-      expect(body.paths['/health'].get.summary).toBe('apiGateway.docs.summaries.health::zh-CN')
+      expect(body.paths['/health'].get.description).toBe('apiGateway.docs.operations.health::zh-CN')
     })
 
     it('GET /openapi/json?lang=not-a-real-language falls back to the app language', async () => {
@@ -151,6 +185,18 @@ describe('API gateway routes (integration)', () => {
       const config = JSON.parse(configMatch![1])
       expect(config.url).toBe('http://localhost/openapi/json?lang=en-US')
       expect(config.localization).toEqual({ locale: 'en' })
+    })
+
+    it('pins the Scalar bundle and turns off its third-party "Ask AI" agent', async () => {
+      const html = await (await get(app, '/openapi', {})).text()
+      const config = JSON.parse(html.match(/data-configuration='(.+?)'/)![1])
+      // Unpinned, an upstream release can change defaults (1.63.0 enabled Ask AI on
+      // localhost) or break the toolbar the language switcher is inserted into.
+      expect(config.cdn).toMatch(/@scalar\/api-reference@\d+\.\d+\.\d+\//)
+      expect(config.version).toMatch(/^\d+\.\d+\.\d+$/)
+      // Ask AI uploads the OpenAPI document to api.scalar.com — off unless a user
+      // has been asked to accept that.
+      expect(config.agent).toEqual({ disabled: true })
     })
 
     it('GET /openapi renders a language dropdown offering every supported language, defaulting to the app language', async () => {

@@ -4,6 +4,7 @@ import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@
 import { Elysia } from 'elysia'
 import { approximateTokenSize } from 'tokenx'
 
+import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import { processMessage } from '../proxyStream'
 import { CountTokensBodySchema, MessagesBodySchema } from './schemas'
 
@@ -95,7 +96,7 @@ const invalidRequest = (message: string) => ({
  * Anthropic error envelope by the app's single root `onError` (`gatewayErrorHandler`),
  * which dispatches by request path to `anthropicErrorHandler` (see ../errors.ts).
  *
- * `detail.tags`/`summary` hold i18n *keys*, not translated text — see chat.ts.
+ * `detail.tags`/`summary` stay in English; only `description` is localized — see chat.ts.
  */
 export const messagesRoutes = new Elysia({ prefix: '/messages' })
   .post(
@@ -116,7 +117,7 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     },
     {
       body: MessagesBodySchema,
-      detail: { tags: ['apiGateway.docs.tags.messages'], summary: 'apiGateway.docs.summaries.create_message' }
+      detail: { tags: [DOC_TAGS.anthropic], summary: 'Messages', description: DOC_DESCRIPTIONS.messages }
     }
   )
   .post(
@@ -132,6 +133,6 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     },
     {
       body: CountTokensBodySchema,
-      detail: { tags: ['apiGateway.docs.tags.messages'], summary: 'apiGateway.docs.summaries.count_tokens' }
+      detail: { tags: [DOC_TAGS.anthropic], summary: 'Count Tokens', description: DOC_DESCRIPTIONS.count_tokens }
     }
   )

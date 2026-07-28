@@ -5,6 +5,7 @@ import { approximateTokenSize } from 'tokenx'
 
 import { googleEnvelope } from '../errors'
 import { authorizeApiRequest } from '../middleware/auth'
+import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import { processMessage } from '../proxyStream'
 import { GeminiGenerateContentBodySchema } from './schemas'
 
@@ -143,7 +144,12 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
     },
     {
       body: GeminiGenerateContentBodySchema,
-      // i18n *keys*, not translated text — the docs translate them per request (see chat.ts).
-      detail: { tags: ['apiGateway.docs.tags.gemini'], summary: 'apiGateway.docs.summaries.generate_content' }
+      // `summary` is Gemini's own canonical method name; only `description` is
+      // localized, per request (see chat.ts).
+      detail: {
+        tags: [DOC_TAGS.gemini],
+        summary: 'generateContent',
+        description: DOC_DESCRIPTIONS.generate_content
+      }
     }
   )
