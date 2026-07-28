@@ -1,15 +1,16 @@
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { ChatAppShell, type PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
+import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
   createRecentTopicEntryFromTopic,
-  upsertGlobalSearchRecentEntry
+  recordGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
 import {
   type GlobalSearchTopicMessageSelectionPayload,
@@ -22,13 +23,14 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
-import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import {
   type ConversationCenterResourceDefinition,
   useConversationCenterSurface
 } from '@renderer/hooks/useConversationCenterSurface'
+import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import {
   mapApiTopicToRendererTopic,
   useActiveTopic,
@@ -36,7 +38,6 @@ import {
   useTopicById,
   useTopicMutations
 } from '@renderer/hooks/useTopic'
-import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
@@ -140,15 +141,11 @@ const HomePage: FC = () => {
   const isCreatingTopicRef = useRef(false)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [lastUsedTopicId, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
-  const [, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const [detachedSidebarOpen, setDetachedSidebarOpen] = useState(false)
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [panePosition, setPanePosition] = usePreference('topic.tab.position')
-  const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
   const isClassicTopicLayout = topicDisplayMode === 'assistant'
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
@@ -160,14 +157,34 @@ const HomePage: FC = () => {
   const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
-  const isWindowFrame = useWindowFrame().mode === 'window'
+  const handleManualPaneOpen = useCallback(() => {
+    requestAnimationFrame(() => {
+      void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+    })
+  }, [])
+  const {
+    isWindowFrame,
+    shellPaneOpen,
+    paneManualToggle,
+    setShellPaneOpen,
+    setShellPaneOpenManually,
+    toggleShellPane,
+    handlePaneAutoCollapseChange
+  } = useConversationShellPaneState({
+    isMessageOnlyView,
+    persistedPaneOpen: showSidebar,
+    setPersistedPaneOpen: setShowSidebar,
+    onManualPaneOpen: handleManualPaneOpen
+  })
+  const topicListPosition: ChatPanePosition =
+    !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
   const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', {
     enabled: isClassicTopicLayout,
     defaultOpen: !isWindowFrame && panePosition === 'right'
   })
   // Shared full-topics source for classic history selection and persisted empty-topic reuse.
   // Modern layout also creates real empty topics now, so it needs the same candidates.
-  const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
+  const assistantTopicsSource = useAssistantTopicsSource()
   const { topics: allTopics } = assistantTopicsSource
   // First-entry selection resumes the most-recently-updated topic. A dedicated `updatedAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full topic history to paginate in nor
@@ -175,8 +192,6 @@ const HomePage: FC = () => {
   // ≥200 pinned topics fill the first page).
   const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({ enabled: !isMessageOnlyView })
   const isLatestTopicReady = isMessageOnlyView || !isLatestTopicLoading
-  const requestedSidebarOpen = isWindowFrame ? detachedSidebarOpen : showSidebar
-  const effectiveShowSidebar = !isMessageOnlyView && requestedSidebarOpen && !autoCollapsedResourceList
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -363,9 +378,7 @@ const HomePage: FC = () => {
   // Label this tab with its assistant emoji + topic name so multiple chat tabs
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId
-  const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
-  const topicListPosition: ChatPanePosition =
-    !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
+  const visibleAssistant = assistants.find((assistant) => assistant.id === visibleAssistantId)
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
     if (!isClassicTopicLayout || topicListPosition !== 'right' || !visibleAssistantId) return undefined
 
@@ -393,46 +406,11 @@ const HomePage: FC = () => {
     if (lastRecordedRecentTopicRef.current === signature) return
 
     lastRecordedRecentTopicRef.current = signature
-    setRecentItems((prev) => upsertGlobalSearchRecentEntry(prev ?? [], createRecentTopicEntryFromTopic(activeTopic)))
-  }, [activeTopic, isMessageOnlyView, setRecentItems])
+    recordGlobalSearchRecentEntry(createRecentTopicEntryFromTopic(activeTopic))
+  }, [activeTopic, isMessageOnlyView])
 
-  const setResourceListOpen = useCallback(
-    (open: boolean) => {
-      setAutoCollapsedResourceList(false)
-      if (isWindowFrame) {
-        setDetachedSidebarOpen(open)
-        return
-      }
-      void setShowSidebar(open)
-    },
-    [isWindowFrame, setShowSidebar]
-  )
-  const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
-    setAutoCollapsedResourceList(collapsed)
-  }, [])
-  const [paneManualToggle, setPaneManualToggle] = useState<PaneManualToggleSignal | undefined>()
-  const markManualPaneToggle = useCallback(
-    (open: boolean) => {
-      setPaneManualToggle((previous) => ({ seq: (previous?.seq ?? 0) + 1, open }))
-      setResourceListOpen(open)
-    },
-    [setResourceListOpen]
-  )
   const [topicPaneUserOpenIntentSeq, setTopicPaneUserOpenIntentSeq] = useState(0)
-  const toggleResourceListOpen = useCallback(() => {
-    if (isMessageOnlyView) return
-
-    if (effectiveShowSidebar) {
-      markManualPaneToggle(false)
-      return
-    }
-
-    markManualPaneToggle(true)
-    requestAnimationFrame(() => {
-      void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
-    })
-  }, [effectiveShowSidebar, isMessageOnlyView, markManualPaneToggle])
-  useCommandHandler('app.sidebar.toggle', toggleResourceListOpen)
+  useCommandHandler('app.sidebar.toggle', toggleShellPane)
 
   useEffect(() => {
     if (isMessageOnlyView) return
@@ -696,7 +674,7 @@ const HomePage: FC = () => {
     (topic: Topic, messageId?: string) => {
       closeSurface()
       if (!setActiveTopicAndCloseResourceView(topic)) return
-      setResourceListOpen(true)
+      setShellPaneOpen(true)
       setPendingLocateMessageId(messageId)
       topicRevealRequestIdRef.current += 1
       setTopicRevealRequest({
@@ -706,7 +684,7 @@ const HomePage: FC = () => {
         requestId: topicRevealRequestIdRef.current
       })
     },
-    [closeSurface, setActiveTopicAndCloseResourceView, setResourceListOpen]
+    [closeSurface, setActiveTopicAndCloseResourceView, setShellPaneOpen]
   )
   const closeHistoryRecords = useCallback(() => {
     closeSurface()
@@ -766,8 +744,8 @@ const HomePage: FC = () => {
                 toolbarLeading={
                   !isMessageOnlyView && !isWindowFrame ? (
                     <ConversationSidebarToggleButton
-                      sidebarOpen={effectiveShowSidebar}
-                      onSidebarToggle={toggleResourceListOpen}
+                      sidebarOpen={shellPaneOpen}
+                      onSidebarToggle={toggleShellPane}
                       tooltipPlacement="bottom"
                     />
                   ) : undefined
@@ -778,11 +756,11 @@ const HomePage: FC = () => {
         : null,
     [
       activeResourceKind,
-      effectiveShowSidebar,
+      shellPaneOpen,
       handleOpenAssistantChatFromLibrary,
       isMessageOnlyView,
       isWindowFrame,
-      toggleResourceListOpen
+      toggleShellPane
     ]
   )
   const historyRecordsCenter = historyRecordsActive
@@ -798,8 +776,8 @@ const HomePage: FC = () => {
             toolbarLeading={
               !isMessageOnlyView && !isWindowFrame ? (
                 <ConversationSidebarToggleButton
-                  sidebarOpen={effectiveShowSidebar}
-                  onSidebarToggle={toggleResourceListOpen}
+                  sidebarOpen={shellPaneOpen}
+                  onSidebarToggle={toggleShellPane}
                   tooltipPlacement="bottom"
                 />
               ) : undefined
@@ -818,24 +796,14 @@ const HomePage: FC = () => {
             allTopics.map(getTopicAssistantDisplayGroupId).filter((groupId) => groupId !== activeAssistantGroupId)
           )
         )
-        setTopicExpansionAssistant(collapsedAssistantGroupIds)
+        cacheService.setPersist('ui.topic.expansion.assistant', collapsedAssistantGroupIds)
       }
       await setPanePosition(position)
       setTopicPaneOpen(position === 'right', { force: true })
-      setResourceListOpen(true)
+      setShellPaneOpen(true)
     },
-    [
-      allTopics,
-      setPanePosition,
-      setResourceListOpen,
-      setTopicDisplayMode,
-      setTopicExpansionAssistant,
-      setTopicPaneOpen,
-      visibleTopic
-    ]
+    [allTopics, setPanePosition, setShellPaneOpen, setTopicDisplayMode, setTopicPaneOpen, visibleTopic]
   )
-  const shellPanePosition: ChatPanePosition = 'left'
-
   // Message-only (detached) view has no rail: resolve its single target topic and show its own
   // loading / not-found status. The normal view falls through to the loading shell below (which keeps
   // the rail visible) instead of returning a blank frame.
@@ -933,7 +901,7 @@ const HomePage: FC = () => {
   // switches between loading, chat, history, and resource surfaces. Capability identity alone now
   // decides whether a visited right-panel subtree survives.
   return (
-    <TopicRightPane
+    <TopicRightPane.Scope
       resourcePane={resourcePane}
       topicId={visibleTopic?.id}
       topicName={visibleTopic?.name}
@@ -949,16 +917,16 @@ const HomePage: FC = () => {
             activeTopic={visibleTopic}
             centerSurface={centerSurface}
             pane={pane}
-            paneOpen={effectiveShowSidebar}
-            panePosition={shellPanePosition}
-            onPaneCollapse={() => markManualPaneToggle(false)}
-            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+            paneOpen={shellPaneOpen}
+            panePosition="left"
+            onPaneCollapse={() => setShellPaneOpenManually(false)}
+            onPaneAutoCollapseChange={handlePaneAutoCollapseChange}
             paneManualToggle={paneManualToggle}
             onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
             onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
             showResourceListControls={!isMessageOnlyView}
-            sidebarOpen={effectiveShowSidebar}
-            onSidebarToggle={toggleResourceListOpen}
+            sidebarOpen={shellPaneOpen}
+            onSidebarToggle={toggleShellPane}
             locateMessageId={pendingLocateMessageId}
             onLocateMessageHandled={handleLocateMessageHandled}
             resourcePaneCount={topicResourcePaneCount}
@@ -966,7 +934,7 @@ const HomePage: FC = () => {
         </ContentContainer>
         {assistantPickerDialog}
       </Container>
-    </TopicRightPane>
+    </TopicRightPane.Scope>
   )
 }
 

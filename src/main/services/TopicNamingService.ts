@@ -28,18 +28,6 @@ const FALLBACK_PROMPT =
 const summaryLocks = new Set<string>()
 const agentSessionRenameLocks = new Set<string>()
 
-// "Topic was auto-summary-renamed once already" gate — delegated to the
-// shared CacheService so the entry is automatically TTL'd (`GC` every 10
-// min via CacheService) and cleared on service stop. Without this, a
-// module-level Set grew monotonically and the only cleanup was process
-// exit.
-//
-// Key shape: `topic.summary_named:${topicId}`
-// TTL: 1h — long enough that "already named once in this conversation"
-//      semantics hold for an active chat; short enough that an idle
-//      topic releases its entry naturally.
-const SUMMARY_NAMED_KEY_PREFIX = 'topic.summary_named:'
-const SUMMARY_NAMED_TTL_MS = 60 * 60 * 1000
 // New placeholder agent sessions store `''`, matching topic names. Keep the
 // localized values so legacy sessions created before that change still auto-rename.
 // The locale-sync test in TopicNamingService.test.ts should fail when a new
@@ -61,18 +49,6 @@ const DEFAULT_AGENT_SESSION_NAMES = new Set([
   'sin nombre',
   'fără nume'
 ])
-
-function summaryNamedKey(topicId: string): string {
-  return `${SUMMARY_NAMED_KEY_PREFIX}${topicId}`
-}
-
-function markNamedTopic(topicId: string): void {
-  application.get('CacheService').set(summaryNamedKey(topicId), true, SUMMARY_NAMED_TTL_MS)
-}
-
-function hasNamedTopic(topicId: string): boolean {
-  return application.get('CacheService').has(summaryNamedKey(topicId))
-}
 
 type StructuredMessage = {
   role: string
@@ -121,11 +97,25 @@ function isDefaultAgentSessionName(name: string | null | undefined): boolean {
   return DEFAULT_AGENT_SESSION_NAMES.has(normalizeConversationTitle(name))
 }
 
-function canAutoRenameAgentSessionName(name: string | null | undefined, userText?: string): boolean {
-  if (isDefaultAgentSessionName(name)) return true
-  if (userText === undefined) return false
+function matchesFirstUserMessageTitle(name: string | null | undefined, userText: string): boolean {
   const temporaryTitle = buildFirstUserMessageTitle(userText)
   return !!temporaryTitle && normalizeConversationTitle(name) === normalizeConversationTitle(temporaryTitle)
+}
+
+// Auto-rename is a one-way street: default name → first-user-message temporary
+// title → one AI summary title. Once a real title exists (AI-generated or
+// manual), nothing auto-renames it again — so the gate is "name is still
+// default or still the temporary title", which survives restarts because it
+// derives from the persisted name instead of runtime state.
+function canAutoRenameAgentSessionName(name: string | null | undefined, userText?: string): boolean {
+  if (isDefaultAgentSessionName(name)) return true
+  return userText !== undefined && matchesFirstUserMessageTitle(name, userText)
+}
+
+// v2 creates topics with name `''`; anything else is a real title.
+function canAutoRenameTopicName(name: string | null | undefined, userText?: string): boolean {
+  if (normalizeConversationTitle(name) === '') return true
+  return userText !== undefined && matchesFirstUserMessageTitle(name, userText)
 }
 
 function buildStructuredConversation(messages: StructuredMessage[]): string {
@@ -140,12 +130,14 @@ export class TopicNamingService {
 
       const topic = this.getTopic(topicId)
       if (!topic || topic.isNameManuallyEdited) return
+      if (!canAutoRenameTopicName(topic.name)) return
 
       const userMessage = messageService.getById(userMessageId)
-      const title = truncateFirstUserMessageTitleSource(getMainTextContentFromMessage(userMessage))
+      const userText = getMainTextContentFromMessage(userMessage)
+      const title = truncateFirstUserMessageTitleSource(userText)
       if (!title) return
 
-      this.renameTopicIfStillAuto(topicId, title)
+      this.renameTopicIfStillAuto(topicId, title, userText)
     } catch (error) {
       logger.warn('Failed to auto-rename topic from first user message', {
         topicId,
@@ -164,7 +156,6 @@ export class TopicNamingService {
     const enabled = application.get('PreferenceService').get('topic.naming.enabled')
     if (!enabled) return
     if (summaryLocks.has(topicId)) return
-    if (hasNamedTopic(topicId)) return
 
     const topic = this.getTopic(topicId)
     if (!topic || topic.isNameManuallyEdited) return
@@ -172,10 +163,13 @@ export class TopicNamingService {
     summaryLocks.add(topicId)
     try {
       const userMessage = messageService.getById(userMessageId)
+      const userText = getMainTextContentFromMessage(userMessage)
+      if (!canAutoRenameTopicName(topic.name, userText)) return
+
       const structuredConversation: StructuredMessage[] = [
         {
           role: userMessage.role,
-          mainText: cleanMarkdownImages(getMainTextContentFromMessage(userMessage)),
+          mainText: cleanMarkdownImages(userText),
           files: getFileNamesFromMessage(userMessage)
         },
         {
@@ -192,9 +186,7 @@ export class TopicNamingService {
       )
       if (!title) return
 
-      if (this.renameTopicIfStillAuto(topic.id, title)) {
-        markNamedTopic(topicId)
-      }
+      this.renameTopicIfStillAuto(topic.id, title, userText)
     } catch (error) {
       logger.warn('Failed to auto-rename topic from conversation summary', {
         topicId,
@@ -346,7 +338,7 @@ export class TopicNamingService {
       // Main-only delivery (twin of StorageMonitorService / AppUpdaterService): naming runs
       // in a background job with no origin window, so the failure toast goes to the main
       // window rather than broadcasting to every window and double-toasting.
-      application.get('IpcApiService').broadcastToType(WindowType.Main, 'ai.topic_naming_failed', {
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'ai.topic.naming_failed', {
         message: error instanceof Error ? error.message : String(error)
       })
       return null
@@ -395,25 +387,24 @@ export class TopicNamingService {
     }
   }
 
-  private renameTopicIfStillAuto(topicId: string, name: string): boolean {
+  private renameTopicIfStillAuto(topicId: string, name: string, userText: string): void {
     const latestTopic = this.getTopic(topicId)
-    if (!latestTopic || latestTopic.isNameManuallyEdited) return false
+    if (!latestTopic || latestTopic.isNameManuallyEdited) return
+    if (!canAutoRenameTopicName(latestTopic.name, userText)) return
 
     const nextName = sanitizeConversationTitle(name)
-    if (!nextName) return false
-    if (nextName === latestTopic.name) return true
+    if (!nextName || nextName === latestTopic.name) return
 
     topicService.update(topicId, { name: nextName, isNameManuallyEdited: false })
     this.notifyTopicAutoRenamed(topicId)
-    return true
   }
 
   private notifyTopicAutoRenamed(topicId: string): void {
-    application.get('IpcApiService').broadcast('ai.topic_auto_renamed', { topicId })
+    application.get('IpcApiService').broadcast('ai.topic.auto_renamed', { topicId })
   }
 
   private notifyAgentSessionAutoRenamed(sessionId: string): void {
-    application.get('IpcApiService').broadcast('ai.agent_session_auto_renamed', { sessionId })
+    application.get('IpcApiService').broadcast('ai.agent.session.auto_renamed', { sessionId })
   }
 }
 

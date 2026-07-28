@@ -244,7 +244,9 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     onDrillIntoDirectory,
     currentDirectory,
     onDelete,
-    onReindex
+    onDeleteItems,
+    onReindex,
+    onReindexItems
   }: {
     items: KnowledgeItem[]
     isLoading: boolean
@@ -254,7 +256,9 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     onDrillIntoDirectory?: (item: KnowledgeItemOf<'directory'>) => void
     currentDirectory?: KnowledgeItemOf<'directory'> | null
     onDelete: (item: { id: string }) => void | Promise<void>
+    onDeleteItems: (itemIds: string[]) => void | Promise<void>
     onReindex: (item: { id: string }) => void | Promise<void>
+    onReindexItems: (itemIds: string[]) => void | Promise<void>
   }) => {
     mockDataSourcePanelRender({ onPreviewFile })
 
@@ -265,6 +269,12 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
         </div>
         <button type="button" onClick={onAdd}>
           Open Add Source
+        </button>
+        <button type="button" onClick={() => void onDeleteItems(items.map((item) => item.id))}>
+          DeleteItems
+        </button>
+        <button type="button" onClick={() => void onReindexItems(items.map((item) => item.id))}>
+          ReindexItems
         </button>
         {items.map((item) => (
           <div key={item.id}>
@@ -348,12 +358,7 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
     open: boolean
     groups: Array<{ id: string; name: string }>
     initialGroupId?: string
-    createBase: (input: {
-      name: string
-      groupId?: string
-      embeddingModelId: string | null
-      dimensions: number
-    }) => Promise<KnowledgeBase>
+    createBase: (input: { name: string; groupId?: string }) => Promise<KnowledgeBase>
     onOpenChange: (open: boolean) => void
     onCreated: (base: KnowledgeBase) => void
   }) =>
@@ -366,9 +371,7 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
           onClick={async () => {
             const createdBase = await createBase({
               name: 'Base 2',
-              ...(initialGroupId ? { groupId: initialGroupId } : {}),
-              embeddingModelId: 'openai::text-embedding-3-small',
-              dimensions: 1536
+              ...(initialGroupId ? { groupId: initialGroupId } : {})
             })
             onCreated(createdBase)
             onOpenChange(false)
@@ -510,6 +513,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.error.failed_to_delete': '知识库删除失败',
           'knowledge.error.failed_to_move': '知识库移动失败',
           'knowledge.empty': '暂无知识库',
+          'knowledge.empty_action': '创建知识库',
           'knowledge.empty_description': '与 AI 一起积累知识',
           'knowledge.groups.error.failed_to_delete': '分组删除失败',
           'knowledge.title': '知识库'
@@ -631,11 +635,13 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
     mockUseDeleteKnowledgeItem.mockReturnValue({
+      deleteItems: vi.fn(),
       deleteItem: vi.fn(),
       isDeleting: false,
       error: undefined
     })
     mockUseReindexKnowledgeItem.mockReturnValue({
+      reindexItems: vi.fn(),
       reindexItem: vi.fn(),
       isReindexing: false,
       error: undefined
@@ -776,6 +782,7 @@ describe('KnowledgePage', () => {
 
   it('wires data source delete actions to the selected base delete hook', async () => {
     const deleteItem = vi.fn()
+    const deleteItems = vi.fn()
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
       isLoading: false,
@@ -790,6 +797,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
     mockUseDeleteKnowledgeItem.mockReturnValue({
+      deleteItems,
       deleteItem,
       isDeleting: false,
       error: undefined
@@ -802,13 +810,16 @@ describe('KnowledgePage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'DeleteItem item-1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'DeleteItems' }))
 
     expect(mockUseDeleteKnowledgeItem).toHaveBeenCalledWith('base-1')
     expect(deleteItem).toHaveBeenCalledWith(expect.objectContaining({ id: 'item-1' }))
+    expect(deleteItems).toHaveBeenCalledWith(['item-1'])
   })
 
   it('wires data source reindex actions to the selected base reindex hook', async () => {
     const reindexItem = vi.fn()
+    const reindexItems = vi.fn()
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
       isLoading: false,
@@ -823,6 +834,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
     mockUseReindexKnowledgeItem.mockReturnValue({
+      reindexItems,
       reindexItem,
       isReindexing: false,
       error: undefined
@@ -835,9 +847,11 @@ describe('KnowledgePage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Reindex item-1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ReindexItems' }))
 
     expect(mockUseReindexKnowledgeItem).toHaveBeenCalledWith('base-1')
     expect(reindexItem).toHaveBeenCalledWith(expect.objectContaining({ id: 'item-1' }))
+    expect(reindexItems).toHaveBeenCalledWith(['item-1'])
   })
 
   it('opens item chunks from the data source list and returns to the list', async () => {
@@ -865,10 +879,12 @@ describe('KnowledgePage', () => {
 
     expect(screen.getByTestId('chunk-detail-panel')).toHaveTextContent('chunks:item-1')
     expect(screen.queryByTestId('data-source-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'BackToSources' }))
 
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
   })
 
   it('opens an embedded file preview and preserves navigator state when returning', async () => {
@@ -911,9 +927,9 @@ describe('KnowledgePage', () => {
     expect(screen.getByText('item-1.pdf')).toBeInTheDocument()
     expect(screen.queryByTestId('data-source-panel')).not.toBeInTheDocument()
     expect(screen.getByTestId('base-navigator')).not.toBeVisible()
-    expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
-    expect(screen.getByRole('button', { name: 'OpenRagConfig' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'OpenRecallTest' })).toBeInTheDocument()
+    expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenRagConfig' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenRecallTest' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '返回' }))
 
@@ -921,6 +937,7 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
     expect(screen.getByTestId('base-navigator')).toBeVisible()
     expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
+    expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
   })
 
   it('returns from an embedded preview to the current directory', async () => {
@@ -1063,7 +1080,7 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
   })
 
-  it('keeps the chunk detail panel visible behind the RAG drawer when opened', async () => {
+  it('hides knowledge-base actions while the chunk detail panel is open', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
       isLoading: false,
@@ -1086,11 +1103,9 @@ describe('KnowledgePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenChunks item-1' }))
     expect(screen.getByTestId('chunk-detail-panel')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
-    expect(screen.getByTestId('rag-config-panel')).toHaveTextContent('Base 1')
-    // Drawer overlay does not unmount the chunk detail panel underneath
-    expect(screen.getByTestId('chunk-detail-panel')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenRagConfig' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenRecallTest' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('rag-config-panel')).not.toBeInTheDocument()
   })
 
   it('shows the loading state when bases are still loading', () => {
@@ -1117,11 +1132,16 @@ describe('KnowledgePage', () => {
 
     render(<KnowledgePage />)
 
+    expect(screen.getByText('暂无知识库')).toBeInTheDocument()
     expect(screen.getByText('与 AI 一起积累知识')).toBeInTheDocument()
     expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
-    // The two-pane shell stays mounted: the navigator (with its create entry)
-    // must not disappear when there are zero bases.
-    expect(screen.getByTestId('navigator-width')).toBeInTheDocument()
+    // A full-screen page replaces the two-pane shell, so the navigator — and with it
+    // the only other way to create a base — is gone; the CTA has to carry creation.
+    expect(screen.queryByTestId('navigator-width')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '创建知识库' }))
+
+    expect(screen.getByTestId('create-dialog')).toBeInTheDocument()
   })
 
   it('opens the create-group dialog and wires submission to the group mutation hook', async () => {
@@ -1767,7 +1787,7 @@ describe('KnowledgePage', () => {
 
     vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(new DOMRect(40, 0, 800, 500))
 
-    expect(screen.getByTestId('navigator-width')).toHaveTextContent('240')
+    expect(screen.getByTestId('navigator-width')).toHaveTextContent('250')
 
     fireEvent.mouseDown(resizeButton)
     fireEvent.mouseMove(document, { clientX: 360 })

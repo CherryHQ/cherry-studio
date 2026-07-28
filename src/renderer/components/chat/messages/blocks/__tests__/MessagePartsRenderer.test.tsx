@@ -131,8 +131,13 @@ vi.mock('../../tools/MessageTools', () => {
     canRenderMessageTool: canRender,
     default: ({ toolResponse }: any) => {
       mockMessageToolsRender(toolResponse)
-      return canRender(toolResponse) &&
-        !(toolResponse?.tool?.name === 'AskUserQuestion' && toolResponse?.status === 'pending') ? (
+      const answers = toolResponse?.arguments?.answers ?? toolResponse?.response?.answers
+      const isTransientUnansweredAskUserQuestion =
+        toolResponse?.tool?.name === 'AskUserQuestion' &&
+        ['pending', 'invoking', 'streaming'].includes(toolResponse?.status) &&
+        Object.keys(answers ?? {}).length === 0
+
+      return canRender(toolResponse) && !isTransientUnansweredAskUserQuestion ? (
         <div
           data-testid="mock-message-tools"
           data-status={toolResponse?.status}
@@ -155,6 +160,17 @@ vi.mock('../../tools/toolResponse', () => ({
     const output = part.output
     const metadata = output && typeof output === 'object' && output.metadata ? output.metadata : undefined
     const isMcp = metadata?.type === 'mcp' || type === 'dynamic-tool'
+    const isMcpContent =
+      metadata?.type === 'mcp' &&
+      Array.isArray(output?.content) &&
+      output.content.every(
+        (item: unknown) =>
+          item &&
+          typeof item === 'object' &&
+          'type' in item &&
+          typeof item.type === 'string' &&
+          ['text', 'image', 'audio', 'resource', 'resource_link'].includes(item.type)
+      )
     const status =
       part.state === 'output-available'
         ? 'done'
@@ -179,7 +195,7 @@ vi.mock('../../tools/toolResponse', () => ({
       partialArguments:
         (status === 'streaming' || status === 'invoking') && typeof part.input === 'string' ? part.input : undefined,
       status,
-      response: part.state === 'output-error' ? { isError: true } : (output?.content ?? output)
+      response: part.state === 'output-error' ? { isError: true } : isMcpContent ? output : (output?.content ?? output)
     }
   }
 }))
@@ -396,6 +412,10 @@ function expandCollapsedChildToolGroups(): void {
   }
 }
 
+function expectNodeBefore(node: Element, followingNode: Element): void {
+  expect(node.compareDocumentPosition(followingNode) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+}
+
 function latestMainTextProps(partIndex: number): any {
   const partId = `msg-1-part-${partIndex}`
   return [...mockMainTextRender.mock.calls].reverse().find(([props]) => props.id === partId)?.[0]
@@ -409,6 +429,24 @@ function toolPart(toolCallId: string, state = 'output-available', toolName = too
     state,
     input: { path: `${toolCallId}.txt` },
     output: state === 'output-available' ? {} : undefined
+  }
+}
+
+function answeredAskUserQuestionPart(toolCallId: string, state = 'output-available') {
+  const questions = [
+    {
+      question: 'Choose logger',
+      header: 'Logger',
+      options: [{ label: 'Winston' }, { label: 'Pino' }],
+      multiSelect: false
+    }
+  ]
+  const answers = { 'Choose logger': 'Pino' }
+
+  return {
+    ...toolPart(toolCallId, state, 'AskUserQuestion'),
+    input: { questions, answers },
+    output: state === 'output-available' ? { questions, answers } : undefined
   }
 }
 
@@ -445,6 +483,51 @@ describe('MessagePartsRenderer', () => {
       renderParts([], msg({ status: 'pending' }))
       expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'preparing')
       expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-created-at', '2026-01-01T00:00:00Z')
+    })
+
+    it('lets the provider activeTurnStatus renderer replace the processing placeholder', () => {
+      const message = msg({ status: 'pending' })
+      const treeWith = (activeTurnStatus: MessageListProviderValue['state']['activeTurnStatus']) => (
+        <MessageListProvider
+          value={{
+            state: {
+              topic: { id: message.topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
+              messages: [message],
+              partsByMessageId: { [message.id]: [] },
+              messageNavigation: 'none',
+              estimateSize: 400,
+              overscan: 0,
+              loadOlderDelayMs: 0,
+              loadingResetDelayMs: 0,
+              renderConfig: defaultMessageRenderConfig,
+              activeTurnStatus,
+              getMessageActivityState: () => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false })
+            },
+            actions: {},
+            meta: { selectionLayer: false }
+          }}>
+          <PartsProvider value={{ [message.id]: [] }}>
+            <MessagePartsRenderer message={message} />
+          </PartsProvider>
+        </MessageListProvider>
+      )
+
+      // Not processing → renderer is not invoked at all.
+      const idle = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
+      expect(screen.queryByTestId('active-turn-status')).toBeNull()
+      expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+      idle.unmount()
+
+      // Active + renderer returns its own node → it replaces the placeholder.
+      activateTurn()
+      const replaced = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
+      expect(screen.getByTestId('active-turn-status')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+      replaced.unmount()
+
+      // Active + renderer falls back to the placeholder → the placeholder shows.
+      render(treeWith((placeholder) => <>{placeholder}</>))
+      expect(screen.getByTestId('mock-placeholder')).toBeInTheDocument()
     })
 
     it('uses activity-specific placeholders for empty streaming content without creating process boundaries', () => {
@@ -1156,7 +1239,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('Writing the answer')).toBeInTheDocument()
     })
 
-    it('shows a tool header for standalone interactive tools during the reply', () => {
+    it('hides a standalone unanswered AskUserQuestion while the reply is streaming', () => {
       activateTurn('streaming')
       renderParts(
         [toolPart('question', 'input-available', 'AskUserQuestion')] as unknown as CherryMessagePart[],
@@ -1164,25 +1247,59 @@ describe('MessagePartsRenderer', () => {
       )
 
       expect(screen.queryByTestId('mock-tool-group-header')).not.toBeInTheDocument()
-      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'AskUserQuestion')
+      expect(screen.queryByTestId('mock-message-tools')).not.toBeInTheDocument()
     })
 
-    it('does not use AskUserQuestion to classify preceding text as process history', () => {
+    it('keeps an answered AskUserQuestion visible and ordered between live process groups', () => {
+      activateTurn('streaming')
+      renderParts(
+        [
+          toolPart('read', 'output-available', 'Read'),
+          answeredAskUserQuestionPart('question'),
+          toolPart('edit', 'input-available', 'Edit')
+        ] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' })
+      )
+
+      const childGroups = screen.getAllByTestId('child-tool-group')
+      const ask = screen.getByTestId('mock-message-tools')
+
+      expect(screen.getAllByTestId('live-tool-group')).toHaveLength(1)
+      expect(childGroups).toHaveLength(2)
+      expect(childGroups[0]).toHaveAttribute('data-live-progress', 'false')
+      expect(childGroups[1]).toHaveAttribute('data-live-progress', 'true')
+      expect(ask).toHaveAttribute('data-tool-name', 'AskUserQuestion')
+      expect(ask.closest('[data-testid="child-tool-group"]')).toBeNull()
+      expectNodeBefore(childGroups[0], ask)
+      expectNodeBefore(ask, childGroups[1])
+    })
+
+    it('preserves the projected order across an AskUserQuestion boundary', () => {
       activateTurn('streaming')
       renderParts(
         [
           toolPart('read', 'output-available'),
           { type: 'text', text: 'Answer before question', state: 'streaming' },
-          toolPart('question', 'input-available', 'AskUserQuestion'),
+          answeredAskUserQuestionPart('question', 'approval-responded'),
           { type: 'reasoning', text: 'Waiting for input', state: 'streaming' },
           { type: 'text', text: 'Waiting for your choice', state: 'streaming' }
         ] as unknown as CherryMessagePart[],
         msg({ status: 'pending' })
       )
 
-      expect(screen.getByText('Answer before question').closest('[data-testid="live-tool-group"]')).toBeNull()
-      expect(screen.getByText('Waiting for your choice').closest('[data-testid="live-tool-group"]')).toBeNull()
-      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'AskUserQuestion')
+      const liveProcess = screen.getByTestId('live-tool-group')
+      const precedingText = screen.getByText('Answer before question')
+      const ask = screen.getByTestId('mock-message-tools')
+      const reasoning = screen.getByText('Waiting for input')
+      const trailingText = screen.getByText('Waiting for your choice')
+
+      expect(precedingText.closest('[data-testid="live-tool-group"]')).toBe(liveProcess)
+      expect(ask.closest('[data-testid="child-tool-group"]')).toBeNull()
+      expect(reasoning.closest('[data-testid="live-tool-group"]')).toBe(liveProcess)
+      expect(trailingText.closest('[data-testid="live-tool-group"]')).toBeNull()
+      expectNodeBefore(precedingText, ask)
+      expectNodeBefore(ask, reasoning)
+      expectNodeBefore(reasoning, trailingText)
     })
 
     it('treats awaiting approval as live even when the persisted message is success', () => {
@@ -1257,6 +1374,19 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('stable answer node')).toBe(activeAnswerNode)
     })
 
+    it('preserves completed process expansion when the same message metadata updates', () => {
+      const parts = [toolPart('read'), { type: 'text', text: 'final answer' }] as unknown as CherryMessagePart[]
+      const { rerender } = renderParts(parts, msg({ updatedAt: '2026-01-01T00:00:01Z' }))
+
+      fireEvent.click(screen.getByTestId('completed-process-trigger'))
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'true')
+
+      rerender(renderPartsTree(parts, msg({ updatedAt: '2026-01-01T00:00:02Z' })))
+
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByTestId('tool-history-content')).toBeInTheDocument()
+    })
+
     it('folds process narration with its provider tool while keeping the final answer outside', () => {
       renderParts([
         { type: 'text', text: 'Searching provider sources' },
@@ -1272,6 +1402,43 @@ describe('MessagePartsRenderer', () => {
       fireEvent.click(historyTrigger)
       expect(screen.getByTestId('tool-history-content')).toHaveClass('pt-2')
       expect(screen.getByText('Searching provider sources')).toBeInTheDocument()
+    })
+
+    it('keeps channel authentication QR tools outside collapsed process history', () => {
+      renderParts([
+        toolPart('read'),
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'channel-auth',
+          toolName: 'mcp__cherry-tools__config',
+          state: 'output-available',
+          input: { action: 'add_channel', type: 'wechat', auth_mode: 'qr' },
+          output: {
+            content: [
+              { type: 'text', text: 'Scan this QR code' },
+              { type: 'image', data: 'BASE64', mimeType: 'image/png' }
+            ],
+            metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+          }
+        }
+      ] as unknown as CherryMessagePart[])
+
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+
+      const visibleAuthTool = screen.getByTestId('mock-message-tools')
+      expect(visibleAuthTool).toHaveAttribute('data-tool-name', 'mcp__cherry-tools__config')
+      expect(visibleAuthTool.closest('[data-testid="tool-history-content"]')).toBeNull()
+
+      fireEvent.click(historyTrigger)
+      expandCollapsedChildToolGroups()
+
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+      expect(
+        screen
+          .getAllByTestId('mock-message-tools')
+          .filter((node) => node.getAttribute('data-tool-name') === 'mcp__cherry-tools__config')
+      ).toHaveLength(1)
     })
 
     it('does not show an empty completed process group for a non-renderable provider tool', () => {
@@ -1364,18 +1531,24 @@ describe('MessagePartsRenderer', () => {
     it('keeps an interleaved AskUser tool independent and ordered inside completed history', () => {
       renderParts([
         toolPart('read'),
-        toolPart('ask', 'output-available', 'AskUserQuestion'),
+        answeredAskUserQuestionPart('ask'),
         toolPart('edit'),
         { type: 'text', text: 'Answer after question' }
       ] as unknown as CherryMessagePart[])
 
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
-      expandCollapsedChildToolGroups()
 
-      const toolNodes = screen.getAllByTestId('mock-message-tools')
-      const askNode = toolNodes.find((node) => node.getAttribute('data-tool-name') === 'AskUserQuestion')
-      expect(askNode?.closest('[data-testid="mock-tool-group-content"]')).toBeNull()
-      expect(screen.getAllByTestId('mock-tool-group-content')).toHaveLength(2)
+      const childGroups = screen.getAllByTestId('child-tool-group')
+      const ask = screen.getByTestId('mock-message-tools')
+
+      expect(childGroups).toHaveLength(2)
+      expect(ask).toHaveAttribute('data-tool-name', 'AskUserQuestion')
+      expect(ask.closest('[data-testid="child-tool-group"]')).toBeNull()
+      expectNodeBefore(childGroups[0], ask)
+      expectNodeBefore(ask, childGroups[1])
+
+      expandCollapsedChildToolGroups()
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(3)
     })
 
     it('settles a standalone awaiting AskUser tool in a terminal snapshot', () => {

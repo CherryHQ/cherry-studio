@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -7,12 +9,13 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('node:fs/promises', () => ({
-  stat: vi.fn(),
-  readFile: vi.fn(),
-  readdir: vi.fn()
+  lstat: vi.fn(),
+  open: vi.fn(),
+  readdir: vi.fn(),
+  realpath: vi.fn()
 }))
 
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { lstat, open, readdir, realpath } from 'node:fs/promises'
 
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
@@ -24,37 +27,72 @@ const baseConfig: AgentConfiguration = {
   env_vars: {}
 }
 
-const mockedStat = vi.mocked(stat)
-const mockedReadFile = vi.mocked(readFile)
+const mockedLstat = vi.mocked(lstat)
+const mockedOpen = vi.mocked(open)
 const mockedReaddir = vi.mocked(readdir)
+const mockedRealpath = vi.mocked(realpath)
 
 function setupFiles(files: Record<string, string>) {
   // Build directory listing from file paths
   const dirs = new Map<string, string[]>()
   for (const filePath of Object.keys(files)) {
-    const dir = filePath.substring(0, filePath.lastIndexOf('/'))
-    const name = filePath.substring(filePath.lastIndexOf('/') + 1)
+    const dir = path.dirname(filePath)
+    const name = path.basename(filePath)
     if (!dirs.has(dir)) dirs.set(dir, [])
     dirs.get(dir)!.push(name)
+
+    let current = dir
+    while (current !== path.dirname(current)) {
+      const parent = path.dirname(current)
+      if (!dirs.has(parent)) dirs.set(parent, [])
+      const childName = path.basename(current)
+      if (!dirs.get(parent)!.includes(childName)) dirs.get(parent)!.push(childName)
+      current = parent
+    }
   }
 
-  mockedStat.mockImplementation(async (filePath) => {
+  mockedLstat.mockImplementation(async (filePath) => {
     const p = typeof filePath === 'string' ? filePath : filePath.toString()
     if (files[p] !== undefined) {
-      return { mtimeMs: 1000 } as any
+      return {
+        mtimeMs: 1000,
+        isFile: () => true,
+        isDirectory: () => false,
+        isSymbolicLink: () => false
+      } as any
+    }
+    if (dirs.has(p)) {
+      return {
+        mtimeMs: 1000,
+        isFile: () => false,
+        isDirectory: () => true,
+        isSymbolicLink: () => false
+      } as any
     }
     throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
   })
-  mockedReadFile.mockImplementation(async (filePath) => {
+  mockedOpen.mockImplementation(async (filePath) => {
     const p = typeof filePath === 'string' ? filePath : filePath.toString()
     if (files[p] !== undefined) {
-      return files[p]
+      return {
+        stat: async () => ({
+          mtimeMs: 1000,
+          isFile: () => true
+        }),
+        readFile: async () => files[p],
+        close: async () => undefined
+      } as any
     }
     throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
   })
   mockedReaddir.mockImplementation(async (dirPath) => {
     const p = typeof dirPath === 'string' ? dirPath : dirPath.toString()
     return (dirs.get(p) ?? []) as any
+  })
+  mockedRealpath.mockImplementation(async (targetPath) => {
+    const p = typeof targetPath === 'string' ? targetPath : targetPath.toString()
+    if (files[p] !== undefined || dirs.has(p)) return p
+    throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
   })
 }
 
@@ -73,7 +111,8 @@ describe('PromptBuilder', () => {
 
     expect(result).toContain('You are a personal assistant running inside Cherry Studio')
     expect(result).toContain('## Autonomy Tools')
-    expect(result).not.toContain('## Memories')
+    expect(result).toContain('## Memories')
+    expect(result).toContain('`/workspace/SOUL.md`')
   })
 
   it('embeds tool guidance sections in order (autonomy, memory, web)', async () => {
@@ -82,7 +121,7 @@ describe('PromptBuilder', () => {
     const result = await builder.buildSystemPrompt('/workspace')
 
     const cherryIdx = result.indexOf('## Autonomy Tools')
-    const memoryIdx = result.indexOf('## Workspace Memory')
+    const memoryIdx = result.indexOf('## Agent Memory')
     const webIdx = result.indexOf('## Web Search Strategy')
     expect(cherryIdx).toBeGreaterThanOrEqual(0)
     expect(cherryIdx).toBeLessThan(memoryIdx)
@@ -176,6 +215,55 @@ describe('PromptBuilder', () => {
     expect(result).toContain('Sharp and efficient.')
   })
 
+  it('loads workspace system.md but identity and memory from the agent data directory', async () => {
+    setupFiles({
+      '/workspace/system.md': 'Workspace-local system prompt.',
+      '/agent-data/SOUL.md': 'Persistent agent identity.',
+      '/agent-data/memory/FACT.md': 'Persistent agent fact.'
+    })
+
+    const result = await builder.buildSystemPrompt('/workspace', undefined, false, '/agent-data')
+
+    expect(result).toContain('Workspace-local system prompt.')
+    expect(result).toContain('Persistent agent identity.')
+    expect(result).toContain('Persistent agent fact.')
+    expect(result).toContain('`/agent-data/`')
+    expect(result).toContain('`/agent-data/SOUL.md`')
+    expect(result).toContain('current working directory is the session workspace')
+  })
+
+  it('always identifies the agent data directory when identity files are empty and bootstrap is skipped', async () => {
+    setupFiles({})
+
+    const result = await builder.buildSystemPrompt('/workspace', baseConfig, true, '/agent-data')
+
+    expect(result).not.toContain('## Bootstrap Mode')
+    expect(result).toContain('## Memories')
+    expect(result).toContain('`/agent-data/SOUL.md`')
+    expect(result).toContain('`/agent-data/USER.md`')
+    expect(result).toContain('`/agent-data/memory/FACT.md`')
+  })
+
+  it('ignores symbolic-link persona files', async () => {
+    setupFiles({ '/workspace/SOUL.md': 'must not be read' })
+    mockedLstat.mockImplementation(async (filePath) => {
+      const p = typeof filePath === 'string' ? filePath : filePath.toString()
+      if (p === '/workspace/SOUL.md') {
+        return {
+          mtimeMs: 1000,
+          isFile: () => true,
+          isDirectory: () => false,
+          isSymbolicLink: () => true
+        } as any
+      }
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+    })
+
+    const result = await builder.buildSystemPrompt('/workspace')
+
+    expect(result).not.toContain('must not be read')
+  })
+
   it('resolves filenames case-insensitively', async () => {
     // Files exist with different casing than the canonical names
     setupFiles({
@@ -202,8 +290,8 @@ describe('PromptBuilder', () => {
     await builder.buildSystemPrompt('/workspace')
     await builder.buildSystemPrompt('/workspace')
 
-    // readFile should only be called once per unique file due to caching
-    const soulReadCalls = mockedReadFile.mock.calls.filter(
+    // The file should only be opened once due to caching.
+    const soulReadCalls = mockedOpen.mock.calls.filter(
       (call) => typeof call[0] === 'string' && call[0].includes('soul.md')
     )
     expect(soulReadCalls).toHaveLength(1)
@@ -299,7 +387,7 @@ describe('PromptBuilder', () => {
       expect(result).toBeUndefined()
     })
 
-    it('wraps memory/FACT.md content in a Workspace Knowledge block', async () => {
+    it('wraps memory/FACT.md content in an Agent Knowledge block', async () => {
       setupFiles({
         '/workspace/memory/FACT.md': '- Project: cherry-studio\n- Build tool: pnpm + electron-vite'
       })
@@ -307,7 +395,7 @@ describe('PromptBuilder', () => {
       const result = await builder.buildFactsSection('/workspace')
 
       expect(result).toBeDefined()
-      expect(result).toContain('## Workspace Knowledge')
+      expect(result).toContain('## Agent Knowledge')
       expect(result).toContain('<facts>')
       expect(result).toContain('Project: cherry-studio')
       expect(result).toContain('Build tool: pnpm + electron-vite')

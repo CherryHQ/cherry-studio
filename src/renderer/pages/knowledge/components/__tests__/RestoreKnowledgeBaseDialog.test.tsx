@@ -9,7 +9,7 @@ import RestoreKnowledgeBaseDialog from '../RestoreKnowledgeBaseDialog'
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
 const mockSettingsNavigate = vi.fn()
-// embedMany (via useEmbeddingDimensions) goes through ipcApi.request('ai.embed_many', …) now.
+// embedMany (via useEmbeddingDimensions) goes through ipcApi.request('ai.embedding.embed_many', …) now.
 const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }

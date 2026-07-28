@@ -48,7 +48,6 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeUserInput,
-  AgentSessionLiveIndex,
   AgentSessionRuntimeDriver
 } from '../types'
 import {
@@ -57,7 +56,6 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import { sweepClaudeSessionFiles } from './sessionFileSweep'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -205,7 +203,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           key: request.key,
           options,
           initializeTimeoutMs: request.initializeTimeoutMs,
-          credentialsFingerprint: request.credentialsFingerprint
+          credentialsFingerprint: request.credentialsFingerprint,
+          knowledgeBaseIds: request.knowledgeBaseIds
         })
 
     this.query = warmQuery
@@ -380,7 +379,39 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             logger.warn('Received a result message with no active turn; dropping turn-complete', {
               sessionId: this.input.sessionId
             })
+          } else {
+            // Background agents and tasks can keep emitting after their turn's result (e.g.
+            // `task_notification`). No turn stream is open to carry them, so they are dropped —
+            // logged rather than vanishing silently, since there is no background-task surface yet.
+            logger.debug('Dropping message received with no active turn', {
+              sessionId: this.input.sessionId,
+              type: message.type,
+              subtype: 'subtype' in message ? message.subtype : undefined
+            })
           }
+          continue
+        }
+
+        // A failed API request is backing off before a retry. Surface it as ephemeral session status
+        // (the host writes it to shared cache) instead of letting the adapter drop it — the renderer
+        // shows "Retrying 7/10 in 36s". Never enters the persisted message stream.
+        //
+        // Deliberately gated on an active turn (below the no-adapter drop): retry status is turn-scoped
+        // (it renders in the active turn's message stream), and only a turn guarantees a clear boundary —
+        // the turn ends with a chunk / turn-complete / error, all of which clear it. A prewarm/turn-less
+        // connection's retry would have no message to attach to and no such boundary (init recovery only
+        // emits a resume-token), so it must not enter the retry state at all.
+        if (message.type === 'system' && message.subtype === 'api_retry') {
+          this.eventQueue.push({
+            type: 'api-retry',
+            retry: {
+              attempt: message.attempt,
+              maxRetries: message.max_retries,
+              retryDelayMs: message.retry_delay_ms,
+              errorStatus: message.error_status,
+              errorCategory: message.error
+            }
+          })
           continue
         }
 
@@ -797,16 +828,5 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     // `prewarmAgentSession` already no-ops in trace mode (it closes any warm
     // queries and returns), so no driver-side trace guard is needed here.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
-  }
-
-  async sweepSessionFiles(live: AgentSessionLiveIndex): Promise<void> {
-    // A deleted session's prewarmed query can outlive its DB row within the warm TTL, still
-    // holding the workspace cwd and appending its transcript — the whole-directory removals
-    // below (and the host's workspace-dir sweep that follows) are only safe once it is closed.
-    const warmManager = application.get('ClaudeCodeWarmQueryManager')
-    for (const sessionId of warmManager.getWarmAgentSessionIds()) {
-      if (!live.isSessionLive(sessionId)) warmManager.closeAgentSessionWarm(sessionId)
-    }
-    await sweepClaudeSessionFiles(live)
   }
 }

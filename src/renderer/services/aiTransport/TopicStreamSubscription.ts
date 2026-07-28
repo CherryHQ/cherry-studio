@@ -107,7 +107,7 @@ export class TopicStreamSubscription {
     this.#branches.clear()
     this.#terminalByBranchKey.clear()
     this.#terminalListeners.clear()
-    if (this.#attached) void ipcApi.request('ai.stream_detach', { topicId: this.#topicId }).catch(() => {})
+    if (this.#attached) void ipcApi.request('ai.stream.detach', { topicId: this.#topicId }).catch(() => {})
     this.#attached = false
     this.#attachInFlight = null
     for (const unsub of this.#ipcUnsubs) unsub()
@@ -211,14 +211,14 @@ export class TopicStreamSubscription {
   #setupIpcListeners(): void {
     if (this.#ipcUnsubs.length > 0) return
     this.#ipcUnsubs.push(
-      ipcApi.on('ai.stream_chunk', (data) => this.#routeChunk(data)),
-      ipcApi.on('ai.stream_done', (data) => {
+      ipcApi.on('ai.stream.chunk', (data) => this.#routeChunk(data)),
+      ipcApi.on('ai.stream.done', (data) => {
         if (data.topicId !== this.#topicId) return
         const terminal: ExecutionTerminal = { isAbort: data.status === 'paused', isError: false }
         if (data.executionId) this.#emitTerminal(data.executionId, terminal, data.anchorMessageId)
         if (data.isTopicDone || !data.executionId) this.#terminateAll(terminal)
       }),
-      ipcApi.on('ai.stream_error', (data) => {
+      ipcApi.on('ai.stream.error', (data) => {
         if (data.topicId !== this.#topicId) return
         this.#enqueueError(data.error, data.executionId, data.anchorMessageId)
         const terminal: ExecutionTerminal = { isAbort: false, isError: true }
@@ -235,7 +235,7 @@ export class TopicStreamSubscription {
     this.#setupIpcListeners()
     this.#attachInFlight = (async () => {
       try {
-        const res = await ipcApi.request('ai.stream_attach', { topicId: this.#topicId })
+        const res = await ipcApi.request('ai.stream.attach', { topicId: this.#topicId })
         if (this.#disposed) return
         this.#attached = true
         switch (res.status) {
@@ -269,7 +269,7 @@ export class TopicStreamSubscription {
 
   #detach(): void {
     if (!this.#attached) return
-    void ipcApi.request('ai.stream_detach', { topicId: this.#topicId }).catch(() => {})
+    void ipcApi.request('ai.stream.detach', { topicId: this.#topicId }).catch(() => {})
     this.#attached = false
     this.#attachInFlight = null
   }

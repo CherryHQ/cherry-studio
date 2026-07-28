@@ -28,7 +28,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { useNavigate } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
-import { ExternalLink, List } from 'lucide-react'
+import { ArrowRight, ExternalLink, List } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -327,7 +327,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
             <div className={providerFieldClassName}>
               <SettingSubtitle>{t('settings.provider.api_key.label')}</SettingSubtitle>
               <Button variant="outline" size="sm" className="w-fit" onClick={openLlmProviderSettings}>
-                <ExternalLink size={14} />
+                <ArrowRight size={13} />
                 {t('navigate.provider_settings')}
               </Button>
             </div>

@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const registrationMocks = vi.hoisted(() => ({
+  begin: vi.fn(),
+  poll: vi.fn()
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
@@ -20,6 +25,11 @@ vi.mock('../../../../../MainWindowService', () => ({
   windowService: {
     getMainWindow: () => null
   }
+}))
+
+vi.mock('../feishu/FeishuAppRegistration', () => ({
+  registrationBegin: registrationMocks.begin,
+  registrationPoll: registrationMocks.poll
 }))
 
 const mockImCreate = vi.fn().mockResolvedValue({ code: 0, data: { message_id: 'msg-1' } })
@@ -105,6 +115,8 @@ describe('FeishuAdapter', () => {
     mockFileCreate.mockClear().mockResolvedValue({ file_key: 'file-1' })
     mockImageCreate.mockClear().mockResolvedValue({ image_key: 'img-1' })
     mockWsStart.mockClear().mockResolvedValue(undefined)
+    registrationMocks.begin.mockReset().mockRejectedValue(new Error('Registration unavailable'))
+    registrationMocks.poll.mockReset()
     capturedEventHandlers = {}
   })
 
@@ -143,6 +155,64 @@ describe('FeishuAdapter', () => {
     // checkReady() returns false → performConnect runs in background,
     // starts registration flow instead of WebSocket
     expect(mockWsStart).not.toHaveBeenCalled()
+  })
+
+  it('does not emit a QR code when disconnected before registration begins', async () => {
+    let resolveBegin!: (value: {
+      deviceCode: string
+      verificationUri: string
+      interval: number
+      expiresIn: number
+    }) => void
+    registrationMocks.begin.mockReturnValue(
+      new Promise((resolve) => {
+        resolveBegin = resolve
+      })
+    )
+    const adapter = createAdapter({ app_id: '', app_secret: '' })
+    const onQr = vi.fn()
+    adapter.on('qr', onQr)
+
+    await adapter.connect()
+    await adapter.disconnect()
+    resolveBegin({
+      deviceCode: 'device-code',
+      verificationUri: 'https://accounts.feishu.cn/device/qr',
+      interval: 1,
+      expiresIn: 600
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(onQr).not.toHaveBeenCalled()
+    expect(registrationMocks.poll).not.toHaveBeenCalled()
+  })
+
+  it('does not emit credentials when disconnected during registration polling', async () => {
+    let resolvePoll!: (value: { appId: string; appSecret: string }) => void
+    registrationMocks.begin.mockResolvedValue({
+      deviceCode: 'device-code',
+      verificationUri: 'https://accounts.feishu.cn/device/qr',
+      interval: 1,
+      expiresIn: 600
+    })
+    registrationMocks.poll.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePoll = resolve
+      })
+    )
+    const adapter = createAdapter({ app_id: '', app_secret: '' })
+    const onCredentials = vi.fn()
+    adapter.on('credentials', onCredentials)
+
+    await adapter.connect()
+    await vi.waitFor(() => expect(registrationMocks.poll).toHaveBeenCalledOnce())
+    await adapter.disconnect()
+    resolvePoll({ appId: 'new-app-id', appSecret: 'new-app-secret' })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(onCredentials).not.toHaveBeenCalled()
   })
 
   it('sendMessage() sends post-type message via SDK', async () => {
