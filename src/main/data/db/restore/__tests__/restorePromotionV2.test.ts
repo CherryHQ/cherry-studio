@@ -68,7 +68,9 @@ vi.mock('@application', () => ({
  * under test is only what the promotion may still delete when the state it is
  * deleting on the strength of never reached the disk.
  */
-const failJournalWrite: { when: ((journal: RestoreJournalV2) => boolean) | null } = { when: null }
+const failJournalWrite: {
+  when: ((journal: RestoreJournalV2) => boolean) | null
+} = { when: null }
 
 /**
  * Fault injection for the rollback of the resource units: while set, the pass
@@ -202,7 +204,9 @@ function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
   }
   const state = overrides.state ?? 'armed'
   if (state === 'promoting') return { ...base, state, step: overrides.step ?? 'gate-passed' }
-  if (state === 'completed') return { ...base, state, summary: { knowledgeBaseIds: [] } }
+  if (state === 'completed' || state === 'rollback-armed' || state === 'rolled-back') {
+    return { ...base, state, summary: { knowledgeBaseIds: [] } }
+  }
   return { ...base, state } as RestoreJournalV2
 }
 
@@ -257,17 +261,20 @@ describe('restore promotion v2', () => {
       expect(existsSync(asidePath())).toBe(false)
     })
 
-    it.each(['completed', 'failed', 'expired'] as const)('leaves the terminal state %s alone', async (state) => {
-      makeDb(livePath(), 'old')
-      makeStagedDb()
-      writeRestoreJournalV2(buildJournal({ state }))
+    it.each(['completed', 'rolled-back', 'failed', 'expired'] as const)(
+      'leaves the terminal state %s alone',
+      async (state) => {
+        makeDb(livePath(), 'old')
+        makeStagedDb()
+        writeRestoreJournalV2(buildJournal({ state }))
 
-      await runRestorePromotionV2()
+        await runRestorePromotionV2()
 
-      expect(journalState()).toBe(state)
-      expect(readMarker(livePath())).toBe('old')
-      expect(existsSync(stagedPath())).toBe(true)
-    })
+        expect(journalState()).toBe(state)
+        expect(readMarker(livePath())).toBe('old')
+        expect(existsSync(stagedPath())).toBe(true)
+      }
+    )
 
     it('quarantines a journal it cannot parse and clears the whole staging root', async () => {
       makeDb(livePath(), 'old')
@@ -430,6 +437,93 @@ describe('restore promotion v2', () => {
     })
   })
 
+  describe('explicit rollback of a completed restore', () => {
+    const parkedPath = () => join(userData, `restore-failed-${RID}.sqlite`)
+
+    it('moves the previous database back and retains the displaced restored database', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal())
+      await runRestorePromotionV2()
+      const completed = readRestoreJournalV2()
+      if (completed.kind !== 'ok' || completed.journal.state !== 'completed')
+        throw new Error('promotion did not complete')
+      const restored = new Database(livePath())
+      restored
+        .prepare("INSERT INTO app_state (key, value, created_at, updated_at) VALUES ('post-restore', '1', 0, 0)")
+        .run()
+      restored.close()
+      writeRestoreJournalV2({ ...completed.journal, state: 'rollback-armed' })
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('rolled-back')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readMarker(parkedPath())).toBe('new')
+      expect(hasRow(parkedPath(), 'post-restore')).toBe(true)
+      expect(hasRow(livePath(), 'post-restore')).toBe(false)
+      expect(existsSync(asidePath())).toBe(false)
+      expect(hasPendingRestore()).toBe(true)
+    })
+
+    it('resumes after the restored database was parked but before the previous database returned', async () => {
+      makeDb(asidePath(), 'old')
+      makeDb(parkedPath(), 'new')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ state: 'rollback-armed', chain: chainOf(parkedPath()) }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('rolled-back')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readMarker(parkedPath())).toBe('new')
+      expect(existsSync(asidePath())).toBe(false)
+    })
+
+    it('resumes after the previous database returned but before the terminal marker landed', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(parkedPath(), 'new')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ state: 'rollback-armed', chain: chainOf(parkedPath()) }))
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('rolled-back')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readMarker(parkedPath())).toBe('new')
+    })
+
+    it('refuses a database path redirected after the restore completed', async () => {
+      makeDb(asidePath(), 'old')
+      const outside = join(userData, 'outside.sqlite')
+      makeDb(outside, 'new')
+      symlinkSync(outside, livePath())
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ state: 'rollback-armed', chain: chainOf(outside) }))
+
+      await expect(runRestorePromotionV2()).rejects.toThrow(/not a regular file/)
+
+      expect(journalState()).toBe('rollback-armed')
+      expect(readMarker(outside)).toBe('new')
+      expect(readMarker(asidePath())).toBe('old')
+    })
+
+    it('keeps rollback armed and all data when the terminal journal write fails', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(parkedPath(), 'new')
+      makeStagedDb()
+      writeRestoreJournalV2(buildJournal({ state: 'rollback-armed', chain: chainOf(parkedPath()) }))
+      failJournalWrite.when = (journal) => journal.state === 'rolled-back'
+
+      await expect(runRestorePromotionV2()).rejects.toThrow("simulated journal write failure for state 'rolled-back'")
+
+      expect(journalState()).toBe('rollback-armed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readMarker(parkedPath())).toBe('new')
+      expect(hasPendingRestore()).toBe(true)
+    })
+  })
+
   describe('crash recovery', () => {
     it('rolls back a crash before the live database was parked', async () => {
       makeDb(livePath(), 'old')
@@ -448,7 +542,13 @@ describe('restore promotion v2', () => {
       // table would call this "an installed backup with no aside → remove it";
       // for the DB unit that would delete the user's database.
       makeDb(livePath(), 'old')
-      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'live-checkpointed', chain: chainOf(livePath()) }))
+      writeRestoreJournalV2(
+        buildJournal({
+          state: 'promoting',
+          step: 'live-checkpointed',
+          chain: chainOf(livePath())
+        })
+      )
 
       await runRestorePromotionV2()
 
@@ -476,7 +576,11 @@ describe('restore promotion v2', () => {
       // landed. Rolling back here would discard a database that is already live.
       makeDb(asidePath(), 'old')
       makeDb(livePath(), 'new')
-      const journal = buildJournal({ state: 'promoting', step: 'live-aside', chain: chainOf(livePath()) })
+      const journal = buildJournal({
+        state: 'promoting',
+        step: 'live-aside',
+        chain: chainOf(livePath())
+      })
       writeRestoreJournalV2(journal)
 
       await runRestorePromotionV2()
@@ -489,7 +593,13 @@ describe('restore promotion v2', () => {
     it('finishes a crash at the commit point', async () => {
       makeDb(asidePath(), 'old')
       makeDb(livePath(), 'new')
-      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'db-promoted', chain: chainOf(livePath()) }))
+      writeRestoreJournalV2(
+        buildJournal({
+          state: 'promoting',
+          step: 'db-promoted',
+          chain: chainOf(livePath())
+        })
+      )
 
       await runRestorePromotionV2()
 
@@ -527,7 +637,13 @@ describe('restore promotion v2', () => {
   describe('escaped-crash net', () => {
     it('reports a stranded database and puts it back', () => {
       makeDb(asidePath(), 'old')
-      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'live-aside', chain: chainOf(asidePath()) }))
+      writeRestoreJournalV2(
+        buildJournal({
+          state: 'promoting',
+          step: 'live-aside',
+          chain: chainOf(asidePath())
+        })
+      )
 
       expect(isLiveDbStrandedV2()).toBe(true)
 
@@ -541,7 +657,13 @@ describe('restore promotion v2', () => {
     it('leaves a committed promotion resumable rather than freezing it to failed', () => {
       makeDb(asidePath(), 'old')
       makeDb(livePath(), 'new')
-      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'db-promoted', chain: chainOf(livePath()) }))
+      writeRestoreJournalV2(
+        buildJournal({
+          state: 'promoting',
+          step: 'db-promoted',
+          chain: chainOf(livePath())
+        })
+      )
 
       markRestoreFailedAfterCrashV2()
 
@@ -615,6 +737,29 @@ describe('restore promotion v2', () => {
       expect(completedSummary()).toEqual(['base-1'])
     })
 
+    it('rolls replaced resource units back without deleting either side', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const unit = baseUnit()
+      makeUnitDir(unit.staging, 'ARCHIVE')
+      makeUnitDir(unit.live, 'TARGET')
+      writeRestoreJournalV2(buildJournal({ resourceInstalls: [unit] }))
+      await runRestorePromotionV2()
+      const completed = readRestoreJournalV2()
+      if (completed.kind !== 'ok' || completed.journal.state !== 'completed')
+        throw new Error('promotion did not complete')
+      writeRestoreJournalV2({ ...completed.journal, state: 'rollback-armed' })
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('rolled-back')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readUnitDir(unit.live)).toBe('TARGET')
+      expect(readUnitDir(unit.staging)).toBe('ARCHIVE')
+      expect(unitExists(unit.aside)).toBe(false)
+      expect(readMarker(join(userData, `restore-failed-${RID}.sqlite`))).toBe('new')
+    })
+
     it('rolls the resources back out when the promotion fails after the commit', async () => {
       makeDb(livePath(), 'old')
       makeStagedDb()
@@ -643,7 +788,13 @@ describe('restore promotion v2', () => {
       // The install ran: the archive copy is live and the target is parked.
       makeUnitDir(unit.live, 'ARCHIVE')
       makeUnitDir(unit.aside, 'TARGET')
-      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'resources-installed', resourceInstalls: [unit] }))
+      writeRestoreJournalV2(
+        buildJournal({
+          state: 'promoting',
+          step: 'resources-installed',
+          resourceInstalls: [unit]
+        })
+      )
 
       await runRestorePromotionV2()
 
@@ -703,7 +854,13 @@ describe('restore promotion v2', () => {
       const unit = baseUnit()
       makeUnitDir(unit.live, 'ARCHIVE')
       makeUnitDir(unit.aside, 'TARGET')
-      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'resources-installed', resourceInstalls: [unit] }))
+      writeRestoreJournalV2(
+        buildJournal({
+          state: 'promoting',
+          step: 'resources-installed',
+          resourceInstalls: [unit]
+        })
+      )
       failJournalWrite.when = (journal) => journal.state === 'failed'
 
       await runRestorePromotionV2()
@@ -727,7 +884,13 @@ describe('restore promotion v2', () => {
       const unit = baseUnit()
       makeUnitDir(unit.live, 'ARCHIVE')
       makeUnitDir(unit.aside, 'TARGET')
-      writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'resources-installed', resourceInstalls: [unit] }))
+      writeRestoreJournalV2(
+        buildJournal({
+          state: 'promoting',
+          step: 'resources-installed',
+          resourceInstalls: [unit]
+        })
+      )
       failResourceRollback.on = true
 
       await runRestorePromotionV2()
@@ -768,7 +931,12 @@ describe('restore promotion v2', () => {
       makeUnitDir(unit.staging, 'ARCHIVE')
       makeUnitDir(unit.aside, 'TARGET')
       writeRestoreJournalV2(
-        buildJournal({ state: 'promoting', step: 'db-promoted', chain: chainOf(livePath()), resourceInstalls: [unit] })
+        buildJournal({
+          state: 'promoting',
+          step: 'db-promoted',
+          chain: chainOf(livePath()),
+          resourceInstalls: [unit]
+        })
       )
       failResourceInstall.on = true
 
@@ -804,7 +972,11 @@ describe('restore promotion v2', () => {
       makeUnitDir(unit.staging, 'ARCHIVE')
       makeUnitDir(unit.aside, 'TARGET')
       writeRestoreJournalV2({
-        ...buildJournal({ state: 'completed', resourceInstalls: [unit], chain: chainOf(livePath()) }),
+        ...buildJournal({
+          state: 'completed',
+          resourceInstalls: [unit],
+          chain: chainOf(livePath())
+        }),
         resourcesIncomplete: true
       } as RestoreJournalV2)
       failResourceInstall.on = true
@@ -825,7 +997,11 @@ describe('restore promotion v2', () => {
       makeUnitDir(unit.live, 'ARCHIVE')
       makeUnitDir(unit.aside, 'TARGET')
       writeRestoreJournalV2({
-        ...buildJournal({ state: 'failed', resourceInstalls: [unit], chain: chainOf(livePath()) }),
+        ...buildJournal({
+          state: 'failed',
+          resourceInstalls: [unit],
+          chain: chainOf(livePath())
+        }),
         recoveryIncomplete: true
       } as RestoreJournalV2)
       failResourceRollback.on = true

@@ -15,7 +15,9 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: requestMock } }))
 
-vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light' }) }))
+vi.mock('@renderer/hooks/useTheme', () => ({
+  useTheme: () => ({ theme: 'light' })
+}))
 
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingDivider: () => <hr />,
@@ -80,20 +82,34 @@ describe('BackupV2Settings', () => {
   it('exports the preset whose button was pressed and re-reads the status', async () => {
     requestMock.mockImplementation(async (route: string) =>
       route === 'backup.export'
-        ? { status: 'exported', archivePath: '/tmp/a.cherrybackup', preset: 'lite', resourceCount: 0, degradations: [] }
+        ? {
+            status: 'exported',
+            archivePath: '/tmp/a.cherrybackup',
+            preset: 'lite',
+            resourceCount: 0,
+            degradations: []
+          }
         : { operation: null, restore: { kind: 'none' } }
     )
     await renderSettings()
 
     click('settings.data.backup_v2.export.button')
 
-    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.export', { preset: 'lite' }))
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith('backup.export', {
+        preset: 'lite'
+      })
+    )
     expect(toast.success).toHaveBeenCalledWith('settings.data.backup_v2.export.done')
     expect(requestMock).toHaveBeenCalledWith('backup.get_status')
 
     click('settings.data.backup_v2.export.button', 1)
 
-    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.export', { preset: 'full' }))
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith('backup.export', {
+        preset: 'full'
+      })
+    )
   })
 
   it('says nothing when the user dismisses the export dialog', async () => {
@@ -104,7 +120,11 @@ describe('BackupV2Settings', () => {
 
     click('settings.data.backup_v2.export.button')
 
-    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.export', { preset: 'lite' }))
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith('backup.export', {
+        preset: 'lite'
+      })
+    )
     expect(toast.success).not.toHaveBeenCalled()
   })
 
@@ -112,7 +132,10 @@ describe('BackupV2Settings', () => {
     requestMock.mockImplementation(async (route: string) =>
       route === 'backup.prepare_restore'
         ? { status: 'prepared', preview }
-        : { operation: null, restore: { kind: 'journal', state: 'prepared', restoreId: 'r1' } }
+        : {
+            operation: null,
+            restore: { kind: 'journal', state: 'prepared', restoreId: 'r1' }
+          }
     )
     await renderSettings()
 
@@ -121,7 +144,11 @@ describe('BackupV2Settings', () => {
     await waitFor(() => expect(screen.getByText('settings.data.backup_v2.preview.destructive')).toBeInTheDocument())
     expect(screen.getByText('settings.data.backup_v2.preview.coverage_counts')).toBeInTheDocument()
     expect(screen.getByText('settings.data.backup_v2.preview.resources_counts')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.data.backup_v2.restore.arm_button' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', {
+        name: 'settings.data.backup_v2.restore.arm_button'
+      })
+    ).toBeInTheDocument()
   })
 
   it('never arms a restore that the user did not confirm', async () => {
@@ -168,6 +195,45 @@ describe('BackupV2Settings', () => {
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore'))
   })
 
+  it('never rolls back a completed restore without a second explicit confirmation', async () => {
+    statusIs({ kind: 'journal', state: 'completed', restoreId: 'r1' })
+    vi.mocked(popup.confirm).mockResolvedValueOnce(false)
+    await renderSettings()
+
+    click('settings.data.backup_v2.rollback.button')
+
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
+    expect(requestMock).not.toHaveBeenCalledWith('backup.rollback_restore')
+  })
+
+  it('arms rollback and relaunches after the user confirms losing post-restore changes', async () => {
+    statusIs({ kind: 'journal', state: 'completed', restoreId: 'r1' })
+    vi.mocked(popup.confirm).mockResolvedValueOnce(true)
+    await renderSettings()
+
+    click('settings.data.backup_v2.rollback.button')
+
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.rollback_restore'))
+  })
+
+  it('reports a completed rollback and lets the user release displaced restored data', async () => {
+    statusIs({ kind: 'journal', state: 'rolled-back', restoreId: 'r1' })
+    await renderSettings()
+
+    await waitFor(() =>
+      expect(screen.getByText('settings.data.backup_v2.outcome.state.rolled_back')).toBeInTheDocument()
+    )
+    expect(screen.getByText('settings.data.backup_v2.outcome.rolled_back_help')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', {
+        name: 'settings.data.backup_v2.rollback.button'
+      })
+    ).not.toBeInTheDocument()
+
+    click('settings.data.backup_v2.outcome.keep_previous_button')
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore'))
+  })
+
   it('names what a completed restore brought back in a reduced form', async () => {
     statusIs({
       kind: 'journal',
@@ -182,7 +248,12 @@ describe('BackupV2Settings', () => {
   })
 
   it('withholds acknowledgement while a completed restore still owes a file', async () => {
-    statusIs({ kind: 'journal', state: 'completed', restoreId: 'r1', resourcesIncomplete: true })
+    statusIs({
+      kind: 'journal',
+      state: 'completed',
+      restoreId: 'r1',
+      resourcesIncomplete: true
+    })
     await renderSettings()
 
     await waitFor(() =>
@@ -191,7 +262,9 @@ describe('BackupV2Settings', () => {
     // The staging tree and the aside are that unit's only two copies, and this
     // button deletes both.
     expect(
-      screen.queryByRole('button', { name: 'settings.data.backup_v2.outcome.acknowledge_button' })
+      screen.queryByRole('button', {
+        name: 'settings.data.backup_v2.outcome.acknowledge_button'
+      })
     ).not.toBeInTheDocument()
   })
 
@@ -201,12 +274,19 @@ describe('BackupV2Settings', () => {
 
     await waitFor(() => expect(screen.getByText('settings.data.backup_v2.outcome.state.promoting')).toBeInTheDocument())
     expect(
-      screen.queryByRole('button', { name: 'settings.data.backup_v2.outcome.acknowledge_button' })
+      screen.queryByRole('button', {
+        name: 'settings.data.backup_v2.outcome.acknowledge_button'
+      })
     ).not.toBeInTheDocument()
   })
 
   it('withholds acknowledgement while a rollback is still incomplete', async () => {
-    statusIs({ kind: 'journal', state: 'failed', restoreId: 'r1', recoveryIncomplete: true })
+    statusIs({
+      kind: 'journal',
+      state: 'failed',
+      restoreId: 'r1',
+      recoveryIncomplete: true
+    })
     await renderSettings()
 
     await waitFor(() =>
@@ -215,7 +295,9 @@ describe('BackupV2Settings', () => {
     // Acknowledging would delete exactly what the pending repair needs, so the
     // button is not offered until a boot has finished the rollback.
     expect(
-      screen.queryByRole('button', { name: 'settings.data.backup_v2.outcome.acknowledge_button' })
+      screen.queryByRole('button', {
+        name: 'settings.data.backup_v2.outcome.acknowledge_button'
+      })
     ).not.toBeInTheDocument()
   })
 
@@ -229,7 +311,8 @@ describe('BackupV2Settings', () => {
   it.each([
     [backupErrorCodes.BUSY, 'settings.data.backup_v2.error.busy'],
     [backupErrorCodes.ARCHIVE_REJECTED, 'settings.data.backup_v2.error.archive_rejected'],
-    [backupErrorCodes.JOURNAL_UNREADABLE, 'settings.data.backup_v2.error.journal_unreadable']
+    [backupErrorCodes.JOURNAL_UNREADABLE, 'settings.data.backup_v2.error.journal_unreadable'],
+    [backupErrorCodes.ROLLBACK_UNAVAILABLE, 'settings.data.backup_v2.error.rollback_unavailable']
   ])('turns %s into its own sentence', async (code, message) => {
     requestMock.mockImplementation(async (route: string) => {
       if (route === 'backup.prepare_restore') throw new IpcError(code, 'refused')
@@ -278,7 +361,11 @@ describe('BackupV2Settings', () => {
       // Exactly one export label survives — the row that is NOT running — and it
       // is disabled, so the cancel affordance sits on the row the user pressed.
       expect(screen.getByRole('button', { name: EXPORT_BUTTON })).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'settings.data.backup_v2.restore.choose_button' })).toBeDisabled()
+      expect(
+        screen.getByRole('button', {
+          name: 'settings.data.backup_v2.restore.choose_button'
+        })
+      ).toBeDisabled()
 
       stalled.finish({ status: 'canceled' })
       await waitFor(() => expect(screen.getAllByRole('button', { name: EXPORT_BUTTON })).toHaveLength(2))
@@ -324,7 +411,11 @@ describe('BackupV2Settings', () => {
 
       stalled.finish({ status: 'canceled' })
       await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'settings.data.backup_v2.restore.choose_button' })).toBeEnabled()
+        expect(
+          screen.getByRole('button', {
+            name: 'settings.data.backup_v2.restore.choose_button'
+          })
+        ).toBeEnabled()
       )
     })
   })

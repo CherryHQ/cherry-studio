@@ -18,6 +18,8 @@ export const backupErrorCodes = {
   JOURNAL_UNREADABLE: 'BACKUP_JOURNAL_UNREADABLE',
   /** The relaunch that performs the restore could not be started; the arm was rolled back. */
   ARM_FAILED: 'BACKUP_ARM_FAILED',
+  /** The previous DB has already been released, so a completed restore can no longer roll back. */
+  ROLLBACK_UNAVAILABLE: 'BACKUP_ROLLBACK_UNAVAILABLE',
   /** A failed restore still holds the only copy of what it moved; a restart retries it. */
   RECOVERY_INCOMPLETE: 'BACKUP_RECOVERY_INCOMPLETE',
   /** The destination volume cannot take the archive (no space, exists, unsupported). */

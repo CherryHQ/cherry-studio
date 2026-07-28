@@ -14,6 +14,7 @@ import { exportArchive, type ExportArchiveResult } from './exportArchive'
 import type { BackupPreset } from './manifest'
 import { runPostPromotionWork } from './postPromotion'
 import { armPreparedRestore, cancelPreparedRestore, prepareRestore, type RestorePreview } from './prepareRestore'
+import { armRestoreRollback } from './rollbackRestore'
 
 const logger = loggerService.withContext('BackupService')
 
@@ -187,10 +188,15 @@ export class BackupService extends BaseService {
     armPreparedRestore()
   }
 
+  /** Restore the data retained before the last completed restore, then relaunch. */
+  public rollbackRestore(): void {
+    armRestoreRollback()
+  }
+
   /**
-   * Commit to a finished restore: drop its recovery asides and release the GC
-   * protection they held (§6.5). Idempotent, and refuses a restore that has not
-   * finished — that one still needs its aside.
+   * Commit to a finished restore or rollback: drop its displaced side and
+   * release the GC protection it held (§6.5). Idempotent, and refuses an action
+   * that has not finished — that one still needs its recovery artifacts.
    */
   public acknowledgeRestore(): AcknowledgeResult {
     return acknowledgeRestore()

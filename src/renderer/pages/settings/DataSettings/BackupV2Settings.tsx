@@ -58,6 +58,8 @@ const RESTORE_STATE_KEYS: Record<JournalRestore['state'], string> = {
   armed: 'settings.data.backup_v2.outcome.state.armed',
   promoting: 'settings.data.backup_v2.outcome.state.promoting',
   completed: 'settings.data.backup_v2.outcome.state.completed',
+  'rollback-armed': 'settings.data.backup_v2.outcome.state.rollback_armed',
+  'rolled-back': 'settings.data.backup_v2.outcome.state.rolled_back',
   failed: 'settings.data.backup_v2.outcome.state.failed',
   expired: 'settings.data.backup_v2.outcome.state.expired'
 }
@@ -96,6 +98,8 @@ const BackupV2Settings: FC = () => {
           return toast.error(t('settings.data.backup_v2.error.journal_unreadable'))
         case backupErrorCodes.ARM_FAILED:
           return toast.error(t('settings.data.backup_v2.error.arm_failed'))
+        case backupErrorCodes.ROLLBACK_UNAVAILABLE:
+          return toast.error(t('settings.data.backup_v2.error.rollback_unavailable'))
         case backupErrorCodes.RECOVERY_INCOMPLETE:
           return toast.error(t('settings.data.backup_v2.error.recovery_incomplete'))
         case backupErrorCodes.EXPORT_DESTINATION:
@@ -147,7 +151,9 @@ const BackupV2Settings: FC = () => {
       if (result.status === 'canceled') return
       toast.success(
         result.degradations.length > 0
-          ? t('settings.data.backup_v2.export.done_degraded', { count: result.degradations.length })
+          ? t('settings.data.backup_v2.export.done_degraded', {
+              count: result.degradations.length
+            })
           : t('settings.data.backup_v2.export.done')
       )
     })
@@ -179,6 +185,21 @@ const BackupV2Settings: FC = () => {
       await ipcApi.request('backup.cancel_restore')
       setPreview(null)
       toast.success(t('settings.data.backup_v2.restore.discarded'))
+    })
+
+  const handleRollback = () =>
+    run({ kind: 'other' }, async () => {
+      const confirmed = await popup.confirm({
+        title: t('settings.data.backup_v2.rollback.confirm_title'),
+        content: t('settings.data.backup_v2.rollback.confirm_content'),
+        okText: t('settings.data.backup_v2.rollback.confirm_ok'),
+        cancelText: t('common.cancel'),
+        centered: true,
+        okButtonProps: { danger: true }
+      })
+      if (!confirmed) return
+      // The app relaunches into the zero-connection rollback gate.
+      await ipcApi.request('backup.rollback_restore')
     })
 
   const handleAcknowledge = () =>
@@ -269,7 +290,7 @@ const BackupV2Settings: FC = () => {
         <SettingGroup theme={theme}>
           <SettingTitle>{t('settings.data.backup_v2.outcome.title')}</SettingTitle>
           <SettingDivider />
-          <RestoreOutcome restore={restore} busy={busy} onAcknowledge={handleAcknowledge} />
+          <RestoreOutcome restore={restore} busy={busy} onRollback={handleRollback} onAcknowledge={handleAcknowledge} />
         </SettingGroup>
       )}
     </>
@@ -348,7 +369,9 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
       )}
       {preview.degradations.length > 0 && (
         <SettingHelpText>
-          {t('settings.data.backup_v2.preview.degradations', { count: preview.degradations.length })}
+          {t('settings.data.backup_v2.preview.degradations', {
+            count: preview.degradations.length
+          })}
         </SettingHelpText>
       )}
       <Alert type="warning" showIcon message={t('settings.data.backup_v2.preview.destructive')} />
@@ -357,16 +380,17 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
 }
 
 /**
- * The durable outcome of the last restore. `completed` is the only state that
- * still owns rollback material — until it is acknowledged the previous database
- * and every replaced file are still on disk, which is also why the button says
- * what it releases.
+ * The durable outcome of the last restore. `completed` offers the explicit
+ * choice while both sides still exist: keep the restored state or move the
+ * retained previous state back. Either terminal remains protected until its
+ * displaced side is acknowledged and released.
  */
 const RestoreOutcome: FC<{
   restore: NonNullable<BackupStatus['restore']>
   busy: boolean
+  onRollback: () => void
   onAcknowledge: () => void
-}> = ({ restore, busy, onAcknowledge }) => {
+}> = ({ restore, busy, onRollback, onAcknowledge }) => {
   const { t } = useTranslation()
 
   if (restore.kind === 'unreadable') {
@@ -378,22 +402,42 @@ const RestoreOutcome: FC<{
   // copy of what it moved, so the button that releases it is withheld rather
   // than shown and refused.
   const acknowledgeable =
-    (restore.state === 'completed' || restore.state === 'failed' || restore.state === 'expired') &&
+    (restore.state === 'completed' ||
+      restore.state === 'rolled-back' ||
+      restore.state === 'failed' ||
+      restore.state === 'expired') &&
     !restore.recoveryIncomplete &&
     !restore.resourcesIncomplete
+  const rollbackable = restore.state === 'completed' && !restore.resourcesIncomplete
 
   return (
     <>
       <SettingRow>
         <SettingRowTitle>{t(RESTORE_STATE_KEYS[restore.state])}</SettingRowTitle>
-        {acknowledgeable && (
-          <Button disabled={busy} onClick={onAcknowledge}>
-            {t('settings.data.backup_v2.outcome.acknowledge_button')}
-          </Button>
+        {(rollbackable || acknowledgeable) && (
+          <RowFlex className="gap-2">
+            {rollbackable && (
+              <Button variant="destructive" disabled={busy} onClick={onRollback}>
+                {t('settings.data.backup_v2.rollback.button')}
+              </Button>
+            )}
+            {acknowledgeable && (
+              <Button disabled={busy} onClick={onAcknowledge}>
+                {t(
+                  restore.state === 'rolled-back'
+                    ? 'settings.data.backup_v2.outcome.keep_previous_button'
+                    : 'settings.data.backup_v2.outcome.acknowledge_button'
+                )}
+              </Button>
+            )}
+          </RowFlex>
         )}
       </SettingRow>
       {restore.state === 'completed' && (
         <SettingHelpText>{t('settings.data.backup_v2.outcome.completed_help')}</SettingHelpText>
+      )}
+      {restore.state === 'rolled-back' && (
+        <SettingHelpText>{t('settings.data.backup_v2.outcome.rolled_back_help')}</SettingHelpText>
       )}
       {restore.state === 'completed' && (
         <SettingHelpText>{t('settings.data.backup_v2.outcome.reconfirm_integrations')}</SettingHelpText>
@@ -413,7 +457,9 @@ const RestoreOutcome: FC<{
         <Alert
           type="warning"
           showIcon
-          message={t('settings.data.backup_v2.outcome.degradations', { count: restore.degradations.length })}
+          message={t('settings.data.backup_v2.outcome.degradations', {
+            count: restore.degradations.length
+          })}
           description={
             <ul>
               {restore.degradations.map((degradation) => (

@@ -12,11 +12,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const runRestorePromotionMock = vi.fn<() => Promise<void>>()
 const markRestoreFailedAfterCrashMock = vi.fn<() => void>()
 const isLiveDbStrandedMock = vi.fn<() => boolean>()
+const isRestoreRollbackPendingMock = vi.fn<() => boolean>()
 
 vi.mock('@data/db/restore/restorePromotionV2', () => ({
   runRestorePromotionV2: () => runRestorePromotionMock(),
   markRestoreFailedAfterCrashV2: () => markRestoreFailedAfterCrashMock(),
-  isLiveDbStrandedV2: () => isLiveDbStrandedMock()
+  isLiveDbStrandedV2: () => isLiveDbStrandedMock(),
+  isRestoreRollbackPendingV2: () => isRestoreRollbackPendingMock()
 }))
 
 import { runBackupRestoreGate } from '../backupRestoreGate'
@@ -26,6 +28,8 @@ beforeEach(() => {
   markRestoreFailedAfterCrashMock.mockReset()
   isLiveDbStrandedMock.mockReset()
   isLiveDbStrandedMock.mockReturnValue(false)
+  isRestoreRollbackPendingMock.mockReset()
+  isRestoreRollbackPendingMock.mockReturnValue(false)
 })
 
 describe('runBackupRestoreGate', () => {
@@ -37,6 +41,7 @@ describe('runBackupRestoreGate', () => {
     expect(runRestorePromotionMock).toHaveBeenCalledOnce()
     expect(markRestoreFailedAfterCrashMock).not.toHaveBeenCalled()
     expect(isLiveDbStrandedMock).not.toHaveBeenCalled()
+    expect(isRestoreRollbackPendingMock).not.toHaveBeenCalled()
   })
 
   it('swallows a substance crash and invokes the crash net', async () => {
@@ -63,6 +68,13 @@ describe('runBackupRestoreGate', () => {
     // Booting on would create a fresh empty database while the user's data
     // sits in the aside — the one case worse than the fail-fast dialog.
     await expect(runBackupRestoreGate()).rejects.toThrow(/empty database/)
+  })
+
+  it('refuses to boot while a user-approved rollback is incomplete', async () => {
+    runRestorePromotionMock.mockRejectedValue(new Error('resource rename failed'))
+    isRestoreRollbackPendingMock.mockReturnValue(true)
+
+    await expect(runBackupRestoreGate()).rejects.toThrow(/mixed restore state/)
   })
 
   it('refuses to boot when the crash net itself failed and the live DB is stranded', async () => {
