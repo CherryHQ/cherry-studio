@@ -136,7 +136,9 @@ const KnowledgeRebuildSchema = z.strictObject({
  */
 const JournalDegradationSchema = z.strictObject({
   kind: z.string().min(1),
-  reason: z.string().min(1)
+  reason: z.string().min(1),
+  /** Bounded display-only resource unit path; never an install input. */
+  livePath: RelativeSubpathSchema.optional()
 })
 
 const commonFields = {

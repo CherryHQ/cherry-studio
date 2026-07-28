@@ -40,15 +40,24 @@ import { app, type BrowserWindow, dialog } from 'electron'
 
 const ARCHIVE_EXTENSION = 'cherrybackup'
 
+const RESOURCE_DIAGNOSTIC_SAMPLE_LIMIT = 3
+
+function resourceDegradationCode(reason: string): BackupDegradationCode {
+  if (reason === 'changed-after-snapshot') return 'resource-changed'
+  if (reason === 'non-regular-source' || reason === 'unportable-source') return 'resource-nonportable'
+  if (reason === 'resource-ceiling-exceeded') return 'resource-limit'
+  return 'resource-unavailable'
+}
+
 function presentDegradations(
-  degradations: readonly { readonly kind: string; readonly reason: string }[]
-): Array<{ code: BackupDegradationCode; count: number }> {
-  const counts = new Map<BackupDegradationCode, number>()
+  degradations: readonly { readonly kind: string; readonly reason: string; readonly livePath?: string }[]
+): Array<{ code: BackupDegradationCode; count: number; paths?: string[] }> {
+  const presented = new Map<BackupDegradationCode, { count: number; paths: string[] }>()
   for (const degradation of degradations) {
     let code: BackupDegradationCode = 'unknown'
     let count = 1
     if (degradation.kind.startsWith('resource:')) {
-      code = 'resource-unavailable'
+      code = resourceDegradationCode(degradation.reason)
     } else {
       const parsed =
         /^(capability-malformed|external-file-dropped|path-unportable|path-collision) \((\d+) rows?\)$/.exec(
@@ -60,9 +69,22 @@ function presentDegradations(
         count = Number.isSafeInteger(parsedCount) && parsedCount > 0 ? parsedCount : 1
       }
     }
-    counts.set(code, (counts.get(code) ?? 0) + count)
+    const entry = presented.get(code) ?? { count: 0, paths: [] }
+    entry.count += count
+    if (
+      degradation.kind.startsWith('resource:') &&
+      degradation.livePath &&
+      entry.paths.length < RESOURCE_DIAGNOSTIC_SAMPLE_LIMIT
+    ) {
+      entry.paths.push(degradation.livePath)
+    }
+    presented.set(code, entry)
   }
-  return [...counts].map(([code, count]) => ({ code, count }))
+  return [...presented].map(([code, { count, paths }]) => ({
+    code,
+    count,
+    ...(paths.length > 0 ? { paths } : {})
+  }))
 }
 
 /**

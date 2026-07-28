@@ -80,11 +80,40 @@ const DEGRADATION_KEYS: Record<PresentedDegradation['code'], string> = {
   'path-unportable': 'settings.data.backup_v2.outcome.degradation.path_unportable',
   'path-collision': 'settings.data.backup_v2.outcome.degradation.path_collision',
   'resource-unavailable': 'settings.data.backup_v2.outcome.degradation.resource_unavailable',
+  'resource-changed': 'settings.data.backup_v2.outcome.degradation.resource_changed',
+  'resource-nonportable': 'settings.data.backup_v2.outcome.degradation.resource_nonportable',
+  'resource-limit': 'settings.data.backup_v2.outcome.degradation.resource_limit',
   unknown: 'settings.data.backup_v2.outcome.degradation.unknown'
 }
 
 function degradationCount(degradations: readonly PresentedDegradation[]): number {
   return degradations.reduce((total, degradation) => total + degradation.count, 0)
+}
+
+const DegradationDetails: FC<{
+  degradations: readonly PresentedDegradation[]
+  consequenceKey: string
+}> = ({ degradations, consequenceKey }) => {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-2">
+      <p>{t(consequenceKey, { count: degradationCount(degradations) })}</p>
+      <ul className="list-disc pl-5">
+        {degradations.map((degradation) => (
+          <li key={degradation.code}>
+            {t(DEGRADATION_KEYS[degradation.code], { count: degradation.count })}
+            {degradation.paths?.length ? (
+              <ul className="list-[circle] pl-5 text-muted-foreground">
+                {degradation.paths.map((path) => (
+                  <li key={path}>{path}</li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 const BUILD_TYPE_KEYS: Record<CompatibilityDiagnostic['archiveBuildType'], string> = {
@@ -384,13 +413,21 @@ const BackupV2Settings: FC = () => {
     run({ kind: 'export', preset }, async () => {
       const result = await ipcApi.request('backup.export', { preset })
       if (result.status === 'canceled') return
-      toast.success(
-        result.degradations.length > 0
-          ? t('settings.data.backup_v2.export.done_degraded', {
-              count: degradationCount(result.degradations)
-            })
-          : t('settings.data.backup_v2.export.done')
-      )
+      if (result.degradations.length > 0) {
+        await popup.info({
+          title: t('settings.data.backup_v2.export.done_degraded_title'),
+          content: (
+            <DegradationDetails
+              degradations={result.degradations}
+              consequenceKey="settings.data.backup_v2.export.done_degraded"
+            />
+          ),
+          okText: t('common.close'),
+          centered: true
+        })
+      } else {
+        toast.success(t('settings.data.backup_v2.export.done'))
+      }
     })
 
   const handleChooseExport = async () => {
