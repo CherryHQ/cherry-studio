@@ -5893,7 +5893,7 @@
           "migrated_forward": "该备份由较旧版本创建，已在准备阶段升级。",
           "preset": "备份类型",
           "resources": "待恢复的文件（预估）",
-          "resources_counts": "新增 {{install}} 项，替换 {{replace}} 项"
+          "resources_counts": "新增 {{install}} 项，替换 {{replaceCount}} 项"
         },
         "restore": {
           "arm_button": "恢复并重启",

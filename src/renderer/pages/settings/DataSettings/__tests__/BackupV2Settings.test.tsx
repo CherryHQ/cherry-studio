@@ -7,10 +7,10 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { requestMock } = vi.hoisted(() => ({ requestMock: vi.fn() }))
+const { requestMock, tMock } = vi.hoisted(() => ({ requestMock: vi.fn(), tMock: vi.fn() }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: tMock })
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: requestMock } }))
@@ -67,6 +67,7 @@ function click(name: string, index = 0) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  tMock.mockImplementation((key: string) => key)
   vi.mocked(popup.confirm).mockResolvedValue(true)
   statusIs({ kind: 'none' })
 })
@@ -155,6 +156,10 @@ describe('BackupV2Settings', () => {
     await waitFor(() => expect(screen.getByText('settings.data.backup_v2.preview.destructive')).toBeInTheDocument())
     expect(screen.getByText('settings.data.backup_v2.preview.coverage_counts')).toBeInTheDocument()
     expect(screen.getByText('settings.data.backup_v2.preview.resources_counts')).toBeInTheDocument()
+    expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.preview.resources_counts', {
+      install: 3,
+      replaceCount: 1
+    })
     expect(
       screen.getByRole('button', {
         name: 'settings.data.backup_v2.restore.arm_button'

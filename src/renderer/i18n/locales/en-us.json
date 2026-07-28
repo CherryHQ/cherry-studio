@@ -5893,7 +5893,7 @@
           "migrated_forward": "This backup was made by an older version and was upgraded during preparation.",
           "preset": "Backup type",
           "resources": "Files to restore (estimate)",
-          "resources_counts": "{{install}} to add, {{replace}} to replace"
+          "resources_counts": "{{install}} to add, {{replaceCount}} to replace"
         },
         "restore": {
           "arm_button": "Restore and restart",
