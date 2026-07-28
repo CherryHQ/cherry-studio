@@ -1,3 +1,4 @@
+import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import { Mutex } from 'async-mutex'
 
 export class KnowledgeLockManager {
@@ -8,7 +9,7 @@ export class KnowledgeLockManager {
     const release = await mutex.acquire()
 
     try {
-      return await task()
+      return await profileMutationBarrier.runMutation(task)
     } finally {
       release()
       this.deleteIdleBaseMutex(baseId, mutex)

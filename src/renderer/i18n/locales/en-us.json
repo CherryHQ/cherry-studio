@@ -5866,6 +5866,7 @@
           "completed_help": "Until you confirm, the previous database and every replaced file are still on this device as rollback material.",
           "degradation": {
             "capability_malformed": "{{count}} integration configuration entries were malformed and kept disabled.",
+            "external_file_dropped": "{{count}} external file references were removed because source-device paths cannot be opened safely here.",
             "path_collision": "{{count}} managed paths collided on this device and were kept as inactive metadata.",
             "path_unportable": "{{count}} managed paths could not be moved portably and were kept as inactive metadata.",
             "resource_unavailable": "{{count}} managed files or folders were unavailable when the backup was created.",
@@ -5873,6 +5874,7 @@
           },
           "degradations": "{{count}} item(s) were restored in a reduced form.",
           "keep_previous_button": "Keep previous data",
+          "knowledge_rebuild_pending": "Restored Knowledge content is rebuilding its search index. You can roll back now, but wait for indexing to finish before releasing recovery data.",
           "reconfirm_integrations": "Restored integrations that run programs or reach the network stay off until you confirm them on this device.",
           "recovery_incomplete": "This restore could not put every file back, so the app is still holding the originals. Restart Cherry Studio to finish it — nothing can be released until then.",
           "resources_incomplete": "The restored database is in use, but some restored files are not in place yet. Restart Cherry Studio to finish it — nothing can be released until then.",

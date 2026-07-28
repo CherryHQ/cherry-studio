@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -77,7 +77,8 @@ describe('admitArchive', () => {
           archivePath: 'resources/Data/Files/blob.bin',
           livePath: 'Data/Files/blob.bin',
           hash: blobHash,
-          sizeBytes: blobSize
+          sizeBytes: blobSize,
+          executable: false
         },
         {
           kind: 'knowledge',
@@ -135,6 +136,30 @@ describe('admitArchive', () => {
       expect(existsSync(r.stagedPath)).toBe(true)
       expect(r.stagedPath.startsWith(admitted.stagingDir)).toBe(true)
     }
+    await admitted.cleanup()
+  })
+
+  it('round-trips the executable bit without restoring broader permissions', async () => {
+    const dbPath = await snapshotDbAt()
+    const meta = await dbMeta(dbPath)
+    const { dir, payloads } = await buildResources()
+    const blobPath = path.join(dir, 'Data', 'Files', 'blob.bin')
+    await chmod(blobPath, 0o755)
+    const executablePayloads = payloads.map((payload) =>
+      payload.resourceType === 'file' ? { ...payload, executable: true } : payload
+    )
+    const outPath = path.join(work, 'executable.cherrybackup')
+    await publishArchive({
+      outPath,
+      manifest: fullManifest(meta, executablePayloads),
+      dbCopyPath: dbPath,
+      resourcesDir: dir
+    })
+
+    const admitted = await admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
+    const file = admitted.resources.find((resource) => resource.resourceType === 'file')
+    expect(file).toBeDefined()
+    expect((await stat(file!.stagedPath)).mode & 0o777).toBe(0o700)
     await admitted.cleanup()
   })
 

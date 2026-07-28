@@ -57,6 +57,26 @@ describe('prepareManagedRootRebase', () => {
     expect(result.ok).toBe(true)
   })
 
+  it('rejects a producer that omits a root this target knows how to rebase', () => {
+    const result = prepareManagedRootRebase({
+      producerPlatform: 'darwin',
+      targetPlatform: 'darwin',
+      producerRoots: [{ key: NOTES, path: PRODUCER_NOTES }],
+      targetRoots: { [NOTES]: TARGET_NOTES, [WORKSPACES]: '/Users/bob/Data/Agents/system' }
+    })
+    expect(result).toEqual({ ok: false, error: { code: 'producer-root-missing', key: WORKSPACES } })
+  })
+
+  it('rejects an empty managed-root declaration when the target supports the required roots', () => {
+    const result = prepareManagedRootRebase({
+      producerPlatform: 'darwin',
+      targetPlatform: 'darwin',
+      producerRoots: [],
+      targetRoots: { [NOTES]: TARGET_NOTES, [WORKSPACES]: '/Users/bob/Data/Agents/system' }
+    })
+    expect(result).toEqual({ ok: false, error: { code: 'producer-root-missing', key: NOTES } })
+  })
+
   it('ignores a producer root this build does not rebase', () => {
     // A newer/older producer may declare roots we know nothing about; paths under
     // them must fall through to `external`, not fail the restore.

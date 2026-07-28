@@ -242,7 +242,8 @@ describe('internal/content/write', () => {
         name: 'b',
         ext: 'bin'
       })
-      const stream = createWriteStream(deps, e.id)
+      const onSettled = vi.fn()
+      const stream = createWriteStream(deps, e.id, onSettled)
       const payload = Buffer.from([0x10, 0x20, 0x30, 0x40, 0x50])
       stream.write(payload)
       stream.end()
@@ -259,6 +260,7 @@ describe('internal/content/write', () => {
         if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
         expect(refreshed.size).toBe(payload.length)
         expect(cacheStore.get(e.id)?.size).toBe(payload.length)
+        expect(onSettled).toHaveBeenCalledTimes(1)
       })
     })
 

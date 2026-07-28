@@ -6,6 +6,7 @@ import type { DirScanLimits } from '../dirScan'
 import { ArchiveAdmissionError, BackupCancelledError, renderUntrustedName } from '../errors'
 import { hashDirectoryUnit, sha256FileCancellable } from '../hashing'
 import type { BackupManifest } from '../manifest'
+import type { NormalizedEntry } from './catalog'
 import { stagedDbName, stagedPathOf } from './extract'
 import { buildCoverageIndex, type CoverageUnit } from './layout'
 
@@ -113,12 +114,19 @@ export async function verifyDbPayload(
 async function verifyDirectoryUnit(
   stagedPath: string,
   unit: CoverageUnit,
+  archiveFiles: readonly NormalizedEntry[],
   dirScanLimits: DirScanLimits,
   signal: AbortSignal | undefined
 ): Promise<{ hash: string; sizeBytes: number }> {
   let result: Awaited<ReturnType<typeof hashDirectoryUnit>>
   try {
-    result = await hashDirectoryUnit(stagedPath, { signal, limits: dirScanLimits })
+    const prefix = `${unit.payload.archivePath}/`
+    const executableByRelPath = new Map(
+      archiveFiles
+        .filter((entry) => entry.path.startsWith(prefix))
+        .map((entry) => [entry.path.slice(prefix.length), entry.executable] as const)
+    )
+    result = await hashDirectoryUnit(stagedPath, { signal, limits: dirScanLimits, executableByRelPath })
   } catch (err) {
     if (err instanceof BackupCancelledError) throw err
     // A NonRegular / Unportable / Ceiling failure over an already-extracted,
@@ -135,6 +143,7 @@ async function verifyDirectoryUnit(
 async function verifyFileUnit(
   stagedPath: string,
   unit: CoverageUnit,
+  archiveFiles: readonly NormalizedEntry[],
   signal: AbortSignal | undefined
 ): Promise<{ hash: string; sizeBytes: number }> {
   const st = await lstat(stagedPath)
@@ -142,8 +151,15 @@ async function verifyFileUnit(
   if (!st.isFile()) {
     throw new ArchiveAdmissionError('payload-mismatch', `file unit ${label} is not a regular file`)
   }
+  if (unit.payload.resourceType !== 'file') {
+    throw new ArchiveAdmissionError('payload-mismatch', `file unit ${label} has a directory manifest shape`)
+  }
   if (st.size !== unit.payload.sizeBytes) {
     throw new ArchiveAdmissionError('payload-mismatch', `file unit ${label} size mismatch`)
+  }
+  const archiveEntry = archiveFiles.find((entry) => entry.path === unit.payload.archivePath)
+  if (!archiveEntry || archiveEntry.executable !== unit.payload.executable) {
+    throw new ArchiveAdmissionError('payload-mismatch', `file unit ${label} executable flag mismatch`)
   }
   const hash = await sha256FileCancellable(stagedPath, signal)
   return { hash, sizeBytes: st.size }
@@ -158,6 +174,7 @@ export async function verifyResourcePayloads(
   stagingDir: string,
   units: readonly CoverageUnit[],
   stagedResourceFiles: readonly string[],
+  archiveResourceFiles: readonly NormalizedEntry[],
   dirScanLimits: DirScanLimits,
   signal: AbortSignal | undefined
 ): Promise<AdmittedResource[]> {
@@ -167,8 +184,8 @@ export async function verifyResourcePayloads(
     if (signal?.aborted) throw new BackupCancelledError()
     const stagedPath = stagedPathOf(stagingDir, unit.payload.archivePath)
     const computed = unit.isDirectory
-      ? await verifyDirectoryUnit(stagedPath, unit, dirScanLimits, signal)
-      : await verifyFileUnit(stagedPath, unit, signal)
+      ? await verifyDirectoryUnit(stagedPath, unit, archiveResourceFiles, dirScanLimits, signal)
+      : await verifyFileUnit(stagedPath, unit, archiveResourceFiles, signal)
     if (computed.hash !== unit.payload.hash) {
       throw new ArchiveAdmissionError(
         'payload-mismatch',

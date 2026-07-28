@@ -947,6 +947,56 @@ describe('KnowledgeService', () => {
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
   })
 
+  describe('reconcileRestoredBaseFromMaterial', () => {
+    it('enqueues only missing transported leaf material and never probes a directory source', async () => {
+      const service = new KnowledgeService()
+      const file = createFileItem('file-1', 'kb-1', '/external/original.pdf', 'completed')
+      const directory = createDirectoryItem('dir-1', null, 'completed')
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([file, directory])
+      getMaterialByRelativePathMock.mockResolvedValue(null)
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).resolves.toBe('pending')
+
+      expect(probeKnowledgeFileMock).toHaveBeenCalledWith('kb-1', 'original.pdf')
+      expect(probeKnowledgeSourcePathMock).not.toHaveBeenCalled()
+      expect(enqueueMock).toHaveBeenCalledWith(
+        'knowledge.index-documents',
+        { baseId: 'kb-1', itemId: 'file-1', parentJobId: null, restoreId: 'restore-1' },
+        expect.objectContaining({ idempotencyKey: 'knowledge:kb-1:file-1:restore-index:restore-1' })
+      )
+    })
+
+    it('reports completion only when every expected material row exists', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        createFileItem('file-1', 'kb-1', '/source/a.md', 'completed'),
+        createFileItem('file-2', 'kb-1', '/source/b.md', 'completed')
+      ])
+      getMaterialByRelativePathMock.mockResolvedValue({ materialId: 'material', relativePath: 'present' })
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).resolves.toBe('completed')
+      expect(getMaterialByRelativePathMock).toHaveBeenCalledTimes(2)
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('fails closed before creating an index when transported material is missing', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([
+        createFileItem('file-1', 'kb-1', '/external/original.pdf', 'completed')
+      ])
+      probeKnowledgeFileMock.mockResolvedValue('missing')
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).rejects.toThrow(
+        /Restored knowledge material is missing/
+      )
+      expect(getIndexStoreMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+  })
+
   it('schedules add, delete, and reindex through the new workflow jobs', async () => {
     const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1'))

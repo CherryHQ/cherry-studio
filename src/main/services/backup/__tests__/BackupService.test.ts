@@ -13,9 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  */
 const { loggerMock, postPromotionMock } = vi.hoisted(() => ({
   loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-  postPromotionMock: vi.fn<(shouldContinue: () => boolean) => Promise<{ ran: boolean; enqueuedBaseIds: string[] }>>(
-    async () => ({ ran: false, enqueuedBaseIds: [] })
-  )
+  postPromotionMock: vi.fn<
+    (shouldContinue: () => boolean) => Promise<{ ran: boolean; enqueuedBaseIds: string[]; pending: boolean }>
+  >(async () => ({ ran: false, enqueuedBaseIds: [], pending: false }))
 }))
 
 vi.mock('@logger', () => ({ loggerService: { withContext: () => loggerMock } }))
@@ -67,6 +67,10 @@ function preparedJournal(): RestoreJournalV2 {
 }
 
 /** Drive the protected lifecycle hooks the container would call. */
+function init(service: InstanceType<typeof BackupService>): void {
+  ;(service as unknown as { onInit: () => void }).onInit()
+}
+
 function ready(service: InstanceType<typeof BackupService>): void {
   ;(service as unknown as { onReady: () => void }).onReady()
 }
@@ -145,6 +149,19 @@ describe('BackupService', () => {
       expect(service.getStatus().restore).toMatchObject({ state: 'completed', resourcesIncomplete: true })
     })
 
+    it('reports Knowledge rebuild pending until every summary base is complete', () => {
+      const completed = {
+        ...preparedJournal(),
+        state: 'completed' as const,
+        summary: { knowledgeBaseIds: ['kb-1'] }
+      }
+      writeRestoreJournalV2(completed)
+      expect(service.getStatus().restore).toMatchObject({ knowledgeRebuildPending: true })
+
+      writeRestoreJournalV2({ ...completed, knowledgeRebuild: { completedBaseIds: ['kb-1'] } })
+      expect(service.getStatus().restore).not.toHaveProperty('knowledgeRebuildPending')
+    })
+
     it('surfaces the degradation report the journal carries', () => {
       const degradations = [{ kind: 'restore-db:note', reason: 'path-unportable (2 rows)' }]
       writeRestoreJournalV2({ ...preparedJournal(), degradations })
@@ -173,7 +190,7 @@ describe('BackupService', () => {
       // tearing down — the shutdown has to wait for it to notice.
       let finish = (): void => {}
       postPromotionMock.mockImplementationOnce(
-        () => new Promise((resolve) => (finish = () => resolve({ ran: true, enqueuedBaseIds: [] })))
+        () => new Promise((resolve) => (finish = () => resolve({ ran: true, enqueuedBaseIds: [], pending: false })))
       )
       allReady(service)
 
@@ -191,7 +208,7 @@ describe('BackupService', () => {
       let shouldContinue = (): boolean => true
       postPromotionMock.mockImplementationOnce(async (probe: () => boolean) => {
         shouldContinue = probe
-        return { ran: true, enqueuedBaseIds: [] }
+        return { ran: true, enqueuedBaseIds: [], pending: false }
       })
       allReady(service)
       expect(shouldContinue()).toBe(true)
@@ -211,6 +228,13 @@ describe('BackupService', () => {
   })
 
   describe('operation exclusion', () => {
+    it('accepts operations after the lifecycle restarts the same service instance', async () => {
+      await stop(service)
+      init(service)
+
+      await expect(service.runExclusive('export', async () => 'ok')).resolves.toBe('ok')
+    })
+
     it('reports the running operation while work is in flight', async () => {
       let observed: ReturnType<typeof service.getStatus> | undefined
       await service.runExclusive('export', async () => {

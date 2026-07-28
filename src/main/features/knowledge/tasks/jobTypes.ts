@@ -16,6 +16,8 @@ declare module '@main/core/job/jobRegistry' {
       baseId: string
       itemId: string
       parentJobId: string | null
+      /** Restore-only path: index transported material without probing original sources. */
+      restoreId?: string
     }
     'knowledge.check-file-processing-result': {
       baseId: string

@@ -32,7 +32,7 @@ import { loggerService } from '@logger'
 
 import { RESOURCES_PREFIX } from '../archiveLayout'
 import { BACKUP_CEILINGS } from '../ceilings'
-import { scanDirectoryUnit } from '../dirScan'
+import { type DirScanResult, type FsIdentity, fsIdentityOf, scanDirectoryUnit } from '../dirScan'
 import { BackupCancelledError, CeilingExceededError } from '../errors'
 import { hashDirectoryUnit } from '../hashing'
 import type { BackupManifestDegradation, ResourcePayload, ResourceRequirement } from '../manifest'
@@ -51,6 +51,8 @@ export interface StageResourcesInput {
   readonly userDataPath: string
   /** Operation-owned directory the payloads are staged under (`resources/` in the archive). */
   readonly resourcesDir: string
+  /** Baseline captured while cross-store profile mutations were frozen. */
+  readonly baseline?: ResourceStageBaseline
   readonly signal?: AbortSignal
 }
 
@@ -76,13 +78,23 @@ function absoluteOf(userDataPath: string, livePath: string): string {
  * manifest so a degraded archive can never look complete.
  */
 type SourceInspection =
-  | { readonly kind: 'present'; readonly stats: fs.Stats }
+  | { readonly kind: 'present'; readonly stats: fs.BigIntStats }
   | { readonly kind: 'missing'; readonly reason: string }
 
+export type ResourceUnitBaseline =
+  | { readonly kind: 'missing'; readonly reason: string }
+  | { readonly kind: 'file'; readonly identity: FsIdentity; readonly sizeBytes: bigint }
+  | { readonly kind: 'directory'; readonly scan: DirScanResult }
+
+export interface ResourceStageBaseline {
+  readonly units: ReadonlyMap<string, ResourceUnitBaseline>
+  readonly totalBytes: number
+}
+
 function inspectSource(sourcePath: string, requirement: ResourceRequirement): SourceInspection {
-  let stats: fs.Stats
+  let stats: fs.BigIntStats
   try {
-    stats = fs.lstatSync(sourcePath)
+    stats = fs.lstatSync(sourcePath, { bigint: true })
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return { kind: 'missing', reason: 'absent at snapshot time' }
@@ -118,38 +130,58 @@ function assertRequirementSet(requirements: readonly ResourceRequirement[]): voi
  * ceiling checks. A later drift can still fail closed, but ordinary Full work is
  * preflighted before its first resource copy.
  */
-export async function measureResourceStageBytes(input: Omit<StageResourcesInput, 'resourcesDir'>): Promise<number> {
+export async function captureResourceStageBaseline(
+  input: Omit<StageResourcesInput, 'resourcesDir' | 'baseline'>
+): Promise<ResourceStageBaseline> {
   const { requirements, userDataPath, signal } = input
   throwIfAborted(signal)
   assertRequirementSet(requirements)
 
+  const units = new Map<string, ResourceUnitBaseline>()
   let total = 0n
   for (const requirement of requirements) {
     throwIfAborted(signal)
     const sourcePath = absoluteOf(userDataPath, requirement.livePath)
     const inspected = inspectSource(sourcePath, requirement)
-    if (inspected.kind === 'missing') continue
+    if (inspected.kind === 'missing') {
+      units.set(requirement.livePath, inspected)
+      continue
+    }
 
     if (requirement.resourceType === 'file') {
-      total += BigInt(inspected.stats.size)
+      const sizeBytes = inspected.stats.size
+      total += sizeBytes
+      units.set(requirement.livePath, {
+        kind: 'file',
+        identity: fsIdentityOf(inspected.stats, 'file'),
+        sizeBytes
+      })
     } else {
       const scan = await scanDirectoryUnit(sourcePath, {
         signal,
         excludeKnowledgeDerivedIndex: requirement.kind === KNOWLEDGE_KIND
       })
       total += scan.totalBytes
+      units.set(requirement.livePath, { kind: 'directory', scan })
     }
     if (total > BigInt(BACKUP_CEILINGS.maxTotalUncompressedBytes)) {
       throw new CeilingExceededError('total-bytes', `${total} > ${BACKUP_CEILINGS.maxTotalUncompressedBytes}`)
     }
   }
-  return Number(total)
+  return { units, totalBytes: Number(total) }
+}
+
+export async function measureResourceStageBytes(
+  input: Omit<StageResourcesInput, 'resourcesDir' | 'baseline'>
+): Promise<number> {
+  return (await captureResourceStageBaseline(input)).totalBytes
 }
 
 export async function stageResources(input: StageResourcesInput): Promise<StagedResources> {
   const { requirements, userDataPath, resourcesDir, signal } = input
   throwIfAborted(signal)
   assertRequirementSet(requirements)
+  const baseline = input.baseline ?? (await captureResourceStageBaseline({ requirements, userDataPath, signal }))
 
   const payloads: ResourcePayload[] = []
   const degradations: BackupManifestDegradation[] = []
@@ -157,30 +189,37 @@ export async function stageResources(input: StageResourcesInput): Promise<Staged
   for (const requirement of requirements) {
     throwIfAborted(signal)
     const sourcePath = absoluteOf(userDataPath, requirement.livePath)
-    const inspected = inspectSource(sourcePath, requirement)
-    if (inspected.kind === 'missing') {
+    const captured = baseline.units.get(requirement.livePath)
+    if (!captured) throw new Error(`resource baseline is missing requirement: ${requirement.livePath}`)
+    if (captured.kind === 'missing') {
       degradations.push({
         kind: `resource:${requirement.kind}`,
         livePath: requirement.livePath,
-        reason: inspected.reason
+        reason: captured.reason
       })
       continue
     }
-
     const stagingPath = path.join(resourcesDir, ...requirement.livePath.split('/'))
-    const staged =
-      requirement.resourceType === 'file'
-        ? await stageFileUnit(sourcePath, stagingPath, signal)
-        : await stageDirectoryUnit(sourcePath, stagingPath, requirement.kind === KNOWLEDGE_KIND, signal)
-
-    payloads.push({
+    const common = {
       kind: requirement.kind,
-      resourceType: requirement.resourceType,
       archivePath: `${RESOURCES_PREFIX}${requirement.livePath}`,
-      livePath: requirement.livePath,
-      hash: staged.hash,
-      sizeBytes: staged.sizeBytes
-    })
+      livePath: requirement.livePath
+    }
+    if (requirement.resourceType === 'file') {
+      if (captured.kind !== 'file') throw new Error(`resource baseline type mismatch: ${requirement.livePath}`)
+      const staged = await stageFileUnit(sourcePath, stagingPath, captured.identity, signal)
+      payloads.push({ ...common, resourceType: 'file', ...staged })
+    } else {
+      if (captured.kind !== 'directory') throw new Error(`resource baseline type mismatch: ${requirement.livePath}`)
+      const staged = await stageDirectoryUnit(
+        sourcePath,
+        stagingPath,
+        requirement.kind === KNOWLEDGE_KIND,
+        captured.scan,
+        signal
+      )
+      payloads.push({ ...common, resourceType: 'directory', ...staged })
+    }
   }
 
   logger.info('Staged Full resource payloads', {
@@ -194,10 +233,11 @@ export async function stageResources(input: StageResourcesInput): Promise<Staged
 async function stageFileUnit(
   sourcePath: string,
   stagingPath: string,
+  expectedIdentity: FsIdentity,
   signal: AbortSignal | undefined
-): Promise<{ hash: string; sizeBytes: number }> {
-  const staged = await stageFileWithDriftCheck({ sourcePath, stagingPath, signal })
-  return { hash: staged.hash, sizeBytes: staged.size }
+): Promise<{ hash: string; sizeBytes: number; executable: boolean }> {
+  const staged = await stageFileWithDriftCheck({ sourcePath, stagingPath, expectedIdentity, signal })
+  return { hash: staged.hash, sizeBytes: staged.size, executable: staged.executable }
 }
 
 /**
@@ -211,12 +251,19 @@ async function stageDirectoryUnit(
   sourceDir: string,
   stagingDir: string,
   excludeKnowledgeDerivedIndex: boolean,
+  expectedScan: DirScanResult,
   signal: AbortSignal | undefined
 ): Promise<{ hash: string; sizeBytes: number }> {
   // The stager creates the unit root EXCLUSIVELY (ownership proof), so its
   // parent — and only its parent — is created here.
   await mkdir(path.dirname(stagingDir), { recursive: true })
-  const staged = await stageDirectoryWithDriftCheck({ sourceDir, stagingDir, signal, excludeKnowledgeDerivedIndex })
+  const staged = await stageDirectoryWithDriftCheck({
+    sourceDir,
+    stagingDir,
+    expectedScan,
+    signal,
+    excludeKnowledgeDerivedIndex
+  })
   const { hash } = await hashDirectoryUnit(stagingDir, { signal })
   return { hash, sizeBytes: staged.files.reduce((sum, file) => sum + file.size, 0) }
 }

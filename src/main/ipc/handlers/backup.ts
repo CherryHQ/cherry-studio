@@ -19,7 +19,7 @@ import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { BackupDegradationCode, backupRequestSchemas } from '@shared/ipc/schemas/backup'
 import type { IpcContext, IpcHandlersFor } from '@shared/ipc/types'
-import { dialog } from 'electron'
+import { type BrowserWindow, dialog } from 'electron'
 
 /**
  * Backup v2 request routes — sender policy, the file dialogs, error mapping, and
@@ -43,7 +43,10 @@ function presentDegradations(
     if (degradation.kind.startsWith('resource:')) {
       code = 'resource-unavailable'
     } else {
-      const parsed = /^(capability-malformed|path-unportable|path-collision) \((\d+) rows?\)$/.exec(degradation.reason)
+      const parsed =
+        /^(capability-malformed|external-file-dropped|path-unportable|path-collision) \((\d+) rows?\)$/.exec(
+          degradation.reason
+        )
       if (parsed) {
         code = parsed[1] as BackupDegradationCode
         const parsedCount = Number(parsed[2])
@@ -61,10 +64,12 @@ function presentDegradations(
  * null for anything WindowManager does not track — a detached webContents, a
  * webview — and that is exactly what must not drive a restore.
  */
-function assertManagedWindow({ senderId }: IpcContext): void {
-  if (senderId === null) {
+function requireManagedWindow({ senderId }: IpcContext): BrowserWindow {
+  const window = senderId === null ? undefined : application.get('WindowManager').getWindow(senderId)
+  if (!window) {
     throw new IpcError(backupErrorCodes.SENDER_NOT_ALLOWED, 'backup commands require a managed application window')
   }
+  return window
 }
 
 /**
@@ -156,8 +161,8 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
   },
 
   'backup.export': async ({ preset }, ctx) => {
-    assertManagedWindow(ctx)
-    const { canceled, filePath } = await dialog.showSaveDialog({
+    const parent = requireManagedWindow(ctx)
+    const { canceled, filePath } = await dialog.showSaveDialog(parent, {
       // The export never overwrites, so a name that already exists fails the
       // operation rather than the dialog — say so where the user is choosing.
       defaultPath: `cherry-studio-${preset}-${new Date().toISOString().slice(0, 10)}.${ARCHIVE_EXTENSION}`,
@@ -181,8 +186,8 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
   },
 
   'backup.prepare_restore': async (_input, ctx) => {
-    assertManagedWindow(ctx)
-    const { canceled, filePaths } = await dialog.showOpenDialog({
+    const parent = requireManagedWindow(ctx)
+    const { canceled, filePaths } = await dialog.showOpenDialog(parent, {
       properties: ['openFile'],
       filters: [{ name: t('dialog.cherry_backup_files'), extensions: [ARCHIVE_EXTENSION] }]
     })
@@ -208,27 +213,27 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
   },
 
   'backup.cancel_operation': async (_input, ctx) => {
-    assertManagedWindow(ctx)
+    requireManagedWindow(ctx)
     return { cancelled: application.get('BackupService').cancelOperation() }
   },
 
   'backup.cancel_restore': async (_input, ctx) => {
-    assertManagedWindow(ctx)
+    requireManagedWindow(ctx)
     await mapped(() => application.get('BackupService').cancelRestore())
   },
 
   'backup.arm_restore': async (input, ctx) => {
-    assertManagedWindow(ctx)
+    requireManagedWindow(ctx)
     await mapped(() => application.get('BackupService').armRestore(input.restoreId))
   },
 
   'backup.rollback_restore': async (_input, ctx) => {
-    assertManagedWindow(ctx)
+    requireManagedWindow(ctx)
     await mapped(() => application.get('BackupService').rollbackRestore())
   },
 
   'backup.acknowledge_restore': async (_input, ctx) => {
-    assertManagedWindow(ctx)
+    requireManagedWindow(ctx)
     return mapped(() => application.get('BackupService').acknowledgeRestore())
   }
 }

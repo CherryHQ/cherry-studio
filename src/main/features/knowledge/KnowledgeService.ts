@@ -2,6 +2,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -41,6 +42,7 @@ import {
   KNOWLEDGE_JOB_TYPES,
   knowledgeDeleteSubtreeIdempotencyKey,
   knowledgeQueueName,
+  knowledgeRestoreIndexIdempotencyKey,
   toKnowledgeBaseId,
   toKnowledgeItemId,
   toKnowledgeItemIds
@@ -48,9 +50,9 @@ import {
 import { embedKnowledgeQuery } from './utils/indexing/embed'
 import { toMaterialRelativePath } from './utils/indexing/materialFields'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
-import { classifyKnowledgeItemSource } from './utils/items'
+import { classifyKnowledgeItemSource, isIndexableKnowledgeItem } from './utils/items'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
-import { getKnowledgeBaseFilePath } from './utils/storage/pathStorage'
+import { getKnowledgeBaseFilePath, probeKnowledgeFile } from './utils/storage/pathStorage'
 import type { KnowledgeIndexStore } from './vectorstore/indexStore/KnowledgeIndexStore'
 import type { KnowledgeIndexSearchMatch } from './vectorstore/indexStore/model'
 
@@ -297,6 +299,10 @@ export class KnowledgeService extends BaseService {
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    return profileMutationBarrier.runMutation(() => this.createBaseWithinBarrier(dto))
+  }
+
+  private async createBaseWithinBarrier(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const base = knowledgeBaseService.create(dto)
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
@@ -359,6 +365,10 @@ export class KnowledgeService extends BaseService {
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
+    return profileMutationBarrier.runMutation(() => this.restoreBaseWithinBarrier(dto))
+  }
+
+  private async restoreBaseWithinBarrier(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     const sourceBase = knowledgeBaseService.getById(dto.sourceBaseId)
 
     const createDto: CreateKnowledgeBaseDto = {
@@ -464,6 +474,55 @@ export class KnowledgeService extends BaseService {
     await this.assertSubtreesCanReindex(baseId, rootItemIds)
 
     await this.workflowService.reindexItems(baseId, rootItemIds)
+  }
+
+  /**
+   * Reconcile the derived index for a base installed by Backup v2. This path is
+   * intentionally narrower than user reindex: it reads only material files
+   * already transported under the managed base directory and never follows a
+   * directory item's original `data.source`, fetches a URL, or scans an external
+   * folder. Completion means every completed leaf has a material row, not merely
+   * that `index.sqlite` exists.
+   */
+  async reconcileRestoredBaseFromMaterial(baseId: string, restoreId: string): Promise<'completed' | 'pending'> {
+    const base = knowledgeBaseService.getById(baseId)
+    const items = knowledgeItemService
+      .getItemsByBaseId(baseId)
+      .filter(isIndexableKnowledgeItem)
+      .filter((item) => item.status === 'completed')
+    const expected = items.map((item) => ({ item, relativePath: toMaterialRelativePath(item) }))
+
+    for (const { item, relativePath } of expected) {
+      const readability = await probeKnowledgeFile(baseId, relativePath)
+      if (readability !== 'readable') {
+        throw new Error(
+          `Restored knowledge material is ${readability}: base=${baseId} item=${item.id} path=${relativePath}`
+        )
+      }
+    }
+
+    if (expected.length === 0) return 'completed'
+    const store = await application.get('KnowledgeVectorStoreService').getIndexStore(base)
+    const missing: typeof expected = []
+    for (const entry of expected) {
+      if (!(await store.getMaterialByRelativePath(entry.relativePath))) missing.push(entry)
+    }
+    if (missing.length === 0) return 'completed'
+
+    const jobManager = application.get('JobManager')
+    const knowledgeBaseId = toKnowledgeBaseId(baseId)
+    for (const { item } of missing) {
+      const itemId = toKnowledgeItemId(item.id)
+      jobManager.enqueue(
+        'knowledge.index-documents',
+        { baseId, itemId, parentJobId: null, restoreId },
+        {
+          idempotencyKey: knowledgeRestoreIndexIdempotencyKey(knowledgeBaseId, itemId, restoreId),
+          queue: knowledgeQueueName(knowledgeBaseId)
+        }
+      )
+    }
+    return 'pending'
   }
 
   /**

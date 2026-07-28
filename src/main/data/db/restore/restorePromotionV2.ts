@@ -82,19 +82,11 @@ export async function runRestorePromotionV2(): Promise<void> {
     return
   }
   if (read.kind === 'corrupt') {
-    // An unreadable journal proves a restore was in flight but not what it moved,
-    // and quarantine is the right answer to that — UNLESS the live slot is also
-    // empty. Then the crash landed after the live database was parked, the aside
-    // holding it can no longer be named, and quarantining would let the boot go
-    // on to create a fresh empty database beside the user's real one. Refuse
-    // while every artifact is still where the repair needs it.
-    if (isLiveDbStrandedV2()) {
-      throw new Error(
-        'Restore journal is unreadable while the live database is missing and a previous database is parked aside — refusing to boot into an empty database'
-      )
-    }
-    quarantineCorruptJournal(read.error)
-    return
+    // An unreadable/future journal proves a restore existed but cannot prove
+    // which DB/resource moves landed. Quarantining and deleting staging can
+    // destroy the only recovery source even when the live DB still exists, so
+    // preserve every artifact and fail closed for manual/compatible recovery.
+    throw new Error(`Restore journal is unreadable — refusing to discard recovery evidence: ${read.error}`)
   }
   const journal = read.journal
   switch (journal.state) {
@@ -144,7 +136,7 @@ function retryIncompleteInstall(journal: CompletedJournal): void {
     recoverResourceUnits(journal.resourceInstalls, userData, 'committed')
   } catch (error) {
     logger.error('Resource units still cannot be put in place — keeping them for the next boot', error as Error)
-    return
+    throw error
   }
 
   const settled: CompletedJournal = { ...journal }
@@ -178,7 +170,7 @@ function retryIncompleteRollback(journal: FailedJournal): void {
     recoverResourceUnits(journal.resourceInstalls, userData, 'pre-commit')
   } catch (error) {
     logger.error('Resource rollback still cannot complete — keeping the asides for the next boot', error as Error)
-    return
+    throw error
   }
 
   const completed: FailedJournal = { ...journal }
@@ -231,11 +223,14 @@ export function markRestoreFailedAfterCrashV2(): void {
  */
 export function isRestoreRecoveryPendingV2(): boolean {
   const read = readRestoreJournalV2()
+  if (read.kind === 'corrupt') return true
   return (
     read.kind === 'ok' &&
     (read.journal.state === 'promoting' ||
       read.journal.state === 'reverting' ||
-      read.journal.state === 'rollback-armed')
+      read.journal.state === 'rollback-armed' ||
+      (read.journal.state === 'completed' && read.journal.resourcesIncomplete === true) ||
+      (read.journal.state === 'failed' && read.journal.recoveryIncomplete === true))
   )
 }
 
@@ -461,9 +456,10 @@ function persistCommitMarker(journal: PromotingJournal): PromotingJournal {
  * Marker writes can fail too (disk full, EACCES); the action they record has
  * already succeeded, so the response depends on which side of the commit the
  * step sits. Before it, the write-ahead contract is broken and the old database
- * still exists, so roll back. At or past it the rename is durable and the marker
- * is only a hint, so continue in memory — the on-disk marker then lags at most
- * to `live-aside`, exactly where the probe fires.
+ * still exists, so roll back. At or past it the rename has landed (and is
+ * power-loss durable on POSIX); the marker is only a hint, so continue in memory
+ * — the on-disk marker then lags at most to `live-aside`, exactly where the
+ * process-crash probe fires. Windows sudden power loss remains outside contract.
  *
  * A resource repair that cannot finish escapes under the active journal; the
  * preboot shell blocks this launch and retries before normal services start.
@@ -836,9 +832,8 @@ function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2): void {
     ...ctx.journal,
     state: 'completed',
     step,
-    // What the post-promotion rebuild must not re-index (§6.7). Full records the
-    // Knowledge bases it installed; Lite installs nothing and leaves it empty,
-    // which sends the scheduler to the restored database instead.
+    // Exactly the transported Knowledge bases eligible for restore-only rebuild
+    // (§6.7). Lite installs no material and therefore schedules none.
     summary: {
       knowledgeBaseIds: installedKnowledgeBaseIds(
         ctx.journal.resourceInstalls,
@@ -888,26 +883,6 @@ function removeStagingTree(restoreId: string): void {
 
 function discardStaged(ctx: PromotionContext): void {
   fs.rmSync(ctx.stagedPath, { force: true })
-}
-
-function quarantineCorruptJournal(error: string): void {
-  const journalPath = application.getPath('feature.backup.restore.file')
-  const quarantined = `${journalPath}.corrupt-${Date.now()}`
-  logger.error('Corrupt restore journal — quarantining and clearing staging', {
-    quarantined,
-    error
-  })
-  try {
-    fs.renameSync(journalPath, quarantined)
-  } catch (renameError) {
-    logger.error('Failed to quarantine corrupt journal', renameError as Error)
-    fs.rmSync(journalPath, { force: true })
-  }
-  // No trustworthy restoreId — clear the whole staging root.
-  fs.rmSync(application.getPath('feature.backup.restore.staging'), {
-    recursive: true,
-    force: true
-  })
 }
 
 // ─── context & filesystem primitives ───
@@ -961,8 +936,9 @@ function moveIdempotent(source: string, target: string): void {
  * Rename + fsync of the affected directories (POSIX). Without the directory
  * fsync a power cut after the journal recorded a completed step could undo the
  * rename but keep the marker, and recovery would skip a step the filesystem
- * silently rolled back. Windows cannot fsync directory handles; its MoveFileEx
- * is accepted as best-effort, the same trade-off the journal writer makes.
+ * silently rolled back. Windows cannot fsync directory handles and Node/libuv
+ * does not request `MOVEFILE_WRITE_THROUGH`; the Windows contract is therefore
+ * process-crash recovery, not sudden-power-loss metadata durability.
  */
 function renameDurable(source: string, target: string): void {
   fs.mkdirSync(path.dirname(target), { recursive: true })

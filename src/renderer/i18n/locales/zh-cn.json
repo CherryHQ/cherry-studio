@@ -5866,6 +5866,7 @@
           "completed_help": "在你确认之前，先前的数据库和每个被替换的文件仍保留在本机，可用于回滚。",
           "degradation": {
             "capability_malformed": "有 {{count}} 条集成配置格式异常，已保持停用。",
+            "external_file_dropped": "已移除 {{count}} 条外部文件引用，因为无法在本机安全打开源设备路径。",
             "path_collision": "有 {{count}} 个受管路径在本机发生冲突，已作为非活动元数据保留。",
             "path_unportable": "有 {{count}} 个受管路径无法进行可移植转换，已作为非活动元数据保留。",
             "resource_unavailable": "创建备份时有 {{count}} 个受管文件或文件夹不可用。",
@@ -5873,6 +5874,7 @@
           },
           "degradations": "有 {{count}} 项以降级的形式恢复。",
           "keep_previous_button": "保留先前数据",
+          "knowledge_rebuild_pending": "正在为恢复的知识库内容重建搜索索引。你现在仍可回滚；请等索引完成后再释放恢复数据。",
           "reconfirm_integrations": "恢复后会运行程序或访问网络的集成保持关闭，直到你在本机确认。",
           "recovery_incomplete": "这次恢复没能把每个文件都放回原位，应用仍在保留原件。请重启 Cherry Studio 让它完成 —— 在那之前不会释放任何内容。",
           "resources_incomplete": "恢复后的数据库已在使用，但部分恢复的文件尚未就位。请重启 Cherry Studio 让它完成 —— 在那之前不会释放任何内容。",

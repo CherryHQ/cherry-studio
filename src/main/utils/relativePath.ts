@@ -16,8 +16,9 @@ import * as z from 'zod'
  * - has at most `maxDepth` segments;
  * - is **Windows-portable**: no segment uses a reserved character
  *   (`< > : " | ? *`), ends in a dot or space, or is a reserved device name
- *   (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`, with or without
- *   an extension). A path made on POSIX that violated these would be
+ *   (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`, and Windows'
+ *   ISO-8859-1 superscript aliases `COM¹/²/³`, `LPT¹/²/³`, with or without an
+ *   extension). A path made on POSIX that violated these would be
  *   unextractable or would silently alias on a Windows target, so a portable
  *   archive must reject them at the producer.
  *
@@ -46,7 +47,7 @@ const DRIVE_PREFIX = /^[a-zA-Z]:/
 // separately (separator / rejected). Control chars are checked by code point
 // in `hasControlChar` so this regex stays control-char-free (lint-clean).
 const RESERVED_CHARS = /[<>:"|?*]/
-const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i
+const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(\.|$)/i
 
 function hasControlChar(segment: string): boolean {
   for (let i = 0; i < segment.length; i++) {

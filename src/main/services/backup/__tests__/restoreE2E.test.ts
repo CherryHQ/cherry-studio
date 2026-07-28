@@ -222,6 +222,15 @@ async function retargetFirstPayload(
   return out
 }
 
+function markKnowledgeRebuildComplete(): void {
+  const read = readRestoreJournalV2()
+  if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
+  writeRestoreJournalV2({
+    ...read.journal,
+    knowledgeRebuild: { completedBaseIds: read.journal.summary.knowledgeBaseIds }
+  })
+}
+
 /** Prepare, confirm, and let the preboot gate run — the whole restore. */
 async function restoreOnTarget(archivePath: string): Promise<void> {
   activeUserData = targetUserData
@@ -349,6 +358,8 @@ describe('Full restore, empty target device', () => {
     const read = readRestoreJournalV2()
     if (read.kind !== 'ok') throw new Error('expected a terminal journal')
     expect(read.journal.state).toBe('completed')
+    // Derived work must finish before acknowledgement may erase its retry marker.
+    markKnowledgeRebuildComplete()
     // Nothing was parked, so acknowledgement has only the database aside to drop.
     expect(acknowledgeRestore()).toMatchObject({ acknowledged: true, removed: 1 })
   })
@@ -412,6 +423,7 @@ describe('Full restore, same device with content already there', () => {
     // recoverable from the aside.
     expect(readFileSync(join(targetUserData, notesUnit.aside, 'newer.md'), 'utf8')).toBe('# written after the backup')
 
+    markKnowledgeRebuildComplete()
     acknowledgeRestore()
 
     // Acknowledgement is the point of no return, and the disclosure says so.
@@ -540,6 +552,7 @@ describe('relocated userData', () => {
     await restoreOnTarget(archive)
     const read = readRestoreJournalV2()
     if (read.kind !== 'ok') throw new Error('expected a terminal journal')
+    markKnowledgeRebuildComplete()
 
     // Everything the journal names is userData-relative (§6.6), so moving the
     // profile must not strand a single artifact.

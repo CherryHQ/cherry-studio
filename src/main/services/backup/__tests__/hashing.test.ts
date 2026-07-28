@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -97,6 +97,17 @@ describe('hashDirectoryUnit', () => {
     } finally {
       await rm(dir2, { recursive: true, force: true })
     }
+  })
+
+  it('authenticates the portable executable bit', async () => {
+    const file = await write('tool.sh', '#!/bin/sh\necho ok\n')
+    const plain = await hashDirectoryUnit(dir)
+
+    await chmod(file, 0o755)
+    const executable = await hashDirectoryUnit(dir)
+
+    expect(executable.hash).not.toBe(plain.hash)
+    expect(executable.files).toEqual([{ relPath: 'tool.sh', size: 18, executable: true }])
   })
 
   it('authenticates nested empty directories', async () => {

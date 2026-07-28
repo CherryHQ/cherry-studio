@@ -57,6 +57,8 @@ export interface NormalizedEntry {
   readonly isDirectory: boolean
   /** Uncompressed size snapshotted from the central directory (validated safe non-negative int). */
   readonly uncompressedSize: number
+  /** Safe portable projection of Unix mode; all other permission bits are discarded. */
+  readonly executable: boolean
   readonly zipEntry: StreamZip.ZipEntry
 }
 
@@ -311,6 +313,7 @@ export function validateArchiveShape(entries: readonly RawEntry[], ceilings: Cat
       path,
       isDirectory: raw.isDirectory,
       uncompressedSize: raw.uncompressedSize,
+      executable: !raw.isDirectory && (raw.unixMode & 0o111) !== 0,
       zipEntry: raw.zipEntry
     })
   }
