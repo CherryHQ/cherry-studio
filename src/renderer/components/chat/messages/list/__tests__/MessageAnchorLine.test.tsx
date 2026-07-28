@@ -366,6 +366,30 @@ describe('MessageAnchorLine', () => {
       expect(strip.scrollTop).toBe(entryScrollTop + 60)
     })
 
+    it('keeps the bottom alignment when the last page loads (hasOlder true → false)', () => {
+      // 5 turns × 10px fit the 352px viewport with 302px of free space.
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      const { container, rerender } = render(<MessageAnchorLine messages={messages} hasOlder />)
+
+      const cluster = container.querySelector<HTMLElement>('.overflow-y-auto > div') as HTMLElement
+      // Mounted with unloaded history: the cluster hugs the bottom.
+      expect(cluster.style.paddingTop).toBe('302px')
+
+      rerender(<MessageAnchorLine messages={messages} hasOlder={false} />)
+
+      // The alignment is latched for the rail's lifetime — finishing the last
+      // page must not re-centre (151px) and shift every visible tick.
+      expect(cluster.style.paddingTop).toBe('302px')
+    })
+
+    it('centres the cluster when mounted fully loaded', () => {
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      const { container } = render(<MessageAnchorLine messages={messages} hasOlder={false} />)
+
+      const cluster = container.querySelector<HTMLElement>('.overflow-y-auto > div') as HTMLElement
+      expect(cluster.style.paddingTop).toBe('151px')
+    })
+
     it('fades both ends while the strip is scrolled into the middle', () => {
       restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX })
       const { container } = render(<MessageAnchorLine messages={makeTurnMessages(40)} />)

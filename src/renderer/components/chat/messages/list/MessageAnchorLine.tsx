@@ -12,8 +12,10 @@ interface MessageLineProps {
   activeMessageId?: string | null
   /** 0–1 fade driven by the content's rail gutter — the rail eases in/out with width. */
   railOpacity?: number
-  /** Older turns exist beyond the loaded pages — anchor the strip to the bottom
-   * and fade its top as a "more above" hint. */
+  /** Older turns exist beyond the loaded pages — fade the strip's top as a
+   * "more above" hint. The mount-time value also fixes the strip's alignment
+   * for the whole rail lifetime (bottom-anchored vs centred), so finishing the
+   * last page load never shifts the visible ticks. */
   hasOlder?: boolean
   scrollToMessageId?: (messageId: string) => void
 }
@@ -134,23 +136,29 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   // • ticks overflow → the strip scrolls inside the fixed margins.
   // The margins live OUTSIDE the scroll area, so they never move while scrolling,
   // and every query (nearest tick, wave, card) is arithmetic against `scrollTop`.
+  // The alignment is latched at mount and never changes for this rail's
+  // lifetime (the list remounts per topic): a conversation that entered with
+  // unloaded history stays bottom-anchored even after the last page lands —
+  // flipping to centred at that moment would shift every visible tick.
+  const alignToBottomRef = useRef(hasOlder)
+
   const geometry = useMemo(() => {
     const count = turns.length
     const viewport = Math.max(0, railHeight - RAIL_MIN_EDGE_MARGIN_PX * 2)
     const content = count * RAIL_TICK_PITCH_PX
     const free = Math.max(0, viewport - content)
-    // Fully loaded conversations centre the cluster. Partially loaded ones
-    // anchor it to the bottom (the newest turns, where the user enters), so
-    // older turns streaming in later grow upward without moving a single
-    // visible tick.
-    const padTop = hasOlder ? free : free / 2
+    // Conversations that mounted fully loaded centre the cluster. Ones that
+    // mounted with history still above anchor it to the bottom (the newest
+    // turns, where the user enters), so older turns streaming in later grow
+    // upward without moving a single visible tick.
+    const padTop = alignToBottomRef.current ? free : free / 2
     const padBottom = free - padTop
     // Center of tick `index` in rail coordinates: fixed margin + top pad +
     // its slot, projected into the viewport by the strip's own scroll offset.
     const centerOf = (index: number) =>
       RAIL_MIN_EDGE_MARGIN_PX + padTop + index * RAIL_TICK_PITCH_PX + RAIL_TICK_PITCH_PX / 2 - scrollTop
     return { padTop, padBottom, centerOf }
-  }, [turns.length, railHeight, scrollTop, hasOlder])
+  }, [turns.length, railHeight, scrollTop])
 
   // Nearest tick to the cursor, only when the cursor is genuinely near one.
   const focusedIndex = useMemo(() => {
