@@ -2029,11 +2029,13 @@ describe('AgentSessionRuntimeService', () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
       const events = createAsyncQueue<any>()
       const getContextUsage = vi.fn()
+      const refreshTraceContext = vi.fn()
       const connection = {
         events: events.iterable,
         send: vi.fn(),
         close: vi.fn(),
         reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext,
         getContextUsage,
         getSupportedCommands: vi.fn().mockResolvedValue(commands)
       }
@@ -2067,6 +2069,28 @@ describe('AgentSessionRuntimeService', () => {
       events.push({ type: 'resume-token', token: 'resume-1' })
       await vi.waitFor(() => expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-1' }))
       expect(getContextUsage).not.toHaveBeenCalled()
+
+      const turn = service.beginTurn({ ...baseTurnInput, traceId: 'b'.repeat(32), userMessage: userMessage('user-1') })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() =>
+        expect(refreshTraceContext).toHaveBeenCalledWith(
+          expect.objectContaining({
+            traceId: 'b'.repeat(32),
+            sessionId: 'session-1',
+            turnId: turn.turnId
+          })
+        )
+      )
+      expect(refreshTraceContext.mock.invocationCallOrder[0]).toBeLessThan(connection.send.mock.invocationCallOrder[0])
+
+      await reader.cancel().catch(() => undefined)
     })
 
     it('is a no-op for a session whose agent was deleted', async () => {

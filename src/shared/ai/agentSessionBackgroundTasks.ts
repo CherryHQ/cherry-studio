@@ -8,6 +8,8 @@ export type AgentSessionBackgroundTask = {
   id: string
   type: string
   description: string
+  /** Driver-provided root tool call when its native protocol explicitly correlates a launch receipt. */
+  toolCallId?: string
 }
 
 /**

@@ -35,6 +35,7 @@ import type {
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
+import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
@@ -173,6 +174,14 @@ function isClaudeCodeTruncationError(error: unknown, bufferedText: string): bool
 
 function isSubagentToolName(toolName: string): boolean {
   return toolName === 'Task' || toolName === 'Agent'
+}
+
+function getLaunchedBackgroundTaskId(result: unknown): string | undefined {
+  if (!isRecord(result) || (result.status !== 'async_launched' && result.status !== 'remote_launched')) {
+    return undefined
+  }
+  const id = result.taskId ?? result.agentId
+  return typeof id === 'string' && id ? id : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -321,6 +330,9 @@ export class ClaudeCodeStreamAdapter {
   private autonomousTurn = false
   /** An empty task snapshot was seen; wait for the SDK's authoritative idle boundary to release it. */
   private backgroundWorkReleasePending = false
+  /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
+  private backgroundTasks: AgentSessionBackgroundTask[] = []
+  private readonly backgroundTaskToolCallIds = new Map<string, string>()
   /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
   private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
 
@@ -895,6 +907,13 @@ export class ClaudeCodeStreamAdapter {
 
     const providerMetadata = this.buildToolProviderMetadata(state)
     const isError = this.isToolResultError(result)
+    if (!isError && isSubagentToolName(toolName)) {
+      const taskId = getLaunchedBackgroundTaskId(normalizedResult)
+      if (taskId && this.backgroundTaskToolCallIds.get(taskId) !== result.tool_use_id) {
+        this.backgroundTaskToolCallIds.set(taskId, result.tool_use_id)
+        if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
+      }
+    }
     if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
       // The chunk schema is strict — `toolCallId` is the only accepted field, so the rejection
       // text stays in the log written by `handlePermissionDeniedSystemMessage`.
@@ -992,14 +1011,12 @@ export class ClaudeCodeStreamAdapter {
         // Membership feeds presentation immediately, but an empty snapshot may precede the terminal
         // task bookend and an autonomous wake. Keep the connection alive until session idle, which
         // the SDK defines as occurring after held-back results and the background-agent loop drain.
-        this.statusSink.emit({
-          type: 'background-tasks',
-          tasks: message.tasks.map((task) => ({
-            id: task.task_id,
-            type: task.task_type,
-            description: task.description
-          }))
-        })
+        this.backgroundTasks = message.tasks.map((task) => ({
+          id: task.task_id,
+          type: task.task_type,
+          description: task.description
+        }))
+        this.publishBackgroundTasks()
         if (message.tasks.length > 0) {
           this.backgroundWorkReleasePending = false
           this.statusSink.emit({ type: 'background-work-state', active: true })
@@ -1064,6 +1081,16 @@ export class ClaudeCodeStreamAdapter {
       toolUseId: message.tool_use_id,
       reasonType: message.decision_reason_type,
       reason: message.decision_reason ?? message.message
+    })
+  }
+
+  private publishBackgroundTasks(): void {
+    this.statusSink.emit({
+      type: 'background-tasks',
+      tasks: this.backgroundTasks.map((task) => {
+        const toolCallId = this.backgroundTaskToolCallIds.get(task.id)
+        return toolCallId ? { ...task, toolCallId } : task
+      })
     })
   }
 

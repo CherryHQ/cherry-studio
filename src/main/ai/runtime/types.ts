@@ -97,6 +97,8 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
+  refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   send(input: AgentRuntimeUserInput): void | Promise<void>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true

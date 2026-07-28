@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   applicationGet: vi.fn(),
   consumeWarmQuery: vi.fn(),
   prepareTrace: vi.fn(),
+  refreshTraceContext: vi.fn(),
   createClaudeQuery: vi.fn(),
   collectFileAttachments: vi.fn(),
   prepareChatMessages: vi.fn(),
@@ -249,7 +250,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
           consume: mocks.consumeWarmQuery
         }
       }
-      if (name === 'ClaudeCodeTraceBridgeService') return { prepareTrace: mocks.prepareTrace }
+      if (name === 'ClaudeCodeTraceBridgeService')
+        return { prepareTrace: mocks.prepareTrace, refreshTraceContext: mocks.refreshTraceContext }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
@@ -1524,6 +1526,16 @@ describe('ClaudeCodeRuntimeDriver', () => {
         }
       })
     })
+    const admittedTrace = {
+      topicId: 'agent-session:session-1',
+      traceId: '0'.repeat(32),
+      rootSpanId: '1'.repeat(16),
+      sessionId: 'session-1',
+      turnId: 'admitted-turn-1',
+      modelName: 'sonnet'
+    }
+    await connection.refreshTraceContext?.(admittedTrace)
+    expect(mocks.refreshTraceContext).toHaveBeenCalledWith(admittedTrace)
     void connection.close()
   })
 

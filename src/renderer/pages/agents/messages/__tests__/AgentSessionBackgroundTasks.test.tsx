@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentSessionBackgroundTasks from '../AgentSessionBackgroundTasks'
 
 const mocks = vi.hoisted(() => ({
-  backgroundTasks: [] as Array<{ id: string; type: string; description: string }>,
+  backgroundTasks: [] as Array<{ id: string; type: string; description: string; toolCallId?: string }>,
   taskEvents: {} as Record<string, Record<string, unknown>>,
   openAgentToolFlow: vi.fn()
 }))
@@ -39,39 +39,31 @@ describe('AgentSessionBackgroundTasks', () => {
     mocks.openAgentToolFlow.mockReset()
   })
 
-  it('renders live tasks in a horizontal row and opens subagent flows', () => {
+  it('renders only the authoritative task level and opens a subagent from its launch receipt', () => {
     mocks.backgroundTasks = [
-      { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },
-      { id: 'shell-1', type: 'local_bash', description: 'sleep 300' }
+      { id: 'subagent-b', type: 'subagent', description: 'Current task B', toolCallId: 'tool-use-b' },
+      { id: 'shell-b', type: 'local_bash', description: 'sleep 300' }
     ]
     mocks.taskEvents = {
-      'subagent-1': {
+      'subagent-a': {
         event: 'started',
-        taskId: 'subagent-1',
-        toolUseId: 'tool-use-1',
+        taskId: 'subagent-a',
+        toolUseId: 'stale-tool-use-a',
         status: 'in_progress',
-        title: 'Audit the codebase',
+        title: 'Stale task A',
         taskType: 'subagent',
-        isBackgrounded: true
-      },
-      'shell-1': {
-        event: 'started',
-        taskId: 'shell-1',
-        status: 'in_progress',
-        title: 'sleep 300',
-        taskType: 'local_bash',
         isBackgrounded: true
       }
     }
-
     render(<AgentSessionBackgroundTasks sessionId="session-1" />)
 
     expect(screen.getByTestId('horizontal-scroll')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Audit the codebase' }))
+    expect(screen.queryByText('Stale task A')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Current task B' }))
 
     expect(mocks.openAgentToolFlow).toHaveBeenCalledWith({
-      toolCallId: 'tool-use-1',
-      title: 'Audit the codebase'
+      toolCallId: 'tool-use-b',
+      title: 'Current task B'
     })
     expect(screen.getByText('sleep 300').closest('button')).toBeNull()
   })

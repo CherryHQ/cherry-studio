@@ -40,6 +40,7 @@ import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
+  AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
   AgentSessionRuntimeDriver
 } from '../types'
@@ -230,6 +231,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async prepareTraceEnv(): Promise<Record<string, string> | undefined> {
     if (!this.input.trace) return undefined
     return application.get('ClaudeCodeTraceBridgeService').prepareTrace(this.input.trace)
+  }
+
+  refreshTraceContext(context: AgentRuntimeTraceContext): void {
+    application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {

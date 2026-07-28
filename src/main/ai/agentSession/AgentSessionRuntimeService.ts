@@ -1353,6 +1353,8 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.status = 'active'
     // `Set.delete` returns whether it was queued as a steer — consume the flag as we admit the turn.
     const systemReminder = entry.steerMessageIds?.delete(turn.userMessage.id) ?? false
+    const traceContext = this.sessionTraceContext(entry, turn.modelId)
+    if (traceContext) await entry.connection?.refreshTraceContext?.(traceContext)
     await entry.connection?.send({ message: turn.userMessage, systemReminder })
   }
 

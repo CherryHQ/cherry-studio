@@ -981,6 +981,72 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(parts).toEqual([])
     })
 
+    it('enriches the authoritative task level from an explicit async launch receipt', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_use',
+              id: 'tool-use-b',
+              name: 'Agent',
+              input: { description: 'Current task B', prompt: 'Audit the codebase' }
+            }
+          ]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-b', task_type: 'subagent', description: 'Current task B' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tool-use-b',
+              content: JSON.stringify({
+                status: 'async_launched',
+                agentId: 'subagent-b',
+                description: 'Current task B'
+              }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+
+      expect(statusEvents.filter((event) => event.type === 'background-tasks')).toEqual([
+        {
+          type: 'background-tasks',
+          tasks: [{ id: 'subagent-b', type: 'subagent', description: 'Current task B' }]
+        },
+        {
+          type: 'background-tasks',
+          tasks: [
+            {
+              id: 'subagent-b',
+              type: 'subagent',
+              description: 'Current task B',
+              toolCallId: 'tool-use-b'
+            }
+          ]
+        }
+      ])
+    })
+
     it('releases background keepalive after the terminal bookend and idle without requiring a wake', () => {
       const { adapter, statusEvents } = createAdapter({}, { openTurn: false })
       const task = { task_id: 'bg-1', task_type: 'subagent', description: 'Audit the codebase' }
