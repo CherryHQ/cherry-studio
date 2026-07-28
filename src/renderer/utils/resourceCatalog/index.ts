@@ -23,4 +23,4 @@ export {
   RESOURCE_TYPE_META,
   RESOURCE_TYPE_ORDER
 } from './constants'
-export { buildCreateAgentDto, buildCreateAssistantDto } from './resourceCreate'
+export { buildCreateAgentCommand, buildCreateAssistantDto } from './resourceCreate'

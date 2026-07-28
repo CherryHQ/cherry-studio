@@ -566,6 +566,10 @@ function renderPart(
       // Agent task events are hidden inline state consumed by the agent status panes.
       return null
 
+    case 'data-knowledge-scope':
+      // User-turn capability scope is consumed by Main and never rendered inline.
+      return null
+
     case 'file': {
       const filePart = part as { url?: string; mediaType?: string; filename?: string }
       if (filePart.mediaType?.startsWith('image/')) {

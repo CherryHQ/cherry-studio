@@ -1161,7 +1161,10 @@ describe('AiService.listModels', () => {
     const result = await service.listModels({ providerId: 'claude-code' })
 
     expect(result).toBe(registryModels)
-    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({ providerId: 'claude-code' })
+    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
+      providerId: 'claude-code',
+      presetProviderId: null
+    })
     expect(mockListModelsFromProvider).not.toHaveBeenCalled()
   })
 
@@ -1177,7 +1180,10 @@ describe('AiService.listModels', () => {
 
     expect(result).toBe(apiModels)
     expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: undefined })
-    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({ providerId: 'openai' })
+    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
+      providerId: 'openai',
+      presetProviderId: null
+    })
   })
 
   it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {
