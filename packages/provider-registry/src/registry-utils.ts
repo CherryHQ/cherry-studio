@@ -117,19 +117,21 @@ export function inferAdapterFamily(
 /**
  * Capability-exclusive endpoints imply a model capability: a model whose primary
  * endpoint is `jina-rerank` can only rerank, `openai-embeddings` can only embed,
- * an image endpoint can only generate images. Single source of truth for deriving
- * a capability from a model's endpoint when the catalog has no entry for it (e.g.
- * opaque gateway/NewAPI model ids). Chat/completions endpoints are general-purpose
- * and imply nothing, so they're absent from the map.
- *
- * ponytail: covers the non-chat leak class (rerank/embedding/image); add the
- * tts/stt/video endpoints here if those ever surface through a gateway.
+ * and dedicated image/audio/video endpoints can only serve their named media task.
+ * Single source of truth for deriving a capability from a model's endpoint when
+ * the catalog has no entry for it (e.g. opaque gateway/NewAPI model ids).
+ * Chat/completions endpoints are general-purpose and imply nothing, so they're
+ * absent from the map.
  */
 const ENDPOINT_IMPLIED_CAPABILITY: Partial<Record<EndpointType, ModelCapability>> = {
   [ENDPOINT_TYPE.JINA_RERANK]: MODEL_CAPABILITY.RERANK,
+  [ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION]: MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
+  [ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION]: MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
   [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: MODEL_CAPABILITY.EMBEDDING,
   [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: MODEL_CAPABILITY.IMAGE_GENERATION,
-  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: MODEL_CAPABILITY.IMAGE_GENERATION
+  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: MODEL_CAPABILITY.IMAGE_GENERATION,
+  [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH]: MODEL_CAPABILITY.AUDIO_GENERATION,
+  [ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION]: MODEL_CAPABILITY.VIDEO_GENERATION
 }
 
 /** Capability implied by a capability-exclusive endpoint, or `undefined` for general-purpose endpoints. */
