@@ -880,11 +880,11 @@ export class SkillService {
   // Claude config-dir mirror
   //
   // The Claude Agent SDK discovers skill files from CLAUDE_CONFIG_DIR/skills
-  // (`feature.agents.claude.skills` = <userData>/.claude/skills). We keep that
-  // directory as a mirror of the owned `Data/Skills` library, maintained at
-  // install / uninstall / startup reconcile — NOT per session. The SDK's
-  // `Options.skills` is only a name whitelist, so the files must physically
-  // live here for a whitelisted name to load.
+  // (`feature.agents.claude.skills` = <userData>/Data/Agents/.claude/skills).
+  // We keep that directory as a mirror of the owned `Data/Skills` library,
+  // maintained at install / uninstall / startup reconcile — NOT per session.
+  // The SDK's `Options.skills` is only a name whitelist, so the files must
+  // physically live here for a whitelisted name to load.
   // ===========================================================================
 
   private getMirrorRoot(): string {

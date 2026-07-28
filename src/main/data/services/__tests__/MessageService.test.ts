@@ -1,6 +1,7 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/TopicService'
 
+import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
@@ -1359,7 +1360,17 @@ describe('MessageService', () => {
             role: 'assistant',
             data: mainText('child'),
             status: 'success',
-            siblingsGroupId: 0
+            siblingsGroupId: 0,
+            stats: {
+              inputTokens: 10,
+              outputTokens: 5,
+              totalTokens: 15,
+              requestCount: 1,
+              estimatedRequestCount: 0,
+              unpricedRequestCount: 1,
+              costs: [],
+              timeCompletionMs: 250
+            }
           }
         ])
       )
@@ -1385,6 +1396,7 @@ describe('MessageService', () => {
       const copiedLeaf = await dbh.db.select().from(messageTable).where(eq(messageTable.id, copiedActiveNodeId))
       expect(copiedLeaf[0].parentId).toBe(targetContent[0].id)
       expect(copiedLeaf[0].data.parts?.[0]).toEqual({ type: 'text', text: 'child' })
+      expect(copiedLeaf[0].stats).toEqual({ timeCompletionMs: 250 })
     })
   })
 
@@ -1782,6 +1794,16 @@ describe('MessageService', () => {
 
     it('CreateMessageSchema rejects role="root" at validation', () => {
       const result = CreateMessageSchema.safeParse({ role: 'root', data: { parts: [] }, status: 'success' })
+      expect(result.success).toBe(false)
+    })
+
+    it('CreateMessageSchema rejects caller-owned stats', () => {
+      const result = CreateMessageSchema.safeParse({
+        role: 'assistant',
+        data: { parts: [] },
+        status: 'success',
+        stats: { totalTokens: 42 }
+      })
       expect(result.success).toBe(false)
     })
 
@@ -2294,6 +2316,49 @@ describe('MessageService', () => {
     })
   })
 
+  describe('update — usage ownership', () => {
+    async function seedAssistantMessage(role: 'user' | 'assistant' = 'assistant') {
+      await dbh.db.insert(topicTable).values({ id: 'topic-l', activeNodeId: null, orderKey: 'c0' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-l', [
+          {
+            id: 'm-usage',
+            parentId: null,
+            topicId: 'topic-l',
+            role,
+            data: mainText('hi'),
+            status: 'pending',
+            modelId: createUniqueModelId('provider-a', 'model-A')
+          }
+        ])
+      )
+    }
+
+    it('persists only runtime timing without synthesizing usage', async () => {
+      await seedAssistantMessage()
+      const runtimeTiming = { startedAt: 1_000, completedAt: 1_100, spans: [] }
+
+      messageService.finalizeAssistantMessage('m-usage', {
+        status: 'success',
+        data: mainText('done'),
+        runtimeStats: { runtimeTiming }
+      })
+
+      expect(await dbh.db.select().from(aiUsageRecordTable)).toHaveLength(0)
+      expect(messageService.getById('m-usage').stats).toMatchObject({ runtimeTiming })
+    })
+
+    it('does not record for updates without stats or for non-assistant roles', async () => {
+      await seedAssistantMessage('user')
+
+      messageService.update('m-usage', { status: 'success' })
+
+      // Give any (erroneous) async hook a tick to run before asserting.
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(await dbh.db.select().from(aiUsageRecordTable)).toHaveLength(0)
+    })
+  })
+
   describe('applyToolApprovalDecisions', () => {
     const toolPart = (callId: string, approvalId: string) =>
       ({
@@ -2354,6 +2419,46 @@ describe('MessageService', () => {
       const committed = messageService.getById('anchor')
       expect(stateOf(committed.data.parts, 'ap-a')).toBe('approval-responded')
       expect(stateOf(committed.data.parts, 'ap-b')).toBe('approval-responded')
+    })
+
+    it('commits the approval response and wait-span completion together', async () => {
+      await seedAnchorWithTwoApprovals()
+      dbh.db
+        .update(messageTable)
+        .set({
+          stats: {
+            runtimeTiming: {
+              startedAt: 1_000,
+              spans: [
+                {
+                  id: 'approval:ap-a',
+                  kind: 'approval-wait',
+                  approvalId: 'ap-a',
+                  toolCallId: 'c-a',
+                  startedAt: 1_500
+                },
+                {
+                  id: 'approval:ap-b',
+                  kind: 'approval-wait',
+                  approvalId: 'ap-b',
+                  toolCallId: 'c-b',
+                  startedAt: 1_600
+                }
+              ]
+            }
+          }
+        })
+        .where(eq(messageTable.id, 'anchor'))
+        .run()
+
+      messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: false }])
+
+      const committed = messageService.getById('anchor')
+      expect(stateOf(committed.data.parts, 'ap-a')).toBe('approval-responded')
+      expect(committed.stats?.runtimeTiming?.spans).toEqual([
+        expect.objectContaining({ approvalId: 'ap-a', completedAt: expect.any(Number) }),
+        expect.not.objectContaining({ completedAt: expect.anything() })
+      ])
     })
 
     it('returns null for a missing anchor (stale click on a deleted message)', async () => {
