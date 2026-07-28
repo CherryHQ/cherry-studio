@@ -2656,9 +2656,16 @@ describe('AgentComposer', () => {
     expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.setFiles.mock.invocationCallOrder[0]
     )
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.ipcApiRequest.mock.invocationCallOrder[0]
-    )
+    // Anchor on the send-time batch specifically. `ipcApiRequest` is shared with
+    // the mount-time workspace probe (`useAgentWorkspaceWarning` reads
+    // `file.get_metadata`), so `invocationCallOrder[0]` is that earlier render
+    // call, not the one this test is ordering against.
+    const batchMetadataOrder =
+      mocks.ipcApiRequest.mock.invocationCallOrder[
+        mocks.ipcApiRequest.mock.calls.findIndex(([route]) => route === 'file.batch_get_metadata')
+      ]
+    expect(batchMetadataOrder).toBeDefined()
+    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(batchMetadataOrder)
 
     await act(async () => {
       metadata.resolve({
