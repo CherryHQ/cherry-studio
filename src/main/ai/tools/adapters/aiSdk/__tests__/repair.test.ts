@@ -67,6 +67,29 @@ describe('createAiRepair', () => {
     expect(params.output).toBeDefined()
   })
 
+  it('reuses the request usage middleware so repair is an independent invocation', async () => {
+    const plugins = [{ name: 'usage' }]
+    const repairWithUsage = createAiRepair({
+      providerId: 'openai',
+      providerSettings: { apiKey: 'test' },
+      modelId: 'gpt-4o-mini',
+      getUsagePlugins: () => plugins as never
+    })
+    generateText.mockResolvedValue({ output: { query: 'hello world' } })
+
+    const repaired = await repairWithUsage({
+      system: undefined,
+      messages: [],
+      toolCall: makeToolCall(KB_SEARCH_TOOL_NAME, { q: 'hello world' }),
+      tools: {} as never,
+      inputSchema: async () => ({ type: 'object', properties: { query: { type: 'string' } } }) as never,
+      error: inputErr
+    })
+
+    expect(repaired).not.toBeNull()
+    expect(generateText.mock.calls[0][3]).toBe(plugins)
+  })
+
   it('returns null when generateText returns no structured output', async () => {
     generateText.mockResolvedValue({ output: undefined, text: 'sorry, cannot fix' })
     expect(await callRepair(makeToolCall(KB_SEARCH_TOOL_NAME, {}))).toBeNull()

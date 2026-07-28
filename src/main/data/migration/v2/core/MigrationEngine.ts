@@ -10,6 +10,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import {
@@ -336,6 +337,7 @@ export class MigrationEngine {
     // Order matters: child tables must be cleared before parent tables
     const tables = [
       { table: pinTable, name: 'pin' },
+      { table: aiUsageRecordTable, name: 'ai_usage_record' },
       { table: entityTagTable, name: 'entity_tag' },
       { table: tagTable, name: 'tag' },
       { table: userModelTable, name: 'user_model' }, // Must clear before user_provider

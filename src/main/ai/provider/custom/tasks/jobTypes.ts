@@ -1,3 +1,4 @@
+import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -28,6 +29,8 @@ export interface ImageGenerationJobPayload {
   /** Per-model transport routing, derived in main from the registry — persisted
    *  here so a restart-resume reaches the right endpoint / response family. */
   modelDescriptor?: ImageTransportDescriptor
+  /** Non-secret request source captured when the job is enqueued. */
+  source?: SourceSnapshot
   providerParams: Record<string, unknown>
 }
 
