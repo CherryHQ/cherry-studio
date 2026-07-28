@@ -544,7 +544,7 @@ export class SkillService {
     try {
       const buffer = Buffer.from(await downloadResp.arrayBuffer())
       await fs.promises.writeFile(zipPath, buffer)
-      const extractDir = path.join(tempDir, 'extracted')
+      const extractDir = path.join(tempDir, this.sanitizeFolderName(slug))
       await fs.promises.mkdir(extractDir, { recursive: true })
       await this.extractZip(zipPath, extractDir)
       // ClawHub serves one published skill bundle whose descriptor is at the archive root. Nested
@@ -555,7 +555,7 @@ export class SkillService {
       }
       const skillDir = await this.validateRepositorySkillDirectory(extractDir, extractDir, skillMdPath)
       const metadata = await parseSkillMetadata(skillDir, slug, 'skills', { calculateSize: false })
-      if (metadata.name !== slug) {
+      if ((metadata.slug ?? metadata.name).toLowerCase() !== slug.toLowerCase()) {
         throw new Error(`clawhub archive did not match the requested skill: ${identifier}`)
       }
       return await this.installSkillDir(skillDir, 'marketplace', sourceUrl)

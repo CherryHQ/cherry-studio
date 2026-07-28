@@ -376,13 +376,18 @@ export async function parseSkillMetadata(
   // Validate and sanitize name
   const rawName = toString(data.name)
   const name = rawName && rawName.trim() ? rawName.trim() : folderName
+  const slug = toString(data.slug)
 
   // Validate and sanitize description
   const rawDescription = toString(data.description)
   const description = rawDescription && rawDescription.trim() ? rawDescription.trim() : undefined
 
   // Validate version and author
-  const version = toString(data.version)
+  const nestedMetadata =
+    typeof data.metadata === 'object' && data.metadata !== null && !Array.isArray(data.metadata)
+      ? (data.metadata as Record<string, unknown>)
+      : undefined
+  const version = toString(data.version) ?? toString(nestedMetadata?.version)
   const author = toString(data.author)
 
   logger.debug('Successfully parsed skill metadata', {
@@ -395,6 +400,7 @@ export async function parseSkillMetadata(
     sourcePath, // e.g., "skills/my-skill"
     filename: folderName, // e.g., "my-skill" (folder name, NO .md extension)
     name,
+    slug,
     description,
     tools,
     category, // "skills" for flat structure

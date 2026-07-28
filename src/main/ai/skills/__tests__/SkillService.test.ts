@@ -557,7 +557,7 @@ describe('SkillService', () => {
     it('binds clawhub detail and download requests to the reviewed owner and root skill', async () => {
       const skillService = new SkillService()
       const tempDir = await createTempDir('skill-clawhub-install-')
-      const extractDir = path.join(tempDir, 'extracted')
+      const extractDir = path.join(tempDir, 'code')
       await fs.promises.mkdir(extractDir, { recursive: true })
       const canonicalExtractDir = await fs.promises.realpath(extractDir)
       const installedSkill = {
@@ -598,7 +598,7 @@ describe('SkillService', () => {
         await fs.promises.writeFile(path.join(extractDir, 'nested', 'SKILL.md'), '---\nname: nested\n---\n')
       })
       vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
-      vi.mocked(parseSkillMetadata).mockResolvedValueOnce({ name: 'code' } as never)
+      vi.mocked(parseSkillMetadata).mockResolvedValueOnce({ name: 'Code', slug: 'code' } as never)
       const installSkillDirSpy = vi
         .spyOn(skillService as never, 'installSkillDir')
         .mockResolvedValue(installedSkill as never)
