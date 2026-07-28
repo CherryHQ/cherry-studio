@@ -221,7 +221,7 @@ export function useHomeMessageListProviderValue({
     messages: messageItems,
     partsByMessageId,
     streamingLayers,
-    deleteMessage,
+    deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     persistDiagnosis
   })
 
@@ -821,8 +821,8 @@ export function useHomeMessageListProviderValue({
       updateRenderConfig,
       editMessage,
       startEditing,
-      getMessageDeleteAvailability,
-      deleteMessage,
+      getMessageDeleteAvailability: normalInteractionsEnabled ? getMessageDeleteAvailability : undefined,
+      deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
       startMessageBranch,
       setActiveBranch,
       deleteMessageGroup,
@@ -852,6 +852,7 @@ export function useHomeMessageListProviderValue({
       loadOlder,
       locateMessage,
       messageUiStateCache.updateMessageUiState,
+      normalInteractionsEnabled,
       openCitationsPanel,
       openPath,
       regenerateMessage,

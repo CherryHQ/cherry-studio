@@ -1035,7 +1035,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copiar",
       "regenerate": "Regenerar",
       "restart": {
         "button": "Reiniciar",
@@ -1047,8 +1046,6 @@
     "authHeader": {
       "title": "Cabeçalho de autorização"
     },
-    "authHeaderText": "Usar no cabeçalho de autorização:",
-    "configuration": "Configuração",
     "description": "Expõe as capacidades de IA do Cherry Studio através de APIs HTTP compatíveis com OpenAI",
     "documentation": {
       "title": "Documentação API"
@@ -1056,13 +1053,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copiar Chave API",
-        "description": "Token de autenticação seguro para acesso à API",
         "label": "Chave API",
         "placeholder": "A chave API será gerada automaticamente"
       },
       "port": {
-        "description": "Número de porta TCP do servidor HTTP (1000-65535)",
-        "helpText": "Pare o servidor para alterar a porta",
         "label": "Porta"
       },
       "url": {
@@ -1071,7 +1065,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Chave API copiada para a área de transferência",
       "apiKeyRegenerated": "Chave API regenerada",
       "notEnabled": "O Servidor de API não está habilitado.",
       "operationFailed": "Operação do Servidor API falhou: ",
@@ -1081,8 +1074,7 @@
       "startError": "Falha ao iniciar o Servidor API: ",
       "startSuccess": "Servidor API iniciado com sucesso",
       "stopError": "Falha ao parar o Servidor API: ",
-      "stopSuccess": "Servidor API parado com sucesso",
-      "urlCopied": "URL do servidor copiada para a área de transferência"
+      "stopSuccess": "Servidor API parado com sucesso"
     },
     "status": {
       "running": "A executar",

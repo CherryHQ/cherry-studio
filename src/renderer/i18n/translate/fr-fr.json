@@ -1035,7 +1035,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copier",
       "regenerate": "Régénérer",
       "restart": {
         "button": "Redémarrer",
@@ -1047,8 +1046,6 @@
     "authHeader": {
       "title": "En-tête d'autorisation"
     },
-    "authHeaderText": "Utiliser dans l'en-tête d'autorisation :",
-    "configuration": "Configuration",
     "description": "Expose les capacités IA de Cherry Studio via des APIs HTTP compatibles OpenAI",
     "documentation": {
       "title": "Documentation API"
@@ -1056,13 +1053,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copier la Clé API",
-        "description": "Jeton d'authentification sécurisé pour l'accès à l'API",
         "label": "Clé API",
         "placeholder": "La clé API sera générée automatiquement"
       },
       "port": {
-        "description": "Numéro de port TCP pour le serveur HTTP (1000-65535)",
-        "helpText": "Arrêtez le serveur pour changer le port",
         "label": "Port"
       },
       "url": {
@@ -1071,7 +1065,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Clé API copiée dans le presse-papiers",
       "apiKeyRegenerated": "Clé API régénérée",
       "notEnabled": "Le serveur API n'est pas activé.",
       "operationFailed": "Opération du Serveur API échouée : ",
@@ -1081,8 +1074,7 @@
       "startError": "Échec du démarrage du Serveur API : ",
       "startSuccess": "Serveur API démarré avec succès",
       "stopError": "Échec de l'arrêt du Serveur API : ",
-      "stopSuccess": "Serveur API arrêté avec succès",
-      "urlCopied": "URL du serveur copiée dans le presse-papiers"
+      "stopSuccess": "Serveur API arrêté avec succès"
     },
     "status": {
       "running": "En cours d'exécution",
