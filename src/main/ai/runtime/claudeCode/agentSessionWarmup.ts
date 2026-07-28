@@ -6,6 +6,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
@@ -13,6 +14,7 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
+import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -25,6 +27,7 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isExternalCliProvider, isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
+import type { AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
@@ -37,6 +40,7 @@ export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   connectionConfig: ConnectionConfig
   settings: ClaudeCodeSettings
   sdkModelId: string
+  usageCapture: AgentSessionUsageCapture
 }
 
 interface RuntimeModelRef {
@@ -45,6 +49,7 @@ interface RuntimeModelRef {
   apiModelId: string
   contextWindow?: number
   provider?: Provider
+  model?: Model
 }
 
 interface ClaudeCodeRouteFacts {
@@ -58,10 +63,14 @@ interface ClaudeCodeRouteFacts {
     sonnet: string
     haiku: string
   }
+  /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
+  usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
 }
 
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
   apiKey?: string
+  customHeaders?: Record<string, string>
+  usageCapture: AgentSessionUsageCapture
 }
 
 interface ConnectionMaterializationFacts {
@@ -81,6 +90,36 @@ function fingerprintCredentials(material: string[]): string {
   return createHash('sha256')
     .update(JSON.stringify([...material].sort()))
     .digest('hex')
+}
+
+function buildUsageModels(
+  entries: Array<{ sdkModelId: string; ref: RuntimeModelRef }>
+): Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels'] {
+  const byModelId = new Map<
+    string,
+    {
+      modelName: string | null
+      pricingSnapshot: ReturnType<typeof createAiUsagePricingSnapshot>
+      aliases: Set<string>
+    }
+  >()
+  for (const { sdkModelId, ref } of entries) {
+    const current = byModelId.get(ref.modelId) ?? {
+      modelName: ref.model?.name ?? ref.modelId,
+      pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
+      aliases: new Set<string>()
+    }
+    current.aliases.add(sdkModelId)
+    current.aliases.add(ref.apiModelId)
+    current.aliases.add(ref.modelId)
+    byModelId.set(ref.modelId, current)
+  }
+  return [...byModelId].map(([modelId, snapshot]) => ({
+    modelId,
+    modelName: snapshot.modelName,
+    pricingSnapshot: snapshot.pricingSnapshot,
+    aliases: [...snapshot.aliases]
+  }))
 }
 
 /**
@@ -301,7 +340,21 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const pinSubModelsToPrimary = uniqueModelId !== agent.model
   const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
   const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
-  const route = await resolveClaudeCodeRuntimeRoute(provider, model, modelId, baseUrl, planModel, smallModel)
+  const route = await resolveClaudeCodeRuntimeRoute(
+    session.id,
+    provider,
+    model,
+    modelId,
+    baseUrl,
+    planModel,
+    smallModel,
+    {
+      type: 'agent',
+      id: agent.id,
+      name: agent.name ?? null,
+      icon: agent.configuration?.avatar ?? null
+    }
+  )
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const settings = mergeRuntimeSettings(
@@ -354,7 +407,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     credentialsFingerprint: route.credentialsFingerprint,
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     settings,
-    sdkModelId
+    sdkModelId,
+    usageCapture: route.usageCapture
   }
 }
 
@@ -395,9 +449,9 @@ function resolveClaudeCodeThinkingOptions(
 /**
  * Pure (read-only) half of the route resolution: branch decision, model-id slots, baseUrl and the
  * credentials fingerprint — everything the staleness signature needs. MUST stay side-effect free:
- * no `getRotatedApiKey` (advances rotation), no gateway `ensureValidApiKey` (persists a key on
+ * no `resolveApiKey` (advances rotation), no gateway `ensureValidApiKey` (persists a key on
  * first use) or `start()` (boots the HTTP server). Credential *values* are materialized by
- * {@link resolveClaudeCodeRuntimeRoute} on the connect path only.
+ * {@link resolveClaudeCodeRuntimeRoute} only when a query (warm or live) is materialized.
  */
 function deriveRouteFacts(
   primaryProvider: Provider,
@@ -412,7 +466,8 @@ function deriveRouteFacts(
     modelId: primaryModelId,
     apiModelId: primaryModel.apiModelId ?? primaryModelId,
     contextWindow: primaryModel.contextWindow,
-    provider: primaryProvider
+    provider: primaryProvider,
+    model: primaryModel
   }
   const opusRef = primaryRef
   // Unset plan/small models fall back to `primaryRef` (the effective connection model). The caller also
@@ -431,17 +486,29 @@ function deriveRouteFacts(
   // the gateway, bricking the agent. Pin every sub-model back onto the primary
   // so the agent still runs on the subscription login.
   if (isExternalCliProvider(primaryProvider)) {
-    const pinToPrimary = (ref: RuntimeModelRef) =>
-      ref.providerId === primaryProvider.id ? ref.apiModelId : primaryRef.apiModelId
+    const pinToPrimary = (ref: RuntimeModelRef) => (ref.providerId === primaryProvider.id ? ref : primaryRef)
+    const externalRefs = {
+      primary: primaryRef,
+      opus: primaryRef,
+      sonnet: pinToPrimary(sonnetRef),
+      haiku: pinToPrimary(haikuRef)
+    }
+    const modelIds = {
+      primary: externalRefs.primary.apiModelId,
+      opus: externalRefs.opus.apiModelId,
+      sonnet: externalRefs.sonnet.apiModelId,
+      haiku: externalRefs.haiku.apiModelId
+    }
     return {
       branch: 'external-cli',
       credentialsFingerprint: 'external-cli',
-      modelIds: {
-        primary: primaryRef.apiModelId,
-        opus: pinToPrimary(opusRef),
-        sonnet: pinToPrimary(sonnetRef),
-        haiku: pinToPrimary(haikuRef)
-      }
+      modelIds,
+      usageModels: buildUsageModels([
+        { sdkModelId: modelIds.primary, ref: externalRefs.primary },
+        { sdkModelId: modelIds.opus, ref: externalRefs.opus },
+        { sdkModelId: modelIds.sonnet, ref: externalRefs.sonnet },
+        { sdkModelId: modelIds.haiku, ref: externalRefs.haiku }
+      ])
     }
   }
 
@@ -466,7 +533,8 @@ function deriveRouteFacts(
         opus: toGatewayModelId(opusRef),
         sonnet: toGatewayModelId(sonnetRef),
         haiku: toGatewayModelId(haikuRef)
-      }
+      },
+      usageModels: []
     }
   }
 
@@ -479,48 +547,78 @@ function deriveRouteFacts(
   // first-party by resolved host, NOT preset origin: a provider copied from the Anthropic preset but
   // repointed at a custom 1M proxy is not first-party and must still get the `[1m]` suffix.
   const isAnthropicNative = isAnthropicOfficialHost(anthropicBaseUrl)
+  const modelIds = {
+    primary: with1mSuffix(primaryRef.apiModelId, primaryRef.contextWindow, isAnthropicNative),
+    opus: with1mSuffix(opusRef.apiModelId, opusRef.contextWindow, isAnthropicNative),
+    sonnet: with1mSuffix(sonnetRef.apiModelId, sonnetRef.contextWindow, isAnthropicNative),
+    haiku: with1mSuffix(haikuRef.apiModelId, haikuRef.contextWindow, isAnthropicNative)
+  }
   return {
     branch: 'direct',
     baseUrl: anthropicBaseUrl,
     credentialsFingerprint: fingerprintCredentials(enabledKeys),
-    modelIds: {
-      primary: with1mSuffix(primaryRef.apiModelId, primaryRef.contextWindow, isAnthropicNative),
-      opus: with1mSuffix(opusRef.apiModelId, opusRef.contextWindow, isAnthropicNative),
-      sonnet: with1mSuffix(sonnetRef.apiModelId, sonnetRef.contextWindow, isAnthropicNative),
-      haiku: with1mSuffix(haikuRef.apiModelId, haikuRef.contextWindow, isAnthropicNative)
-    }
+    modelIds,
+    usageModels: buildUsageModels([
+      { sdkModelId: modelIds.primary, ref: primaryRef },
+      { sdkModelId: modelIds.opus, ref: opusRef },
+      { sdkModelId: modelIds.sonnet, ref: sonnetRef },
+      { sdkModelId: modelIds.haiku, ref: haikuRef }
+    ])
   }
 }
 
 /** Effectful half: materializes the credentials for the branch {@link deriveRouteFacts} picked. */
 async function resolveClaudeCodeRuntimeRoute(
+  sessionId: string,
   primaryProvider: Provider,
   primaryModel: Model,
   primaryModelId: string,
   primaryBaseUrl: string,
   planModel: UniqueModelId | null | undefined,
-  smallModel: UniqueModelId | null | undefined
+  smallModel: UniqueModelId | null | undefined,
+  source: SourceSnapshot
 ): Promise<ClaudeCodeRuntimeRoute> {
   const facts = deriveRouteFacts(primaryProvider, primaryModel, primaryModelId, primaryBaseUrl, planModel, smallModel)
 
   switch (facts.branch) {
     case 'external-cli':
-      return facts
+      return {
+        ...facts,
+        usageCapture: {
+          owner: 'agent-sdk',
+          credentialReceipt: { attribution: 'auth', method: 'external-cli' },
+          providerId: primaryProvider.id,
+          providerName: primaryProvider.name ?? null,
+          source,
+          frozenModels: facts.usageModels
+        }
+      }
     case 'gateway': {
-      const gateway = await resolveApiGatewayRuntime()
+      const gateway = await resolveApiGatewayRuntime(sessionId)
       return {
         ...facts,
         baseUrl: gateway.baseUrl,
         apiKey: gateway.apiKey,
+        customHeaders: gateway.usageHeaders,
+        usageCapture: { owner: 'provider-calls' },
         credentialsFingerprint: fingerprintCredentials([gateway.apiKey])
       }
     }
     case 'direct': {
-      const providerApiKey = providerService.getRotatedApiKey(primaryProvider.id)
-      const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+      const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id)
+      const runtimeApiKey =
+        resolvedApiKey.value || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
       return {
         ...facts,
         apiKey: runtimeApiKey,
+        usageCapture: {
+          owner: 'agent-sdk',
+          credentialReceipt: resolvedApiKey.apiKeySelection,
+          providerId: primaryProvider.id,
+          providerName: primaryProvider.name ?? null,
+          source,
+          frozenModels: facts.usageModels
+        },
         credentialsFingerprint: facts.credentialsFingerprint
       }
     }
@@ -532,7 +630,8 @@ function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteF
     branch: route.branch,
     baseUrl: route.baseUrl,
     credentialsFingerprint: route.credentialsFingerprint,
-    modelIds: route.modelIds
+    modelIds: route.modelIds,
+    usageModels: route.usageModels
   }
 }
 
@@ -562,7 +661,8 @@ function resolveRuntimeModelRef(
       modelId,
       apiModelId: model?.apiModelId ?? modelId,
       contextWindow: model?.contextWindow,
-      provider
+      provider,
+      model
     }
   } catch {
     return { providerId, modelId, apiModelId: modelId }
@@ -578,7 +678,9 @@ function supportsAnthropicMessages(provider: Provider): boolean {
   )
 }
 
-async function resolveApiGatewayRuntime(): Promise<{ baseUrl: string; apiKey: string }> {
+async function resolveApiGatewayRuntime(
+  sessionId: string
+): Promise<{ baseUrl: string; apiKey: string; usageHeaders: Record<string, string> }> {
   const apiGatewayService = application.get('ApiGatewayService')
   const apiKey = await apiGatewayService.ensureValidApiKey()
   if (!apiGatewayService.isRunning()) {
@@ -587,7 +689,11 @@ async function resolveApiGatewayRuntime(): Promise<{ baseUrl: string; apiKey: st
   const config = apiGatewayService.getCurrentConfig()
   const host = config.host || '127.0.0.1'
   const port = config.port || 23333
-  return { baseUrl: `http://${host}:${port}`, apiKey }
+  return {
+    baseUrl: `http://${host}:${port}`,
+    apiKey,
+    usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId)
+  }
 }
 
 function toGatewayModelId(ref: RuntimeModelRef): string {
@@ -611,7 +717,14 @@ function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRun
       ANTHROPIC_DEFAULT_SONNET_MODEL: route.modelIds.sonnet,
       ANTHROPIC_DEFAULT_HAIKU_MODEL: route.modelIds.haiku,
       ...(route.apiKey ? { ANTHROPIC_API_KEY: route.apiKey, ANTHROPIC_AUTH_TOKEN: route.apiKey } : {}),
-      ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {})
+      ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {}),
+      ...(route.customHeaders
+        ? {
+            ANTHROPIC_CUSTOM_HEADERS: Object.entries(route.customHeaders)
+              .map(([name, value]) => `${name}: ${value}`)
+              .join('\n')
+          }
+        : {})
     }
   }
 }
@@ -626,6 +739,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
     credentialsFingerprint: request.credentialsFingerprint,
+    usageCapture: request.usageCapture,
     knowledgeBaseIds: request.knowledgeBaseIds
   }
 }

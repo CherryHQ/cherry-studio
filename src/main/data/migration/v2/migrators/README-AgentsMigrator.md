@@ -24,7 +24,9 @@ resolves migration storage through the live application path registry.
 ## Database transformations
 
 - Legacy prefix IDs and built-in sentinel IDs become deterministic UUIDs;
-  Agent and Session foreign keys are remapped in the same operation.
+  Agent and Session foreign keys are remapped in the same operation. Immutable
+  session-message author snapshots are rewritten to the same final Agent ID so
+  migrated usage and new usage group under one source identity.
 - Session workspaces come from the first valid Session-level accessible path,
   then the Agent-level path, then the v1 managed default.
 - A managed default becomes a Session-specific system workspace. External user

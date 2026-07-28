@@ -1,4 +1,5 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
@@ -15,6 +16,15 @@ export interface AiTransportOptions {
   timeout?: number
   /** AI SDK transparent-retry override. Defaults to 0 — retries can duplicate stream state in tool loops. */
   maxRetries?: number
+}
+
+/** In-process-only usage correlation; never accepted on renderer IPC schemas. */
+export interface InProcessUsageContext {
+  agentSessionId: string
+  /** Assistant message that owns this request: a reserved steer continuation or the active turn. */
+  assistantMessageId: string
+  /** Immutable source captured by the owning Agent turn. `null` means intentionally unavailable. */
+  source: SourceSnapshot | null
 }
 
 /**

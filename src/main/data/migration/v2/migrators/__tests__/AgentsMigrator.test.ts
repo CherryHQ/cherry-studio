@@ -139,7 +139,9 @@ describe('AgentsMigrator', () => {
     const select = vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         orderBy: vi.fn().mockResolvedValue([]),
-        where: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
+        where: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) }),
+        // readSessionAuthors joins agent_session with agent; no sessions in these fixtures.
+        innerJoin: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
       })
     })
     const update = vi.fn().mockReturnValue({
@@ -380,7 +382,9 @@ describe('AgentsMigrator', () => {
     const select = vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         orderBy: vi.fn().mockResolvedValue([]),
-        where: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
+        where: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) }),
+        // readSessionAuthors joins agent_session with agent; no sessions in these fixtures.
+        innerJoin: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
       })
     })
     const update = vi.fn().mockReturnValue({

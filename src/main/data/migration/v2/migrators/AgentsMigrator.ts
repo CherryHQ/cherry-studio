@@ -1,4 +1,6 @@
+import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
@@ -8,10 +10,18 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import type { MessageData, MessageRole, MessageStatus } from '@shared/data/types/message'
-import { sql } from 'drizzle-orm'
+import type {
+  MessageData,
+  MessageRole,
+  MessageSnapshot,
+  MessageStats,
+  MessageStatus,
+  ModelSnapshot
+} from '@shared/data/types/message'
+import { eq, sql } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
+import * as z from 'zod'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
@@ -33,8 +43,15 @@ import {
   getTotalAgentsRowCount,
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
-import { type ChatMappingDeps, normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
+import {
+  type ChatMappingDeps,
+  estimateLegacyRequestCount,
+  mergeStats,
+  normalizeStatus,
+  transformBlocksToParts
+} from './mappings/ChatMappings'
 import { AGENT_TABLES, type AgentPrefixIdRemap, remapAgentPrefixIds } from './remapAgentPrefixIds'
+import { type LegacyModelRef, legacyModelToUniqueId } from './transformers/ModelTransformers'
 
 const DERIVED_SESSION_WORKSPACES_KEY = 'agentsMigrator.derivedSessionWorkspaces'
 
@@ -653,6 +670,8 @@ type NormalizedLegacySessionMessage = {
   data: MessageData
   status: MessageStatus
   modelId: string | null
+  modelSnapshot: ModelSnapshot | null
+  stats: MessageStats | null
 }
 
 type PreparedLegacySessionMessage = {
@@ -662,6 +681,8 @@ type PreparedLegacySessionMessage = {
   data: MessageData
   status: MessageStatus
   modelId: string | null
+  modelSnapshot: ModelSnapshot | null
+  stats: MessageStats | null
   runtimeResumeToken: string | null
   createdAt: number
   updatedAt: number
@@ -919,6 +940,38 @@ function normalizeLegacyRole(value: string | null): MessageRole {
   return value === 'user' || value === 'assistant' || value === 'system' ? value : 'assistant'
 }
 
+// Legacy v1 model blobs are untrusted JSON. `.catch(undefined)` keeps a
+// malformed optional field from failing the whole parse (we still want id +
+// provider even if `name`/`group` are junk), matching the old lenient narrowing.
+const LegacyModelRefSchema = z.object({
+  id: z.string().optional().catch(undefined),
+  provider: z.string().optional().catch(undefined)
+})
+const LegacyModelSnapshotSchema = LegacyModelRefSchema.extend({
+  name: z.string().optional().catch(undefined),
+  group: z.string().optional().catch(undefined)
+})
+
+function asLegacyModelRef(value: unknown): LegacyModelRef | null {
+  const parsed = LegacyModelRefSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
+}
+
+function buildModelSnapshot(value: unknown): ModelSnapshot | null {
+  const parsed = LegacyModelSnapshotSchema.safeParse(value)
+  if (!parsed.success) return null
+
+  const { id, provider, name, group } = parsed.data
+  if (!id?.trim() || !provider?.trim()) return null
+
+  return {
+    id,
+    name: name?.trim() ? name : id,
+    provider,
+    group
+  }
+}
+
 async function normalizeLegacySessionMessage(
   content: unknown,
   fallbackRole: string | null,
@@ -931,7 +984,9 @@ async function normalizeLegacySessionMessage(
       role: normalizeLegacyRole(fallbackRole),
       data: { parts: directParts },
       status: 'success',
-      modelId: null
+      modelId: null,
+      modelSnapshot: null,
+      stats: null
     }
   }
 
@@ -942,18 +997,61 @@ async function normalizeLegacySessionMessage(
       role: normalizeLegacyRole(fallbackRole),
       data: { parts: [] },
       status: 'success',
-      modelId: null
+      modelId: null,
+      modelSnapshot: null,
+      stats: null
     }
   }
 
   const transformed = blocks.length > 0 ? await transformBlocksToParts(blocks, deps) : null
   const parts = transformed?.parts ?? (Array.isArray(message.data?.parts) ? message.data.parts : [])
+  const rawModelId = typeof message.modelId === 'string' && message.modelId.length > 0 ? message.modelId : null
+  const modelRef = asLegacyModelRef(message.model)
   return {
     role: normalizeLegacyRole(typeof message.role === 'string' ? message.role : fallbackRole),
     data: { parts },
     status: normalizeStatus(message.status),
-    modelId: typeof message.modelId === 'string' && message.modelId.length > 0 ? message.modelId : null
+    modelId: legacyModelToUniqueId(modelRef, rawModelId) ?? rawModelId,
+    modelSnapshot: buildModelSnapshot(message.model),
+    stats: mergeStats(
+      message.usage,
+      message.metrics,
+      normalizeLegacyRole(typeof message.role === 'string' ? message.role : fallbackRole) === 'assistant'
+        ? estimateLegacyRequestCount(blocks)
+        : undefined
+    )
   }
+}
+
+/** The producing author of a session message — the owning agent, model excluded. */
+type SessionAuthor = Omit<MessageSnapshot, 'model'>
+
+/**
+ * Author identity per migrated session, so each imported message can freeze the same
+ * {@link MessageSnapshot} the runtime writer persists (author with the model nested).
+ * Sessions whose agent is missing get no author, hence no snapshot.
+ */
+function readSessionAuthors(db: DbType): Map<string, SessionAuthor> {
+  const rows = db
+    .select({
+      sessionId: agentSessionTable.id,
+      agentId: agentTable.id,
+      name: agentTable.name,
+      configuration: agentTable.configuration
+    })
+    .from(agentSessionTable)
+    .innerJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
+    .all()
+
+  return new Map(
+    rows.map((row): [string, SessionAuthor] => {
+      const avatar = row.configuration?.avatar
+      return [
+        row.sessionId,
+        { id: row.agentId, name: row.name, emoji: typeof avatar === 'string' && avatar ? avatar : undefined }
+      ]
+    })
+  )
 }
 
 function resolveUserModelId(db: DbType, cache: Map<string, string | null>, rawModelId: string | null): string | null {
@@ -1024,7 +1122,9 @@ async function prepareLegacySessionMessages(
         role: normalizeLegacyRole(row.role),
         data: { parts: [] },
         status: 'error',
-        modelId: null
+        modelId: null,
+        modelSnapshot: null,
+        stats: null
       }
       logger.warn('Failed to normalize legacy agent session message', {
         legacyId: row.legacyId,
@@ -1043,6 +1143,8 @@ async function prepareLegacySessionMessages(
       data: normalized.data,
       status: normalized.status,
       modelId: resolveUserModelId(db, modelCache, normalized.modelId),
+      modelSnapshot: normalized.modelSnapshot,
+      stats: normalized.stats,
       runtimeResumeToken: row.agentSessionId,
       createdAt,
       updatedAt
@@ -1053,8 +1155,16 @@ async function prepareLegacySessionMessages(
 }
 
 function insertPreparedLegacySessionMessages(db: DbType, prepared: PreparedLegacySessionMessage[]): number {
-  for (const message of prepared) {
-    db.insert(agentSessionMessageTable).values(message).run()
+  const sessionAuthors = readSessionAuthors(db)
+  for (const { modelSnapshot, stats, ...message } of prepared) {
+    // Resolve authors only after the target agent/session rows have been inserted.
+    // Message normalization remains outside the transaction, while the immutable
+    // author+model snapshot is assembled synchronously inside it.
+    const author = sessionAuthors.get(message.sessionId)
+    const messageSnapshot = author && modelSnapshot ? { ...author, model: modelSnapshot } : undefined
+    db.insert(agentSessionMessageTable)
+      .values({ ...message, messageSnapshot, stats: stats ?? undefined })
+      .run()
   }
   logger.info('Imported legacy agent session messages with UUID ids', { imported: prepared.length })
   return prepared.length
