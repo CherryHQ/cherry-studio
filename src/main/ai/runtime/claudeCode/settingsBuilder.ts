@@ -386,7 +386,10 @@ export async function buildClaudeCodeSessionSettings(
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
     settingSources: getSettingSources(agent, provider),
-    settings: { autoCompactEnabled: true },
+    settings: {
+      autoCompactEnabled: true,
+      fastMode: options?.fastMode === true
+    },
     includePartialMessages: true,
     permissionMode: agentConfig?.permission_mode,
     maxTurns: agentConfig?.max_turns,
@@ -404,7 +407,6 @@ export async function buildClaudeCodeSessionSettings(
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
     ...(options?.thinkingOptions?.thinking ? { thinking: options.thinkingOptions.thinking } : {}),
-    ...(options?.fastMode ? { fastMode: true } : {}),
     ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
   }
 

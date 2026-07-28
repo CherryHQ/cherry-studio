@@ -1,11 +1,11 @@
 import type { UIMessageChunk } from 'ai'
 
-import type { CherryMessagePart, CherryUIMessage } from '../../data/types/message'
+import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '../../data/types/message'
 import type { UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
 
-export interface AiChatRequestBody {
+export interface AiChatRequestBody extends AssistantTurnOptions {
   /** Topic ID for message routing and persistence. */
   topicId: string
   /** Explicit parent node — message id at the current branch tip, or null for first message. */
@@ -16,10 +16,6 @@ export interface AiChatRequestBody {
   userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
-  /** Canonical reasoning selection captured for this submit. */
-  reasoningEffort?: ReasoningEffortOption
-  /** Whether to request the provider-model pair's Fast transport for this submit. */
-  fastMode?: boolean
 }
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -165,8 +161,10 @@ export type AiStreamOpenRequest = {
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
-      reasoningEffort?: never
-      fastMode?: never
+      /** Canonical reasoning selection captured for this regenerated turn. */
+      reasoningEffort?: ReasoningEffortOption
+      /** Whether to request Fast processing for this regenerated turn. */
+      fastMode?: boolean
     }
 )
 

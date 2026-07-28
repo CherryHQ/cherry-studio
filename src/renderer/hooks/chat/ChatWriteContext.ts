@@ -7,7 +7,7 @@
  * `useChatWrite()`.
  */
 
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { AssistantTurnOptions, CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { createContext, use } from 'react'
 
@@ -52,7 +52,11 @@ export interface ChatWriteActions {
    * then regenerate the assistant response anchored at that sibling. The source
    * message stays intact, including for the first root user message.
    */
-  forkAndResend: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
+  forkAndResend: (
+    messageId: string,
+    editedParts: CherryMessagePart[],
+    turnOptions?: AssistantTurnOptions
+  ) => Promise<void>
   /**
    * Pin `messageId` as the topic's active node. The scroll view truncates
    * there; the user's next message becomes the new leaf and the tree forks.

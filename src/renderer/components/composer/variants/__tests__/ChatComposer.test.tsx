@@ -892,7 +892,7 @@ describe('ChatComposer', () => {
     expect(onSend).toHaveBeenCalledWith('fast please', expect.objectContaining({ fastMode: true }))
   })
 
-  it('submits the first slider effort when a multi-tier model still stores Default', async () => {
+  it('preserves Default when a multi-tier model has no declared default effort', async () => {
     mocks.model = {
       ...model,
       capabilities: [MODEL_CAPABILITY.REASONING],
@@ -908,7 +908,7 @@ describe('ChatComposer', () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'match the UI', tokens: [] })
     })
 
-    expect(onSend).toHaveBeenCalledWith('match the UI', expect.objectContaining({ reasoningEffort: 'none' }))
+    expect(onSend).toHaveBeenCalledWith('match the UI', expect.objectContaining({ reasoningEffort: 'default' }))
   })
 
   it('derives Fast from the explicitly submitted unlinked-home model', async () => {
@@ -3748,11 +3748,12 @@ describe('ChatComposer', () => {
     expect(resend).not.toHaveBeenCalled()
   })
 
-  it('forks and resends the edited message without boundary blank lines', async () => {
+  it('forks and resends the edited message with current turn controls and without boundary blank lines', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const resend = vi.fn().mockResolvedValue(undefined)
     const forkAndResend = vi.fn().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    mocks.model = { ...model, providerId: 'openai-codex', supportsFastMode: true }
     const message = {
       id: 'message-1',
       role: 'user',
@@ -3769,9 +3770,13 @@ describe('ChatComposer', () => {
     )
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    act(() => mocks.speedControlProps?.onFastModeChange(true))
     await mocks.surfaceProps?.onSendDraft({ text: '\n  new text  \n\n', tokens: [] })
 
-    expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: '  new text  ' }])
+    expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: '  new text  ' }], {
+      reasoningEffort: 'default',
+      fastMode: true
+    })
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())

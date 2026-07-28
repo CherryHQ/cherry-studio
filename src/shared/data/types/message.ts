@@ -1,5 +1,6 @@
 import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
+import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type {
   DataUIPart,
   DynamicToolUIPart,
@@ -128,6 +129,12 @@ export type MessageRuntimeStatsInput = Readonly<Pick<MessageStats, 'runtimeTimin
 /** Cherry-specific UIMessagePart with our custom DataUIPart types baked in. */
 export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
 
+/** Request controls frozen when an assistant turn is created. */
+export interface AssistantTurnOptions {
+  reasoningEffort?: ReasoningEffortOption
+  fastMode?: boolean
+}
+
 /**
  * Message data field structure — the type for the `data` column in the
  * message table. Messages are stored in AI SDK `UIMessage.parts` format.
@@ -138,6 +145,8 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
  */
 export interface MessageData {
   parts?: CherryMessagePart[]
+  /** Main-authoritative request controls for resuming this assistant turn. */
+  turnOptions?: AssistantTurnOptions
 }
 
 // ── Cherry-specific UI message types ────────────────────────────────
@@ -382,6 +391,16 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+  if (v.turnOptions !== undefined) {
+    if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false
+    if (
+      v.turnOptions.reasoningEffort !== undefined &&
+      !ReasoningEffortOptionSchema.safeParse(v.turnOptions.reasoningEffort).success
+    ) {
+      return false
+    }
+    if (v.turnOptions.fastMode !== undefined && typeof v.turnOptions.fastMode !== 'boolean') return false
+  }
   return true
 })
 

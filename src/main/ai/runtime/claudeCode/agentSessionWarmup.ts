@@ -12,7 +12,7 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
@@ -78,6 +78,7 @@ interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
   apiKey?: string
   customHeaders?: Record<string, string>
   usageCapture: AgentSessionUsageCapture
+  internalRequestToken?: string
 }
 
 interface ConnectionMaterializationFacts {
@@ -620,6 +621,7 @@ async function resolveClaudeCodeRuntimeRoute(
         apiKey: gateway.apiKey,
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
+        internalRequestToken: gateway.internalRequestToken,
         credentialsFingerprint: fingerprintCredentials([gateway.apiKey])
       }
     }
@@ -695,7 +697,12 @@ function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
 
 async function resolveApiGatewayRuntime(
   sessionId: string
-): Promise<{ baseUrl: string; apiKey: string; usageHeaders: Record<string, string> }> {
+): Promise<{
+  baseUrl: string
+  apiKey: string
+  usageHeaders: Record<string, string>
+  internalRequestToken: string
+}> {
   const apiGatewayService = application.get('ApiGatewayService')
   const apiKey = await apiGatewayService.ensureValidApiKey()
   if (!apiGatewayService.isRunning()) {
@@ -707,7 +714,8 @@ async function resolveApiGatewayRuntime(
   return {
     baseUrl: `http://${host}:${port}`,
     apiKey,
-    usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId)
+    usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId),
+    internalRequestToken: apiGatewayService.getInternalRequestToken()
   }
 }
 
@@ -736,8 +744,8 @@ function mergeRuntimeSettings(
   const customHeaders = [
     existingCustomHeaders,
     routeCustomHeaders,
-    route.branch === 'gateway' && fastModeTransport === 'openai-priority'
-      ? `${CHERRY_FAST_MODE_HEADER}: true`
+    route.branch === 'gateway' && fastModeTransport === 'openai-priority' && route.internalRequestToken
+      ? `${CHERRY_FAST_MODE_HEADER}: true\n${CHERRY_INTERNAL_REQUEST_TOKEN_HEADER}: ${route.internalRequestToken}`
       : undefined
   ]
     .filter((header): header is string => Boolean(header))

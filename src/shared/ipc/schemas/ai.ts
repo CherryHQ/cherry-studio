@@ -191,7 +191,9 @@ export const aiRequestSchemas = {
         }),
         z.object({
           trigger: z.literal('regenerate-message'),
-          parentAnchorId: z.string().min(1)
+          parentAnchorId: z.string().min(1),
+          reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          fastMode: z.boolean().optional()
         })
       ])
     ),

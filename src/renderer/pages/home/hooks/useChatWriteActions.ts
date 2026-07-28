@@ -337,7 +337,7 @@ export function useChatWriteActions(params: Params): Result {
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
-    async (messageId, editedParts) => {
+    async (messageId, editedParts, turnOptions) => {
       captureLocalSendScrollEligibility()
       const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
       const newMessage = await createSiblingTrigger({
@@ -374,7 +374,9 @@ export function useChatWriteActions(params: Params): Result {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId: newMessage.id,
-        ...(shouldPreserveInheritedModelIds && { mentionedModelIds: inheritedModelIds })
+        ...(shouldPreserveInheritedModelIds && { mentionedModelIds: inheritedModelIds }),
+        ...(turnOptions?.reasoningEffort ? { reasoningEffort: turnOptions.reasoningEffort } : {}),
+        ...(turnOptions?.fastMode ? { fastMode: true } : {})
       })
 
       if (ack.mode === 'blocked') {

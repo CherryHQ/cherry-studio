@@ -1,12 +1,4 @@
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-  Slider
-} from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
@@ -39,20 +31,11 @@ const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
   auto: 'assistants.settings.reasoning_effort.auto'
 }
 
-/**
- * Multi-tier sliders do not expose Default. Keep the submitted value aligned
- * with the first tier that the control displays for a stored Default.
- */
+/** Keep the submitted selection valid without changing the provider's Default semantics. */
 export function resolveComposerReasoningEffort(model: Model, effort: ThinkingOption): ThinkingOption {
-  const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
-  const reasoningOptions = SLIDER_EFFORT_ORDER.filter((option) => declaredEfforts.has(option))
-  const sliderEfforts = reasoningOptions.filter((option) => option !== 'default')
-  const showEffortSlider = sliderEfforts.filter((option) => option !== 'none' && option !== 'auto').length > 1
+  const reasoningOptions = deriveThinkingOptions(model) ?? []
 
-  if (showEffortSlider) {
-    return effort !== 'default' && sliderEfforts.includes(effort) ? effort : (sliderEfforts[0] ?? 'default')
-  }
-  return reasoningOptions.includes(effort) ? effort : (reasoningOptions[0] ?? 'default')
+  return reasoningOptions.includes(effort) ? effort : 'default'
 }
 
 interface ComposerSpeedControlProps {
@@ -82,23 +65,26 @@ export function ComposerSpeedControl({
 
   if (!supportsReasoning && !supportsFast) return null
 
-  // Model changes reconcile in an effect owned by the composer. During that one render, fall back
-  // to the first supported choice instead of displaying an invalid selection.
+  // Model changes reconcile in an effect owned by the composer. During that one render, preserve
+  // provider Default rather than displaying or submitting an invalid explicit tier.
   const effectiveReasoningEffort = resolveComposerReasoningEffort(model, reasoningEffort)
-  const selectedOption = supportsReasoning
-    ? reasoningOptions.includes(effectiveReasoningEffort)
-      ? effectiveReasoningEffort
-      : reasoningOptions[0]
-    : undefined
-  const selectedIndex = effectiveReasoningEffort === 'default' ? -1 : sliderEfforts.indexOf(effectiveReasoningEffort)
+  const selectedOption = supportsReasoning ? effectiveReasoningEffort : undefined
+  const defaultSliderEffort = model.reasoning?.defaultEffort
+  const sliderSelection =
+    effectiveReasoningEffort === 'default' &&
+    defaultSliderEffort !== undefined &&
+    sliderEfforts.includes(defaultSliderEffort)
+      ? defaultSliderEffort
+      : effectiveReasoningEffort
+  const selectedIndex = sliderSelection === 'default' ? -1 : sliderEfforts.indexOf(sliderSelection)
   const currentIndex = selectedIndex >= 0 ? selectedIndex : 0
-  const displayedEffort = showEffortSlider ? sliderEfforts[currentIndex] : selectedOption
+  const displayedEffort = showEffortSlider ? effectiveReasoningEffort : selectedOption
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
   const triggerLabel = supportsReasoning ? effortLabel : fastMode ? t('agent.speed.fast') : t('agent.speed.label')
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <Popover>
+      <PopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
@@ -110,8 +96,8 @@ export function ComposerSpeedControl({
           {supportsReasoning && fastMode && supportsFast ? <span>· {t('agent.speed.fast')}</span> : null}
           <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
+      </PopoverTrigger>
+      <PopoverContent
         side="top"
         align="end"
         sideOffset={8}
@@ -156,6 +142,8 @@ export function ComposerSpeedControl({
                 max={sliderEfforts.length - 1}
                 step={1}
                 size="lg"
+                getThumbAriaLabel={() => t('agent.speed.effort')}
+                getThumbAriaValueText={() => effortLabel}
                 className={cn(
                   'h-8',
                   '[&_[data-slot=slider-track]]:h-2.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner dark:[&_[data-slot=slider-track]]:bg-neutral-700!',
@@ -185,17 +173,22 @@ export function ComposerSpeedControl({
             </div>
           </div>
         ) : supportsReasoning ? (
-          <DropdownMenuRadioGroup
+          <RadioGroup
             value={displayedEffort}
+            aria-label={t('agent.speed.effort')}
+            className="gap-0"
             onValueChange={(effort) => onReasoningEffortChange(effort as ThinkingOption)}>
             {reasoningOptions.map((effort) => (
-              <DropdownMenuRadioItem key={effort} value={effort} className="text-xs">
-                {t(EFFORT_LABEL_KEYS[effort])}
-              </DropdownMenuRadioItem>
+              <label
+                key={effort}
+                className="flex h-8 cursor-pointer items-center gap-2 rounded-sm px-2 text-xs hover:bg-accent">
+                <RadioGroupItem value={effort} size="sm" />
+                <span>{t(EFFORT_LABEL_KEYS[effort])}</span>
+              </label>
             ))}
-          </DropdownMenuRadioGroup>
+          </RadioGroup>
         ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   )
 }

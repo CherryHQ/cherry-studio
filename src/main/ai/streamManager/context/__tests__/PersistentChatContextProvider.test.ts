@@ -545,6 +545,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
           topicId: 'topic-1',
           role: 'assistant',
           data: {
+            turnOptions: { reasoningEffort: 'high', fastMode: true },
             parts: [
               { type: 'text', text: 'let me call a tool' },
               {
@@ -628,6 +629,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       | undefined
     expect(toolPart?.state).toBe('approval-responded')
     expect(toolPart?.approval).toEqual({ id: APPROVAL_ID, approved: true })
+    expect(anchor.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
   })
 
   it("reuses the anchor's model and re-anchors history on the assistant row (no new placeholder)", async () => {
@@ -663,6 +665,8 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       completedAt: 2_000,
       spans: []
     })
+    expect(prepared.models[0].request.reasoningEffort).toBe('high')
+    expect(prepared.models[0].request.fastMode).toBe(true)
 
     // No placeholder row was created — the path to the anchor is unchanged.
     const afterCount = messageService.getPathToNode('a1').length

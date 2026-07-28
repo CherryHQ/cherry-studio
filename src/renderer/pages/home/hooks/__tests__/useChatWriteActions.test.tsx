@@ -450,7 +450,10 @@ describe('useChatWriteActions — fork and resend', () => {
       cache
     )
 
-    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any, {
+      reasoningEffort: 'high',
+      fastMode: true
+    })
 
     expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
     expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
@@ -460,7 +463,9 @@ describe('useChatWriteActions — fork and resend', () => {
       expect.objectContaining({
         trigger: 'regenerate-message',
         topicId: 't1',
-        parentAnchorId: 'forked-user'
+        parentAnchorId: 'forked-user',
+        reasoningEffort: 'high',
+        fastMode: true
       })
     )
     expect(onLocalSendStarted).toHaveBeenCalledOnce()

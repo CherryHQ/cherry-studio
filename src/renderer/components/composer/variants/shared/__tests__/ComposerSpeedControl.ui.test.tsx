@@ -17,10 +17,10 @@ vi.mock('@cherrystudio/ui', () => ({
     delete buttonProps.size
     return <button type="button" {...buttonProps} />
   },
-  DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
-  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DropdownMenuRadioGroup: ({
+  Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  RadioGroup: ({
     children,
     value,
     onValueChange
@@ -40,23 +40,32 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </div>
   ),
-  DropdownMenuRadioItem: ({ children, value }: { children: ReactNode; value: string; className?: string }) => (
-    <button type="button" data-reasoning-value={value}>
-      {children}
-    </button>
+  RadioGroupItem: ({ value }: { value: string; size?: string }) => (
+    <button type="button" data-reasoning-value={value} />
   ),
   Slider: ({
     max,
     value,
     className,
+    getThumbAriaLabel,
+    getThumbAriaValueText,
     onValueChange
   }: {
     max: number
     value: number[]
     className?: string
+    getThumbAriaLabel?: (index: number) => string
+    getThumbAriaValueText?: (value: number, index: number) => string
     onValueChange: (value: number[]) => void
   }) => (
-    <div data-testid="reasoning-slider" className={className} data-max={max} data-value={value[0]}>
+    <div
+      role="slider"
+      aria-label={getThumbAriaLabel?.(0)}
+      aria-valuetext={getThumbAriaValueText?.(value[0], 0)}
+      data-testid="reasoning-slider"
+      className={className}
+      data-max={max}
+      data-value={value[0]}>
       <button type="button" data-testid="select-slider-min" onClick={() => onValueChange([0])}>
         select minimum
       </button>
@@ -78,7 +87,8 @@ const codexModel = {
   isEnabled: true,
   isHidden: false,
   reasoning: {
-    controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] }],
+    controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], default: 'max' }],
+    defaultEffort: 'max',
     selectableEfforts: ['max', 'none', 'high', 'medium', 'low', 'xhigh']
   }
 } satisfies Model
@@ -99,8 +109,8 @@ function ControlledSpeedControl({ model, initialEffort }: { model: Model; initia
 }
 
 describe('ComposerSpeedControl UI', () => {
-  it('resolves a stored Default to the first multi-tier slider effort', () => {
-    expect(resolveComposerReasoningEffort(codexModel, 'default')).toBe('none')
+  it('preserves a stored Default for a multi-tier slider model', () => {
+    expect(resolveComposerReasoningEffort(codexModel, 'default')).toBe('default')
   })
 
   it('preserves Default for a menu-only reasoning model', () => {
@@ -145,17 +155,21 @@ describe('ComposerSpeedControl UI', () => {
     )
   })
 
-  it('displays a stored Default as the first slider effort', () => {
+  it("displays a stored Default at the model's declared default without changing its submitted value", () => {
     render(<ControlledSpeedControl model={codexModel} initialEffort="default" />)
 
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
-      'assistants.settings.reasoning_effort.off'
+      'assistants.settings.reasoning_effort.default'
     )
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
-    expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '0')
+    expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '5')
     expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
     expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
-      'assistants.settings.reasoning_effort.off'
+      'assistants.settings.reasoning_effort.default'
+    )
+    expect(screen.getByRole('slider', { name: 'agent.speed.effort' })).toHaveAttribute(
+      'aria-valuetext',
+      'assistants.settings.reasoning_effort.default'
     )
   })
 
@@ -202,7 +216,8 @@ describe('ComposerSpeedControl UI', () => {
           apiModelId: 'deepseek-v4-pro',
           supportsFastMode: false,
           reasoning: {
-            controls: [{ kind: 'effort', values: ['none', 'high', 'max'] }],
+            controls: [{ kind: 'effort', values: ['none', 'high', 'max'], default: 'high' }],
+            defaultEffort: 'high',
             selectableEfforts: ['high', 'max', 'none']
           }
         }}
@@ -211,7 +226,7 @@ describe('ComposerSpeedControl UI', () => {
     )
 
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-max', '2')
-    expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '0')
+    expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '1')
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
   })
@@ -220,7 +235,7 @@ describe('ComposerSpeedControl UI', () => {
     render(<ControlledSpeedControl model={codexModel} initialEffort="default" />)
 
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
-      'assistants.settings.reasoning_effort.off'
+      'assistants.settings.reasoning_effort.default'
     )
     fireEvent.click(screen.getByTestId('select-slider-max'))
 

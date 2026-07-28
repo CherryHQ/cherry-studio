@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   apiGatewayStart: vi.fn(),
   apiGatewayGetCurrentConfig: vi.fn(),
   apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
+  apiGatewayGetInternalRequestToken: vi.fn(),
   resolveReasoningProfile: vi.fn(),
   getAppLanguage: vi.fn()
 }))
@@ -71,7 +72,8 @@ vi.mock('@application', () => ({
           isRunning: mocks.apiGatewayIsRunning,
           start: mocks.apiGatewayStart,
           getCurrentConfig: mocks.apiGatewayGetCurrentConfig,
-          getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders
+          getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders,
+          getInternalRequestToken: mocks.apiGatewayGetInternalRequestToken
         }
       }
       if (name === 'PreferenceService') {
@@ -145,6 +147,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       'x-cherry-internal-usage-token': 'internal-token'
     })
     mocks.getAppLanguage.mockReturnValue('en-US')
+    mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
     mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
@@ -181,9 +184,14 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('passes the per-turn knowledge selection into settings and the warm signature', async () => {
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', [
-      'kb-selected'
-    ])
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      ['kb-selected']
+    )
 
     expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
       expect.anything(),
@@ -201,9 +209,14 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       knowledgeBaseIds: ['kb-bound']
     })
 
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', [
-      'kb-selected'
-    ])
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      ['kb-selected']
+    )
 
     expect(request?.knowledgeBaseIds).toEqual(['kb-bound'])
   })
@@ -644,7 +657,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', true)
 
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_CUSTOM_HEADERS: 'X-Cherry-Fast-Mode: true'
+      ANTHROPIC_CUSTOM_HEADERS:
+        'x-cherry-agent-session-id: session-1\nx-cherry-internal-usage-token: internal-token\nX-Cherry-Fast-Mode: true\nX-Cherry-Internal-Request-Token: internal-request-token'
     })
   })
 
@@ -667,7 +681,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', true)
 
-    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('X-Custom-Header: retained\nX-Cherry-Fast-Mode: true')
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'X-Custom-Header: retained\nx-cherry-agent-session-id: session-1\nx-cherry-internal-usage-token: internal-token\nX-Cherry-Fast-Mode: true\nX-Cherry-Internal-Request-Token: internal-request-token'
+    )
   })
 
   it('pins cross-provider plan/small models onto the primary for an external-cli (claude-code) agent instead of routing through the gateway', async () => {
@@ -995,8 +1011,8 @@ describe('deriveConnectionConfig', () => {
   })
 
   it('fingerprints composer knowledge selection only when the Agent has no static binding', async () => {
-    const unselected = await deriveConnectionConfig('session-1', undefined, 'default', [])
-    const selected = await deriveConnectionConfig('session-1', undefined, 'default', ['kb-selected'])
+    const unselected = await deriveConnectionConfig('session-1', undefined, 'default', false, [])
+    const selected = await deriveConnectionConfig('session-1', undefined, 'default', false, ['kb-selected'])
     if (!unselected.ok || !selected.ok) throw new Error('expected ok derive')
     expect(selected.config.rebuildSignature).not.toBe(unselected.config.rebuildSignature)
 
@@ -1008,8 +1024,8 @@ describe('deriveConnectionConfig', () => {
       knowledgeBaseIds: ['kb-bound'],
       configuration: {}
     })
-    const firstSelection = await deriveConnectionConfig('session-1', undefined, 'default', ['kb-a'])
-    const secondSelection = await deriveConnectionConfig('session-1', undefined, 'default', ['kb-b'])
+    const firstSelection = await deriveConnectionConfig('session-1', undefined, 'default', false, ['kb-a'])
+    const secondSelection = await deriveConnectionConfig('session-1', undefined, 'default', false, ['kb-b'])
     if (!firstSelection.ok || !secondSelection.ok) throw new Error('expected ok derive')
     expect(secondSelection.config.rebuildSignature).toBe(firstSelection.config.rebuildSignature)
   })

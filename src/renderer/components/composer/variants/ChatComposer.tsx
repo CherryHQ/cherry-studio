@@ -1227,8 +1227,7 @@ const ChatComposerInner = ({
         if (editSaveInFlightSessionIdRef.current === editingSessionId) return
 
         const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
-        const saveEditedMessage = isAssistantReply ? chatWrite?.editMessage : chatWrite?.forkAndResend
-        if (!saveEditedMessage) {
+        if (!chatWrite) {
           toast.error(t('message.error.operation_unavailable'))
           return
         }
@@ -1247,7 +1246,24 @@ const ChatComposerInner = ({
           const savedParts = isAssistantReply
             ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
             : editedParts
-          await saveEditedMessage(editingMessageForCurrentTopic.message.id, savedParts)
+          if (isAssistantReply) {
+            await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
+          } else {
+            const editedTurnOptions = {
+              reasoningEffort:
+                assistantId && speedControlModel
+                  ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
+                  : assistantId
+                    ? reasoningEffort
+                    : 'default',
+              fastMode: fastMode && speedControlModel?.supportsFastMode === true
+            }
+            if (editedTurnOptions.reasoningEffort === 'default' && !editedTurnOptions.fastMode) {
+              await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts)
+            } else {
+              await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
+            }
+          }
           if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
             restoreSavedDraft()
             stopEditing()
@@ -1320,6 +1336,7 @@ const ChatComposerInner = ({
       }
     },
     [
+      assistantId,
       buildQueuedPayload,
       buildEditedMessageParts,
       canSteer,
@@ -1329,6 +1346,7 @@ const ChatComposerInner = ({
       editingMessageForCurrentTopic,
       editingMessageForCurrentTopicRef,
       enqueueFollowup,
+      fastMode,
       files,
       handleModelSelect,
       loading,
@@ -1336,12 +1354,14 @@ const ChatComposerInner = ({
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
+      reasoningEffort,
       selectedKnowledgeBases,
       selectedModelForMissingAssistantDefault,
       selectedModelForUnlinkedHome,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
+      speedControlModel,
       setFiles,
       setSelectedKnowledgeBases,
       setText,

@@ -292,7 +292,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, { fastMode: true })
 
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(mocks.listLocalSkills).toHaveBeenCalledWith('/workspace/project')
@@ -305,7 +305,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       '/app/feature.agents.data/agent-1'
     )
     expect(settings.systemPrompt as string).toContain('"/workspace/project"')
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, fastMode: true })
+    expect(settings).not.toHaveProperty('fastMode')
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {
@@ -352,6 +353,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.settingSources).toEqual(['user', 'project', 'local'])
+    expect(settings.settings).toMatchObject({ fastMode: false })
   })
 
   it('whitelists by directory name only, excludes disabled, never lets a shared SKILL.md name leak through', async () => {
