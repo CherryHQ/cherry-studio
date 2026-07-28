@@ -89,6 +89,10 @@ interface Entry {
   pendingSnapshots: Map<string, PendingSnapshot>
   readerVersions: Map<string, number>
   readers: Map<string, ReaderHandle>
+  /** Terminal reader keys that remain reported by a mounted consumer. Keep
+   *  them satisfied until the key leaves the desired set so an overlay
+   *  publication render cannot restart the just-finished execution. */
+  settledKeys: Set<string>
   /** In-flight reader loops. Kept separately from `readers` so cancellation
    *  can retire a handle before its async loop reaches `finally`. */
   liveReaderCount: number
@@ -215,6 +219,7 @@ export class ExecutionStreamOverlayService {
     // Remove the contribution WITHOUT converging readers: departure must not
     // cancel them — surviving unmount is the point of this service.
     entry.desired.delete(consumer)
+    this.#pruneSettledKeys(entry)
     entry.refCount = Math.max(0, entry.refCount - 1)
     if (entry.refCount === 0) entry.needsRemountReconcile = true
     this.#maybeDrop(entry)
@@ -245,6 +250,10 @@ export class ExecutionStreamOverlayService {
       }
     }
 
+    for (const key of entry.settledKeys) {
+      if (!union.has(key)) entry.settledKeys.delete(key)
+    }
+
     if (entry.needsRemountReconcile) {
       entry.needsRemountReconcile = false
       const liveExecutionIds = new Set([...union.values()].map((item) => item.executionId as string))
@@ -267,7 +276,7 @@ export class ExecutionStreamOverlayService {
     }
 
     for (const [key, item] of union) {
-      if (entry.readers.has(key)) continue
+      if (entry.readers.has(key) || entry.settledKeys.has(key)) continue
       this.#startReader(entry, key, item.executionId, item.anchorMessageId, item.seed.getSeedMessages)
     }
   }
@@ -337,6 +346,7 @@ export class ExecutionStreamOverlayService {
       pendingSnapshots: new Map(),
       readerVersions: new Map(),
       readers: new Map(),
+      settledKeys: new Set(),
       liveReaderCount: 0,
       epoch: 0,
       frameId: null,
@@ -365,6 +375,18 @@ export class ExecutionStreamOverlayService {
   #maybeDrop(entry: Entry): void {
     if (entry.refCount > 0 || entry.liveReaderCount > 0) return
     this.#dropEntry(entry)
+  }
+
+  #pruneSettledKeys(entry: Entry): void {
+    const desiredKeys = new Set<string>()
+    for (const contribution of entry.desired.values()) {
+      for (const { executionId, anchorMessageId } of contribution.executions) {
+        desiredKeys.add(executionKey(executionId, anchorMessageId))
+      }
+    }
+    for (const key of entry.settledKeys) {
+      if (!desiredKeys.has(key)) entry.settledKeys.delete(key)
+    }
   }
 
   #dropEntry(entry: Entry): void {
@@ -446,6 +468,12 @@ export class ExecutionStreamOverlayService {
           entry.readers.delete(key)
         }
         if (!cancelled) {
+          const remainsDesired = [...entry.desired.values()].some((contribution) =>
+            contribution.executions.some(
+              (execution) => executionKey(execution.executionId, execution.anchorMessageId) === key
+            )
+          )
+          if (remainsDesired) entry.settledKeys.add(key)
           // Terminal frames must be visible before the overlay handoff. This
           // is the sole intentional commit outside the animation-frame cadence.
           this.#flushPending(entry, readerEpoch)

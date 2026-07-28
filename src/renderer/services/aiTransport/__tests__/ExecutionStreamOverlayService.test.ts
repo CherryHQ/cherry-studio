@@ -215,6 +215,13 @@ describe('ExecutionStreamOverlayService', () => {
     expect(sub.disposed).toBe(false)
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
 
+    // Publishing the terminal frame can rerender a mounted consumer before
+    // shared status removes the execution. That same desired key must not
+    // restart a reader and clear the retained final frame.
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
+    expect(sub.branches.size).toBe(0)
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
+
     service.reset(TOPIC)
     expect(service.getView(TOPIC).overlay).toEqual({})
 
