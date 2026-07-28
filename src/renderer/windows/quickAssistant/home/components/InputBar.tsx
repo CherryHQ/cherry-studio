@@ -7,7 +7,6 @@ import React, { useRef } from 'react'
 interface InputBarProps {
   text: string
   model?: Model
-  referenceText: string
   placeholder: string
   loading: boolean
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
