@@ -2,7 +2,7 @@
 title: Clear context is restored in Home Chat
 category: data-migration
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#17524"
 date: 2026-07-28
 ---
 
