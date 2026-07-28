@@ -53,6 +53,9 @@ const NotesSearchMatchList: FC<NotesSearchMatchListProps> = ({ noteId, keyword, 
                 noteId,
                 lineNumber: match.lineNumber,
                 lineContent: match.lineContent,
+                // The keyword that produced this result — the page's live keyword can
+                // have moved on to a newer query by the time the target file is ready.
+                keyword,
                 // The ordinal within this line, plus the line's total. The editor can
                 // only resolve a top-level rendered block, which need not stand for one
                 // markdown line — a list or table is one block for many lines, and a
