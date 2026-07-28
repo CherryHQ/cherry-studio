@@ -2,27 +2,31 @@
  * Window-level owner of streaming overlay state shared by topic and agent-session
  * consumers (execution readers, live snapshots, rAF-batched flushes). Extracted
  * from `useExecutionOverlay` so the overlay's lifetime is keyed by the transport
- * `topicId` routing scope instead of a component instance: route/tab/conversation
- * switches release their view (refcount) without tearing down readers or detaching
- * the Main listener, and re-acquire the retained view synchronously on remount.
+ * `topicId` routing scope instead of a component instance: while a stream is
+ * running, route/tab/conversation switches release their view (refcount)
+ * without tearing down readers or detaching the Main listener, and re-acquire
+ * the retained view synchronously on remount. An idle entry (no running
+ * reader) may drop on release — the next mount rebuilds from SQLite.
  *
  * Lifecycle rules:
  * - Readers start ONLY from a mounted consumer (`syncExecutions`), so the
- *   continue-safe seed rule (see reader notes below) keeps its exact current
- *   semantics. While no consumer is mounted, running readers keep assembling;
+ *   continue-safe seed rule (see reader notes below) applies unchanged.
+ *   While no consumer is mounted, running readers keep assembling;
  *   executions that appear meanwhile get no reader — their chunks queue in
- *   `TopicStreamSubscription`'s auto-created branches (attached) or replay
- *   from Main on the next attach (entry dropped), both lossless.
+ *   `TopicStreamSubscription`'s auto-created branches (attached) or are
+ *   replayed from Main's bounded buffer on the next attach (entry dropped);
+ *   SQLite persistence is the durable fallback past the buffer.
  * - Terminal handoff is dual-mode. With a consumer mounted, the existing
  *   status-edge handoff (`useTopicOverlayHandoffOnTerminal` → refresh →
  *   `reset`) owns disposal, unchanged. With `refCount === 0`, the edge
  *   would be unobservable (it is tracked per component instance), so the
  *   entry is dropped as soon as its last reader ends — the next mount
  *   rebuilds from DB + shared cache exactly like today's remount path.
- * - `MAX_ENTRIES` LRU eviction of refCount-0 entries is a leak backstop only
- *   (lost terminal events, abandoned routing scopes); steady state is O(live streams).
+ * - `MAX_ENTRIES` LRU eviction of refCount-0 entries is a leak backstop
+ *   (lost terminal events, abandoned routing scopes); it cancels readers
+ *   first so a truncated stream is never reported as a successful finish.
  *
- * Reader semantics (moved verbatim from the hook): each execution gets a
+ * Reader semantics (moved from the hook): each execution gets a
  * one-shot `readUIMessageStream` reader with zero cross-turn state. The
  * reader is seeded with the message whose id is `anchorMessageId` taken from
  * the *current* DB truth supplied by the consumer; for a tool-approval /
@@ -110,7 +114,12 @@ interface Entry {
 }
 
 const MAX_ENTRIES = 32
-const EMPTY_VIEW: ExecutionOverlayView = { overlay: {}, liveAssistants: [] }
+// Frozen: its reference identity is what keeps useSyncExternalStore stable,
+// so a consumer mutation would silently poison every topic in the window.
+const EMPTY_VIEW: ExecutionOverlayView = Object.freeze({
+  overlay: Object.freeze({}),
+  liveAssistants: Object.freeze([]) as unknown as CherryUIMessage[]
+})
 
 function executionKey(executionId: UniqueModelId, anchorMessageId?: string): string {
   return JSON.stringify([executionId, anchorMessageId ?? null])
@@ -217,9 +226,12 @@ export class ExecutionStreamOverlayService {
     const entry = this.#entries.get(topicId)
     if (!entry) return
     // Remove the contribution WITHOUT converging readers: departure must not
-    // cancel them — surviving unmount is the point of this service.
+    // cancel them — surviving unmount is the point of this service. Settled
+    // keys are also kept: pruning them here (when this was the last consumer)
+    // would let a remount with a temporarily stale active set restart a
+    // finished execution and wipe its retained final frame. syncExecutions
+    // prunes them against the union once fresh state arrives.
     entry.desired.delete(consumer)
-    this.#pruneSettledKeys(entry)
     entry.refCount = Math.max(0, entry.refCount - 1)
     if (entry.refCount === 0) entry.needsRemountReconcile = true
     this.#maybeDrop(entry)
@@ -395,7 +407,16 @@ export class ExecutionStreamOverlayService {
         if (!oldest || entry.lastActiveAt < oldest.lastActiveAt) oldest = entry
       }
       if (!oldest) return
-      logger.warn('evicting stale overlay entry', { topicId: oldest.topicId })
+      logger.error('evicting stale overlay entry', {
+        topicId: oldest.topicId,
+        entryCount: this.#entries.size,
+        liveReaders: oldest.liveReaderCount,
+        idleMs: Date.now() - oldest.lastActiveAt
+      })
+      // Cancel before dropping: dispose closes branches cleanly, and a still-
+      // running reader would otherwise report the truncated stream as a
+      // successful finish to onFinish consumers.
+      for (const handle of oldest.readers.values()) handle.cancel()
       this.#dropEntry(oldest)
     }
   }
@@ -409,18 +430,6 @@ export class ExecutionStreamOverlayService {
     const ids = new Set<string>()
     for (const handle of entry.readers.values()) ids.add(handle.executionId as string)
     return ids
-  }
-
-  #pruneSettledKeys(entry: Entry): void {
-    const desiredKeys = new Set<string>()
-    for (const contribution of entry.desired.values()) {
-      for (const { executionId, anchorMessageId } of contribution.executions) {
-        desiredKeys.add(executionKey(executionId, anchorMessageId))
-      }
-    }
-    for (const key of entry.settledKeys) {
-      if (!desiredKeys.has(key)) entry.settledKeys.delete(key)
-    }
   }
 
   #dropEntry(entry: Entry): void {
@@ -443,7 +452,9 @@ export class ExecutionStreamOverlayService {
     const readerVersion = (entry.readerVersions.get(executionId) ?? 0) + 1
     entry.readerVersions.set(executionId, readerVersion)
     entry.pendingSnapshots.delete(executionId)
-    // Readers use execution+anchor keys; snapshots stay executionId-keyed because only one anchor is live per execution.
+    // Readers use execution+anchor keys; snapshots stay executionId-keyed on
+    // the PRECONDITION that at most one anchor is live per execution at a time
+    // (steer continuation hands anchors off sequentially, never in parallel).
     // New turn for this execution: clear any retained prior snapshot.
     if (executionId in entry.snapshots) {
       const next = { ...entry.snapshots }
@@ -452,6 +463,7 @@ export class ExecutionStreamOverlayService {
     }
 
     let cancelled = false
+    let readerFailed = false
     let terminal: { isAbort: boolean; isError: boolean } | undefined
     const offTerminal = entry.sub.onExecutionTerminal((id, t) => {
       if (id !== executionId) return
@@ -494,7 +506,10 @@ export class ExecutionStreamOverlayService {
           this.#queueSnapshot(entry, executionId, nextSnapshot, readerEpoch, readerVersion)
         }
       } catch (err) {
-        logger.warn('execution reader threw', { topicId, executionId, err })
+        // A crashed reader must not be reported as a clean success: transport
+        // terminals never reach it, so isError has to come from here.
+        readerFailed = true
+        logger.error('execution reader threw', { topicId, executionId, err })
       } finally {
         offTerminal()
         if (entry.readers.get(key) === handle) {
@@ -509,15 +524,17 @@ export class ExecutionStreamOverlayService {
           )
           if (remainsDesired) entry.settledKeys.add(key)
           // Terminal frames must be visible before the overlay handoff. This
-          // is the sole intentional commit outside the animation-frame cadence.
+          // and the acquire()-time stall flush are the intentional commits
+          // outside the animation-frame cadence.
           this.#flushPending(entry, readerEpoch)
           const t = terminal ?? { isAbort: false, isError: false }
+          const isError = t.isError || readerFailed
           const message = last ?? seed
-          if (message || t.isError) {
+          if (message || isError) {
             const event: ExecutionFinishEvent = {
               message: message ?? { id: '', role: 'assistant', parts: [] },
               isAbort: t.isAbort,
-              isError: t.isError
+              isError
             }
             for (const listener of [...entry.finishListeners]) {
               try {

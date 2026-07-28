@@ -229,6 +229,37 @@ describe('ExecutionStreamOverlayService', () => {
     expect(sub.disposed).toBe(true)
   })
 
+  it('remount with a stale active set does not restart a settled execution or wipe its final frame', async () => {
+    const B = 'anthropic::claude' as UniqueModelId
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const seed = () => [asst('anchor-a'), asst('anchor-b')]
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    const sub = mocks.subs.get(TOPIC)!
+
+    // A finishes; B keeps streaming so the entry survives the release below.
+    streamText(sub, A, 't1', 'final')
+    sub.terminal(A, { isAbort: false, isError: false })
+    sub.emit(B, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
+    sub.emit(B, { type: 'text-delta', id: 't2', delta: 'live' } as CherryUIMessageChunk, 'anchor-b')
+    await nextFrame()
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
+
+    service.release(TOPIC, consumer)
+
+    // Remount while shared status is momentarily stale and still lists A.
+    const consumer2 = {}
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer2, [exec(A, 'anchor-a'), exec(B, 'anchor-b')], seed)
+    await drainStreamMicrotasks()
+
+    // A stays settled: no reader restart, retained final frame intact.
+    expect(sub.branches.has(JSON.stringify([A, 'anchor-a']))).toBe(false)
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
+    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
+  })
+
   it('reset drops only settled snapshots — a newer turn already streaming keeps its reader publishing', async () => {
     const B = 'anthropic::claude' as UniqueModelId
     const service = new ExecutionStreamOverlayService()

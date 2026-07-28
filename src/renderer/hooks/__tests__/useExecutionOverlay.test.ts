@@ -353,6 +353,28 @@ describe('useExecutionOverlay', () => {
     expect(frames.cancel).toHaveBeenCalledTimes(1)
   })
 
+  it('React round-trip: unmount keeps assembling, remount renders pre- and post-unmount content', async () => {
+    const ui = [asst('anchor-a')]
+    const executions = [exec(A, 'anchor-a')]
+    const first = renderHook(() => useExecutionOverlay(TOPIC, executions, ui))
+    fake.emit(A, { type: 'text-start', id: 't1' } as CherryUIMessageChunk)
+    fake.emit(A, { type: 'text-delta', id: 't1', delta: 'before' } as CherryUIMessageChunk)
+    await waitFor(() => expect(textOf(first.result.current.overlay['anchor-a'])).toBe('before'))
+
+    first.unmount()
+
+    // Stream continues while no consumer is mounted.
+    await act(async () => {
+      fake.emit(A, { type: 'text-delta', id: 't1', delta: ' after' } as CherryUIMessageChunk)
+      await drainStreamMicrotasks()
+    })
+
+    // acquire() flushes stalled pending frames synchronously, so the
+    // remounted consumer's first read already holds both halves.
+    const second = renderHook(() => useExecutionOverlay(TOPIC, executions, ui))
+    expect(textOf(second.result.current.overlay['anchor-a'])).toBe('before after')
+  })
+
   it('prevents a cancelled frame from restoring snapshots after a destructive clear', async () => {
     const frames = installControlledAnimationFrames()
     const ui = [asst('anchor-a')]
