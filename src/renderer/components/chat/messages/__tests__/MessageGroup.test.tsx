@@ -446,6 +446,23 @@ describe('MessageGroup', () => {
     expect(container.querySelector('#message-msg-2 [data-testid="message-tail"]')).toHaveTextContent('background tasks')
   })
 
+  it('moves adapter-owned tail content without leaving the previous message memoized', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical'), createMessage('msg-2', 1, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+    const tailContent = <div data-testid="message-tail">background tasks</div>
+    const { container, rerender } = render(
+      <MessageGroup messages={messages} topic={topic} messageTail={{ messageId: 'msg-1', content: tailContent }} />
+    )
+
+    rerender(
+      <MessageGroup messages={messages} topic={topic} messageTail={{ messageId: 'msg-2', content: tailContent }} />
+    )
+
+    expect(container.querySelector('#message-msg-1 [data-testid="message-tail"]')).toBeNull()
+    expect(container.querySelector('#message-msg-2 [data-testid="message-tail"]')).toHaveTextContent('background tasks')
+    expect(container.querySelectorAll('[data-testid="message-tail"]')).toHaveLength(1)
+  })
+
   it('renders assistant footer actions in the same message body column as content', () => {
     const messages = [createMessage('msg-1', 0, 'vertical')]
     const topic = { id: 'topic-1' } as Topic

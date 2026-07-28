@@ -919,19 +919,66 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(secondTurnParts.some((part) => part.type === 'text-delta' && part.delta === 'second')).toBe(true)
     })
 
-    it('drops parented turn content that arrives with no turn open, and says so', () => {
-      const { adapter, parts } = createAdapter({}, { openTurn: false })
+    it('keeps a subagent flow context alive after the spawning main turn completes', () => {
+      const { adapter, parts, statusEvents } = createAdapter()
 
       adapter.handleMessage({
-        ...streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'orphan' } }),
-        parent_tool_use_id: 'task-9'
+        type: 'assistant',
+        parent_tool_use_id: 'task-root',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: '/tmp/a.ts' } }]
+        }
+      } as any)
+      adapter.handleMessage(successResult())
+      const mainPartCount = parts.length
+
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: 'task-root',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'source text' }]
+        }
+      } as any)
+
+      expect(parts).toHaveLength(mainPartCount)
+      expect(statusEvents).toContainEqual({
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: expect.objectContaining({
+          type: 'tool-output-available',
+          toolCallId: 'read-1'
+        })
       })
+    })
+
+    it('routes parented content to the detached FlowTab stream when no main turn is open', () => {
+      const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'task-9',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { content: [{ type: 'text', text: 'background result' }] }
+      } as any)
 
       expect(parts).toEqual([])
-      expect(loggerMocks.debug).toHaveBeenCalledWith(
-        'Dropping message received with no active turn',
-        expect.objectContaining({ type: 'stream_event', parentToolUseId: 'task-9' })
-      )
+      expect(statusEvents).toEqual([
+        expect.objectContaining({
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-9',
+          chunk: expect.objectContaining({ type: 'text-start' })
+        }),
+        expect.objectContaining({
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-9',
+          chunk: expect.objectContaining({ type: 'text-delta', delta: 'background result' })
+        })
+      ])
     })
 
     it('advances the resume token but reports no turn to complete for a stray result', () => {
@@ -1026,6 +1073,56 @@ describe('ClaudeCodeStreamAdapter', () => {
             }
           ]
         }
+      } as any)
+
+      expect(statusEvents.filter((event) => event.type === 'background-tasks')).toEqual([
+        {
+          type: 'background-tasks',
+          tasks: [{ id: 'subagent-b', type: 'subagent', description: 'Current task B' }]
+        },
+        {
+          type: 'background-tasks',
+          tasks: [
+            {
+              id: 'subagent-b',
+              type: 'subagent',
+              description: 'Current task B',
+              toolCallId: 'tool-use-b'
+            }
+          ]
+        }
+      ])
+    })
+
+    it('uses subagent edges only to enrich navigation without changing authoritative membership', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'subagent-b', task_type: 'subagent', description: 'Current task B' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-a',
+        tool_use_id: 'stale-tool-use-a',
+        description: 'Stale task A',
+        task_type: 'subagent'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'subagent-b',
+        tool_use_id: 'tool-use-b',
+        description: 'Current task B',
+        task_type: 'subagent'
       } as any)
 
       expect(statusEvents.filter((event) => event.type === 'background-tasks')).toEqual([
@@ -1312,7 +1409,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       )
     })
 
-    it('does not wake for parented content, which stays dropped with its parent id', () => {
+    it('does not wake the main agent for parented content and routes it to FlowTab instead', () => {
       const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
 
       adapter.handleMessage({
@@ -1323,12 +1420,20 @@ describe('ClaudeCodeStreamAdapter', () => {
         message: { content: [{ type: 'text', text: 'subagent internals' }] }
       } as any)
 
-      expect(statusEvents).toEqual([])
+      expect(statusEvents).toEqual([
+        expect.objectContaining({
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-1',
+          chunk: expect.objectContaining({ type: 'text-start' })
+        }),
+        expect.objectContaining({
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-1',
+          chunk: expect.objectContaining({ type: 'text-delta', delta: 'subagent internals' })
+        })
+      ])
       expect(parts).toEqual([])
-      expect(loggerMocks.debug).toHaveBeenCalledWith(
-        'Dropping message received with no active turn',
-        expect.objectContaining({ parentToolUseId: 'task-1' })
-      )
+      expect(statusEvents).not.toContainEqual({ type: 'receive-only-turn' })
     })
 
     it('holds init metadata until a turn opens, since it is turn content', () => {

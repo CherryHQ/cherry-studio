@@ -443,7 +443,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private bindApprovalEmitter(): void {
     if (!this.approvalEmitter) return
-    this.approvalEmitter.emit = (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
+    this.approvalEmitter.emit = (request) => this.eventQueue.push({ type: 'tool-approval-request', request })
   }
 
   /**

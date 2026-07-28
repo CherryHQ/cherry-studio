@@ -22,17 +22,18 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
+import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY, type AgentSessionFlowParts } from '@shared/ai/agentSessionFlowParts'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import type { UIMessageChunk } from 'ai'
+import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
@@ -43,6 +44,7 @@ import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
+  AgentRuntimeToolApprovalRequest,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput
 } from '../runtime/types'
@@ -59,6 +61,7 @@ import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
+const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = 'success' | 'paused' | 'error'
@@ -123,6 +126,14 @@ type PendingAgentSessionTurn = {
   reasoningEffort: ReasoningEffortOption
 }
 
+type BackgroundFlowAccumulator = {
+  messageId: string
+  controller: ReadableStreamDefaultController<UIMessageChunk>
+  latest?: CherryUIMessage
+  done: Promise<void>
+  closed: boolean
+}
+
 type AgentSessionConnectionTarget = {
   modelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
@@ -174,6 +185,8 @@ type AgentSessionRuntimeEntry = {
   retrying?: boolean
   /** Work outliving the current turn still needs the runtime connection kept alive. */
   backgroundWorkActive?: boolean
+  /** Responder availability captured from the turn that started the current background work. */
+  backgroundWorkHeadless?: boolean
   /** Fresh-turn rebuild waiting for connection-local background work to release. */
   backgroundWorkRelease?: {
     connection: AgentRuntimeConnection
@@ -188,6 +201,18 @@ type AgentSessionRuntimeEntry = {
   lastContextUsageRefreshAt?: number
   /** Single-flight marker for context-usage reads on the current connection. */
   contextUsageRefresh?: { connection: AgentRuntimeConnection; pending: boolean }
+  /** Root/nested tool call → persisted assistant row that owns its FlowTab projection. */
+  flowMessageIdsByToolCallId?: Map<string, string>
+  /** Assistant rows already committed by PersistenceListener and safe to use as accumulator seeds. */
+  persistedFlowMessageIds?: Set<string>
+  /** Detached chunks that raced PersistenceListener at the turn boundary. */
+  pendingBackgroundFlowChunks?: Map<string, UIMessageChunk[]>
+  /** One continuation accumulator per persisted assistant row receiving detached flow chunks. */
+  backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
+  /** Single-flight finalization of the current detached flow batch. */
+  backgroundFlowFlush?: Promise<void>
+  /** Main-owned live overlay published to every renderer window. */
+  backgroundFlowParts?: AgentSessionFlowParts
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -586,6 +611,8 @@ export class AgentSessionRuntimeService extends BaseService {
   markTurnTerminal(sessionId: string, status: AgentSessionRuntimeTerminalStatus): void {
     const entry = this.entries.get(sessionId)
     if (!entry) return
+    const completedTurn = entry.currentTurn
+    if (completedTurn) this.markFlowMessagePersisted(entry, completedTurn.assistantMessageId)
 
     // Roll: A1a closed at a steer-injection boundary. Mark A1a terminal but keep the session ACTIVE
     // and open the continuation (A2) for the post-steer response instead of idling. `currentTurn` is
@@ -606,7 +633,6 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.rollHeadless = undefined
     }
 
-    const completedTurn = entry.currentTurn
     if (completedTurn?.receiveOnly) {
       entry.receiveOnlyTurnCompleted = false
       if (entry.deferredTurn && !entry.autonomousGenerationActive) {
@@ -717,17 +743,42 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Resolve a Claude `canUseTool` approval that was registered against the live
-   * driver session. Returns `false` if no live entry matches — the caller
-   * falls back to MCP/DB path.
+   * Resolve a Claude `canUseTool` approval registered against this runtime session. Persisted
+   * interaction messages are settled before their SDK promise; live overlays are cleared after it.
+   * Returns `false` if no registry entry matches so the caller can fall back to the MCP path.
    */
-  respondToolApproval(approvalId: string, decision: DispatchDecision): boolean {
+  respondToolApproval(approvalId: string, decision: DispatchDecision, anchorId?: string): boolean {
+    const pending = toolApprovalRegistry.peek(approvalId)
+    if (!pending) return false
+
+    if (pending.presentation === 'message') {
+      if (!anchorId) {
+        logger.warn('Persisted tool approval response is missing its anchor message', { approvalId })
+        return false
+      }
+      const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
+        approvalId,
+        approved: decision.approved,
+        ...(decision.reason !== undefined && { reason: decision.reason }),
+        ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
+      })
+      if (!applied) {
+        logger.warn('Persisted tool approval response did not match a pending card', {
+          approvalId,
+          anchorId
+        })
+        return false
+      }
+    }
+
     const dispatched = toolApprovalRegistry.dispatch(approvalId, decision)
     if (!dispatched) return false
 
-    application
-      .get('AiStreamManager')
-      .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId)
+    if (dispatched.presentation === 'stream') {
+      application
+        .get('AiStreamManager')
+        .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId)
+    }
     return true
   }
 
@@ -970,9 +1021,12 @@ export class AgentSessionRuntimeService extends BaseService {
           break
         }
         const turn = entry.currentTurn
-        if (turn?.controller && !turn.terminalStatus) this.enqueueTurnChunk(turn, event.chunk)
+        if (turn?.controller && !turn.terminalStatus) this.enqueueTurnChunk(entry, turn, event.chunk)
         break
       }
+      case 'tool-approval-request':
+        this.handleToolApprovalRequest(entry, event.request)
+        break
       case 'steer-boundary':
         // The model is about to emit its post-steer assistant message. Finalise the pre-steer parts as
         // A1a (`closeCurrentTurn` 'success'), then buffer the continuation until `startContinuationTurn`
@@ -1028,6 +1082,9 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'background-task-event':
         this.publishBackgroundTaskEvent(entry, event.data, connection)
         break
+      case 'background-flow-chunk':
+        this.handleBackgroundFlowChunk(entry, event.rootToolCallId, event.chunk, connection)
+        break
       case 'autonomous-generation-state':
         this.handleAutonomousGenerationState(entry, event.active, connection)
         break
@@ -1082,7 +1139,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const turn = entry.currentTurn
     if (anchor && turn?.controller && !turn.terminalStatus) {
-      this.enqueueTurnChunk(turn, {
+      this.enqueueTurnChunk(entry, turn, {
         type: 'data-compaction-anchor',
         id: crypto.randomUUID(),
         data: anchor
@@ -1225,13 +1282,197 @@ export class AgentSessionRuntimeService extends BaseService {
     connection = entry.connection
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && entry.connection !== connection)) return
+    if (active && !entry.backgroundWorkActive) {
+      // Capture the spawning turn once. A later foreground/headless follow-up may replace
+      // `currentTurn`, but it must not change whether this already-running work has a responder.
+      entry.backgroundWorkHeadless = entry.currentTurn ? entry.currentTurn.headless === true : true
+    }
     entry.backgroundWorkActive = active
     if (active) {
       this.clearIdleTimer(entry)
     } else {
+      entry.backgroundWorkHeadless = undefined
+      void this.finishBackgroundFlows(entry)
       this.releaseBackgroundWorkWaiter(entry, connection)
       if (!this.isSessionBusy(entry.sessionId)) this.refreshIdleTimer(entry)
     }
+  }
+
+  private handleBackgroundFlowChunk(
+    entry: AgentSessionRuntimeEntry,
+    rootToolCallId: string,
+    chunk: UIMessageChunk,
+    connection = entry.connection
+  ): void {
+    if (!this.isCurrentEntry(entry) || (connection && entry.connection !== connection)) return
+
+    const messageId = entry.flowMessageIdsByToolCallId?.get(rootToolCallId)
+    if (!messageId) {
+      logger.debug('Ignoring detached subagent flow chunk without a persisted message anchor', {
+        sessionId: entry.sessionId,
+        rootToolCallId,
+        chunkType: chunk.type
+      })
+      return
+    }
+
+    if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
+      ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, messageId)
+    }
+
+    if (!entry.persistedFlowMessageIds?.has(messageId)) {
+      const pending = entry.pendingBackgroundFlowChunks ?? new Map<string, UIMessageChunk[]>()
+      entry.pendingBackgroundFlowChunks = pending
+      const chunks = pending.get(messageId) ?? []
+      chunks.push(chunk)
+      pending.set(messageId, chunks)
+      return
+    }
+
+    this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
+  }
+
+  private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    ;(entry.persistedFlowMessageIds ??= new Set()).add(messageId)
+    const pending = entry.pendingBackgroundFlowChunks?.get(messageId)
+    if (!pending?.length) return
+
+    entry.pendingBackgroundFlowChunks?.delete(messageId)
+    for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
+    if (!entry.backgroundWorkActive) void this.finishBackgroundFlows(entry)
+  }
+
+  private enqueueBackgroundFlowChunk(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
+    const accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
+    try {
+      accumulator.controller.enqueue(chunk)
+    } catch (error) {
+      logger.warn('Failed to enqueue detached subagent flow chunk', {
+        sessionId: entry.sessionId,
+        messageId,
+        chunkType: chunk.type,
+        error
+      })
+    }
+  }
+
+  private getOrCreateBackgroundFlowAccumulator(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string
+  ): BackgroundFlowAccumulator {
+    const accumulators = entry.backgroundFlowAccumulators ?? new Map<string, BackgroundFlowAccumulator>()
+    entry.backgroundFlowAccumulators = accumulators
+    const existing = accumulators.get(messageId)
+    if (existing) return existing
+
+    const persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+    const seed: CherryUIMessage = {
+      id: persisted.id,
+      role: 'assistant',
+      parts: structuredClone(persisted.data.parts ?? [])
+    }
+    let controller!: ReadableStreamDefaultController<UIMessageChunk>
+    const stream = new ReadableStream<UIMessageChunk>({
+      start: (streamController) => {
+        controller = streamController
+      }
+    })
+    const accumulator: BackgroundFlowAccumulator = {
+      messageId,
+      controller,
+      done: Promise.resolve(),
+      closed: false
+    }
+    accumulator.done = this.consumeBackgroundFlow(entry, accumulator, stream, seed)
+    accumulators.set(messageId, accumulator)
+    return accumulator
+  }
+
+  private async consumeBackgroundFlow(
+    entry: AgentSessionRuntimeEntry,
+    accumulator: BackgroundFlowAccumulator,
+    stream: ReadableStream<UIMessageChunk>,
+    seed: CherryUIMessage
+  ): Promise<void> {
+    try {
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+        stream,
+        message: seed,
+        terminateOnError: false,
+        onError: (error) =>
+          logger.warn('Detached subagent flow accumulator reported an error', {
+            sessionId: entry.sessionId,
+            messageId: accumulator.messageId,
+            error
+          })
+      })) {
+        accumulator.latest = snapshot
+        if (!this.isCurrentEntry(entry)) continue
+        const parts = snapshot.parts as CherryMessagePart[]
+        entry.backgroundFlowParts = {
+          ...entry.backgroundFlowParts,
+          [accumulator.messageId]: parts
+        }
+        application
+          .get('CacheService')
+          .setShared(AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId), entry.backgroundFlowParts)
+      }
+    } catch (error) {
+      logger.warn('Detached subagent flow accumulator failed', {
+        sessionId: entry.sessionId,
+        messageId: accumulator.messageId,
+        error
+      })
+    }
+  }
+
+  private finishBackgroundFlows(entry: AgentSessionRuntimeEntry): Promise<void> {
+    if (entry.backgroundFlowFlush) return entry.backgroundFlowFlush
+    const accumulators = [...(entry.backgroundFlowAccumulators?.values() ?? [])]
+    if (accumulators.length === 0) return Promise.resolve()
+
+    for (const accumulator of accumulators) {
+      if (accumulator.closed) continue
+      accumulator.closed = true
+      try {
+        accumulator.controller.close()
+      } catch {
+        // Already closed by the accumulator reader.
+      }
+    }
+
+    const flush = Promise.all(accumulators.map((accumulator) => accumulator.done))
+      .then(() => {
+        const completedMessageIds = new Set<string>()
+        for (const accumulator of accumulators) {
+          const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+          if (!parts) continue
+          completedMessageIds.add(accumulator.messageId)
+          agentSessionMessageService.saveBackgroundFlowParts(entry.sessionId, accumulator.messageId, parts)
+        }
+
+        entry.backgroundFlowAccumulators?.clear()
+        for (const [toolCallId, messageId] of entry.flowMessageIdsByToolCallId ?? []) {
+          if (completedMessageIds.has(messageId)) entry.flowMessageIdsByToolCallId?.delete(toolCallId)
+        }
+        if (entry.backgroundFlowParts && this.isCurrentEntry(entry)) {
+          application
+            .get('CacheService')
+            .setShared(
+              AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId),
+              entry.backgroundFlowParts,
+              BACKGROUND_FLOW_HANDOFF_TTL_MS
+            )
+        }
+      })
+      .catch((error) => {
+        logger.warn('Failed to finalize detached subagent flow parts', { sessionId: entry.sessionId, error })
+      })
+      .finally(() => {
+        if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
+      })
+    entry.backgroundFlowFlush = flush
+    return flush
   }
 
   private waitForBackgroundWorkRelease(
@@ -1306,14 +1547,80 @@ export class AgentSessionRuntimeService extends BaseService {
     cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
   }
 
+  private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
+    const turn = entry.currentTurn
+    if (request.presentation === 'stream') {
+      const chunk: UIMessageChunk = {
+        type: 'tool-approval-request',
+        approvalId: request.approvalId,
+        toolCallId: request.toolCallId
+      }
+      if (entry.rolling) {
+        ;(entry.rollBuffer ??= []).push(chunk)
+      } else if (turn?.controller && !turn.terminalStatus) {
+        this.enqueueTurnChunk(entry, turn, chunk)
+      } else {
+        logger.warn('Live tool approval request lost its turn stream', {
+          sessionId: entry.sessionId,
+          approvalId: request.approvalId
+        })
+        toolApprovalRegistry.dispatch(request.approvalId, {
+          approved: false,
+          reason: 'The turn ended before this approval request could be presented'
+        })
+      }
+      return
+    }
+
+    // The requesting agent outlived its parent turn. Persist a settled assistant row containing the
+    // pending interaction instead of reopening a streaming turn: user follow-ups remain admissible,
+    // and several subagents can wait independently without overwriting one shared live message.
+    const part = {
+      type: `tool-${request.toolName}`,
+      toolCallId: request.toolCallId,
+      state: 'approval-requested',
+      input: request.input,
+      approval: { id: request.approvalId },
+      ...(request.providerMetadata ? { callProviderMetadata: request.providerMetadata } : {})
+    } as CherryMessagePart
+
+    try {
+      agentSessionMessageService.saveToolApprovalMessage({
+        sessionId: entry.sessionId,
+        message: {
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [part] },
+          modelId: this.connectionTarget(entry).modelId,
+          messageSnapshot: entry.messageSnapshot
+        }
+      })
+    } catch (error) {
+      logger.error('Failed to persist background tool approval request', {
+        sessionId: entry.sessionId,
+        approvalId: request.approvalId,
+        error
+      })
+      toolApprovalRegistry.dispatch(request.approvalId, {
+        approved: false,
+        reason: 'Unable to present this approval request to the user'
+      })
+    }
+  }
+
   /**
    * Connection-scoped status is reset at every attach/detach boundary. Keep the mutation guarded by
    * the captured connection so a late old loop cannot clear its successor.
    */
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || entry.connection !== connection) return
+    void this.finishBackgroundFlows(entry)
+    entry.flowMessageIdsByToolCallId?.clear()
+    entry.persistedFlowMessageIds?.clear()
+    entry.pendingBackgroundFlowChunks?.clear()
     this.releaseBackgroundWorkWaiter(entry, connection)
     entry.backgroundWorkActive = false
+    entry.backgroundWorkHeadless = undefined
     entry.autonomousGenerationActive = false
     entry.receiveOnlyTurnCompleted = false
     const cache = application.get('CacheService')
@@ -1358,9 +1665,10 @@ export class AgentSessionRuntimeService extends BaseService {
     await entry.connection?.send({ message: turn.userMessage, systemReminder })
   }
 
-  private enqueueTurnChunk(turn: AgentSessionTurn, chunk: UIMessageChunk): void {
+  private enqueueTurnChunk(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn, chunk: UIMessageChunk): void {
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
       turn.activeToolIds.add(chunk.toolCallId)
+      ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, turn.assistantMessageId)
     } else if (
       (chunk.type === 'tool-output-available' ||
         chunk.type === 'tool-output-error' ||
@@ -1820,7 +2128,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const receiveOnlyCompleted = turn.receiveOnly === true && entry.receiveOnlyTurnCompleted === true
     entry.rolling = false
     entry.rollBuffer = undefined
-    for (const chunk of buffered) this.enqueueTurnChunk(turn, chunk)
+    for (const chunk of buffered) this.enqueueTurnChunk(entry, turn, chunk)
     if (receiveOnlyCompleted) {
       entry.receiveOnlyTurnCompleted = false
       this.closeCurrentTurn(entry, 'success')
@@ -1832,11 +2140,21 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
+   * Whether an interaction generated by this session can still be answered in Cherry. Background
+   * work keeps the responder availability of its spawning turn; it is deliberately independent from
+   * live stream ownership.
+   */
+  canRequestUserInteraction(sessionId: string): boolean {
+    const entry = this.entries.get(sessionId)
+    if (!entry) return false
+    if (entry.backgroundWorkActive) return entry.backgroundWorkHeadless === false
+    return entry.currentTurn !== undefined && entry.currentTurn.headless !== true
+  }
+
+  /**
    * Whether a chunk emitted right now would still reach a turn stream. Mirrors the `chunk` branch of
    * the connection event loop, including the mid-roll buffer that replays into the continuation turn.
-   * `canUseTool` gates on this: a detached background agent can call a tool after its turn's result,
-   * and the approval chunk would be dropped here, leaving the SDK's promise pending with nobody able
-   * to answer it.
+   * Permission adapters use this to choose a live overlay versus an independent interaction message.
    */
   hasLiveTurnStream(sessionId: string): boolean {
     const entry = this.entries.get(sessionId)
@@ -1943,6 +2261,16 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private closeEntry(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
+    if (entry.backgroundFlowParts) {
+      application
+        .get('CacheService')
+        .setShared(
+          AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId),
+          entry.backgroundFlowParts,
+          BACKGROUND_FLOW_HANDOFF_TTL_MS
+        )
+    }
+    void this.finishBackgroundFlows(entry)
     this.closeCurrentTurn(entry, 'paused')
     if (entry.deferredTurn) {
       entry.deferredTurn.terminalStatus = 'paused'

@@ -506,11 +506,15 @@ describe('AiService tool approval', () => {
     })
 
     expect(result).toEqual({ ok: true })
-    expect(respondToolApproval).toHaveBeenCalledWith('agent-approval-1', {
-      approved: true,
-      reason: undefined,
-      updatedInput: undefined
-    })
+    expect(respondToolApproval).toHaveBeenCalledWith(
+      'agent-approval-1',
+      {
+        approved: true,
+        reason: undefined,
+        updatedInput: undefined
+      },
+      undefined
+    )
     // Fast-path short-circuits before any DB read or continue dispatch.
     expect(getById).not.toHaveBeenCalled()
     expect(dispatch).not.toHaveBeenCalled()

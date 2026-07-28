@@ -1726,7 +1726,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('binds tool approval requests into the active turn stream', async () => {
+  it('binds tool approval requests into the runtime event queue', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     const dispose = vi.fn()
@@ -1748,16 +1748,17 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     await connection.send({ message: userMessage() })
     approvalEmitter.emit({
-      type: 'tool-approval-request',
       approvalId: 'approval-1',
-      toolCallId: 'tool-1'
+      toolCallId: 'tool-1',
+      toolName: 'Bash',
+      input: { command: 'pwd' },
+      presentation: 'stream'
     } as any)
 
     await expect(events.next()).resolves.toMatchObject({
       value: {
-        type: 'chunk',
-        chunk: {
-          type: 'tool-approval-request',
+        type: 'tool-approval-request',
+        request: {
           approvalId: 'approval-1',
           toolCallId: 'tool-1'
         }
@@ -1798,9 +1799,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(dispose).not.toHaveBeenCalled()
 
     // Turn 2's approval still reaches the stream — the emitter survived turn 1.
-    approvalEmitter.emit({ type: 'tool-approval-request', approvalId: 'approval-2', toolCallId: 'tool-2' } as any)
+    approvalEmitter.emit({
+      approvalId: 'approval-2',
+      toolCallId: 'tool-2',
+      toolName: 'Bash',
+      input: {},
+      presentation: 'stream'
+    } as any)
     await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'chunk', chunk: { type: 'tool-approval-request', approvalId: 'approval-2' } }
+      value: { type: 'tool-approval-request', request: { approvalId: 'approval-2' } }
     })
 
     // Teardown is the only place that disposes.

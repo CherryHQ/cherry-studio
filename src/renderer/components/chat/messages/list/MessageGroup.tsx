@@ -546,6 +546,7 @@ export default memo(MessageGroup, (prev, next) => {
     prev.captureMode === next.captureMode &&
     prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     prev.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
+    prev.messageTail === next.messageTail &&
     messageArrayShallowEqual(prev.messages, next.messages) &&
     messagePartsShallowEqual(prev.partsByMessageId, next.partsByMessageId, prev.messages)
   )

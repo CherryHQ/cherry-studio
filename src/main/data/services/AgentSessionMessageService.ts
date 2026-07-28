@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import {
   type AgentSessionMessageRow as SessionMessageRow,
@@ -11,6 +12,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   AgentSessionMessageEntity,
@@ -25,6 +27,7 @@ import {
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
+import { isToolUIPart } from 'ai'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -60,6 +63,12 @@ type ListSessionMessagesOptions = {
   cursor?: string
   limit?: number
   messageId?: string
+}
+
+type SaveAgentSessionMessageParams = {
+  sessionId: string
+  runtimeResumeToken?: string
+  message: CreateAgentSessionMessageDto
 }
 
 export class AgentSessionMessageService {
@@ -413,7 +422,7 @@ export class AgentSessionMessageService {
 
   private saveMessageTx(
     db: DbOrTx,
-    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
+    params: SaveAgentSessionMessageParams,
     timestampMs = Date.now()
   ): AgentSessionMessageEntity {
     const saved = this.upsertMessage(db, params, timestampMs)
@@ -421,10 +430,7 @@ export class AgentSessionMessageService {
     return saved
   }
 
-  saveMessage(
-    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
-    db?: DbOrTx
-  ): AgentSessionMessageEntity {
+  saveMessage(params: SaveAgentSessionMessageParams, db?: DbOrTx): AgentSessionMessageEntity {
     const timestampMs = Date.now()
     if (db) return this.saveMessageTx(db, params, timestampMs)
     return application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
@@ -442,6 +448,100 @@ export class AgentSessionMessageService {
       agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
       return saved
     })
+  }
+
+  /**
+   * Persist an approval request that is not attached to a live stream, then notify mounted agent
+   * session transcripts to re-read it. Normal streaming writes deliberately keep using
+   * {@link saveMessage} so partial chunks do not trigger DataApi refetches.
+   */
+  saveToolApprovalMessage(params: SaveAgentSessionMessageParams): AgentSessionMessageEntity {
+    const saved = this.saveMessage(params)
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        entityIds: [saved.id]
+      }
+    ])
+    return saved
+  }
+
+  /**
+   * Patch background-agent flow parts onto their original assistant row after the spawning turn has
+   * settled. Live snapshots use Shared Cache; this terminal write makes the completed FlowTab
+   * transcript durable without creating a duplicate assistant message.
+   */
+  saveBackgroundFlowParts(
+    sessionId: string,
+    messageId: string,
+    parts: AgentSessionMessageEntity['data']['parts']
+  ): AgentSessionMessageEntity {
+    const saved = application.get('DbService').withWriteTx((tx) => {
+      const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existingRow) throw DataApiErrorFactory.notFound('Message', messageId)
+
+      const updatedAt = Date.now()
+      const [updated] = tx
+        .update(sessionMessagesTable)
+        .set({ data: { ...existingRow.data, parts }, updatedAt })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .returning()
+        .all()
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return this.rowToEntity(updated)
+    })
+
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        entityIds: [messageId]
+      }
+    ])
+    return saved
+  }
+
+  /**
+   * Atomically settle one persisted agent-session approval card. The SDK callback is resolved only
+   * after this returns true, so a displayed question cannot resume its agent while remaining stuck
+   * as `approval-requested` in history.
+   */
+  applyToolApprovalDecision(sessionId: string, messageId: string, decision: ApprovalDecision): boolean {
+    const applied = application.get('DbService').withWriteTx((tx) => {
+      const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existingRow) return false
+
+      const existing = this.rowToEntity(existingRow)
+      const parts = existing.data.parts ?? []
+      const hasPendingApproval = parts.some(
+        (part) =>
+          isToolUIPart(part) &&
+          part.state === 'approval-requested' &&
+          (part as { approval?: { id?: string } }).approval?.id === decision.approvalId
+      )
+      if (!hasPendingApproval) return false
+
+      const updatedAt = Date.now()
+      const nextParts = applyApprovalDecisions(parts, [decision])
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...existing.data, parts: nextParts }, updatedAt })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .run()
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return true
+    })
+
+    if (applied) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          entityIds: [messageId]
+        }
+      ])
+    }
+    return applied
   }
 }
 

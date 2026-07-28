@@ -5,6 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
+  saveToolApprovalMessage: vi.fn(),
+  saveBackgroundFlowParts: vi.fn(),
+  getSessionMessage: vi.fn(),
+  applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   findPendingAssistantMessageIds: vi.fn(),
   markMessagesError: vi.fn(),
@@ -38,6 +42,10 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
+    saveToolApprovalMessage: mocks.saveToolApprovalMessage,
+    saveBackgroundFlowParts: mocks.saveBackgroundFlowParts,
+    getSessionMessage: mocks.getSessionMessage,
+    applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     findPendingAssistantMessageIds: mocks.findPendingAssistantMessageIds,
     markMessagesError: mocks.markMessagesError
@@ -140,6 +148,25 @@ describe('AgentSessionRuntimeService', () => {
       ...message,
       id: message.id ?? 'generated-message-id'
     }))
+    mocks.saveToolApprovalMessage.mockImplementation(({ message }) => ({
+      ...message,
+      id: message.id ?? 'generated-approval-message-id'
+    }))
+    mocks.getSessionMessage.mockReturnValue({
+      id: 'assistant-1',
+      role: 'assistant',
+      data: {
+        parts: [
+          {
+            type: 'tool-Agent',
+            toolCallId: 'task-root',
+            state: 'input-available',
+            input: { prompt: 'Audit the codebase' }
+          }
+        ]
+      }
+    })
+    mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.findPendingAssistantMessageIds.mockReturnValue([])
     mocks.markMessagesError.mockReturnValue(undefined)
@@ -184,6 +211,52 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.respondToolApproval('approval-1', { approved: true })).toBe(true)
       expect(resolve).toHaveBeenCalledWith({ behavior: 'allow', updatedInput: { command: 'sleep 10' } })
       expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1')
+    })
+
+    it('settles a persisted background interaction before resolving the requesting agent', () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-bg',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-bg',
+        toolName: 'AskUserQuestion',
+        originalInput: { questions: [] },
+        presentation: 'message',
+        resolve
+      })
+      const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
+
+      const service = new AgentSessionRuntimeService()
+      expect(service.respondToolApproval('approval-bg', { approved: true, updatedInput }, 'approval-message-1')).toBe(
+        true
+      )
+
+      expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
+        approvalId: 'approval-bg',
+        approved: true,
+        updatedInput
+      })
+      expect(resolve).toHaveBeenCalledWith({ behavior: 'allow', updatedInput })
+      expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
+    })
+
+    it('keeps the background agent waiting when its persisted interaction cannot be settled', () => {
+      const resolve = vi.fn()
+      mocks.applyToolApprovalDecision.mockReturnValue(false)
+      toolApprovalRegistry.register({
+        approvalId: 'approval-bg',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-bg',
+        toolName: 'AskUserQuestion',
+        originalInput: { questions: [] },
+        presentation: 'message',
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      expect(service.respondToolApproval('approval-bg', { approved: true }, 'wrong-message')).toBe(false)
+      expect(resolve).not.toHaveBeenCalled()
+      expect(toolApprovalRegistry.peek('approval-bg')).toBeDefined()
     })
 
     it('leaves stream status untouched for an unknown approval', () => {
@@ -1459,6 +1532,147 @@ describe('AgentSessionRuntimeService', () => {
   describe('background tasks', () => {
     const BG_KEY = 'agent.session.background_tasks.session-1'
     const tasks = [{ id: 'bg-1', type: 'subagent', description: 'Audit the codebase' }]
+
+    it('patches detached subagent chunks onto the spawning message after a new foreground turn starts', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      for (const chunk of [
+        {
+          type: 'text-start',
+          id: 'subagent-text',
+          providerMetadata: { cherry: { parentToolCallId: 'task-root' } }
+        },
+        { type: 'text-delta', id: 'subagent-text', delta: 'Found the regression' },
+        { type: 'text-end', id: 'subagent-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.saveBackgroundFlowParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({ toolCallId: 'task-root' }),
+            expect.objectContaining({ type: 'text', text: 'Found the regression' })
+          ])
+        )
+      })
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith(
+        'agent.session.flow_parts.session-1',
+        expect.objectContaining({
+          'assistant-1': expect.arrayContaining([
+            expect.objectContaining({ type: 'text', text: 'Found the regression' })
+          ])
+        }),
+        60_000
+      )
+    })
+
+    it('persists an out-of-turn interaction as an independent assistant message', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.markTurnTerminal('session-1', 'success')
+      const entry = getEntry(service)
+      const input = { questions: [{ question: 'Choose a database' }] }
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'approval-bg',
+          toolCallId: 'tool-call-bg',
+          toolName: 'AskUserQuestion',
+          input,
+          presentation: 'message',
+          providerMetadata: { cherry: { transport: 'claude-agent' } }
+        }
+      })
+
+      expect(mocks.saveToolApprovalMessage).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        message: expect.objectContaining({
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              expect.objectContaining({
+                type: 'tool-AskUserQuestion',
+                toolCallId: 'tool-call-bg',
+                state: 'approval-requested',
+                input,
+                approval: { id: 'approval-bg' }
+              })
+            ]
+          }
+        })
+      })
+    })
+
+    it('keeps an in-turn approval on the live assistant stream', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const enqueue = vi.fn()
+      entry.currentTurn.controller = { enqueue } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'approval-live',
+          toolCallId: 'tool-call-live',
+          toolName: 'Bash',
+          input: { command: 'pwd' },
+          presentation: 'stream'
+        }
+      })
+
+      expect(enqueue).toHaveBeenCalledWith({
+        type: 'tool-approval-request',
+        approvalId: 'approval-live',
+        toolCallId: 'tool-call-live'
+      })
+      expect(mocks.saveToolApprovalMessage).not.toHaveBeenCalled()
+    })
+
+    it('remembers whether the turn that spawned background work had an interactive responder', () => {
+      const interactive = new AgentSessionRuntimeService()
+      interactive.beginTurn(baseTurnInput)
+      const interactiveEntry = getEntry(interactive)
+      ;(interactive as any).handleRuntimeEvent(interactiveEntry, { type: 'background-work-state', active: true })
+      interactive.markTurnTerminal('session-1', 'success')
+      expect(interactive.canRequestUserInteraction('session-1')).toBe(true)
+
+      interactive.closeSession('session-1')
+      interactive.beginTurn({ ...baseTurnInput, headless: true })
+      const headlessEntry = getEntry(interactive)
+      ;(interactive as any).handleRuntimeEvent(headlessEntry, { type: 'background-work-state', active: true })
+      interactive.markTurnTerminal('session-1', 'success')
+      expect(interactive.canRequestUserInteraction('session-1')).toBe(false)
+    })
 
     it('republishes the membership snapshot as session-scoped status', () => {
       const service = new AgentSessionRuntimeService()

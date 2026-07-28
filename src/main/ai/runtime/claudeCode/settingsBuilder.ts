@@ -773,16 +773,38 @@ async function buildToolPermissions(
       return { behavior: 'allow', updatedInput: input }
     }
 
-    // A detached background agent outlives the turn that spawned it, and since SDK 0.3.186 its
-    // permission prompts are forwarded here instead of being auto-denied. The approval chunk below
-    // is dropped by the connection event loop once that turn's stream is gone, which would leave
-    // this promise pending until the session closes. Deny out-of-turn approvals outright; the
-    // auto-approved branch above still lets background work run unattended.
-    if (!application.get('AgentSessionRuntimeService').hasLiveTurnStream(session.id)) {
-      logger.warn('Approval requested outside a live turn — denying', { toolName })
+    const runtimeService = application.get('AgentSessionRuntimeService')
+    const hasLiveTurnStream = runtimeService.hasLiveTurnStream(session.id)
+    const isBackgroundAgent = typeof opts.agentID === 'string' && opts.agentID.length > 0
+    const requiresUserResponse =
+      HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
+      opts.matchedAskRule !== undefined
+
+    // Background agents do not inherit the parent permission mode. Let ordinary requests proceed
+    // without multiplying approval clicks; explicit PreToolUse deny hooks still run before this
+    // callback and remain authoritative. A user-configured ask rule and tools that need actual
+    // user-authored input stay on the interaction path below.
+    if (isBackgroundAgent && !requiresUserResponse) {
+      return { behavior: 'allow', updatedInput: input }
+    }
+
+    // Interactive background requests are rendered as independent assistant messages. This is
+    // intentionally separate from "has a live turn": the parent turn may be complete while its
+    // background agent is still waiting for the user. Channel/scheduled runs remain fail-closed.
+    if (
+      (!hasLiveTurnStream && !requiresUserResponse) ||
+      (requiresUserResponse &&
+        (!hasLiveTurnStream || isBackgroundAgent) &&
+        !runtimeService.canRequestUserInteraction(session.id))
+    ) {
+      logger.warn('Approval requested outside a live interactive turn — denying', {
+        toolName,
+        isBackgroundAgent
+      })
       return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
     }
 
+    const presentation = !hasLiveTurnStream || isBackgroundAgent ? 'message' : 'stream'
     const approvalId = randomUUID()
     const emit = peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
@@ -796,13 +818,16 @@ async function buildToolPermissions(
         toolCallId: opts.toolUseID,
         toolName,
         originalInput: input,
+        presentation,
         signal: opts.signal,
         resolve
       })
       emit({
-        type: 'tool-approval-request',
         approvalId,
         toolCallId: opts.toolUseID,
+        toolName,
+        input,
+        presentation,
         providerMetadata: { cherry: { transport: 'claude-agent', toolName } satisfies CherryToolMeta }
       })
     })
@@ -936,11 +961,6 @@ async function buildToolPermissions(
       return {}
     }
 
-    logger.info('Requiring approval for file-tool path outside the session workspace and agent data directory', {
-      sessionId: session.id,
-      toolName,
-      requestedPath
-    })
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',

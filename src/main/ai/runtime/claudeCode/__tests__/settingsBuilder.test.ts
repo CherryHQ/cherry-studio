@@ -826,8 +826,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
     expect(emit).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'tool-approval-request',
         toolCallId: 'tool-use-1',
+        toolName: 'AskUserQuestion',
+        input,
+        presentation: 'stream',
         providerMetadata: { cherry: { transport: 'claude-agent', toolName: 'AskUserQuestion' } }
       })
     )
@@ -1244,7 +1246,13 @@ describe('buildClaudeCodeSessionSettings', () => {
       const pending = prewarm.canUseTool!('SomeTool', {}, { signal: { aborted: false }, toolUseID: 'tu-1' } as never)
       void pending
       expect(boundEmit).toHaveBeenCalledTimes(1)
-      expect(boundEmit).toHaveBeenCalledWith(expect.objectContaining({ type: 'tool-approval-request' }))
+      expect(boundEmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolCallId: 'tu-1',
+          toolName: 'SomeTool',
+          presentation: 'stream'
+        })
+      )
     })
 
     it('disposeToolPolicySnapshot evicts the snapshot so the next build recreates it (dispose)', async () => {
@@ -1254,16 +1262,17 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(mocks.createToolPolicySnapshot).toHaveBeenCalledTimes(2)
     })
 
-    // A background agent keeps running after its turn's result, and since SDK 0.3.186 its permission
-    // prompts reach `canUseTool` instead of being auto-denied. The approval chunk would be dropped by
-    // the connection event loop (no live turn stream), so the promise must not be left pending.
-    it('denies an approval requested after the turn ended instead of hanging (out-of-turn)', async () => {
+    it('still denies a main-agent approval requested after its turn ended', async () => {
       const hasLiveTurnStream = vi.fn(() => false)
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
-          return { isCurrentTurnHeadless: () => false, hasLiveTurnStream }
+          return {
+            isCurrentTurnHeadless: () => false,
+            hasLiveTurnStream,
+            canRequestUserInteraction: () => true
+          }
         }
         throw new Error(`Unexpected application.get(${name})`)
       })
@@ -1285,6 +1294,134 @@ describe('buildClaudeCodeSessionSettings', () => {
       // Nothing was emitted or registered, so no promise is left for a responder that will never come.
       expect(emit).not.toHaveBeenCalled()
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
+    })
+
+    it('auto-approves an ordinary background-agent request after the parent turn ended', async () => {
+      const hasLiveTurnStream = vi.fn(() => false)
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return {
+            isCurrentTurnHeadless: () => false,
+            hasLiveTurnStream,
+            canRequestUserInteraction: () => true
+          }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-bg-auto'), {} as never)
+
+      await expect(
+        settings.canUseTool!('Read', { file_path: '/outside/file' }, {
+          signal: { aborted: false },
+          toolUseID: 'tu-bg-auto',
+          agentID: 'subagent-1'
+        } as never)
+      ).resolves.toEqual({ behavior: 'allow', updatedInput: { file_path: '/outside/file' } })
+      expect(hasLiveTurnStream).toHaveBeenCalledWith('warm-bg-auto')
+      expect(mocks.approvalRegister).not.toHaveBeenCalled()
+    })
+
+    it('auto-approves an ordinary background-agent request while the parent turn is still live', async () => {
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return {
+            isCurrentTurnHeadless: () => false,
+            hasLiveTurnStream: () => true,
+            canRequestUserInteraction: () => true
+          }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-bg-live'), {} as never)
+
+      await expect(
+        settings.canUseTool!('Bash', { command: 'pwd' }, {
+          signal: { aborted: false },
+          toolUseID: 'tu-bg-live',
+          agentID: 'subagent-1'
+        } as never)
+      ).resolves.toEqual({ behavior: 'allow', updatedInput: { command: 'pwd' } })
+      expect(mocks.approvalRegister).not.toHaveBeenCalled()
+    })
+
+    it('emits an independent AskUserQuestion interaction for a background agent', () => {
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return {
+            isCurrentTurnHeadless: () => false,
+            hasLiveTurnStream: () => false,
+            canRequestUserInteraction: () => true
+          }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const input = {
+        questions: [{ question: 'Choose a database', options: [{ label: 'SQLite' }], multiSelect: false }]
+      }
+
+      return buildClaudeCodeSessionSettings(sessionWith('warm-bg-question'), {} as never).then((settings) => {
+        const emit = vi.fn()
+        settings.approvalEmitter!.emit = emit
+        void settings.canUseTool!('AskUserQuestion', input, {
+          signal: { aborted: false },
+          toolUseID: 'tu-bg-question',
+          agentID: 'subagent-1'
+        } as never)
+
+        expect(mocks.approvalRegister).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sessionId: 'warm-bg-question',
+            toolCallId: 'tu-bg-question',
+            presentation: 'message'
+          })
+        )
+        expect(emit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toolCallId: 'tu-bg-question',
+            toolName: 'AskUserQuestion',
+            input,
+            presentation: 'message'
+          })
+        )
+      })
+    })
+
+    it('keeps a background AskUserQuestion independent from a concurrently live main turn', () => {
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return {
+            isCurrentTurnHeadless: () => false,
+            hasLiveTurnStream: () => true,
+            canRequestUserInteraction: () => true
+          }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      return buildClaudeCodeSessionSettings(sessionWith('warm-bg-live-question'), {} as never).then((settings) => {
+        const emit = vi.fn()
+        settings.approvalEmitter!.emit = emit
+
+        void settings.canUseTool!('AskUserQuestion', { questions: [] }, {
+          signal: { aborted: false },
+          toolUseID: 'tu-bg-live-question',
+          agentID: 'subagent-1'
+        } as never)
+
+        expect(emit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toolCallId: 'tu-bg-live-question',
+            presentation: 'message'
+          })
+        )
+      })
     })
 
     it('still auto-approves a background tool call after the turn ended (out-of-turn allow)', async () => {

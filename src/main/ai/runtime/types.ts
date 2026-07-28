@@ -1,3 +1,4 @@
+import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -44,8 +45,23 @@ export interface AgentRuntimeUserInput {
   systemReminder?: boolean
 }
 
+/**
+ * Runtime-neutral approval request. Drivers emit this instead of writing directly to a live
+ * renderer stream: the host can append it to the current turn or persist an independent
+ * interaction message when the requesting agent outlives that turn.
+ */
+export interface AgentRuntimeToolApprovalRequest {
+  approvalId: string
+  toolCallId: string
+  toolName: string
+  input: Record<string, unknown>
+  presentation: 'stream' | 'message'
+  providerMetadata?: LanguageModelV3ToolApprovalRequest['providerMetadata']
+}
+
 export type AgentRuntimeEvent =
   | { type: 'chunk'; chunk: UIMessageChunk }
+  | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
   | { type: 'resume-token'; token: string }
   | { type: 'turn-complete' }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
@@ -76,6 +92,9 @@ export type AgentRuntimeEvent =
   | { type: 'background-work-state'; active: boolean }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
+  /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
+   *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
+  | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
   /** Whether the runtime currently owns an autonomous generation on this connection. While active,
    *  the host keeps the connection alive and queues user turns instead of admitting them. */
   | { type: 'autonomous-generation-state'; active: boolean }
