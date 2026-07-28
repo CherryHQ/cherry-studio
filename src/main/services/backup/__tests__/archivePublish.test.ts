@@ -7,6 +7,7 @@ import path from 'node:path'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { archiveDurability } from '../archiveDurability'
 import { type ProducerCeilings, publishArchive, publishArchiveWithCeilings, publishSeams } from '../archivePublish'
 import {
   BackupCancelledError,
@@ -17,7 +18,6 @@ import {
   NonRegularSourceError,
   OutputPathExistsError
 } from '../errors'
-import { durability } from '../fsyncBatch'
 import { hashStreamHooks } from '../hashing'
 import type { BackupManifest, ResourcePayload } from '../manifest'
 import { BackupManifestSchema } from '../manifest'
@@ -265,7 +265,7 @@ describe('publishArchive — cancellation & failure cleanup', () => {
 
   it('re-checks cancellation immediately before the commit point', async () => {
     const ac = new AbortController()
-    vi.spyOn(durability, 'fsyncFile').mockImplementation(async () => {
+    vi.spyOn(archiveDurability, 'fsyncFile').mockImplementation(async () => {
       ac.abort()
     })
     await expect(

@@ -149,11 +149,21 @@ export class SourceDriftError extends Error {
   }
 }
 
+/** Restore preparation cannot safely rename one admitted resource into place. */
+export class ResourceInstallPlanError extends Error {
+  readonly code: string
+  constructor(code: string, detail: string) {
+    super(`resource cannot be installed (${code}): ${detail}`)
+    this.name = 'ResourceInstallPlanError'
+    this.code = code
+  }
+}
+
 /**
- * Thrown when a directory unit contains a symlink or special (non-regular) file,
- * or its root is a symlink. A portable payload is regular files only; a
- * symlink/special node cannot be transported or verified, so the export fails
- * closed.
+ * Thrown when a directory unit contains a symlink or special node, or its root
+ * is a symlink. A portable payload contains real directories and regular files
+ * only; a symlink/special node cannot be transported or verified, so export
+ * fails closed.
  */
 export class NonRegularSourceError extends Error {
   readonly sourcePath: string
@@ -284,6 +294,8 @@ export type AdmissionRejectReason =
   | 'chain-mismatch'
   /** The staged chain is ahead of or forked from the app's bundled production chain — not migrate-forwardable. */
   | 'chain-incompatible'
+  /** The actual post-migration schema differs from a database built by this app's trusted migrations. */
+  | 'schema-mismatch'
   /** A filesystem I/O error while extracting an entry (mapped from a raw errno, content-free). */
   | 'extraction-io'
 

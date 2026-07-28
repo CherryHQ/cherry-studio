@@ -43,7 +43,7 @@ import { REBASABLE_MANAGED_ROOT_KEYS } from './portability/managedPathRebase'
 import type { MaterializationSummary } from './portability/materializeDatabase'
 import { materializePortableDatabase, summarizeMaterializationDegradations } from './portability/materializeDatabase'
 import { collectResourceRequirements } from './resources/collectRequirements'
-import { stageResources } from './resources/stageResources'
+import { measureResourceStageBytes, stageResources } from './resources/stageResources'
 
 const logger = loggerService.withContext('backupExport')
 
@@ -119,11 +119,20 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     // are exactly what the archive's own database references — never what the
     // live profile happens to hold at this moment.
     const resourcesDir = path.join(stagingRoot, RESOURCES_DIR_NAME)
+    const userDataPath = application.getPath('app.userdata')
+    if (preset === 'full') {
+      const resourceStageBytes = await measureResourceStageBytes({
+        requirements: inventory.requirements,
+        userDataPath,
+        signal
+      })
+      await assertDiskHeadroom({ target: stagingRoot, neededBytes: resourceStageBytes })
+    }
     const resources =
       preset === 'full'
         ? await stageResources({
             requirements: inventory.requirements,
-            userDataPath: application.getPath('app.userdata'),
+            userDataPath,
             resourcesDir,
             signal
           })

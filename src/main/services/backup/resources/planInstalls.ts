@@ -20,6 +20,7 @@ import path from 'node:path'
 import type { ResourceInstallEntry } from '@data/db/restore/restoreJournalV2'
 
 import type { AdmittedResource } from '../admission/verify'
+import { ResourceInstallPlanError } from '../errors'
 import { type BackupPlatform, isPathContainedIn } from '../portability/managedPathRebase'
 import { type ResourcePathCandidate, type TargetState, validateResourcePaths } from '../resourcePaths'
 import { BACKUP_RESOURCE_KINDS, type BackupResourceKind, RESOURCE_ROOT_BY_KIND, type ResourceRoots } from './adapters'
@@ -42,16 +43,6 @@ export interface ResourceInstallPlan {
   readonly install: number
   /** Units whose target exists and will be parked aside first (§6.3). */
   readonly replace: number
-}
-
-/** Thrown when a unit cannot be installed. Preparation turns this into a refused restore. */
-export class ResourceInstallPlanError extends Error {
-  readonly code: string
-  constructor(code: string, detail: string) {
-    super(`resource cannot be installed (${code}): ${detail}`)
-    this.name = 'ResourceInstallPlanError'
-    this.code = code
-  }
 }
 
 function lstatTargetState(absolute: string): TargetState {
