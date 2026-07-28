@@ -1,4 +1,4 @@
-import { Alert, Button, RowFlex } from '@cherrystudio/ui'
+import { Alert, Button, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
 import {
   SettingDivider,
   SettingGroup,
@@ -14,7 +14,8 @@ import { toast } from '@renderer/services/toast'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
-import type { FC } from 'react'
+import { FolderOpen, SaveIcon } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -51,6 +52,16 @@ type Running =
 const PRESET_LABEL_KEYS: Record<Preset, string> = {
   lite: 'settings.data.backup_v2.preset.lite',
   full: 'settings.data.backup_v2.preset.full'
+}
+
+const PRESET_EXPORT_TITLE_KEYS: Record<Preset, string> = {
+  lite: 'settings.data.backup_v2.export.lite_title',
+  full: 'settings.data.backup_v2.export.full_title'
+}
+
+const PRESET_EXPORT_HELP_KEYS: Record<Preset, string> = {
+  lite: 'settings.data.backup_v2.export.lite_help',
+  full: 'settings.data.backup_v2.export.full_help'
 }
 
 const RESTORE_STATE_KEYS: Record<JournalRestore['state'], string> = {
@@ -159,6 +170,26 @@ const BackupV2Settings: FC = () => {
       )
     })
 
+  const handleChooseExport = async () => {
+    let selectedPreset: Preset = 'lite'
+    const confirmed = await popup.confirm({
+      title: t('settings.data.backup_v2.export.title'),
+      content: (
+        <BackupPresetPicker
+          defaultValue={selectedPreset}
+          onValueChange={(preset) => {
+            selectedPreset = preset
+          }}
+        />
+      ),
+      okText: t('settings.data.backup_v2.export.button'),
+      cancelText: t('common.cancel'),
+      centered: true
+    })
+    if (!confirmed) return
+    await handleExport(selectedPreset)
+  }
+
   const handlePrepare = () =>
     run({ kind: 'prepare' }, async () => {
       const result = await ipcApi.request('backup.prepare_restore')
@@ -217,89 +248,98 @@ const BackupV2Settings: FC = () => {
   const hasMatchingPreview = hasPreparation && preview?.restoreId === journal.restoreId
 
   return (
-    <>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.data.backup_v2.export.title')}</SettingTitle>
-        <SettingHelpText>{t('settings.data.backup_v2.export.credentials_warning')}</SettingHelpText>
-        <SettingHelpText>{t('settings.data.backup_v2.export.integrations_warning')}</SettingHelpText>
-        <SettingDivider />
+    <SettingGroup theme={theme}>
+      <SettingTitle>{t('settings.data.title')}</SettingTitle>
+      <SettingDivider />
 
-        <SettingRow>
-          <div className="flex flex-col gap-1 pr-4">
-            <SettingRowTitle>{t('settings.data.backup_v2.export.lite_title')}</SettingRowTitle>
-            <SettingHelpText>{t('settings.data.backup_v2.export.lite_help')}</SettingHelpText>
-          </div>
+      <SettingRow>
+        <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+        <RowFlex className="shrink-0 justify-between gap-1.25">
           <AbortableAction
-            label={t('settings.data.backup_v2.export.button')}
-            active={running?.kind === 'export' && running.preset === 'lite'}
+            label={
+              <>
+                <SaveIcon size={14} />
+                {t('settings.general.backup.button')}
+              </>
+            }
+            active={running?.kind === 'export'}
             busy={busy}
-            onStart={() => handleExport('lite')}
+            onStart={() => void handleChooseExport()}
             onCancel={handleCancelOperation}
           />
-        </SettingRow>
-        <SettingDivider />
-
-        <SettingRow>
-          <div className="flex flex-col gap-1 pr-4">
-            <SettingRowTitle>{t('settings.data.backup_v2.export.full_title')}</SettingRowTitle>
-            <SettingHelpText>{t('settings.data.backup_v2.export.full_help')}</SettingHelpText>
-          </div>
           <AbortableAction
-            label={t('settings.data.backup_v2.export.button')}
-            active={running?.kind === 'export' && running.preset === 'full'}
-            busy={busy}
-            onStart={() => handleExport('full')}
-            onCancel={handleCancelOperation}
-          />
-        </SettingRow>
-      </SettingGroup>
-
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.data.backup_v2.restore.title')}</SettingTitle>
-        <SettingHelpText>{t('settings.data.backup_v2.restore.help')}</SettingHelpText>
-        <SettingDivider />
-
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.backup_v2.restore.choose_title')}</SettingRowTitle>
-          <AbortableAction
-            label={t('settings.data.backup_v2.restore.choose_button')}
+            label={
+              <>
+                <FolderOpen size={14} />
+                {t('settings.general.restore.button')}
+              </>
+            }
             active={running?.kind === 'prepare'}
             busy={busy}
             onStart={handlePrepare}
             onCancel={handleCancelOperation}
           />
-        </SettingRow>
+        </RowFlex>
+      </SettingRow>
+      <SettingHelpText>{t('settings.data.backup_v2.export.credentials_warning')}</SettingHelpText>
+      <SettingHelpText>{t('settings.data.backup_v2.export.integrations_warning')}</SettingHelpText>
+      <SettingHelpText>{t('settings.data.backup_v2.restore.help')}</SettingHelpText>
 
-        {hasMatchingPreview && <RestorePreviewCard preview={preview} />}
+      {hasMatchingPreview && <RestorePreviewCard preview={preview} />}
 
-        {hasPreparation && (
-          <>
-            <SettingDivider />
-            <RowFlex className="justify-end gap-2">
-              <Button disabled={busy} onClick={handleDiscard}>
-                {t('settings.data.backup_v2.restore.discard_button')}
+      {hasPreparation && (
+        <>
+          <SettingDivider />
+          <RowFlex className="justify-end gap-2">
+            <Button disabled={busy} onClick={handleDiscard}>
+              {t('settings.data.backup_v2.restore.discard_button')}
+            </Button>
+            {hasMatchingPreview && (
+              <Button variant="destructive" disabled={busy} onClick={handleArm}>
+                {t('settings.data.backup_v2.restore.arm_button')}
               </Button>
-              {hasMatchingPreview && (
-                <Button variant="destructive" disabled={busy} onClick={handleArm}>
-                  {t('settings.data.backup_v2.restore.arm_button')}
-                </Button>
-              )}
-            </RowFlex>
-            {!hasMatchingPreview && (
-              <SettingHelpText>{t('settings.data.backup_v2.restore.pending_elsewhere')}</SettingHelpText>
             )}
-          </>
-        )}
-      </SettingGroup>
+          </RowFlex>
+          {!hasMatchingPreview && (
+            <SettingHelpText>{t('settings.data.backup_v2.restore.pending_elsewhere')}</SettingHelpText>
+          )}
+        </>
+      )}
 
       {restore && restore.kind !== 'none' && !hasPreparation && (
-        <SettingGroup theme={theme}>
-          <SettingTitle>{t('settings.data.backup_v2.outcome.title')}</SettingTitle>
+        <>
           <SettingDivider />
+          <SettingRowTitle>{t('settings.data.backup_v2.outcome.title')}</SettingRowTitle>
           <RestoreOutcome restore={restore} busy={busy} onRollback={handleRollback} onAcknowledge={handleAcknowledge} />
-        </SettingGroup>
+        </>
       )}
-    </>
+    </SettingGroup>
+  )
+}
+
+const BackupPresetPicker: FC<{
+  defaultValue: Preset
+  onValueChange: (preset: Preset) => void
+}> = ({ defaultValue, onValueChange }) => {
+  const { t } = useTranslation()
+
+  return (
+    <RadioGroup
+      defaultValue={defaultValue}
+      onValueChange={(value) => onValueChange(value as Preset)}
+      aria-label={t('settings.data.backup_v2.export.title')}>
+      {(['lite', 'full'] as const).map((preset) => (
+        <label
+          key={preset}
+          className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 hover:bg-accent">
+          <RadioGroupItem value={preset} className="mt-0.5" />
+          <span className="flex min-w-0 flex-col gap-1">
+            <span className="text-foreground text-sm">{t(PRESET_EXPORT_TITLE_KEYS[preset])}</span>
+            <span className="text-muted-foreground text-xs leading-5">{t(PRESET_EXPORT_HELP_KEYS[preset])}</span>
+          </span>
+        </label>
+      ))}
+    </RadioGroup>
   )
 }
 
@@ -313,7 +353,7 @@ const BackupV2Settings: FC = () => {
  * takes one operation at a time.
  */
 const AbortableAction: FC<{
-  label: string
+  label: ReactNode
   /** This row's operation is the one in flight. */
   active: boolean
   /** Some operation is in flight (this row's or another's). */
@@ -324,10 +364,14 @@ const AbortableAction: FC<{
   const { t } = useTranslation()
 
   if (active) {
-    return <Button onClick={onCancel}>{t('common.cancel')}</Button>
+    return (
+      <Button variant="outline" onClick={onCancel}>
+        {t('common.cancel')}
+      </Button>
+    )
   }
   return (
-    <Button disabled={busy} onClick={onStart}>
+    <Button variant="outline" disabled={busy} onClick={onStart}>
       {label}
     </Button>
   )
