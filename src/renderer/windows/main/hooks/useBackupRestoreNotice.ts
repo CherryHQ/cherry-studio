@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { BACKUP_RESTORE_NOTICE_KEY } from '@renderer/utils/backupRestoreNotice'
 import type { OutputFor } from '@shared/ipc/types'
 import { t } from 'i18next'
 import { useEffect } from 'react'
@@ -57,9 +58,6 @@ const NOTICE_TEXT: Partial<Record<RestoreState, { readonly title: string; readon
   }
 }
 
-/** A fixed key, so a remount cannot stack a second copy of the same notice. */
-const NOTICE_KEY = 'backup-restore-notice'
-
 export function useBackupRestoreNotice(): void {
   useEffect(() => {
     // Drop a status that resolves after teardown (StrictMode's mount/unmount/mount).
@@ -75,7 +73,7 @@ export function useBackupRestoreNotice(): void {
         // Persistent: the completed one is a task the user still has to do, and
         // the other two are the only report that their restore did not happen.
         toast.warning({
-          key: NOTICE_KEY,
+          key: BACKUP_RESTORE_NOTICE_KEY,
           timeout: 0,
           title: t(text.title),
           description: t(text.description)
