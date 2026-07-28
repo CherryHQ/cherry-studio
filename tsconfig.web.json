@@ -1,38 +1,45 @@
 {
+  "compilerOptions": {
+    "composite": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "incremental": true,
+    "jsx": "react-jsx",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@cherrystudio/ai-core": ["./packages/aiCore/src/index.ts"],
+      "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
+      "@cherrystudio/ai-core/built-in/plugins": ["./packages/aiCore/src/core/plugins/built-in/index.ts"],
+      "@cherrystudio/ai-core/provider": ["./packages/aiCore/src/core/providers/index.ts"],
+      "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src/index.ts"],
+      "@cherrystudio/extension-table-plus": ["./packages/extension-table-plus/src/index.ts"],
+      "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"],
+      "@cherrystudio/ui": ["./packages/ui/src/index.ts"],
+      "@cherrystudio/ui/*": ["./packages/ui/src/*"],
+      "@cherrystudio/ui/icons": ["./packages/ui/src/components/icons/index.ts"],
+      "@data/*": ["./src/renderer/data/*"],
+      "@logger": ["./src/renderer/services/LoggerService"],
+      "@mcp-trace/*": ["./packages/mcp-trace/*"],
+      "@renderer/*": ["./src/renderer/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@test-mocks/*": ["./tests/__mocks__/*"]
+    },
+    "tsBuildInfoFile": ".tsbuildinfo/tsconfig.web.tsbuildinfo",
+    "useDefineForClassFields": true
+  },
+  "exclude": ["packages/aiCore/src/**/__tests__/**"],
   "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
   "include": [
     "local/src/renderer/**/*",
-    "src/renderer/src/**/*",
-    "src/main/integration/cherryai/index.js",
+    "src/renderer/**/*",
     "src/preload/*.d.ts",
     "tests/__mocks__/**/*",
     "packages/aiCore/src/**/*",
     "packages/ai-sdk-provider/**/*",
     "packages/extension-table-plus/**/*",
     "packages/mcp-trace/**/*",
-    "packages/shared/**/*"
-  ],
-  "compilerOptions": {
-    "composite": true,
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo/tsconfig.web.tsbuildinfo",
-    "jsx": "react-jsx",
-    "moduleResolution": "bundler",
-    "paths": {
-      "@logger": ["./src/renderer/src/services/LoggerService"],
-      "@renderer/*": ["./src/renderer/src/*"],
-      "@shared/*": ["./packages/shared/*"],
-      "@types": ["./src/renderer/src/types/index.ts"],
-      "@mcp-trace/*": ["./packages/mcp-trace/*"],
-      "@cherrystudio/ai-core/provider": ["./packages/aiCore/src/core/providers/index.ts"],
-      "@cherrystudio/ai-core/built-in/plugins": ["./packages/aiCore/src/core/plugins/built-in/index.ts"],
-      "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
-      "@cherrystudio/ai-core": ["./packages/aiCore/src/index.ts"],
-      "@cherrystudio/extension-table-plus": ["./packages/extension-table-plus/src/index.ts"],
-      "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src/index.ts"]
-    },
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "useDefineForClassFields": true
-  }
+    "packages/provider-registry/**/*",
+    "src/shared/**/*",
+    "packages/ui/**/*"
+  ]
 }

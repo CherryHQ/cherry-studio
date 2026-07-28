@@ -23,7 +23,7 @@ const INDEX = [
   { name: 'Greek', code: 'el-gr', model: MODEL }
 ]
 
-const zh = JSON.parse(fs.readFileSync('src/renderer/src/i18n/locales/zh-cn.json', 'utf8')) as I18N
+const zh = JSON.parse(fs.readFileSync('src/renderer/i18n/locales/zh-cn.json', 'utf8')) as I18N
 
 const openai = new OpenAI({
   apiKey: API_KEY,
@@ -134,11 +134,11 @@ void (async () => {
   const bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic)
   bar.start(INDEX.length, 0)
   for (const { name, code, model } of INDEX) {
-    const obj = fs.existsSync(`src/renderer/src/i18n/translate/${code}.json`)
-      ? (JSON.parse(fs.readFileSync(`src/renderer/src/i18n/translate/${code}.json`, 'utf8')) as I18N)
+    const obj = fs.existsSync(`src/renderer/i18n/translate/${code}.json`)
+      ? (JSON.parse(fs.readFileSync(`src/renderer/i18n/translate/${code}.json`, 'utf8')) as I18N)
       : {}
     await translate(zh, obj, name, model, () => {
-      fs.writeFileSync(`src/renderer/src/i18n/translate/${code}.json`, JSON.stringify(obj, null, 2), 'utf8')
+      fs.writeFileSync(`src/renderer/i18n/translate/${code}.json`, JSON.stringify(obj, null, 2), 'utf8')
     })
     count += 1
     bar.update(count)

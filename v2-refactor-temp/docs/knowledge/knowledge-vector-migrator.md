@@ -1,0 +1,299 @@
+# Knowledge Vector Migrator Notes (V2)
+
+## 1. 文档目的
+
+这份文档用于说明 V2 知识库向量迁移器的职责边界和核心规则。
+
+它关注的是：
+
+1. V1 `embedjs` 向量库的数据来源
+2. V2 目标向量存储的落点
+3. 向量迁移过程中的关键字段转换
+4. 文件安全、校验与跳过规则
+
+这份文档只描述当前已经落地的迁移器行为，不展开到未来在线向量数据重建或最终 retrieval API 设计。
+
+对应实现：
+
+- `src/main/data/migration/v2/migrators/KnowledgeVectorMigrator.ts`
+- `src/main/data/migration/v2/migrators/README-KnowledgeVectorMigrator.md`
+
+## 2. 迁移器的职责
+
+`KnowledgeVectorMigrator` 的职责不是迁移知识库业务主数据，而是：
+
+1. 读取 V1 每个 knowledge base 对应的 legacy `embedjs` 向量库
+2. 将旧的 chunk 向量数据转换为新的 better-sqlite3-backed `vectorstores` 布局
+3. 保证新向量数据能稳定关联回已经迁移完成的 V2 `knowledge_base` / `knowledge_item`
+
+换句话说：
+
+1. `KnowledgeMigrator` 负责业务主数据
+2. `KnowledgeVectorMigrator` 负责向量数据迁移
+
+两者共同完成知识库的完整迁移，但 source of truth 仍然是 V2 业务表，不是向量库。
+
+## 3. 数据来源
+
+迁移器依赖四类输入：
+
+### 3.1 已迁移的 knowledge base
+
+来源：
+
+- SQLite `knowledge_base` 表
+
+作用：
+
+- 提供 base 身份
+- 提供 embedding `dimensions`
+- 决定哪些 base 需要尝试迁移向量库
+
+### 3.2 已迁移的 knowledge item
+
+来源：
+
+- SQLite `knowledge_item` 表
+
+作用：
+
+- 作为新的业务 item 身份来源
+- 为 legacy loader identity 映射提供目标 `itemId`
+
+### 3.3 Legacy loader metadata
+
+来源：
+
+- Redux `knowledge.bases[].items[]`
+
+作用：
+
+- 从 V1 `uniqueId` / `uniqueIds[]` 反查到已经迁移后的 `knowledge_item.id`
+- 建立旧向量记录与新业务 item 的映射关系
+
+### 3.4 Legacy vector database
+
+来源：
+
+- `${getDataPath()}/KnowledgeBase/<baseId>`
+
+作用：
+
+- 读取 V1 `embedjs` 的 `vectors` 表
+- 提供原始 chunk 文本、source、vector
+
+## 4. 目标存储
+
+迁移目标不是继续保留旧 `embedjs` 格式，而是生成新的 vectorstores 兼容存储。
+
+当前实现的目标结构是：
+
+- 目标文件：迁移后 base 的 runtime 路径 `{knowledgeBaseDir}/{migratedBaseId}/.cherry/index.sqlite`（不再沿用原 legacy DB 路径）
+- 目标 schema：以 `schema.ts` 的多表 index store 为准（`meta`/`content`/`material`/`search_unit`/`search_text`/`embedding` + 外部内容 FTS5 `search_text_fts`），由 `openBetterSqlite3IndexDriver` → `createKnowledgeIndexSchema` 建立。下方“1. 主表字段/2. 普通索引”是旧 embedjs/langchain 单表布局，已被上述多表 schema 取代。
+
+迁移器会为目标存储补齐必要 schema：
+
+1. 主表字段
+   - `id`
+   - `external_id`
+   - `collection`
+   - `document`
+   - `metadata`
+   - `embeddings`
+2. 普通索引
+   - `external_id`
+   - `collection`
+3. FTS 表和触发器
+
+## 5. 核心转换规则
+
+### 5.1 Loader identity 映射
+
+V1 的向量记录使用 `uniqueLoaderId` 关联 loader。
+
+V2 迁移时，不保留这个旧字段作为最终业务标识，而是把它映射成新的 `knowledge_item.id`，并写入：
+
+- `external_id`
+
+映射规则：
+
+1. 优先使用 legacy item 的 `uniqueIds[]`
+2. 如果不存在，再回退到 legacy item 的 `uniqueId`
+3. 只有已经成功迁移到 V2 `knowledge_item` 的 item 才能参与映射
+
+这一步的核心目标是：让新向量记录稳定关联回 V2 的业务 item，而不是继续依赖旧 loader identity。
+
+这里有一个重要约束：
+
+1. 只有能够映射到 V2 `knowledge_item.id` 的 legacy 向量记录，才属于有效可迁移数据
+2. 无法映射到 `knowledge_item.id` 的 legacy 向量，即使仍存在于旧 `embedjs` DB 中，也视为无效残留数据
+3. 因此迁移器的目标不是“尽量保留旧向量文件中的所有内容”，而是“只保留能被当前 V2 业务表证明合法归属的向量数据”
+
+目录（`directory`）的特殊处理：V1 把目录下每个文件都登记在该目录 item 的 loader id 上，没有 per-file item。迁移时不再把这些容器级向量直接丢弃，而是为每个嵌入文件合成一个 `file` 子项（一个 loader id 对应一个子项，见 `KnowledgeMigrator.expandLegacyDirectoryItem`），把目录向量重新归属（re-attribute）到这些子项上，目录因此保持可检索且无需重新 embedding。只有在 fallback 情况下——legacy 向量源不可读，或某个嵌入文件没有可迁移向量——才会跳过容器级向量，并把目录保留为 `directory_not_migrated` 失败墓碑。
+
+### 5.2 Chunk 内容映射
+
+旧向量记录中的内容字段会转换为：
+
+- `pageContent` -> `document`
+- `knowledge_item.id` -> `metadata.itemId` 和 `external_id`
+- `knowledge_item.type` -> `metadata.itemType`
+- `source` -> `metadata.source`
+- chunk 顺序 -> `metadata.chunkIndex`
+- chunk 文本 token 估算 -> `metadata.tokenCount`
+
+当前实现不会保留所有旧 metadata，只保留迁移和检索必需的最小信息。
+迁移后的 metadata 必须满足 runtime `KnowledgeChunkMetadataSchema`：
+`itemId`、`itemType`、`source`、`chunkIndex`、`tokenCount` 都是必填字段。
+无法补出合法 `source` 的 legacy row 会被跳过，而不是写入不完整 metadata。
+
+### 5.3 Embedding 复用
+
+迁移器不会重新做 embedding。
+
+它会直接复用 V1 已存在的向量：
+
+1. 从 legacy `vector` 字段读取原始 little-endian float32 BLOB 字节
+2. 反序列化为 `number[]`
+3. 再写入新表的 `embeddings`
+
+这意味着：
+
+1. 迁移成本更低
+2. 不依赖在线模型调用
+3. 迁移阶段不会触发重新切块或重新嵌入
+
+### 5.4 Chunk identity 重建
+
+旧 chunk row 的 `id` 不会直接复用。
+
+每一条迁移后的向量记录都会生成新的 UUID v4 `id`。
+
+因此迁移的稳定关联语义不是依赖旧 chunk id，而是依赖：
+
+1. `baseId`
+2. `external_id` = `knowledge_item.id`
+3. chunk 文本与 source 对应的向量记录
+
+## 6. 文件安全约束
+
+当前迁移器采用“临时文件重建 + 目标路径原子替换 + v1 源原地不动”的策略。
+
+规则如下：
+
+1. 先在目标路径的同级写一个临时文件
+   - `{targetDbPath}.vectorstore.tmp`
+2. v1 legacy `embedjs` DB（`{knowledgeBaseDir}/{legacyBaseId}`）在整个迁移过程中**不被移动也不被删除**
+   - 因为迁移后 base 使用全新 uuid，V2 store 落在 `{migratedBaseId}/.cherry/index.sqlite`，与 legacy flat path 不同名、不冲突，源文件无需腾挪
+3. 临时文件写完整并校验成功后，先删除目标路径上可能已存在的空 store（runtime 可能预先创建过），再把临时文件原子 rename 到目标路径
+   - 这一步的 unlink 在 `EBUSY` 时会重试（`recursive` + `maxRetries` + `retryDelay`），以兼容 Windows 上的瞬时文件锁
+4. 如果当前 base 在替换前失败，已写入的临时文件会被清理；v1 legacy DB 始终原样保留
+
+这意味着：
+
+1. 迁移过程**任何阶段**都不会破坏 v1 原始 legacy DB —— 迁移失败、放弃或成功后回退 v1，知识库都可正常使用
+2. retry 天然幂等：legacy 源一直在原路径，retry 直接通过 `KnowledgeVectorSourceReader` 重新读取原始 legacy DB
+
+## IMPORTANT: 当前已接受的局限
+
+以下行为是当前实现**明确接受**的限制，不应误读为“未来理想方案”：
+
+1. base 级执行失败属于迁移失败，不属于可跳过数据
+   - 如果某个 base 在重建临时库、写入目标表或替换正式文件时失败，`execute()` 会直接返回 `success: false`
+   - 这类失败不会被计入 `skippedCount`，也不应只记 warning 后继续成功
+2. 迁移成功后 v1 legacy 向量库会作为孤儿文件留在磁盘上
+   - 因为迁移不再移动或删除 v1 源（连同已复制的 v1 上传文件），知识库磁盘占用大致翻倍
+   - 这是“保证 v1 可回退”的预期代价；如需在用户确认放弃 v1 后回收磁盘，需要单独的 cleanup 策略、实现和测试
+3. 用户迁移前的完整备份仍然必要
+   - 迁移器只保证单个 knowledge base 的 v1 向量 DB 原地完好，不等于完整 V1 备份
+   - 完整迁移失败后的全局恢复 source of truth 仍然是迁移前备份
+
+## 7. 校验规则
+
+当前实现会做至少以下校验：
+
+1. 每个 base 的目标行数必须与 prepared row 数一致
+2. 每条迁移后的记录都必须有非空 `external_id`
+3. 每条迁移后的记录都必须有 `metadata.itemId`，并与 `external_id` 保持一致
+
+如果不满足这些条件，应视为当前 base 迁移失败。
+
+## 8. 跳过规则
+
+以下情况会被跳过，而不是强行写入：
+
+1. `knowledge_base` 中不存在对应 base
+2. legacy DB 文件不存在
+3. legacy DB 路径实际是目录
+4. legacy DB 不包含 `vectors` 表
+5. `uniqueLoaderId` 无法映射回已迁移的 `knowledge_item.id`
+6. 向量记录缺少 `vector` 或 `vector` 为空
+
+这些跳过通常会记录 warning，而不是让整个迁移流程全部中断。
+
+补充说明：
+
+1. 如果某个 base 的 legacy 向量记录最终全部被跳过，则该 base 在 V2 中会被重建为空的 vector store
+2. 这不是“回滚保留旧 DB”的场景，而是预期的数据清洗结果
+3. 原因是这些被跳过的记录无法稳定关联到当前 V2 `knowledge_item`，因此不再被视为有效业务向量数据
+
+## 9. 当前边界与限制
+
+当前迁移器只负责“向量数据重建”，不负责：
+
+1. 重新切块
+2. 重新 embedding
+3. 重新生成业务 item
+4. 校正旧知识库的业务配置
+5. 设计最终 retrieval service 的 API
+
+因此它的定位应该是：
+
+- 一次性的迁移工具
+- 不等同于运行时知识库索引服务
+
+## 10. 对后续实现的影响
+
+基于当前迁移器行为，后续 V2 运行时设计需要遵守以下前提：
+
+1. V2 业务真相仍然来自 `knowledge_base` / `knowledge_item`
+2. 新向量记录必须能通过 `external_id` 稳定关联到 `knowledge_item.id`
+3. 运行时不应继续依赖 V1 `embedjs` 的 `uniqueLoaderId`
+4. 如果未来需要重建索引，应按 V2 业务表重新生成，而不是继续依赖旧迁移逻辑
+
+## 11. 与其他文档的关系
+
+- `knowledge-backend-decisions.md`
+  - 定义当前 `KnowledgeRuntimeService`、data services、queue 和 runtime/vector 边界
+- `knowledge-schema.md`
+  - 定义 V2 业务 schema
+- 本文档
+  - 专门说明向量迁移器如何把旧向量数据接到新的 V2 业务模型上
+
+三者的关系可以简化为：
+
+1. schema 定义业务结构
+2. backend decisions 文档定义当前运行时边界
+3. vector migrator 文档定义旧向量数据如何迁移进新体系
+
+## 12. 与当前 Runtime 的衔接
+
+当前 runtime 向量侧实现位于：
+
+- `src/main/services/knowledge/runtime/KnowledgeRuntimeService.ts`
+- `src/main/services/knowledge/vectorstore/KnowledgeVectorStoreService.ts`
+- `src/main/features/knowledge/vectorstore/indexStore/BetterSqlite3VectorIndex.ts`
+
+这意味着迁移后的向量数据并不是孤立的一次性产物，而是会被当前 runtime 直接按 knowledge base 打开和查询。
+
+当前已确认的衔接点是：
+
+1. runtime 通过 `KnowledgeVectorStoreService` 按 `base.id` 获取 store
+2. 实际 store provider 是 `BetterSqlite3VectorIndex`
+3. runtime 检索和写入都基于 better-sqlite3 vector store
+
+因此，迁移器与 runtime 的共同前提是：
+
+1. V2 业务真相来自 `knowledge_base` / `knowledge_item`
+2. 运行时向量文件与迁移后的向量文件都属于同一类 better-sqlite3-backed vector store 体系
+3. 运行时关联业务 item 仍应以 `knowledge_item.id` 为稳定标识，而不是继续依赖 V1 loader identity

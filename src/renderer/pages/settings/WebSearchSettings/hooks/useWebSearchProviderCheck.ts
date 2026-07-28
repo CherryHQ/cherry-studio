@@ -1,0 +1,60 @@
+import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useWebSearchProviderCheck')
+
+const WEB_SEARCH_CHECK_KEYWORD = 'Cherry Studio'
+const WEB_SEARCH_CHECK_URL = 'https://example.com'
+
+type UseWebSearchProviderCheckOptions = {
+  provider: WebSearchProvider
+  capability: WebSearchCapability
+}
+
+export function useWebSearchProviderCheck({ provider, capability }: UseWebSearchProviderCheckOptions) {
+  const { t } = useTranslation()
+  const [checking, setChecking] = useState(false)
+  const canCheck = provider.id !== 'fetch'
+
+  const checkProvider = useCallback(() => {
+    if (checking || !canCheck) {
+      return Promise.resolve()
+    }
+
+    setChecking(true)
+
+    const runCheck = async () => {
+      if (capability === 'fetchUrls') {
+        await ipcApi.request('web_search.fetch_urls', { providerId: provider.id, urls: [WEB_SEARCH_CHECK_URL] })
+      } else {
+        await ipcApi.request('web_search.search_keywords', {
+          providerId: provider.id,
+          keywords: [WEB_SEARCH_CHECK_KEYWORD]
+        })
+      }
+    }
+
+    return runCheck().then(
+      () => {
+        setChecking(false)
+        toast.success(t('settings.tool.websearch.check_success'))
+      },
+      (error) => {
+        setChecking(false)
+        logger.error('Web search provider check failed', error as Error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        toast.error(`${t('settings.tool.websearch.check_failed')}: ${errorMessage}`)
+      }
+    )
+  }, [canCheck, capability, checking, provider.id, t])
+
+  return {
+    checking,
+    canCheck,
+    checkProvider
+  }
+}

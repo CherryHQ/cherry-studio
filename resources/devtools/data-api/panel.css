@@ -1,0 +1,169 @@
+:root {
+  color-scheme: dark;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: #111317;
+  color: #d8dce3;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #2b3038;
+  background: #181b21;
+}
+
+input[type="search"] {
+  min-width: 280px;
+  flex: 1;
+  height: 24px;
+  border: 1px solid #3a414c;
+  border-radius: 4px;
+  padding: 0 8px;
+  background: #0f1115;
+  color: #e7eaf0;
+}
+
+label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+button {
+  height: 24px;
+  border: 1px solid #3a414c;
+  border-radius: 4px;
+  padding: 0 10px;
+  background: #222832;
+  color: #e7eaf0;
+}
+
+button:hover {
+  background: #2d3542;
+}
+
+.count {
+  color: #9aa3b2;
+  white-space: nowrap;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(320px, 38%);
+  height: calc(100vh - 36px);
+}
+
+.list,
+.details {
+  min-width: 0;
+  overflow: auto;
+}
+
+.details {
+  border-left: 1px solid #2b3038;
+  background: #0f1115;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+th,
+td {
+  height: 24px;
+  border-bottom: 1px solid #242932;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: #9aa3b2;
+  text-align: left;
+  background: #181b21;
+  font-weight: 500;
+}
+
+tr {
+  cursor: default;
+}
+
+tr:hover,
+tr.selected {
+  background: #253145;
+}
+
+.method {
+  font-weight: 600;
+}
+
+.success {
+  color: #89d185;
+}
+
+.pending {
+  color: #82b7ff;
+}
+
+.error {
+  color: #ff8f8f;
+}
+
+.retry {
+  color: #e8c36a;
+}
+
+pre {
+  margin: 0;
+  padding: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #d8dce3;
+}
+
+.detail-section {
+  border-bottom: 1px solid #242932;
+}
+
+.detail-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 0;
+}
+
+.detail-section h2 {
+  margin: 0;
+  color: #9aa3b2;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.copy-button {
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+}

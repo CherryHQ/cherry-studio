@@ -1,0 +1,25 @@
+/* Storybook 专用的 Tailwind CSS 配置 */
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@import '../src/styles/theme.css';
+
+/* 扫描组件文件 */
+@source '../src/components/**/*.{js,ts,jsx,tsx}';
+
+/* 扫描 stories 文件 */
+@source './components/**/*.{js,ts,jsx,tsx}';
+
+/* Dark mode support */
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+:root {
+  background-color: unset;
+}

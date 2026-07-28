@@ -1,0 +1,384 @@
+import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { ShortcutBinding } from '@shared/utils/shortcut'
+import * as z from 'zod'
+
+import type { PreferenceSchemas } from './preferenceSchemas'
+
+/** DB-backed preferences only (stored in SQLite) */
+export type PreferenceDefaultScopeType = PreferenceSchemas['default']
+export type PreferenceKeyType = keyof PreferenceDefaultScopeType
+
+/** Unified type: DB-backed preferences + file-backed boot config (BootConfig.* prefix) */
+export type UnifiedPreferenceType = PreferenceDefaultScopeType & BootConfigPreferenceKeys
+export type UnifiedPreferenceKeyType = keyof UnifiedPreferenceType
+
+/**
+ * Result type for getMultipleRaw - maps requested keys to their values
+ */
+export type UnifiedPreferenceMultipleResultType<K extends UnifiedPreferenceKeyType> = {
+  [P in K]: UnifiedPreferenceType[P]
+}
+
+export type PreferenceUpdateOptions = {
+  optimistic: boolean
+}
+
+export type PreferenceShortcutType = {
+  binding: ShortcutBinding
+  enabled: boolean
+}
+
+/** Global menu presentation mode: native system menus or Cherry custom menus. */
+export type MenuPresentationMode = 'native' | 'cherry'
+
+export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
+
+export enum SelectionTriggerMode {
+  Selected = 'selected',
+  Ctrlkey = 'ctrlkey',
+  Shortcut = 'shortcut'
+}
+
+export enum SelectionFilterMode {
+  Default = 'default',
+  Whitelist = 'whitelist',
+  Blacklist = 'blacklist'
+}
+
+export type SelectionActionItem = {
+  id: string
+  name: string
+  enabled: boolean
+  isBuiltIn: boolean
+  icon?: string
+  prompt?: string
+  assistantId?: string
+  selectedText?: string
+  searchEngine?: string
+}
+
+export enum ThemeMode {
+  light = 'light',
+  dark = 'dark',
+  system = 'system'
+}
+
+/** 有限的UI语言 */
+export type LanguageVarious =
+  | 'zh-CN'
+  | 'zh-TW'
+  | 'de-DE'
+  | 'el-GR'
+  | 'en-US'
+  | 'es-ES'
+  | 'fr-FR'
+  | 'ja-JP'
+  | 'pt-PT'
+  | 'ro-RO'
+  | 'ru-RU'
+  | 'vi-VN'
+
+export type WindowStyle = 'transparent' | 'opaque'
+
+export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
+
+export type AssistantTabSortType = 'tags' | 'list'
+
+export type TopicDisplayMode = 'time' | 'assistant'
+
+export type TopicTabPosition = 'left' | 'right'
+
+export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
+
+export const SIDEBAR_FAVORITES = [
+  'assistants',
+  'agents',
+  'paintings',
+  'translate',
+  'mini_app',
+  'knowledge',
+  'files',
+  'code_tools',
+  'notes',
+  'openclaw'
+] as const
+
+export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
+
+/**
+ * Group-ready sidebar storage contract.
+ *
+ * Leaf items are stored as tagged objects, not bare ids. Keep the `type` values,
+ * id semantics, and one ordered heterogeneous top-level array stable: a future
+ * `group` variant can then be added as another top-level item without migrating
+ * existing flat `SidebarFavoriteItem[]` values.
+ */
+export type SidebarFavoriteItem =
+  | {
+      type: 'app'
+      id: SidebarFavorite
+    }
+  | {
+      type: 'mini_app'
+      id: string
+    }
+
+export type AssistantIconType = 'model' | 'emoji' | 'none'
+
+export type ProxyMode = 'system' | 'custom' | 'none'
+
+export type MultiModelFoldDisplayMode = 'expanded' | 'compact'
+
+export enum UpgradeChannel {
+  LATEST = 'latest', // 最新稳定版本
+  RC = 'rc', // 公测版本
+  BETA = 'beta' // 预览版本
+}
+
+export type ChatMessageStyle = 'plain' | 'bubble'
+
+export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
+
+export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
+
+export type MultiModelGridPopoverTrigger = 'hover' | 'click'
+
+// ============================================================================
+// Translate Types
+// ============================================================================
+
+export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
+
+/**
+ * Strict language code pattern — only real codes such as "en-us" / "zh-cn" / "ja".
+ *
+ * Prefer this in persistence paths (API DTOs, DB entities). {@link TranslateLangCodeSchema}
+ * below widens it with the `'unknown'` UI sentinel, which must not leak into the DB:
+ * there is no matching row in the `translate_language` table, and the history FK
+ * would silently break.
+ *
+ * Pattern: 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters.
+ */
+export const PersistedLangCodeSchema = z
+  .string()
+  .regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+  .brand<'PersistedLangCode'>()
+export type PersistedLangCode = z.infer<typeof PersistedLangCodeSchema>
+export const parsePersistedLangCode = (value: string): PersistedLangCode => PersistedLangCodeSchema.parse(value)
+
+const TranslateLangCodePatternSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+
+/**
+ * Permissive language code — persisted-code shape plus the `'unknown'` UI sentinel.
+ *
+ * Use in preference/UI state and detection paths where "unknown" is meaningful.
+ * Persistence paths should parse with {@link PersistedLangCodeSchema} instead.
+ */
+export const TranslateLangCodeSchema = z.union([z.literal('unknown'), TranslateLangCodePatternSchema])
+export type TranslateLangCode = z.infer<typeof TranslateLangCodeSchema>
+export const parseTranslateLangCode = (value: string): TranslateLangCode => TranslateLangCodeSchema.parse(value)
+export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
+  TranslateLangCodeSchema.safeParse(value).success
+export type TranslateSourceLanguage = TranslateLangCode | 'auto'
+export type TranslateBidirectionalPair = [TranslateLangCode, TranslateLangCode]
+export const parseTranslateBidirectionalPair = (value: readonly [string, string]): TranslateBidirectionalPair => [
+  parseTranslateLangCode(value[0]),
+  parseTranslateLangCode(value[1])
+]
+
+// ============================================================================
+// WebSearch Types
+// ============================================================================
+
+export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'mcp'] as const
+
+export type WebSearchProviderType = (typeof WEB_SEARCH_PROVIDER_TYPES)[number]
+
+export const WEB_SEARCH_PROVIDER_IDS = [
+  'zhipu',
+  'tavily',
+  'searxng',
+  'exa',
+  'exa-mcp',
+  'bocha',
+  'querit',
+  'fetch',
+  'jina',
+  'firecrawl'
+] as const
+
+export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
+
+export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls'] as const
+
+export type WebSearchCapability = (typeof WEB_SEARCH_CAPABILITIES)[number]
+
+export type WebSearchProviderCapabilityOverride = {
+  apiHost?: string
+}
+
+export type WebSearchProviderCapabilityOverrides = Partial<
+  Record<WebSearchCapability, WebSearchProviderCapabilityOverride>
+>
+
+export type WebSearchProviderOverride = {
+  apiKeys?: string[]
+  capabilities?: WebSearchProviderCapabilityOverrides
+  engines?: string[]
+  basicAuthUsername?: string
+  basicAuthPassword?: string
+}
+
+export type WebSearchProviderOverrides = Partial<Record<WebSearchProviderId, WebSearchProviderOverride>>
+
+/**
+ * Full WebSearch Provider configuration
+ * Generated at runtime by merging preset with user overrides
+ */
+export interface WebSearchProvider {
+  /** Unique provider identifier */
+  id: WebSearchProviderId
+  /** Display name (from preset) */
+  name: string
+  /** Provider type (from preset) */
+  type: WebSearchProviderType
+  /** API keys (from user overrides) */
+  apiKeys: string[]
+  /** Capability API settings (user override merged into preset capabilities) */
+  capabilities: Array<{
+    feature: WebSearchCapability
+    /** Can be empty for self-hosted or hostless providers; resolve and validate via resolveProviderApiHost. */
+    apiHost?: string
+  }>
+  /** Search engines (from user overrides) */
+  engines: string[]
+  /** Basic auth username (from user overrides) */
+  basicAuthUsername: string
+  /** Basic auth password (from user overrides) */
+  basicAuthPassword: string
+}
+
+// ============================================================================
+// CodeCLI Types
+// ============================================================================
+
+import type { UniqueModelId } from '@shared/data/types/model'
+import { CodeCli } from '@shared/types/codeCli'
+
+export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
+  'claude-code',
+  'openai-codex',
+  'opencode',
+  'openclaw',
+  'gemini-cli',
+  'qwen-code',
+  'kimi-code',
+  'qoder-cli',
+  'github-copilot-cli'
+]
+
+export type CodeCliId = (typeof CODE_CLI_IDS)[number]
+
+/** A per-tool provider entry, keyed by providerId in `CodeCliToolState.providers`. */
+export interface CliProviderConfig {
+  /**
+   * Unique model id ("providerId::modelId"), or null for the two legal
+   * model-less states: the own-login placeholder and a Claude detailed-models
+   * config with no common model.
+   */
+  modelId: UniqueModelId | null
+  /** User-edited tool-specific config blob. */
+  config?: Record<string, unknown>
+  /** Sort order in the provider list (lower = first). */
+  sortIndex?: number
+}
+
+/** Per-CLI-tool state: per-provider configs (keyed by providerId) + the active one. */
+export interface CodeCliToolState {
+  providers: Record<string, CliProviderConfig>
+  /** Currently enabled providerId (single-select). */
+  current: string | null
+  /** Terminal app — an id from `code_cli.get_available_terminals`. */
+  terminal?: string
+  /** Working directory for this CLI tool (shared across all its providers). */
+  directory?: string
+}
+
+/** Preference value for `feature.code_cli.configs`. */
+export type CodeCliConfigs = Partial<Record<CodeCliId, CodeCliToolState>>
+
+// ============================================================================
+// WebSearch Compression Types (v2 - Flattened)
+// ============================================================================
+
+/**
+ * Compression method type
+ * Stored in chat.web_search.compression.method
+ */
+export type WebSearchCompressionMethod = 'none' | 'cutoff'
+
+// ============================================================================
+// File Processor Types
+// ============================================================================
+
+export const FILE_PROCESSOR_TYPES = ['api', 'builtin'] as const
+
+export type FileProcessorType = (typeof FILE_PROCESSOR_TYPES)[number]
+
+export const FILE_PROCESSOR_FEATURES = ['image_to_text', 'document_to_markdown'] as const
+
+export type FileProcessorFeature = (typeof FILE_PROCESSOR_FEATURES)[number]
+
+export const FILE_PROCESSOR_IDS = [
+  'tesseract',
+  'system',
+  'paddleocr',
+  'local-paddleocr',
+  'ovocr',
+  'mineru',
+  'doc2x',
+  'mistral',
+  'open-mineru'
+] as const
+
+export type FileProcessorId = (typeof FILE_PROCESSOR_IDS)[number]
+
+export type FileProcessorOptions = {
+  langs?: string[]
+}
+
+export type FileProcessorCapabilityOverride = {
+  apiHost?: string
+  modelId?: string
+}
+
+export type FileProcessorCapabilityOverrides = Partial<Record<FileProcessorFeature, FileProcessorCapabilityOverride>>
+
+export type FileProcessorOverride = {
+  apiKeys?: string[]
+  capabilities?: FileProcessorCapabilityOverrides
+  options?: FileProcessorOptions
+}
+
+export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcessorOverride>>
+
+/** Region types for miniApps visibility */
+export type MiniAppRegion = 'CN' | 'Global'
+
+export type MiniAppRegionFilter = 'auto' | MiniAppRegion
+
+/** User-configurable settings for BinaryManager's isolated mise install environment. */
+export type BinaryInstallSettings = {
+  githubMirror: string
+  githubToken: string
+  npmRegistry: string
+  pipIndexUrl: string
+  verifySignatures: boolean
+}
+
+/** A user-added custom tool definition persisted in the BinaryManager custom registry. */
+export type CustomToolDefinition = {
+  name: string
+  tool: string
+  requestedVersion?: string
+}

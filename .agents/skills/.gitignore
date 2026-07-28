@@ -4,8 +4,14 @@
 !.gitignore
 !README*.md
 !public-skills.txt
+!cherry-electron-dev/
+!cherry-electron-dev/**
+!cherry-pr-test/
+!cherry-pr-test/**
 !create-skill/
 !create-skill/**
+!demand-first-review/
+!demand-first-review/**
 !gh-create-issue/
 !gh-create-issue/**
 !gh-create-pr/

@@ -1,0 +1,38 @@
+---
+title: Default assistant and CherryAI defaults are seeded
+category: changed
+severity: notice
+introduced_in_pr: #15943
+date: 2026-06-12
+---
+
+## What changed
+
+Fresh v2 databases seed a persisted default assistant backed by the managed CherryAI `cherryai::qwen` model. The seeded assistant name is chosen once from Electron's preferred system languages: Chinese languages (`zh-*`) use `Cherry 助手`, and all other languages use `Cherry Assistant`.
+
+The CherryAI default seeder also inserts missing default-model preference rows for:
+
+- `chat.default_model_id`
+- `topic.naming.model_id`
+- `feature.quick_assistant.model_id`
+- `feature.translate.model_id`
+
+Existing preference rows are preserved, including intentional `null` values such as translate's "follow the default model" state.
+
+Topic auto-naming now uses `topic.naming.model_id` instead of the current assistant's model. If that preference is invalid or points to a missing model, topic naming falls back to the managed CherryAI default model.
+
+Settings pickers that still have the legacy renderer default-assistant sentinel now prefer the persisted seeded default assistant when it exists, so fresh installs do not show duplicate default assistant choices.
+
+The managed CherryAI default model is internal app bootstrap data. It is not listed by the API gateway `/v1/models` endpoint and cannot be invoked through gateway chat/message routes.
+
+## Why this matters to the user
+
+Fresh profiles whose preferred system language is Chinese start with `Cherry 助手`; other fresh profiles start with `Cherry Assistant`. The seeded assistant remains ordinary user data and can be renamed or deleted, and it is not automatically renamed if the app language changes later.
+
+Existing v2 profiles that are missing one of the default-model preference rows may receive `cherryai::qwen` for that missing row the next time the seeder runs. Existing non-empty values and existing `null` values are not overwritten.
+
+Local API clients should not rely on the CherryAI managed default model as a gateway-accessible model. Select an explicitly configured user/provider model for gateway traffic.
+
+## What the user should do
+
+Nothing — automatic. Rename the default assistant manually if a different localized or custom name is preferred.

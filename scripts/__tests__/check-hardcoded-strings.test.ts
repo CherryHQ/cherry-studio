@@ -45,7 +45,7 @@ function findTemplateLiteral(project: Project, code: string): Node | undefined {
 vi.mock('fs')
 
 describe('check-hardcoded-strings', () => {
-  const mockSrcDir = '/mock/src/renderer/src'
+  const mockSrcDir = '/mock/src/renderer'
 
   beforeEach(() => {
     vi.resetAllMocks()

@@ -1,0 +1,393 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  AGENTS_TABLE_MIGRATION_SPECS,
+  buildAgentsImportStatements,
+  createEmptyAgentsSchemaInfo,
+  getAgentsSourceTableNames,
+  getTotalAgentsRowCount,
+  quoteSqlitePath
+} from '../AgentsDbMappings'
+
+const userModelLookup = (col: string) =>
+  `(SELECT user_model.id FROM user_model WHERE user_model.id = ${col} OR (user_model.provider_id || ':' || user_model.model_id) = ${col} LIMIT 1) AS ${col}`
+
+describe('AgentsDbMappings', () => {
+  it('builds attach/import/detach statements for the legacy agents db', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.agents.exists = true
+    schemaInfo.agents.columns = new Set([
+      'id',
+      'type',
+      'name',
+      'description',
+      'accessible_paths',
+      'instructions',
+      'model',
+      'plan_model',
+      'small_model',
+      'mcps',
+      'allowed_tools',
+      'configuration',
+      'sort_order',
+      'deleted_at',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements("/tmp/agent's.db", schemaInfo)
+
+    expect(statements[0]).toBe("ATTACH DATABASE '/tmp/agent''s.db' AS agents_legacy")
+    expect(statements).toContain(
+      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, disabled_tools, configuration, order_key, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, '[]' AS disabled_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
+    )
+    expect(statements.at(-1)).toBe('DETACH DATABASE agents_legacy')
+  })
+
+  it('falls back to defaults and skips missing tables for older legacy schemas', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.agents.exists = true
+    schemaInfo.agents.columns = new Set([
+      'id',
+      'type',
+      'name',
+      'description',
+      'accessible_paths',
+      'instructions',
+      'model',
+      'plan_model',
+      'small_model',
+      'mcps',
+      'allowed_tools',
+      'configuration',
+      'created_at',
+      'updated_at'
+      // deleted_at intentionally absent — older schema without soft-delete
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+
+    // deleted_at absent from source → skipped in INSERT (resolveColumnSelection returns null)
+    expect(statements).toContain(
+      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, disabled_tools, configuration, order_key, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, '[]' AS disabled_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
+    )
+    expect(statements.some((statement) => statement.includes('agents_legacy.skills'))).toBe(false)
+  })
+
+  it('appends WHERE clause for sessions to exclude orphaned agent references', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.sessions.exists = true
+    schemaInfo.sessions.columns = new Set([
+      'id',
+      'agent_type',
+      'agent_id',
+      'name',
+      'model',
+      'sort_order',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const sessionsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_session '))
+
+    expect(sessionsInsert).toContain('WHERE agent_id IN (SELECT id FROM agent)')
+  })
+
+  it('appends WHERE clause for channels to exclude orphaned agent and session references', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.channels.exists = true
+    schemaInfo.channels.columns = new Set([
+      'id',
+      'type',
+      'name',
+      'agent_id',
+      'session_id',
+      'config',
+      'is_active',
+      'active_chat_ids',
+      'permission_mode',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const channelsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_channel '))
+
+    expect(channelsInsert).toContain(
+      'INSERT INTO agent_channel (id, type, name, agent_id, session_id, workspace, config'
+    )
+    expect(channelsInsert).toContain('\'{"type":"system"}\' AS workspace')
+    expect(channelsInsert).toContain('(agent_id IS NULL OR agent_id IN (SELECT id FROM agent))')
+    expect(channelsInsert).toContain('(session_id IS NULL OR session_id IN (SELECT id FROM agent_session))')
+  })
+
+  it('coalesces nullable legacy channel workspace when the column is present', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.channels.exists = true
+    schemaInfo.channels.columns = new Set([
+      'id',
+      'type',
+      'name',
+      'agent_id',
+      'session_id',
+      'workspace',
+      'config',
+      'is_active',
+      'active_chat_ids',
+      'permission_mode',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const channelsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_channel '))
+
+    expect(channelsInsert).toContain('COALESCE(workspace, \'{"type":"system"}\') AS workspace')
+    expect(channelsInsert).not.toContain('\'{"type":"system"}\' AS workspace')
+  })
+
+  it('maps agent_skills → agent_skill with FK-safe WHERE clause', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.agent_skills.exists = true
+    schemaInfo.agent_skills.columns = new Set(['agent_id', 'skill_id', 'is_enabled', 'created_at', 'updated_at'])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const agentSkillsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_skill '))
+
+    expect(agentSkillsInsert).toContain(
+      'INSERT INTO agent_skill (agent_id, skill_id, is_enabled, created_at, updated_at)'
+    )
+    expect(agentSkillsInsert).toContain('FROM agents_legacy.agent_skills')
+    expect(agentSkillsInsert).toContain('WHERE agent_id IN (SELECT id FROM agent)')
+    expect(agentSkillsInsert).toContain('AND skill_id IN (SELECT id FROM agent_global_skill)')
+  })
+
+  it('maps skills → agent_global_skill', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.skills.exists = true
+    schemaInfo.skills.columns = new Set([
+      'id',
+      'name',
+      'folder_name',
+      'source',
+      'content_hash',
+      'is_enabled',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const skillsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_global_skill '))
+
+    expect(skillsInsert).toContain('INSERT INTO agent_global_skill')
+    expect(skillsInsert).toContain('FROM agents_legacy.skills')
+  })
+
+  // Note: `scheduled_tasks`, `task_run_logs`, and `channel_task_subscriptions`
+  // are no longer in AGENTS_TABLE_MIGRATION_SPECS — they migrate via the
+  // TypeScript loop `AgentsMigrator.migrateScheduledTasksTs`. The FK-safe
+  // WHERE clauses are still applied inline by that loop's SQL queries.
+
+  it('exposes the importStatement-driven source table names in dependency order', () => {
+    expect(getAgentsSourceTableNames()).toEqual([
+      'agents',
+      'sessions',
+      'skills',
+      'agent_skills',
+      'channels',
+      'session_messages'
+    ])
+  })
+
+  it('sums row counts across all importStatement-driven tables', () => {
+    expect(
+      getTotalAgentsRowCount({
+        agents: 2,
+        sessions: 3,
+        skills: 4,
+        agent_skills: 5,
+        scheduled_tasks: 6,
+        task_run_logs: 7,
+        channels: 8,
+        channel_task_subscriptions: 9,
+        session_messages: 10
+      })
+    ).toBe(32)
+  })
+
+  it('keeps the table spec list aligned with the source table names', () => {
+    expect(AGENTS_TABLE_MIGRATION_SPECS.map((spec) => spec.sourceTable)).toEqual(getAgentsSourceTableNames())
+  })
+
+  it('quotes sqlite file paths safely', () => {
+    expect(quoteSqlitePath("/tmp/a'b/c.db")).toBe("'/tmp/a''b/c.db'")
+  })
+
+  // Regression: legacy agents.db allowed NULL on columns that the new schema
+  // declares NOT NULL with a SQL default (e.g. agent.mcps DEFAULT '[]').
+  // INSERT...SELECT bypasses column defaults when the column is named in the
+  // INSERT list, so a SELECT of NULL trips SQLITE_CONSTRAINT_NOTNULL. The
+  // mapping must wrap such columns in COALESCE(<col>, <default>).
+  it('wraps NOT NULL target columns in COALESCE so legacy NULLs fall back to schema defaults', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.agents.exists = true
+    schemaInfo.agents.columns = new Set([
+      'id',
+      'type',
+      'name',
+      'description',
+      'accessible_paths',
+      'instructions',
+      'model',
+      'mcps',
+      'allowed_tools',
+      'configuration',
+      'sort_order',
+      'created_at',
+      'updated_at'
+    ])
+    schemaInfo.sessions.exists = true
+    schemaInfo.sessions.columns = new Set([
+      'id',
+      'agent_type',
+      'agent_id',
+      'name',
+      'description',
+      'accessible_paths',
+      'instructions',
+      'model',
+      'mcps',
+      'allowed_tools',
+      'slash_commands',
+      'configuration',
+      'sort_order',
+      'created_at',
+      'updated_at'
+    ])
+    schemaInfo.skills.exists = true
+    schemaInfo.skills.columns = new Set([
+      'id',
+      'name',
+      'folder_name',
+      'source',
+      'tags',
+      'content_hash',
+      'is_enabled',
+      'created_at',
+      'updated_at'
+    ])
+    schemaInfo.agent_skills.exists = true
+    schemaInfo.agent_skills.columns = new Set(['agent_id', 'skill_id', 'is_enabled', 'created_at', 'updated_at'])
+    schemaInfo.channels.exists = true
+    schemaInfo.channels.columns = new Set([
+      'id',
+      'type',
+      'name',
+      'agent_id',
+      'session_id',
+      'config',
+      'is_active',
+      'active_chat_ids',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const find = (target: string) => statements.find((s) => s.startsWith(`INSERT INTO ${target} `)) ?? ''
+
+    const agentInsert = find('agent')
+    expect(agentInsert).toContain("COALESCE(description, '') AS description")
+    expect(agentInsert).not.toContain('accessible_paths')
+    expect(agentInsert).toContain("'[]' AS disabled_tools")
+    expect(agentInsert).not.toContain('allowed_tools')
+    expect(agentInsert).toContain("COALESCE(configuration, '{}') AS configuration")
+    expect(agentInsert).toContain("'' AS order_key")
+
+    const sessionInsert = find('agent_session')
+    expect(sessionInsert).toContain(
+      'INSERT INTO agent_session (id, agent_id, name, description, workspace_id, order_key, created_at, updated_at)'
+    )
+    expect(sessionInsert).toContain("COALESCE(description, '') AS description")
+    expect(sessionInsert).toContain(
+      '(SELECT workspace_id FROM session_workspace_map WHERE session_id = sessions.id) AS workspace_id'
+    )
+    expect(sessionInsert).not.toContain('accessible_paths')
+    expect(sessionInsert).toContain("'' AS order_key")
+
+    const skillInsert = find('agent_global_skill')
+    expect(skillInsert).toContain("COALESCE(tags, '[]') AS tags")
+    // Legacy `skills.is_enabled DEFAULT true`: coalesce to 1, not 0, so a
+    // migrated skill that was implicitly enabled does not flip to disabled.
+    expect(skillInsert).toContain('COALESCE(is_enabled, 1) AS is_enabled')
+
+    const agentSkillInsert = find('agent_skill')
+    expect(agentSkillInsert).toContain('COALESCE(is_enabled, 0) AS is_enabled')
+
+    const channelInsert = find('agent_channel')
+    expect(channelInsert).toContain('\'{"type":"system"}\' AS workspace')
+    expect(channelInsert).toContain('COALESCE(is_active, 1) AS is_active')
+    expect(channelInsert).toContain("COALESCE(active_chat_ids, '[]') AS active_chat_ids")
+    expect(channelInsert).toContain("COALESCE(created_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000) AS created_at")
+    expect(channelInsert).toContain("COALESCE(updated_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000) AS updated_at")
+  })
+
+  it('matches each notNullCol defaultExpr against the canonical legacy/v2 schema defaults', () => {
+    type ColumnDefault = { defaultExpr: string }
+    const EXPECTED_DEFAULTS: Record<string, Record<string, ColumnDefault>> = {
+      agent: {
+        description: { defaultExpr: "''" },
+        disabled_tools: { defaultExpr: "'[]'" },
+        configuration: { defaultExpr: "'{}'" },
+        order_key: { defaultExpr: "''" }
+      },
+      agent_session: {
+        description: { defaultExpr: "''" },
+        order_key: { defaultExpr: "''" }
+      },
+      agent_global_skill: {
+        tags: { defaultExpr: "'[]'" },
+        // Legacy `DEFAULT true` (0005_normal_doomsday.sql:12) overrides v2's
+        // `default(false)`; preserves user intent on coalesce.
+        is_enabled: { defaultExpr: '1' }
+      },
+      agent_skill: {
+        is_enabled: { defaultExpr: '0' }
+      },
+      agent_channel: {
+        workspace: { defaultExpr: '\'{"type":"system"}\'' },
+        is_active: { defaultExpr: '1' },
+        active_chat_ids: { defaultExpr: "'[]'" }
+      }
+    }
+
+    const seen = new Set<string>()
+    const NOT_NULL_COL_SHAPE = /^COALESCE\((\w+),\s+('[^']*'|\d+)\)$/
+
+    for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
+      for (const column of spec.columns) {
+        if (typeof column === 'string') continue
+        const match = column.expr.match(NOT_NULL_COL_SHAPE)
+        if (!match) continue
+        const [, sourceName, defaultExpr] = match
+        if (sourceName !== column.name) continue // safety: source col must equal target name
+
+        const key = `${spec.targetTable}.${column.name}`
+        seen.add(key)
+
+        const expected = EXPECTED_DEFAULTS[spec.targetTable]?.[column.name]
+        expect(expected, `unexpected notNullCol entry: ${key}`).toBeDefined()
+        expect(defaultExpr, `defaultExpr drift on ${key}`).toBe(expected.defaultExpr)
+        expect(column.fallbackExpr, `fallbackExpr drift on ${key}`).toBe(expected.defaultExpr)
+      }
+    }
+
+    // Every entry in EXPECTED_DEFAULTS must be present in the spec — catches the
+    // reverse direction (someone deletes a notNullCol without updating expectations).
+    for (const [table, cols] of Object.entries(EXPECTED_DEFAULTS)) {
+      for (const col of Object.keys(cols)) {
+        expect(seen, `missing notNullCol(${col}) on ${table}`).toContain(`${table}.${col}`)
+      }
+    }
+  })
+})

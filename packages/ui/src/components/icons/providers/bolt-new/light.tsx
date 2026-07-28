@@ -1,0 +1,15 @@
+import type { SVGProps } from 'react'
+
+import type { IconComponent } from '../../types'
+const BoltNewLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+    <path
+      fill="#000"
+      fillRule="evenodd"
+      d="M64.1839 84.0252C59.4785 84.0252 54.8585 82.3455 52.2064 78.7341L51.271 82.993L34 92L35.8645 82.993L48.4421 27H63.8417L59.3929 46.7362C62.9862 42.8729 66.3227 41.4452 70.6004 41.4452C79.8399 41.4452 86 47.4081 86 58.3259C86 69.5799 78.8994 84.0252 64.1839 84.0252ZM70.0871 61.5174C70.0871 66.7244 66.3227 70.6716 61.4462 70.6716C58.7084 70.6716 56.2274 69.6638 54.6019 67.9002L56.9974 57.5701C58.7941 55.8065 60.8473 54.7986 63.2428 54.7986C66.9216 54.7986 70.0871 57.4862 70.0871 61.5174Z"
+      clipRule="evenodd"
+    />
+  </svg>
+)
+export { BoltNewLight }
+export default BoltNewLight

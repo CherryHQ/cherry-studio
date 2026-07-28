@@ -46,7 +46,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [macos-latest, windows-2022, ubuntu-latest]
       fail-fast: false
 
     steps:
@@ -66,7 +66,7 @@ jobs:
           brew install python-setuptools
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -92,7 +92,7 @@ jobs:
       - name: Build Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
-          sudo apt-get install -y rpm
+          sudo apt-get install -y rpm libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
           pnpm build:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -120,10 +120,11 @@ jobs:
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         run: |
           pnpm build:win
         env:
+          ELECTRON_BUILDER_7Z_FILTER: BCJ
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
@@ -138,7 +139,7 @@ jobs:
           DATE=${{ steps.date.outputs.date }}
 
           # Windows artifacts - based on actual file naming pattern
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          if [ "${{ matrix.os }}" == "windows-2022" ]; then
             # Setup installer
             find dist -name "*-x64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64-setup.exe \;
             find dist -name "*-arm64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64-setup.exe \;
@@ -246,7 +247,7 @@ jobs:
           # Check each platform's artifacts and show checksums if available
 
           # Windows
-          WIN_ARTIFACT_DIR="all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-windows-latest"
+          WIN_ARTIFACT_DIR="all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-windows-2022"
           if [ -d "$WIN_ARTIFACT_DIR" ] && [ -f "$WIN_ARTIFACT_DIR/SHA256SUMS.txt" ]; then
             echo "### Windows 安装包" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY

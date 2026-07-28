@@ -1,0 +1,48 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 33994516c6f1adf83fbbbba881c0fc8accbd45f6..04e058b7aa7d051626592399174d8c23d82dd6eb 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -905,6 +905,19 @@ var DragHandlePlugin = ({
+             }
+             return false;
+           },
++          scroll(view) {
++            if (!element || locked) {
++              return false;
++            }
++            if (view.hasFocus()) {
++              hideHandle();
++              currentNode = null;
++              currentNodePos = -1;
++              onNodeChange == null ? void 0 : onNodeChange({ editor, node: null, pos: -1 });
++              return false;
++            }
++            return false;
++          },
+           mouseleave(_view, e) {
+             if (locked) {
+               return false;
+diff --git a/dist/index.js b/dist/index.js
+index fad50591833ab5ed8c4f15301081ab2e6d458374..43b663e7a13160ddfae48e74acc2293f1207eabd 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -877,6 +877,19 @@ var DragHandlePlugin = ({
+             }
+             return false;
+           },
++          scroll(view) {
++            if (!element || locked) {
++              return false;
++            }
++            if (view.hasFocus()) {
++              hideHandle();
++              currentNode = null;
++              currentNodePos = -1;
++              onNodeChange == null ? void 0 : onNodeChange({ editor, node: null, pos: -1 });
++              return false;
++            }
++            return false;
++          },
+           mouseleave(_view, e) {
+             if (locked) {
+               return false;

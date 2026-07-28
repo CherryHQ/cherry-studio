@@ -1,0 +1,62 @@
+import IndicatorLight from '@renderer/components/IndicatorLight'
+import CustomTag from '@renderer/components/tags/CustomTag'
+import { getProviderLabelKey } from '@renderer/i18n/label'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { ArrowUpRight } from 'lucide-react'
+import type { FC, MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+
+interface Props {
+  modelId: string
+  providerId: string
+  showLabel?: boolean
+}
+
+export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = true }) => {
+  const { t } = useTranslation()
+
+  if (providerId !== 'cherryai') {
+    return null
+  }
+
+  const rawId = modelId.includes('::') ? modelId.slice(modelId.indexOf('::') + 2) : modelId
+  const cherryInModels = ['Qwen/Qwen3-8B', 'Qwen/Qwen3-Next-80B-A3B-Instruct']
+  const linkedProviderId = cherryInModels.includes(rawId) ? 'cherryin' : ''
+  if (!linkedProviderId) return null
+
+  const onSelectProvider = () => {
+    openSettingsTab(`/settings/provider?id=${linkedProviderId}`)
+  }
+
+  const onNavigateProvider = (e: MouseEvent) => {
+    e.stopPropagation()
+    // v1 SelectModelPopup was removed in the v2 ModelSelector migration; the
+    // inline v2 selector unmounts on route change, so no explicit hide needed.
+    openSettingsTab(`/settings/provider?id=${linkedProviderId}`)
+  }
+
+  if (!showLabel) {
+    return (
+      <div className="flex flex-row items-center gap-1">
+        <CustomTag
+          color="var(--primary)"
+          size={11}
+          onClick={onNavigateProvider}
+          style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {t(getProviderLabelKey(linkedProviderId))}
+          <ArrowUpRight size={12} />
+        </CustomTag>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-row items-center gap-1">
+      <IndicatorLight size={6} color="var(--primary)" animation={false} shadow={false} />
+      <span className="text-foreground-muted text-xs">{t('common.powered_by')}</span>
+      <button type="button" className="text-primary text-xs hover:text-primary/80" onClick={onSelectProvider}>
+        {t(getProviderLabelKey(linkedProviderId))}
+      </button>
+    </div>
+  )
+}

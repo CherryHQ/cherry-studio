@@ -9,12 +9,12 @@ import type {
   LanFileEndMessage,
   LanFileStartAckMessage,
   LanFileStartMessage
-} from '@shared/config/types'
+} from '@shared/types/lanTransfer'
 import {
   LAN_TRANSFER_CHUNK_SIZE,
   LAN_TRANSFER_COMPLETE_TIMEOUT_MS,
   LAN_TRANSFER_MAX_FILE_SIZE
-} from '@shared/config/types'
+} from '@shared/types/lanTransfer'
 
 import { sendBinaryChunk } from '../binaryProtocol'
 import type { ActiveFileTransfer, FileTransferContext } from '../types'
@@ -259,9 +259,9 @@ export function cleanupTransfer(transfer: ActiveFileTransfer | undefined): void 
  * Format bytes into human-readable size string.
  */
 export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
   const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }

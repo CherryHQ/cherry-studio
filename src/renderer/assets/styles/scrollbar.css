@@ -1,0 +1,57 @@
+:root {
+  --scrollbar-thumb-dark: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-dark-hover: rgba(255, 255, 255, 0.2);
+  --scrollbar-thumb-light: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb-light-hover: rgba(0, 0, 0, 0.2);
+
+  --scrollbar-thumb: var(--scrollbar-thumb-dark);
+  --scrollbar-thumb-hover: var(--scrollbar-thumb-dark-hover);
+
+  --scrollbar-width: 6px;
+  --scrollbar-height: 6px;
+  --scrollbar-thumb-radius: 10px;
+}
+
+body.light {
+  --scrollbar-thumb: var(--scrollbar-thumb-light);
+  --scrollbar-thumb-hover: var(--scrollbar-thumb-light-hover);
+}
+
+/* 全局初始化滚动条样式 */
+::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-height);
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: var(--scrollbar-thumb-radius);
+  background: var(--scrollbar-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+pre:not(.shiki)::-webkit-scrollbar-thumb {
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+pre:not(.shiki)::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.shiki-dark {
+  --scrollbar-thumb: var(--scrollbar-thumb-dark);
+  --scrollbar-thumb-hover: var(--scrollbar-thumb-dark-hover);
+}
+
+.shiki-light {
+  --scrollbar-thumb: var(--scrollbar-thumb-light);
+  --scrollbar-thumb-hover: var(--scrollbar-thumb-light-hover);
+}

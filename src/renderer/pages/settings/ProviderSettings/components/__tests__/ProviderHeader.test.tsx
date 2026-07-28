@@ -1,0 +1,148 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import ProviderHeader from '../ProviderHeader'
+
+const useProviderMock = vi.fn()
+const useProviderMetaMock = vi.fn()
+const useProviderEnableMock = vi.fn()
+// Keep t() returning raw keys: the renderer setup now initializes real i18n, but
+// these assertions match on stable key strings, not translated copy.
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
+vi.mock('@cherrystudio/ui', () => {
+  return {
+    Switch: ({ checked, onCheckedChange }: any) => (
+      <button type="button" data-checked={checked ? 'true' : 'false'} onClick={() => onCheckedChange(!checked)}>
+        switch
+      </button>
+    ),
+    Tooltip: ({ children, content }: any) => (
+      <div>
+        {children}
+        <span>{content}</span>
+      </div>
+    ),
+    Button: ({ asChild, children, onClick, ...props }: any) =>
+      asChild ? (
+        children
+      ) : (
+        <button type="button" onClick={onClick} {...props}>
+          {children}
+        </button>
+      )
+  }
+})
+
+vi.mock('../ProviderApiOptionsDrawer', () => ({
+  default: ({ open }: { open: boolean }) => (open ? <div>api-options-drawer</div> : null)
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/components/ProviderAvatar', () => ({
+  ProviderAvatar: () => <div>provider-avatar</div>
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProvider: (...args: any[]) => useProviderMock(...args)
+}))
+
+vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
+  useProviderMeta: (...args: any[]) => useProviderMetaMock(...args)
+}))
+
+vi.mock('../../hooks/providerSetting/useProviderEnable', () => ({
+  useProviderEnable: (...args: any[]) => useProviderEnableMock(...args)
+}))
+
+describe('ProviderHeader', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'openai',
+        name: 'OpenAI',
+        presetProviderId: 'openai',
+        isEnabled: true
+      }
+    })
+    useProviderMetaMock.mockReturnValue({
+      fancyProviderName: 'OpenAI',
+      docsWebsite: undefined,
+      showApiOptionsButton: false
+    })
+    useProviderEnableMock.mockReturnValue({
+      toggleProviderEnabled: vi.fn()
+    })
+  })
+
+  it('does not show the provider id subtitle', () => {
+    render(<ProviderHeader providerId="openai" />)
+
+    expect(screen.queryByText('openai')).not.toBeInTheDocument()
+  })
+
+  it('keeps the header height stable when the api options action is absent', () => {
+    render(<ProviderHeader providerId="openai" />)
+
+    expect(screen.getByRole('heading', { name: 'OpenAI' }).closest('.min-h-7')).toBeInTheDocument()
+  })
+
+  it('shows the custom provider name without the provider id subtitle', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: '35836b32-9bc1-40ab-9195-8b0b4ea3f342',
+        name: '反反复',
+        presetProviderId: undefined,
+        isEnabled: true
+      }
+    })
+    useProviderMetaMock.mockReturnValue({
+      fancyProviderName: '反反复',
+      docsWebsite: undefined,
+      showApiOptionsButton: false
+    })
+
+    render(<ProviderHeader providerId="35836b32-9bc1-40ab-9195-8b0b4ea3f342" />)
+
+    expect(screen.getByText('反反复')).toBeInTheDocument()
+    expect(screen.getByText('反反复').closest('a')).toBeNull()
+    expect(screen.queryByText('provider-avatar')).not.toBeInTheDocument()
+    expect(screen.queryByText('35836b32-9bc1-40ab-9195-8b0b4ea3f342')).not.toBeInTheDocument()
+  })
+
+  it('links the provider name to the official website without showing the logo or docs icon', () => {
+    useProviderMetaMock.mockReturnValue({
+      fancyProviderName: 'OpenAI',
+      officialWebsite: 'https://openai.com/',
+      docsWebsite: 'https://platform.openai.com/docs',
+      modelsWebsite: 'https://platform.openai.com/docs/models',
+      showApiOptionsButton: false
+    })
+
+    render(<ProviderHeader providerId="openai" />)
+
+    const officialLinks = screen.getAllByRole('link', { name: 'OpenAI · settings.provider.oauth.official_website' })
+    expect(officialLinks).toHaveLength(1)
+    expect(officialLinks[0]).toHaveAttribute('href', 'https://openai.com/')
+    expect(screen.queryByText('provider-avatar')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'OpenAI · common.docs' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'OpenAI · settings.models.list_title' })).not.toBeInTheDocument()
+  })
+
+  it('opens the api options drawer when the meta enables the entry', () => {
+    useProviderMetaMock.mockReturnValue({
+      fancyProviderName: 'OpenAI',
+      docsWebsite: undefined,
+      showApiOptionsButton: true
+    })
+
+    render(<ProviderHeader providerId="openai" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.options.label' }))
+
+    expect(screen.getByText('api-options-drawer')).toBeInTheDocument()
+  })
+})

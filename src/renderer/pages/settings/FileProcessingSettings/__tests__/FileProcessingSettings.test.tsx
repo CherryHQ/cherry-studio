@@ -1,0 +1,786 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { PopupHost } from '@renderer/components/PopupHost'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type * as RendererConstantModule from '@renderer/utils/platform'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOcrDeploymentInfo'
+import DocumentProcessingSettings from '../DocumentProcessingSettings'
+import OcrSettings from '../OcrSettings'
+
+const setPreferencesMock = vi.hoisted(() => vi.fn())
+const setOverridesMock = vi.hoisted(() => vi.fn())
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+const comboboxMockState = vi.hoisted(() => ({
+  onChange: undefined as ((value: string | string[]) => void) | undefined,
+  options: [] as Array<{ value: string; label: string }>,
+  value: undefined as string | string[] | undefined
+}))
+const selectMockState = vi.hoisted(() => ({
+  onValueChange: undefined as ((value: string) => void) | undefined,
+  value: undefined as string | undefined
+}))
+const preferencesMock = vi.hoisted(() => ({
+  defaultDocumentProcessor: null as string | null,
+  defaultImageProcessor: null as string | null
+}))
+const overridesMock = vi.hoisted(() => ({ value: {} }))
+
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  },
+  useTranslation: () => ({
+    t: (key: string) => key
+  })
+}))
+
+vi.mock('@renderer/hooks/useTheme', () => ({
+  useTheme: () => ({ theme: 'light' })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock
+  }
+}))
+
+vi.mock('@renderer/utils/platform', async (importOriginal) => {
+  const actual = await importOriginal<typeof RendererConstantModule>()
+
+  return {
+    ...actual,
+    isMac: false,
+    isWin: true
+  }
+})
+
+vi.mock('@renderer/hooks/translate', () => ({
+  useLanguages: () => ({
+    languages: [
+      { langCode: 'en-us', emoji: 'EN', value: 'English' },
+      { langCode: 'zh-cn', emoji: 'ZH', value: 'Chinese' }
+    ]
+  })
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  useMultiplePreferences: () => [preferencesMock, setPreferencesMock],
+  usePreference: () => [overridesMock.value, setOverridesMock]
+}))
+
+vi.mock('@renderer/components/Scrollbar', () => ({
+  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
+}))
+
+// The API key list popup now renders through the real services/popup store + PopupHost,
+// so opt this file out of the globally installed popup mock (tests/renderer.setup.ts).
+vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+
+  return {
+    ...actual,
+    Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
+    Button: ({
+      asChild,
+      children,
+      ...props
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) => {
+      if (asChild) {
+        return <>{children}</>
+      }
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
+    },
+    Combobox: ({
+      emptyText,
+      onChange,
+      options,
+      value
+    }: React.HTMLAttributes<HTMLDivElement> & {
+      emptyText?: string
+      multiple?: boolean
+      onChange?: (value: string | string[]) => void
+      options?: Array<{ value: string; label: string }>
+      value?: string | string[]
+    }) => {
+      comboboxMockState.onChange = onChange
+      comboboxMockState.options = options ?? []
+      comboboxMockState.value = value
+
+      return (
+        <div>
+          {(options ?? []).length === 0 ? <span>{emptyText}</span> : null}
+          {(options ?? []).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                const currentValue = Array.isArray(value) ? value : []
+                const nextValue = currentValue.includes(option.value)
+                  ? currentValue.filter((item) => item !== option.value)
+                  : [...currentValue, option.value]
+
+                onChange?.(nextValue)
+              }}>
+              {option.label} ({option.value})
+            </button>
+          ))}
+        </div>
+      )
+    },
+    Dialog: ({ children, open }: React.HTMLAttributes<HTMLDivElement> & { open?: boolean }) =>
+      open === false ? null : <>{children}</>,
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      ...props
+    }: React.HTMLAttributes<HTMLDivElement> & { closeOnOverlayClick?: boolean }) => {
+      void closeOnOverlayClick
+      return (
+        <div role="dialog" {...props}>
+          {children}
+        </div>
+      )
+    },
+    DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
+    InfoTooltip: ({
+      content,
+      iconProps,
+      placement
+    }: {
+      content: React.ReactNode
+      iconProps?: { size?: number }
+      placement?: string
+    }) => (
+      <span data-testid="info-tooltip" data-icon-size={iconProps?.size} data-placement={placement}>
+        {content}
+      </span>
+    ),
+    Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    MenuDivider: (props: React.HTMLAttributes<HTMLDivElement>) => <div {...props} />,
+    MenuItem: ({
+      active,
+      icon,
+      label,
+      suffix,
+      ...props
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+      active?: boolean
+      icon?: React.ReactNode
+      label: string
+      suffix?: React.ReactNode
+    }) => {
+      void icon
+
+      return (
+        <button type="button" aria-pressed={active} {...props}>
+          {label}
+          {suffix}
+        </button>
+      )
+    },
+    MenuList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    Popover: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>,
+    PopoverContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    PopoverTrigger: ({ children }: React.HTMLAttributes<HTMLDivElement> & { asChild?: boolean }) => <>{children}</>,
+    Select: ({
+      children,
+      onValueChange,
+      value
+    }: React.HTMLAttributes<HTMLDivElement> & { onValueChange?: (value: string) => void; value?: string }) => {
+      selectMockState.onValueChange = onValueChange
+      selectMockState.value = value
+      return <div data-value={value}>{children}</div>
+    },
+    SelectContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    SelectItem: ({ children, value, ...props }: React.HTMLAttributes<HTMLButtonElement> & { value: string }) => (
+      <button type="button" {...props} onClick={() => selectMockState.onValueChange?.(value)}>
+        {children}
+      </button>
+    ),
+    SelectTrigger: (
+      props: React.ButtonHTMLAttributes<HTMLButtonElement> & { selectedValue?: string; size?: string }
+    ) => {
+      const { children, selectedValue, size, ...buttonProps } = props
+      void size
+
+      return (
+        <button type="button" {...buttonProps}>
+          {children}
+          {selectedValue ?? selectMockState.value}
+        </button>
+      )
+    },
+    SelectValue: () => null,
+    Textarea: {
+      Input: ({
+        onValueChange,
+        ...props
+      }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { onValueChange?: (value: string) => void }) => (
+        <textarea {...props} onChange={(event) => onValueChange?.(event.target.value)} />
+      )
+    },
+    Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement> & { content?: React.ReactNode; delay?: number }) => (
+      <>{children}</>
+    )
+  }
+})
+
+describe('processing settings pages', () => {
+  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
+  let loggerWarnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    preferencesMock.defaultDocumentProcessor = null
+    preferencesMock.defaultImageProcessor = null
+    overridesMock.value = {}
+    comboboxMockState.onChange = undefined
+    comboboxMockState.options = []
+    comboboxMockState.value = undefined
+    selectMockState.onValueChange = undefined
+    selectMockState.value = undefined
+    setPreferencesMock.mockReset()
+    setPreferencesMock.mockResolvedValue(undefined)
+    setOverridesMock.mockReset()
+    setOverridesMock.mockResolvedValue(undefined)
+    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    loggerWarnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockResolvedValue({
+      processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru']
+    })
+  })
+
+  afterEach(() => {
+    // Unmount the host first so settling leftover popups triggers no React update on a
+    // still-mounted tree, then drain the singleton popup store so the next test starts
+    // empty. Fake timers fire the exit phase synchronously (no wall-clock wait).
+    cleanup()
+    vi.useFakeTimers()
+    for (const entry of [...popupService.getSnapshot()]) {
+      popupService.settle(entry.instanceId, null)
+    }
+    vi.advanceTimersByTime(POPUP_EXIT_MS)
+    vi.useRealTimers()
+  })
+
+  it('sets the active image processor as the image-to-text default', async () => {
+    render(<OcrSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' }))
+
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({
+        defaultImageProcessor: 'system'
+      })
+    })
+  })
+
+  it('sets the active document processor as the document-to-markdown default', async () => {
+    render(<DocumentProcessingSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' }))
+
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({
+        defaultDocumentProcessor: 'mineru'
+      })
+    })
+  })
+
+  it('shows only the processors for the selected feature', async () => {
+    const ocrSettings = render(<OcrSettings />)
+
+    expect(await screen.findByText('settings.tool.file_processing.features.image_to_text.title')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.image_to_text.tooltip')).toBeInTheDocument()
+    expect(
+      screen.queryByText('settings.tool.file_processing.features.document_to_markdown.title')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    ).toHaveLength(1)
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.mineru.name/ })
+    ).not.toBeInTheDocument()
+
+    ocrSettings.unmount()
+    render(<DocumentProcessingSettings />)
+
+    expect(
+      await screen.findByText('settings.tool.file_processing.features.document_to_markdown.title')
+    ).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.tooltip')).toBeInTheDocument()
+    expect(screen.queryByText('settings.tool.file_processing.features.image_to_text.title')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.system.name/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the provider detail header with a default badge and hides the default button', async () => {
+    preferencesMock.defaultImageProcessor = 'system'
+
+    render(<OcrSettings />)
+
+    expect((await screen.findAllByText('settings.tool.file_processing.processors.system.name')).length).toBeGreaterThan(
+      0
+    )
+    expect(screen.queryByText('settings.tool.file_processing.processors.system.description')).not.toBeInTheDocument()
+    expect(screen.getAllByText('common.default').length).toBeGreaterThan(0)
+    expect(
+      screen.queryByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('uses the Open MinerU label', async () => {
+    render(<DocumentProcessingSettings />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.open_mineru.name/ })
+    )
+
+    expect(screen.getAllByText('settings.tool.file_processing.processors.open_mineru.name').length).toBeGreaterThan(0)
+    expect(
+      screen.queryByText('settings.tool.file_processing.processors.open_mineru.description')
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows OV OCR only when file processing reports it as available', async () => {
+    render(<OcrSettings />)
+
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
+    ).not.toBeInTheDocument()
+
+    ipcRequestMock.mockResolvedValueOnce({
+      processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru', 'ovocr']
+    })
+
+    render(<OcrSettings />)
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
+      ).toBeInTheDocument()
+    })
+  })
+
+  it('keeps OV OCR hidden and logs when available processor lookup fails', async () => {
+    ipcRequestMock.mockRejectedValueOnce(new Error('IPC failed'))
+
+    render(<OcrSettings />)
+
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.system.name/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
+    ).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        'Failed to list available file processors',
+        expect.objectContaining({ message: 'IPC failed' })
+      )
+    })
+    expect(screen.getByText('settings.tool.file_processing.errors.load_processors_failed')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('stores API key input as file processing overrides', async () => {
+    render(<OcrSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+    expect(screen.queryByText('settings.tool.file_processing.fields.model_id')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
+      target: { value: ' key-1, key-2 ' }
+    })
+    fireEvent.blur(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        mistral: {
+          apiKeys: ['key-1', 'key-2']
+        }
+      })
+    })
+  })
+
+  it('keeps API host drafts when another field save rerenders the same processor', async () => {
+    const { rerender } = render(<OcrSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+
+    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
+    fireEvent.change(apiHostInput, {
+      target: { value: 'https://draft.example.com' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
+      target: { value: 'key-1' }
+    })
+    fireEvent.blur(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        mistral: {
+          apiKeys: ['key-1']
+        }
+      })
+    })
+
+    overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
+    rerender(<OcrSettings />)
+
+    expect(screen.getByPlaceholderText('settings.provider.api_host')).toHaveValue('https://draft.example.com')
+  })
+
+  it('reports API host save failures', async () => {
+    const error = new Error('persist failed')
+    setOverridesMock.mockRejectedValueOnce(error)
+    render(<OcrSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_host'), {
+      target: { value: 'https://draft.example.com' }
+    })
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.api_host'))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
+    })
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to save API host', error)
+  })
+
+  it('trims API host before persisting', async () => {
+    render(<OcrSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+
+    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
+    fireEvent.change(apiHostInput, {
+      target: { value: '  https://draft.example.com  ' }
+    })
+    fireEvent.blur(apiHostInput)
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        mistral: {
+          capabilities: {
+            image_to_text: {
+              apiHost: 'https://draft.example.com'
+            }
+          }
+        }
+      })
+    })
+    expect(apiHostInput).toHaveValue('https://draft.example.com')
+  })
+
+  it('rejects invalid API host before persisting', async () => {
+    render(<OcrSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+
+    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
+    fireEvent.change(apiHostInput, {
+      target: { value: '  not-a-url  ' }
+    })
+    fireEvent.blur(apiHostInput)
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('settings.tool.file_processing.errors.invalid_api_host')
+    })
+    expect(setOverridesMock).not.toHaveBeenCalled()
+    expect(apiHostInput).toHaveValue('not-a-url')
+  })
+
+  it('opens the file processing API key list popup from the API key field', async () => {
+    render(
+      <>
+        <OcrSettings />
+        <PopupHost />
+      </>
+    )
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+    fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
+      target: { value: ' key-1, key-2 ' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+
+    // The real popup mounts under PopupHost: it carries the mistral-scoped title and lists the
+    // two keys parsed from the API key field (short keys render unmasked).
+    expect(
+      await screen.findByText(
+        'settings.tool.file_processing.processors.mistral.name settings.provider.api.key.list.title'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('key-1')).toBeInTheDocument()
+    expect(screen.getByText('key-2')).toBeInTheDocument()
+  })
+
+  it('reopens the file processing API key list with keys saved from the popup', async () => {
+    render(
+      <>
+        <OcrSettings />
+        <PopupHost />
+      </>
+    )
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+
+    // The popup opens empty (no keys configured yet).
+    await screen.findByText('error.no_api_key')
+
+    // Add a key containing a comma, then a plain key, through the popup's own UI. Each save
+    // routes through the popup's onSetApiKeys callback back into the API key field.
+    fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder'), {
+      target: { value: 'key,1' }
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder'), {
+      target: { value: 'key2' }
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+    })
+
+    // The API key field now reflects the saved keys with the comma escaped.
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toHaveValue(
+        'key\\,1, key2'
+      )
+    })
+
+    // Close the popup so single-flight resets, then let the exit phase remove the entry.
+    await act(async () => {
+      for (const entry of [...popupService.getSnapshot()]) {
+        popupService.settle(entry.instanceId, null)
+      }
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, POPUP_EXIT_MS + 20))
+    })
+
+    // Reopening reads the current field value, so the popup now lists the saved keys.
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+
+    expect(await screen.findByText('key,1')).toBeInTheDocument()
+    expect(screen.getByText('key2')).toBeInTheDocument()
+  })
+
+  it('stores System OCR language options on Windows', async () => {
+    render(<OcrSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /English \(en-us\)/ }))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        system: {
+          options: {
+            langs: ['en-us']
+          }
+        }
+      })
+    })
+  })
+
+  it('shows PaddleOCR deployment guidance with the deployment link', async () => {
+    render(<OcrSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
+    )
+
+    const apiKeyLabel = screen.getByText('settings.tool.file_processing.fields.api_key')
+    const parseModelLabel = screen.getByText('settings.tool.file_processing.processors.paddleocr.fields.parse_model')
+    const deploymentDescription = screen.getByText(
+      'settings.tool.file_processing.processors.paddleocr.deployment.description'
+    )
+
+    expect(deploymentDescription).toBeInTheDocument()
+    expect(apiKeyLabel.compareDocumentPosition(parseModelLabel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(parseModelLabel.compareDocumentPosition(deploymentDescription)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(
+      screen.getByRole('link', { name: /settings.tool.file_processing.processors.paddleocr.deployment.docs/ })
+    ).toHaveAttribute('href', PADDLEOCR_DEPLOYMENT_URL)
+  })
+
+  it('stores PaddleOCR model changes per feature', async () => {
+    const { rerender } = render(<OcrSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'PP-OCRv5' }))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        paddleocr: {
+          capabilities: {
+            image_to_text: {
+              modelId: 'PP-OCRv5'
+            }
+          }
+        }
+      })
+    })
+
+    overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
+    rerender(<DocumentProcessingSettings />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'PP-StructureV3' }))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        paddleocr: {
+          capabilities: {
+            image_to_text: {
+              modelId: 'PP-OCRv5'
+            },
+            document_to_markdown: {
+              modelId: 'PP-StructureV3'
+            }
+          }
+        }
+      })
+    })
+  })
+
+  it('shows PaddleOCR OCR and document models from their own feature overrides', async () => {
+    overridesMock.value = {
+      paddleocr: {
+        capabilities: {
+          document_to_markdown: {
+            modelId: 'PP-StructureV3'
+          },
+          image_to_text: {
+            modelId: 'PP-OCRv5'
+          }
+        }
+      }
+    }
+
+    const { rerender } = render(<OcrSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
+    )
+    expect(
+      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model' })
+    ).toHaveTextContent('PP-OCRv5')
+
+    rerender(<DocumentProcessingSettings />)
+    fireEvent.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
+    )
+    expect(
+      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model' })
+    ).toHaveTextContent('PP-StructureV3')
+  })
+
+  it('shows only OCR-safe model options for PaddleOCR image_to_text', async () => {
+    render(<OcrSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
+    )
+
+    expect(screen.getByRole('button', { name: 'PP-OCRv6' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PP-OCRv5' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PaddleOCR-VL-1.5' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PP-StructureV3' })).not.toBeInTheDocument()
+  })
+
+  it('shows only document parsing model options for PaddleOCR document_to_markdown', async () => {
+    render(<DocumentProcessingSettings />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })
+    )
+
+    expect(screen.getByRole('button', { name: 'PaddleOCR-VL-1.5' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PaddleOCR-VL' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PP-StructureV3' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PP-OCRv6' })).not.toBeInTheDocument()
+  })
+
+  it('manages Tesseract language packs with the settings combobox', async () => {
+    overridesMock.value = {
+      tesseract: {
+        options: {
+          langs: ['eng']
+        }
+      }
+    }
+
+    render(<OcrSettings />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.tesseract.name/ })
+    )
+
+    expect(screen.getByRole('button', { name: /English \(eng\)/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Chinese \(chi_sim\)/ }))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        tesseract: {
+          options: {
+            langs: ['eng', 'chi_sim']
+          }
+        }
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /English \(eng\)/ }))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        tesseract: {
+          options: {
+            langs: []
+          }
+        }
+      })
+    })
+  })
+})

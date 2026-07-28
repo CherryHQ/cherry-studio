@@ -1,0 +1,260 @@
+import { Button, Input } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
+import { loggerService } from '@logger'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { SettingGroup, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { Check, ExternalLink, Plus } from 'lucide-react'
+import type React from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { getProviderDisplayName, type ProviderConfig } from './providers/config'
+import { isSameMcpServerCandidate, toCreateMcpServerDto } from './utils'
+
+const logger = loggerService.withContext('McpProviderSettings')
+
+interface Props {
+  provider: ProviderConfig
+  existingServers: McpServer[]
+}
+
+const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => {
+  const { addMcpServer } = useMcpServers()
+  const [isFetching, setIsFetching] = useState(false)
+  const [token, setToken] = useState<string>('')
+  // Fetched marketplace servers are re-fetchable network data, so they live in
+  // persist cache (one fixed key, keyed internally by provider).
+  const [allServers, setAllServers] = usePersistCache('feature.mcp.provider_available_servers')
+  const availableServers = useMemo(() => allServers[provider.key] ?? [], [allServers, provider.key])
+  const [searchText, setSearchText] = useState('')
+  const { t } = useTranslation()
+
+  useEffect(() => {
+    setToken(provider.getToken() || '')
+  }, [provider])
+
+  // Sort servers: servers with logo first, then by name
+  const sortedServers = useMemo(() => {
+    return [...availableServers].sort((a, b) => {
+      // Servers with logo come first
+      if (a.logoUrl && !b.logoUrl) return -1
+      if (!a.logoUrl && b.logoUrl) return 1
+      // If both have or both don't have logo, sort by name
+      return a.name.localeCompare(b.name)
+    })
+  }, [availableServers])
+
+  // Filter servers based on search text
+  const filteredServers = useMemo(() => {
+    if (!searchText.trim()) {
+      return sortedServers
+    }
+    const lowerSearchText = searchText.toLowerCase()
+    return sortedServers.filter(
+      (server) =>
+        server.name.toLowerCase().includes(lowerSearchText) ||
+        server.description?.toLowerCase().includes(lowerSearchText)
+    )
+  }, [sortedServers, searchText])
+
+  const handleTokenChange = useCallback(
+    (value: string) => {
+      setToken(value)
+      // Auto-save token when user types
+      if (value.trim()) {
+        provider.saveToken(value)
+      }
+    },
+    [provider]
+  )
+
+  const handleFetch = useCallback(async () => {
+    if (!token.trim()) {
+      toast.error(t('settings.mcp.sync.tokenRequired', 'API Token is required'))
+      return
+    }
+
+    setIsFetching(true)
+
+    try {
+      provider.saveToken(token)
+      const result = await provider.syncServers(token)
+
+      if (result.success) {
+        // Functional updater: merge against the latest stored value, not a
+        // render-time snapshot, so a concurrent write to another provider's
+        // entry is never clobbered.
+        setAllServers((prev) => ({ ...prev, [provider.key]: result.allServers }))
+        toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error: any) {
+      logger.error('Failed to fetch MCP servers', error)
+      toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
+    } finally {
+      setIsFetching(false)
+    }
+  }, [provider, setAllServers, t, token])
+
+  const isFetchDisabled = !token
+  return (
+    <DetailContainer>
+      <ProviderHeader>
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
+              {provider.discoverUrl && (
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-6 rounded-md text-muted-foreground shadow-none hover:text-primary">
+                  <a target="_blank" rel="noreferrer" href={provider.discoverUrl}>
+                    <ExternalLink size={13} />
+                  </a>
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+        <Button
+          onClick={handleFetch}
+          disabled={isFetching || isFetchDisabled}
+          size="sm"
+          className="h-7 shrink-0 rounded-lg px-2 text-xs shadow-none">
+          {t('settings.mcp.fetch.button', 'Fetch Servers')}
+        </Button>
+      </ProviderHeader>
+
+      <SettingsPanel>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <PanelTitle>{t('settings.provider.api_key.label')}</PanelTitle>
+        </div>
+        <Input
+          type="password"
+          value={token}
+          placeholder={t('settings.mcp.sync.tokenPlaceholder', 'Enter API token here')}
+          onChange={(e) => handleTokenChange(e.target.value)}
+          spellCheck={false}
+          className="h-9 rounded-lg bg-background shadow-none"
+        />
+        {provider.apiKeyUrl && (
+          <a
+            target="_blank"
+            rel="noreferrer"
+            href={provider.apiKeyUrl}
+            className="mt-3.5 inline-flex items-center text-primary text-xs hover:underline">
+            {t('settings.provider.get_api_key')}
+          </a>
+        )}
+      </SettingsPanel>
+
+      {sortedServers.length > 0 && (
+        <SettingsPanel>
+          <div className="flex items-center justify-between">
+            <PanelTitle>{t('settings.mcp.servers', 'Available MCP Servers')}</PanelTitle>
+            <CollapsibleSearchBar
+              onSearch={setSearchText}
+              placeholder={t('settings.mcp.search.placeholder', 'Search servers...')}
+              tooltip={t('settings.mcp.search.tooltip', 'Search servers')}
+              maxWidth={200}
+              style={{ borderRadius: 20 }}
+            />
+          </div>
+          <ServerList>
+            {filteredServers.map((server) => (
+              <ServerItem key={server.id}>
+                <div className="flex flex-1 flex-row items-center gap-3">
+                  {server.logoUrl && (
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                      <img src={server.logoUrl} alt={server.name} className="h-full w-full object-cover" />
+                    </div>
+                  )}
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <ServerName>{server.name}</ServerName>
+                    <ServerDescription>{server.description}</ServerDescription>
+                  </div>
+                </div>
+                {(() => {
+                  const isAlreadyAdded = existingServers.some((existing) => isSameMcpServerCandidate(existing, server))
+                  return (
+                    <Button
+                      disabled={isAlreadyAdded}
+                      variant="ghost"
+                      size="icon-sm"
+                      className="ml-2.5 size-7 min-h-7 shadow-none"
+                      onClick={async () => {
+                        if (!isAlreadyAdded) {
+                          try {
+                            await addMcpServer(toCreateMcpServerDto(server))
+                            toast.success(t('settings.mcp.addSuccess'))
+                          } catch {
+                            toast.error(t('settings.mcp.addError'))
+                          }
+                        }
+                      }}>
+                      {isAlreadyAdded ? <Check size={12} /> : <Plus size={12} />}
+                    </Button>
+                  )
+                })()}
+              </ServerItem>
+            ))}
+          </ServerList>
+        </SettingsPanel>
+      )}
+    </DetailContainer>
+  )
+}
+
+const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof SettingsContentColumn>) => (
+  <SettingsContentColumn className={cn('w-full min-w-0 pt-2', className)} {...props} />
+)
+
+const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-1.5', className)}
+    {...props}
+  />
+)
+
+const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('min-w-0 truncate font-semibold text-[15px] leading-5', className)} {...props} />
+)
+
+const SettingsPanel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <SettingGroup className={className} {...props} />
+)
+
+const PanelTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('text-foreground text-sm', className)} {...props} />
+)
+
+const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-2 flex flex-col gap-2', className)} {...props} />
+)
+
+const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'flex items-center justify-between rounded-lg border border-border/60 px-3 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
+      className
+    )}
+    {...props}
+  />
+)
+
+const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-0.5 text-sm leading-5', className)} {...props} />
+)
+
+const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('line-clamp-2 text-muted-foreground text-xs leading-5', className)} {...props} />
+)
+
+export default McpProviderSettings

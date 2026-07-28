@@ -1,0 +1,465 @@
+import {
+  Button,
+  CodeEditor,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Dropzone,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  Label
+} from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { usePreference } from '@data/hooks/usePreference'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { loggerService } from '@logger'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import { safeValidateMcpConfig } from '@renderer/types/mcp'
+import { formatZodError } from '@renderer/utils/error'
+import { parseJSON } from '@renderer/utils/json'
+import { objectKeys } from '@renderer/utils/object'
+import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { ImportIcon } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
+
+import { resolveMcpPackageIconUrl, resolveMcpPackagePathPlaceholders, resolveMcpPackageVersion } from './mcpPackage'
+import { toCreateMcpServerDto } from './utils'
+
+const logger = loggerService.withContext('AddMcpServerModal')
+
+interface AddMcpServerModalProps {
+  visible: boolean
+  onClose: () => void
+  onSuccess: (server: CreateMcpServerDto) => Promise<McpServer>
+  existingServers: McpServer[]
+  initialImportMethod?: 'json' | 'dxt' | 'mcpb'
+}
+
+interface ParsedServerData extends McpServer {
+  url?: string // JSON 可能包含此欄位，而不是 baseUrl
+}
+
+// 預設的 JSON 範例內容
+const initialJsonExample = `// Example JSON (stdio):
+// {
+//   "mcpServers": {
+//     "stdio-server-example": {
+//       "command": "npx",
+//       "args": ["-y", "mcp-server-example"]
+//     }
+//   }
+// }
+
+// Example JSON (sse):
+// {
+//   "mcpServers": {
+//     "sse-server-example": {
+//       "type": "sse",
+//       "url": "http://localhost:3000"
+//     }
+//   }
+// }
+
+// Example JSON (streamableHttp):
+// {
+//   "mcpServers": {
+//     "streamable-http-example": {
+//       "type": "streamableHttp",
+//       "url": "http://localhost:3001",
+//       "headers": {
+//         "Content-Type": "application/json",
+//         "Authorization": "Bearer your-token"
+//       }
+//     }
+//   }
+// }
+`
+
+const jsonSchema = z.object({
+  serverConfig: z.string().min(1)
+})
+type JsonFieldType = z.infer<typeof jsonSchema>
+
+const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
+  visible,
+  onClose,
+  onSuccess,
+  existingServers,
+  initialImportMethod = 'json'
+}) => {
+  const { t } = useTranslation()
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
+  const [loading, setLoading] = useState(false)
+  const [importMethod, setImportMethod] = useState<'json' | 'dxt' | 'mcpb'>(initialImportMethod)
+  const [packageFile, setPackageFile] = useState<File | null>(null)
+  const { setTimeoutTimer } = useTimer()
+
+  const form = useForm<JsonFieldType>({
+    resolver: zodResolver(
+      z.object({
+        serverConfig: z.string().min(1, t('settings.mcp.addServer.importFrom.placeholder'))
+      })
+    ),
+    defaultValues: { serverConfig: '' }
+  })
+
+  // Update import method when initialImportMethod changes
+  useEffect(() => {
+    setImportMethod(initialImportMethod)
+  }, [initialImportMethod])
+
+  /**
+   * 从JSON字符串中解析MCP服务器配置
+   * @param inputValue - JSON格式的服务器配置字符串
+   * @returns 包含解析后的服务器配置和可能的错误信息的对象
+   * - serverToAdd: 解析成功时返回服务器配置对象，失败时返回null
+   * - error: 解析失败时返回错误信息，成功时返回null
+   */
+  const getServerFromJson = (
+    inputValue: string
+  ): { serverToAdd: Partial<ParsedServerData>; error: null } | { serverToAdd: null; error: string } => {
+    const trimmedInput = inputValue.trim()
+    const parsedJson = parseJSON(trimmedInput)
+    if (parsedJson === null) {
+      logger.error('Failed to parse json.', { input: trimmedInput })
+      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
+    }
+
+    const { data: validConfig, error } = safeValidateMcpConfig(parsedJson)
+    if (error) {
+      logger.error('Failed to validate json.', { parsedJson, error })
+      return { serverToAdd: null, error: formatZodError(error, t('settings.mcp.addServer.importFrom.invalid')) }
+    }
+
+    let serverToAdd: Partial<ParsedServerData> | null = null
+
+    if (objectKeys(validConfig.mcpServers).length > 1) {
+      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.error.multipleServers') }
+    }
+
+    if (objectKeys(validConfig.mcpServers).length > 0) {
+      const key = objectKeys(validConfig.mcpServers)[0]
+      serverToAdd = validConfig.mcpServers[key]
+      if (!serverToAdd.name) {
+        serverToAdd.name = key
+      }
+    } else {
+      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
+    }
+
+    // zod 太好用了你们知道吗
+    return { serverToAdd, error: null }
+  }
+
+  const handleOk = async (jsonValues?: JsonFieldType) => {
+    try {
+      setLoading(true)
+
+      if (importMethod === 'dxt' || importMethod === 'mcpb') {
+        const isMcpbImport = importMethod === 'mcpb'
+
+        if (!packageFile) {
+          toast.error(
+            t(
+              isMcpbImport
+                ? 'settings.mcp.addServer.importFrom.noMcpbFile'
+                : 'settings.mcp.addServer.importFrom.noDxtFile'
+            )
+          )
+          setLoading(false)
+          return
+        }
+
+        // Process package file
+        try {
+          const installTimestamp = Date.now()
+          const packageBuffer = await packageFile.arrayBuffer()
+          const result = isMcpbImport
+            ? await ipcApi.request('mcp.package.upload_mcpb', { buffer: packageBuffer, fileName: packageFile.name })
+            : await ipcApi.request('mcp.package.upload_dxt', { buffer: packageBuffer, fileName: packageFile.name })
+
+          if (!result.success) {
+            toast.error(
+              result.error ||
+                t(
+                  isMcpbImport
+                    ? 'settings.mcp.addServer.importFrom.mcpbProcessFailed'
+                    : 'settings.mcp.addServer.importFrom.dxtProcessFailed'
+                )
+            )
+            setLoading(false)
+            return
+          }
+
+          const { manifest, extractDir } = result.data
+
+          // Check for duplicate names
+          if (existingServers && existingServers.some((server) => server.name === manifest.name)) {
+            toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: manifest.name }))
+            setLoading(false)
+            return
+          }
+
+          // Process args with variable substitution
+          const processedArgs = manifest.server.mcp_config.args
+            .map((arg) => {
+              // Replace ${__dirname} with the extraction directory
+              let processedArg = resolveMcpPackagePathPlaceholders(arg, extractDir)
+
+              // For now, remove user_config variables and their values
+              processedArg = processedArg.replace(/--[^=]*=\$\{user_config\.[^}]+\}/g, '')
+
+              return processedArg.trim()
+            })
+            .filter((arg) => arg.trim() !== '' && arg !== '--' && arg !== '=' && !arg.startsWith('--='))
+
+          logger.debug(`Processed ${isMcpbImport ? 'MCPB' : 'DXT'} args:`, processedArgs)
+
+          // Create MCP server DTO from package manifest (ID auto-generated by DB)
+          const serverDto: CreateMcpServerDto = toCreateMcpServerDto({
+            name: manifest.display_name || manifest.name,
+            description: `${manifest.description || manifest.long_description || ''}`,
+            baseUrl: '',
+            command: manifest.server.mcp_config.command,
+            args: processedArgs,
+            env: manifest.server.mcp_config.env || {},
+            isActive: false,
+            type: 'stdio' as const,
+            // Add package-specific metadata
+            dxtVersion: resolveMcpPackageVersion(manifest),
+            dxtPath: extractDir,
+            // Add additional metadata from manifest
+            logoUrl: resolveMcpPackageIconUrl(manifest.icon, extractDir),
+            provider: manifest.author?.name,
+            providerUrl: manifest.author?.url || manifest.homepage || manifest.repository?.url,
+            tags: manifest.keywords,
+            installSource: 'manual' as const,
+            isTrusted: true,
+            installedAt: installTimestamp,
+            trustedAt: installTimestamp
+          })
+
+          const createdServer = await onSuccess(serverDto)
+          form.reset({ serverConfig: '' })
+          setPackageFile(null)
+          onClose()
+
+          // Check server connectivity in background (with timeout)
+          setTimeoutTimer(
+            'handleOk',
+            () => {
+              ipcApi
+                .request('mcp.server.check_connectivity', { serverId: createdServer.id })
+                .then((isConnected) => {
+                  logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
+                  void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
+                    body: { isActive: isConnected }
+                  })
+                })
+                .catch((connError: any) => {
+                  logger.error(`Connectivity check failed for ${createdServer.name}:`, connError)
+                  // Don't show error for package servers as they might need additional setup
+                  logger.warn(
+                    `Package server ${createdServer.name} connectivity check failed, this is normal for servers requiring additional configuration`
+                  )
+                })
+            },
+            1000
+          ) // Delay to ensure server is properly added to store
+        } catch (error) {
+          logger.error(`${isMcpbImport ? 'MCPB' : 'DXT'} processing error:`, error as Error)
+          toast.error(
+            t(
+              isMcpbImport
+                ? 'settings.mcp.addServer.importFrom.mcpbProcessFailed'
+                : 'settings.mcp.addServer.importFrom.dxtProcessFailed'
+            )
+          )
+          setLoading(false)
+          return
+        }
+      } else {
+        // Original JSON import logic
+        const inputValue = (jsonValues?.serverConfig ?? form.getValues('serverConfig')).trim()
+
+        const { serverToAdd, error } = getServerFromJson(inputValue)
+
+        if (error !== null) {
+          form.setError('serverConfig', { type: 'manual', message: error })
+          setLoading(false)
+          return
+        }
+
+        // 檢查重複名稱
+        if (existingServers && existingServers.some((server) => server.name === serverToAdd.name)) {
+          form.setError('serverConfig', {
+            type: 'manual',
+            message: t('settings.mcp.addServer.importFrom.nameExists', { name: serverToAdd.name })
+          })
+          setLoading(false)
+          return
+        }
+
+        // 如果成功解析並通過所有檢查，立即加入伺服器（非啟用狀態）並關閉對話框
+        const installTimestamp = Date.now()
+        const serverDto = toCreateMcpServerDto({
+          ...serverToAdd,
+          name: serverToAdd.name || t('settings.mcp.newServer'),
+          baseUrl: serverToAdd.baseUrl ?? serverToAdd.url ?? '',
+          isActive: false, // 初始狀態為非啟用
+          installSource: 'manual' as const,
+          isTrusted: true,
+          installedAt: installTimestamp,
+          trustedAt: installTimestamp
+        })
+
+        const createdServer = await onSuccess(serverDto)
+        form.reset({ serverConfig: '' })
+        onClose()
+
+        // 在背景非同步檢查伺服器可用性並更新狀態
+        ipcApi
+          .request('mcp.server.check_connectivity', { serverId: createdServer.id })
+          .then((isConnected) => {
+            logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
+            void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
+              body: { isActive: isConnected }
+            })
+          })
+          .catch((connError: any) => {
+            logger.error(`Connectivity check failed for ${createdServer.name}:`, connError)
+            toast.error(createdServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
+          })
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleClose = () => {
+    form.reset({ serverConfig: '' })
+    setPackageFile(null)
+    setImportMethod(initialImportMethod)
+    onClose()
+  }
+
+  return (
+    <Dialog open={visible} onOpenChange={(next) => !next && handleClose()}>
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-150">
+        <DialogHeader>
+          <DialogTitle>
+            {importMethod === 'mcpb'
+              ? t('settings.mcp.addServer.importFrom.mcpb')
+              : importMethod === 'dxt'
+                ? t('settings.mcp.addServer.importFrom.dxt')
+                : t('settings.mcp.addServer.importFrom.json')}
+          </DialogTitle>
+        </DialogHeader>
+        {importMethod === 'json' ? (
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit((values) => handleOk(values))}
+              className="flex flex-col gap-4"
+              id="add-mcp-server-form">
+              <FormField
+                control={form.control}
+                name="serverConfig"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('settings.mcp.addServer.importFrom.tooltip')}</FormLabel>
+                    <FormControl>
+                      <CodeEditor
+                        theme={activeCmTheme}
+                        fontSize={fontSize - 1}
+                        value={field.value}
+                        placeholder={initialJsonExample}
+                        language="json"
+                        onChange={(newContent) => field.onChange(newContent)}
+                        height="60vh"
+                        expanded={false}
+                        wrapped
+                        options={{
+                          lint: true,
+                          lineNumbers: true,
+                          foldGutter: true,
+                          highlightActiveLine: true,
+                          keymap: true
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </form>
+          </Form>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <Label>
+              {t(
+                importMethod === 'mcpb'
+                  ? 'settings.mcp.addServer.importFrom.mcpbFile'
+                  : 'settings.mcp.addServer.importFrom.dxtFile'
+              )}
+            </Label>
+            <Dropzone
+              accept={{ 'application/octet-stream': [importMethod === 'mcpb' ? '.mcpb' : '.dxt'] }}
+              maxFiles={1}
+              src={packageFile ? [packageFile] : undefined}
+              onDrop={(files) => setPackageFile(files[0] ?? null)}>
+              <div className="flex flex-col items-center gap-1 text-sm">
+                <ImportIcon className="size-5 text-muted-foreground" />
+                <span>
+                  {packageFile?.name ??
+                    t(
+                      importMethod === 'mcpb'
+                        ? 'settings.mcp.addServer.importFrom.selectMcpbFile'
+                        : 'settings.mcp.addServer.importFrom.selectDxtFile'
+                    )}
+                </span>
+              </div>
+            </Dropzone>
+            <p className="text-muted-foreground text-sm">
+              {t(
+                importMethod === 'mcpb'
+                  ? 'settings.mcp.addServer.importFrom.mcpbHelp'
+                  : 'settings.mcp.addServer.importFrom.dxtHelp'
+              )}
+            </p>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            {t('common.cancel')}
+          </Button>
+          {importMethod === 'json' ? (
+            <Button type="submit" form="add-mcp-server-form" disabled={loading}>
+              {t('common.confirm')}
+            </Button>
+          ) : (
+            <Button onClick={() => handleOk()} disabled={loading || !packageFile}>
+              {t('common.confirm')}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export default AddMcpServerModal

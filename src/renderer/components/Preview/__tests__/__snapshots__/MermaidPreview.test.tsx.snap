@@ -1,0 +1,24 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MermaidPreview > basic rendering > should match snapshot 1`] = `
+<div>
+  <div
+    data-source="mermaid"
+    data-testid="image-preview-layout"
+  >
+    <div
+      data-testid="toolbar"
+    >
+      Toolbar
+    </div>
+    <div
+      data-testid="preview-content"
+    >
+      <div
+        class="mermaid special-preview"
+        style="--shadow-host-background-color: transparent; --shadow-host-border: unset; --shadow-host-border-radius: unset;"
+      />
+    </div>
+  </div>
+</div>
+`;

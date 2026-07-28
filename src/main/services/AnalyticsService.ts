@@ -1,71 +1,114 @@
+import { application } from '@application'
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { AnalyticsClient } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
-import { generateUserAgent } from '@main/utils/systemInfo'
-import { APP_NAME } from '@shared/config/constant'
+import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
+import { APP_NAME, LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { app } from 'electron'
-
-import { configManager } from './ConfigManager'
 
 const logger = loggerService.withContext('AnalyticsService')
 
-class AnalyticsService {
+@Injectable('AnalyticsService')
+@ServicePhase(Phase.WhenReady)
+export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
-  private static instance: AnalyticsService
-
-  public static getInstance(): AnalyticsService {
-    if (!AnalyticsService.instance) {
-      AnalyticsService.instance = new AnalyticsService()
+  /** Latest desired running state — requires both data collection and current policy consent. */
+  private desiredEnabled = false
+  /**
+   * Converges the client's running state to `desiredEnabled`. It is the SOLE caller of
+   * activate/deactivate, so transitions never run concurrently. Level-triggered against the ACTUAL
+   * `isActivated` state and latest-wins: a re-enable that lands while the async `onDeactivate`
+   * (`await client.destroy()`) is still in flight is honoured on the next pass instead of being
+   * dropped by BaseService's shared `_activating` guard.
+   */
+  private readonly reconciler: LatestReconciler = createLatestReconciler<{ desired: boolean; actual: boolean }>({
+    name: 'analytics',
+    getSnapshot: () => ({ desired: this.desiredEnabled, actual: this.isActivated }),
+    isSettled: ({ desired, actual }) => desired === actual,
+    apply: async ({ desired }) => {
+      if (desired) {
+        await this.activate()
+      } else {
+        await this.deactivate()
+      }
     }
-    return AnalyticsService.instance
+  })
+
+  private refreshDesiredEnabled(): void {
+    const preferenceService = application.get('PreferenceService')
+    this.desiredEnabled =
+      preferenceService.get('app.privacy.data_collection.enabled') &&
+      preferenceService.get('app.privacy.policy_version') === LATEST_PRIVACY_POLICY_VERSION
+    this.reconciler.request()
   }
 
-  public init(): void {
+  protected async onInit() {
+    // The reconciler is the sole driver of activate/deactivate (latest-wins): a re-enable that lands
+    // while the async onDeactivate (`await client.destroy()`) is in flight must not be dropped by the
+    // shared `_activating` guard. The reconciler holds no OS resources and is a construct-once field
+    // that is NOT recreated on restart (`start()` re-runs `onInit`), so it is deliberately not
+    // disposed — disposing it would permanently no-op `request()` after a stop→restart.
+    const preferenceService = application.get('PreferenceService')
+    const refreshDesiredEnabled = () => this.refreshDesiredEnabled()
+    this.registerDisposable(
+      preferenceService.subscribeChange('app.privacy.data_collection.enabled', refreshDesiredEnabled)
+    )
+    this.registerDisposable(preferenceService.subscribeChange('app.privacy.policy_version', refreshDesiredEnabled))
+  }
+
+  protected async onReady() {
+    this.refreshDesiredEnabled()
+    await this.reconciler.flush()
+  }
+
+  onActivate(): void {
+    const clientId = getClientId()
+
     this.client = new AnalyticsClient({
-      clientId: configManager.getClientId(),
+      clientId,
       channel: 'cherry-studio',
       onError: (error) => logger.error('Analytics error:', error),
       headers: {
         'User-Agent': generateUserAgent(),
-        'Client-Id': configManager.getClientId(),
+        'Client-Id': clientId,
         'App-Name': APP_NAME,
         'App-Version': `v${app.getVersion()}`,
         OS: process.platform
       }
     })
 
+    // FIXME: trackAppLaunch is called on every activate.
+    // Original code called it once in onInit. When the user toggles the preference
+    // off then on at runtime, this produces an extra launch event.
+    // This is beyond the scope of the Activatable refactoring — keeping as-is.
     this.client.trackAppLaunch({
       version: app.getVersion(),
       os: process.platform
     })
 
-    logger.info('Analytics service initialized')
+    logger.info('Analytics service activated')
+  }
+
+  async onDeactivate(): Promise<void> {
+    if (this.client) {
+      await this.client.destroy()
+      this.client = null
+    }
+    logger.info('Analytics service deactivated')
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    const enableDataCollection = configManager.getEnableDataCollection()
-
-    if (!this.client || !enableDataCollection) {
-      return
-    }
-
-    this.client.trackTokenUsage(data)
+    if (!this.isActivated || !this.desiredEnabled) return
+    this.client!.trackTokenUsage(data)
   }
 
   public async trackAppUpdate(): Promise<void> {
-    if (!this.client) {
+    if (!this.client || !this.desiredEnabled) {
       return
     }
 
     await this.client.trackAppUpdate()
   }
-
-  public async destroy(): Promise<void> {
-    if (!this.client) return
-    await this.client.destroy()
-    this.client = null
-    logger.info('Analytics service destroyed')
-  }
 }
-
-export const analyticsService = AnalyticsService.getInstance()

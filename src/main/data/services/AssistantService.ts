@@ -1,0 +1,667 @@
+/**
+ * Assistant Service - handles assistant CRUD operations
+ *
+ * Provides business logic for:
+ * - Assistant CRUD operations
+ * - Listing with optional filters
+ */
+
+import { application } from '@application'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { pinTable } from '@data/db/schemas/pin'
+import type { DbOrTx, DbType } from '@data/db/types'
+import { loggerService } from '@logger'
+import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type {
+  CreateAssistantDto,
+  ImportAssistantDto,
+  ListAssistantsQuery,
+  UpdateAssistantDto
+} from '@shared/data/api/schemas/assistants'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { UniqueModelId } from '@shared/data/types/model'
+import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+
+import { groupService } from './GroupService'
+import { modelService } from './ModelService'
+import { pinService } from './PinService'
+import { topicService } from './TopicService'
+import { applyMoves, insertWithOrderKey } from './utils/orderKey'
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
+
+const logger = loggerService.withContext('DataApi:AssistantService')
+
+type AssistantRow = typeof assistantTable.$inferSelect
+
+type AssistantRelationIds = Pick<Assistant, 'mcpServerIds' | 'knowledgeBaseIds'>
+type AssistantEntitySearchItem = Extract<EntitySearchItem, { type: 'assistant' }>
+type AssistantRowWithModelName = {
+  assistant: AssistantRow
+  modelName: string | null
+}
+
+function createEmptyRelations(): AssistantRelationIds {
+  return {
+    mcpServerIds: [],
+    knowledgeBaseIds: []
+  }
+}
+
+function rowToAssistant(
+  row: AssistantRow,
+  relations: AssistantRelationIds = createEmptyRelations(),
+  modelName: string | null = null
+): Assistant {
+  const clean = nullsToUndefined(row)
+  return {
+    ...clean,
+    // Preserve the T | null contract: `modelId` is legitimately nullable (R3 exception).
+    modelId: row.modelId as UniqueModelId | null,
+    groupId: row.groupId,
+    mcpServerIds: relations.mcpServerIds,
+    knowledgeBaseIds: relations.knowledgeBaseIds,
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt),
+    modelName
+  }
+}
+
+function buildSearchPredicate(q: string | undefined): SQL | undefined {
+  const trimmed = q?.trim()
+  if (!trimmed) return undefined
+
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${assistantTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const descMatch = sql`${assistantTable.description} LIKE ${pattern} ESCAPE '\\'`
+
+  return or(nameMatch, descMatch)
+}
+
+function rethrowAssistantOrderError(error: unknown): never {
+  if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND && error.details?.resource === 'assistant') {
+    throw DataApiErrorFactory.notFound('Assistant', error.details.id)
+  }
+
+  throw error
+}
+
+export class AssistantDataService {
+  private get db() {
+    return application.get('DbService').getDb()
+  }
+
+  private getModelNameById(db: Pick<DbType, 'select'>, modelId: string | null): string | null {
+    if (!modelId) return null
+    return modelService.getNamesByUniqueIdsTx(db, [modelId]).get(modelId) ?? null
+  }
+
+  private getActiveRowWithModelNameById(id: string, db: Pick<DbType, 'select'> = this.db): AssistantRowWithModelName {
+    const [row] = db
+      .select()
+      .from(assistantTable)
+      .where(and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt)))
+      .limit(1)
+      .all()
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Assistant', id)
+    }
+
+    return {
+      assistant: row,
+      modelName: this.getModelNameById(db, row.modelId)
+    }
+  }
+
+  /**
+   * Resolve the effective `modelId` for a create request.
+   * v2 transition: this replaces the legacy pattern where the renderer
+   * looked up Redux `state.llm.defaultModel` and pushed a UniqueModelId
+   * that was not guaranteed to exist in `user_model`.
+   */
+  private resolveCreateModelId(tx: Pick<DbType, 'select'>, dtoModelId: string | null | undefined): string | null {
+    if (dtoModelId !== undefined) {
+      if (dtoModelId && !modelService.existsByIdTx(tx, dtoModelId)) {
+        throw DataApiErrorFactory.validation(
+          { modelId: [`Model '${dtoModelId}' is not registered in user_model`] },
+          `Assistant modelId '${dtoModelId}' is not registered — add the model first or pass null`
+        )
+      }
+      return dtoModelId
+    }
+    const preferred = application.get('PreferenceService').get('chat.default_model_id') ?? null
+    if (!preferred) return null
+
+    if (!modelService.existsByIdTx(tx, preferred)) {
+      logger.warn('chat.default_model_id is stale; creating assistant without a bound model', {
+        preferred
+      })
+      return null
+    }
+    return preferred
+  }
+
+  private validateAssistantGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
+    if (groupId == null) return
+
+    const group = groupService.findByIdTx(tx, groupId)
+
+    if (!group) {
+      throw DataApiErrorFactory.validation({
+        groupId: [`Assistant group not found: ${groupId}`]
+      })
+    }
+
+    if (group.entityType !== 'assistant') {
+      throw DataApiErrorFactory.validation({
+        groupId: [`Assistant group must have entityType 'assistant': ${groupId}`]
+      })
+    }
+  }
+
+  private getRelationIdsByAssistantIds(assistantIds: string[]): Map<string, AssistantRelationIds> {
+    const relationMap = new Map<string, AssistantRelationIds>()
+
+    if (assistantIds.length === 0) {
+      return relationMap
+    }
+
+    for (const assistantId of assistantIds) {
+      relationMap.set(assistantId, createEmptyRelations())
+    }
+
+    const mcpServerRows = this.db
+      .select({ assistantId: assistantMcpServerTable.assistantId, mcpServerId: assistantMcpServerTable.mcpServerId })
+      .from(assistantMcpServerTable)
+      .where(inArray(assistantMcpServerTable.assistantId, assistantIds))
+      .orderBy(asc(assistantMcpServerTable.assistantId), asc(assistantMcpServerTable.createdAt))
+      .all()
+    const knowledgeBaseRows = this.db
+      .select({
+        assistantId: assistantKnowledgeBaseTable.assistantId,
+        knowledgeBaseId: assistantKnowledgeBaseTable.knowledgeBaseId
+      })
+      .from(assistantKnowledgeBaseTable)
+      .where(inArray(assistantKnowledgeBaseTable.assistantId, assistantIds))
+      .orderBy(asc(assistantKnowledgeBaseTable.assistantId), asc(assistantKnowledgeBaseTable.createdAt))
+      .all()
+
+    for (const row of mcpServerRows) {
+      relationMap.get(row.assistantId)?.mcpServerIds.push(row.mcpServerId)
+    }
+    for (const row of knowledgeBaseRows) {
+      relationMap.get(row.assistantId)?.knowledgeBaseIds.push(row.knowledgeBaseId)
+    }
+
+    return relationMap
+  }
+
+  /**
+   * Get an assistant by ID.
+   * @param options.includeDeleted - If true, also returns soft-deleted assistants (for historical display)
+   */
+  getById(id: string, options?: { includeDeleted?: boolean }): Assistant {
+    const conditions = [eq(assistantTable.id, id)]
+    if (!options?.includeDeleted) {
+      conditions.push(isNull(assistantTable.deletedAt))
+    }
+    const [row] = this.db
+      .select()
+      .from(assistantTable)
+      .where(and(...conditions))
+      .limit(1)
+      .all()
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Assistant', id)
+    }
+    const relations = this.getRelationIdsByAssistantIds([id])
+    return rowToAssistant(row, relations.get(id), this.getModelNameById(this.db, row.modelId))
+  }
+
+  search(query: { q: string; limit: number; updatedAtFrom?: number }): AssistantEntitySearchItem[] {
+    const conditions: SQL[] = [isNull(assistantTable.deletedAt)]
+    const searchClause = buildSearchPredicate(query.q)
+    if (searchClause) conditions.push(searchClause)
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(assistantTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = this.db
+      .select({
+        id: assistantTable.id,
+        name: assistantTable.name,
+        description: assistantTable.description,
+        emoji: assistantTable.emoji,
+        updatedAt: assistantTable.updatedAt
+      })
+      .from(assistantTable)
+      .where(and(...conditions))
+      .orderBy(desc(assistantTable.updatedAt), asc(assistantTable.id))
+      .limit(query.limit)
+      .all()
+
+    return rows.map((row) => ({
+      type: 'assistant',
+      id: row.id,
+      title: row.name,
+      subtitle: row.description || undefined,
+      emoji: row.emoji,
+      updatedAt: timestampToISO(row.updatedAt),
+      target: { assistantId: row.id }
+    }))
+  }
+
+  /**
+   * List assistants with optional filters.
+   *
+   * Filter composition:
+   * - `id` / `search` / `groupId` AND together (group-scoped text search).
+   * - `search` runs LIKE %kw% against `name` OR `description` (case-insensitive
+   *   for ASCII, byte-wise substring for CJK — both expected by the UI).
+   *   SQLite LIKE wildcards (`%`/`_`) in the raw input are escaped.
+   * - `groupId` matches the assistant's single optional group directly.
+   *
+   * `page` and `limit` are filled by the schema default — no runtime fallback.
+   */
+  list(query: ListAssistantsQuery): { items: Assistant[]; total: number; page: number } {
+    const { page, limit } = query
+    const offset = (page - 1) * limit
+
+    const conditions: SQL[] = [isNull(assistantTable.deletedAt)]
+    if (query.id !== undefined) {
+      conditions.push(eq(assistantTable.id, query.id))
+    }
+    if (query.search) {
+      const pattern = `%${query.search.replace(/[\\%_]/g, '\\$&')}%`
+      // `\` escape clause so literal %/_ typed by the user don't act as wildcards.
+      const nameMatch = sql`${assistantTable.name} LIKE ${pattern} ESCAPE '\\'`
+      const descMatch = sql`${assistantTable.description} LIKE ${pattern} ESCAPE '\\'`
+      const searchClause = or(nameMatch, descMatch)
+      if (searchClause) conditions.push(searchClause)
+    }
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(assistantTable.updatedAt, Date.parse(query.updatedAtFrom)))
+    }
+    if (query.groupId !== undefined) {
+      conditions.push(eq(assistantTable.groupId, query.groupId))
+    }
+
+    const whereClause = and(...conditions)
+    const sortBy = query.sortBy ?? 'orderKey'
+    const sortOrder = query.sortOrder ?? (sortBy === 'orderKey' || sortBy === 'name' ? 'asc' : 'desc')
+    const orderFn = sortOrder === 'asc' ? asc : desc
+    const sortByToColumn = {
+      createdAt: assistantTable.createdAt,
+      updatedAt: assistantTable.updatedAt,
+      name: assistantTable.name,
+      orderKey: assistantTable.orderKey
+    } as const
+    const sortColumn = sortByToColumn[sortBy] ?? assistantTable.orderKey
+    const orderByClauses =
+      sortBy === 'updatedAt'
+        ? [orderFn(sortColumn), asc(assistantTable.id)]
+        : [
+            sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+            asc(pinTable.orderKey),
+            orderFn(sortColumn),
+            asc(assistantTable.createdAt)
+          ]
+
+    // Pin-aware ordering is the default library view: pinned rows first by
+    // pin.orderKey, then the requested secondary sort. Freshness queries
+    // (`sortBy=updatedAt`) deliberately bypass pins so incremental consumers get
+    // strict timestamp ordering.
+    const rows = this.db
+      .select({ assistant: assistantTable, pinOrderKey: pinTable.orderKey })
+      .from(assistantTable)
+      .leftJoin(pinTable, and(eq(pinTable.entityType, 'assistant'), eq(pinTable.entityId, assistantTable.id)))
+      .where(whereClause)
+      .orderBy(...orderByClauses)
+      .limit(limit)
+      .offset(offset)
+      .all()
+    const [{ count }] = this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause).all()
+
+    const assistantIds = rows.map((row) => row.assistant.id)
+    const relations = this.getRelationIdsByAssistantIds(assistantIds)
+    const modelNames = modelService.getNamesByUniqueIdsTx(
+      this.db,
+      rows.map((row) => row.assistant.modelId)
+    )
+    const items = rows.map((row) =>
+      rowToAssistant(
+        row.assistant,
+        relations.get(row.assistant.id),
+        row.assistant.modelId ? (modelNames.get(row.assistant.modelId) ?? null) : null
+      )
+    )
+
+    return {
+      items,
+      total: Number(count),
+      page
+    }
+  }
+
+  /**
+   * Insert an assistant and its relations inside a caller-owned transaction.
+   */
+  private createTx(tx: DbOrTx, dto: CreateAssistantDto): AssistantRowWithModelName {
+    // Resolve modelId: explicit values strictly validated; omission falls
+    // back to `chat.default_model_id` preference (stale → null with a
+    // logger.warn).
+    const modelId = this.resolveCreateModelId(tx, dto.modelId)
+    this.validateAssistantGroupTx(tx, dto.groupId)
+
+    // Split relation fields from columns. Service owns emoji/settings
+    // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
+    // orderKey is omitted — `insertWithOrderKey` computes the next fractional
+    // key from the existing max and injects it before the DB write.
+    const { mcpServerIds, knowledgeBaseIds, ...columnDto } = dto
+    const insertValues = {
+      ...columnDto,
+      modelId,
+      emoji: dto.emoji ?? '🌟',
+      settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
+    } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
+
+    const inserted = insertWithOrderKey(tx, assistantTable, insertValues, {
+      pkColumn: assistantTable.id,
+      scope: isNull(assistantTable.deletedAt)
+    }) as AssistantRow
+
+    this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
+
+    return this.getActiveRowWithModelNameById(inserted.id, tx)
+  }
+
+  /**
+   * Create a new assistant.
+   *
+   * `mcpServerIds` and `knowledgeBaseIds` land inside the same
+   * transaction as the insert — one failed binding rolls the assistant row
+   * back so callers never observe a half-written record.
+   */
+  create(dto: CreateAssistantDto): Assistant {
+    this.validateName(dto.name)
+
+    const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
+
+    logger.info('Created assistant', { id: row.id, name: row.name })
+
+    return rowToAssistant(
+      row,
+      {
+        mcpServerIds: dto.mcpServerIds ?? [],
+        knowledgeBaseIds: dto.knowledgeBaseIds ?? []
+      },
+      modelName
+    )
+  }
+
+  /**
+   * Import one legacy assistant. Exact-name group resolution/creation and the
+   * assistant insert share one immediate write transaction, preventing stale
+   * renderer snapshots or concurrent imports from creating duplicate groups.
+   */
+  createFromImport(dto: ImportAssistantDto): Assistant {
+    this.validateName(dto.name)
+    const { groupName, ...assistantDto } = dto
+
+    const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => {
+      const group = groupName ? groupService.findOrCreateByNameTx(tx, 'assistant', groupName) : null
+      return this.createTx(tx, {
+        ...assistantDto,
+        ...(group ? { groupId: group.id } : {})
+      })
+    })
+
+    logger.info('Imported assistant', { id: row.id, name: row.name })
+
+    return rowToAssistant(row, createEmptyRelations(), modelName)
+  }
+
+  /**
+   * Update an existing assistant.
+   *
+   * Column writes and junction-table syncs (mcpServer / knowledgeBase) all
+   * run under one transaction so save-time failures cannot leave the entity
+   * desynced from its bindings.
+   *
+   * **Soft-delete TOCTOU guard**: every write inside the transaction is gated
+   * by `isNull(deletedAt)`. If another window soft-deleted the assistant
+   * between the entry `getById` and the transaction, we throw `NOT_FOUND` and
+   * roll back — the client can never observe a "saved successfully" response
+   * on an already-deleted row.
+   */
+  update(id: string, dto: UpdateAssistantDto): Assistant {
+    const current = this.getById(id)
+
+    if (dto.name !== undefined) {
+      this.validateName(dto.name)
+    }
+
+    // Strip relation fields — these are synced to junction tables, not assistant columns
+    const { mcpServerIds, knowledgeBaseIds, settings: settingsPatch, ...columnFields } = dto
+    const updates = Object.fromEntries(Object.entries(columnFields).filter(([, v]) => v !== undefined)) as Partial<
+      typeof assistantTable.$inferInsert
+    >
+    if (settingsPatch !== undefined) {
+      updates.settings = { ...current.settings, ...settingsPatch }
+    }
+    const hasColumnUpdates = Object.keys(updates).length > 0
+    const hasRelationUpdates = mcpServerIds !== undefined || knowledgeBaseIds !== undefined
+
+    if (!hasColumnUpdates && !hasRelationUpdates) {
+      return current
+    }
+
+    const nextRelations: AssistantRelationIds = {
+      mcpServerIds: mcpServerIds ?? current.mcpServerIds,
+      knowledgeBaseIds: knowledgeBaseIds ?? current.knowledgeBaseIds
+    }
+
+    const aliveFilter = and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt))
+
+    const { row, modelName } = application.get('DbService').withWriteTx((tx) => {
+      // Pre-validate the new FK target before any write — same reasoning as
+      // in `create`. Skipped when the caller is unbinding (null) or leaving
+      // the existing modelId untouched (undefined/empty).
+      if (dto.modelId && !modelService.existsByIdTx(tx, dto.modelId)) {
+        throw DataApiErrorFactory.validation(
+          { modelId: [`Model '${dto.modelId}' is not registered in user_model`] },
+          `Assistant modelId '${dto.modelId}' is not registered — add the model first or pass null`
+        )
+      }
+      if (dto.groupId !== undefined) {
+        this.validateAssistantGroupTx(tx, dto.groupId)
+      }
+
+      let next: AssistantRow
+      if (hasColumnUpdates) {
+        const [updated] = tx.update(assistantTable).set(updates).where(aliveFilter).returning().all()
+        if (!updated) {
+          throw DataApiErrorFactory.notFound('Assistant', id)
+        }
+        next = updated
+      } else {
+        // Relation-only edits still need the same liveness guard,
+        // otherwise a concurrent soft-delete would let us write junction rows
+        // against a deleted assistant.
+        const [existing] = tx.select().from(assistantTable).where(aliveFilter).limit(1).all()
+        if (!existing) {
+          throw DataApiErrorFactory.notFound('Assistant', id)
+        }
+        next = existing
+      }
+
+      // Sync junction table rows if relation fields are provided
+      this.syncRelationsTx(tx, id, { mcpServerIds, knowledgeBaseIds })
+
+      const nextModelName =
+        dto.modelId !== undefined && dto.modelId !== current.modelId
+          ? this.getModelNameById(tx, next.modelId)
+          : current.modelName
+
+      return { row: next, modelName: nextModelName }
+    })
+
+    logger.info('Updated assistant', { id, changes: Object.keys(dto) })
+
+    return rowToAssistant(row, nextRelations, modelName)
+  }
+
+  /** Move a single assistant within the active (non-deleted) assistant list. */
+  reorder(id: string, anchor: OrderRequest): void {
+    try {
+      application.get('DbService').withWriteTx((tx) => {
+        applyMoves(tx, assistantTable, [{ id, anchor }], {
+          pkColumn: assistantTable.id,
+          scope: isNull(assistantTable.deletedAt)
+        })
+      })
+    } catch (error) {
+      rethrowAssistantOrderError(error)
+    }
+  }
+
+  /** Apply multiple assistant moves atomically within the active assistant list. */
+  reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
+    if (moves.length === 0) return
+
+    try {
+      application.get('DbService').withWriteTx((tx) => {
+        applyMoves(tx, assistantTable, moves, {
+          pkColumn: assistantTable.id,
+          scope: isNull(assistantTable.deletedAt)
+        })
+      })
+    } catch (error) {
+      rethrowAssistantOrderError(error)
+    }
+  }
+
+  /**
+   * Soft-delete an assistant (sets deletedAt timestamp).
+   * The row is preserved so topic.assistantId FK remains valid
+   * and junction table data (mcpServers, knowledgeBases) is retained.
+   * The group assignment is cleared so restoring a soft-deleted assistant
+   * does not restore its previous classification.
+   */
+  delete(id: string, options: { deleteTopics?: boolean } = {}): { deleted: boolean; deletedTopicIds?: string[] } {
+    let deletedTopicIds: string[] | undefined
+    const deleted = application.get('DbService').withWriteTx((tx) => {
+      const didDelete = this.deleteTx(tx, id)
+      if (!didDelete) return false
+
+      if (options.deleteTopics === true) {
+        deletedTopicIds = topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false })
+      }
+
+      return true
+    })
+
+    if (!deleted) {
+      throw DataApiErrorFactory.notFound('Assistant', id)
+    }
+
+    logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+    return { deleted, deletedTopicIds }
+  }
+
+  deleteTx(tx: DbOrTx, id: string): boolean {
+    const [row] = tx
+      .update(assistantTable)
+      .set({ deletedAt: Date.now(), groupId: null })
+      .where(and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt)))
+      .returning({ id: assistantTable.id })
+      .all()
+
+    if (!row) return false
+
+    pinService.purgeForEntityTx(tx, 'assistant', id)
+
+    return true
+  }
+
+  /**
+   * Sync junction table rows for an assistant.
+   * If an array is provided, it replaces all existing rows (delete + insert).
+   * If undefined, the existing rows are left unchanged.
+   * Runs within the caller's transaction for atomicity.
+   */
+  private syncRelationsTx(
+    tx: Pick<DbType, 'delete' | 'insert' | 'select'>,
+    assistantId: string,
+    dto: { mcpServerIds?: string[]; knowledgeBaseIds?: string[] }
+  ): void {
+    if (dto.mcpServerIds !== undefined) {
+      const existing = tx
+        .select({ mcpServerId: assistantMcpServerTable.mcpServerId })
+        .from(assistantMcpServerTable)
+        .where(eq(assistantMcpServerTable.assistantId, assistantId))
+        .all()
+      const existingIds = new Set(existing.map((r) => r.mcpServerId))
+      const desiredIds = new Set(dto.mcpServerIds)
+
+      const removeIds = existing.filter((r) => !desiredIds.has(r.mcpServerId)).map((r) => r.mcpServerId)
+      const toAdd = dto.mcpServerIds.filter((id) => !existingIds.has(id))
+
+      if (removeIds.length > 0) {
+        tx.delete(assistantMcpServerTable)
+          .where(
+            and(
+              eq(assistantMcpServerTable.assistantId, assistantId),
+              inArray(assistantMcpServerTable.mcpServerId, removeIds)
+            )
+          )
+          .run()
+      }
+      if (toAdd.length > 0) {
+        tx.insert(assistantMcpServerTable)
+          .values(toAdd.map((mcpServerId) => ({ assistantId, mcpServerId })))
+          .run()
+      }
+    }
+
+    if (dto.knowledgeBaseIds !== undefined) {
+      const existing = tx
+        .select({ knowledgeBaseId: assistantKnowledgeBaseTable.knowledgeBaseId })
+        .from(assistantKnowledgeBaseTable)
+        .where(eq(assistantKnowledgeBaseTable.assistantId, assistantId))
+        .all()
+      const existingIds = new Set(existing.map((r) => r.knowledgeBaseId))
+      const desiredIds = new Set(dto.knowledgeBaseIds)
+
+      const removeIds = existing.filter((r) => !desiredIds.has(r.knowledgeBaseId)).map((r) => r.knowledgeBaseId)
+      const toAdd = dto.knowledgeBaseIds.filter((id) => !existingIds.has(id))
+
+      if (removeIds.length > 0) {
+        tx.delete(assistantKnowledgeBaseTable)
+          .where(
+            and(
+              eq(assistantKnowledgeBaseTable.assistantId, assistantId),
+              inArray(assistantKnowledgeBaseTable.knowledgeBaseId, removeIds)
+            )
+          )
+          .run()
+      }
+      if (toAdd.length > 0) {
+        tx.insert(assistantKnowledgeBaseTable)
+          .values(toAdd.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId })))
+          .run()
+      }
+    }
+  }
+
+  private validateName(name: string): void {
+    if (!name?.trim()) {
+      throw DataApiErrorFactory.validation({ name: ['Name is required'] })
+    }
+  }
+}
+
+export const assistantDataService = new AssistantDataService()

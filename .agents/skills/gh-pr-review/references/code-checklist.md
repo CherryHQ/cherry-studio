@@ -14,6 +14,13 @@ async patterns, rendering performance, and advanced React patterns. The checklis
 items below (B1, B8, A5, A6) are high-level checks — the Vercel rules provide
 specific patterns and code examples for deeper analysis.
 
+## Cherry Studio Deep Reference
+
+For Cherry Studio modules, also apply `cherry-review-guidance.md`. It contains
+project-specific rules for DataApi scope, handler/service boundaries, service
+ownership, cross-table access, renderer data hooks, React Hooks, UI conventions,
+and type contracts. Treat it as project rules loaded in context.
+
 ---
 
 ## A. Correctness & Safety
@@ -43,6 +50,8 @@ Issues that directly affect runtime behavior.
 - Failed calls have reasonable fallback / safe return
 - Promises / async calls properly awaited with error handling (try/catch or .catch)
 - IPC calls validated in main process handlers
+- DataApi handlers delegate errors through services and `DataApiErrorFactory`
+  rather than exposing raw database or IPC failures
 
 ### A4. Injection & Sensitive Data
 - User input sanitized before DOM insertion (innerHTML, dangerouslySetInnerHTML,
@@ -88,7 +97,6 @@ Improvements to code quality, performance, and maintainability.
 - No unnecessary re-renders from missing memoization, unstable references, or inline
   object/function creation in props (React.memo, useMemo, useCallback)
 - No full imports of large dependencies when only a small part is used (tree-shaking)
-- Redux selectors properly memoized to avoid unnecessary re-renders
 
 ### B2. Code Simplification
 - Clearly duplicated or similar logic extracted (judge by complexity and maintenance
@@ -101,9 +109,17 @@ Improvements to code quality, performance, and maintainability.
 > Only flag when the diff introduces a new dependency or moves code across module
 > boundaries.
 - Module responsibilities clear with no boundary violations
-- Dependency direction reasonable (main ← shared → renderer, not renderer → main)
+- Main, renderer, and shared placement and dependency direction follow their
+  authoritative architecture references
 - No circular dependencies
-- IPC channel constants defined in packages/shared/IpcChannel.ts
+- New command-style cross-process calls use IpcApi; legacy `IpcChannel` entries
+  are migration residue, not precedent
+- DataApi endpoints are only used for SQLite-backed business data, not pure
+  commands or side effects
+- Handlers stay thin; business rules, validation, transactions, and row/entity
+  mapping live in services
+- Services do not reimplement another domain's business logic or bypass the
+  owning service's invariants
 
 ### B4. Interface Usage
 - Called APIs used according to their design intent and documentation
@@ -130,8 +146,10 @@ Improvements to code quality, performance, and maintainability.
 - List items rendered with stable, unique key (not array index)
 - Side effects correctly placed in useEffect with proper dependency arrays
 - Component state derived correctly (no stale closures, no out-of-sync derived state)
-- Redux state shape not modified (v2 refactoring block)
-- Dexie (IndexedDB) schema not modified (v2 refactoring block)
+- Renderer data hooks use stable SWR keys, precise refresh targets, safe
+  optimistic updates, and stable external-store snapshots
+- No new Redux, Dexie, or ElectronStore dependency is introduced on `main`;
+  v1 maintenance belongs on the `v1` branch
 
 ---
 
@@ -140,16 +158,19 @@ Improvements to code quality, performance, and maintainability.
 Coding standards and documentation consistency.
 
 ### C1. Project Conventions
-- Naming follows project's existing style (PascalCase for components, camelCase for
-  services/hooks/utils)
+- Naming follows `docs/references/naming-conventions.md`, based on path zone and
+  primary export role rather than nearby legacy precedent
 - Variable names semantically clear, no unnecessary abbreviations
 - Names in new code consistent with style in the same file
 - Logging uses `loggerService` with proper context — no `console.log`
 - All user-visible strings use i18next — no hardcoded UI strings
 
 ### C2. File Organization
-- React components in PascalCase.tsx, services/hooks/utils in camelCase.ts
-- Test files as *.test.ts or *.spec.ts alongside source or in __tests__/
+- Renderer business components use `PascalCase.tsx`; class-primary files use
+  `PascalCase.ts`; hooks/functions use `camelCase.ts`; `packages/ui` and route
+  files follow their documented kebab-case rules
+- Test files use `*.test.ts(x)`, never `.spec.*`, alongside source or in
+  `__tests__/`
 - Import order follows simple-import-sort conventions
 
 ### C3. Type Safety
@@ -175,9 +196,9 @@ Coding standards and documentation consistency.
 
 ### C7. Accessibility
 - Images have meaningful alt text (empty alt for decorative images)
-- Form inputs have associated labels (Ant Design Form.Item)
+- Form inputs have associated labels
 - Interactive elements keyboard-navigable with semantic HTML
-- ARIA attributes used correctly with Ant Design components
+- ARIA attributes used correctly with the current component primitives
 
 ---
 

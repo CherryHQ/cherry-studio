@@ -30,7 +30,6 @@ files:
   - "!src"
   - "!config"
   - "!patches"
-  - "!app-upgrade-config.json"
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
@@ -67,15 +66,30 @@ files:
   - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
+  - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
+  - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
+  - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
+  - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
+  - "!resources/devtools/**" # dev-only extensions are loaded from source in development
 asarUnpack:
   - resources/**
+  - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
-  - "node_modules/@img/sharp-libvips-*/**"
-
+  - "node_modules/@img/sharp-*/**"
+  - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
+  - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
+extraResources:
+  - from: "migrations/sqlite-drizzle"
+    to: "migrations/sqlite-drizzle"
+  - from: "packages/provider-registry/data"
+    to: "provider-registry"
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  extraResources:
+    - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+      to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
@@ -140,22 +154,54 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.8.4 - Bug Fixes and New Features
+    Cherry Studio 2.0.0-beta.3 - Migration Safety, API Gateway & Agent Improvements
 
     ✨ New Features
-    - [API] Add knowledge base REST API endpoints
-    - [SelectionAssistant] Add Linux support for text selection toolbar
+    - [Agent] Agents can now discover and install reusable CLIs through Cherry Studio
+    - [Settings] Show the client ID in System Settings when Developer Mode is enabled
 
     🐛 Bug Fixes
-    - [Files] Fix PDF upload failing with "invalid part type: file" error for OpenAI-compatible providers (Moonshot, DeepSeek, Groq, etc.)
+    - [Privacy] The app can now be used without accepting the privacy policy; anonymous error and usage reporting stays disabled until the latest policy is accepted
+    - [Chat] Chat topic titles are no longer overwritten by auto-naming after an app restart or idle time; once a title has been AI-generated or manually edited, it stays fixed
+    - [Agent] Agent conversations now prompt you to pick a model when sending without one
+    - [Agent] Agent question cards no longer flash or duplicate while streaming, and answered questions keep their order
+    - [Agent] Agent AskUserQuestion prompts now appear and wait for a response even when bypass permissions are enabled
+    - [Agent] WeChat and Feishu agent channels can now use interactive QR authentication, and the QR code stays visible outside collapsed tool history
+    - [API Gateway] API Key and Authorization Header are now masked by default with a reveal toggle
+    - [Claude Code] Fixed Claude Code configuration for versioned Anthropic endpoints, with clearer route, authentication, and model-mapping errors
+    - [Ollama] Ollama models now use the configured context window size instead of being capped at the 2048-token default
+    - [Composer] Composer text, attachments, and focus are now preserved while tool approval prompts are shown
+    - [Channels] Fixed Telegram, QQ, Discord and Slack channels failing to create with "Validation failed"; new channels are created inactive and activate with the switch after credentials are filled
+    - [UI] Non-searchable dropdowns now highlight the currently selected option when opened instead of always the first item
+    - [UI] Fixed unwanted resource-list expansion during navigation, refined global-search reveal, and balanced the new-task icon size
+
+    💄 Improvements
+    - [Code Mate] Renamed "Code Switch" to "Code Mate" across supported languages
+    - [Translate] Translation now turns off model "thinking" when supported, reducing latency and token usage
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.8.4 - 错误修复和新功能
+    Cherry Studio 2.0.0-beta.3 - 迁移安全、API 网关与智能体改进
 
     ✨ 新功能
-    - [API] 添加知识库 REST API 端点
-    - [选择助手] 为文本选择工具栏添加 Linux 支持
+    - [智能体] 智能体现可在 Cherry Studio 中发现并安装可复用的 CLI
+    - [设置] 开启开发者模式后，在系统设置中显示客户端 ID
 
     🐛 问题修复
-    - [文件] 修复 OpenAI 兼容提供商（Moonshot、DeepSeek、Groq 等）的 PDF 上传失败问题（"invalid part type: file" 错误）
+    - [隐私] 现在可以在不接受隐私政策的情况下继续使用应用；在接受最新政策之前，匿名错误与用量上报保持关闭
+    - [聊天] 重启应用或长时间空闲后，聊天话题标题不再被自动命名覆盖；标题经 AI 生成或手动编辑后即固定不变
+    - [智能体] 智能体对话在未选择模型时发送，会提示先选择模型
+    - [智能体] 智能体问题卡片在流式输出时不再闪烁或重复，已回答的问题保持原顺序
+    - [智能体] 启用绕过权限时，智能体的 AskUserQuestion 提示也能正常出现并等待回应
+    - [智能体] 微信与飞书智能体渠道支持交互式二维码认证，且二维码在折叠的工具历史之外仍可见
+    - [API 网关] API Key 与 Authorization Header 默认掩码显示，并提供切换显示的开关
+    - [Claude Code] 修复了带版本号的 Anthropic 端点的 Claude Code 配置，并分别报告路由、鉴权与模型映射错误
+    - [Ollama] Ollama 模型现在使用配置的上下文窗口大小，而不再被默认 2048 token 上限限制
+    - [输入框] 显示工具批准提示时，输入框文本、附件与焦点得以保留
+    - [渠道] 修复 Telegram、QQ、Discord、Slack 渠道创建时报“校验失败”的问题；新渠道以停用状态创建，填写凭据后用开关激活
+    - [界面] 不可搜索的下拉菜单打开时现在高亮当前选中项，而不是总是高亮第一项
+    - [界面] 修复了导航时资源列表意外展开的问题，优化全局搜索的显示与输入框工具栏行为，并调整了新建任务图标尺寸
+
+    💄 改进
+    - [Code Mate] 在支持的各语言中将“Code Switch”更名为“Code Mate”
+    - [翻译] 翻译现在会在模型支持时关闭“思考”，降低延迟与 token 用量
     <!--LANG:END-->

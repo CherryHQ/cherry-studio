@@ -1,0 +1,74 @@
+{
+  "name": "@cherrystudio/provider-registry",
+  "version": "0.0.1-alpha.1",
+  "description": "Provider and Model Registry",
+  "private": true,
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.cts",
+  "packageManager": "pnpm@10.27.0",
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsc -w",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json data/providers.json src/patterns/reasoning-families.gen.ts",
+    "generate:check": "tsx scripts/generate-catalog.ts --report"
+  },
+  "author": "Cherry Studio",
+  "license": "MIT",
+  "files": [
+    "dist/**/*",
+    "data/**/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CherryHQ/cherry-studio/issues"
+  },
+  "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "react-native": "./dist/index.cjs",
+      "default": "./dist/index.mjs"
+    },
+    "./node": {
+      "import": {
+        "types": "./dist/registry-loader.d.mts",
+        "default": "./dist/registry-loader.mjs"
+      },
+      "require": {
+        "types": "./dist/registry-loader.d.cts",
+        "default": "./dist/registry-loader.cjs"
+      },
+      "default": "./dist/registry-loader.cjs"
+    }
+  },
+  "devDependencies": {
+    "@ai-sdk/provider-utils": "^4.0.40",
+    "@types/json-schema": "^7.0.15",
+    "@types/node": "^24.10.2",
+    "dotenv": "^17.2.3",
+    "tsdown": "^0.16.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.13",
+    "zod": "^4.1.12"
+  },
+  "peerDependencies": {},
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "json-schema": "^0.4.0",
+    "lucide-react": "^0.563.0"
+  }
+}

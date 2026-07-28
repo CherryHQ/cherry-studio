@@ -1,0 +1,23 @@
+/**
+ * CherryStudio Design Tokens
+ *
+ * Design tokens based on Figma design system
+ * - All variables use --cs-* prefix (CherryStudio)
+ * - Layered architecture: Primitive → Semantic
+ * - Properly separated Light/Dark Mode
+ *
+ * File structure:
+ * - colors/primitive.css: Base color palette
+ * - colors/status-legacy.css: Frozen legacy status palette (shrink-only compat)
+ * - colors/providers.css: Semantic --cs-* value providers backing the contract
+ * - spacing.css: Spacing and sizing
+ * - radius.css: Border radius
+ * - typography.css: Typography system
+ */
+
+@import './colors/primitive.css';
+@import './colors/status-legacy.css';
+@import './colors/providers.css';
+@import './spacing.css';
+@import './radius.css';
+@import './typography.css';

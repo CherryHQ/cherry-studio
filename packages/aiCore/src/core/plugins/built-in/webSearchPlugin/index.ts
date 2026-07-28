@@ -1,44 +1,40 @@
-/**
- * Web Search Plugin
- * 提供统一的网络搜索能力，支持多个 AI Provider
- */
+import type { WebSearchToolConfigMap } from '../../../providers'
 
-import { definePlugin } from '../../'
-import type { WebSearchPluginConfig } from './helper'
-import { DEFAULT_WEB_SEARCH_CONFIG, switchWebSearchTool } from './helper'
+export type OpenRouterSearchConfig = {
+  plugins?: Array<{
+    id: 'web'
+    /**
+     * Maximum number of search results to include (default: 5)
+     */
+    max_results?: number
+    /**
+     * Custom search prompt to guide the search query
+     */
+    search_prompt?: string
+  }>
+  /**
+   * Built-in web search options for models that support native web search
+   */
+  web_search_options?: {
+    /**
+     * Maximum number of search results to include
+     */
+    max_results?: number
+    /**
+     * Custom search prompt to guide the search query
+     */
+    search_prompt?: string
+  }
+}
 
 /**
- * 网络搜索插件
+ * 插件初始化时接收的完整配置对象
  *
- * @param config - 在插件初始化时传入的静态配置
+ * key = provider ID，value = 该 provider 的搜索配置
+ *
+ * - 大部分类型从 coreExtensions 的 toolFactories 声明中自动提取（WebSearchToolConfigMap）
+ * - OpenRouter 使用自定义配置（非 SDK .tools 模式），从 openrouter.ts 导入
  */
-export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEARCH_CONFIG) =>
-  definePlugin({
-    name: 'webSearch',
-    enforce: 'pre',
-
-    transformParams: async (params: any, context) => {
-      let { providerId } = context
-
-      // For cherryin providers, extract the actual provider from the model's provider string
-      // Expected format: "cherryin.{actualProvider}" (e.g., "cherryin.gemini")
-      if (providerId === 'cherryin' || providerId === 'cherryin-chat') {
-        const provider = params.model?.provider
-        if (provider && typeof provider === 'string' && provider.includes('.')) {
-          const extractedProviderId = provider.split('.')[1]
-          if (extractedProviderId) {
-            providerId = extractedProviderId
-          }
-        }
-      }
-
-      switchWebSearchTool(config, params, { ...context, providerId })
-      return params
-    }
-  })
-
-// 导出类型定义供开发者使用
-export * from './helper'
-
-// 默认导出
-export default webSearchPlugin
+export type WebSearchPluginConfig = WebSearchToolConfigMap & {
+  openrouter?: OpenRouterSearchConfig
+}

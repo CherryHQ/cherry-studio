@@ -35,7 +35,12 @@ export interface TokenUsage {
   prompt_tokens: number
   completion_tokens: number
   total_tokens: number
+  /** Breakdown of input/prompt tokens, e.g. `{ cached_tokens }` for prompt-cache reads. */
   prompt_tokens_details?: {
+    [key: string]: number
+  }
+  /** Breakdown of output/completion tokens, e.g. `{ reasoning_tokens }` for thinking models. */
+  completion_tokens_details?: {
     [key: string]: number
   }
 }

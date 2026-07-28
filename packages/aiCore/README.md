@@ -227,32 +227,6 @@ const executor = AiCore.create('openai', { apiKey: 'your-key' }, [
 ])
 ```
 
-#### promptToolUsePlugin - 提示工具使用插件
-
-为不支持原生 Function Call 的模型提供 prompt 方式的工具调用：
-
-```typescript
-import { createPromptToolUsePlugin } from '@cherrystudio/ai-core/built-in/plugins'
-
-// 对于不支持 function call 的模型
-const executor = AiCore.create(
-  'providerId',
-  {
-    apiKey: 'your-key',
-    baseURL: 'https://your-model-endpoint'
-  },
-  [
-    createPromptToolUsePlugin({
-      enabled: true,
-      // 可选：自定义系统提示符构建
-      buildSystemPrompt: (userPrompt, tools) => {
-        return `${userPrompt}\n\nAvailable tools: ${Object.keys(tools).join(', ')}`
-      }
-    })
-  ]
-)
-```
-
 ### 自定义插件
 
 创建自定义插件非常简单：

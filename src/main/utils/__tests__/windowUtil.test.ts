@@ -4,7 +4,7 @@ const originalGetSystemVersion = process.getSystemVersion
 
 async function loadWindowUtil({ isWin, systemVersion = '' }: { isWin: boolean; systemVersion?: string }) {
   vi.resetModules()
-  vi.doMock('../../constant', () => ({
+  vi.doMock('@main/core/platform', () => ({
     isDev: false,
     isWin
   }))
@@ -22,7 +22,7 @@ async function loadWindowUtil({ isWin, systemVersion = '' }: { isWin: boolean; s
 afterEach(() => {
   vi.resetModules()
   vi.restoreAllMocks()
-  vi.doUnmock('../../constant')
+  vi.doUnmock('@main/core/platform')
 
   Object.defineProperty(process, 'getSystemVersion', {
     value: originalGetSystemVersion,

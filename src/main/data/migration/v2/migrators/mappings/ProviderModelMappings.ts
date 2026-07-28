@@ -1,0 +1,535 @@
+/**
+ * Provider/model migration transforms for Redux llm -> SQLite user tables.
+ */
+
+import {
+  ENDPOINT_TYPE,
+  endpointImpliedCapability,
+  type EndpointType,
+  MODEL_CAPABILITY,
+  type ModelCapability
+} from '@cherrystudio/provider-registry'
+import type { InsertUserModelRow } from '@data/db/schemas/userModel'
+import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
+import { loggerService } from '@logger'
+import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
+import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
+import type { ApiFeatures, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
+import { v4 as uuidv4 } from 'uuid'
+
+const logger = loggerService.withContext('ProviderModelMappings')
+
+/** Legacy llm.settings structure used by a few providers. */
+export interface OldLlmSettings {
+  ollama?: { keepAliveTime?: number }
+  lmstudio?: { keepAliveTime?: number }
+  gpustack?: { keepAliveTime?: number }
+  vertexai?: {
+    serviceAccount?: {
+      privateKey?: string
+      clientEmail?: string
+    }
+    projectId?: string
+    location?: string
+  }
+  awsBedrock?: {
+    authType?: string
+    accessKeyId?: string
+    secretAccessKey?: string
+    apiKey?: string
+    region?: string
+  }
+  cherryIn?: {
+    accessToken?: string
+    refreshToken?: string
+  }
+}
+
+const CAPABILITY_MAP: Partial<Record<ModelType, ModelCapability | undefined>> = {
+  text: undefined,
+  vision: MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  reasoning: MODEL_CAPABILITY.REASONING,
+  function_calling: MODEL_CAPABILITY.FUNCTION_CALL,
+  embedding: MODEL_CAPABILITY.EMBEDDING,
+  web_search: MODEL_CAPABILITY.WEB_SEARCH,
+  rerank: MODEL_CAPABILITY.RERANK
+}
+
+/** Legacy string endpoint/provider-type keys → EndpointType */
+const ENDPOINT_MAP: Partial<Record<string, EndpointType>> = {
+  openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'azure-openai': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  vertexai: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
+  'new-api': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  gateway: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ollama: ENDPOINT_TYPE.OLLAMA_CHAT
+}
+
+const PROVIDER_TYPES_WITHOUT_DEFAULT_ENDPOINT = new Set(['aws-bedrock'])
+
+/**
+ * Legacy `provider.type` → AI SDK adapter family, for custom-id v1 providers
+ * the registry catalog can't supply (no `legacy.id` match in providers.json).
+ * Lets the runtime resolver trust `adapterFamily` as the sole routing signal
+ * instead of re-deriving from heuristics. Catalog-matched system providers get
+ * their (more specific) adapterFamily from `projectProviderDeltaRow`.
+ */
+const LEGACY_TYPE_TO_ADAPTER_FAMILY: Partial<Record<LegacyProvider['type'], string>> = {
+  openai: 'openai-compatible',
+  'openai-response': 'openai',
+  anthropic: 'anthropic',
+  gemini: 'google',
+  'new-api': 'newapi',
+  gateway: 'gateway',
+  ollama: 'ollama'
+}
+
+const SYSTEM_PROVIDER_IDS = new Set([
+  'cherryin',
+  'silicon',
+  'aihubmix',
+  'ocoolai',
+  'deepseek',
+  'ppio',
+  'alayanew',
+  'qiniu',
+  'dmxapi',
+  'burncloud',
+  '302ai',
+  'lanyun',
+  'ph8',
+  'openrouter',
+  'ollama',
+  'ovms',
+  'new-api',
+  'lmstudio',
+  'anthropic',
+  'openai',
+  'azure-openai',
+  'gemini',
+  'vertexai',
+  'github',
+  'copilot',
+  'zhipu',
+  'yi',
+  'moonshot',
+  'baichuan',
+  'dashscope',
+  'stepfun',
+  'doubao',
+  'infini',
+  'minimax',
+  'groq',
+  'together',
+  'fireworks',
+  'nvidia',
+  'grok',
+  'hyperbolic',
+  'mistral',
+  'jina',
+  'perplexity',
+  'modelscope',
+  'xirang',
+  'hunyuan',
+  'tencent-cloud-ti',
+  'baidu-cloud',
+  'gpustack',
+  'voyageai',
+  'aws-bedrock',
+  'poe',
+  'aionly',
+  'longcat',
+  'huggingface',
+  'sophnet',
+  'gateway',
+  'cerebras',
+  'mimo',
+  'gitee-ai',
+  'minimax-global',
+  'zai',
+  'opencode'
+])
+
+const TYPE_TO_PRESET_PROVIDER_ID: Partial<Record<LegacyProvider['type'], string>> = {
+  'azure-openai': 'azure-openai',
+  'aws-bedrock': 'aws-bedrock',
+  vertexai: 'vertexai',
+  'vertex-anthropic': 'vertexai',
+  ollama: 'ollama'
+}
+
+const PRESET_PROVIDER_ID_ALIASES: Record<string, string> = {
+  zai: 'zhipu',
+  'minimax-global': 'minimax'
+}
+
+function resolvePresetProviderId(legacy: LegacyProvider): string | null {
+  if (SYSTEM_PROVIDER_IDS.has(legacy.id)) {
+    return PRESET_PROVIDER_ID_ALIASES[legacy.id] ?? legacy.id
+  }
+  return TYPE_TO_PRESET_PROVIDER_ID[legacy.type] ?? null
+}
+
+type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
+
+export function transformProvider(legacy: LegacyProvider, settings: OldLlmSettings): NewUserProviderInput {
+  const endpointType = ENDPOINT_MAP[legacy.type]
+  if (legacy.type && !endpointType && !PROVIDER_TYPES_WITHOUT_DEFAULT_ENDPOINT.has(legacy.type)) {
+    logger.warn('Unknown provider type dropped during migration', { providerId: legacy.id, legacyType: legacy.type })
+  }
+
+  return {
+    providerId: legacy.id,
+    presetProviderId: resolvePresetProviderId(legacy),
+    name: legacy.name,
+    endpointConfigs: buildEndpointConfigs(legacy, endpointType),
+    defaultChatEndpoint: endpointType ?? null,
+    apiKeys: buildProviderApiKeys(legacy, settings),
+    authConfig: buildAuthConfig(legacy, settings),
+    apiFeatures: buildApiFeatures(legacy),
+    providerSettings: buildProviderSettings(legacy, settings),
+    isEnabled: legacy.enabled ?? true
+  }
+}
+
+function buildEndpointConfigs(
+  legacy: LegacyProvider,
+  endpointType: EndpointType | undefined
+): InsertUserProviderRow['endpointConfigs'] {
+  const configs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
+
+  if (legacy.apiHost && endpointType !== undefined) {
+    configs[endpointType] = { ...configs[endpointType], baseUrl: legacy.apiHost }
+  }
+
+  if (legacy.anthropicApiHost) {
+    const ep = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    configs[ep] = { ...configs[ep], baseUrl: legacy.anthropicApiHost }
+  }
+
+  // Persist the legacy-type adapterFamily hint for custom (no-catalog)
+  // providers — a relay signal (new-api/gateway) that read-time endpoint-type
+  // inference cannot reproduce. ANTHROPIC_MESSAGES skips the hint: v1 custom
+  // anthropic relays carried `type:'openai'` (the relay protocol) even when
+  // the endpoint speaks anthropic — the endpoint protocol must win there.
+  // Everything else is left absent; the read-time merge infers it. Catalog-
+  // matched system providers get stripped to baseUrl-only in
+  // `projectProviderDeltaRow` regardless.
+  const legacyTypeFamily = LEGACY_TYPE_TO_ADAPTER_FAMILY[legacy.type]
+  if (legacyTypeFamily) {
+    for (const key of Object.keys(configs) as EndpointType[]) {
+      if (key === ENDPOINT_TYPE.ANTHROPIC_MESSAGES || configs[key]?.adapterFamily) continue
+      configs[key] = { ...configs[key], adapterFamily: legacyTypeFamily }
+    }
+  }
+
+  return Object.keys(configs).length > 0 ? configs : null
+}
+
+function buildApiKeys(apiKey: string): ApiKeyEntry[] {
+  if (!apiKey) {
+    return []
+  }
+
+  return apiKey
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean)
+    .map((key) => ({
+      id: uuidv4(),
+      key,
+      isEnabled: true
+    }))
+}
+
+function isAwsBedrockProvider(legacy: LegacyProvider): boolean {
+  return legacy.id === 'aws-bedrock' || legacy.type === 'aws-bedrock'
+}
+
+function isAzureOpenAIProvider(legacy: LegacyProvider): boolean {
+  return legacy.id === 'azure-openai' || legacy.type === 'azure-openai'
+}
+
+function buildProviderApiKeys(legacy: LegacyProvider, settings: OldLlmSettings): ApiKeyEntry[] {
+  if (isAwsBedrockProvider(legacy) && settings.awsBedrock?.authType === 'apiKey') {
+    return buildApiKeys(settings.awsBedrock.apiKey ?? '')
+  }
+
+  return buildApiKeys(legacy.apiKey)
+}
+
+function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): AuthConfig | null {
+  if (legacy.isVertex) {
+    const vertex = settings.vertexai
+    return {
+      type: 'iam-gcp',
+      project: vertex?.projectId ?? '',
+      location: vertex?.location ?? '',
+      credentials: vertex?.serviceAccount
+        ? {
+            privateKey: vertex.serviceAccount.privateKey,
+            clientEmail: vertex.serviceAccount.clientEmail
+          }
+        : undefined
+    }
+  }
+
+  if (isAwsBedrockProvider(legacy)) {
+    const aws = settings.awsBedrock
+    if (aws?.authType === 'apiKey') {
+      return { type: 'api-key-aws', region: aws.region ?? '' }
+    }
+
+    return {
+      type: 'iam-aws',
+      region: aws?.region ?? '',
+      accessKeyId: aws?.accessKeyId,
+      secretAccessKey: aws?.secretAccessKey
+    }
+  }
+
+  if (isAzureOpenAIProvider(legacy)) {
+    return {
+      type: 'iam-azure',
+      apiVersion: legacy.apiVersion ?? ''
+    }
+  }
+
+  if (
+    legacy.id === 'cherryin' &&
+    settings.cherryIn &&
+    (settings.cherryIn.accessToken || settings.cherryIn.refreshToken)
+  ) {
+    return {
+      type: 'oauth',
+      clientId: '',
+      accessToken: settings.cherryIn.accessToken,
+      refreshToken: settings.cherryIn.refreshToken
+    }
+  }
+
+  if (legacy.authType === 'oauth') {
+    // Legacy Anthropic web OAuth was removed end-to-end. Tokens lived in a
+    // separate credentials file that's no longer read; carrying authType
+    // 'oauth' forward would leave the v2 row in an unrecoverable state.
+    // Re-seat as api-key so the user can paste a key and the renderer's
+    // api-key UI is the canonical path.
+    if (legacy.id === 'anthropic' || legacy.type === 'anthropic') {
+      return { type: 'api-key' }
+    }
+    return {
+      type: 'oauth',
+      clientId: ''
+    }
+  }
+
+  return {
+    type: 'api-key'
+  }
+}
+
+function buildApiFeatures(legacy: LegacyProvider): ApiFeatures | null {
+  const apiOptions = legacy.apiOptions
+  const features: ApiFeatures = {}
+  let hasValue = false
+
+  const notArrayContent = apiOptions?.isNotSupportArrayContent ?? legacy.isNotSupportArrayContent
+  if (notArrayContent != null) {
+    features.arrayContent = !notArrayContent
+    hasValue = true
+  }
+
+  const notStreamOptions = apiOptions?.isNotSupportStreamOptions ?? legacy.isNotSupportStreamOptions
+  if (notStreamOptions != null) {
+    features.streamOptions = !notStreamOptions
+    hasValue = true
+  }
+
+  const supportsDeveloperRole =
+    apiOptions?.isSupportDeveloperRole ??
+    (legacy.isNotSupportDeveloperRole != null ? !legacy.isNotSupportDeveloperRole : undefined)
+  if (supportsDeveloperRole != null) {
+    features.developerRole = supportsDeveloperRole
+    hasValue = true
+  }
+
+  const supportsServiceTier =
+    apiOptions?.isSupportServiceTier ??
+    (legacy.isNotSupportServiceTier != null ? !legacy.isNotSupportServiceTier : undefined)
+  if (supportsServiceTier != null) {
+    features.serviceTier = supportsServiceTier
+    hasValue = true
+  }
+
+  // enableThinking was removed from ApiFeatures on HEAD (commit 741d9eb24 —
+  // refactor: route AI SDK adapter via endpoint adapterFamily). Legacy v1
+  // `isNotSupportEnableThinking` no longer maps to a v2 field; drop on migrate.
+
+  if (apiOptions?.isNotSupportVerbosity != null) {
+    features.verbosity = !apiOptions.isNotSupportVerbosity
+    hasValue = true
+  }
+
+  return hasValue ? features : null
+}
+
+function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettings): ProviderSettings | null {
+  const settings: ProviderSettings = {}
+  let hasValue = false
+
+  const keepAliveSettingsKey: Partial<Record<LegacyProvider['id'], keyof OldLlmSettings>> = {
+    ollama: 'ollama',
+    lmstudio: 'lmstudio',
+    gpustack: 'gpustack'
+  }
+
+  const keepAliveSource = keepAliveSettingsKey[legacy.id]
+  if (keepAliveSource) {
+    const keepAliveSettings = llmSettings[keepAliveSource] as { keepAliveTime?: number } | undefined
+    if (keepAliveSettings?.keepAliveTime != null) {
+      settings.keepAliveTime = keepAliveSettings.keepAliveTime
+      hasValue = true
+    }
+  }
+
+  if (legacy.serviceTier) {
+    settings.serviceTier = legacy.serviceTier
+    hasValue = true
+  }
+
+  if (legacy.verbosity) {
+    settings.verbosity = legacy.verbosity
+    hasValue = true
+  }
+
+  if (legacy.rateLimit != null) {
+    settings.rateLimit = legacy.rateLimit
+    hasValue = true
+  }
+
+  if (legacy.extra_headers && Object.keys(legacy.extra_headers).length > 0) {
+    settings.extraHeaders = legacy.extra_headers
+    hasValue = true
+  }
+
+  if (legacy.notes) {
+    settings.notes = legacy.notes
+    hasValue = true
+  }
+
+  if (legacy.anthropicCacheControl) {
+    settings.cacheControl = {
+      enabled: true,
+      tokenThreshold: legacy.anthropicCacheControl.tokenThreshold,
+      cacheSystemMessage: legacy.anthropicCacheControl.cacheSystemMessage,
+      cacheLastNMessages: legacy.anthropicCacheControl.cacheLastNMessages
+    }
+    hasValue = true
+  }
+
+  return hasValue ? settings : null
+}
+
+export function transformModel(legacy: LegacyModel, providerId: string): Omit<InsertUserModelRow, 'orderKey'> {
+  const endpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
+
+  return {
+    id: createUniqueModelId(providerId, legacy.id),
+    providerId,
+    modelId: legacy.id,
+    // Leave presetModelId null here. projectModelDeltaRow looks up the registry and
+    // sets presetModelId only when a real preset matches; setting it here
+    // unconditionally would mark fully-custom v1 models as preset overrides
+    // (symmetric to the v1 default-name bug fixed in db3e1f76).
+    presetModelId: null,
+    name: legacy.name ?? legacy.id,
+    description: legacy.description ?? null,
+    group: legacy.group ?? null,
+    capabilities: mapCapabilities(legacy.capabilities, endpointTypes),
+    inputModalities: null,
+    outputModalities: null,
+    endpointTypes,
+    contextWindow: null,
+    maxOutputTokens: null,
+    supportsStreaming: legacy.supported_text_delta ?? true,
+    reasoning: null,
+    parameters: null,
+    pricing: mapPricing(legacy.pricing),
+    isEnabled: true,
+    isHidden: false
+  }
+}
+
+function mapCapabilities(
+  capabilities?: LegacyModel['capabilities'],
+  endpointTypes?: EndpointType[] | null
+): ModelCapability[] {
+  // Capabilities the user explicitly turned off in v1 — respected over any
+  // duplicate "enabled" entry and never re-added by an endpoint.
+  const disabled = new Set<ModelCapability>()
+  for (const capability of capabilities ?? []) {
+    const result = CAPABILITY_MAP[capability.type]
+    if (result !== undefined && capability.isUserSelected === false) {
+      disabled.add(result)
+    }
+  }
+
+  const mapped: ModelCapability[] = []
+  for (const capability of capabilities ?? []) {
+    const result = CAPABILITY_MAP[capability.type]
+    if (result === undefined) {
+      if (capability.type !== 'text') {
+        logger.warn('Unknown capability type dropped during migration', { type: capability.type })
+      }
+      continue
+    }
+    if (disabled.has(result)) continue
+    mapped.push(result)
+  }
+
+  const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
+  if (impliedCapability && !disabled.has(impliedCapability)) {
+    mapped.push(impliedCapability)
+  }
+
+  return mapped.length > 0 ? Array.from(new Set(mapped)) : []
+}
+
+function mapEndpointTypes(
+  endpointType?: LegacyModel['endpoint_type'],
+  supportedEndpointTypes?: LegacyModel['supported_endpoint_types']
+): EndpointType[] | null {
+  const sourceTypes = supportedEndpointTypes ?? (endpointType ? [endpointType] : [])
+  if (sourceTypes.length === 0) {
+    return null
+  }
+
+  const mapped: EndpointType[] = []
+  for (const type of sourceTypes) {
+    if (!type) continue
+    const result = ENDPOINT_MAP[type.trim().toLowerCase()]
+    if (result !== undefined) {
+      mapped.push(result)
+    } else {
+      logger.warn('Unknown endpoint type dropped during migration', { endpointType: type })
+    }
+  }
+
+  return mapped.length > 0 ? Array.from(new Set(mapped)) : null
+}
+
+function mapPricing(pricing?: LegacyModel['pricing']): RuntimeModelPricing | null {
+  if (!pricing) {
+    return null
+  }
+
+  return {
+    input: { perMillionTokens: pricing.input_per_million_tokens },
+    output: { perMillionTokens: pricing.output_per_million_tokens }
+  }
+}

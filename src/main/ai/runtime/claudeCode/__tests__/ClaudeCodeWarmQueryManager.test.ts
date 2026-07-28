@@ -1,0 +1,283 @@
+import { BaseService } from '@main/core/lifecycle/BaseService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { startupMock, buildWarmRequestMock, applicationGetMock, traceModeEnabledMock } = vi.hoisted(() => ({
+  startupMock: vi.fn(),
+  buildWarmRequestMock: vi.fn(),
+  applicationGetMock: vi.fn(),
+  traceModeEnabledMock: vi.fn()
+}))
+
+vi.mock('@application', () => ({
+  application: { get: applicationGetMock }
+}))
+
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
+  startup: startupMock
+}))
+
+vi.mock('../agentSessionWarmup', () => ({
+  buildClaudeCodeWarmQueryRequestForAgentSession: buildWarmRequestMock
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+  }
+}))
+
+const { ClaudeCodeWarmQueryManager, createClaudeCodeWarmQuerySignature } = await import('../ClaudeCodeWarmQueryManager')
+
+function warmQuery() {
+  return {
+    query: vi.fn(),
+    close: vi.fn()
+  }
+}
+
+describe('ClaudeCodeWarmQueryManager', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    applicationGetMock.mockImplementation((name: string) => {
+      if (name === 'ClaudeCodeTraceBridgeService') return { isTraceModeEnabled: traceModeEnabledMock }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    traceModeEnabledMock.mockReturnValue(false)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('consumes a matching warm query once', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    const abortController = new AbortController()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1', abortController } as any })
+
+    const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
+    const second = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
+
+    expect(consumed).toBe(warm)
+    expect(second).toBeUndefined()
+    expect(startupMock).toHaveBeenCalledWith({
+      options: { model: 'sonnet', resume: 'sdk-1' },
+      initializeTimeoutMs: undefined
+    })
+    expect(warm.close).not.toHaveBeenCalled()
+  })
+
+  it('closes a stale warm query when session options change', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const stale = warmQuery()
+    const current = warmQuery()
+    startupMock.mockResolvedValueOnce(stale).mockResolvedValueOnce(current)
+
+    manager.prewarm({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
+    manager.prewarm({ key: 'session-1', options: { model: 'opus', resume: 'sdk-1' } as any })
+
+    await Promise.resolve()
+    const consumed = await manager.consume({ key: 'session-1', options: { model: 'opus', resume: 'sdk-1' } as any })
+
+    expect(stale.close).toHaveBeenCalledOnce()
+    expect(consumed).toBe(current)
+  })
+
+  it('uses the same signature with or without abortController', () => {
+    const withAbort = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      resume: 'sdk-1',
+      abortController: new AbortController()
+    } as any)
+    const withoutAbort = createClaudeCodeWarmQuerySignature({ model: 'sonnet', resume: 'sdk-1' } as any)
+
+    expect(withAbort).toBe(withoutAbort)
+  })
+
+  it('uses the same signature with or without the session steer holder', () => {
+    const withHolder = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      resume: 'sdk-1',
+      steerHolder: { pending: [], dispose: vi.fn() }
+    } as any)
+    const withoutHolder = createClaudeCodeWarmQuerySignature({ model: 'sonnet', resume: 'sdk-1' } as any)
+
+    expect(withHolder).toBe(withoutHolder)
+  })
+
+  it('uses the same signature across rotated credential env values', () => {
+    const keyA = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: { ANTHROPIC_API_KEY: 'key-a', ANTHROPIC_AUTH_TOKEN: 'key-a', ANTHROPIC_BASE_URL: 'https://api.example.com' }
+    } as any)
+    const keyB = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: { ANTHROPIC_API_KEY: 'key-b', ANTHROPIC_AUTH_TOKEN: 'key-b', ANTHROPIC_BASE_URL: 'https://api.example.com' }
+    } as any)
+
+    expect(keyA).toBe(keyB)
+  })
+
+  it('does not mutate the caller env when stripping credentials for the signature', () => {
+    const options = { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any
+
+    createClaudeCodeWarmQuerySignature(options)
+
+    expect(options.env.ANTHROPIC_API_KEY).toBe('key-a')
+  })
+
+  it('changes the signature when the credentials fingerprint changes', () => {
+    const setA = createClaudeCodeWarmQuerySignature({ model: 'sonnet' } as any, 'fingerprint-a')
+    const setB = createClaudeCodeWarmQuerySignature({ model: 'sonnet' } as any, 'fingerprint-b')
+
+    expect(setA).not.toBe(setB)
+  })
+
+  it('fingerprints knowledge-base bindings as a set', () => {
+    const bound = createClaudeCodeWarmQuerySignature({ model: 'sonnet' } as any, undefined, ['kb-b', 'kb-a'])
+    const reordered = createClaudeCodeWarmQuerySignature({ model: 'sonnet' } as any, undefined, ['kb-a', 'kb-b'])
+    const unbound = createClaudeCodeWarmQuerySignature({ model: 'sonnet' } as any, undefined, [])
+
+    expect(reordered).toBe(bound)
+    expect(unbound).not.toBe(bound)
+  })
+
+  it('consumes a warm query whose rotated key differs but whose fingerprint matches', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any,
+      credentialsFingerprint: 'set-1'
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-b' } } as any,
+      credentialsFingerprint: 'set-1'
+    })
+
+    expect(consumed).toBe(warm)
+    expect(warm.close).not.toHaveBeenCalled()
+  })
+
+  it('discards a warm query when the enabled key set changed between park and consume', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      credentialsFingerprint: 'set-1'
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      credentialsFingerprint: 'set-2'
+    })
+
+    expect(consumed).toBeUndefined()
+    await Promise.resolve()
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
+  it('discards a warm query when knowledge bindings change between park and consume', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      knowledgeBaseIds: []
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      knowledgeBaseIds: ['kb-1']
+    })
+
+    expect(consumed).toBeUndefined()
+    await Promise.resolve()
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
+  it('closes unused warm queries after the idle ttl', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    await Promise.resolve()
+    vi.advanceTimersByTime(5 * 60 * 1000)
+    await Promise.resolve()
+
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
+  it('prewarms an agent session from the session request builder', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    buildWarmRequestMock.mockResolvedValueOnce({
+      key: 'session-1',
+      options: { model: 'sonnet', resume: 'sdk-1' },
+      initializeTimeoutMs: 100
+    })
+    startupMock.mockResolvedValueOnce(warm)
+
+    await manager.prewarmAgentSession('session-1')
+    const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
+
+    expect(buildWarmRequestMock).toHaveBeenCalledWith('session-1')
+    expect(consumed).toBe(warm)
+  })
+
+  it('does not prewarm agent sessions while Claude Code trace mode is enabled', async () => {
+    traceModeEnabledMock.mockReturnValue(true)
+    const manager = new ClaudeCodeWarmQueryManager()
+
+    await manager.prewarmAgentSession('session-1')
+
+    expect(buildWarmRequestMock).not.toHaveBeenCalled()
+    expect(startupMock).not.toHaveBeenCalled()
+  })
+
+  // sessionId validation (empty / non-string) now lives in the IpcApi router's zod parse of
+  // `ai.agent.session.prewarm` / `ai.agent.session.close_warm`, not in this service — so it is no
+  // longer unit-tested here (a thin schema contract; see ipc-usage.md "Testing"). The
+  // prewarm/close methods are exercised directly above and below.
+
+  it('drops the live MCP server instance when building the warm-query signature', () => {
+    const fakeInstance = { connect: vi.fn() }
+    // Reference itself so the live instance is circular, matching real SDK objects.
+    ;(fakeInstance as any).self = fakeInstance
+
+    const withInstance = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      mcpServers: { cherry: { type: 'sdk', name: 'cherry', instance: fakeInstance } }
+    } as any)
+    const withoutInstance = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      mcpServers: { cherry: { type: 'sdk', name: 'cherry' } }
+    } as any)
+
+    expect(withInstance).toBe(withoutInstance)
+    expect(withInstance).not.toContain('circular')
+  })
+
+  it('still distinguishes signatures by MCP server name and type', () => {
+    const withInstance = (name: string) =>
+      createClaudeCodeWarmQuerySignature({
+        model: 'sonnet',
+        mcpServers: { srv: { type: 'sdk', name, instance: { connect: vi.fn() } } }
+      } as any)
+
+    expect(withInstance('cherry')).not.toBe(withInstance('assistant'))
+  })
+})

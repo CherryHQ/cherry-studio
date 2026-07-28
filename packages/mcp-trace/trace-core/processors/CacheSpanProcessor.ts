@@ -3,12 +3,12 @@ import { trace } from '@opentelemetry/api'
 import type { BufferConfig, ReadableSpan, Span, SpanExporter } from '@opentelemetry/sdk-trace-base'
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
 
-import type { TraceCache } from '../core/traceCache'
+import type { TraceStore } from '../core/traceStore'
 
 export class CacheBatchSpanProcessor extends BatchSpanProcessor {
-  private cache: TraceCache
+  private cache: TraceStore
 
-  constructor(_exporter: SpanExporter, cache: TraceCache, config?: BufferConfig) {
+  constructor(_exporter: SpanExporter, cache: TraceStore, config?: BufferConfig) {
     super(_exporter, config)
     this.cache = cache
   }

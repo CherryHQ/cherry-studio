@@ -1,0 +1,706 @@
+import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
+import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
+import LoadingIcon from '@renderer/components/icons/LoadingIcon'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
+import { classNames } from '@renderer/utils/style'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
+import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import NarrowLayout from '../layout/NarrowLayout'
+import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
+import MessageOutline from './frame/MessageOutline'
+import { MessageListInitialLoading } from './layout/MessageListLoading'
+import { MessagesContainer } from './layout/shared'
+import MessageAnchorLine from './list/MessageAnchorLine'
+import MessageGroup from './list/MessageGroup'
+import MessageNavigation from './list/MessageNavigation'
+import {
+  MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
+  MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX,
+  MessageVirtualList,
+  type MessageVirtualListHandle
+} from './list/MessageVirtualList'
+import SelectionBox from './list/SelectionBox'
+import {
+  useMessageListActions,
+  useMessageListData,
+  useMessageListMeta,
+  useMessageListSelection,
+  useMessageListUi,
+  useMessageRenderConfig
+} from './MessageListProvider'
+import { defaultMessageRenderConfig } from './types'
+import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
+import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
+import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
+import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils/stableGroupedMessages'
+
+const MULTI_SELECT_BOTTOM_PADDING_PX = 96
+const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
+const EMPTY_LIVE_MESSAGE_IDS: readonly string[] = []
+
+interface ActiveMessageOutline {
+  messageId: string
+  multiModelMessageStyle: MultiModelMessageStyle
+}
+
+type TopicImageRuntimeAction = 'copy' | 'export'
+
+interface PendingTopicImageRuntimeAction {
+  action: TopicImageRuntimeAction
+  captureWidth?: number
+  reject: (reason?: unknown) => void
+  resolve: () => void
+}
+
+const pendingTopicImageActionsByTopic = new Map<string, PendingTopicImageRuntimeAction[]>()
+
+function enqueuePendingTopicImageAction(topicId: string, action: PendingTopicImageRuntimeAction): void {
+  const pendingActions = pendingTopicImageActionsByTopic.get(topicId) ?? []
+  pendingActions.push(action)
+  pendingTopicImageActionsByTopic.set(topicId, pendingActions)
+}
+
+function takePendingTopicImageActions(topicId: string): PendingTopicImageRuntimeAction[] {
+  const pendingActions = pendingTopicImageActionsByTopic.get(topicId)
+  if (!pendingActions) return []
+
+  pendingTopicImageActionsByTopic.delete(topicId)
+  return pendingActions
+}
+
+function rejectPendingTopicImageActions(topicId: string, reason: unknown): void {
+  for (const pendingAction of takePendingTopicImageActions(topicId)) {
+    pendingAction.reject(reason)
+  }
+}
+
+function getMessageElementLayout(element: HTMLElement): MultiModelMessageStyle {
+  return MESSAGE_OUTLINE_LAYOUTS.find((layout) => element.classList.contains(layout)) ?? 'fold'
+}
+
+type MessageGroupLayerProps = ComponentProps<typeof MessageGroup> & {
+  groupKey: string
+  narrowMode: boolean
+}
+
+function MessageGroupLayer({
+  groupKey,
+  narrowMode,
+  messages,
+  partsByMessageId,
+  ...messageGroupProps
+}: MessageGroupLayerProps) {
+  return (
+    <PartsProvider value={partsByMessageId ?? null}>
+      <NarrowLayout narrowMode={narrowMode} withSidePadding>
+        <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
+      </NarrowLayout>
+    </PartsProvider>
+  )
+}
+
+/**
+ * A sealed history boundary. It deliberately ignores the per-group layout
+ * callback identity; the virtual item key guarantees that callback always
+ * closes over the same group.
+ */
+const MessageHistoryLayer = memo(MessageGroupLayer, (previous, next) => {
+  return (
+    previous.groupKey === next.groupKey &&
+    previous.narrowMode === next.narrowMode &&
+    previous.messages === next.messages &&
+    previous.partsByMessageId === next.partsByMessageId &&
+    previous.topic === next.topic &&
+    previous.captureMode === next.captureMode &&
+    previous.registerMessageElement === next.registerMessageElement &&
+    previous.isLatestAssistantGroup === next.isLatestAssistantGroup &&
+    previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId
+  )
+})
+
+/** Mutable tail boundary; only this layer receives per-frame stream snapshots. */
+const MessageLiveLayer = MessageGroupLayer
+
+const MessageList = () => {
+  const data = useMessageListData()
+  const actions = useMessageListActions()
+  const meta = useMessageListMeta()
+  const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
+  const selection = useMessageListSelection()
+  const messageUi = useMessageListUi()
+  const partsByMessageId = usePartsMap()
+  const { setForceWideLayout } = useChatLayoutMode()
+  const { topic, messages, beforeList, hasOlder = false, messageNavigation } = data
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const { setTimeoutTimer } = useTimer()
+  const isMultiSelectMode = selection?.isMultiSelectMode ?? false
+  const selectedMessageIds = selection?.selectedMessageIds ?? []
+  const [activeOutline, setActiveOutline] = useState<ActiveMessageOutline | null>(null)
+  const bottomOverlayInsets = useChatBottomOverlayInset()
+
+  const messageListRef = useRef<MessageVirtualListHandle | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const topicImageCaptureRef = useRef<HTMLDivElement | null>(null)
+  const messageElements = useRef<Map<string, HTMLElement>>(new Map())
+  const isLoadingMoreRef = useRef(false)
+  const [groupLayoutOverrides, setGroupLayoutOverrides] = useState<Record<string, MultiModelMessageStyle>>({})
+  const [topicImageCaptureActions, setTopicImageCaptureActions] = useState<PendingTopicImageRuntimeAction[]>([])
+  const topicImageCaptureActionsRef = useRef<PendingTopicImageRuntimeAction[]>([])
+
+  const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
+  const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
+  const messageById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages])
+  const directAssistantModelsByUserIdRef = useRef<ReturnType<typeof getDirectAssistantModelsByUserId> | undefined>(
+    undefined
+  )
+  const directAssistantModelsByUserId = useMemo(() => {
+    const next = getDirectAssistantModelsByUserId(messages)
+    const shared = shareDirectAssistantModelsByUserId(directAssistantModelsByUserIdRef.current, next)
+    directAssistantModelsByUserIdRef.current = shared
+    return shared
+  }, [messages])
+  const messageByIdRef = useRef(messageById)
+  messageByIdRef.current = messageById
+  const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
+  const streamingLayers = data.streamingLayers
+  const liveMessageIds = streamingLayers?.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
+  const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
+  const firstLiveGroupIndex = useMemo(() => {
+    if (!streamingLayers) return 0
+    if (liveMessageIds.length === 0) return groupedMessages.length
+
+    const liveIndex = groupedMessages.findIndex(([, groupMessages]) =>
+      groupMessages.some((message) => liveMessageIdSet.has(message.id))
+    )
+    if (liveIndex >= 0) return liveIndex
+
+    const latestAssistantIndex = latestAssistantGroupKey
+      ? groupedMessages.findIndex(([key]) => key === latestAssistantGroupKey)
+      : -1
+    return latestAssistantIndex >= 0 ? latestAssistantIndex : groupedMessages.length
+  }, [groupedMessages, latestAssistantGroupKey, liveMessageIdSet, liveMessageIds.length, streamingLayers])
+  const { bindRuntime, copyImage, loadOlder, saveImage } = actions
+  const getMessageUiState = useCallback(
+    (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
+    [messageUi]
+  )
+  const useWideMessageLayout = useMemo(
+    () =>
+      groupedMessages.some(([key, groupMessages]) =>
+        shouldUseWideLayoutForMessageGroup(
+          groupMessages,
+          (messageId) => {
+            const uiState = getMessageUiState(messageId)
+            return {
+              ...uiState,
+              multiModelMessageStyle: groupLayoutOverrides[key] ?? uiState.multiModelMessageStyle
+            }
+          },
+          renderConfig.multiModelMessageStyle,
+          isMultiSelectMode
+        )
+      ),
+    [getMessageUiState, groupLayoutOverrides, groupedMessages, isMultiSelectMode, renderConfig.multiModelMessageStyle]
+  )
+  const messageListNarrowMode = renderConfig.narrowMode && !useWideMessageLayout
+  const shouldTrackMessageOutline = renderConfig.showMessageOutline && !isMultiSelectMode
+
+  useEffect(() => {
+    setForceWideLayout(useWideMessageLayout)
+    return () => setForceWideLayout(false)
+  }, [setForceWideLayout, useWideMessageLayout])
+
+  const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
+    if (element) {
+      messageElements.current.set(id, element)
+    } else {
+      messageElements.current.delete(id)
+    }
+  }, [])
+
+  const getMessageElement = useCallback((id: string) => messageElements.current.get(id) ?? null, [])
+
+  const scrollToBottom = useCallback(() => {
+    messageListRef.current?.scrollToBottom('instant')
+  }, [])
+
+  const captureLocalSendScrollEligibility = useCallback(() => {
+    messageListRef.current?.captureLocalSendScrollEligibility()
+  }, [])
+
+  // Navigation buttons scroll through the virtua-aware runtime handle (smooth,
+  // remeasure-safe) rather than a raw scrollTo on the virtualized scroller.
+  const navigateToTop = useCallback(() => {
+    messageListRef.current?.scrollToTop('smooth')
+  }, [])
+
+  const navigateToBottom = useCallback(() => {
+    messageListRef.current?.scrollToBottom('smooth')
+  }, [])
+
+  const scrollToMessageById = useCallback((messageId: string) => {
+    const target = messageByIdRef.current.get(messageId)
+    if (!target) return
+    const groupKey =
+      target.role === 'assistant' && target.parentId ? 'assistant' + target.parentId : target.role + target.id
+    messageListRef.current?.scrollToKey(groupKey, 'start')
+  }, [])
+
+  const scrollToOutlineElement = useCallback((element: HTMLElement) => {
+    messageListRef.current?.scrollToElement(element)
+  }, [])
+
+  const updateActiveMessageOutline = useCallback(() => {
+    if (!shouldTrackMessageOutline) {
+      setActiveOutline((current) => (current ? null : current))
+      return
+    }
+
+    const scrollElement = scrollContainerRef.current ?? messageListRef.current?.getScrollElement()
+    if (!scrollElement) {
+      setActiveOutline(null)
+      return
+    }
+
+    const containerRect = scrollElement.getBoundingClientRect()
+    const viewportCenter = containerRect.top + containerRect.height / 2
+    let bestMatch: { messageId: string; multiModelMessageStyle: MultiModelMessageStyle; distance: number } | null = null
+
+    for (const [messageId, element] of messageElements.current) {
+      const message = messageById.get(messageId)
+      if (!message) {
+        messageElements.current.delete(messageId)
+        continue
+      }
+      if (message.role !== 'assistant' || message.type === 'clear') continue
+
+      if (!element.isConnected || !scrollElement.contains(element)) {
+        messageElements.current.delete(messageId)
+        continue
+      }
+
+      const rect = element.getBoundingClientRect()
+      const visibleHeight = Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top)
+      if (visibleHeight <= 0) continue
+
+      const distance =
+        rect.top <= viewportCenter && rect.bottom >= viewportCenter
+          ? 0
+          : Math.min(Math.abs(rect.top - viewportCenter), Math.abs(rect.bottom - viewportCenter))
+
+      if (!bestMatch || distance < bestMatch.distance) {
+        bestMatch = {
+          messageId: message.id,
+          multiModelMessageStyle: getMessageElementLayout(element),
+          distance
+        }
+      }
+    }
+
+    setActiveOutline((current) => {
+      if (
+        current?.messageId === bestMatch?.messageId &&
+        current?.multiModelMessageStyle === bestMatch?.multiModelMessageStyle
+      ) {
+        return current
+      }
+      return bestMatch
+        ? {
+            messageId: bestMatch.messageId,
+            multiModelMessageStyle: bestMatch.multiModelMessageStyle
+          }
+        : null
+    })
+  }, [messageById, shouldTrackMessageOutline])
+  const updateActiveMessageOutlineRef = useRef(updateActiveMessageOutline)
+  updateActiveMessageOutlineRef.current = updateActiveMessageOutline
+  const activeMessageOutlineFrameRef = useRef<number | null>(null)
+  const requestActiveMessageOutlineUpdate = useCallback(() => {
+    if (activeMessageOutlineFrameRef.current !== null) return
+
+    activeMessageOutlineFrameRef.current = requestAnimationFrame(() => {
+      activeMessageOutlineFrameRef.current = null
+      updateActiveMessageOutlineRef.current()
+    })
+  }, [])
+  const cancelActiveMessageOutlineUpdate = useCallback(() => {
+    if (activeMessageOutlineFrameRef.current === null) return
+    cancelAnimationFrame(activeMessageOutlineFrameRef.current)
+    activeMessageOutlineFrameRef.current = null
+  }, [])
+
+  const loadMoreMessages = useCallback(() => {
+    if (!hasOlder || isLoadingMoreRef.current || !loadOlder) return
+    isLoadingMoreRef.current = true
+    setIsLoadingMore(true)
+    setTimeoutTimer(
+      'message-list-load-older',
+      () => {
+        try {
+          loadOlder()
+        } finally {
+          setTimeoutTimer(
+            'message-list-load-older-spinner',
+            () => {
+              isLoadingMoreRef.current = false
+              setIsLoadingMore(false)
+            },
+            data.loadingResetDelayMs
+          )
+        }
+      },
+      data.loadOlderDelayMs
+    )
+  }, [data.loadOlderDelayMs, data.loadingResetDelayMs, hasOlder, loadOlder, setTimeoutTimer])
+
+  const executeTopicImageAction = useCallback(
+    async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
+      if (action === 'copy') {
+        const canvas = await captureScrollable(captureRef)
+        const blob = canvas ? await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')) : null
+        if (!blob) {
+          throw new Error('Failed to capture topic image')
+        }
+        await copyImage?.(blob)
+        return
+      }
+
+      if (!meta.imageExportFileName || !saveImage) {
+        throw new Error('Topic image export is unavailable')
+      }
+
+      const imageData = await captureScrollableAsDataUrl(captureRef)
+      if (!imageData) {
+        throw new Error('Failed to capture topic image')
+      }
+
+      const saved = await saveImage(removeSpecialCharactersForFileName(meta.imageExportFileName), imageData)
+      if (saved === false) {
+        throw new Error('Failed to save topic image')
+      }
+    },
+    [copyImage, meta.imageExportFileName, saveImage]
+  )
+
+  const enqueueTopicImageCaptureAction = useCallback((action: TopicImageRuntimeAction) => {
+    return new Promise<void>((resolve, reject) => {
+      const scrollContainer = scrollContainerRef.current
+      const captureWidth = scrollContainer?.clientWidth || scrollContainer?.getBoundingClientRect().width || undefined
+      const captureAction = { action, captureWidth, reject, resolve }
+      setTopicImageCaptureActions((current) => {
+        const nextActions = [...current, captureAction]
+        topicImageCaptureActionsRef.current = nextActions
+        return nextActions
+      })
+    })
+  }, [])
+
+  const runTopicImageAction = useCallback(
+    async (action: TopicImageRuntimeAction) => {
+      if (data.isInitialLoading || !scrollContainerRef.current) {
+        return new Promise<void>((resolve, reject) => {
+          enqueuePendingTopicImageAction(topic.id, { action, reject, resolve })
+        })
+      }
+
+      await enqueueTopicImageCaptureAction(action)
+    },
+    [data.isInitialLoading, enqueueTopicImageCaptureAction, topic.id]
+  )
+  const runtimeActionsRef = useRef({
+    scrollToBottom,
+    captureLocalSendScrollEligibility,
+    scrollToMessageById,
+    runTopicImageAction
+  })
+  runtimeActionsRef.current = {
+    scrollToBottom,
+    captureLocalSendScrollEligibility,
+    scrollToMessageById,
+    runTopicImageAction
+  }
+
+  const flushPendingTopicImageAction = useCallback(() => {
+    if (data.isInitialLoading || !scrollContainerRef.current) return
+
+    for (const pendingAction of takePendingTopicImageActions(topic.id)) {
+      void enqueueTopicImageCaptureAction(pendingAction.action).then(pendingAction.resolve, pendingAction.reject)
+    }
+  }, [data.isInitialLoading, enqueueTopicImageCaptureAction, topic.id])
+  const handleScrollContainerReady = useCallback(
+    (element: HTMLDivElement) => {
+      scrollContainerRef.current = element
+      flushPendingTopicImageAction()
+    },
+    [flushPendingTopicImageAction]
+  )
+
+  useEffect(() => {
+    const topicId = topic.id
+    return () => {
+      const cancelReason = new Error('Topic image export was cancelled')
+      rejectPendingTopicImageActions(topicId, cancelReason)
+      for (const pendingAction of topicImageCaptureActionsRef.current) {
+        pendingAction.reject(cancelReason)
+      }
+      topicImageCaptureActionsRef.current = []
+    }
+  }, [topic.id])
+
+  const activeTopicImageCaptureAction = topicImageCaptureActions[0] ?? null
+
+  useEffect(() => {
+    topicImageCaptureActionsRef.current = topicImageCaptureActions
+  }, [topicImageCaptureActions])
+
+  useEffect(() => {
+    if (!activeTopicImageCaptureAction || !topicImageCaptureRef.current) return
+
+    let cancelled = false
+    let secondFrame: number | undefined
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        if (cancelled) return
+
+        void executeTopicImageAction(activeTopicImageCaptureAction.action, topicImageCaptureRef)
+          .then(activeTopicImageCaptureAction.resolve, activeTopicImageCaptureAction.reject)
+          .finally(() => {
+            if (cancelled) return
+
+            setTopicImageCaptureActions((current) => {
+              const nextActions =
+                current[0] === activeTopicImageCaptureAction
+                  ? current.slice(1)
+                  : current.filter((captureAction) => captureAction !== activeTopicImageCaptureAction)
+              topicImageCaptureActionsRef.current = nextActions
+              return nextActions
+            })
+          })
+      })
+    })
+
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(firstFrame)
+      if (secondFrame !== undefined) {
+        cancelAnimationFrame(secondFrame)
+      }
+    }
+  }, [activeTopicImageCaptureAction, executeTopicImageAction])
+
+  useEffect(() => {
+    scrollContainerRef.current = (messageListRef.current?.getScrollElement() as HTMLDivElement | null) ?? null
+    flushPendingTopicImageAction()
+  }, [flushPendingTopicImageAction, groupedMessages])
+
+  useEffect(() => {
+    if (shouldTrackMessageOutline) {
+      requestActiveMessageOutlineUpdate()
+      return
+    }
+    cancelActiveMessageOutlineUpdate()
+    setActiveOutline((current) => (current ? null : current))
+  }, [cancelActiveMessageOutlineUpdate, groupedMessages, requestActiveMessageOutlineUpdate, shouldTrackMessageOutline])
+
+  useEffect(() => cancelActiveMessageOutlineUpdate, [cancelActiveMessageOutlineUpdate])
+
+  useEffect(() => {
+    if (!shouldTrackMessageOutline) return
+    const scrollElement = messageListRef.current?.getScrollElement()
+    if (!scrollElement) return
+
+    const handleOutlineUpdate = requestActiveMessageOutlineUpdate
+    scrollElement.addEventListener('scroll', handleOutlineUpdate, { passive: true })
+    window.addEventListener('resize', handleOutlineUpdate)
+
+    return () => {
+      scrollElement.removeEventListener('scroll', handleOutlineUpdate)
+      window.removeEventListener('resize', handleOutlineUpdate)
+    }
+  }, [data.isInitialLoading, data.listKey, requestActiveMessageOutlineUpdate, shouldTrackMessageOutline, topic.id])
+
+  useEffect(() => {
+    return bindRuntime?.({
+      scrollToBottom: () => runtimeActionsRef.current.scrollToBottom(),
+      captureLocalSendScrollEligibility: () => runtimeActionsRef.current.captureLocalSendScrollEligibility(),
+      locateMessage: (messageId) => runtimeActionsRef.current.scrollToMessageById(messageId),
+      copyTopicImage: () => runtimeActionsRef.current.runTopicImageAction('copy'),
+      exportTopicImage: () => runtimeActionsRef.current.runTopicImageAction('export')
+    })
+  }, [bindRuntime])
+
+  if (data.isInitialLoading && (messages.length === 0 || data.isMessagesStale)) {
+    return <MessageListInitialLoading />
+  }
+
+  const activeOutlineMessage = activeOutline
+    ? messages.find((message) => message.id === activeOutline.messageId)
+    : undefined
+  const latestAssistantGroupMessages = latestAssistantGroupKey
+    ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
+    : undefined
+  const shouldKeepLatestAssistantGroupMounted =
+    latestAssistantGroupMessages?.some(
+      (message) =>
+        message.role === 'assistant' &&
+        (messageUi.getMessageActivityState?.(message).isProcessing ?? message.status === 'pending')
+    ) ?? false
+  const keepMountedKeys =
+    shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
+  const defaultBottomPadding = isMultiSelectMode
+    ? MULTI_SELECT_BOTTOM_PADDING_PX
+    : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX
+  const bottomPadding =
+    bottomOverlayInsets == null
+      ? defaultBottomPadding
+      : Math.max(bottomOverlayInsets.contentBottomPadding, isMultiSelectMode ? defaultBottomPadding : 0)
+  const scrollerBottomMargin = bottomOverlayInsets?.scrollerBottomMargin ?? 0
+  const topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
+  const topicImageCaptureWidth = activeTopicImageCaptureAction?.captureWidth
+
+  return (
+    <MessagesContainer
+      id="messages"
+      className={classNames(['messages-container', { 'multi-select-mode': isMultiSelectMode }])}
+      key={data.listKey}>
+      {beforeList && (
+        <NarrowLayout narrowMode={messageListNarrowMode} withSidePadding className="shrink-0">
+          {beforeList}
+        </NarrowLayout>
+      )}
+      <SelectionContextMenu>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <MessageVirtualList
+            handleRef={messageListRef}
+            items={groupedMessages}
+            getItemKey={([key]) => key}
+            estimateSize={data.estimateSize}
+            overscan={data.overscan}
+            topPadding={topPadding}
+            bottomPadding={bottomPadding}
+            localSendGeneration={data.localSendGeneration}
+            keepMountedKeys={keepMountedKeys}
+            showScrollToBottomButton
+            scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
+            topicId={topic.id}
+            hasMoreTop={hasOlder}
+            onScrollContainerReady={handleScrollContainerReady}
+            onReachTop={loadMoreMessages}
+            renderItem={([key, groupMessages], index) => {
+              const props: MessageGroupLayerProps = {
+                groupKey: key,
+                narrowMode: messageListNarrowMode,
+                isLatestAssistantGroup: key === latestAssistantGroupKey,
+                directAssistantModelsByUserId,
+                messages: groupMessages,
+                partsByMessageId:
+                  index < firstLiveGroupIndex && streamingLayers
+                    ? streamingLayers.historyPartsByMessageId
+                    : partsByMessageId,
+                topic,
+                registerMessageElement,
+                onMultiModelMessageStyleChange: (style) => {
+                  setGroupLayoutOverrides((current) =>
+                    current[key] === style ? current : { ...current, [key]: style }
+                  )
+                }
+              }
+
+              return index < firstLiveGroupIndex ? <MessageHistoryLayer {...props} /> : <MessageLiveLayer {...props} />
+            }}
+            style={{ flex: 1, minHeight: 0, marginBottom: scrollerBottomMargin }}
+          />
+          {isLoadingMore && (
+            <div
+              className="pointer-events-none flex w-full justify-center py-2.5"
+              style={{ background: 'var(--background)' }}>
+              <LoadingIcon color="color-mix(in oklch, var(--foreground) 66.6667%, transparent)" />
+            </div>
+          )}
+        </div>
+      </SelectionContextMenu>
+      {topicImageCaptureActions.length > 0 && (
+        <div
+          ref={topicImageCaptureRef}
+          aria-hidden="true"
+          data-topic-image-capture
+          className={classNames(
+            '-left-[10000px] pointer-events-none fixed top-0 overflow-visible bg-background text-foreground',
+            !topicImageCaptureWidth && 'w-full'
+          )}
+          style={topicImageCaptureWidth ? { width: `${topicImageCaptureWidth}px` } : undefined}>
+          {groupedMessages.map(([key, groupMessages]) => (
+            <NarrowLayout key={key} narrowMode={messageListNarrowMode} withSidePadding>
+              <MessageGroup
+                captureMode
+                isLatestAssistantGroup={key === latestAssistantGroupKey}
+                directAssistantModelsByUserId={directAssistantModelsByUserId}
+                messages={groupMessages}
+                partsByMessageId={partsByMessageId}
+                topic={topic}
+              />
+            </NarrowLayout>
+          ))}
+        </div>
+      )}
+      {messageNavigation === 'anchor' && (
+        <MessageAnchorLine
+          messages={messages}
+          scrollToMessageId={scrollToMessageById}
+          scrollToBottom={scrollToBottom}
+        />
+      )}
+      {activeOutline && activeOutlineMessage && (
+        <MessageOutline
+          message={activeOutlineMessage}
+          multiModelMessageStyle={activeOutline.multiModelMessageStyle}
+          onNavigateToElement={scrollToOutlineElement}
+        />
+      )}
+      {messageNavigation === 'buttons' && (
+        <MessageNavigation
+          scrollContainerRef={scrollContainerRef}
+          getMessageElement={getMessageElement}
+          messages={messages}
+          scrollToMessageId={scrollToMessageById}
+          scrollToTop={navigateToTop}
+          scrollToBottom={navigateToBottom}
+        />
+      )}
+      {meta.selectionLayer && (
+        <SelectionBox
+          isMultiSelectMode={isMultiSelectMode}
+          scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+          messageElements={messageElements.current}
+          handleSelectMessage={(messageId, selected) => actions.selectMessage?.(messageId, selected)}
+        />
+      )}
+      <MultiSelectActionPopup
+        selectedMessageIds={selectedMessageIds}
+        isMultiSelectMode={isMultiSelectMode}
+        deleteDisabledReason={
+          selectedMessageIds
+            .map((messageId) => actions.getMessageDeleteAvailability?.(messageId))
+            .find((availability) => availability?.enabled === false)?.reason
+        }
+        onSave={
+          actions.saveSelectedMessages ? () => void actions.saveSelectedMessages?.(selectedMessageIds) : undefined
+        }
+        onCopy={
+          actions.copySelectedMessages ? () => void actions.copySelectedMessages?.(selectedMessageIds) : undefined
+        }
+        onDelete={
+          actions.deleteSelectedMessages ? () => void actions.deleteSelectedMessages?.(selectedMessageIds) : undefined
+        }
+        onClose={() => actions.toggleMultiSelectMode?.(false)}
+      />
+    </MessagesContainer>
+  )
+}
+
+export default MessageList

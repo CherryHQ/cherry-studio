@@ -1,0 +1,578 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "description": "Target key definitions that override or extend classification.json. Keys defined here with status 'classified' will be added or override classification.json. Keys with status 'pending' will be disabled.",
+    "lastUpdated": "2026-06-01"
+  },
+  "definitions": [
+    {
+      "targetKey": "app.power.prevent_sleep_when_busy",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.onboarding.provider_setup.status",
+      "type": "PreferenceTypes.OnboardingProviderSetupStatus",
+      "defaultValue": "pending",
+      "status": "classified",
+      "description": "Status of the main-window first-run provider setup onboarding flow"
+    },
+    {
+      "targetKey": "app.privacy.policy_version",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Latest privacy policy version acknowledged by the user"
+    },
+    {
+      "targetKey": "app.window.position.x",
+      "type": "number",
+      "defaultValue": 0,
+      "status": "pending",
+      "description": "Window X position (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "app.window.position.y",
+      "type": "number",
+      "defaultValue": 0,
+      "status": "pending",
+      "description": "Window Y position (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "app.window.size.width",
+      "type": "number",
+      "defaultValue": 800,
+      "status": "pending",
+      "description": "Window width (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "app.window.size.height",
+      "type": "number",
+      "defaultValue": 600,
+      "status": "pending",
+      "description": "Window height (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "feature.file_processing.overrides",
+      "type": "PreferenceTypes.FileProcessorOverrides",
+      "defaultValue": "VALUE: {} as PreferenceTypes.FileProcessorOverrides",
+      "status": "classified",
+      "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
+    },
+    {
+      "targetKey": "chat.web_search.default_search_keywords_provider",
+      "type": "PreferenceTypes.WebSearchProviderId",
+      "defaultValue": "exa-mcp",
+      "status": "classified",
+      "description": "Default Web Search provider for keyword search capability"
+    },
+    {
+      "targetKey": "chat.web_search.default_fetch_urls_provider",
+      "type": "PreferenceTypes.WebSearchProviderId",
+      "defaultValue": "jina",
+      "status": "classified",
+      "description": "Default Web Search provider for URL fetch capability"
+    },
+    {
+      "targetKey": "chat.web_search.compression.cutoff_limit",
+      "type": "number",
+      "defaultValue": 2000,
+      "status": "classified",
+      "description": "Web search compression cutoff limit (from complex migration; defaults when legacy value is empty)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.method",
+      "type": "PreferenceTypes.WebSearchCompressionMethod",
+      "defaultValue": "none",
+      "status": "classified",
+      "description": "Web search compression method (from complex migration)"
+    },
+    {
+      "targetKey": "feature.code_cli.configs",
+      "type": "PreferenceTypes.CodeCliConfigs",
+      "defaultValue": "VALUE: {} as PreferenceTypes.CodeCliConfigs",
+      "status": "classified",
+      "description": "Fresh v2 key (no migration): per-tool CLI configs with per-provider modelId, config blob, and sortIndex. v1 codeTools is throwaway."
+    },
+    {
+      "targetKey": "chat.input.toolbar.pinned_tools",
+      "type": "string[]",
+      "defaultValue": ["composer:new-conversation", "thinking", "web-search"],
+      "status": "classified",
+      "description": "Ordered tool ids pinned on the chat composer toolbar (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "agent.input.toolbar.pinned_tools",
+      "type": "string[]",
+      "defaultValue": ["composer:new-session", "thinking", "skills"],
+      "status": "classified",
+      "description": "Ordered tool ids pinned on the agent composer toolbar (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "chat.web_search.exclude_domains",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Web search excluded domains (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.max_results",
+      "type": "number",
+      "defaultValue": 5,
+      "status": "classified",
+      "description": "Web search max results (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.provider_overrides",
+      "type": "PreferenceTypes.WebSearchProviderOverrides",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Web search provider overrides (from complex migration)"
+    },
+    {
+      "targetKey": "ui.sidebar.favorites",
+      "type": "PreferenceTypes.SidebarFavoriteItem[]",
+      "defaultValue": [
+        { "id": "assistants", "type": "app" },
+        { "id": "agents", "type": "app" },
+        { "id": "translate", "type": "app" },
+        { "id": "paintings", "type": "app" },
+        { "id": "knowledge", "type": "app" }
+      ],
+      "status": "classified",
+      "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
+    },
+    {
+      "targetKey": "ui.launchpad.app_order",
+      "type": "PreferenceTypes.SidebarFavorite[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Launchpad built-in app tile order, independent from the sidebar favorites order (new v2 preference, no v1 source). Empty defaults to the canonical app order; unknown/missing apps are normalized at read time"
+    },
+    {
+      "targetKey": "ui.custom_css",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Custom CSS for v2. Non-empty v1 CSS is preserved in this key with a versioned first-line marker that keeps it disabled until reviewed."
+    },
+    {
+      "targetKey": "chat.default_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Default chat model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "topic.naming.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "topic.tab.display_mode",
+      "type": "PreferenceTypes.TopicDisplayMode",
+      "defaultValue": "assistant",
+      "status": "classified",
+      "description": "Topic sidebar display grouping mode"
+    },
+    {
+      "targetKey": "agent.icon_type",
+      "type": "PreferenceTypes.AssistantIconType",
+      "defaultValue": "emoji",
+      "status": "classified",
+      "description": "Agent rail entity icon style (emoji/model/none), independent of the assistant icon type"
+    },
+    {
+      "targetKey": "agent.session.display_mode",
+      "type": "PreferenceTypes.AgentSessionDisplayMode",
+      "defaultValue": "agent",
+      "status": "classified",
+      "description": "Agent session sidebar display grouping mode"
+    },
+    {
+      "targetKey": "agent.session.position",
+      "type": "PreferenceTypes.TopicTabPosition",
+      "defaultValue": "left",
+      "status": "classified",
+      "description": "Agent session resource pane position (left/right), independent of the Home topic pane"
+    },
+    {
+      "targetKey": "feature.quick_assistant.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Quick assistant model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "feature.translate.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "feature.paintings.default_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Paintings default image-generation model UniqueModelId (provider::modelId)"
+    },
+    {
+      "targetKey": "feature.openclaw.gateway_port",
+      "type": "number",
+      "defaultValue": 18790,
+      "status": "classified",
+      "description": "OpenClaw gateway port"
+    },
+    {
+      "targetKey": "feature.openclaw.selected_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "OpenClaw selected model UniqueModelId (provider::modelId, from complex mapping openclaw_preferences)"
+    },
+    {
+      "targetKey": "feature.translate.action.preferred_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "ActionTranslate preferred language"
+    },
+    {
+      "targetKey": "feature.translate.action.alter_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "en-us",
+      "status": "classified",
+      "description": "ActionTranslate alternate language"
+    },
+    {
+      "targetKey": "feature.translate.mini_window.target_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "TranslateWindow target language"
+    },
+    {
+      "targetKey": "feature.translate.page.bidirectional_pair",
+      "type": "PreferenceTypes.TranslateBidirectionalPair",
+      "defaultValue": [
+        "zh-cn",
+        "en-us"
+      ],
+      "status": "classified",
+      "description": "Translate page bidirectional language pair (from complex migration)"
+    },
+    {
+      "targetKey": "feature.translate.page.source_language",
+      "type": "PreferenceTypes.TranslateSourceLanguage",
+      "defaultValue": "auto",
+      "status": "classified",
+      "description": "Translate page source language (from complex migration)"
+    },
+    {
+      "targetKey": "feature.translate.page.target_language",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "Translate page target language (from complex migration)"
+    },
+    {
+      "targetKey": "feature.binary.install_settings",
+      "type": "PreferenceTypes.BinaryInstallSettings",
+      "defaultValue": {
+        "githubMirror": "",
+        "githubToken": "",
+        "npmRegistry": "",
+        "pipIndexUrl": "",
+        "verifySignatures": true
+      },
+      "status": "classified",
+      "description": "BinaryManager's isolated mise install settings"
+    },
+    {
+      "targetKey": "feature.binary.tools",
+      "type": "PreferenceTypes.CustomToolDefinition[]",
+      "defaultValue": "VALUE: [] as PreferenceTypes.CustomToolDefinition[]",
+      "status": "classified",
+      "description": "BinaryManager custom tool registry: each entry is a user-added custom tool definition; requestedVersion is an optional version pin"
+    },
+    {
+      "targetKey": "shortcut.app.fullscreen.exit",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Escape"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.fullscreen.exit (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.print",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "P"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.print (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.search",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "F"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.search (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "["
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.toggle (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.settings.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          ","
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.settings.open (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.window.show",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.window.show (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.zoom.in",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "="
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.zoom.in (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.zoom.out",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "-"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.zoom.out (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.zoom.reset",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "0"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.zoom.reset (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.context.toggle_new",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "K"
+        ],
+        "enabled": true
+      },
+      "status": "deleted",
+      "description": "Deleted: command removed (feature not implemented in v2)."
+    },
+    {
+      "targetKey": "shortcut.chat.message.copy_last",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "C"
+        ],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.message.copy_last (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.message.edit_last_user",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "E"
+        ],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.message.edit_last_user (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.message.search",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "F"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.message.search (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.model.select",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "M"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.model.select (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.topic.clear",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "L"
+        ],
+        "enabled": true
+      },
+      "status": "deleted",
+      "description": "Deleted: command removed (feature not implemented in v2)."
+    },
+    {
+      "targetKey": "shortcut.quick_assistant.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "E"
+        ],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: quick_assistant.toggle (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.selection.capture_text",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: selection.capture_text (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.selection.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: selection.toggle (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.create",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "N"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.create (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.rename",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "T"
+        ],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.rename (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.sidebar.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "]"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
+    },
+    {
+      "targetKey": "menu.presentation_mode",
+      "type": "PreferenceTypes.MenuPresentationMode",
+      "defaultValue": "cherry",
+      "status": "classified",
+      "description": "Global menu presentation mode: native system menus or Cherry custom menus"
+    }
+  ]
+}

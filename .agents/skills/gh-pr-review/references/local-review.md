@@ -9,6 +9,7 @@ issues, and lets the user interactively choose which ones to fix.
 |------|---------|
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
+| `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries |
 | `judgment-matrix.md` | Risk levels, worth-fixing criteria, special rules |
 | `checklist-evolution.md` | Checklist update flow and rules |
 
@@ -51,10 +52,18 @@ If diff is empty → show usage examples and exit:
 ## Step 2: Review
 
 Review the diff. Apply `code-checklist.md` to code files,
-`doc-checklist.md` to documentation files. For React component changes, also
-consult `vercel-react-best-practices` skill for detailed performance patterns. When changed lines depend on
-surrounding context, read the relevant sections or related definitions as
-needed. Untracked files have no diff — review their full contents as new code.
+`doc-checklist.md` to documentation files. Apply `cherry-review-guidance.md` to
+code, mixed, Cherry architecture documentation, and project-skill changes. For
+React component changes, also consult `vercel-react-best-practices` skill for
+detailed performance patterns. When changed lines depend on surrounding context,
+read the relevant sections or related definitions as needed. Untracked files
+have no diff — review their full contents as new code.
+
+If the branch has an associated GitHub PR, inspect its checks with `gh pr
+checks` and include failing or pending CI in the review. Do not run `pnpm lint`,
+`pnpm test`, or `pnpm format` locally during review. If no associated PR exists,
+state that CI validation is unavailable and keep the result explicitly limited
+to static review.
 
 For each issue found:
 - Provide a code citation (file:line + snippet) from the current tree.
@@ -85,7 +94,10 @@ which ones to fix via multi-select. Each option's label is the issue summary
 (each group ≤4 options), then present all groups as separate questions in a
 single prompt.
 
-If the user selects any issues, apply the fixes.
+If the user selects any issues, apply the fixes. Do not run local lint, test, or
+format commands as part of the review flow. Report that existing CI covers the
+reviewed commit, not unpushed local fixes; re-check CI only after the fixes are
+published through a user-authorized workflow.
 
 ---
 

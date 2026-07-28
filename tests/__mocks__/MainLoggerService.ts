@@ -1,6 +1,25 @@
-/* oslint-disable @typescript-eslint/no-empty-function */
+/* oxlint-disable @typescript-eslint/no-empty-function */
+import { vi } from 'vitest'
 
-// Simple mock LoggerService class for main process
+/**
+ * Unified mock LoggerService for main-process tests.
+ *
+ * Log methods (`error` / `warn` / `info` / `verbose` / `debug` / `silly`) are
+ * `vi.fn()` so tests can assert call shapes directly:
+ *
+ *     import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+ *     // ...
+ *     mockMainLoggerService.warn.mockClear() // in beforeEach
+ *     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(...)
+ *
+ * Per `tests/__mocks__/README.md`, do NOT create ad-hoc `vi.mock('@logger',
+ * …)` blocks in individual test files — use this singleton instead so logger
+ * assertions stay consistent across the suite.
+ *
+ * `withContext()` returns the same singleton so any caller of
+ * `loggerService.withContext(name).warn(...)` writes into the same vi.fn —
+ * tests don't need to know which context was used.
+ */
 export class MockMainLoggerService {
   private static instance: MockMainLoggerService
 
@@ -30,24 +49,13 @@ export class MockMainLoggerService {
   public getBaseLogger(): any {
     return {}
   }
-  public error(...args: any[]): void {
-    console.error(...args)
-  }
-  public warn(...args: any[]): void {
-    console.warn(...args)
-  }
-  public info(...args: any[]): void {
-    console.info(...args)
-  }
-  public verbose(...args: any[]): void {
-    console.log(...args)
-  }
-  public debug(...args: any[]): void {
-    console.debug(...args)
-  }
-  public silly(...args: any[]): void {
-    console.log(...args)
-  }
+
+  public error = vi.fn()
+  public warn = vi.fn()
+  public info = vi.fn()
+  public verbose = vi.fn()
+  public debug = vi.fn()
+  public silly = vi.fn()
 }
 
 // Create and export the mock instance

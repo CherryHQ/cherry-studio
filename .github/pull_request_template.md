@@ -3,17 +3,14 @@
 1. Consider creating this PR as draft: https://github.com/CherryHQ/cherry-studio/blob/main/CONTRIBUTING.md
 -->
 
-<!--
-
-⚠️ Important: Redux/IndexedDB Data-Changing Feature PRs Temporarily On Hold ⚠️
-
-Please note: For our current development cycle, we are not accepting feature Pull Requests that introduce changes to Redux data models or IndexedDB schemas.
-
-While we value your contributions, PRs of this nature will be blocked without merge. We welcome all other contributions (bug fixes, perf enhancements, docs, etc.). Thank you!
-
-Once version 2.0.0 is released, we will resume reviewing feature PRs.
-
--->
+> ### 🚨 Branch strategy — read before opening this PR
+>
+> The v2 refactor has merged into `main`, so **`main` is the default branch for active development** (v1 and v2 code currently coexist there — expect large, breaking changes).
+>
+> - **Active development** (features, refactors, optimizations, fixes for the current codebase) → target **`main`** (the default base).
+> - **v1 maintenance** (hotfixes and subsequent v1 releases) → branch from and target **`v1`**, _not_ `main`.
+>
+> A v1 fix does **not** auto-carry to `main`: if the same bug exists on `main`, open a separate forward-port PR targeting `main`. Before touching subsystems being replaced, read `docs/references/data/` and watch for `@deprecated` markers — they flag code being deleted.
 
 ### What this PR does
 
@@ -48,6 +45,7 @@ If this PR introduces breaking changes, please describe the changes and the impa
 This checklist is not enforcing, but it's a reminder of items that could be relevant to every PR.
 Approvers are expected to review this list.
 
+- [ ] Branch: This PR targets the correct branch — `main` for active development, `v1` for v1 maintenance fixes
 - [ ] PR: The PR description is expressive enough and will help future contributors
 - [ ] Code: [Write code that humans can understand](https://en.wikiquote.org/wiki/Martin_Fowler#code-for-humans) and [Keep it simple](https://en.wikipedia.org/wiki/KISS_principle)
 - [ ] Refactor: You have [left the code cleaner than you found it (Boy Scout Rule)](https://learning.oreilly.com/library/view/97-things-every/9780596809515/ch08.html)

@@ -1,0 +1,334 @@
+import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import ContentPopup from '@renderer/components/popups/ContentPopup'
+import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
+import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
+import { getMcpTypeLabelKey } from '@renderer/i18n/label'
+import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { formatMcpError } from '@renderer/utils/error'
+import { formatErrorMessage } from '@renderer/utils/error'
+import { cn } from '@renderer/utils/style'
+import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { CircleXIcon, ExternalLink } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
+import { useTranslation } from 'react-i18next'
+
+import { useMcpServerTrust } from './useMcpServerTrust'
+
+const logger = loggerService.withContext('McpServerCard')
+
+interface McpServerCardProps {
+  server: McpServer
+  onEdit: () => void
+}
+
+const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
+  const { updateMcpServer, deleteMcpServer } = useMcpServerMutations(server.id)
+  const [loading, setLoading] = useState(false)
+  const [version, setVersion] = useState<string | null>(null)
+  const runtimeStatus = useMcpRuntimeStatus(server.id, server.isActive)
+
+  const updateServerBody = useCallback((body: UpdateMcpServerDto) => updateMcpServer({ body }), [updateMcpServer])
+
+  const { ensureServerTrusted } = useMcpServerTrust(updateServerBody)
+  const { t } = useTranslation()
+
+  // Fetch version for active servers
+  const fetchServerVersion = useCallback(async (s: McpServer) => {
+    if (!s.isActive) return
+    try {
+      const v = await ipcApi.request('mcp.server.get_version', { serverId: s.id })
+      setVersion(v)
+    } catch {
+      setVersion(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (server.isActive) {
+      void fetchServerVersion(server)
+    } else {
+      setVersion(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server.isActive, server.id, fetchServerVersion])
+
+  const handleToggleActive = useCallback(
+    async (active: boolean) => {
+      let serverForUpdate = server
+      if (active) {
+        const trustedServer = await ensureServerTrusted(server)
+        if (!trustedServer) return
+        serverForUpdate = trustedServer
+      }
+
+      setLoading(true)
+      logger.debug('toggle activate', { serverId: serverForUpdate.id, active })
+      try {
+        if (active) {
+          await updateMcpServer({ body: { isActive: true } })
+          try {
+            await fetchServerVersion({ ...serverForUpdate, isActive: true })
+            await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
+          } catch (error: any) {
+            void popup.error({
+              title: t('settings.mcp.startError'),
+              content: formatMcpError(error),
+              centered: true
+            })
+          }
+        } else {
+          await updateMcpServer({ body: { isActive: false } })
+          await ipcApi.request('mcp.server.stop', { serverId: serverForUpdate.id })
+          setVersion(null)
+        }
+      } catch (error: any) {
+        void popup.error({
+          title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
+          content: formatMcpError(error),
+          centered: true
+        })
+      } finally {
+        setLoading(false)
+      }
+    },
+    [server, ensureServerTrusted, fetchServerVersion, updateMcpServer, t]
+  )
+
+  const handleDelete = useCallback(async () => {
+    try {
+      const confirmed = await popup.confirm({
+        title: t('settings.mcp.deleteServer'),
+        content: t('settings.mcp.deleteServerConfirm'),
+        centered: true
+      })
+      if (!confirmed) return
+
+      await ipcApi.request('mcp.server.remove', { serverId: server.id })
+      await deleteMcpServer({})
+      toast.success(t('settings.mcp.deleteSuccess'))
+    } catch (error: any) {
+      toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+    }
+  }, [server, deleteMcpServer, t])
+
+  const handleOpenUrl = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation()
+
+      if (server.providerUrl) {
+        window.open(server.providerUrl, '_blank')
+      }
+    },
+    [server.providerUrl]
+  )
+
+  const typeLabel = t(getMcpTypeLabelKey(server.type ?? 'stdio'))
+
+  const getTypeBadgeClass = () => {
+    switch (server.type) {
+      case 'sse':
+        return 'bg-success/10 text-success'
+      case 'streamableHttp':
+        return 'bg-info/10 text-info'
+      default:
+        return 'bg-muted text-muted-foreground'
+    }
+  }
+
+  const handleRowClick = useCallback(() => {
+    onEdit()
+  }, [onEdit])
+
+  const handleToolbarClick = useCallback((event: React.MouseEvent) => {
+    event.stopPropagation()
+  }, [])
+
+  const handleDeleteClick = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation()
+      void handleDelete()
+    },
+    [handleDelete]
+  )
+
+  const isLoading = loading
+
+  const Fallback = useCallback(
+    (props: FallbackProps) => {
+      const { error } = props
+      const errorDetails = formatErrorMessage(error)
+
+      const onClickDetails = () => {
+        void ContentPopup.show({
+          content: (
+            <div
+              style={{
+                padding: 8,
+                textWrap: 'pretty',
+                fontFamily: 'monospace',
+                userSelect: 'text',
+                marginRight: 20,
+                color: 'var(--error)'
+              }}>
+              {errorDetails}
+            </div>
+          )
+        })
+      }
+
+      return (
+        <Alert
+          message={t('error.boundary.mcp.invalid')}
+          showIcon
+          type="error"
+          style={{ height: 125, alignItems: 'flex-start', padding: 12, borderRadius: 'var(--radius-lg)' }}
+          description={<div className="line-clamp-3 text-error-base text-xs leading-5">{errorDetails}</div>}
+          onClick={onClickDetails}
+          action={
+            <div className="flex items-center gap-1">
+              <Button variant="destructive" size="sm" onClick={onClickDetails}>
+                <Tooltip content={t('error.boundary.details')}>
+                  <CircleXIcon size={16} />
+                </Tooltip>
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleDeleteClick}>
+                <Tooltip content={t('common.delete')}>
+                  <DeleteIcon size={16} />
+                </Tooltip>
+              </Button>
+            </div>
+          }
+        />
+      )
+    },
+    [handleDeleteClick, t]
+  )
+
+  return (
+    <ErrorBoundary fallbackComponent={Fallback}>
+      <CardContainer onClick={handleRowClick} data-slot="mcp-server-row">
+        <ServerNameCell>
+          {runtimeStatus.state === 'error' && server.isActive ? (
+            <Tooltip content={runtimeStatus.lastError || t('settings.mcp.runtimeStatus.error', 'Error')}>
+              <ActiveDot $state="error" />
+            </Tooltip>
+          ) : (
+            <ActiveDot $state={server.isActive ? runtimeStatus.state : 'disabled'} />
+          )}
+          {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
+          <ServerNameText title={server.name} className={server.isActive ? 'text-foreground' : 'text-muted-foreground'}>
+            {server.name}
+          </ServerNameText>
+        </ServerNameCell>
+
+        <MutedCell>{version || '—'}</MutedCell>
+
+        <div className="flex w-24 shrink-0 justify-end">
+          <MetaBadge className={getTypeBadgeClass()}>{typeLabel}</MetaBadge>
+        </div>
+
+        <SourceCell>
+          {server.providerUrl && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-7 rounded-md text-muted-foreground shadow-none hover:text-foreground"
+              onClick={handleOpenUrl}
+              data-no-dnd>
+              <ExternalLink size={13} />
+            </Button>
+          )}
+        </SourceCell>
+
+        <ToolbarWrapper onClick={handleToolbarClick}>
+          <Switch
+            checked={server.isActive}
+            key={server.id}
+            disabled={isLoading}
+            size="xs"
+            className="shadow-none data-[state=checked]:bg-success/85"
+            onCheckedChange={handleToggleActive}
+            data-no-dnd
+          />
+        </ToolbarWrapper>
+      </CardContainer>
+    </ErrorBoundary>
+  )
+}
+
+const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border/60 border-b px-0 py-1.5 text-sm transition-colors',
+      className
+    )}
+    {...props}
+  />
+)
+
+const ServerNameCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex min-w-0 flex-1 items-center gap-2.5', className)} {...props} />
+)
+
+const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('min-w-0 truncate text-[14px] leading-5', className)} {...props} />
+)
+
+const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
+  <img className={cn('size-5 shrink-0 rounded object-cover', className)} {...props} />
+)
+
+const MutedCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'hidden w-16 shrink-0 truncate text-right text-muted-foreground text-sm tabular-nums min-[1180px]:block',
+      className
+    )}
+    {...props}
+  />
+)
+
+const SourceCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('hidden w-7 shrink-0 items-center justify-end min-[1320px]:flex', className)} {...props} />
+)
+
+const ToolbarWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('ml-auto flex shrink-0 items-center justify-end gap-2', className)} {...props} />
+)
+
+const ActiveDot = ({
+  $state,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $state: 'disabled' | 'connecting' | 'connected' | 'error' }) => (
+  <div
+    className={cn(
+      'size-1.5 shrink-0 rounded-full',
+      $state === 'connected' && 'bg-success/85',
+      $state === 'connecting' && 'bg-warning/85',
+      $state === 'error' && 'bg-destructive/85',
+      $state === 'disabled' && 'bg-muted-foreground/30',
+      className
+    )}
+    {...props}
+  />
+)
+
+const MetaBadge = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Badge>) => (
+  <Badge
+    variant="secondary"
+    className={cn('h-5 max-w-full rounded-md border-transparent px-2 text-[11px] leading-none', className)}
+    {...props}
+  />
+)
+
+export default McpServerCard
