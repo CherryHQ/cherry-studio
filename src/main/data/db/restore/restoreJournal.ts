@@ -2,181 +2,222 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
+import { RelativeSubpathSchema } from '@main/utils/relativePath'
 import * as z from 'zod'
 
-/**
- * Restore promotion journal — the crash-safe contract between the backup
- * staging pipeline (writer), the preboot promotion gate (consumer), and
- * orphan sweep (reader via hasPendingRestore). See ./README.md for the state
- * machine and ownership boundaries.
- *
- * The journal lives as a standalone sidecar file next to the database
- * (`feature.backup.restore.file`): the arbiter of a promotion cannot live
- * inside the databases being swapped, and boot-config is global-scoped with
- * debounced writes — both disqualified.
- *
- * Co-location with the database is a durability INVARIANT, not convenience:
- * every journal write fsyncs the shared parent directory, which also flushes
- * any not-yet-durable DB rename in that directory — so "marker at/past the
- * commit step" implies "the commit rename is durable" even when the rename's
- * own directory fsync failed. Relocating the journal into a different
- * directory breaks that coupling and reopens a power-loss window where a
- * completed journal survives a rolled-back rename (empty-DB boot).
- */
+import { MAX_JOURNAL_DEGRADATIONS } from './restoreLimits'
 
-/**
- * Write-ahead markers for the promotion sequence, in execution order.
- * Ordering comparisons MUST go through indexOf on this table — never compare
- * step strings lexicographically ('entries-applied' < 'work-promoted' holds
- * alphabetically but entries-applied runs AFTER the commit point; a string
- * comparison would misroute crash recovery into rollback and overwrite the
- * already-promoted database).
- */
+/** On-disk contract for the final database-only restore transaction. */
+export const RESTORE_JOURNAL_VERSION = 2 as const
+
 export const PROMOTION_STEP_ORDER = [
   'gate-passed',
-  'additive-moved',
+  'live-checkpointed',
   'sidecars-removed',
   'live-aside',
-  'work-promoted',
-  'entries-applied',
+  'db-promoted',
   'integrity-ok'
 ] as const
 
 export type PromotionStep = (typeof PROMOTION_STEP_ORDER)[number]
 
-const PromotionStepSchema = z.enum(PROMOTION_STEP_ORDER)
+/** The database rename is the restore commit point. */
+export const DB_COMMIT_STEP: PromotionStep = 'db-promoted'
 
-/**
- * One applied migration as recorded in `__drizzle_migrations`. The journal
- * stores the work database's COMPLETE applied sequence (read via
- * readAppliedChain, never from the app's bundled migration list) so the gate
- * can prefix-compare it against the app's bundled chain.
- */
-const AppliedMigrationSchema = z.strictObject({
-  folderMillis: z.number().int(),
+const MigrationEntrySchema = z.strictObject({
+  folderMillis: z.number().int().nonnegative(),
   hash: z.string().min(1)
 })
 
-const RestoreDbSchema = z.strictObject({
-  /** userData-relative path to the staged work.sqlite to promote. */
-  promote: z.string().min(1),
-  /** userData-relative path the live DB is renamed to (the undo snapshot). */
-  aside: z.string().min(1),
-  /** Hash of the live main file, post-TRUNCATE-checkpoint, busy==0 asserted. */
-  fingerprint: z.string().min(1),
-  /** Complete applied-migration sequence of work.sqlite — never empty. */
-  chain: z.array(AppliedMigrationSchema).min(1)
+const DbPromotionSchema = z
+  .strictObject({
+    promote: RelativeSubpathSchema,
+    aside: RelativeSubpathSchema,
+    chain: z.array(MigrationEntrySchema).min(1)
+  })
+  .refine((db) => db.promote !== db.aside, { message: 'db promote and aside paths must differ' })
+
+const JournalDegradationSchema = z.strictObject({
+  kind: z.string().min(1),
+  reason: z.string().min(1)
 })
 
-const FileResourceSchema = z.strictObject({
-  kind: z.enum(['blob-add', 'dir-add', 'note-add', 'note-overwrite', 'overwrite']),
-  stagingPath: z.string().min(1),
-  livePath: z.string().min(1),
-  asidePath: z.string().min(1).optional()
-})
-
-// All journal paths (db.*, fileResources[].*) are stored userData-relative;
-// readers join them onto the currently resolved userData.
 const commonFields = {
-  version: z.literal(1),
-  restoreId: z.string().min(1),
-  /** ISO-8601 timestamp, diagnostic only — the gate never reads it. */
-  createdAt: z.string().min(1),
-  db: RestoreDbSchema,
-  fileResources: z.array(FileResourceSchema)
+  version: z.literal(RESTORE_JOURNAL_VERSION),
+  restoreId: z.uuid(),
+  createdAt: z.iso.datetime(),
+  db: DbPromotionSchema,
+  degradations: z.array(JournalDegradationSchema).max(MAX_JOURNAL_DEGRADATIONS).optional()
 }
 
-/**
- * Discriminated on `state`: staged has no step (it is set when the gate
- * transitions to promoting), promoting requires one, terminal states may keep
- * the last step for diagnostics. Strict objects + literal version: a future
- * journal v2 read by this version fails validation → corrupt → the gate
- * cleans up instead of misinterpreting it (fail-safe downgrade).
- */
 export const RestoreJournalSchema = z.discriminatedUnion('state', [
-  z.strictObject({ ...commonFields, state: z.literal('staged') }),
-  z.strictObject({ ...commonFields, state: z.literal('promoting'), step: PromotionStepSchema }),
-  z.strictObject({ ...commonFields, state: z.literal('completed'), step: PromotionStepSchema.optional() }),
-  z.strictObject({ ...commonFields, state: z.literal('failed'), step: PromotionStepSchema.optional() }),
-  z.strictObject({ ...commonFields, state: z.literal('expired'), step: PromotionStepSchema.optional() })
+  z.strictObject({ ...commonFields, state: z.literal('prepared') }),
+  z.strictObject({ ...commonFields, state: z.literal('armed') }),
+  z.strictObject({ ...commonFields, state: z.literal('promoting'), step: z.enum(PROMOTION_STEP_ORDER) }),
+  z.strictObject({
+    ...commonFields,
+    state: z.literal('reverting'),
+    step: z.enum(PROMOTION_STEP_ORDER),
+    reason: z.string().min(1)
+  }),
+  z.strictObject({ ...commonFields, state: z.literal('completed'), step: z.enum(PROMOTION_STEP_ORDER).optional() }),
+  z.strictObject({
+    ...commonFields,
+    state: z.literal('rollback-armed'),
+    step: z.enum(PROMOTION_STEP_ORDER).optional()
+  }),
+  z.strictObject({ ...commonFields, state: z.literal('rolled-back'), step: z.enum(PROMOTION_STEP_ORDER).optional() }),
+  z.strictObject({
+    ...commonFields,
+    state: z.literal('failed'),
+    step: z.enum(PROMOTION_STEP_ORDER).optional(),
+    reason: z.string().min(1).optional()
+  }),
+  z.strictObject({
+    ...commonFields,
+    state: z.literal('expired'),
+    step: z.enum(PROMOTION_STEP_ORDER).optional(),
+    reason: z.string().min(1).optional()
+  })
 ])
 
 export type RestoreJournal = z.infer<typeof RestoreJournalSchema>
 export type RestoreJournalState = RestoreJournal['state']
+export type JournalDegradation = z.infer<typeof JournalDegradationSchema>
 
 export type ReadJournalResult =
-  | { kind: 'none' }
-  | { kind: 'corrupt'; error: string }
-  | { kind: 'ok'; journal: RestoreJournal }
+  | { readonly kind: 'ok'; readonly journal: RestoreJournal }
+  | { readonly kind: 'invalid'; readonly error: string }
+export type ReadJournalFileResult =
+  | { readonly kind: 'none' }
+  | { readonly kind: 'corrupt'; readonly error: string }
+  | { readonly kind: 'ok'; readonly journal: RestoreJournal }
+
+/** This restore's staged main database, stored userData-relative for relocation. */
+export function stagedDbRelPath(restoreId: string): string {
+  const userData = application.getPath('app.userdata')
+  return path.relative(
+    userData,
+    path.join(application.getPath('feature.backup.restore.staging'), restoreId, 'backup.sqlite')
+  )
+}
+
+/** This restore's parked live database, always adjacent to its live database. */
+export function dbAsideRelPath(restoreId: string): string {
+  const userData = application.getPath('app.userdata')
+  const livePath = application.getPath('app.database.file')
+  return path.relative(
+    userData,
+    path.join(path.dirname(livePath), `${path.basename(livePath)}.pre-restore-${restoreId}`)
+  )
+}
+
+/** Any DB aside left behind when an unreadable journal prevents targeted recovery. */
+export function findDbAside(): string | null {
+  const livePath = application.getPath('app.database.file')
+  const dbDir = path.dirname(livePath)
+  const prefix = `${path.basename(livePath)}.pre-restore-`
+  try {
+    const name = fs.readdirSync(dbDir).find((entry) => entry.startsWith(prefix))
+    return name === undefined ? null : path.join(dbDir, name)
+  } catch {
+    return null
+  }
+}
+
+/** Pure structural parse. Filesystem-bound path ownership is asserted by the reader below. */
+export function parseRestoreJournal(value: unknown): ReadJournalResult {
+  const result = RestoreJournalSchema.safeParse(value)
+  return result.success ? { kind: 'ok', journal: result.data } : { kind: 'invalid', error: result.error.message }
+}
 
 function journalFilePath(): string {
   return application.getPath('feature.backup.restore.file')
 }
 
-export function readRestoreJournal(): ReadJournalResult {
+function ownsExpectedPaths(journal: RestoreJournal): boolean {
+  return (
+    journal.db.promote === stagedDbRelPath(journal.restoreId) && journal.db.aside === dbAsideRelPath(journal.restoreId)
+  )
+}
+
+/** Reads only this final journal format; old/future/ambiguous evidence is never reinterpreted. */
+export function readRestoreJournal(): ReadJournalFileResult {
   let raw: string
   try {
     raw = fs.readFileSync(journalFilePath(), 'utf8')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { kind: 'none' }
-    }
-    // Unreadable ≠ absent: treat as corrupt so hasPendingRestore stays fail-safe.
-    return { kind: 'corrupt', error: String(error) }
+    return (error as NodeJS.ErrnoException).code === 'ENOENT'
+      ? { kind: 'none' }
+      : { kind: 'corrupt', error: String(error) }
   }
-
-  let parsed: unknown
   try {
-    parsed = JSON.parse(raw)
+    const result = parseRestoreJournal(JSON.parse(raw))
+    if (result.kind !== 'ok') return { kind: 'corrupt', error: result.error }
+    if (!ownsExpectedPaths(result.journal))
+      return { kind: 'corrupt', error: 'journal paths do not match this restoreId' }
+    return result
   } catch (error) {
     return { kind: 'corrupt', error: String(error) }
   }
-
-  const result = RestoreJournalSchema.safeParse(parsed)
-  if (!result.success) {
-    return { kind: 'corrupt', error: result.error.message }
-  }
-  return { kind: 'ok', journal: result.data }
 }
 
-/**
- * Crash-safe journal write: write-ahead to a `.tmp` sibling, fsync, rename
- * over the journal path, then fsync the parent directory on POSIX so the
- * rename itself is durable (Windows moves are write-through; directory
- * handles cannot be fsynced there).
- */
+/** Remove the journal last, after every rollback aside has been released. */
+export function clearRestoreJournal(): void {
+  const journalPath = journalFilePath()
+  try {
+    fs.unlinkSync(journalPath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    return
+  }
+  fsyncDir(path.dirname(journalPath))
+}
+
+export const restoreJournalIo: {
+  writeSync(fd: number, bytes: Uint8Array, offset: number, length: number, position: number | null): number
+} = {
+  writeSync: (fd, bytes, offset, length, position) => fs.writeSync(fd, bytes, offset, length, position)
+}
+
+function writeBufferFully(fd: number, bytes: Buffer): void {
+  let offset = 0
+  while (offset < bytes.length) {
+    const written = restoreJournalIo.writeSync(fd, bytes, offset, bytes.length - offset, null)
+    if (written <= 0) throw new Error(`restore journal write made no progress at ${offset}/${bytes.length} bytes`)
+    offset += written
+  }
+}
+
+/** temp fsync → rename → parent fsync. Windows guarantees process-crash recovery only. */
 export function writeRestoreJournal(journal: RestoreJournal): void {
+  if (!ownsExpectedPaths(journal)) throw new Error('restore journal paths do not match this restoreId')
   const journalPath = journalFilePath()
   const tmpPath = `${journalPath}.tmp`
-
+  const bytes = Buffer.from(JSON.stringify(journal, null, 2), 'utf8')
   const fd = fs.openSync(tmpPath, 'w')
   try {
-    fs.writeSync(fd, JSON.stringify(journal, null, 2))
+    writeBufferFully(fd, bytes)
     fs.fsyncSync(fd)
   } finally {
     fs.closeSync(fd)
   }
   fs.renameSync(tmpPath, journalPath)
+  fsyncDir(path.dirname(journalPath))
+}
 
-  if (process.platform !== 'win32') {
-    const dirFd = fs.openSync(path.dirname(journalPath), 'r')
-    try {
-      fs.fsyncSync(dirFd)
-    } finally {
-      fs.closeSync(dirFd)
-    }
+function fsyncDir(dir: string): void {
+  if (process.platform === 'win32') return
+  const fd = fs.openSync(dir, 'r')
+  try {
+    fs.fsyncSync(fd)
+  } finally {
+    fs.closeSync(fd)
   }
 }
 
-/**
- * Whether a restore is staged or mid-promotion — the signal orphan sweep uses
- * to stand aside. Corrupt journals count as pending (fail-safe: one skipped
- * sweep is harmless; the next boot's gate cleans the corrupt journal up).
- */
+/** Any extant non-terminal or corrupt journal protects restore artifacts from GC. */
 export function hasPendingRestore(): boolean {
-  const result = readRestoreJournal()
-  if (result.kind === 'corrupt') {
-    return true
-  }
-  return result.kind === 'ok' && (result.journal.state === 'staged' || result.journal.state === 'promoting')
+  const read = readRestoreJournal()
+  return read.kind === 'corrupt' || (read.kind === 'ok' && !['failed', 'expired'].includes(read.journal.state))
 }
