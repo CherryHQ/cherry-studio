@@ -9,6 +9,7 @@ import { channelHandlers } from './channel'
 import { cherryinHandlers } from './cherryin'
 import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
+import { englishLearningHandlers } from './englishLearning'
 import { exportHandlers } from './export'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
@@ -27,6 +28,7 @@ import { providerHandlers } from './provider'
 import { quickAssistantHandlers } from './quickAssistant'
 import { selectionHandlers } from './selection'
 import { skillHandlers } from './skill'
+import { speechHandlers } from './speech'
 import { systemHandlers } from './system'
 import { tabHandlers } from './tab'
 import { translateHandlers } from './translate'
@@ -52,6 +54,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...cherryinHandlers,
   ...citationHandlers,
   ...codeCliHandlers,
+  ...englishLearningHandlers,
   ...exportHandlers,
   ...fileHandlers,
   ...fileProcessingHandlers,
@@ -70,6 +73,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...quickAssistantHandlers,
   ...selectionHandlers,
   ...skillHandlers,
+  ...speechHandlers,
   ...systemHandlers,
   ...tabHandlers,
   ...translateHandlers,

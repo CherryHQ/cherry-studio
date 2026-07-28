@@ -138,6 +138,7 @@
         { "id": "assistants", "type": "app" },
         { "id": "agents", "type": "app" },
         { "id": "translate", "type": "app" },
+        { "id": "english_learning", "type": "app" },
         { "id": "paintings", "type": "app" },
         { "id": "knowledge", "type": "app" }
       ],

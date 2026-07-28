@@ -29,6 +29,7 @@ const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
   agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
   paintings: 'linear-gradient(135deg, #EC4899, #F472B6)',
   translate: 'linear-gradient(135deg, #06B6D4, #0EA5E9)',
+  english_learning: 'linear-gradient(135deg, var(--foreground), var(--muted-foreground))',
   mini_app: 'linear-gradient(135deg, #8B5CF6, #A855F7)',
   knowledge: 'linear-gradient(135deg, #10B981, #34D399)',
   files: 'linear-gradient(135deg, #F59E0B, #FBBF24)',

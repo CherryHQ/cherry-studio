@@ -66,6 +66,13 @@
     "select_folder": "フォルダを選択",
     "word_document": "ワード文書"
   },
+  "english_learning": {
+    "reminder": {
+      "body": "[to be translated]:{{count}} cards are ready. Start today's English review.",
+      "snooze": "[to be translated]:Remind me later",
+      "title": "[to be translated]:Time for English review"
+    }
+  },
   "paintings": {
     "generate_failed": "画像の生成に失敗しました",
     "image_mix_failed": "画像の混合に失敗しました"

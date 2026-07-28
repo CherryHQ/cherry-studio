@@ -2366,6 +2366,91 @@
     "openai-embeddings": "Embeddings (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
+  "english_learning": {
+    "actions": {
+      "practice_speaking": "Practice speaking",
+      "start_review": "Start review"
+    },
+    "library": {
+      "description": "{{count}} unique learning units from your history",
+      "heading": "Learning library",
+      "search": "Search English or meaning"
+    },
+    "navigation": {
+      "library": "Library",
+      "overview": "Overview",
+      "review": "Today's review",
+      "settings": "Settings",
+      "speaking": "Speaking"
+    },
+    "overview": {
+      "description": "Build native-level English from every translation and correction.",
+      "due": "Due now",
+      "heading": "English learning",
+      "practice_minutes": "Speaking minutes",
+      "reviewed": "Reviewed today",
+      "today": "Today's training",
+      "today_description": "{{count}} cards are due now.",
+      "units": "Learning units"
+    },
+    "review": {
+      "complete": "Review complete",
+      "complete_description": "You have finished today's queue.",
+      "direction": {
+        "listening": "Listening",
+        "production": "Production",
+        "recognition": "Recognition"
+      },
+      "heading": "Today's review",
+      "rating": {
+        "again": "Again",
+        "easy": "Easy",
+        "good": "Good",
+        "hard": "Hard"
+      },
+      "remaining": "{{count}} cards in this session",
+      "remind_later": "Remind me later",
+      "show_answer": "Show answer"
+    },
+    "settings": {
+      "description": "Control reminders and the optional Obsidian mirror.",
+      "folder": "Mirror folder",
+      "folder_description": "Relative folder inside the vault",
+      "heading": "Learning settings",
+      "obsidian": "Obsidian mirror",
+      "obsidian_description": "One-way Markdown mirror; Cherry Studio remains the source of truth",
+      "quiet_hours": "Quiet hours",
+      "quiet_hours_description": "Notifications wait until this period ends",
+      "review_time": "Daily review time",
+      "review_time_description": "Local time for the system reminder",
+      "snooze": "Reminder",
+      "snooze_action": "Remind me later",
+      "snooze_description": "Postpone the next reminder using your configured interval",
+      "vault_path": "Vault path",
+      "vault_path_description": "Absolute path to an existing Obsidian vault"
+    },
+    "speaking": {
+      "composed": "Speech pipeline ready",
+      "default_scenario": "Checking into a hotel and asking about breakfast",
+      "description": "Use configured transcription, chat, and speech models with text fallback.",
+      "finish": "Finish session",
+      "heading": "Speaking practice",
+      "hear_target": "Hear target",
+      "mode": {
+        "scenario": "Scenario",
+        "shadowing": "Shadowing",
+        "spoken_recall": "Spoken recall"
+      },
+      "no_target": "Complete or import a learning unit first.",
+      "prompt": "Prompt",
+      "record": "Record",
+      "send": "Send",
+      "stop": "Stop recording",
+      "text_only": "Text fallback",
+      "transcript_placeholder": "Speak or type your answer…"
+    },
+    "title": "English Learning"
+  },
   "error": {
     "availableProviders": "Available Providers",
     "availableTools": "Available Tools",

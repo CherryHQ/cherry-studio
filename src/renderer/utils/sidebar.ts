@@ -95,6 +95,10 @@ const SIDEBAR_APP_DEFINITIONS = [
     routePrefix: '/app/translate'
   },
   {
+    id: 'english_learning',
+    routePrefix: '/app/english-learning'
+  },
+  {
     id: 'mini_app',
     routePrefix: '/app/mini-app',
     exactRouteFocus: true

@@ -19,7 +19,8 @@ export const ALLOWED_ROUTE_PREFIXES = [
   '/notes',
   '/apps',
   '/code',
-  '/launchpad'
+  '/launchpad',
+  '/app/english-learning'
 ]
 
 export const isAllowedRoute = (path: string): boolean =>

@@ -2366,6 +2366,91 @@
     "openai-embeddings": "嵌入 (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
+  "english_learning": {
+    "actions": {
+      "practice_speaking": "练习口语",
+      "start_review": "开始复习"
+    },
+    "library": {
+      "description": "历史记录中共提炼出 {{count}} 个去重学习单元",
+      "heading": "学习库",
+      "search": "搜索英文或释义"
+    },
+    "navigation": {
+      "library": "学习库",
+      "overview": "概览",
+      "review": "今日复习",
+      "settings": "设置",
+      "speaking": "口语练习"
+    },
+    "overview": {
+      "description": "把每一次翻译和纠错都转化为接近母语水平的长期积累。",
+      "due": "当前到期",
+      "heading": "英语学习",
+      "practice_minutes": "今日口语分钟",
+      "reviewed": "今日已复习",
+      "today": "今日训练",
+      "today_description": "当前有 {{count}} 张卡片待复习。",
+      "units": "学习单元"
+    },
+    "review": {
+      "complete": "今日复习完成",
+      "complete_description": "今天的复习队列已经清空。",
+      "direction": {
+        "listening": "听力",
+        "production": "主动表达",
+        "recognition": "理解识别"
+      },
+      "heading": "今日复习",
+      "rating": {
+        "again": "重来",
+        "easy": "简单",
+        "good": "掌握",
+        "hard": "困难"
+      },
+      "remaining": "本次还有 {{count}} 张卡片",
+      "remind_later": "稍后提醒",
+      "show_answer": "显示答案"
+    },
+    "settings": {
+      "description": "管理提醒计划和可选的 Obsidian 镜像。",
+      "folder": "镜像文件夹",
+      "folder_description": "Obsidian vault 内的相对路径",
+      "heading": "学习设置",
+      "obsidian": "Obsidian 镜像",
+      "obsidian_description": "单向 Markdown 镜像，Cherry Studio 始终是唯一数据源",
+      "quiet_hours": "免打扰时段",
+      "quiet_hours_description": "通知会等到该时段结束后再出现",
+      "review_time": "每日复习时间",
+      "review_time_description": "系统通知使用的本地时间",
+      "snooze": "复习提醒",
+      "snooze_action": "稍后提醒",
+      "snooze_description": "按已配置的间隔推迟下一次提醒",
+      "vault_path": "Vault 路径",
+      "vault_path_description": "已有 Obsidian vault 的绝对路径"
+    },
+    "speaking": {
+      "composed": "语音链路已就绪",
+      "default_scenario": "办理酒店入住并询问早餐安排",
+      "description": "复用已配置的转写、对话和语音模型，并始终提供文字降级。",
+      "finish": "结束练习",
+      "heading": "口语练习",
+      "hear_target": "播放目标句",
+      "mode": {
+        "scenario": "场景对话",
+        "shadowing": "跟读模仿",
+        "spoken_recall": "口头回忆"
+      },
+      "no_target": "请先导入或生成学习单元。",
+      "prompt": "练习提示",
+      "record": "开始录音",
+      "send": "发送",
+      "stop": "停止录音",
+      "text_only": "文字降级模式",
+      "transcript_placeholder": "直接说出或输入你的回答…"
+    },
+    "title": "英语学习"
+  },
   "error": {
     "availableProviders": "可用提供商",
     "availableTools": "可用工具",

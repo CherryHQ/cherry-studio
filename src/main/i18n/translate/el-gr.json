@@ -66,6 +66,13 @@
     "select_folder": "Επιλέξτε φάκελο",
     "word_document": "Έγγραφο Word"
   },
+  "english_learning": {
+    "reminder": {
+      "body": "[to be translated]:{{count}} cards are ready. Start today's English review.",
+      "snooze": "[to be translated]:Remind me later",
+      "title": "[to be translated]:Time for English review"
+    }
+  },
   "paintings": {
     "generate_failed": "Αποτυχία δημιουργίας εικόνας",
     "image_mix_failed": "Αποτυχία ανάμειξης εικόνων"

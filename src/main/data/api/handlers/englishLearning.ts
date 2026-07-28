@@ -1,10 +1,14 @@
 import { englishLearningDashboardService } from '@data/services/EnglishLearningDashboardService'
 import { learningSourceService } from '@data/services/LearningSourceService'
 import { learningUnitService } from '@data/services/LearningUnitService'
+import { practiceService } from '@data/services/PracticeService'
 import { reviewService } from '@data/services/ReviewService'
 import {
+  AddPracticeAttemptSchema,
+  CreatePracticeSessionSchema,
   DailyReviewQueueQuerySchema,
   type EnglishLearningSchemas,
+  FinishPracticeSessionSchema,
   LearningSourceListQuerySchema,
   LearningUnitListQuerySchema,
   SubmitReviewSchema,
@@ -40,5 +44,15 @@ export const englishLearningHandlers: HandlersFor<EnglishLearningSchemas> = {
   },
   '/english-learning/reviews/submit': {
     POST: async ({ body }) => reviewService.submit(SubmitReviewSchema.parse(body))
+  },
+  '/english-learning/practice/sessions': {
+    POST: async ({ body }) => practiceService.create(CreatePracticeSessionSchema.parse(body))
+  },
+  '/english-learning/practice/sessions/:id': {
+    GET: async ({ params }) => practiceService.getById(params.id),
+    PATCH: async ({ params, body }) => practiceService.finish(params.id, FinishPracticeSessionSchema.parse(body))
+  },
+  '/english-learning/practice/sessions/:id/attempts': {
+    POST: async ({ params, body }) => practiceService.addAttempt(params.id, AddPracticeAttemptSchema.parse(body))
   }
 }

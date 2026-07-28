@@ -66,6 +66,13 @@
     "select_folder": "Seleccionar carpeta",
     "word_document": "Documento de Word"
   },
+  "english_learning": {
+    "reminder": {
+      "body": "[to be translated]:{{count}} cards are ready. Start today's English review.",
+      "snooze": "[to be translated]:Remind me later",
+      "title": "[to be translated]:Time for English review"
+    }
+  },
   "paintings": {
     "generate_failed": "Error al generar la imagen",
     "image_mix_failed": "Error al mezclar imágenes"

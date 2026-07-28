@@ -8,6 +8,10 @@ import {
   type LearningUnit,
   LearningUnitKindSchema,
   LearningUnitSchema,
+  type PracticeAttempt,
+  PracticeModeSchema,
+  type PracticeSession,
+  PracticeSessionStatusSchema,
   ReviewRatingSchema,
   type ReviewSubmissionResult
 } from '../../types/englishLearning'
@@ -77,6 +81,44 @@ export const SubmitReviewSchema = z.strictObject({
 })
 export type SubmitReviewDto = z.infer<typeof SubmitReviewSchema>
 
+export const CreatePracticeSessionSchema = z.strictObject({
+  mode: PracticeModeSchema,
+  scenario: z.string().trim().min(1).max(2_000).optional(),
+  modelId: z.string().trim().min(1).max(500).optional(),
+  providerId: z.string().trim().min(1).max(200).optional()
+})
+export type CreatePracticeSessionDto = z.infer<typeof CreatePracticeSessionSchema>
+
+export const AddPracticeAttemptSchema = z.strictObject({
+  learningUnitId: z.uuidv7().optional(),
+  prompt: z.string().trim().min(1).max(8_000),
+  transcript: z.string().trim().max(16_000).optional(),
+  responseText: z.string().trim().max(16_000).optional(),
+  feedback: z
+    .strictObject({
+      transcript: z.string().max(16_000).optional(),
+      correctedText: z.string().max(16_000).optional(),
+      feedback: z.array(z.string().max(2_000)).max(20).optional(),
+      recognitionConfidence: z.number().min(0).max(1).optional(),
+      textSimilarity: z.number().min(0).max(1).optional()
+    })
+    .default({}),
+  recognitionConfidence: z.number().min(0).max(1).optional(),
+  textSimilarity: z.number().min(0).max(1).optional(),
+  durationMs: z
+    .int()
+    .nonnegative()
+    .max(24 * 60 * 60 * 1_000)
+    .default(0)
+})
+export type AddPracticeAttemptDto = z.infer<typeof AddPracticeAttemptSchema>
+
+export const FinishPracticeSessionSchema = z.strictObject({
+  status: PracticeSessionStatusSchema.exclude(['active']),
+  error: z.string().trim().max(4_000).optional()
+})
+export type FinishPracticeSessionDto = z.infer<typeof FinishPracticeSessionSchema>
+
 export interface EnglishLearningDashboard {
   sources: Record<z.infer<typeof LearningSourceStatusSchema>, number>
   unitTotal: number
@@ -143,6 +185,30 @@ export type EnglishLearningSchemas = {
     POST: {
       body: SubmitReviewDto
       response: ReviewSubmissionResult
+    }
+  }
+  '/english-learning/practice/sessions': {
+    POST: {
+      body: CreatePracticeSessionDto
+      response: PracticeSession
+    }
+  }
+  '/english-learning/practice/sessions/:id': {
+    GET: {
+      params: { id: string }
+      response: PracticeSession
+    }
+    PATCH: {
+      params: { id: string }
+      body: FinishPracticeSessionDto
+      response: PracticeSession
+    }
+  }
+  '/english-learning/practice/sessions/:id/attempts': {
+    POST: {
+      params: { id: string }
+      body: AddPracticeAttemptDto
+      response: PracticeAttempt
     }
   }
 }

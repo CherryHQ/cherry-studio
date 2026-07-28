@@ -66,6 +66,13 @@
     "select_folder": "Selecionar Pasta",
     "word_document": "Documento do Word"
   },
+  "english_learning": {
+    "reminder": {
+      "body": "[to be translated]:{{count}} cards are ready. Start today's English review.",
+      "snooze": "[to be translated]:Remind me later",
+      "title": "[to be translated]:Time for English review"
+    }
+  },
   "paintings": {
     "generate_failed": "Falha ao gerar imagem",
     "image_mix_failed": "Falha ao misturar imagens"

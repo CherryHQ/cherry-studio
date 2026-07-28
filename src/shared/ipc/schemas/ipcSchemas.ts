@@ -7,6 +7,7 @@ import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
+import { englishLearningRequestSchemas } from './englishLearning'
 import { exportRequestSchemas } from './export'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
@@ -25,6 +26,7 @@ import { providerRequestSchemas } from './provider'
 import { type QuickAssistantEventSchemas, quickAssistantRequestSchemas } from './quickAssistant'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { skillRequestSchemas } from './skill'
+import { speechRequestSchemas } from './speech'
 import { type SystemEventSchemas, systemRequestSchemas } from './system'
 import { type TabEventSchemas, tabRequestSchemas } from './tab'
 import { translateRequestSchemas } from './translate'
@@ -48,6 +50,7 @@ export const ipcRequestSchemas = {
   ...cherryinRequestSchemas,
   ...citationRequestSchemas,
   ...codeCliRequestSchemas,
+  ...englishLearningRequestSchemas,
   ...exportRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
@@ -66,6 +69,7 @@ export const ipcRequestSchemas = {
   ...quickAssistantRequestSchemas,
   ...selectionRequestSchemas,
   ...skillRequestSchemas,
+  ...speechRequestSchemas,
   ...systemRequestSchemas,
   ...tabRequestSchemas,
   ...translateRequestSchemas,

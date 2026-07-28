@@ -13,6 +13,7 @@ import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
 import { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode'
+import { SpeechSessionService } from '@main/ai/speech'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
@@ -20,7 +21,11 @@ import { PowerService } from '@main/core/power/PowerService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
-import { EnglishLearningService } from '@main/features/englishLearning'
+import {
+  EnglishLearningReminderService,
+  EnglishLearningService,
+  ObsidianLearningSyncService
+} from '@main/features/englishLearning'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
 import { IpcApiService } from '@main/ipc/IpcApiService'
@@ -120,6 +125,7 @@ export const services = {
   AgentJobsService,
   ChannelManager,
   AiService,
+  SpeechSessionService,
   ClaudeCodeWarmQueryManager,
   AiStreamManager,
   EmbeddingInferenceService,
@@ -128,6 +134,8 @@ export const services = {
   KnowledgeVectorStoreService,
   ApiGatewayService,
   EnglishLearningService,
+  EnglishLearningReminderService,
+  ObsidianLearningSyncService,
   AppUpdaterService,
   SchedulerService,
   JobManager

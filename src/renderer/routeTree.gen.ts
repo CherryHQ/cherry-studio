@@ -39,12 +39,14 @@ import { Route as AppLaunchpadRouteImport } from './routes/app/launchpad'
 import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
 import { Route as AppFilesRouteImport } from './routes/app/files'
 import { Route as AppFilePreviewRouteImport } from './routes/app/file-preview'
+import { Route as AppEnglishLearningRouteImport } from './routes/app/english-learning'
 import { Route as AppCodeRouteImport } from './routes/app/code'
 import { Route as AppChatRouteImport } from './routes/app/chat'
 import { Route as AppAgentsRouteImport } from './routes/app/agents'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp.index'
 import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings.index'
 import { Route as AppMiniAppIndexRouteImport } from './routes/app/mini-app.index'
+import { Route as AppEnglishLearningIndexRouteImport } from './routes/app/english-learning.index'
 import { Route as SettingsMcpServersRouteImport } from './routes/settings/mcp/servers'
 import { Route as SettingsMcpNpxSearchRouteImport } from './routes/settings/mcp/npx-search'
 import { Route as SettingsMcpMcpInstallRouteImport } from './routes/settings/mcp/mcp-install'
@@ -53,6 +55,10 @@ import { Route as SettingsMcpBuiltinRouteImport } from './routes/settings/mcp/bu
 import { Route as SettingsMcpSplatRouteImport } from './routes/settings/mcp/$'
 import { Route as AppPaintingsSplatRouteImport } from './routes/app/paintings/$'
 import { Route as AppMiniAppAppIdRouteImport } from './routes/app/mini-app/$appId'
+import { Route as AppEnglishLearningSpeakingRouteImport } from './routes/app/english-learning.speaking'
+import { Route as AppEnglishLearningSettingsRouteImport } from './routes/app/english-learning.settings'
+import { Route as AppEnglishLearningReviewRouteImport } from './routes/app/english-learning.review'
+import { Route as AppEnglishLearningLibraryRouteImport } from './routes/app/english-learning.library'
 import { Route as SettingsMcpSettingsServerIdRouteImport } from './routes/settings/mcp/settings.$serverId'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -206,6 +212,11 @@ const AppFilePreviewRoute = AppFilePreviewRouteImport.update({
   path: '/file-preview',
   getParentRoute: () => AppRoute,
 } as any)
+const AppEnglishLearningRoute = AppEnglishLearningRouteImport.update({
+  id: '/english-learning',
+  path: '/english-learning',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppCodeRoute = AppCodeRouteImport.update({
   id: '/code',
   path: '/code',
@@ -235,6 +246,11 @@ const AppMiniAppIndexRoute = AppMiniAppIndexRouteImport.update({
   id: '/mini-app/',
   path: '/mini-app/',
   getParentRoute: () => AppRoute,
+} as any)
+const AppEnglishLearningIndexRoute = AppEnglishLearningIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppEnglishLearningRoute,
 } as any)
 const SettingsMcpServersRoute = SettingsMcpServersRouteImport.update({
   id: '/servers',
@@ -276,6 +292,30 @@ const AppMiniAppAppIdRoute = AppMiniAppAppIdRouteImport.update({
   path: '/mini-app/$appId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppEnglishLearningSpeakingRoute =
+  AppEnglishLearningSpeakingRouteImport.update({
+    id: '/speaking',
+    path: '/speaking',
+    getParentRoute: () => AppEnglishLearningRoute,
+  } as any)
+const AppEnglishLearningSettingsRoute =
+  AppEnglishLearningSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AppEnglishLearningRoute,
+  } as any)
+const AppEnglishLearningReviewRoute =
+  AppEnglishLearningReviewRouteImport.update({
+    id: '/review',
+    path: '/review',
+    getParentRoute: () => AppEnglishLearningRoute,
+  } as any)
+const AppEnglishLearningLibraryRoute =
+  AppEnglishLearningLibraryRouteImport.update({
+    id: '/library',
+    path: '/library',
+    getParentRoute: () => AppEnglishLearningRoute,
+  } as any)
 const SettingsMcpSettingsServerIdRoute =
   SettingsMcpSettingsServerIdRouteImport.update({
     id: '/settings/$serverId',
@@ -289,6 +329,7 @@ export interface FileRoutesByFullPath {
   '/app/agents': typeof AppAgentsRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
+  '/app/english-learning': typeof AppEnglishLearningRouteWithChildren
   '/app/file-preview': typeof AppFilePreviewRoute
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
@@ -317,6 +358,10 @@ export interface FileRoutesByFullPath {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
+  '/app/english-learning/library': typeof AppEnglishLearningLibraryRoute
+  '/app/english-learning/review': typeof AppEnglishLearningReviewRoute
+  '/app/english-learning/settings': typeof AppEnglishLearningSettingsRoute
+  '/app/english-learning/speaking': typeof AppEnglishLearningSpeakingRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
@@ -325,6 +370,7 @@ export interface FileRoutesByFullPath {
   '/settings/mcp/mcp-install': typeof SettingsMcpMcpInstallRoute
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
+  '/app/english-learning/': typeof AppEnglishLearningIndexRoute
   '/app/mini-app/': typeof AppMiniAppIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
@@ -362,6 +408,10 @@ export interface FileRoutesByTo {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings': typeof SettingsIndexRoute
+  '/app/english-learning/library': typeof AppEnglishLearningLibraryRoute
+  '/app/english-learning/review': typeof AppEnglishLearningReviewRoute
+  '/app/english-learning/settings': typeof AppEnglishLearningSettingsRoute
+  '/app/english-learning/speaking': typeof AppEnglishLearningSpeakingRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
@@ -370,6 +420,7 @@ export interface FileRoutesByTo {
   '/settings/mcp/mcp-install': typeof SettingsMcpMcpInstallRoute
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
+  '/app/english-learning': typeof AppEnglishLearningIndexRoute
   '/app/mini-app': typeof AppMiniAppIndexRoute
   '/app/paintings': typeof AppPaintingsIndexRoute
   '/settings/mcp': typeof SettingsMcpIndexRoute
@@ -382,6 +433,7 @@ export interface FileRoutesById {
   '/app/agents': typeof AppAgentsRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
+  '/app/english-learning': typeof AppEnglishLearningRouteWithChildren
   '/app/file-preview': typeof AppFilePreviewRoute
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
@@ -410,6 +462,10 @@ export interface FileRoutesById {
   '/settings/system': typeof SettingsSystemRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
+  '/app/english-learning/library': typeof AppEnglishLearningLibraryRoute
+  '/app/english-learning/review': typeof AppEnglishLearningReviewRoute
+  '/app/english-learning/settings': typeof AppEnglishLearningSettingsRoute
+  '/app/english-learning/speaking': typeof AppEnglishLearningSpeakingRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
@@ -418,6 +474,7 @@ export interface FileRoutesById {
   '/settings/mcp/mcp-install': typeof SettingsMcpMcpInstallRoute
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
+  '/app/english-learning/': typeof AppEnglishLearningIndexRoute
   '/app/mini-app/': typeof AppMiniAppIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
@@ -431,6 +488,7 @@ export interface FileRouteTypes {
     | '/app/agents'
     | '/app/chat'
     | '/app/code'
+    | '/app/english-learning'
     | '/app/file-preview'
     | '/app/files'
     | '/app/knowledge'
@@ -459,6 +517,10 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/websearch'
     | '/settings/'
+    | '/app/english-learning/library'
+    | '/app/english-learning/review'
+    | '/app/english-learning/settings'
+    | '/app/english-learning/speaking'
     | '/app/mini-app/$appId'
     | '/app/paintings/$'
     | '/settings/mcp/$'
@@ -467,6 +529,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/mcp-install'
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
+    | '/app/english-learning/'
     | '/app/mini-app/'
     | '/app/paintings/'
     | '/settings/mcp/'
@@ -504,6 +567,10 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/websearch'
     | '/settings'
+    | '/app/english-learning/library'
+    | '/app/english-learning/review'
+    | '/app/english-learning/settings'
+    | '/app/english-learning/speaking'
     | '/app/mini-app/$appId'
     | '/app/paintings/$'
     | '/settings/mcp/$'
@@ -512,6 +579,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/mcp-install'
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
+    | '/app/english-learning'
     | '/app/mini-app'
     | '/app/paintings'
     | '/settings/mcp'
@@ -523,6 +591,7 @@ export interface FileRouteTypes {
     | '/app/agents'
     | '/app/chat'
     | '/app/code'
+    | '/app/english-learning'
     | '/app/file-preview'
     | '/app/files'
     | '/app/knowledge'
@@ -551,6 +620,10 @@ export interface FileRouteTypes {
     | '/settings/system'
     | '/settings/websearch'
     | '/settings/'
+    | '/app/english-learning/library'
+    | '/app/english-learning/review'
+    | '/app/english-learning/settings'
+    | '/app/english-learning/speaking'
     | '/app/mini-app/$appId'
     | '/app/paintings/$'
     | '/settings/mcp/$'
@@ -559,6 +632,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/mcp-install'
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
+    | '/app/english-learning/'
     | '/app/mini-app/'
     | '/app/paintings/'
     | '/settings/mcp/'
@@ -782,6 +856,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppFilePreviewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/english-learning': {
+      id: '/app/english-learning'
+      path: '/english-learning'
+      fullPath: '/app/english-learning'
+      preLoaderRoute: typeof AppEnglishLearningRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/code': {
       id: '/app/code'
       path: '/code'
@@ -823,6 +904,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/mini-app/'
       preLoaderRoute: typeof AppMiniAppIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/app/english-learning/': {
+      id: '/app/english-learning/'
+      path: '/'
+      fullPath: '/app/english-learning/'
+      preLoaderRoute: typeof AppEnglishLearningIndexRouteImport
+      parentRoute: typeof AppEnglishLearningRoute
     }
     '/settings/mcp/servers': {
       id: '/settings/mcp/servers'
@@ -880,6 +968,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMiniAppAppIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/english-learning/speaking': {
+      id: '/app/english-learning/speaking'
+      path: '/speaking'
+      fullPath: '/app/english-learning/speaking'
+      preLoaderRoute: typeof AppEnglishLearningSpeakingRouteImport
+      parentRoute: typeof AppEnglishLearningRoute
+    }
+    '/app/english-learning/settings': {
+      id: '/app/english-learning/settings'
+      path: '/settings'
+      fullPath: '/app/english-learning/settings'
+      preLoaderRoute: typeof AppEnglishLearningSettingsRouteImport
+      parentRoute: typeof AppEnglishLearningRoute
+    }
+    '/app/english-learning/review': {
+      id: '/app/english-learning/review'
+      path: '/review'
+      fullPath: '/app/english-learning/review'
+      preLoaderRoute: typeof AppEnglishLearningReviewRouteImport
+      parentRoute: typeof AppEnglishLearningRoute
+    }
+    '/app/english-learning/library': {
+      id: '/app/english-learning/library'
+      path: '/library'
+      fullPath: '/app/english-learning/library'
+      preLoaderRoute: typeof AppEnglishLearningLibraryRouteImport
+      parentRoute: typeof AppEnglishLearningRoute
+    }
     '/settings/mcp/settings/$serverId': {
       id: '/settings/mcp/settings/$serverId'
       path: '/settings/$serverId'
@@ -890,10 +1006,30 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppEnglishLearningRouteChildren {
+  AppEnglishLearningLibraryRoute: typeof AppEnglishLearningLibraryRoute
+  AppEnglishLearningReviewRoute: typeof AppEnglishLearningReviewRoute
+  AppEnglishLearningSettingsRoute: typeof AppEnglishLearningSettingsRoute
+  AppEnglishLearningSpeakingRoute: typeof AppEnglishLearningSpeakingRoute
+  AppEnglishLearningIndexRoute: typeof AppEnglishLearningIndexRoute
+}
+
+const AppEnglishLearningRouteChildren: AppEnglishLearningRouteChildren = {
+  AppEnglishLearningLibraryRoute: AppEnglishLearningLibraryRoute,
+  AppEnglishLearningReviewRoute: AppEnglishLearningReviewRoute,
+  AppEnglishLearningSettingsRoute: AppEnglishLearningSettingsRoute,
+  AppEnglishLearningSpeakingRoute: AppEnglishLearningSpeakingRoute,
+  AppEnglishLearningIndexRoute: AppEnglishLearningIndexRoute,
+}
+
+const AppEnglishLearningRouteWithChildren =
+  AppEnglishLearningRoute._addFileChildren(AppEnglishLearningRouteChildren)
+
 interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRoute
   AppChatRoute: typeof AppChatRoute
   AppCodeRoute: typeof AppCodeRoute
+  AppEnglishLearningRoute: typeof AppEnglishLearningRouteWithChildren
   AppFilePreviewRoute: typeof AppFilePreviewRoute
   AppFilesRoute: typeof AppFilesRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
@@ -910,6 +1046,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRoute,
   AppChatRoute: AppChatRoute,
   AppCodeRoute: AppCodeRoute,
+  AppEnglishLearningRoute: AppEnglishLearningRouteWithChildren,
   AppFilePreviewRoute: AppFilePreviewRoute,
   AppFilesRoute: AppFilesRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,

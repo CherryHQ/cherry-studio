@@ -66,6 +66,13 @@
     "select_folder": "选择文件夹",
     "word_document": "Word 文档"
   },
+  "english_learning": {
+    "reminder": {
+      "body": "已有 {{count}} 张卡片待复习，开始今天的英语训练吧。",
+      "snooze": "稍后提醒",
+      "title": "该复习英语了"
+    }
+  },
   "paintings": {
     "generate_failed": "生成图像失败",
     "image_mix_failed": "图像混合失败"

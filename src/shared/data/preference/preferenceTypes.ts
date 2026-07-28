@@ -96,6 +96,7 @@ export const SIDEBAR_FAVORITES = [
   'agents',
   'paintings',
   'translate',
+  'english_learning',
   'mini_app',
   'knowledge',
   'files',

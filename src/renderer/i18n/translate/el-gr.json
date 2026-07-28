@@ -869,6 +869,7 @@
       "expired": "Ληγμένο",
       "inputPreview": "Προεπισκόπηση εισόδου εργαλείου",
       "pending": "Εκκρεμεί ({{seconds}}δ)",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Το αίτημα άδειας έληξε. Αναμονή για νέες οδηγίες...",
       "requiresElevatedPermissions": "Αυτό το εργαλείο απαιτεί αυξημένα δικαιώματα.",
       "suggestion": {
@@ -2364,6 +2365,91 @@
     "openai": "OpenAI",
     "openai-embeddings": "Embeddings (OpenAI)",
     "openai-response": "Απάντηση OpenAI"
+  },
+  "english_learning": {
+    "actions": {
+      "practice_speaking": "[to be translated]:Practice speaking",
+      "start_review": "[to be translated]:Start review"
+    },
+    "library": {
+      "description": "[to be translated]:{{count}} unique learning units from your history",
+      "heading": "[to be translated]:Learning library",
+      "search": "[to be translated]:Search English or meaning"
+    },
+    "navigation": {
+      "library": "[to be translated]:Library",
+      "overview": "[to be translated]:Overview",
+      "review": "[to be translated]:Today's review",
+      "settings": "[to be translated]:Settings",
+      "speaking": "[to be translated]:Speaking"
+    },
+    "overview": {
+      "description": "[to be translated]:Build native-level English from every translation and correction.",
+      "due": "[to be translated]:Due now",
+      "heading": "[to be translated]:English learning",
+      "practice_minutes": "[to be translated]:Speaking minutes",
+      "reviewed": "[to be translated]:Reviewed today",
+      "today": "[to be translated]:Today's training",
+      "today_description": "[to be translated]:{{count}} cards are due now.",
+      "units": "[to be translated]:Learning units"
+    },
+    "review": {
+      "complete": "[to be translated]:Review complete",
+      "complete_description": "[to be translated]:You have finished today's queue.",
+      "direction": {
+        "listening": "[to be translated]:Listening",
+        "production": "[to be translated]:Production",
+        "recognition": "[to be translated]:Recognition"
+      },
+      "heading": "[to be translated]:Today's review",
+      "rating": {
+        "again": "[to be translated]:Again",
+        "easy": "[to be translated]:Easy",
+        "good": "[to be translated]:Good",
+        "hard": "[to be translated]:Hard"
+      },
+      "remaining": "[to be translated]:{{count}} cards in this session",
+      "remind_later": "[to be translated]:Remind me later",
+      "show_answer": "[to be translated]:Show answer"
+    },
+    "settings": {
+      "description": "[to be translated]:Control reminders and the optional Obsidian mirror.",
+      "folder": "[to be translated]:Mirror folder",
+      "folder_description": "[to be translated]:Relative folder inside the vault",
+      "heading": "[to be translated]:Learning settings",
+      "obsidian": "[to be translated]:Obsidian mirror",
+      "obsidian_description": "[to be translated]:One-way Markdown mirror; Cherry Studio remains the source of truth",
+      "quiet_hours": "[to be translated]:Quiet hours",
+      "quiet_hours_description": "[to be translated]:Notifications wait until this period ends",
+      "review_time": "[to be translated]:Daily review time",
+      "review_time_description": "[to be translated]:Local time for the system reminder",
+      "snooze": "[to be translated]:Reminder",
+      "snooze_action": "[to be translated]:Remind me later",
+      "snooze_description": "[to be translated]:Postpone the next reminder using your configured interval",
+      "vault_path": "[to be translated]:Vault path",
+      "vault_path_description": "[to be translated]:Absolute path to an existing Obsidian vault"
+    },
+    "speaking": {
+      "composed": "[to be translated]:Speech pipeline ready",
+      "default_scenario": "[to be translated]:Checking into a hotel and asking about breakfast",
+      "description": "[to be translated]:Use configured transcription, chat, and speech models with text fallback.",
+      "finish": "[to be translated]:Finish session",
+      "heading": "[to be translated]:Speaking practice",
+      "hear_target": "[to be translated]:Hear target",
+      "mode": {
+        "scenario": "[to be translated]:Scenario",
+        "shadowing": "[to be translated]:Shadowing",
+        "spoken_recall": "[to be translated]:Spoken recall"
+      },
+      "no_target": "[to be translated]:Complete or import a learning unit first.",
+      "prompt": "[to be translated]:Prompt",
+      "record": "[to be translated]:Record",
+      "send": "[to be translated]:Send",
+      "stop": "[to be translated]:Stop recording",
+      "text_only": "[to be translated]:Text fallback",
+      "transcript_placeholder": "[to be translated]:Speak or type your answer…"
+    },
+    "title": "[to be translated]:English Learning"
   },
   "error": {
     "availableProviders": "Διαθέσιμοι πάροχοι",

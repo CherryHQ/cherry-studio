@@ -66,6 +66,13 @@
     "select_folder": "Выбрать папку",
     "word_document": "Документ Word"
   },
+  "english_learning": {
+    "reminder": {
+      "body": "[to be translated]:{{count}} cards are ready. Start today's English review.",
+      "snooze": "[to be translated]:Remind me later",
+      "title": "[to be translated]:Time for English review"
+    }
+  },
   "paintings": {
     "generate_failed": "Не удалось сгенерировать изображение",
     "image_mix_failed": "Не удалось объединить изображения"

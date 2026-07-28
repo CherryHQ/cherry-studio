@@ -66,6 +66,13 @@
     "select_folder": "Select Folder",
     "word_document": "Word Document"
   },
+  "english_learning": {
+    "reminder": {
+      "body": "{{count}} cards are ready. Start today's English review.",
+      "snooze": "Remind me later",
+      "title": "Time for English review"
+    }
+  },
   "paintings": {
     "generate_failed": "Failed to generate image",
     "image_mix_failed": "Failed to mix images"

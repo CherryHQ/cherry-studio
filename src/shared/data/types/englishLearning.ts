@@ -118,3 +118,30 @@ export interface PracticeFeedback {
   recognitionConfidence?: number
   textSimilarity?: number
 }
+
+export interface PracticeSession {
+  id: string
+  mode: PracticeMode
+  status: PracticeSessionStatus
+  scenario: string | null
+  modelId: string | null
+  providerId: string | null
+  startedAt: string
+  completedAt: string | null
+  durationMs: number
+  error: string | null
+}
+
+export interface PracticeAttempt {
+  id: string
+  practiceSessionId: string
+  learningUnitId: string | null
+  prompt: string
+  transcript: string | null
+  responseText: string | null
+  feedback: PracticeFeedback
+  recognitionConfidence: number | null
+  textSimilarity: number | null
+  durationMs: number
+  attemptedAt: string
+}
