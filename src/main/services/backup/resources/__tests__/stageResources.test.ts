@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { CeilingExceededError, SourceDriftError } from '../../errors'
+import { CeilingExceededError } from '../../errors'
 import { hashDirectoryUnit, sha256File } from '../../hashing'
 import type { ResourceRequirement } from '../../manifest'
 import { driftHooks } from '../../sourceDrift'
@@ -96,7 +96,7 @@ describe('stageResources', () => {
     expect(statSync(join(resourcesDir, 'Data', 'Files', 'tool.sh')).mode & 0o777).toBe(0o700)
   })
 
-  it('rejects a source changed after the database snapshot baseline', async () => {
+  it('omits a source changed after the database snapshot baseline', async () => {
     const source = writeSource('Data/Files/blob.pdf', 'BEFORE')
     const requirements = [req('file-blob', 'file', 'Data/Files/blob.pdf')]
     const baseline = await captureResourceStageBaseline({ requirements, userDataPath: userData })
@@ -104,7 +104,10 @@ describe('stageResources', () => {
 
     await expect(
       stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
-    ).rejects.toBeInstanceOf(SourceDriftError)
+    ).resolves.toMatchObject({
+      payloads: [],
+      degradations: [{ livePath: 'Data/Files/blob.pdf', reason: 'changed-after-snapshot' }]
+    })
   })
 
   it('content-addresses a directory unit with the canonical unit hash', async () => {
@@ -148,7 +151,7 @@ describe('stageResources', () => {
     // The other 5,000 attachments still deserve a backup.
     expect(result.payloads.map((payload) => payload.livePath)).toEqual(['Data/Files/here.pdf'])
     expect(result.degradations).toEqual([
-      { kind: 'resource:file-blob', livePath: 'Data/Files/gone.pdf', reason: 'absent at snapshot time' }
+      { kind: 'resource:file-blob', livePath: 'Data/Files/gone.pdf', reason: 'absent-at-snapshot' }
     ])
   })
 
@@ -170,17 +173,41 @@ describe('stageResources', () => {
     // Same rule the restoring device applies in `coverage.ts`: a node that is not
     // the declared kind is not that resource.
     expect(result.payloads).toEqual([])
-    expect(result.degradations[0].reason).toBe('not a directory at snapshot time')
+    expect(result.degradations[0].reason).toBe('type-mismatch-at-snapshot')
   })
 
-  it('fails the export closed when a source changes while it is being staged', async () => {
+  it('omits a file that changes while it is being staged', async () => {
     const source = writeSource('Data/Files/blob.pdf', 'ORIGINAL')
     driftHooks.afterStagePreVerify = async () => {
       writeFileSync(source, 'REWRITTEN')
     }
 
-    // Degrading here would ship an archive that cannot say which version it holds.
-    await expect(stage([req('file-blob', 'file', 'Data/Files/blob.pdf')])).rejects.toBeInstanceOf(SourceDriftError)
+    await expect(stage([req('file-blob', 'file', 'Data/Files/blob.pdf')])).resolves.toMatchObject({
+      payloads: [],
+      degradations: [{ livePath: 'Data/Files/blob.pdf', reason: 'changed-after-snapshot' }]
+    })
+  })
+
+  it('omits a changed directory as one atomic unit while retaining a stable later unit', async () => {
+    const stable = writeSource('Data/Files/stable.pdf', 'STABLE')
+    writeSource('Data/Notes/a.md', 'A')
+    const requirements = [
+      req('file-blob', 'file', 'Data/Files/stable.pdf'),
+      req('note-root', 'directory', 'Data/Notes')
+    ]
+    const baseline = await captureResourceStageBaseline({ requirements, userDataPath: userData })
+    driftHooks.afterStagePreVerify = async (sourcePath) => {
+      if (sourcePath.endsWith('Data/Notes/a.md')) writeSource('Data/Notes/new.md', 'NEW')
+    }
+
+    const result = await stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
+
+    expect(result.payloads.map((payload) => payload.livePath)).toEqual(['Data/Files/stable.pdf'])
+    expect(result.degradations).toEqual([
+      { kind: 'resource:note-root', livePath: 'Data/Notes', reason: 'changed-after-snapshot' }
+    ])
+    expect(readFileSync(stable, 'utf8')).toBe('STABLE')
+    expect(() => readFileSync(join(resourcesDir, 'Data', 'Notes', 'a.md'))).toThrow()
   })
 
   it('refuses a payload set whose destinations overlap, before staging anything', async () => {
