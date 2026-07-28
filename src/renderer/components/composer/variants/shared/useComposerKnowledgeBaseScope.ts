@@ -2,45 +2,48 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef } from 'react'
 
 import type { ComposerDraftToken } from '../../tokens'
-import { chatComposerTokenId, knowledgeBaseToComposerToken } from '../chatComposerTokens'
+import { composerKnowledgeBaseTokenId, knowledgeBaseToComposerToken } from './composerTokens'
 
 const KNOWLEDGE_BASE_IDS_KEY_SEPARATOR = '\u0000'
 
-interface UseChatKnowledgeBaseScopeParams {
-  /** Knowledge base ids configured on the active assistant. */
-  assistantKnowledgeBaseIds: readonly string[] | undefined
+interface UseComposerKnowledgeBaseScopeParams {
+  /** Knowledge base ids configured on the active assistant or Agent. */
+  configuredKnowledgeBaseIds: readonly string[] | undefined
   allKnowledgeBases: KnowledgeBase[]
   isKnowledgeBasesLoading: boolean
-  topicId: string
-  selectedAssistantId: string | null
+  scopeKey: string
   selectedKnowledgeBases: KnowledgeBase[]
   setSelectedKnowledgeBases: Dispatch<SetStateAction<KnowledgeBase[]>>
+  /**
+   * The caller remounts this hook whenever `scopeKey` changes — the Agent composer's tool provider is
+   * keyed by agent + session, the same granularity as the scope. That makes a selection already
+   * present at mount a draft-cache seed belonging to `scopeKey`, to be pruned like any other, rather
+   * than another conversation's leftover to clear. Chat keeps one provider across topics and so omits
+   * this.
+   */
+  remountsOnScopeChange?: boolean
 }
 
-interface UseChatKnowledgeBaseScopeResult {
+interface UseComposerKnowledgeBaseScopeResult {
   selectableKnowledgeBases: KnowledgeBase[]
   selectedKnowledgeBasesInScope: KnowledgeBase[]
   resolveKnowledgeBaseMarker: (marker: string) => ComposerDraftToken | null
+  restoreKnowledgeBaseSelection: (baseIds: readonly string[]) => void
 }
 
-/**
- * Owns the chat composer's knowledge-base scoping: which configured-and-available bases are
- * selectable, the marker resolver, and the per-(topic+assistant) scope reset that prunes the
- * selection. Extracted verbatim from ChatComposer — chat-only.
- */
-export function useChatKnowledgeBaseScope({
-  assistantKnowledgeBaseIds,
+/** Owns knowledge-base availability, marker resolution, and selection pruning for one composer scope. */
+export function useComposerKnowledgeBaseScope({
+  configuredKnowledgeBaseIds,
   allKnowledgeBases,
   isKnowledgeBasesLoading,
-  topicId,
-  selectedAssistantId,
+  scopeKey,
   selectedKnowledgeBases,
-  setSelectedKnowledgeBases
-}: UseChatKnowledgeBaseScopeParams): UseChatKnowledgeBaseScopeResult {
-  const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(null)
-  const selectedKnowledgeBasesScopeKey = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
+  setSelectedKnowledgeBases,
+  remountsOnScopeChange
+}: UseComposerKnowledgeBaseScopeParams): UseComposerKnowledgeBaseScopeResult {
+  const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(remountsOnScopeChange ? scopeKey : null)
 
-  const configuredKnowledgeBaseIdsKey = (assistantKnowledgeBaseIds ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
+  const configuredKnowledgeBaseIdsKey = (configuredKnowledgeBaseIds ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
   const configuredKnowledgeBaseIdSet = useMemo(
     () =>
       new Set(
@@ -78,7 +81,7 @@ export function useChatKnowledgeBaseScope({
     selectableKnowledgeBases.forEach((base) => {
       map.set(base.id, base)
       map.set(base.name, base)
-      map.set(chatComposerTokenId.knowledge(base), base)
+      map.set(composerKnowledgeBaseTokenId(base), base)
     })
     return map
   }, [selectableKnowledgeBases])
@@ -89,22 +92,39 @@ export function useChatKnowledgeBaseScope({
     },
     [knowledgeBaseMarkerMap]
   )
-  const isSelectedKnowledgeBasesScopeCurrent =
-    selectedKnowledgeBasesScopeKeyRef.current === selectedKnowledgeBasesScopeKey
+  const isSelectedKnowledgeBasesScopeCurrent = selectedKnowledgeBasesScopeKeyRef.current === scopeKey
   const selectedKnowledgeBasesInScope = useMemo(
     () => (isSelectedKnowledgeBasesScopeCurrent ? filterSelectableKnowledgeBases(selectedKnowledgeBases) : []),
     [filterSelectableKnowledgeBases, isSelectedKnowledgeBasesScopeCurrent, selectedKnowledgeBases]
   )
 
+  /**
+   * Re-select a persisted scope by id — used when editing a queued follow-up back into the composer.
+   * Mapped through `selectableKnowledgeBases`, not the raw list, so a payload naming a base the
+   * assistant no longer configures cannot come back as a checked-but-unsendable pick.
+   */
+  const restoreKnowledgeBaseSelection = useCallback(
+    (baseIds: readonly string[]) => {
+      const wanted = new Set(baseIds)
+      setSelectedKnowledgeBases(selectableKnowledgeBases.filter((base) => wanted.has(base.id)))
+    },
+    [selectableKnowledgeBases, setSelectedKnowledgeBases]
+  )
+
   useEffect(() => {
-    const scopeChanged = selectedKnowledgeBasesScopeKeyRef.current !== selectedKnowledgeBasesScopeKey
-    selectedKnowledgeBasesScopeKeyRef.current = selectedKnowledgeBasesScopeKey
+    const scopeChanged = selectedKnowledgeBasesScopeKeyRef.current !== scopeKey
+    selectedKnowledgeBasesScopeKeyRef.current = scopeKey
     setSelectedKnowledgeBases((prev) => {
       const next = scopeChanged ? [] : filterSelectableKnowledgeBases(prev)
       if (next.length === prev.length && next.every((base, index) => base.id === prev[index]?.id)) return prev
       return next
     })
-  }, [filterSelectableKnowledgeBases, selectedKnowledgeBasesScopeKey, setSelectedKnowledgeBases])
+  }, [filterSelectableKnowledgeBases, scopeKey, setSelectedKnowledgeBases])
 
-  return { selectableKnowledgeBases, selectedKnowledgeBasesInScope, resolveKnowledgeBaseMarker }
+  return {
+    selectableKnowledgeBases,
+    selectedKnowledgeBasesInScope,
+    resolveKnowledgeBaseMarker,
+    restoreKnowledgeBaseSelection
+  }
 }
