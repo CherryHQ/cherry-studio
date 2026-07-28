@@ -16,7 +16,7 @@ export function isAzureOpenAIProvider(provider: Provider): boolean {
 }
 
 export function isAwsBedrockProvider(provider: Provider): boolean {
-  return provider.authType === 'iam-aws'
+  return provider.authType === 'iam-aws' || provider.authType === 'api-key-aws'
 }
 
 export function isOllamaProvider(provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>): boolean {
