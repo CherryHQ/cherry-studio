@@ -7,7 +7,6 @@ import { type AiUsageRecordRow, aiUsageRecordTable, type InsertAiUsageRecordRow 
 import { messageTable } from '@data/db/schemas/message'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
-import type { MessageRef, RecordAiInvocationInput, SourceSnapshot } from '@main/ai/types'
 import type {
   AiUsageRecordGroupBy,
   AiUsageRecordGroupIdentity,
@@ -28,8 +27,10 @@ import {
   type AiUsageCostBreakdown,
   type AiUsagePricingSnapshot,
   type AiUsageRecordAttribution,
+  type AiUsageRecordAuthMethod,
   type AiUsageRecordCostSource,
   type AiUsageRecordEntry,
+  type AiUsageRecordMessageKind,
   type AiUsageRecordModality,
   type AiUsageRecordSourceType,
   getAiUsageRecordTotalTokens
@@ -61,6 +62,72 @@ import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
+
+/**
+ * Non-secret receipt captured by the component that selected the serving
+ * credential. The raw credential never crosses into usage persistence.
+ */
+export type AiUsageCredentialReceipt =
+  | {
+      attribution: 'explicit' | 'matched'
+      id: string
+      label?: string
+      masked: string
+    }
+  | { attribution: 'auth'; method: AiUsageRecordAuthMethod }
+  | { attribution: 'unknown' }
+
+export interface SourceSnapshot {
+  type: AiUsageRecordSourceType
+  id: string
+  name: string | null
+  icon: string | null
+}
+
+export interface MessageRef {
+  kind: AiUsageRecordMessageKind
+  id: string
+}
+
+export interface AiUsageCaptureContext {
+  providerId: string
+  providerName: string | null
+  modelId: string
+  modelName: string | null
+  pricingSnapshot: AiUsagePricingSnapshot | null
+  trustProviderReportedCost: boolean
+  reportedCostCurrency: Currency | null
+  credentialReceipt: AiUsageCredentialReceipt
+  source: SourceSnapshot | null
+  messageRef: MessageRef | null
+}
+
+export interface RecordAiInvocationInput {
+  requestId: string
+  context: AiUsageCaptureContext
+  modality: AiUsageRecordModality
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+    reasoningTokens?: number
+    noCacheTokens?: number
+    cacheReadTokens?: number
+    cacheWriteTokens?: number
+  }
+  imageCount?: number
+  providerCost?: {
+    amount: number
+    currency: Currency
+    breakdown?: AiUsageCostBreakdown
+  }
+  metrics?: {
+    timeFirstTokenMs?: number
+    timeCompletionMs?: number
+    timeThinkingMs?: number
+  }
+  completedAt: number
+}
 
 export interface LegacyAggregateInput {
   requestId: string

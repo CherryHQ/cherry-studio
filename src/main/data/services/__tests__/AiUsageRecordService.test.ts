@@ -6,12 +6,12 @@ import { topicTable } from '@data/db/schemas/topic'
 import {
   aiUsageRecordService,
   mergeMessageRuntimeStats,
-  mergeMessageUsageProjection
+  mergeMessageUsageProjection,
+  type RecordAiInvocationInput
 } from '@data/services/AiUsageRecordService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createLanguageUsageMiddleware } from '@main/ai/hooks/billingHook'
 import { gatewayUsageNormalizeFeature } from '@main/ai/runtime/aiSdk/params/features/gatewayUsageNormalize'
-import type { RecordAiInvocationInput } from '@main/ai/types'
 import { createAiUsageCaptureContext, createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'

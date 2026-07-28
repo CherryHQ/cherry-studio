@@ -1,4 +1,4 @@
-import type { AiUsageCredentialReceipt, SourceSnapshot } from '@main/ai/types'
+import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'

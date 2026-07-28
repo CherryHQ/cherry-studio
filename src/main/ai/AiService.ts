@@ -8,13 +8,17 @@ import {
   type RuntimeProviderCallHandler
 } from '@cherrystudio/ai-core'
 import type { ParamValues } from '@cherrystudio/provider-registry'
+import {
+  type AiUsageCaptureContext,
+  aiUsageRecordService,
+  type MessageRef,
+  type SourceSnapshot
+} from '@data/services/AiUsageRecordService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import type { AiUsageCaptureContext, MessageRef, SourceSnapshot } from '@main/ai/types'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { aiUsageRecordService } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'

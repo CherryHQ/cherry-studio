@@ -38,8 +38,7 @@ attempts that are not observable to Cherry Studio are not counted. Provider
 invoices remain authoritative.
 
 - Schema: `src/main/data/db/schemas/aiUsageRecord.ts`
-- Service: `src/main/data/services/AiUsageRecordService.ts`
-- Capture contract: `src/main/ai/types/usage.ts`
+- Service and capture contract: `src/main/data/services/AiUsageRecordService.ts`
 - Capture factories: `src/main/ai/utils/usageCapture.ts`
 - Capture coverage: `src/main/ai/hooks/billingHook.ts`
 - Read-only DataApi:
@@ -451,8 +450,7 @@ global SWR focus/reconnect revalidation is disabled.
 | `src/shared/data/types/aiUsageRecord.ts` | Entity and snapshot schemas |
 | `src/shared/data/api/schemas/aiUsageRecords.ts` | Bounded read contracts |
 | `src/main/data/db/schemas/aiUsageRecord.ts` | SQLite table and constraints |
-| `src/main/data/services/AiUsageRecordService.ts` | Insert owner, projection, queries, cursors, and message-stats merge policy |
-| `src/main/ai/types/usage.ts` | Main-only capture context and invocation input contracts |
+| `src/main/data/services/AiUsageRecordService.ts` | Capture contracts, insert owner, projection, queries, cursors, and message-stats merge policy |
 | `src/main/ai/utils/usageCapture.ts` | Immutable provider/model/key/pricing capture factories |
 | `src/main/ai/runtime/types.ts` | Agent runtime capture-owner contract |
 | `src/main/ai/hooks/billingHook.ts` | Language middleware and operation coverage |
