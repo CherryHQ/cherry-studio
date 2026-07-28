@@ -4,6 +4,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
+import type { AgentSessionUsageCapture } from '../types'
 import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
@@ -12,6 +13,7 @@ const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 type WarmQueryEntry = {
   signature: string
   promise: Promise<WarmQuery | undefined>
+  usageCapture?: AgentSessionUsageCapture
   idleTimer?: ReturnType<typeof setTimeout>
 }
 
@@ -21,13 +23,25 @@ export interface WarmQueryRequest {
   initializeTimeoutMs?: number
   /**
    * Rotation-insensitive identity of the credentials the options were built with (e.g. a hash of the
-   * provider's enabled key SET). The raw rotated key is stripped from the signature — `getRotatedApiKey`
-   * advances per build, so prewarm/consume would otherwise never match on multi-key providers — while
-   * this fingerprint keeps the signature sensitive to the key set actually changing.
+   * provider's enabled key SET). The selected key is stripped from the signature because prewarm and
+   * consume materialize separately; this fingerprint still invalidates the warm process when the set
+   * changes.
    */
   credentialsFingerprint?: string
-  /** Agent knowledge bindings baked into cherry-tools at startup. */
+  /** Capture policy for the credentials and route that actually started this warm process. */
+  usageCapture?: AgentSessionUsageCapture
+  /**
+   * Effective knowledge scope (binding, else composer selection) baked into cherry-tools at startup.
+   * It is signature material precisely because it is frozen here: a warm query built for one scope
+   * must not be consumed by a turn that needs another. Prewarm runs with no composer selection, so a
+   * prewarmed entry carries binding-only scope and deliberately misses for a scoped turn.
+   */
   knowledgeBaseIds?: readonly string[]
+}
+
+export interface ConsumedWarmQuery {
+  warmQuery: WarmQuery
+  usageCapture?: AgentSessionUsageCapture
 }
 
 export function stripWarmQueryOptions(options: Options): Options {
@@ -170,12 +184,12 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       }
     )
 
-    const entry: WarmQueryEntry = { signature, promise }
+    const entry: WarmQueryEntry = { signature, promise, usageCapture: request.usageCapture }
     this.entries.set(request.key, entry)
     this.refreshIdleTimer(request.key, entry)
   }
 
-  async consume(request: WarmQueryRequest): Promise<WarmQuery | undefined> {
+  async consume(request: WarmQueryRequest): Promise<ConsumedWarmQuery | undefined> {
     const warmOptions = stripWarmQueryOptions(request.options)
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
@@ -195,7 +209,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
     const warmQuery = await entry.promise
     if (!warmQuery) return undefined
-    return warmQuery
+    return { warmQuery, usageCapture: entry.usageCapture }
   }
 
   close(key: string): void {

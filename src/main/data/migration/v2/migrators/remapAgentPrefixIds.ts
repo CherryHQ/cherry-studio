@@ -73,6 +73,11 @@ export function remapAgentPrefixIds(db: MigrationContext['db']): AgentPrefixIdRe
       db.update(agentSkillTable).set({ agentId: newId }).where(eq(agentSkillTable.agentId, oldId)).run()
       db.update(agentChannelTable).set({ agentId: newId }).where(eq(agentChannelTable.agentId, oldId)).run()
       db.update(agentMcpServerTable).set({ agentId: newId }).where(eq(agentMcpServerTable.agentId, oldId)).run()
+      db.run(sql`
+        UPDATE agent_session_message
+        SET message_snapshot = json_set(message_snapshot, '$.id', ${newId})
+        WHERE json_extract(message_snapshot, '$.id') = ${oldId}
+      `)
       // job_schedule.jobInputTemplate is a JSON column carrying the same agent_id
       // for migrated agent.task schedules. json_set rewrites it atomically so
       // post-remap reads see the new id consistently with agent.id above.

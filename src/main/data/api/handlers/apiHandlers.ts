@@ -19,6 +19,7 @@ import { agentHandlers } from './agents'
 import { agentSessionMessageHandlers } from './agentSessionMessages'
 import { agentSessionHandlers } from './agentSessions'
 import { agentWorkspaceHandlers } from './agentWorkspaces'
+import { aiUsageRecordHandlers } from './aiUsageRecords'
 import { assistantHandlers } from './assistants'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
@@ -72,5 +73,6 @@ export const apiHandlers: ApiImplementation = {
   ...promptHandlers,
   ...agentWorkspaceHandlers,
   ...jobHandlers,
-  ...searchHandlers
+  ...searchHandlers,
+  ...aiUsageRecordHandlers
 }

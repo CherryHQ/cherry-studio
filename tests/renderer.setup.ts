@@ -229,15 +229,26 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return React.createElement('button', buttonProps, startContent, children)
     },
-    ConfirmDialog: ({ cancelText, confirmText, description, onConfirm, open, title }) =>
+    ConfirmDialog: ({ cancelText, confirmText, content, description, onConfirm, onOpenChange, open, title }) =>
       open
         ? React.createElement(
             'div',
             { role: 'dialog' },
             React.createElement('h2', null, title),
             description ? React.createElement('p', null, description) : null,
-            React.createElement('button', { type: 'button' }, cancelText),
-            React.createElement('button', { type: 'button', onClick: onConfirm }, confirmText)
+            content,
+            React.createElement('button', { type: 'button', onClick: () => onOpenChange?.(false) }, cancelText),
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: async () => {
+                  await onConfirm?.()
+                  onOpenChange?.(false)
+                }
+              },
+              confirmText
+            )
           )
         : null,
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>

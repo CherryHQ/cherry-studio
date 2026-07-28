@@ -1633,8 +1633,17 @@
       "token_details": {
         "cache_read": "Lectura de caché",
         "cache_write": "Escritura en caché",
+        "cost": "[to be translated]:Cost",
+        "cost_billed": "[to be translated]:Billed by provider",
+        "cost_estimated": "[to be translated]:Estimated",
+        "end_to_end_throughput": "[to be translated]:End-to-end throughput",
         "input": "Entrada",
         "input_breakdown": "Desglose de entrada",
+        "lane_approval": "[to be translated]:Approval",
+        "lane_model": "[to be translated]:Model",
+        "lane_other": "[to be translated]:Other",
+        "lane_tool": "[to be translated]:Tool",
+        "model_throughput": "[to be translated]:Model generation TPS",
         "output": "Salida",
         "reasoning": "Razonamiento",
         "reasoning_time": "Razonamiento",
@@ -1643,6 +1652,7 @@
         "text_output": "Salida de texto",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Tokens/s",
+        "total_duration": "[to be translated]:End-to-end duration",
         "uncached": "Sin caché",
         "usage": "Uso de tokens",
         "waiting_first_token": "Esperando"
@@ -2310,6 +2320,7 @@
     "open_in": "Abrir en {{name}}",
     "open_in_new_tab": "Abrir en nueva pestaña",
     "open_sidebar": "Abrir barra lateral",
+    "other": "[to be translated]:Other",
     "placeholders": {
       "select": {
         "model": "Seleccionar modelo"
@@ -4312,6 +4323,7 @@
     },
     "pinned": "Fijado",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Costo",
       "currency": "Moneda",
       "custom": "Personalizado",
@@ -8099,6 +8111,108 @@
       "onclose": "Minimizar a la bandeja al cerrar",
       "show": "Mostrar bandera del sistema",
       "title": "Bandera"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "[to be translated]:Active days",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "dailyAverage": "[to be translated]:Daily average",
+        "explicitApiKey": "[to be translated]:Selected key",
+        "lastPeriod": "[to be translated]:vs last period",
+        "matchedApiKey": "[to be translated]:Matched override",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "currency": "[to be translated]:Currency",
+      "empty": {
+        "description": "[to be translated]:Usage appears after supported AI requests create usage records.",
+        "title": "[to be translated]:No usage yet"
+      },
+      "explore": {
+        "analysis": "[to be translated]:Analysis",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "[to be translated]:Clear date filter",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "[to be translated]:Requests",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "rollup": "[to be translated]:Rollup",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "[to be translated]:Explore",
+        "top": "[to be translated]:Top",
+        "totalEntries_one": "[to be translated]:{{count}} entry",
+        "totalEntries_other": "[to be translated]:{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "source": "[to be translated]:Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "title": "[to be translated]:Daily activity"
+      },
+      "metric": {
+        "cost": "[to be translated]:Cost",
+        "requests": "[to be translated]:Requests",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "rollup": {
+        "daily": "[to be translated]:Daily",
+        "monthly": "[to be translated]:Monthly",
+        "total": "[to be translated]:Total",
+        "weekly": "[to be translated]:Weekly"
+      },
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "model": "[to be translated]:Model",
+        "source": "[to be translated]:Source",
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
+      },
+      "title": "[to be translated]:Usage Analytics",
+      "tooltip": {
+        "cost": "[to be translated]:Cost {{value}}",
+        "requests_one": "[to be translated]:{{count}} request",
+        "requests_other": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
+      },
+      "window": {
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

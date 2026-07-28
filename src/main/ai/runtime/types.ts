@@ -1,3 +1,4 @@
+import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -5,11 +6,33 @@ import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashComma
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
+
+/**
+ * Agent-session usage has exactly one capture owner per runtime route.
+ * Direct/external SDK routes emit per-assistant-message invocation records;
+ * gateway routes are captured by the normal provider-call middleware.
+ */
+export type AgentSessionUsageCapture =
+  | {
+      owner: 'agent-sdk'
+      credentialReceipt: AiUsageCredentialReceipt
+      providerId: string
+      providerName: string | null
+      source: SourceSnapshot | null
+      frozenModels: ReadonlyArray<{
+        modelId: string
+        modelName: string | null
+        aliases: readonly string[]
+        pricingSnapshot: AiUsagePricingSnapshot | null
+      }>
+    }
+  | { owner: 'provider-calls' }
 
 export interface AiRuntimeDriver {
   readonly type: string
@@ -31,8 +54,16 @@ export interface AgentRuntimeConnectInput {
   modelId: UniqueModelId
   /** Canonical reasoning selection frozen for this connection's turn. */
   reasoningEffort?: ReasoningEffortOption
+  /** Per-turn composer knowledge selection; static Agent bindings still take precedence. */
+  knowledgeBaseIds?: readonly string[]
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
+  /**
+   * Synchronous host hook fired when a pending steer is actually injected. The host uses this
+   * before the SDK can issue its next provider request to reserve the continuation correlation;
+   * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
+   */
+  onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
 }
 
 export interface AgentRuntimeUserInput {
@@ -44,6 +75,28 @@ export interface AgentRuntimeUserInput {
 
 export type AgentRuntimeEvent =
   | { type: 'chunk'; chunk: UIMessageChunk }
+  | {
+      type: 'usage'
+      invocation: {
+        requestId: string
+        model: string
+        /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
+        messageAssociation: 'current-turn' | 'stateless'
+        usage?: {
+          inputTokens: number
+          outputTokens: number
+          totalTokens: number
+          noCacheTokens: number
+          cacheReadTokens: number
+          cacheWriteTokens: number
+        }
+        metrics?: {
+          timeFirstTokenMs?: number
+          timeCompletionMs?: number
+          timeThinkingMs?: number
+        }
+      }
+    }
   | { type: 'resume-token'; token: string }
   | { type: 'turn-complete' }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
@@ -81,6 +134,8 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  /** Connection-route-owned usage capture policy and non-secret credential receipt. */
+  readonly usageCapture?: AgentSessionUsageCapture
   send(input: AgentRuntimeUserInput): void | Promise<void>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true
@@ -98,14 +153,15 @@ export interface AgentRuntimeConnection {
    * decides the verdict (see {@link AgentRuntimeReconcileResult}). Serialized per connection:
    * concurrent push/pull reconciles queue instead of interleaving SDK and snapshot writes.
    *
-   * The input is the config the connection should serve right now (a live turn's frozen model and
-   * reasoning selection, or the agent's latest model with defaults) — the same pinning the host uses
-   * for `connect`.
+   * The input is the config the connection should serve right now (a live turn's frozen model,
+   * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same
+   * pinning the host uses for `connect`.
    */
   // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
   reconcile(input: {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
+    knowledgeBaseIds?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the
