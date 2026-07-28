@@ -1,8 +1,52 @@
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import type { FileMetadata } from '@renderer/types/file'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ImgHTMLAttributes, ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
+
+vi.mock('@cherrystudio/ui', async () => {
+  const actual = await vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui')
+  return {
+    ...actual,
+    Tooltip: ({ children }: { children: ReactNode }) => children
+  }
+})
+
+vi.mock('@renderer/components/ImageViewer', async () => {
+  const React = await import('react')
+
+  return {
+    default: function MockImageViewer({
+      preview: _preview,
+      onContextMenu,
+      ...props
+    }: ImgHTMLAttributes<HTMLImageElement> & { preview?: unknown }) {
+      const [showContextActions, setShowContextActions] = React.useState(false)
+      void _preview
+
+      return (
+        <>
+          <img
+            {...props}
+            onContextMenu={(event) => {
+              onContextMenu?.(event)
+              setShowContextActions(true)
+            }}
+          />
+          {showContextActions && (
+            <>
+              <button type="button">common.copy</button>
+              <button type="button">preview.copy.src</button>
+              <button type="button">common.download</button>
+            </>
+          )}
+        </>
+      )
+    }
+  }
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -84,7 +128,7 @@ const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
     ...overrides
   }) as PaintingData
 
-const firePointer = (element: Element, type: string, init: Record<string, number>) => {
+const firePointer = (element: Element, type: string, init: Record<string, number | string>) => {
   const event = new Event(type, { bubbles: true, cancelable: true })
 
   for (const [key, value] of Object.entries(init)) {
@@ -343,7 +387,7 @@ describe('Artboard', () => {
 
     it('truncates a long prompt responsively and exposes the full text with a copy action', async () => {
       const prompt = 'a red cat wearing a tiny hat'
-      render(<Artboard painting={makePainting({ prompt })} isLoading={true} />)
+      render(<Artboard painting={makePainting({ prompt })} isLoading={false} />)
 
       const preview = document.querySelector('.truncate') as HTMLElement
       // The full prompt stays in the DOM (and popover); the `.truncate` class clips
@@ -355,14 +399,15 @@ describe('Artboard', () => {
       expect(trigger).toHaveAttribute('type', 'button')
       expect(trigger).toContainElement(preview)
 
-      fireEvent.focus(trigger)
+      const zoomButton = screen.getByRole('button', { name: 'preview.zoom_in' })
+      zoomButton.focus()
+      firePointer(trigger, 'pointerover', { pointerType: 'mouse' })
 
-      const popoverContent = screen.getByTestId('popover-content')
+      const popoverContent = await screen.findByRole('dialog', { name: 'common.prompt' })
       const copyButtons = screen.getAllByRole('button', { name: 'common.copy' })
       expect(copyButtons).toHaveLength(1)
       const copyButton = copyButtons[0]
-      fireEvent.keyDown(trigger, { key: 'Tab' })
-      expect(copyButton).toHaveFocus()
+      expect(zoomButton).toHaveFocus()
       expect(popoverContent).toHaveTextContent(prompt)
       expect(popoverContent.querySelector('.float-right')).toBe(copyButton)
       expect(popoverContent).toHaveClass('bg-neutral-900', 'text-neutral-50', 'shadow-md')
@@ -379,6 +424,51 @@ describe('Artboard', () => {
       fireEvent.click(copyButton)
 
       await waitFor(() => expect(mockWriteText).toHaveBeenCalledWith(prompt))
+    })
+
+    it.each(['Enter', ' '])('opens from the keyboard with %j and focuses the copy action', async (key) => {
+      const prompt = 'a red cat wearing a tiny hat'
+      render(<Artboard painting={makePainting({ prompt })} isLoading={false} />)
+
+      const trigger = screen.getByRole('button', { name: prompt })
+      trigger.focus()
+      expect(screen.queryByRole('dialog', { name: 'common.prompt' })).not.toBeInTheDocument()
+
+      fireEvent.keyDown(trigger, { key })
+
+      const popoverContent = await screen.findByRole('dialog', { name: 'common.prompt' })
+      expect(popoverContent).toHaveAccessibleName('common.prompt')
+      await waitFor(() => expect(screen.getByRole('button', { name: 'common.copy' })).toHaveFocus())
+    })
+
+    it('closes with Escape, returns focus to the trigger, and does not reopen on restored focus', async () => {
+      const prompt = 'a red cat wearing a tiny hat'
+      render(<Artboard painting={makePainting({ prompt })} isLoading={false} />)
+
+      const trigger = screen.getByRole('button', { name: prompt })
+      trigger.focus()
+      fireEvent.keyDown(trigger, { key: 'Enter' })
+
+      const copyButton = await screen.findByRole('button', { name: 'common.copy' })
+      await waitFor(() => expect(copyButton).toHaveFocus())
+      fireEvent.keyDown(copyButton, { key: 'Escape' })
+
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'common.prompt' })).not.toBeInTheDocument())
+      expect(trigger).toHaveFocus()
+      expect(screen.queryByRole('dialog', { name: 'common.prompt' })).not.toBeInTheDocument()
+    })
+
+    it('does not open or redirect focus when tabbing from the trigger', () => {
+      const prompt = 'a red cat wearing a tiny hat'
+      render(<Artboard painting={makePainting({ prompt })} isLoading={false} />)
+
+      const trigger = screen.getByRole('button', { name: prompt })
+      trigger.focus()
+      const tabEvent = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab' })
+      fireEvent(trigger, tabEvent)
+
+      expect(tabEvent.defaultPrevented).toBe(false)
+      expect(screen.queryByRole('dialog', { name: 'common.prompt' })).not.toBeInTheDocument()
     })
 
     it('shows the resolved size label alongside the prompt', () => {

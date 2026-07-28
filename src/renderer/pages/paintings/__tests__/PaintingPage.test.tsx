@@ -1,12 +1,19 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { PaintingData } from '../model/types/paintingData'
+
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
   files: [] as { id: string }[],
   generate: vi.fn(),
   generating: false,
+  historyItems: [] as PaintingData[],
+  historyIsLoading: false,
+  initialSelectionReady: true,
+  persistedAt: undefined as string | undefined,
   saveCurrent: vi.fn(),
+  submitting: false,
   templates: [] as { id: string; imageUrl: string; label: string; prompt: string }[]
 }))
 
@@ -57,10 +64,18 @@ vi.mock('../components/PaintingTemplateShowcase', () => ({
 }))
 
 vi.mock('../components/PaintingComposer', () => ({
-  default: ({ painting, onGenerate }: { painting: { prompt?: string }; onGenerate: () => void }) => (
+  default: ({
+    painting,
+    submitting,
+    onGenerate
+  }: {
+    painting: { prompt?: string }
+    submitting: boolean
+    onGenerate: () => void
+  }) => (
     <div data-testid="painting-composer" style={{ height: painting.prompt ? 180 : 64 }}>
       <textarea aria-label="painting prompt" value={painting.prompt ?? ''} readOnly />
-      <button type="button" onClick={onGenerate}>
+      <button type="button" disabled={submitting} onClick={onGenerate}>
         generate
       </button>
     </div>
@@ -74,6 +89,7 @@ vi.mock('../components/PaintingStrip', () => ({
 vi.mock('../hooks/usePaintingGenerationSubmit', () => ({
   usePaintingGenerationSubmit: () => ({
     generating: mocks.generating,
+    submitting: mocks.submitting,
     submit: mocks.generate,
     cancel: mocks.cancel
   })
@@ -81,7 +97,8 @@ vi.mock('../hooks/usePaintingGenerationSubmit', () => ({
 
 vi.mock('../hooks/usePaintingHistory', () => ({
   usePaintingHistory: () => ({
-    items: [],
+    items: mocks.historyItems,
+    isLoading: mocks.historyIsLoading,
     hasMore: false,
     loadMore: vi.fn()
   })
@@ -92,7 +109,7 @@ vi.mock('../hooks/usePaintingInitialProvider', () => ({
 }))
 
 vi.mock('../hooks/usePaintingInitialSelection', () => ({
-  usePaintingInitialSelection: vi.fn()
+  usePaintingInitialSelection: () => mocks.initialSelectionReady
 }))
 
 vi.mock('../hooks/usePaintingList', () => ({
@@ -131,7 +148,8 @@ vi.mock('../model/paintingPipeline', () => ({
     mode: 'generate',
     prompt: '',
     files: mocks.files,
-    params: {}
+    params: {},
+    persistedAt: mocks.persistedAt
   })
 }))
 
@@ -147,7 +165,12 @@ describe('PaintingPage showcase', () => {
     mocks.files = []
     mocks.generate.mockReset()
     mocks.generating = false
+    mocks.historyItems = []
+    mocks.historyIsLoading = false
+    mocks.initialSelectionReady = true
+    mocks.persistedAt = undefined
     mocks.saveCurrent.mockReset()
+    mocks.submitting = false
     mocks.templates = Array.from({ length: 25 }, (_, index) => ({
       id: index === 0 ? 'human-fragments-motion' : `template-${index}`,
       imageUrl: `/template-${index}.webp`,
@@ -179,6 +202,63 @@ describe('PaintingPage showcase', () => {
     expect(screen.queryByText('paintings.showcase.caption')).not.toBeInTheDocument()
     expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
     expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+  })
+
+  it('keeps persisted empty paintings on the normal artboard', () => {
+    mocks.persistedAt = '2026-01-01T00:00:00.000Z'
+
+    render(<PaintingPage />)
+
+    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
+    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+  })
+
+  it('keeps the showcase hidden until the initial history hydration is ready', () => {
+    mocks.historyIsLoading = true
+    mocks.initialSelectionReady = false
+
+    render(<PaintingPage />)
+
+    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
+    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+  })
+
+  it('keeps the showcase hidden between history hydration and initial painting selection', () => {
+    mocks.historyIsLoading = false
+    mocks.initialSelectionReady = false
+
+    render(<PaintingPage />)
+
+    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
+    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+  })
+
+  it('shows an explicit new blank draft after bootstrap even when history exists', () => {
+    mocks.historyItems = [
+      {
+        id: 'persisted-painting',
+        providerId: 'provider-1',
+        mode: 'generate',
+        prompt: 'persisted prompt',
+        files: [],
+        persistedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ]
+
+    render(<PaintingPage />)
+
+    expect(screen.getByTestId('painting-template-showcase')).toBeInTheDocument()
+    expect(screen.queryByTestId('painting-artboard')).not.toBeInTheDocument()
+  })
+
+  it('hides the showcase and disables send while submit validation is pending', () => {
+    mocks.submitting = true
+
+    render(<PaintingPage />)
+
+    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
+    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'generate' })).toBeDisabled()
   })
 
   it('keeps the normal artboard placeholder while the template catalog is unavailable', () => {

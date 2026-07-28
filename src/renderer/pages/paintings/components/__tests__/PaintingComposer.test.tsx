@@ -139,6 +139,7 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
   const handlers = {
     painting: makePainting(),
     generating: false,
+    submitting: false,
     onPromptChange,
     onInputFilesChange: vi.fn(),
     onGenerate,
@@ -264,6 +265,16 @@ describe('PaintingComposer', () => {
   it('disables send while generating', () => {
     renderComposer({ generating: true, painting: makePainting({ prompt: 'a cat' }) })
     expect(screen.getByLabelText('send')).toBeDisabled()
+  })
+
+  it('disables and guards send while validation is pending without showing generation loading', () => {
+    const { onGenerate } = renderComposer({ submitting: true, painting: makePainting({ prompt: 'a cat' }) })
+
+    expect(screen.getByLabelText('send')).toBeDisabled()
+    expect(captured.surfaceProps?.isLoading).toBe(false)
+
+    void captured.surfaceProps?.onSendDraft({ text: 'a cat', tokens: [] })
+    expect(onGenerate).not.toHaveBeenCalled()
   })
 
   it('does not render the image params button when imageGeneration support is missing', () => {

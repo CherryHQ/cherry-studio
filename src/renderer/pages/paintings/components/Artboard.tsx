@@ -33,6 +33,7 @@ const DEFAULT_IMAGE_OFFSET = { x: 0, y: 0 }
 const PROMPT_POPOVER_CLOSE_DELAY = 150
 
 type ImageOffset = typeof DEFAULT_IMAGE_OFFSET
+type PromptPopoverOpenReason = 'keyboard' | 'pointer'
 
 type ImageDragState = {
   pointerId: number
@@ -66,6 +67,7 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
   const promptPopoverCloseTimerRef = useRef<number | null>(null)
   const promptPopoverTriggerRef = useRef<HTMLButtonElement | null>(null)
   const promptPopoverContentRef = useRef<HTMLDivElement | null>(null)
+  const promptPopoverOpenReasonRef = useRef<PromptPopoverOpenReason>('pointer')
 
   const cancelPromptPopoverClose = useCallback(() => {
     if (promptPopoverCloseTimerRef.current === null) return
@@ -73,10 +75,21 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
     promptPopoverCloseTimerRef.current = null
   }, [])
 
-  const openPromptPopover = useCallback(() => {
+  const openPromptPopover = useCallback(
+    (reason: PromptPopoverOpenReason) => {
+      cancelPromptPopoverClose()
+      promptPopoverOpenReasonRef.current = reason
+      setPromptPopoverOpen(true)
+    },
+    [cancelPromptPopoverClose]
+  )
+
+  const openPromptPopoverFromPointer = useCallback(() => {
     cancelPromptPopoverClose()
+    if (isPromptPopoverOpen) return
+    promptPopoverOpenReasonRef.current = 'pointer'
     setPromptPopoverOpen(true)
-  }, [cancelPromptPopoverClose])
+  }, [cancelPromptPopoverClose, isPromptPopoverOpen])
 
   const schedulePromptPopoverClose = useCallback(() => {
     cancelPromptPopoverClose()
@@ -102,6 +115,9 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
           open={isPromptPopoverOpen}
           onOpenChange={(open) => {
             cancelPromptPopoverClose()
+            if (open && promptPopoverOpenReasonRef.current !== 'keyboard') {
+              promptPopoverOpenReasonRef.current = 'pointer'
+            }
             setPromptPopoverOpen(open)
           }}>
           <PopoverTrigger asChild>
@@ -109,19 +125,17 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
               ref={promptPopoverTriggerRef}
               type="button"
               onPointerEnter={(event) => {
-                if (event.pointerType !== 'touch') openPromptPopover()
+                if (event.pointerType !== 'touch') openPromptPopoverFromPointer()
               }}
               onPointerLeave={(event) => {
                 if (event.pointerType !== 'touch') schedulePromptPopoverClose()
               }}
-              onFocus={openPromptPopover}
               onBlur={schedulePromptPopoverClose}
               onKeyDown={(event) => {
-                if (event.key !== 'Tab' || event.shiftKey) return
-                const copyButton = promptPopoverContentRef.current?.querySelector<HTMLButtonElement>('button')
-                if (!copyButton) return
+                if (event.key !== 'Enter' && event.key !== ' ') return
                 event.preventDefault()
-                copyButton.focus()
+                event.stopPropagation()
+                openPromptPopover('keyboard')
               }}
               className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left text-inherit outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <Palette className="size-3.5 shrink-0" aria-hidden />
@@ -136,14 +150,25 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
             side="bottom"
             sideOffset={2}
             onPointerEnter={(event) => {
-              if (event.pointerType !== 'touch') openPromptPopover()
+              if (event.pointerType !== 'touch') openPromptPopoverFromPointer()
             }}
             onPointerLeave={(event) => {
               if (event.pointerType !== 'touch') schedulePromptPopoverClose()
             }}
-            onFocusCapture={openPromptPopover}
+            onFocusCapture={cancelPromptPopoverClose}
             onBlurCapture={schedulePromptPopoverClose}
-            onOpenAutoFocus={(event) => event.preventDefault()}
+            onOpenAutoFocus={(event) => {
+              if (promptPopoverOpenReasonRef.current !== 'keyboard') {
+                event.preventDefault()
+              }
+            }}
+            onCloseAutoFocus={(event) => {
+              if (promptPopoverOpenReasonRef.current !== 'keyboard') {
+                event.preventDefault()
+              }
+            }}
+            role="dialog"
+            aria-label={t('common.prompt')}
             className="max-h-80 w-fit max-w-md overflow-y-auto rounded-md border-0 bg-neutral-900 p-2 text-neutral-50 text-xs leading-relaxed shadow-md">
             <CopyButton
               textToCopy={prompt}

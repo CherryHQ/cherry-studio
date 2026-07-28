@@ -26,7 +26,7 @@ import type { Model } from '@shared/data/types/model'
 import { getFileTypeByExt, imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 import { Settings2 } from 'lucide-react'
-import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { type FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
@@ -108,6 +108,7 @@ function paramsSummary(
 export interface PaintingComposerProps {
   painting: PaintingData
   generating: boolean
+  submitting?: boolean
   onPromptChange: (value: string) => void
   onInputFilesChange: (files: FileEntry[]) => void
   onGenerate: () => void
@@ -171,6 +172,7 @@ interface PaintingComposerInnerProps extends PaintingComposerProps {
 const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   painting,
   generating,
+  submitting = false,
   onPromptChange,
   onInputFilesChange,
   onGenerate,
@@ -186,14 +188,10 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
-  const [text, setText] = useState(() => painting.prompt ?? '')
+  const text = painting.prompt ?? ''
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
-
-  useEffect(() => {
-    setText(painting.prompt ?? '')
-  }, [painting.prompt])
 
   // `couldAddImageFile` is modality-based (isEditImageModel → inputModalities includes
   // image): whether the model takes an image at all. Whether an image is *required* —
@@ -233,20 +231,14 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   )
   const handleTokensChange = useComposerTokenReconcile({ scope: PAINTING_SCOPE, model })
 
-  const handleTextChange = useCallback(
-    (value: string) => {
-      setText(value)
-      onPromptChange(value)
-    },
-    [onPromptChange]
-  )
+  const handleTextChange = useCallback((value: string) => onPromptChange(value), [onPromptChange])
 
   // The prompt + input files are kept synced to page state per edit, so the
   // serialized draft is unused here — sending just triggers generation.
   const handleSendDraft = useCallback(() => {
-    if (generating) return
+    if (generating || submitting) return
     onGenerate()
-  }, [generating, onGenerate])
+  }, [generating, onGenerate, submitting])
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={couldAddImageFile} extensions={PAINTING_IMAGE_EXTS}>
@@ -260,7 +252,9 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         topContent={couldAddImageFile ? <PaintingImageGallery /> : undefined}
         leadingContent={couldAddImageFile ? <PaintingImageAddButton /> : undefined}
         placeholder={placeholder}
-        sendDisabled={generating || !model || (text.trim().length === 0 && files.length === 0) || missingRequiredImage}
+        sendDisabled={
+          submitting || generating || !model || (text.trim().length === 0 && files.length === 0) || missingRequiredImage
+        }
         sendBlockedReason={missingRequiredImage ? t('paintings.edit.image_required') : undefined}
         isLoading={generating}
         onSendDraft={handleSendDraft}

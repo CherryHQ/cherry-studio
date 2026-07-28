@@ -36,7 +36,13 @@ const PaintingPage: FC = () => {
 
   const history = usePaintingHistory()
 
-  usePaintingInitialSelection({ currentPainting, historyItems: history.items, initialProviderId, setCurrentPainting })
+  const initialSelectionReady = usePaintingInitialSelection({
+    currentPainting,
+    historyItems: history.items,
+    historyIsLoading: history.isLoading,
+    initialProviderId,
+    setCurrentPainting
+  })
 
   // Backfill a background generation's output files when they only reached
   // refreshed history (its completion couldn't update the no-longer-visible
@@ -67,6 +73,7 @@ const PaintingPage: FC = () => {
 
   const {
     generating: liveGenerating,
+    submitting,
     submit,
     cancel: cancelGeneration
   } = usePaintingGenerationSubmit({
@@ -81,7 +88,10 @@ const PaintingPage: FC = () => {
   // gap: if its `status === 'running'` for this painting, keep the spinner.
   const generating = liveGenerating || liveGenerationState.generationStatus === 'running'
   const showTemplateShowcase =
+    !currentPainting.persistedAt &&
     currentPainting.files.length === 0 &&
+    initialSelectionReady &&
+    !submitting &&
     !generating &&
     !currentPainting.generationStatus &&
     !liveGenerationState.generationStatus
@@ -166,6 +176,7 @@ const PaintingPage: FC = () => {
                       <PaintingComposer
                         painting={composerPainting}
                         generating={generating}
+                        submitting={submitting}
                         onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
                         onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
                         onGenerate={submit}
