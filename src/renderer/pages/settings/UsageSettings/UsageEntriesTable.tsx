@@ -18,9 +18,17 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { displayModelId, getGenerationTokensPerSecond, MODALITY_LABEL_KEYS } from './usageAnalytics'
+import { displayModelId, getGenerationTokensPerSecond } from './usageAnalytics'
 import { formatCost } from './usageDisplay'
-import { UsageModelAvatar, UsageProviderLabel, UsageSourceLabel } from './UsageSettingsPrimitives'
+import {
+  UsageModelAvatar,
+  UsagePanel,
+  UsagePanelHeader,
+  UsagePanelTitle,
+  UsageSourceLabel
+} from './UsageSettingsPrimitives'
+
+const EMPTY_VALUE = '-'
 
 interface UsageEntriesTableProps {
   entries: AiUsageRecordEntry[]
@@ -33,7 +41,6 @@ interface UsageEntriesTableProps {
   onSort: (sortBy: AiUsageRecordListSortBy) => void
   onLoadNext: () => void
   getProviderInfo: (id: string, snapshotName?: string | null) => { id: string; name: string }
-  getApiKeyLabel: (entry: AiUsageRecordEntry) => string
   dateFormatter: Intl.DateTimeFormat
   timeFormatter: Intl.DateTimeFormat
 }
@@ -49,7 +56,6 @@ export function UsageEntriesTable({
   onSort,
   onLoadNext,
   getProviderInfo,
-  getApiKeyLabel,
   dateFormatter,
   timeFormatter
 }: UsageEntriesTableProps) {
@@ -79,24 +85,22 @@ export function UsageEntriesTable({
   }
   const formatMilliseconds = (value: number | null | undefined) => {
     if (value === null || value === undefined) {
-      return t('settings.usage.cards.none')
+      return EMPTY_VALUE
     }
 
     return durationFormatter(value)
   }
   const formatTps = (value: number | undefined) =>
-    value === undefined
-      ? t('settings.usage.cards.none')
-      : t('settings.usage.table.tpsValue', { value: integerFormatter.format(value) })
+    value === undefined ? EMPTY_VALUE : t('settings.usage.table.tpsValue', { value: integerFormatter.format(value) })
 
   return (
-    <div className="flex min-w-0 flex-col rounded-lg border border-border bg-background">
-      <div className="flex min-w-0 items-center justify-between gap-3 border-border border-b p-3">
-        <div className="font-medium text-foreground text-sm">{t('settings.usage.explore.entries')}</div>
+    <UsagePanel>
+      <UsagePanelHeader className="flex min-w-0 items-center justify-between gap-3">
+        <UsagePanelTitle>{t('settings.usage.explore.entries')}</UsagePanelTitle>
         <div className="text-foreground-muted text-xs">
           {t('settings.usage.explore.totalEntries', { count: entryTotal })}
         </div>
-      </div>
+      </UsagePanelHeader>
       <div className="min-w-0 p-3">
         {isLoading ? (
           <div className="flex flex-col gap-2">
@@ -106,19 +110,19 @@ export function UsageEntriesTable({
           </div>
         ) : entries.length > 0 ? (
           <>
-            <Table className="min-w-[900px] table-fixed">
+            <Table className="min-w-[1040px] table-fixed">
               <colgroup>
-                <col className="w-[32%]" />
+                <col className="w-[25%]" />
                 <col className="w-[22%]" />
-                <col className="w-36" />
-                <col className="w-24" />
-                <col className="w-24" />
-                <col className="w-20" />
-                <col className="w-20" />
+                <col className="w-[19%]" />
+                <col className="w-[9%]" />
+                <col className="w-[9%]" />
+                <col className="w-[7%]" />
+                <col className="w-[9%]" />
               </colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('settings.usage.table.request')}</TableHead>
+                  <TableHead>{t('settings.usage.table.model')}</TableHead>
                   <TableHead>{t('settings.usage.table.source')}</TableHead>
                   <TableHead aria-sort={getAriaSort('createdAt')}>
                     {renderSortHeader('createdAt', t('settings.usage.table.date'))}
@@ -144,62 +148,61 @@ export function UsageEntriesTable({
                   const sourceName = entry.sourceId
                     ? entry.sourceName || entry.sourceId
                     : t('settings.usage.cards.unattributedSource')
+                  const modelName = entry.modelName || displayModelId(entry.modelId) || EMPTY_VALUE
+                  const providerName = getProviderInfo(entry.providerId ?? '', entry.providerName).name || EMPTY_VALUE
                   const createdAt = new Date(entry.createdAt)
+                  const createdAtLabel = `${dateFormatter.format(createdAt)} ${timeFormatter.format(createdAt)}`
 
                   return (
                     <TableRow key={entry.id}>
                       <TableCell className="min-w-0">
-                        <div className="flex min-w-0 items-start gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
                           <UsageModelAvatar modelId={entry.modelId} providerId={entry.providerId ?? ''} size={18} />
                           <div className="min-w-0">
-                            <div className="line-clamp-2 font-medium text-foreground text-sm leading-5">
-                              {displayModelId(entry.modelId) || t('settings.usage.cards.none')}
+                            <div className="truncate font-medium text-foreground text-sm leading-5" title={modelName}>
+                              {modelName}
                             </div>
-                            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-foreground-muted text-xs">
-                              <UsageProviderLabel
-                                provider={getProviderInfo(entry.providerId ?? '', entry.providerName)}
-                                size={14}
-                                className="max-w-full gap-1.5 [&>span:last-child]:truncate"
-                              />
-                              <span>{t(MODALITY_LABEL_KEYS[entry.modality])}</span>
+                            <div className="truncate text-muted-foreground text-xs leading-4" title={providerName}>
+                              {providerName}
                             </div>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell className="min-w-0">
-                        <div className="min-w-0">
-                          <div className="min-w-0 truncate text-foreground text-sm">
-                            {entry.sourceId ? (
-                              <UsageSourceLabel
-                                sourceType={entry.sourceType}
-                                sourceIcon={entry.sourceIcon}
-                                size={14}
-                                className="max-w-full gap-1.5 [&>span:last-child]:truncate">
-                                {sourceName}
-                              </UsageSourceLabel>
-                            ) : (
-                              sourceName
-                            )}
-                          </div>
-                          <div className="mt-1 truncate text-foreground-muted text-xs">{getApiKeyLabel(entry)}</div>
+                        <div className="min-w-0 truncate text-foreground text-sm">
+                          {entry.sourceId ? (
+                            <UsageSourceLabel
+                              sourceType={entry.sourceType}
+                              sourceIcon={entry.sourceIcon}
+                              size={14}
+                              className="max-w-full gap-1.5 [&>span:last-child]:truncate">
+                              {sourceName}
+                            </UsageSourceLabel>
+                          ) : (
+                            sourceName
+                          )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-foreground-muted text-xs">
-                        <span className="inline-flex min-w-0 flex-wrap gap-x-1">
-                          <span className="break-words">{dateFormatter.format(createdAt)}</span>
-                          <span className="break-words">{timeFormatter.format(createdAt)}</span>
-                        </span>
+                      <TableCell className="min-w-0 text-muted-foreground text-xs">
+                        <time
+                          dateTime={entry.createdAt}
+                          className="block truncate whitespace-nowrap tabular-nums"
+                          title={createdAtLabel}>
+                          {createdAtLabel}
+                        </time>
                       </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {totalTokens === null ? t('settings.usage.cards.none') : formatCompactNumber(totalTokens)}
+                      <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
+                        {totalTokens === null ? EMPTY_VALUE : formatCompactNumber(totalTokens)}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="whitespace-nowrap text-right tabular-nums">
                         {entry.cost !== null && entry.cost !== undefined
                           ? formatCost(entry.cost, entry.costCurrency)
-                          : t('settings.usage.cards.none')}
+                          : EMPTY_VALUE}
                       </TableCell>
-                      <TableCell className="text-right">{formatMilliseconds(entry.timeFirstTokenMs)}</TableCell>
-                      <TableCell className="text-right">{formatTps(tps)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-right tabular-nums">
+                        {formatMilliseconds(entry.timeFirstTokenMs)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-right tabular-nums">{formatTps(tps)}</TableCell>
                     </TableRow>
                   )
                 })}
@@ -222,6 +225,6 @@ export function UsageEntriesTable({
           />
         )}
       </div>
-    </div>
+    </UsagePanel>
   )
 }

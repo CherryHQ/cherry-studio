@@ -8189,12 +8189,6 @@
         "requests": "请求数",
         "tokens": "Token"
       },
-      "modality": {
-        "embedding": "嵌入",
-        "image": "图像",
-        "language": "语言",
-        "rerank": "重排"
-      },
       "overview": {
         "title": "概览"
       },
@@ -8208,7 +8202,7 @@
       "table": {
         "cost": "成本",
         "date": "日期",
-        "request": "请求",
+        "model": "模型",
         "source": "来源",
         "tokens": "Token",
         "tps": "TPS",

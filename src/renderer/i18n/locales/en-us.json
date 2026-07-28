@@ -8189,12 +8189,6 @@
         "requests": "Requests",
         "tokens": "Tokens"
       },
-      "modality": {
-        "embedding": "Embedding",
-        "image": "Image",
-        "language": "Language",
-        "rerank": "Rerank"
-      },
       "overview": {
         "title": "Overview"
       },
@@ -8208,7 +8202,7 @@
       "table": {
         "cost": "Cost",
         "date": "Date",
-        "request": "Request",
+        "model": "Model",
         "source": "Source",
         "tokens": "Tokens",
         "tps": "TPS",

@@ -7,7 +7,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import type { AiUsageRecordSourceType } from '@shared/data/types/aiUsageRecord'
-import type { ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { useMemo } from 'react'
 
 import { displayModelId } from './usageAnalytics'
@@ -219,7 +219,7 @@ export function MetricCell({
   const hasTrend = trendValues.some((trendValue) => trendValue > 0)
 
   return (
-    <div className="flex min-h-24 min-w-0 flex-col p-3 @[640px]/usage:px-4">
+    <div className="flex min-h-24 min-w-0 flex-col bg-background p-3 @[640px]/usage:px-4">
       <div className="text-foreground-muted text-xs">{label}</div>
       <div className="mt-2 flex min-h-8 min-w-0 items-center gap-3">
         <div className="min-w-0 flex-1 text-pretty break-words font-semibold text-foreground text-xl leading-6">
@@ -237,9 +237,9 @@ export function MetricCell({
 
 export function MetricStripSkeleton() {
   return (
-    <div className="grid min-w-0 @[820px]/usage:grid-cols-4 grid-cols-1 @[820px]/usage:divide-x divide-y @[820px]/usage:divide-y-0 divide-border border-border border-y">
+    <div className="grid min-w-0 @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4 grid-cols-1 gap-px border-border border-b bg-border">
       {Array.from({ length: 4 }, (_, index) => (
-        <div key={index} className="p-3 @[640px]/usage:px-4">
+        <div key={index} className="bg-background p-3 @[640px]/usage:px-4">
           <Skeleton className="h-20 rounded-md" />
         </div>
       ))}
@@ -310,7 +310,7 @@ export function MetricDelta({
 
 export function InsightCell({ label, value, helper }: { label: string; value: ReactNode; helper?: ReactNode }) {
   return (
-    <div className="min-w-0 p-3 @[640px]/usage:px-4">
+    <div className="min-w-0 bg-background p-3 @[640px]/usage:px-4">
       <div className="text-foreground-muted text-xs">{label}</div>
       <div className="mt-1 min-w-0 break-words font-medium text-foreground text-sm">{value}</div>
       {helper && <div className="mt-1 min-w-0 break-words text-foreground-muted text-xs">{helper}</div>}
@@ -326,30 +326,34 @@ export function UsageResponsiveShell({ children }: { children: ReactNode }) {
       theme={theme}
       className="min-w-0 overflow-x-hidden"
       innerClassName="min-w-0 w-full max-w-none">
-      <div className="@container/usage flex min-w-0 flex-col gap-4">{children}</div>
+      <div className="@container/usage flex min-w-0 flex-col gap-6">{children}</div>
     </SettingsContentColumn>
   )
 }
 
-export function UsageSection({
-  children,
-  className,
-  variant = 'card'
-}: {
-  children: ReactNode
-  className?: string
-  variant?: 'card' | 'plain'
-}) {
+export function UsageSection({ children, className }: { children: ReactNode; className?: string }) {
+  return <section className={cn('flex min-w-0 flex-col gap-3', className)}>{children}</section>
+}
+
+export function UsagePanel({ className, ...props }: ComponentPropsWithoutRef<'div'>) {
   return (
-    <section
-      className={cn(
-        'flex min-w-0 flex-col gap-4',
-        variant === 'card' && 'rounded-lg border border-border bg-background @[640px]/usage:p-4 p-3',
-        className
-      )}>
-      {children}
-    </section>
+    <div
+      className={cn('flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-background', className)}
+      {...props}
+    />
   )
+}
+
+export function UsagePanelHeader({ className, ...props }: ComponentPropsWithoutRef<'div'>) {
+  return <div className={cn('border-border border-b p-3', className)} {...props} />
+}
+
+export function UsageSectionTitle({ className, ...props }: ComponentPropsWithoutRef<'h2'>) {
+  return <h2 className={cn('font-semibold text-base text-foreground', className)} {...props} />
+}
+
+export function UsagePanelTitle({ className, ...props }: ComponentPropsWithoutRef<'h3'>) {
+  return <h3 className={cn('font-medium text-foreground text-sm', className)} {...props} />
 }
 
 export function UsageControlRow({ label, children }: { label: string; children: ReactNode }) {

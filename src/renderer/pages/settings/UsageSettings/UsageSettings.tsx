@@ -51,10 +51,14 @@ import {
   MetricStripSkeleton,
   UsageControlRow,
   UsageModelLabel,
+  UsagePanel,
+  UsagePanelHeader,
+  UsagePanelTitle,
   UsageProviderLabel,
   UsageResponsiveShell,
   UsageSection,
   UsageSectionHeader,
+  UsageSectionTitle,
   UsageSourceLabel
 } from './UsageSettingsPrimitives'
 import { useUsageData } from './useUsageData'
@@ -387,7 +391,7 @@ function UsageSettings() {
         <UsageSection>
           <UsageSectionHeader>
             <div className="min-w-0">
-              <h2 className="font-semibold text-base text-foreground">{t('settings.usage.overview.title')}</h2>
+              <UsageSectionTitle>{t('settings.usage.overview.title')}</UsageSectionTitle>
               <p className="mt-1 text-foreground-muted text-sm">
                 {t('settings.usage.summary', {
                   window: t(WINDOW_LABEL_KEYS[windowKey]),
@@ -422,123 +426,128 @@ function UsageSettings() {
             </div>
           </UsageSectionHeader>
 
-          {isInitialLoading ? (
-            <MetricStripSkeleton />
-          ) : (
-            <div className="grid min-w-0 @[820px]/usage:grid-cols-4 grid-cols-1 @[820px]/usage:divide-x divide-y @[820px]/usage:divide-y-0 divide-border border-border border-y">
-              <MetricCell
-                label={t('settings.usage.cards.totalCost')}
-                trendValues={costTrendValues}
-                delta={getRatioChange(totalCost, previousTotalCost)}
-                deltaLabel={t('settings.usage.cards.lastPeriod')}
-                formatDelta={formatDelta}
-                value={totalCost !== undefined ? formatCost(totalCost, costCurrency) : t('settings.usage.cards.none')}
-              />
-              <MetricCell
-                label={t('settings.usage.cards.totalRequests')}
-                trendValues={requestTrendValues}
-                delta={getRatioChange(totalRequests, previousTotalRequests)}
-                deltaLabel={t('settings.usage.cards.lastPeriod')}
-                formatDelta={formatDelta}
-                value={formatCompactNumber(totalRequests)}
-              />
-              <MetricCell
-                label={t('settings.usage.cards.totalTokens')}
-                trendValues={tokenTrendValues}
-                delta={getRatioChange(totalTokens, previousTotalTokens)}
-                deltaLabel={t('settings.usage.cards.lastPeriod')}
-                formatDelta={formatDelta}
-                value={formatCompactNumber(totalTokens)}
-              />
-              <MetricCell
-                label={t('settings.usage.cards.cacheHitRate')}
-                trendValues={cacheHitRateTrendValues}
-                delta={cacheHitRateDelta}
-                deltaLabel={t('settings.usage.cards.lastPeriod')}
-                formatDelta={formatDelta}
-                value={
-                  cacheMetrics.hitRate !== undefined ? (
-                    hitRateFormatter.format(cacheMetrics.hitRate)
-                  ) : (
-                    <span className="text-sm leading-5">{t('settings.usage.cards.cacheStartsWithNewRequests')}</span>
-                  )
-                }
-                helper={
-                  cacheMetrics.hitRate !== undefined
-                    ? t('settings.usage.cards.cacheObservedTokens', {
-                        tokens: formatCompactNumber(cacheMetrics.observableTokens)
-                      })
-                    : undefined
-                }
-              />
-            </div>
-          )}
+          <UsagePanel>
+            {isInitialLoading ? (
+              <MetricStripSkeleton />
+            ) : (
+              <div className="grid min-w-0 @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4 grid-cols-1 gap-px border-border border-b bg-border">
+                <MetricCell
+                  label={t('settings.usage.cards.totalCost')}
+                  trendValues={costTrendValues}
+                  delta={getRatioChange(totalCost, previousTotalCost)}
+                  deltaLabel={t('settings.usage.cards.lastPeriod')}
+                  formatDelta={formatDelta}
+                  value={totalCost !== undefined ? formatCost(totalCost, costCurrency) : t('settings.usage.cards.none')}
+                />
+                <MetricCell
+                  label={t('settings.usage.cards.totalRequests')}
+                  trendValues={requestTrendValues}
+                  delta={getRatioChange(totalRequests, previousTotalRequests)}
+                  deltaLabel={t('settings.usage.cards.lastPeriod')}
+                  formatDelta={formatDelta}
+                  value={formatCompactNumber(totalRequests)}
+                />
+                <MetricCell
+                  label={t('settings.usage.cards.totalTokens')}
+                  trendValues={tokenTrendValues}
+                  delta={getRatioChange(totalTokens, previousTotalTokens)}
+                  deltaLabel={t('settings.usage.cards.lastPeriod')}
+                  formatDelta={formatDelta}
+                  value={formatCompactNumber(totalTokens)}
+                />
+                <MetricCell
+                  label={t('settings.usage.cards.cacheHitRate')}
+                  trendValues={cacheHitRateTrendValues}
+                  delta={cacheHitRateDelta}
+                  deltaLabel={t('settings.usage.cards.lastPeriod')}
+                  formatDelta={formatDelta}
+                  value={
+                    cacheMetrics.hitRate !== undefined ? (
+                      hitRateFormatter.format(cacheMetrics.hitRate)
+                    ) : (
+                      <span className="text-sm leading-5">{t('settings.usage.cards.cacheStartsWithNewRequests')}</span>
+                    )
+                  }
+                  helper={
+                    cacheMetrics.hitRate !== undefined
+                      ? t('settings.usage.cards.cacheObservedTokens', {
+                          tokens: formatCompactNumber(cacheMetrics.observableTokens)
+                        })
+                      : undefined
+                  }
+                />
+              </div>
+            )}
 
-          {!isInitialLoading && hasUsage && (
-            <div className="grid min-w-0 @[820px]/usage:grid-cols-4 grid-cols-1 @[820px]/usage:divide-x divide-y @[820px]/usage:divide-y-0 divide-border border-border border-b">
-              <InsightCell
-                label={t('settings.usage.cards.activeDays')}
-                value={activeDays}
-                helper={t('settings.usage.cards.streak', { days: longestStreak })}
-              />
-              <InsightCell
-                label={t('settings.usage.cards.peakDay')}
-                value={peakDay ? formatCompactNumber(peakDay.totalTokens) : t('settings.usage.cards.none')}
-                helper={peakDay ? dateFormatter.format(parseDateKey(peakDay.date)) : undefined}
-              />
-              <InsightCell
-                label={t('settings.usage.cards.topModel')}
-                value={
-                  topModel?.modelId ? (
-                    <UsageModelLabel modelId={topModel.modelId} providerId={topModel.providerId ?? ''} size={16}>
-                      {displayModelId(topModel.modelId)}
-                    </UsageModelLabel>
-                  ) : (
-                    t('settings.usage.cards.none')
-                  )
-                }
-                helper={topModel ? formatCompactNumber(topModel.totalTokens) : undefined}
-              />
-              <InsightCell
-                label={t('settings.usage.cards.dailyAverage')}
-                value={formatCompactNumber(activeDays > 0 ? totalTokens / activeDays : 0)}
-                helper={t('settings.usage.tooltip.requests', { count: totalRequests })}
-              />
-            </div>
-          )}
+            {!isInitialLoading && hasUsage && (
+              <div className="grid min-w-0 @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4 grid-cols-1 gap-px border-border border-b bg-border">
+                <InsightCell
+                  label={t('settings.usage.cards.activeDays')}
+                  value={activeDays}
+                  helper={t('settings.usage.cards.streak', { days: longestStreak })}
+                />
+                <InsightCell
+                  label={t('settings.usage.cards.peakDay')}
+                  value={peakDay ? formatCompactNumber(peakDay.totalTokens) : t('settings.usage.cards.none')}
+                  helper={peakDay ? dateFormatter.format(parseDateKey(peakDay.date)) : undefined}
+                />
+                <InsightCell
+                  label={t('settings.usage.cards.topModel')}
+                  value={
+                    topModel?.modelId ? (
+                      <UsageModelLabel modelId={topModel.modelId} providerId={topModel.providerId ?? ''} size={16}>
+                        {displayModelId(topModel.modelId)}
+                      </UsageModelLabel>
+                    ) : (
+                      t('settings.usage.cards.none')
+                    )
+                  }
+                  helper={topModel ? formatCompactNumber(topModel.totalTokens) : undefined}
+                />
+                <InsightCell
+                  label={t('settings.usage.cards.dailyAverage')}
+                  value={formatCompactNumber(activeDays > 0 ? totalTokens / activeDays : 0)}
+                  helper={t('settings.usage.tooltip.requests', { count: totalRequests })}
+                />
+              </div>
+            )}
 
-          {hasUsage && (
-            <UsageHeatmap
-              buckets={timelineBuckets}
-              selectedDate={selectedDate}
-              metric={heatmapMetric}
-              onMetricChange={setHeatmapMetric}
-              onSelectDate={(date) => setSelectedDate((current) => (current === date ? undefined : date))}
-              costCurrency={costCurrency}
-              isLoading={timelineLoading}
-              range={windowRange}
-            />
-          )}
+            {hasUsage && (
+              <div className="@[640px]/usage:p-4 p-3">
+                <UsageHeatmap
+                  buckets={timelineBuckets}
+                  selectedDate={selectedDate}
+                  metric={heatmapMetric}
+                  onMetricChange={setHeatmapMetric}
+                  onSelectDate={(date) => setSelectedDate((current) => (current === date ? undefined : date))}
+                  costCurrency={costCurrency}
+                  isLoading={timelineLoading}
+                  range={windowRange}
+                />
+              </div>
+            )}
 
-          {!hasUsage && !isInitialLoading && (
-            <EmptyState
-              compact
-              preset="no-result"
-              title={t('settings.usage.empty.title')}
-              description={t('settings.usage.empty.description')}
-              className="rounded-lg bg-muted/30"
-            />
-          )}
+            {!hasUsage && !isInitialLoading && (
+              <div className="@[640px]/usage:p-4 p-3">
+                <EmptyState
+                  compact
+                  preset="no-result"
+                  title={t('settings.usage.empty.title')}
+                  description={t('settings.usage.empty.description')}
+                />
+              </div>
+            )}
+          </UsagePanel>
         </UsageSection>
 
-        <UsageSection variant="plain" className={cn(!hasUsage && 'hidden')}>
+        <UsageSection className={cn(!hasUsage && 'hidden')}>
           <UsageSectionHeader>
             <div className="min-w-0">
-              <h2 className="font-semibold text-base text-foreground">
+              <UsageSectionTitle>
                 {selectedDateLabel
                   ? t('settings.usage.explore.drilldownTitle', { date: selectedDateLabel })
                   : t('settings.usage.explore.title')}
-              </h2>
+              </UsageSectionTitle>
               {selectedDateLabel && (
                 <div className="mt-1 flex items-center gap-2 text-foreground-muted text-xs">
                   <span>{t('settings.usage.explore.selectedDate', { date: selectedDateLabel })}</span>
@@ -555,12 +564,12 @@ function UsageSettings() {
             </div>
           </UsageSectionHeader>
 
-          <div className="flex min-w-0 flex-col gap-4">
-            <div className="flex min-w-0 flex-col rounded-lg border border-border bg-background">
-              <div className="flex min-w-0 flex-col gap-3 border-border border-b p-3">
+          <div className="flex min-w-0 flex-col gap-3">
+            <UsagePanel>
+              <UsagePanelHeader className="flex min-w-0 flex-col gap-3">
                 <div className="flex min-w-0 @[760px]/usage:flex-row flex-col @[760px]/usage:items-start @[760px]/usage:justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-medium text-foreground text-sm">{t('settings.usage.explore.analysis')}</div>
+                    <UsagePanelTitle>{t('settings.usage.explore.analysis')}</UsagePanelTitle>
                     <div className="mt-1 text-foreground-muted text-xs">
                       {analysisSummary} / {formatChartValue(totalExploreMetric)}
                     </div>
@@ -624,7 +633,7 @@ function UsageSettings() {
                     </PopoverContent>
                   </Popover>
                 </div>
-              </div>
+              </UsagePanelHeader>
               <UsageDistributionChart
                 activeRange={activeRange}
                 timelineBuckets={timelineBuckets}
@@ -645,7 +654,7 @@ function UsageSettings() {
                 getBucketLabel={getBucketLabel}
                 renderBucketLabel={renderBucketLabel}
               />
-            </div>
+            </UsagePanel>
 
             <UsageEntriesTable
               entries={entries}
@@ -658,7 +667,6 @@ function UsageSettings() {
               onSort={handleEntrySort}
               onLoadNext={loadNextEntryPage}
               getProviderInfo={getProviderInfo}
-              getApiKeyLabel={getApiKeyLabel}
               dateFormatter={entryDateFormatter}
               timeFormatter={entryTimeFormatter}
             />

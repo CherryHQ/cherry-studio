@@ -123,6 +123,12 @@ type PendingAgentSessionTurn = {
   reasoningEffort: ReasoningEffortOption
 }
 
+type SteerContinuationReservation = {
+  assistantMessageId: string
+  userMessageId: string
+  messageSnapshot?: MessageSnapshot
+}
+
 type AgentSessionConnectionTarget = {
   modelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
@@ -168,6 +174,9 @@ type AgentSessionRuntimeEntry = {
   rollSteerInputs?: AgentRuntimeUserInput[]
   /** Whether the post-steer continuation turn should keep responder-less/headless enforcement. */
   rollHeadless?: boolean
+  /** Gateway correlation reserved synchronously when a steer is injected, before the post-steer
+   *  provider request can enter the local gateway. The later boundary persists A2 with this id. */
+  steerContinuationReservation?: SteerContinuationReservation
   compacting?: boolean
   /** A `system/api_retry` backoff is in flight — set so its ephemeral cache state is cleared exactly
    *  once when content resumes / the turn settles / the connection closes. */
@@ -276,6 +285,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.messageSnapshot = messageSnapshot
       existing.status = 'active'
       existing.currentTurn = turn
+      existing.steerContinuationReservation = undefined
 
       return {
         listeners: [
@@ -316,17 +326,41 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Resolve the trusted gateway correlation into the active turn's immutable source.
-   * The gateway calls this at provider-request ingress, before any later agent edit or
-   * deletion can affect usage persistence.
+   * Resolve the trusted gateway correlation into the reserved continuation or active turn.
+   * The gateway calls this at provider-request ingress, before any later agent edit,
+   * message roll, or deletion can affect usage persistence.
    */
   getActiveUsageContext(sessionId: string): InProcessUsageContext | undefined {
-    const turn = this.entries.get(sessionId)?.currentTurn
+    const entry = this.entries.get(sessionId)
+    const reservation = entry?.steerContinuationReservation
+    if (reservation) {
+      return {
+        agentSessionId: sessionId,
+        assistantMessageId: reservation.assistantMessageId,
+        source: sourceSnapshotFromMessageSnapshot(reservation.messageSnapshot)
+      }
+    }
+
+    const turn = entry?.currentTurn
     if (!turn || turn.terminalStatus) return undefined
     return {
       agentSessionId: sessionId,
       assistantMessageId: turn.assistantMessageId,
       source: sourceSnapshotFromMessageSnapshot(turn.messageSnapshot)
+    }
+  }
+
+  private reserveSteerContinuation(entry: AgentSessionRuntimeEntry, inputs: AgentRuntimeUserInput[]): void {
+    if (!this.isCurrentEntry(entry) || entry.usageCapture?.owner !== 'provider-calls') return
+    const turn = entry.currentTurn
+    const steerMessage = inputs[0]?.message
+    if (!turn || turn.terminalStatus || !steerMessage || entry.steerContinuationReservation) return
+
+    const messageSnapshot = entry.pendingSnapshots?.get(steerMessage.id) ?? entry.messageSnapshot
+    entry.steerContinuationReservation = {
+      assistantMessageId: uuidv7(),
+      userMessageId: steerMessage.id,
+      ...(messageSnapshot ? { messageSnapshot: structuredClone(messageSnapshot) } : {})
     }
   }
 
@@ -602,8 +636,10 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.rollBuffer = undefined
       entry.rollSteerInputs = undefined
       entry.rollHeadless = undefined
+      entry.steerContinuationReservation = undefined
     }
 
+    entry.steerContinuationReservation = undefined
     entry.status = 'idle'
     entry.lastTerminalStatus = status
     if (entry.currentTurn) entry.currentTurn.terminalStatus = status
@@ -855,7 +891,8 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: target.modelId,
       reasoningEffort: target.reasoningEffort,
       resumeToken: entry.lastResumeToken,
-      trace: this.sessionTraceContext(entry, target.modelId)
+      trace: this.sessionTraceContext(entry, target.modelId),
+      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       void Promise.resolve(connection.close()).catch((error) =>
@@ -964,6 +1001,7 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'turn-complete':
         this.clearApiRetry(entry)
+        if (!entry.rolling) entry.steerContinuationReservation = undefined
         this.closeCurrentTurn(entry, 'success')
         this.refreshContextUsage(entry)
         break
@@ -1121,6 +1159,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
     this.clearApiRetry(entry)
+    entry.steerContinuationReservation = undefined
     if (entry.compacting) {
       this.settleCompactionError(entry, error instanceof Error ? error.message : String(error))
     }
@@ -1335,6 +1374,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * The steer message is reused only for rename/seed context — U2 is already a persisted row.
    */
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
+    const reservation = entry.steerContinuationReservation
     const modelId = entry.currentTurn?.modelId ?? entry.modelId
     const reasoningEffort = entry.currentTurn?.reasoningEffort ?? 'default'
     const steerMessage = entry.rollSteerInputs?.[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
@@ -1342,7 +1382,10 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.rollSteerInputs = undefined
     entry.rollHeadless = undefined
     // The continuation answers the steered follow-up — freeze its submit-time author, not the entry's.
-    const messageSnapshot = entry.pendingSnapshots?.get(steerMessage.id) ?? entry.messageSnapshot
+    const messageSnapshot =
+      reservation?.userMessageId === steerMessage.id
+        ? reservation.messageSnapshot
+        : (entry.pendingSnapshots?.get(steerMessage.id) ?? entry.messageSnapshot)
     entry.pendingSnapshots?.delete(steerMessage.id)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
@@ -1351,6 +1394,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessage = agentSessionMessageService.saveMessage({
         sessionId: entry.sessionId,
         message: {
+          ...(reservation ? { id: reservation.assistantMessageId } : {}),
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
@@ -1365,12 +1409,14 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.rolling = false
       entry.rollBuffer = undefined
       entry.rollHeadless = undefined
+      entry.steerContinuationReservation = undefined
       application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
       return
     }
 
     const assistantMessageId = assistantMessage.id
+    entry.steerContinuationReservation = undefined
     const turnId = crypto.randomUUID()
     entry.currentTurn = {
       turnId,
@@ -1550,6 +1596,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.rollBuffer = undefined
     entry.rollSteerInputs = undefined
     entry.rollHeadless = undefined
+    entry.steerContinuationReservation = undefined
     if (entry.compacting) {
       application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
         status: 'idle'

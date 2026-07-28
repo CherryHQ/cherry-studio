@@ -26,7 +26,7 @@ queue, and `resume` handling are driver internals.
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | `ClaudeCodeRuntimeDriver` | Converts Claude SDK messages into generic runtime events and maps opaque resume tokens to Claude SDK `resume`. |
 | Usage capture | Direct/external routes emit one record input per Claude SDK assistant request; gateway routes use AiService provider-call middleware and ignore SDK aggregate usage. |
-| Runtime timing | `AiStreamManager` owns the message clock. Direct/external tools contribute SDK `PostToolUse`/`PostToolUseFailure.duration_ms`; approval waits are captured independently from approval request to decision/abort. |
+| Runtime timing | `AiStreamManager` owns the message clock. Claude SDK `PostToolUse`/`PostToolUseFailure` hooks contribute tool spans for direct/external and gateway-backed routes using `duration_ms`; approval waits are captured independently from approval request to decision/abort. |
 
 ## Fresh turn
 
@@ -195,7 +195,10 @@ first non-reasoning output. If a step omits `ttft_ms`, TTFT and completion stay
 null rather than treating stream-only duration as the whole provider call.
 Before a steer boundary the driver flushes pending usage, so the host binds
 that invocation to the pre-steer assistant row; the next invocation binds to
-the continuation row. See
+the continuation row. Gateway-backed connections additionally reserve the
+continuation message id synchronously at injection time, before the SDK can
+issue that invocation through the local gateway; A2 later reuses the reserved
+id when the boundary arrives. See
 [AI Usage Records](./ai-usage-records.md#agent-runtime-ownership).
 
 Tool timing and provider usage have separate owners: the post-tool hooks never

@@ -2179,6 +2179,7 @@ describe('AgentSessionRuntimeService', () => {
         modelId: 'claude-code::claude-sonnet-4-5',
         reasoningEffort: 'default',
         resumeToken: undefined,
+        onSteerInjected: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
@@ -2232,6 +2233,7 @@ describe('AgentSessionRuntimeService', () => {
         modelId: 'claude-code::claude-sonnet-4-5',
         reasoningEffort: 'default',
         resumeToken: 'resume-db',
+        onSteerInjected: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
@@ -2456,6 +2458,131 @@ describe('AgentSessionRuntimeService', () => {
 
       service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
+    })
+
+    it('reserves the gateway continuation before ingress and reuses it when A2 opens', async () => {
+      const events = createAsyncQueue<any>()
+      const connection = {
+        events: events.iterable,
+        usageCapture: { owner: 'provider-calls' as const },
+        send: vi.fn(),
+        redirect: vi.fn().mockReturnValue(true),
+        close: vi.fn()
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: userMessage('user-1'),
+        messageSnapshot: {
+          id: 'agent-1',
+          name: 'Original Agent',
+          emoji: '🧠',
+          model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
+        }
+      })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+      const steerMessage = userMessage('user-2')
+      const continuationSnapshot = {
+        id: 'agent-1',
+        name: 'Renamed Before Steer',
+        emoji: '🧭',
+        model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
+      }
+      service.enqueueUserMessage('session-1', steerMessage, { messageSnapshot: continuationSnapshot })
+      expect(service.getActiveUsageContext('session-1')?.assistantMessageId).toBe('assistant-1')
+
+      const injected = [{ message: steerMessage, systemReminder: true }]
+      const onSteerInjected = connect.mock.calls[0]?.[0].onSteerInjected
+      expect(onSteerInjected).toEqual(expect.any(Function))
+      onSteerInjected(injected)
+
+      const reservedContext = service.getActiveUsageContext('session-1')
+      expect(reservedContext).toMatchObject({
+        agentSessionId: 'session-1',
+        source: { type: 'agent', id: 'agent-1', name: 'Renamed Before Steer', icon: '🧭' }
+      })
+      expect(reservedContext?.assistantMessageId).not.toBe('assistant-1')
+
+      // The provider request enters the gateway with the reservation above. Only its later
+      // message_start emits this boundary and opens the visible A2 row with the exact same id.
+      events.push({ type: 'steer-boundary', inputs: injected })
+      await vi.waitFor(() => expect(getEntry(service).rolling).toBe(true))
+      await expect(reader.read()).resolves.toMatchObject({ done: true })
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
+      await vi.waitFor(() => expect(getEntry(service).currentTurn.userMessage.id).toBe('user-2'))
+
+      expect(getEntry(service).currentTurn.assistantMessageId).toBe(reservedContext?.assistantMessageId)
+      expect(mocks.saveMessage).toHaveBeenLastCalledWith({
+        sessionId: 'session-1',
+        message: {
+          id: reservedContext?.assistantMessageId,
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [] },
+          modelId: baseTurnInput.modelId,
+          messageSnapshot: continuationSnapshot
+        }
+      })
+
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('clears an unused gateway continuation reservation when the turn ends before a boundary', async () => {
+      const events = createAsyncQueue<any>()
+      const connection = {
+        events: events.iterable,
+        usageCapture: { owner: 'provider-calls' as const },
+        send: vi.fn(),
+        redirect: vi.fn().mockReturnValue(true),
+        close: vi.fn()
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+      const steerMessage = userMessage('user-2')
+      service.enqueueUserMessage('session-1', steerMessage)
+      connect.mock.calls[0]?.[0].onSteerInjected([{ message: steerMessage, systemReminder: true }])
+      expect(getEntry(service).steerContinuationReservation).toBeDefined()
+
+      events.push({ type: 'turn-complete' })
+      await expect(reader.read()).resolves.toMatchObject({ done: true })
+      expect(getEntry(service).steerContinuationReservation).toBeUndefined()
+
+      service.closeSession('session-1')
     })
 
     it('rolls the turn at a steer-boundary: finalises A1a, opens A2 without re-sending, replays buffered chunks', async () => {

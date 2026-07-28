@@ -21,7 +21,7 @@ export interface AiTransportOptions {
 /** In-process-only usage correlation; never accepted on renderer IPC schemas. */
 export interface InProcessUsageContext {
   agentSessionId: string
-  /** Assistant message active when the gateway request entered the turn. */
+  /** Assistant message that owns this request: a reserved steer continuation or the active turn. */
   assistantMessageId: string
   /** Immutable source captured by the owning Agent turn. `null` means intentionally unavailable. */
   source: SourceSnapshot | null

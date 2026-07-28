@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { formatCost, parseDateKey, startOfLocalDay, toDateKey } from './usageDisplay'
+import { UsagePanelTitle } from './UsageSettingsPrimitives'
 
 export type UsageHeatmapMetric = 'tokens' | 'cost'
 
@@ -219,7 +220,7 @@ export default function UsageHeatmap({
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex min-w-0 flex-col gap-2">
-        <div className="min-w-0 font-medium text-foreground text-sm">{t('settings.usage.heatmap.title')}</div>
+        <UsagePanelTitle className="min-w-0">{t('settings.usage.heatmap.title')}</UsagePanelTitle>
         <div className="-mx-1 max-w-[calc(100%+0.5rem)] overflow-x-auto px-1">
           <SegmentedControl options={metricOptions} value={metric} onValueChange={onMetricChange} size="sm" />
         </div>

@@ -196,7 +196,7 @@ function PerformanceTimeline({
         return (
           <div key={lane.id} className="grid grid-cols-[4.5rem_1fr] items-center gap-2">
             <span className="truncate text-[11px] text-foreground-muted leading-4">{laneLabel(lane.id)}</span>
-            <div className="relative h-3 overflow-hidden rounded-sm bg-background-soft">
+            <div className="relative h-3 overflow-hidden rounded-sm bg-background-subtle">
               {intervals.map((interval) => {
                 const left = Math.max(0, ((interval.startedAt - performance.startedAt!) / total) * 100)
                 const width = Math.max(0.5, ((interval.completedAt - interval.startedAt) / total) * 100)

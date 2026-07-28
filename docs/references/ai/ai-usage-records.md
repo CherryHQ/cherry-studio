@@ -361,10 +361,15 @@ the continuation.
 
 The connection carries `{ owner: 'provider-calls' }`; SDK usage events are
 ignored. Trusted in-process gateway context supplies the active assistant
-message id and frozen source to the normal AiService language middleware.
-After a steer, the next gateway request sees the new active message. If no
-active turn can be resolved, the provider invocation is still recorded as
-stateless and no association is guessed.
+message id (or a reserved steer continuation id) and frozen source to the
+normal AiService language middleware.
+When a `PreToolUse` hook actually injects a steer, the driver synchronously
+asks the host to reserve the continuation message id and frozen source before
+the hook returns. The next gateway request therefore captures that reservation;
+the later `steer-boundary` persists A2 with the same id. A turn that ends
+without reaching the boundary discards the unused reservation. If no active
+turn or reservation can be resolved, the provider invocation is still recorded
+as stateless and no association is guessed.
 
 ## Historical migration
 

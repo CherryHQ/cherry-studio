@@ -5,7 +5,6 @@ import type {
   AiUsageRecordStatsMetrics,
   AiUsageRecordTimelineBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
-import type { AiUsageRecordModality } from '@shared/data/types/aiUsageRecord'
 import type { Currency } from '@shared/data/types/model'
 import { CURRENCY } from '@shared/data/types/model'
 
@@ -91,13 +90,6 @@ export const ROLLUP_LABEL_KEYS: Record<UsageRollupKey, string> = {
   daily: 'settings.usage.rollup.daily',
   weekly: 'settings.usage.rollup.weekly',
   monthly: 'settings.usage.rollup.monthly'
-}
-
-export const MODALITY_LABEL_KEYS: Record<AiUsageRecordModality, string> = {
-  language: 'settings.usage.modality.language',
-  embedding: 'settings.usage.modality.embedding',
-  image: 'settings.usage.modality.image',
-  rerank: 'settings.usage.modality.rerank'
 }
 
 export interface TimeRange {

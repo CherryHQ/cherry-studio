@@ -182,7 +182,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  /** Validate the process-local proof, then capture the active turn's immutable source. */
+  /** Validate the process-local proof, then capture the reserved continuation or active turn. */
   resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
     if (headers.get(INTERNAL_USAGE_TOKEN_HEADER) !== this.internalUsageToken) return undefined
     const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()

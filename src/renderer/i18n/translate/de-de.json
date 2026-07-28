@@ -8189,12 +8189,6 @@
         "requests": "[to be translated]:Requests",
         "tokens": "[to be translated]:Tokens"
       },
-      "modality": {
-        "embedding": "[to be translated]:Embedding",
-        "image": "[to be translated]:Image",
-        "language": "[to be translated]:Language",
-        "rerank": "[to be translated]:Rerank"
-      },
       "overview": {
         "title": "[to be translated]:Overview"
       },
@@ -8208,7 +8202,7 @@
       "table": {
         "cost": "[to be translated]:Cost",
         "date": "[to be translated]:Date",
-        "request": "[to be translated]:Request",
+        "model": "[to be translated]:Model",
         "source": "[to be translated]:Source",
         "tokens": "[to be translated]:Tokens",
         "tps": "[to be translated]:TPS",

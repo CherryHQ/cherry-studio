@@ -1187,6 +1187,110 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('preserves message-start input buckets when terminal usage only reports output', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100,
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+      }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: {
+          id: 'sparse-terminal-request',
+          model: 'sonnet-sdk',
+          usage: {
+            input_tokens: 10,
+            output_tokens: 0,
+            cache_read_input_tokens: 2,
+            cache_creation_input_tokens: 3
+          }
+        }
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: {
+          input_tokens: null,
+          output_tokens: 7,
+          cache_read_input_tokens: null,
+          cache_creation_input_tokens: null
+        }
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'message_stop' }
+    })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'sparse-terminal-result',
+      usage: {
+        input_tokens: 10,
+        output_tokens: 7,
+        cache_read_input_tokens: 2,
+        cache_creation_input_tokens: 3
+      }
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen.filter((event) => event?.type === 'usage')).toEqual([
+      {
+        type: 'usage',
+        invocation: {
+          requestId: 'sparse-terminal-request',
+          model: 'sonnet-sdk',
+          messageAssociation: 'current-turn',
+          usage: {
+            inputTokens: 15,
+            outputTokens: 7,
+            totalTokens: 22,
+            noCacheTokens: 10,
+            cacheReadTokens: 2,
+            cacheWriteTokens: 3
+          }
+        }
+      }
+    ])
+    void connection.close()
+  })
+
   it('emits assistant usage without an active turn as a stateless invocation', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -1869,10 +1973,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100
     })
+    const onSteerInjected = vi.fn()
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet' as any,
+      onSteerInjected
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -1891,6 +1997,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // PreToolUse hook injects the steer → arms the boundary.
     const steer = { message: userMessage() }
     steerHolder.onInjected([steer])
+    expect(onSteerInjected).toHaveBeenCalledWith([steer])
 
     // A nested (subagent) message_start carries a parent_tool_use_id → must NOT roll.
     queryQueue.push({ type: 'stream_event', event: { type: 'message_start' }, parent_tool_use_id: 'tool-x' })

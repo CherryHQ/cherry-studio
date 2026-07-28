@@ -69,13 +69,11 @@ import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } f
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
-type InvocationUsageSnapshot = {
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
-  noCacheTokens: number
-  cacheReadTokens: number
-  cacheWriteTokens: number
+type InvocationUsageBuckets = {
+  outputTokens?: number
+  noCacheTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
 }
 
 type InvocationMetricSnapshot = {
@@ -95,8 +93,9 @@ type PendingInvocationUsage = {
   requestId: string
   model: string
   messageAssociation: 'current-turn' | 'stateless'
-  assistantUsage?: InvocationUsageSnapshot
-  terminalUsage?: InvocationUsageSnapshot
+  startUsage?: InvocationUsageBuckets
+  assistantUsage?: InvocationUsageBuckets
+  terminalUsage?: InvocationUsageBuckets
   timing?: InvocationTiming
   metrics?: InvocationMetricSnapshot
   completionObserved: boolean
@@ -110,7 +109,7 @@ type InvocationUsageInput = {
   cache_creation_input_tokens?: number | null
 }
 
-function invocationUsageSnapshot(usage: InvocationUsageInput): InvocationUsageSnapshot | undefined {
+function invocationUsageBuckets(usage: InvocationUsageInput): InvocationUsageBuckets | undefined {
   const reportedValues = [
     usage.input_tokens,
     usage.output_tokens,
@@ -120,11 +119,35 @@ function invocationUsageSnapshot(usage: InvocationUsageInput): InvocationUsageSn
   if (reportedValues.length === 0 || reportedValues.some((value) => !Number.isFinite(value) || value < 0))
     return undefined
 
-  const noCacheTokens = usage.input_tokens ?? 0
-  const cacheReadTokens = usage.cache_read_input_tokens ?? 0
-  const cacheWriteTokens = usage.cache_creation_input_tokens ?? 0
+  return {
+    ...(usage.input_tokens != null ? { noCacheTokens: usage.input_tokens } : {}),
+    ...(usage.output_tokens != null ? { outputTokens: usage.output_tokens } : {}),
+    ...(usage.cache_read_input_tokens != null ? { cacheReadTokens: usage.cache_read_input_tokens } : {}),
+    ...(usage.cache_creation_input_tokens != null ? { cacheWriteTokens: usage.cache_creation_input_tokens } : {})
+  }
+}
+
+function mergeInvocationUsageBuckets(
+  current: InvocationUsageBuckets | undefined,
+  next: InvocationUsageBuckets | undefined
+): InvocationUsageBuckets | undefined {
+  if (!current) return next
+  if (!next) return current
+  return {
+    outputTokens: next.outputTokens ?? current.outputTokens,
+    noCacheTokens: next.noCacheTokens ?? current.noCacheTokens,
+    cacheReadTokens: next.cacheReadTokens ?? current.cacheReadTokens,
+    cacheWriteTokens: next.cacheWriteTokens ?? current.cacheWriteTokens
+  }
+}
+
+function materializeInvocationUsage(buckets: InvocationUsageBuckets | undefined) {
+  if (!buckets) return undefined
+  const noCacheTokens = buckets.noCacheTokens ?? 0
+  const cacheReadTokens = buckets.cacheReadTokens ?? 0
+  const cacheWriteTokens = buckets.cacheWriteTokens ?? 0
   const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
-  const outputTokens = usage.output_tokens ?? 0
+  const outputTokens = buckets.outputTokens ?? 0
   return {
     inputTokens,
     outputTokens,
@@ -140,7 +163,7 @@ function pendingInvocationFromAssistant(
   messageAssociation: PendingInvocationUsage['messageAssociation']
 ): PendingInvocationUsage {
   const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
-  const assistantUsage = isComplete ? invocationUsageSnapshot(message.message.usage) : undefined
+  const assistantUsage = isComplete ? invocationUsageBuckets(message.message.usage) : undefined
   return {
     requestId: message.message.id,
     model: message.message.model,
@@ -152,11 +175,11 @@ function pendingInvocationFromAssistant(
 }
 
 function selectAssistantUsage(
-  current: InvocationUsageSnapshot | undefined,
-  next: InvocationUsageSnapshot | undefined
-): InvocationUsageSnapshot | undefined {
+  current: InvocationUsageBuckets | undefined,
+  next: InvocationUsageBuckets | undefined
+): InvocationUsageBuckets | undefined {
   if (!next) return current
-  if (!current || next.outputTokens >= current.outputTokens) return next
+  if (!current || (next.outputTokens ?? 0) >= (current.outputTokens ?? 0)) return next
   return current
 }
 
@@ -187,14 +210,16 @@ function hasNonReasoningOutput(event: SDKPartialAssistantMessage['event']): bool
 }
 
 function mergePendingInvocation(current: PendingInvocationUsage, next: PendingInvocationUsage): PendingInvocationUsage {
+  const startUsage = mergeInvocationUsageBuckets(current.startUsage, next.startUsage)
   const assistantUsage = selectAssistantUsage(current.assistantUsage, next.assistantUsage)
-  const terminalUsage = next.terminalUsage ?? current.terminalUsage
+  const terminalUsage = mergeInvocationUsageBuckets(current.terminalUsage, next.terminalUsage)
   const timing = next.timing ?? current.timing
   const metrics = next.metrics ?? current.metrics
   return {
     requestId: current.requestId,
     model: next.model || current.model,
     messageAssociation: current.messageAssociation,
+    ...(startUsage ? { startUsage } : {}),
     ...(assistantUsage ? { assistantUsage } : {}),
     ...(terminalUsage ? { terminalUsage } : {}),
     ...(timing ? { timing } : {}),
@@ -374,6 +399,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (this.steerHolder) {
       this.steerHolder.onInjected = (inputs) => {
         this.steerBoundaryPending = inputs
+        // Reserve the host continuation synchronously before the hook returns. A gateway-backed
+        // subprocess can issue its next provider request before the later `message_start` reaches
+        // this query loop, so the async `steer-boundary` event is too late for request correlation.
+        this.input.onSteerInjected?.(inputs)
       }
     }
     void this.runQueryLoop()
@@ -501,16 +530,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async runQueryLoop(): Promise<void> {
     try {
       for await (const message of this.query!) {
-        if (this._usageCapture?.owner === 'agent-sdk') {
-          // Temporary diagnostic: captures the exact SDK iterator payload so direct-provider
-          // `stream_event`, durable `assistant`, and aggregate `result` usage can be compared.
-          // Payloads include content; remove after provider compatibility testing is complete.
-          logger.info('[AI_USAGE_DIAGNOSTIC] Claude Agent SDK message', {
-            sessionId: this.input.sessionId,
-            sdkPayload: message
-          })
-        }
-
         if (message.type === 'system' && message.subtype === 'init') {
           this.updateResumeToken(message.session_id)
           if (!this.adapter) {
@@ -741,11 +760,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const lane = this.invocationLane(message.parent_tool_use_id)
     if (message.event.type === 'message_start') {
       const sdkMessage = message.event.message
+      const startUsage = invocationUsageBuckets(sdkMessage.usage)
       const ttftMs = finiteNonnegativeDuration(message.ttft_ms)
       this.captureInvocationForLane(lane, {
         requestId: sdkMessage.id,
         model: sdkMessage.model,
         messageAssociation,
+        ...(startUsage ? { startUsage } : {}),
         timing: {
           streamStartedAt: performance.now(),
           ...(ttftMs !== undefined ? { ttftMs } : {})
@@ -769,7 +790,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (message.event.type === 'message_delta') {
       const current = this.pendingInvocations.get(requestId)
       if (!current) return
-      const terminalUsage = invocationUsageSnapshot(message.event.usage)
+      const terminalUsage = invocationUsageBuckets(message.event.usage)
       const isStreamStopped = message.event.delta.stop_reason !== null
       const finalized = isStreamStopped ? this.finalizeInvocationTiming(current) : current
       this.pendingInvocations.set(requestId, {
@@ -898,7 +919,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
     }
     this.committedInvocationIds.add(pending.requestId)
-    const usage = pending.terminalUsage ?? pending.assistantUsage
+    const usage = materializeInvocationUsage(
+      mergeInvocationUsageBuckets(
+        mergeInvocationUsageBuckets(pending.startUsage, pending.assistantUsage),
+        pending.terminalUsage
+      )
+    )
     this.eventQueue.push({
       type: 'usage',
       invocation: {

@@ -34,6 +34,12 @@ export interface AgentRuntimeConnectInput {
   reasoningEffort?: ReasoningEffortOption
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
+  /**
+   * Synchronous host hook fired when a pending steer is actually injected. The host uses this
+   * before the SDK can issue its next provider request to reserve the continuation correlation;
+   * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
+   */
+  onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
 }
 
 export interface AgentRuntimeUserInput {
