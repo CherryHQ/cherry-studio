@@ -22,7 +22,7 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Model } from '@shared/data/types/model'
-import { getFileTypeByExt, imageExts } from '@shared/utils/file'
+import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 import { Settings2 } from 'lucide-react'
 import { type FC, useCallback, useMemo, useState } from 'react'
@@ -205,14 +205,15 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const support = useImageGenerationSupport(painting.providerId, painting.model)
   const imageRequired =
     couldAddImageFile && !!support?.modes && !support.modes.generate && Object.keys(support.modes).length > 0
-  // Gate on the *transferred* input images (`painting.inputFiles`, image-type only) —
-  // the state generation actually consumes — not the transient composer `files`, so an
-  // attachment still being transferred can't slip through as a valid image. The pipeline
-  // (`canonicalGenerate`) enforces the same rule authoritatively as a backstop.
-  const inputImageCount = (painting.inputFiles ?? []).filter(
-    (entry) => getFileTypeByExt(entry.ext ?? '') === FILE_TYPE.IMAGE
-  ).length
-  const missingRequiredImage = imageRequired && inputImageCount === 0
+  // Gate on the composer's own `files` — the chips the user sees in the image tray.
+  // `painting.inputFiles` is NOT usable here: inputs are materialized at generate time
+  // (usePaintingComposerInputFiles), so during the draft it still holds the *previous*
+  // run's entries. Reading it would leave a freshly-attached image invisible to the gate
+  // (edit-only send stuck disabled forever) and would keep the gate open after the last
+  // chip is removed. `canonicalGenerate` re-checks `EDIT_IMAGE_REQUIRED` on the
+  // materialized entries, so this gate only has to match what the user can see.
+  const draftImageCount = files.filter((file) => file.type === FILE_TYPE.IMAGE).length
+  const missingRequiredImage = imageRequired && draftImageCount === 0
 
   const placeholder = !couldAddImageFile
     ? t('paintings.prompt_placeholder')

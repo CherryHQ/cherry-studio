@@ -1,4 +1,8 @@
 import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
+import { FILE_TYPE } from '@renderer/types/file'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { FileEntry } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +19,10 @@ const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
 const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
 const mockMaterializeInputs = vi.hoisted(() => vi.fn())
 const mockIsEditImageModel = vi.hoisted(() => vi.fn(() => false))
+// The composer's live draft attachments. Mutable because the image-required gate
+// reads them, and its whole contract is that it tracks the draft rather than the
+// last-generated `painting.inputFiles`.
+const composerState = vi.hoisted(() => ({ files: [] as ComposerAttachment[] }))
 
 const imageGenerationSupportWithFields = {
   modes: {
@@ -58,7 +66,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   ComposerToolDerivedStateProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   ComposerToolRuntimeHost: () => null,
-  useComposerToolState: () => ({ files: [], isExpanded: false }),
+  useComposerToolState: () => ({ files: composerState.files, isExpanded: false }),
   useComposerToolDispatch: () => ({ setFiles: vi.fn(), setIsExpanded: vi.fn() }),
   useComposerToolLauncherActions: () => ({ getLaunchers: () => [], dispatchLauncher: vi.fn() }),
   useComposerToolLauncherVersion: () => 0,
@@ -155,9 +163,23 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
   return { onPromptChange, onGenerate }
 }
 
+const imageAttachment = (id: string): ComposerAttachment => ({
+  fileTokenSourceId: id,
+  path: `/tmp/${id}.png` as AbsoluteFilePath,
+  name: id,
+  origin_name: `${id}.png`,
+  ext: '.png',
+  size: 1,
+  type: FILE_TYPE.IMAGE
+})
+
+/** Edit-only: an `edit` mode and no `generate` mode ⇒ an image is mandatory. */
+const editOnlySupport = { modes: { edit: { supports: {} } } }
+
 describe('PaintingComposer', () => {
   beforeEach(() => {
     captured.surfaceProps = undefined
+    composerState.files = []
     mockUseImageGenerationSupport.mockReset()
     mockUseImageGenerationSupport.mockReturnValue(imageGenerationSupportWithFields)
     mockMaterializeInputs.mockReset()
@@ -184,13 +206,51 @@ describe('PaintingComposer', () => {
 
   it('gates send and shows a reason for edit-only models missing an image', () => {
     mockIsEditImageModel.mockReturnValue(true)
-    // edit mode but no `generate` mode ⇒ image required.
-    mockUseImageGenerationSupport.mockReturnValue({ modes: { edit: { supports: {} } } })
+    mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
     renderComposer({ painting: makePainting({ prompt: 'make the sky purple' }) })
     // Blocked even with prompt text, because no image is attached (files mock is empty).
     expect(captured.surfaceProps?.sendDisabled).toBe(true)
     expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
     expect(captured.surfaceProps?.placeholder).toBe('paintings.prompt_placeholder_upload_required')
+  })
+
+  it('releases the edit-only gate as soon as an image is in the draft', () => {
+    // The gate must read the draft, not `painting.inputFiles`. Inputs are only
+    // materialized onto the painting at generate time, so on a fresh edit-only
+    // painting `inputFiles` stays empty no matter how many images are attached —
+    // gating on it left send permanently disabled and materialization unreachable.
+    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
+    composerState.files = [imageAttachment('a')]
+    renderComposer({ painting: makePainting({ prompt: 'make the sky purple', inputFiles: [] }) })
+    expect(captured.surfaceProps?.sendDisabled).toBe(false)
+    expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
+  it('re-arms the edit-only gate when the last draft image is removed', () => {
+    // The mirror failure: a painting that already generated carries entries in
+    // `inputFiles`, so a gate reading them stays open after the user clears the
+    // tray — and the send would reach the model with no image at all.
+    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
+    composerState.files = []
+    renderComposer({
+      painting: makePainting({
+        prompt: 'make the sky purple',
+        inputFiles: [{ id: 'fe-1', ext: 'png' } as unknown as FileEntry]
+      })
+    })
+    expect(captured.surfaceProps?.sendDisabled).toBe(true)
+    expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
+  })
+
+  it('ignores non-image draft attachments when gating an edit-only model', () => {
+    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
+    composerState.files = [{ ...imageAttachment('doc'), ext: '.pdf', type: FILE_TYPE.DOCUMENT }]
+    renderComposer({ painting: makePainting({ prompt: 'make the sky purple' }) })
+    expect(captured.surfaceProps?.sendDisabled).toBe(true)
+    expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
   })
 
   it('does not gate on image for edit models that can also generate from text', () => {
@@ -201,32 +261,6 @@ describe('PaintingComposer', () => {
     renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
     expect(captured.surfaceProps?.sendDisabled).toBe(false)
     expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
-  })
-
-  it('lifts the gate once a transferred image is in painting.inputFiles', () => {
-    mockIsEditImageModel.mockReturnValue(true)
-    mockUseImageGenerationSupport.mockReturnValue({ modes: { edit: { supports: {} } } })
-    renderComposer({
-      painting: makePainting({
-        prompt: 'make the sky purple',
-        inputFiles: [{ id: 'f1', ext: 'png' }] as unknown as PaintingData['inputFiles']
-      })
-    })
-    expect(captured.surfaceProps?.sendDisabled).toBe(false)
-    expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
-  })
-
-  it('keeps gating when the only transferred input is a non-image file', () => {
-    mockIsEditImageModel.mockReturnValue(true)
-    mockUseImageGenerationSupport.mockReturnValue({ modes: { edit: { supports: {} } } })
-    renderComposer({
-      painting: makePainting({
-        prompt: 'make the sky purple',
-        inputFiles: [{ id: 'note', ext: 'txt' }] as unknown as PaintingData['inputFiles']
-      })
-    })
-    expect(captured.surfaceProps?.sendDisabled).toBe(true)
-    expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
   })
 
   it('renders the model selector control in the toolbar', () => {
