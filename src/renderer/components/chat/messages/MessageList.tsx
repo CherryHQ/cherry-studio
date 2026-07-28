@@ -630,7 +630,7 @@ const MessageList = () => {
           aria-hidden="true"
           data-topic-image-capture
           className={classNames(
-            '-left-[10000px] pointer-events-none fixed top-0 overflow-visible bg-chat-canvas-solid text-foreground',
+            '-left-[10000px] pointer-events-none fixed top-0 overflow-visible bg-chat-message-well-solid text-foreground',
             !topicImageCaptureWidth && 'w-full'
           )}
           style={topicImageCaptureWidth ? { width: `${topicImageCaptureWidth}px` } : undefined}>

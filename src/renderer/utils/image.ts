@@ -166,7 +166,7 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
  * 捕获可滚动元素的完整内容图像。
  * @param elRef 可滚动元素的引用
  * @param backdropVariable 用作画布底色的 CSS 变量名。默认 `--background` 适用于普通页面
- *   （如笔记导图）；对话导图要传 `--chat-canvas`，否则导出的底色跟屏幕上看到的对不上。
+ *   （如笔记导图）；对话导图要传 `--chat-message-well-solid`，否则导出的底色跟屏幕上看到的对不上。
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
 export const captureScrollable = async (

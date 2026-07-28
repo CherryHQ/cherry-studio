@@ -92,12 +92,12 @@ export interface MessageMenuConfig {
 
 /**
  * Backdrop the conversation image exports paint behind the captured messages.
- * The solid variant, not `--chat-canvas` itself: an export has no window behind
- * it, so it needs the tone the canvas resolves to rather than the translucent
+ * The solid variant, not `--chat-message-well` itself: an export has no window behind
+ * it, so it needs the tone the message well resolves to rather than the translucent
  * value, which would leave the PNG semi-transparent. The generic `--background`
  * default would make the export lighter than the conversation on screen.
  */
-export const CHAT_CAPTURE_BACKDROP_VARIABLE = '--chat-canvas-solid'
+export const CHAT_CAPTURE_BACKDROP_VARIABLE = '--chat-message-well-solid'
 
 export const defaultMessageMenuExportOptions: MessageMenuExportOptions = {
   image: false,
