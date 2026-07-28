@@ -88,14 +88,10 @@ export async function writeIfUnchanged(
   }
 }
 
-export function createWriteStream(deps: FileManagerDeps, id: FileEntryId, onSettled?: () => void): AtomicWriteStream {
+export function createWriteStream(deps: FileManagerDeps, id: FileEntryId): AtomicWriteStream {
   const entry = deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry)
   const stream = createAtomicWriteStream(physical)
-  stream.once('error', () => onSettled?.())
-  stream.once('close', () => {
-    if (!stream.writableFinished) onSettled?.()
-  })
   stream.once('finish', async () => {
     try {
       const s = await fsStat(physical)
@@ -117,8 +113,6 @@ export function createWriteStream(deps: FileManagerDeps, id: FileEntryId, onSett
         id,
         err
       })
-    } finally {
-      onSettled?.()
     }
   })
   return stream

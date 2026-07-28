@@ -2,7 +2,6 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -299,10 +298,6 @@ export class KnowledgeService extends BaseService {
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    return profileMutationBarrier.runMutation(() => this.createBaseWithinBarrier(dto))
-  }
-
-  private async createBaseWithinBarrier(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const base = knowledgeBaseService.create(dto)
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
@@ -365,10 +360,6 @@ export class KnowledgeService extends BaseService {
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
-    return profileMutationBarrier.runMutation(() => this.restoreBaseWithinBarrier(dto))
-  }
-
-  private async restoreBaseWithinBarrier(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     const sourceBase = knowledgeBaseService.getById(dto.sourceBaseId)
 
     const createDto: CreateKnowledgeBaseDto = {
