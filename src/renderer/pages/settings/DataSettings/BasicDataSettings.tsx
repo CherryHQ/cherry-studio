@@ -3,7 +3,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -15,13 +14,12 @@ import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
-import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import { FolderOutput } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import BackupPopup from './BackupPopup'
-import RestorePopup from './RestorePopup'
+import BackupV2Settings from './BackupV2Settings'
 
 const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
 
@@ -30,7 +28,6 @@ const BasicDataSettings: React.FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<string>('')
   const { theme } = useTheme()
-  const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
   useEffect(() => {
@@ -214,31 +211,7 @@ const BasicDataSettings: React.FC = () => {
 
   return (
     <>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.data.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={() => BackupPopup.show()} variant="outline">
-              <SaveIcon size={14} />
-              {t('settings.general.backup.button')}
-            </Button>
-            <Button onClick={() => RestorePopup.show()} variant="outline">
-              <FolderOpen size={14} />
-              {t('settings.general.restore.button')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-          <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
-        </SettingRow>
-        <SettingRow>
-          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-        </SettingRow>
-      </SettingGroup>
+      <BackupV2Settings />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
         <SettingDivider />

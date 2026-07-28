@@ -108,8 +108,6 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-import BackupPopup from '@renderer/pages/settings/DataSettings/BackupPopup'
-
 import ContentPopup from '../ContentPopup'
 
 beforeEach(() => {
@@ -155,19 +153,5 @@ describe('popup overlay close opt-out', () => {
 
     // The overlay click is suppressed, so the popup stays on screen.
     expect(screen.getByText('Non dismissable content')).toBeInTheDocument()
-  })
-
-  it('keeps BackupPopup open when clicking the overlay', async () => {
-    render(<PopupHost />)
-
-    act(() => {
-      void BackupPopup.show()
-    })
-
-    await screen.findByText('backup.content')
-
-    fireEvent.click(screen.getByTestId('dialog-overlay'))
-
-    expect(screen.getByText('backup.content')).toBeInTheDocument()
   })
 })
