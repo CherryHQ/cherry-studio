@@ -12,6 +12,14 @@ export default defineProvider({
     'openai-chat-completions': {
       adapterFamily: 'aihubmix',
       baseUrl: 'https://aihubmix.com/v1'
+    },
+    'openai-responses': {
+      adapterFamily: 'aihubmix',
+      baseUrl: 'https://aihubmix.com/v1'
+    },
+    'google-generate-content': {
+      adapterFamily: 'aihubmix',
+      baseUrl: 'https://aihubmix.com/gemini/v1beta'
     }
   },
   metadata: {

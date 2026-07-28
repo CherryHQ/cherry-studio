@@ -10,7 +10,7 @@ import RagConfigPanel from '../RagConfigPanel'
 const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
 const mockEnableEmbedding = vi.fn()
-// embedMany goes through ipcApi.request('ai.embed_many', …) now (Main IPC).
+// embedMany goes through ipcApi.request('ai.embedding.embed_many', …) now (Main IPC).
 const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
@@ -210,7 +210,7 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
 // Stub the download button as a plain button that fires onSelected with the local
 // model id, so tests can drive the "download finished → auto-select + save" path.
 // Async factory + dynamic import keeps the id out of the hoisted-factory scope rules.
-vi.mock('../LocalEmbeddingDownloadButton', async () => {
+vi.mock('../../../components/LocalEmbeddingDownloadButton', async () => {
   const { LOCAL_EMBEDDING_UNIQUE_MODEL_ID: localModelId } = await import('@shared/data/presets/localEmbedding')
   return {
     default: ({ onSelected }: { onSelected: (modelId: string) => void }) => (

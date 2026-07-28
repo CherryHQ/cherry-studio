@@ -1,8 +1,9 @@
 import { Badge, Dialog, DialogContent, DialogHeader, DialogTitle, Separator } from '@cherrystudio/ui'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type { InstalledSkill } from '@shared/types/skill'
 import type { TFunction } from 'i18next'
 import { Clock, ToolCase } from 'lucide-react'
-import type { FC } from 'react'
+import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -35,13 +36,47 @@ function timeAgo(t: TFunction, dateStr: string): string {
 
 const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
   const { t } = useTranslation()
+  const [dialogOpen, setDialogOpen] = useState(open)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current === null) return
+
+    clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = null
+  }, [])
+
+  useEffect(() => {
+    clearCloseTimer()
+    setDialogOpen(open)
+  }, [clearCloseTimer, open, skill?.id])
+
+  useEffect(() => clearCloseTimer, [clearCloseTimer])
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      clearCloseTimer()
+      setDialogOpen(nextOpen)
+
+      if (nextOpen) {
+        onOpenChange(true)
+        return
+      }
+
+      closeTimerRef.current = setTimeout(() => {
+        closeTimerRef.current = null
+        onOpenChange(false)
+      }, DIALOG_UNMOUNT_DELAY_MS)
+    },
+    [clearCloseTimer, onOpenChange]
+  )
 
   if (!skill) return null
 
   const sourceTags = skill.sourceTags ?? []
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-2xl">
         <DialogHeader className="pr-8">
           <div className="flex min-w-0 items-start gap-3">

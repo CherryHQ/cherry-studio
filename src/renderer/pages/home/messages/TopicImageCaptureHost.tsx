@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import { useMessageImageCaptureMessages } from '@renderer/components/chat/messages/hooks/useMessageImageCaptureMessages'
 import MessageImageCaptureHost from '@renderer/components/chat/messages/MessageImageCaptureHost'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { projectBranchMessagesToUI } from '@renderer/hooks/useTopicMessages'
 import type { Topic } from '@renderer/types/topic'
 import type { BranchMessagesResponse, CherryUIMessage } from '@shared/data/types/message'
@@ -36,6 +37,7 @@ export async function getTopicImageCaptureMessages(topicId: string): Promise<Che
 }
 
 const TopicImageCaptureHostContent = ({ topic }: TopicImageCaptureHostProps) => {
+  const { assistant } = useAssistant(topic.assistantId, { loadDefaultModel: false })
   const loadMessages = useCallback(() => getTopicImageCaptureMessages(topic.id), [topic.id])
   const handleLoadError = useCallback(
     (error: unknown) => {
@@ -54,6 +56,7 @@ const TopicImageCaptureHostContent = ({ topic }: TopicImageCaptureHostProps) => 
 
   const messageList = useHomeMessageListProviderValue({
     topic,
+    assistant,
     messages: messages ?? [],
     partsByMessageId,
     isInitialLoading: false,

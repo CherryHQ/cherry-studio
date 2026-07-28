@@ -5,7 +5,8 @@ import {
   MockUseDataApiUtils,
   mockUseInfiniteQuery,
   mockUseInvalidateCache,
-  mockUseMutation
+  mockUseMutation,
+  mockUseQuery
 } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -192,6 +193,23 @@ describe('useSessions', () => {
 
     expect(result.current.sessions).toEqual([])
     expect(result.current.isLoading).toBe(false)
+  })
+
+  it('disables both session and pin queries when the source is disabled', () => {
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn() as never)
+
+    renderHook(() => useSessions(undefined, { enabled: false }))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/agent-sessions',
+      expect.objectContaining({
+        enabled: false
+      })
+    )
+    expect(mockUseQuery).toHaveBeenCalledWith('/pins', {
+      query: { entityType: 'session' },
+      enabled: false
+    })
   })
 
   it('flattens items from a single page', async () => {
@@ -654,14 +672,14 @@ describe('useAgentSessionAutoRenameSync', () => {
   it('invalidates agent session list and detail caches when a session is auto-renamed', () => {
     let emitAutoRenamed: ((payload: { sessionId: string }) => void) | undefined
     mockUseIpcOn.mockImplementation((event: string, handler: (payload: { sessionId: string }) => void) => {
-      if (event === 'ai.agent_session_auto_renamed') emitAutoRenamed = handler
+      if (event === 'ai.agent.session.auto_renamed') emitAutoRenamed = handler
     })
     const invalidate = vi.fn().mockResolvedValue(undefined)
     mockUseInvalidateCache.mockReturnValue(invalidate)
 
     renderHook(() => useAgentSessionAutoRenameSync())
 
-    expect(mockUseIpcOn).toHaveBeenCalledWith('ai.agent_session_auto_renamed', expect.any(Function))
+    expect(mockUseIpcOn).toHaveBeenCalledWith('ai.agent.session.auto_renamed', expect.any(Function))
     act(() => {
       emitAutoRenamed?.({ sessionId: 'session-1' })
     })

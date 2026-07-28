@@ -154,6 +154,32 @@ describe('writeCliConfigDraft', () => {
       })
     })
 
+    it('normalizes a versioned CherryIN endpoint before writing Claude Code config', async () => {
+      const versionedCherryinProvider = {
+        ...cherryinProvider,
+        endpointConfigs: {
+          ...cherryinProvider.endpointConfigs,
+          'anthropic-messages': { baseUrl: 'https://open.cherryin.net/v1/' }
+        }
+      } as Provider
+      mockGet({
+        '/providers/cherryin': () => versionedCherryinProvider,
+        '/providers/cherryin/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'cherryin::moonshotai/kimi-k3'
+      })
+
+      expect(JSON.parse(written!.content).env).toEqual({
+        ANTHROPIC_BASE_URL: 'https://open.cherryin.net',
+        ANTHROPIC_AUTH_TOKEN: 'sk-secret',
+        ANTHROPIC_MODEL: 'moonshotai/kimi-k3'
+      })
+    })
+
     it('injects a placeholder auth token for Ollama, which needs no real API key', async () => {
       mockGet({
         '/providers/ollama': () => ollamaProvider,

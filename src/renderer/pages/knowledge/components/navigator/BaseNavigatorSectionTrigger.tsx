@@ -5,7 +5,7 @@ import type { BaseNavigatorSectionTriggerProps } from './types'
 
 const BaseNavigatorSectionTrigger = ({ label, leadingSlot, actionSlot }: BaseNavigatorSectionTriggerProps) => {
   return (
-    <div className="group/grp flex h-8 w-full items-center gap-1 rounded-[10px] px-2 text-sm transition-colors hover:bg-accent/60">
+    <div className="group/grp flex h-8 w-full items-center gap-1 rounded-[10px] px-2 text-sm transition-colors hover:bg-muted">
       <div className="min-w-0 flex-1">
         <AccordionTrigger
           className={cn(

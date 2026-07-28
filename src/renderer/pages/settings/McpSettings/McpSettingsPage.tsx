@@ -85,7 +85,7 @@ const McpSettings: FC = () => {
                   onClick={() => navigate({ to: `/settings/mcp/${provider.key}` })}
                   icon={(() => {
                     const logo = getMcpProviderLogo(provider.key)
-                    return logo ? <logo.Avatar size={24} shape="circle" /> : <FolderCog size={16} />
+                    return logo ? <logo.Avatar size={16} shape="circle" /> : <FolderCog size={16} />
                   })()}
                   className={settingsSubmenuItemClassName}
                   labelClassName={settingsSubmenuItemLabelClassName}

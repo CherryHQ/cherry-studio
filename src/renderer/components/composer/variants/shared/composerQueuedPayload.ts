@@ -15,7 +15,7 @@ interface BuildComposerQueuedPayloadOptions {
    * When false, a file-only draft is allowed.
    */
   requireText?: boolean
-  /** Variant-specific extra payload fields (chat: `mentionedModels` + `knowledgeBaseIds`). */
+  /** Variant-specific extra payload fields (chat: `mentionedModels` + `reasoningEffort`). */
   extra?: (tokenIds: Set<string>, attachedFiles: ComposerAttachment[]) => Partial<ComposerQueuedMessagePayload>
 }
 

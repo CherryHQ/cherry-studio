@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import { getFileExt } from '@main/utils/legacyFile'
-import type { FilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { knowledgeFileProcessingExts } from '@shared/utils/file'
 
 const logger = loggerService.withContext('Knowledge:PathStorage')
@@ -30,17 +30,17 @@ const VECTOR_STORE_FILE = 'index.sqlite'
  */
 const MATERIAL_ROOT_DIR = 'raw'
 
-export function getKnowledgeBaseDir(baseId: string): FilePath {
-  return path.join(application.getPath('feature.knowledgebase.data'), baseId) as FilePath
+export function getKnowledgeBaseDir(baseId: string): AbsoluteFilePath {
+  return AbsoluteFilePathSchema.parse(path.join(application.getPath('feature.knowledgebase.data'), baseId))
 }
 
 /** The material root (`{baseDir}/raw`) under which every `relativePath` resolves. */
-export function getKnowledgeMaterialDir(baseId: string): FilePath {
-  return path.join(getKnowledgeBaseDir(baseId), MATERIAL_ROOT_DIR) as FilePath
+export function getKnowledgeMaterialDir(baseId: string): AbsoluteFilePath {
+  return AbsoluteFilePathSchema.parse(path.join(getKnowledgeBaseDir(baseId), MATERIAL_ROOT_DIR))
 }
 
-export function getKnowledgeBaseMetaDir(baseId: string): FilePath {
-  return path.join(getKnowledgeBaseDir(baseId), CHERRY_META_DIR) as FilePath
+export function getKnowledgeBaseMetaDir(baseId: string): AbsoluteFilePath {
+  return AbsoluteFilePathSchema.parse(path.join(getKnowledgeBaseDir(baseId), CHERRY_META_DIR))
 }
 
 /**
@@ -49,14 +49,14 @@ export function getKnowledgeBaseMetaDir(baseId: string): FilePath {
  * opening, so a caller that only needs the path (not a guaranteed-existing directory)
  * does not need to duplicate that work.
  */
-export function getKnowledgeVectorStoreFilePathSync(baseId: string): FilePath {
+export function getKnowledgeVectorStoreFilePathSync(baseId: string): AbsoluteFilePath {
   const metaDir = getKnowledgeBaseMetaDir(baseId)
-  return path.join(metaDir, VECTOR_STORE_FILE) as FilePath
+  return AbsoluteFilePathSchema.parse(path.join(metaDir, VECTOR_STORE_FILE))
 }
 
-export function getKnowledgeBaseFilePath(baseId: string, relativePath: string): FilePath {
+export function getKnowledgeBaseFilePath(baseId: string, relativePath: string): AbsoluteFilePath {
   assertSafeKnowledgeRelativePath(relativePath)
-  return path.join(getKnowledgeMaterialDir(baseId), relativePath) as FilePath
+  return AbsoluteFilePathSchema.parse(path.join(getKnowledgeMaterialDir(baseId), relativePath))
 }
 
 /**
@@ -75,7 +75,7 @@ export async function probeKnowledgeFile(baseId: string, relativePath: string): 
  * is already absolute, so it is probed as-is.
  */
 export async function probeKnowledgeSourcePath(absolutePath: string): Promise<PathReadability> {
-  return probeReadable(absolutePath as FilePath)
+  return probeReadable(AbsoluteFilePathSchema.parse(absolutePath))
 }
 
 export function getKnowledgeSourceRelativePath(sourcePath: string): string {
@@ -141,8 +141,8 @@ export async function copyFileIntoKnowledgeBaseAt(
   if (!options.overwrite) {
     await assertTargetAvailable(destPath)
   }
-  await ensureDir(path.dirname(destPath) as FilePath)
-  await copy(sourcePath as FilePath, destPath, options.signal)
+  await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
+  await copy(AbsoluteFilePathSchema.parse(sourcePath), destPath, options.signal)
   return relativePath
 }
 
@@ -154,7 +154,7 @@ export async function writeFileIntoKnowledgeBaseAt(
 ): Promise<string> {
   const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
   await assertTargetAvailable(destPath)
-  await ensureDir(path.dirname(destPath) as FilePath)
+  await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
   await write(destPath, content)
   return relativePath
 }
@@ -330,7 +330,7 @@ function isPathInsideBase(baseDir: string, candidatePath: string): boolean {
   return Boolean(relativePath) && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
 }
 
-async function assertTargetAvailable(destPath: FilePath): Promise<void> {
+async function assertTargetAvailable(destPath: AbsoluteFilePath): Promise<void> {
   try {
     await fs.lstat(destPath)
   } catch (error) {

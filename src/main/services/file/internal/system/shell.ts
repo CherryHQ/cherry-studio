@@ -6,16 +6,16 @@
  * message on failure, so we treat any non-empty return as a failure.
  */
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { shell } from 'electron'
 
-export async function open(target: FilePath): Promise<void> {
+export async function open(target: AbsoluteFilePath): Promise<void> {
   const errorMessage = await shell.openPath(target)
   if (errorMessage) {
     throw new Error(`shell.open(${target}) failed: ${errorMessage}`)
   }
 }
 
-export async function showInFolder(target: FilePath): Promise<void> {
+export async function showInFolder(target: AbsoluteFilePath): Promise<void> {
   shell.showItemInFolder(target)
 }

@@ -4,7 +4,7 @@ import { type MouseEvent as ReactMouseEvent, useCallback, useRef, useState } fro
 import { BaseNavigator } from '../components/navigator'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 
-const NAVIGATOR_DEFAULT_WIDTH = 240
+const NAVIGATOR_DEFAULT_WIDTH = 250
 const NAVIGATOR_MIN_WIDTH = 220
 const NAVIGATOR_MAX_WIDTH = 360
 

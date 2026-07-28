@@ -3,7 +3,7 @@
  * owned by the message-list runtime.
  *
  * Inside the virtual list, `chatVirtualizerRuntime` is the single `scrollTop`
- * writer: while it drives (top-pin, bottom-follow, smooth scroll) it keeps the
+ * writer: while it drives (bottom-follow or smooth navigation) it keeps the
  * view coherent itself, and once the user takes over (any pointer/keyboard
  * interaction inside the scroller) it freezes the viewport centrally against
  * every layout change. Either way a block must never write that same scroller's

@@ -131,9 +131,6 @@ export async function registerIpc() {
 
   // Application_Relaunch is registered by Application.registerApplicationIpc()
 
-  // Reset all data (factory reset)
-  ipcMain.handle(IpcChannel.App_ResetData, () => backupManager.resetData())
-
   // zip
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
 

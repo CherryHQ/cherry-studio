@@ -1,5 +1,5 @@
 import { atomicWriteIfUnchanged, read as fsRead, stat as fsStat } from '@main/utils/file'
-import type { FilePath, FileVersion, ReadResult } from '@shared/types/file'
+import type { AbsoluteFilePath, FileVersion, ReadResult } from '@shared/types/file'
 import mime from 'mime'
 
 export type TextReadOptions = { encoding?: 'text'; detectEncoding?: boolean }
@@ -17,15 +17,15 @@ function isSameVersion(a: FileVersion, b: FileVersion): boolean {
  * The stat-read-stat guard retries when the observable file version changes
  * during the read, so returned content is paired with its post-read version.
  */
-export async function readByPath(target: FilePath, options?: TextReadOptions): Promise<ReadResult<string>>
-export async function readByPath(target: FilePath, options: Base64ReadOptions): Promise<ReadResult<string>>
-export async function readByPath(target: FilePath, options: BinaryReadOptions): Promise<ReadResult<Uint8Array>>
+export async function readByPath(target: AbsoluteFilePath, options?: TextReadOptions): Promise<ReadResult<string>>
+export async function readByPath(target: AbsoluteFilePath, options: Base64ReadOptions): Promise<ReadResult<string>>
+export async function readByPath(target: AbsoluteFilePath, options: BinaryReadOptions): Promise<ReadResult<Uint8Array>>
 export async function readByPath(
-  target: FilePath,
+  target: AbsoluteFilePath,
   options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
 ): Promise<ReadResult<string | Uint8Array>>
 export async function readByPath(
-  target: FilePath,
+  target: AbsoluteFilePath,
   options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
 ): Promise<ReadResult<string | Uint8Array>> {
   for (let attempt = 0; attempt < CONSISTENT_READ_MAX_ATTEMPTS; attempt += 1) {
@@ -61,7 +61,7 @@ export async function readByPath(
 
 /** Atomically write bytes only when the current on-disk version still matches. */
 export async function writeIfUnchangedByPath(
-  target: FilePath,
+  target: AbsoluteFilePath,
   data: Uint8Array,
   expected: FileVersion
 ): Promise<FileVersion> {

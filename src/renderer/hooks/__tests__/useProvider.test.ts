@@ -98,6 +98,12 @@ describe('useProviders', () => {
     expect(mockUseQuery).toHaveBeenCalledWith('/providers', { query: { enabled: false } })
   })
 
+  it('should disable the provider request through hook options', () => {
+    renderHook(() => useProviders(undefined, { enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers', { enabled: false })
+  })
+
   it('should pass local SWR options when provided', () => {
     renderHook(() => useProviders({ enabled: true }, { swrOptions: { refreshInterval: 3000 } }))
 

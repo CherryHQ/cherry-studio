@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import SettingsPage from '../SettingsPage'
 
-const navigateMock = vi.hoisted(() => vi.fn())
+const { isMacTransparentWindowMock, navigateMock } = vi.hoisted(() => ({
+  isMacTransparentWindowMock: vi.fn(),
+  navigateMock: vi.fn()
+}))
 
 vi.mock('@cherrystudio/ui', () => ({
   MenuDivider: () => <hr data-testid="menu-divider" />,
@@ -25,7 +28,7 @@ vi.mock('@renderer/components/Scrollbar', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
-  default: () => false
+  default: () => isMacTransparentWindowMock()
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -62,12 +65,30 @@ vi.mock('react-i18next', () => ({
 
 describe('SettingsPage', () => {
   beforeEach(() => {
+    isMacTransparentWindowMock.mockReturnValue(false)
     navigateMock.mockReset()
   })
 
-  it('places local models directly below the default model', () => {
-    render(<SettingsPage />)
+  it('keeps setting groups transparent in a macOS transparent window', () => {
+    isMacTransparentWindowMock.mockReturnValue(true)
 
+    const { container } = render(<SettingsPage />)
+
+    expect(container.firstElementChild).toHaveStyle({ '--settings-group-background': 'transparent' })
+  })
+
+  it('uses a subtle group background in dark mode', () => {
+    const { container } = render(<SettingsPage />)
+
+    expect(container.firstElementChild).toHaveClass('dark:[--settings-group-background:var(--background-subtle)]')
+  })
+
+  it('places local models directly below the default model', () => {
+    const { container } = render(<SettingsPage />)
+
+    expect(container.querySelector('[data-ui="settings.view"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-ui="settings.navigation"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-ui="settings.content"]')).toBeInTheDocument()
     expect(screen.getByText('title.settings').closest('header')).toHaveClass('mb-1')
     expect(screen.getByText('偏好')).toBeInTheDocument()
 

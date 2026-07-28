@@ -25,9 +25,6 @@ import p_grok from './grok'
 import p_grok_cli from './grok-cli'
 import p_groq from './groq'
 import p_huggingface from './huggingface'
-import p_hunyuan from './hunyuan'
-import p_hyperbolic from './hyperbolic'
-import p_infini from './infini'
 import p_jina from './jina'
 import p_lanyun from './lanyun'
 import p_lmstudio from './lmstudio'
@@ -55,14 +52,12 @@ import p_qiniu from './qiniu'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
-import p_tencent_cloud_ti from './tencent-cloud-ti'
 import p_together from './together'
 import p_tokenhub from './tokenhub'
 import type { Provider } from './types'
 import p_vertexai from './vertexai'
 import p_voyageai from './voyageai'
 import p_xirang from './xirang'
-import p_yi from './yi'
 import p_zai from './zai'
 import p_zhipu from './zhipu'
 
@@ -100,27 +95,22 @@ export const PROVIDERS: Provider[] = [
   p_vertexai,
   p_github,
   p_copilot,
-  p_yi,
   p_moonshot,
   p_baichuan,
   p_dashscope,
   p_stepfun,
   p_doubao,
-  p_infini,
   p_minimax,
   p_groq,
   p_together,
   p_fireworks,
   p_nvidia,
   p_grok,
-  p_hyperbolic,
   p_mistral,
   p_jina,
   p_perplexity,
   p_modelscope,
   p_xirang,
-  p_hunyuan,
-  p_tencent_cloud_ti,
   p_tokenhub,
   p_baidu_cloud,
   p_gpustack,

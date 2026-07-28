@@ -1,3 +1,4 @@
+import type { CacheSetStateAction, ReadonlyValue } from '@data/CacheService'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import type {
@@ -16,45 +17,6 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/with-selector'
 
 const logger = loggerService.withContext('useCache')
-
-// ============================================================================
-// Functional Updater Types
-// ============================================================================
-
-/**
- * Shallow-readonly view of a cache value, used for the `prev` argument of a
- * functional updater. Containers (objects/arrays) become `Readonly<T>` so the
- * most common footgun — mutating `prev` in place and returning it — fails to
- * compile; primitives pass through unchanged so `prev => !prev` / `prev => prev + 1`
- * still work.
- *
- * Shallow only: nested mutation (e.g. `prev.items[0].x = ...`) is NOT caught by
- * the type — keep updaters pure (see {@link CacheSetStateAction}).
- */
-type ReadonlyValue<T> = T extends object ? Readonly<T> : T
-
-/**
- * Setter input for cache hooks, mirroring React's `SetStateAction<T>`: either a
- * concrete value or an updater `(prev) => next`.
- *
- * The updater is resolved against the **latest stored value** at write time (not
- * the render-time snapshot), which is what makes read-modify-write safe across an
- * `await`. It MUST be pure and return a new value: mutating `prev` in place and
- * returning the same reference makes `CacheService` short-circuit on
- * `isEqual(stored, value)` and silently skip the subscriber notification.
- *
- * "Pure" also means no side effects inside the updater: do not smuggle a derived
- * result out (e.g. by writing to an enclosing-scope variable) to drive post-write
- * work, and do not assume how many times or when it runs. To react to *what
- * changed* — e.g. dispose resources for items that were removed — derive it from
- * the value transition in a `useEffect` that watches the value, not from inside
- * the updater.
- *
- * Caveat (same as React's `SetStateAction`): for keys whose value type is itself
- * a function (only the `any`-typed keys in practice), a function argument is
- * always treated as an updater, never stored verbatim.
- */
-type CacheSetStateAction<T> = T | ((prev: ReadonlyValue<T>) => T)
 
 // ============================================================================
 // Template Matching Utilities
@@ -682,19 +644,13 @@ export function usePersistCache<K extends RendererPersistCacheKey>(
   /**
    * Memoized setter function for updating the persist cache value.
    * Changes will be synchronized across all windows and persisted to localStorage.
-   * Accepts a concrete value or a functional updater `(prev) => next` resolved
-   * against the latest persisted value (`getPersist` never returns undefined).
+   * Both the concrete-value and functional-updater forms are resolved by
+   * `setPersist` itself, so a write-only call site can skip this hook (and its
+   * subscription) entirely and call `cacheService.setPersist` directly.
    * @param newValue - New value, or an updater computing it from the latest value
    */
   const setValue = useCallback(
-    (newValue: CacheSetStateAction<RendererPersistCacheSchema[K]>) => {
-      if (typeof newValue === 'function') {
-        const prev = cacheService.getPersist(key) as ReadonlyValue<RendererPersistCacheSchema[K]>
-        cacheService.setPersist(key, newValue(prev))
-      } else {
-        cacheService.setPersist(key, newValue)
-      }
-    },
+    (newValue: CacheSetStateAction<RendererPersistCacheSchema[K]>) => cacheService.setPersist(key, newValue),
     [key]
   )
 

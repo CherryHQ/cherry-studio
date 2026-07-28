@@ -15,7 +15,7 @@ export const settingsSubmenuDividerClassName = 'my-0 bg-transparent'
 
 export const settingsContentScrollClassName = 'flex-1 min-h-0 min-w-0 overflow-x-hidden'
 
-export const settingsContentBodyClassName = 'flex min-h-full w-full flex-col px-6 py-4'
+export const settingsContentBodyClassName = 'flex min-h-full w-full flex-col p-6'
 
 export const settingsContentHeaderClassName = 'mb-5'
 

@@ -1,14 +1,9 @@
 import { defineProvider } from './types'
+import { EFFORT, modeWire } from './wires'
 
-const hybridWire = {
-  off: { operations: [{ target: 'reasoning.enabled' as const, value: { source: 'literal' as const, value: false } }] },
-  auto: { operations: [{ target: 'reasoning.enabled' as const, value: { source: 'literal' as const, value: true } }] },
-  effort: { operations: [{ target: 'reasoning.enabled' as const, value: { source: 'literal' as const, value: true } }] }
-}
+const hybridWire = modeWire('reasoning.enabled', { off: false, auto: true, effort: true })
 
-const adjustableWire = {
-  effort: { operations: [{ target: 'reasoning_effort' as const, value: { source: 'effort' as const } }] }
-}
+const adjustableWire = modeWire('reasoning_effort', { effort: EFFORT })
 
 const deepSeekV4Wire = {
   off: { operations: [{ target: 'reasoning.enabled' as const, value: { source: 'literal' as const, value: false } }] },

@@ -1,10 +1,11 @@
 export {
+  type AbsoluteFilePath,
+  AbsoluteFilePathSchema,
   type Base64String,
   type DirectoryEntry,
   type DirectoryListOptions,
   FILE_TYPE,
   type FileContent,
-  type FilePath,
   type FileType,
   FileTypeSchema,
   type FileUrlString,

@@ -1,4 +1,5 @@
 import type { SerializedError } from '@renderer/types/error'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
@@ -35,7 +36,7 @@ function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
 
-// listModels goes through ipcApi.request('ai.list_models', …) now (Main IPC).
+// listModels goes through ipcApi.request('ai.provider.model.list', …) now (Main IPC).
 const { mockListModels } = vi.hoisted(() => ({ mockListModels: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => mockListModels(input) }
@@ -44,7 +45,10 @@ vi.mock('@renderer/ipc', () => ({
 describe('ErrorDiagnosisService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockListModels.mockResolvedValue([{ id: 'qwen', name: 'Qwen', provider: 'cherryai' }])
+    mockListModels.mockResolvedValue([
+      { id: 'cherryai::deepseek', name: 'DeepSeek', providerId: 'cherryai' },
+      { id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, name: 'Qwen', providerId: 'cherryai' }
+    ])
   })
 
   describe('diagnoseError', () => {
@@ -91,7 +95,7 @@ describe('ErrorDiagnosisService', () => {
       await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Invalid diagnosis response format')
     })
 
-    it('uses CherryAI free model as primary', async () => {
+    it('uses the default CherryAI free model as primary regardless of list order', async () => {
       const mockResult = {
         summary: 'Error',
         category: 'unknown',
@@ -101,14 +105,13 @@ describe('ErrorDiagnosisService', () => {
       mockFetchGenerate.mockResolvedValue(JSON.stringify(mockResult))
 
       await diagnoseError(makeError(), 'en')
-      // First call should use CherryAI free model (primary), not defaultModel
       expect(mockFetchGenerate.mock.calls[0][0]).toEqual(
-        expect.objectContaining({ model: expect.objectContaining({ id: 'qwen' }) })
+        expect.objectContaining({ model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }) })
       )
     })
 
-    it('falls back to defaultModel when CherryAI is unavailable', async () => {
-      mockListModels.mockResolvedValue([])
+    it('falls back to defaultModel when the default CherryAI free model is unavailable', async () => {
+      mockListModels.mockResolvedValue([{ id: 'cherryai::deepseek', name: 'DeepSeek', providerId: 'cherryai' }])
       const customModel = { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
       mockReadDefaultModel.mockResolvedValueOnce(customModel as any)
 
@@ -136,7 +139,7 @@ describe('ErrorDiagnosisService', () => {
       await diagnoseError(makeError(), 'en')
       expect(mockFetchGenerate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: expect.objectContaining({ id: 'qwen' })
+          model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID })
         })
       )
     })

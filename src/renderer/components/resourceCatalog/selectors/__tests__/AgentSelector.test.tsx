@@ -76,6 +76,11 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: useQueryMock
 }))
 
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useAgentMutations: () => ({ createAgent: createAgentMock, isCreatingAgent: false }),
+  useAgentMutationsById: () => ({ updateAgent: updateAgentMock })
+}))
+
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
@@ -482,23 +487,23 @@ describe('AgentSelector', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
       expect(createAgentMock).toHaveBeenCalledWith({
-        body: {
-          type: 'claude-code',
-          name: 'Created Agent',
-          model: MODEL.id,
-          planModel: MODEL.id,
-          smallModel: MODEL.id,
-          description: 'Created from selector',
-          instructions: '',
-          skillIds: [],
-          configuration: {
-            avatar: '🤖',
-            permission_mode: 'bypassPermissions'
-          }
+        type: 'claude-code',
+        name: 'Created Agent',
+        model: MODEL.id,
+        planModel: MODEL.id,
+        smallModel: MODEL.id,
+        description: 'Created from selector',
+        instructions: '',
+        knowledgeBaseIds: [],
+        skillIds: [],
+        configuration: {
+          avatar: '🤖',
+          permission_mode: 'bypassPermissions'
         }
       })
     )
@@ -523,6 +528,7 @@ describe('AgentSelector', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
@@ -536,6 +542,7 @@ describe('AgentSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))

@@ -9,7 +9,7 @@
  */
 
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { DanglingCache } from '../../danglingCache'
@@ -17,10 +17,10 @@ import type { FileManagerDeps } from '../deps'
 import { observeExternalAccess } from '../observe'
 
 // `as unknown as FileEntry` because `externalPath` is now branded as
-// `CanonicalFilePath` (FilePath & CanonicalExternalPath) — a string literal
-// can't satisfy the brand directly. The actual canonicalization invariant
-// is irrelevant for these tests (we never feed the entry back into the
-// schema); they only need the discriminator + a stable physical path.
+// `AbsoluteFilePath` (via `AbsoluteFilePathSchema`) — a string literal can't satisfy the
+// brand directly. The actual canonicalization invariant is irrelevant for
+// these tests (we never feed the entry back into the schema); they only
+// need the discriminator + a stable physical path.
 const externalEntry: FileEntry = {
   id: '019606a0-0000-7000-8000-0000000000ee' as FileEntryId,
   origin: 'external',
@@ -41,7 +41,7 @@ const internalEntry: FileEntry = {
   updatedAt: 0
 } as FileEntry
 
-const PHYSICAL = '/abs/file.txt' as FilePath
+const PHYSICAL = '/abs/file.txt' as AbsoluteFilePath
 
 function makeDeps(): FileManagerDeps {
   return {

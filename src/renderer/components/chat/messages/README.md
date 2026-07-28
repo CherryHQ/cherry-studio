@@ -9,7 +9,7 @@ The goal is one reusable message UI implementation with page-specific data and c
 This directory owns message display only:
 
 - message list orchestration
-- virtual scrolling and scroll anchors
+- virtual scrolling, position restoration, and scroll ownership
 - message grouping and multi-message layout
 - message frame, header, content, footer, and actions
 - message block rendering
@@ -33,7 +33,7 @@ Page-only UI should stay in the page directory. If a component is only a Home or
 
 - `MessageList.tsx` and `MessageListProvider.tsx`: public list entry and context provider.
 - `types.ts`: stable contract for `state / actions / meta`.
-- `list/`: list behavior such as grouping, virtual list, anchors, selection, sibling navigation.
+- `list/`: list behavior such as grouping, virtual scrolling, selection, and sibling navigation.
 - `frame/`: message skeleton such as frame, header, content, editor, footer actions, tokens, attachments.
 - `blocks/`: message parts and content blocks.
 - `tools/`: tool call rendering, split by source or capability.

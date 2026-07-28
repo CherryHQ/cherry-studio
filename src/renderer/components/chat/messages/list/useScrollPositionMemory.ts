@@ -44,7 +44,7 @@ interface ComputeScrollAnchorArgs {
   scrollOffset: number
   /** Wrapped index of the top-most visible item (`handle.findItemIndex`). */
   topIndex: number
-  /** Group key for a data index, or `null` for the spacer / out-of-range. */
+  /** Group key for a data index, or `null` when out of range. */
   getKeyAtIndex: (index: number) => string | null
   /** Measured offset of an item from the start (`handle.getItemOffset`). */
   getOffsetAtIndex: (index: number) => number
@@ -53,7 +53,7 @@ interface ComputeScrollAnchorArgs {
 /**
  * Derive the anchor to persist from the current scroll state. Returns `null`
  * (= "follow the latest message") when at the bottom or when the top-most
- * visible item is not a real message (e.g. the anchor spacer).
+ * visible item is not a real message.
  */
 export function computeScrollAnchor({
   atBottom,
@@ -97,17 +97,13 @@ export interface ScrollPositionMemoryInputs {
   bottomPadding: number
   scrollerRef: RefObject<HTMLElement | null>
   vlistHandleRef: RefObject<VListHandle | null>
-  /** Group key for a data index, or `null` for the spacer / out-of-range. */
+  /** Group key for a data index, or `null` when out of range. */
   getDataKeyAtIndex: (index: number) => string | null
   /** Data index for a group key, or `-1` when absent. */
   findDataIndexByKey: (key: string) => number
   isAtBottom: () => boolean
   /** Mark the at-bottom tracker as stuck after restoring to the bottom. */
   notifyProgrammaticStick: () => void
-  /** When true, restoring may position the list but must not re-enable bottom-follow. */
-  suppressBottomFollow?: () => boolean
-  /** Release any active scroll anchor pin before restoring. */
-  releaseAnchor: () => void
   /** Whether a smooth-scroll animation is in flight (don't save mid-animation). */
   isAnimating: () => boolean
 }
@@ -172,13 +168,12 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
       const el = i.scrollerRef.current
       const handle = i.vlistHandleRef.current
       if (handle) {
-        i.releaseAnchor()
         handle.scrollToIndex(target.index, { align: target.align, offset: target.offset })
         // Following the newest message engages auto-stick so streaming keeps up.
-        if (target.align === 'end' && !i.suppressBottomFollow?.()) i.notifyProgrammaticStick()
+        if (target.align === 'end') i.notifyProgrammaticStick()
       } else if (el && target.align === 'end') {
         el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
-        if (!i.suppressBottomFollow?.()) i.notifyProgrammaticStick()
+        i.notifyProgrammaticStick()
       }
       // Let the programmatic scroll flush (virtua's scrollToIndex measures then
       // re-positions) before re-enabling saves.

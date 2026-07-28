@@ -29,7 +29,7 @@ const { execFileSync } = require('child_process')
 //   isWindowsOnly — tool has packages only for win32; non-Windows builds skip it
 //                 (MinGit — other platforms fall back to the user's system git)
 
-const MISE_VERSION = '2026.7.3'
+const MISE_VERSION = '2026.7.14'
 const BUN_VERSION = '1.3.14'
 const UV_VERSION = '0.11.16'
 const RG_VERSION = '14.1.1'
@@ -62,37 +62,39 @@ const TOOLS = [
         url: miseUrl(`mise-v${MISE_VERSION}-macos-arm64`),
         archive: 'none',
         binaries: ['mise'],
-        sha256: '865f7c617787749bfd16a3b50a5385df9c552640a4177bafdc35ae19c4215731'
+        sha256: '082262daa1cd73e22f71272c574afda560c4fcf39852bc18884eae9e13cd5f2c'
       },
       'darwin-x64': {
         url: miseUrl(`mise-v${MISE_VERSION}-macos-x64`),
         archive: 'none',
         binaries: ['mise'],
-        sha256: '69cce686f0bed5b5ee8135b29ca81b4735bd52dbd18517a1024843cfdf770ab0'
+        sha256: '3a3cf40fd034f83bd5cdffd4d673d40b04a79d06affbd30e5fcc4f00ae0ac460'
       },
       'linux-x64': {
         url: miseUrl(`mise-v${MISE_VERSION}-linux-x64`),
         archive: 'none',
         binaries: ['mise'],
-        sha256: '06088e84e4514b59fd2b6b17927bcc37aa0ab10020a270868871fb010b92069b'
+        sha256: 'fc96308f4fa085d7359892ac6351ededb35ecfabf1ddc34f5757bc755a2af8a6'
       },
       'linux-arm64': {
         url: miseUrl(`mise-v${MISE_VERSION}-linux-arm64`),
         archive: 'none',
         binaries: ['mise'],
-        sha256: '7a39a84a040449e1932a24b3b710746fc4a2b6d7080cc8376a2731d00488bf0d'
+        sha256: '94a01dd78c22819aa38f9ef6c0780f48d5160b7f1f557407d6d486667296be6d'
       },
       'win32-x64': {
-        url: miseUrl(`mise-v${MISE_VERSION}-windows-x64.exe`),
-        archive: 'none',
-        binaries: ['mise.exe'],
-        sha256: '4c950c99fc903f46afc8c6e8c2137b65f9a8ab638041549afb9a62fa5de286ea'
+        url: miseUrl(`mise-v${MISE_VERSION}-windows-x64.zip`),
+        archive: 'zip',
+        binaries: ['mise.exe', 'mise-shim.exe'],
+        strip: 'mise/bin',
+        sha256: 'fdf01891877650bd0f30ff99e493d88f72423b280867ca44062ee2cecd75c78c'
       },
       'win32-arm64': {
-        url: miseUrl(`mise-v${MISE_VERSION}-windows-arm64.exe`),
-        archive: 'none',
-        binaries: ['mise.exe'],
-        sha256: '997644d959b5d2fe20247ce2ed956f50e9aa5bd7571ad9b08f1d501b58354fde'
+        url: miseUrl(`mise-v${MISE_VERSION}-windows-arm64.zip`),
+        archive: 'zip',
+        binaries: ['mise.exe', 'mise-shim.exe'],
+        strip: 'mise/bin',
+        sha256: '10627ebedc1e0a53fe669b9e93b1701975f0cba1165759bc270796a0de37b691'
       }
     }
   },
@@ -439,7 +441,7 @@ function verifyBundledBinaries(platform, arch, options = {}) {
   console.log(`Verified all bundled binaries exist for ${platformKey}`)
 }
 
-module.exports = { extract, verifyBundledBinaries }
+module.exports = { extract, verifyBundledBinaries, TOOLS }
 
 // Only auto-download when run directly (node scripts/download-binaries.js ...).
 // before-pack.js requires this module for verifyBundledBinaries without

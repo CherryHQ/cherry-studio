@@ -368,5 +368,6 @@ describe('KnowledgeItemList', () => {
 
     expect(screen.getByRole('grid')).toBeInTheDocument()
     expect(screen.getAllByRole('columnheader').length).toBeGreaterThanOrEqual(5)
+    expect(screen.getAllByRole('columnheader')[0].parentElement).toHaveClass('h-11')
   })
 })

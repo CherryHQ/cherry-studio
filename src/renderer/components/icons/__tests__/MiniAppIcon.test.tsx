@@ -31,11 +31,11 @@ vi.mock('@renderer/components/icons/miniAppsLogo', () => {
   CompoundLogo.colorPrimary = '#000000'
   return {
     getMiniAppsLogoRef: (logo: unknown) =>
-      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus'
+      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'ling'
         ? { kind: 'provider', key: logo, meta: { id: logo, colorPrimary: '#000000' } }
         : undefined,
     useMiniAppLogo: (logo: unknown) =>
-      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' ? CompoundLogo : undefined
+      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'ling' ? CompoundLogo : undefined
   }
 })
 
@@ -66,6 +66,23 @@ describe('MiniAppIcon', () => {
       height: '64px',
       marginTop: '10px',
       backgroundColor: '#f0f0f0'
+    })
+  })
+
+  it('renders image logos as contained icons without a duplicate border in plain mode', () => {
+    const { container } = render(
+      <MiniAppIcon app={{ ...baseApp, logoSrc: 'file:///files/abc123.webp' }} appearance="plain" size={56} />
+    )
+
+    const image = container.querySelector('img')
+
+    expect(image).not.toHaveClass('rounded-2xl')
+    expect(image).not.toHaveClass('border')
+    expect(image).not.toHaveClass('border-border')
+    expect(image).toHaveStyle({
+      width: '40px',
+      height: '40px',
+      borderRadius: '10px'
     })
   })
 
@@ -124,7 +141,7 @@ describe('MiniAppIcon', () => {
     expect(container.querySelector('[data-testid="compound-logo"]')).not.toHaveStyle({ overflow: 'hidden' })
   })
 
-  it.each(['felo', 'abacus'])('constrains the configured %s icon in plain mode', (logo) => {
+  it.each(['felo', 'abacus', 'ling'])('constrains the configured %s icon in plain mode', (logo) => {
     const { container } = render(<MiniAppIcon app={{ ...baseApp, logo }} appearance="plain" size={56} />)
 
     expect(container.querySelector('[data-testid="compound-logo"]')).toHaveStyle({

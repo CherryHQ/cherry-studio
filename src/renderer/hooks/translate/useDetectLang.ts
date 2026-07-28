@@ -59,7 +59,7 @@ export const detectLanguageByLLM = async (
 
   const systemPrompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
 
-  const { text: result } = await ipcApi.request('ai.generate_text', {
+  const { text: result } = await ipcApi.request('ai.text.generate', {
     uniqueModelId: model.id,
     system: systemPrompt,
     prompt: 'follow system prompt'

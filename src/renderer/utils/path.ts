@@ -3,6 +3,7 @@
  * and a trailing separator on `base`. Leading separators on `rel` are stripped so the result stays
  * anchored to `base`.
  */
+// TOOD: Use AbsoluteFilePath as signature
 export const joinPath = (base: string, rel: string): string => {
   const trimmed = rel.replace(/^[/\\]+/, '')
   if (!base) return trimmed

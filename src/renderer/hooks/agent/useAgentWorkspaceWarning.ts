@@ -1,0 +1,36 @@
+import { loggerService } from '@logger'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useAgentWorkspaceWarning')
+
+export function useAgentWorkspaceWarning(workspacePath: string | undefined, enabled = true) {
+  const { t } = useTranslation()
+  const [warning, setWarning] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (!enabled) return
+    if (!workspacePath) {
+      setWarning(undefined)
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const isDirectory = await window.api.file.isDirectory(workspacePath)
+        if (cancelled) return
+        setWarning(isDirectory ? undefined : t('agent.session.workspace_status.inaccessible', { path: workspacePath }))
+      } catch (error) {
+        logger.warn('Failed to check agent workspace path status', error as Error)
+        if (!cancelled) setWarning(undefined)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [enabled, t, workspacePath])
+
+  return warning
+}

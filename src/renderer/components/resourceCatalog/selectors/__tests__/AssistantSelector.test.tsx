@@ -1,7 +1,8 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
 import type * as UseModelModule from '@renderer/hooks/useModel'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -320,6 +321,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.useRealTimers()
 })
 
 function renderSelector() {
@@ -495,7 +497,7 @@ describe('AssistantSelector', () => {
     expect(screen.queryByPlaceholderText('Search assistants')).not.toBeInTheDocument()
   })
 
-  it('calls the dialog-close autofocus callback when the edit dialog closes', async () => {
+  it('restores focus after the edit dialog close animation completes', async () => {
     const onDialogCloseAutoFocus = vi.fn()
     render(
       <AssistantSelector
@@ -510,10 +512,16 @@ describe('AssistantSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
+    vi.useFakeTimers()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
+    expect(onDialogCloseAutoFocus).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS - 1))
+    expect(onDialogCloseAutoFocus).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTime(1))
     expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
   })
+
   it('calls the dialog-close autofocus callback once when saving the edit dialog', async () => {
     const onDialogCloseAutoFocus = vi.fn()
     render(
@@ -534,7 +542,7 @@ describe('AssistantSelector', () => {
 
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
-    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1))
   })
 
   it('notifies when created assistant cannot be refreshed into the selector', async () => {

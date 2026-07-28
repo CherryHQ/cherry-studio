@@ -1,5 +1,5 @@
 import { definePlugin } from '@cherrystudio/ai-core'
-import type { AppProviderId } from '@main/ai/types'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { extractReasoningMiddleware } from 'ai'
 
 import { getReasoningTagName } from '../../../../utils/reasoning'
@@ -26,23 +26,22 @@ const createReasoningExtractionPlugin = (options: { tagName?: string } = {}) =>
     }
   })
 
-const INLINE_REASONING_SDK_PROVIDER_IDS: ReadonlySet<AppProviderId> = new Set([
-  'openai',
-  'openai-chat',
-  'openai-response',
-  'openai-compatible',
-  'azure',
-  'azure-responses'
-])
-
 /**
  * Must run BEFORE simulateStreaming so that after `wrapLanguageModel`
  * reverses the middleware chain, extractReasoning wraps simulateStreaming
  * and resolves unclosed `<think>` tags produced by the simulated stream.
+ *
+ * Applies only on the `openai-chat-completions` wire. That wire has no native reasoning field, so a
+ * reasoning model served over it emits its chain inline as `<tag>…</tag>` in the
+ * text channel — this covers third-party models behind a bespoke-family gateway
+ * (e.g. AiHubMix's compat route) and native chat-completions providers
+ * (groq, mistral, …) alike. Endpoints with a native
+ * reasoning channel (anthropic-messages / google / openai-responses) are left
+ * untouched, so a literal `<tag>` there stays real content.
  */
 export const reasoningExtractionFeature: RequestFeature = {
   name: 'reasoning-extraction',
-  applies: (scope) => INLINE_REASONING_SDK_PROVIDER_IDS.has(scope.aiSdkProviderId),
+  applies: (scope) => scope.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   contributeModelAdapters: (scope) => [
     createReasoningExtractionPlugin({ tagName: getReasoningTagName(scope.model.id.toLowerCase()) })
   ]

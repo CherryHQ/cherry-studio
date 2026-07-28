@@ -4,13 +4,15 @@ import {
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
-import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
+import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -82,10 +84,10 @@ export function AgentSelector(props: AgentSelectorProps) {
     [onOpenChange, open]
   )
 
-  const { data, isLoading, refetch } = useQuery('/agents', { query: { limit: 500 } })
-  const { trigger: createAgent, isLoading: isCreatingAgent } = useMutation('POST', '/agents', {
-    refresh: ['/agents']
-  })
+  // Keep in lockstep with TasksSettings' agents query — they share one SWR
+  // cache entry only while path + query serialize identically.
+  const { data, isLoading, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
+  const { createAgent, isCreatingAgent } = useAgentMutations()
   const {
     isLoading: isPinnedLoading,
     isRefreshing: isPinsRefreshing,
@@ -158,9 +160,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     async (values: ResourceCreateWizardValues) => {
       let created: AgentDetail
       try {
-        created = await createAgent({
-          body: buildCreateAgentDto(values)
-        })
+        created = await createAgent(buildCreateAgentCommand(values))
       } catch (error) {
         logger.error('Failed to create agent from selector', error as Error)
         throw error

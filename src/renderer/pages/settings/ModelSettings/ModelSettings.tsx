@@ -56,7 +56,7 @@ interface ModelSettingRowProps {
 const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, compact, children }) => (
   <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
     <div className="min-w-0 flex-1">
-      <SettingRowTitle className="gap-2 font-semibold">
+      <SettingRowTitle className="gap-2">
         {icon}
         {title}
       </SettingRowTitle>

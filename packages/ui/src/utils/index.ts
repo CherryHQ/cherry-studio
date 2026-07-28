@@ -7,7 +7,7 @@
  * @module utils
  */
 
-export { DIALOG_CLOSE_DURATION_MS } from './dialog'
+export { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS } from './dialog'
 
 /**
  * Converts `null` to `undefined`, otherwise returns the input value.

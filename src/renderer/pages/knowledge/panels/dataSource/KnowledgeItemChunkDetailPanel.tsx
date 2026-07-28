@@ -119,7 +119,7 @@ const KnowledgeItemChunkDetailPanel = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-border-muted border-b px-3 py-2">
+      <div className="relative flex h-11 shrink-0 items-center gap-2 px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
         <Button
           type="button"
           variant="ghost"

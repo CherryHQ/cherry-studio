@@ -3,6 +3,7 @@ import type { ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
+import { modeWire } from './wires'
 
 const fixedSupport: ReasoningSupport = { controls: [] }
 
@@ -10,10 +11,7 @@ const effortSupport = (values: ReasoningEffort[]): ReasoningSupport => ({
   controls: [{ kind: 'effort', values }]
 })
 
-const minimaxM3Wire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
-  auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } }] }
-}
+const minimaxM3Wire: ReasoningWireProfile = modeWire('thinking.type', { off: 'disabled', auto: 'adaptive' })
 
 const qwenBudgetWire: ReasoningWireProfile = {
   off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },

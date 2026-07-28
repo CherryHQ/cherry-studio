@@ -5,7 +5,7 @@ export interface IconDisplayConfig {
 
 export type IconDisplayContext = 'mini-app' | 'provider-list'
 
-const miniAppContainedIcon: IconDisplayConfig = { scale: 5 / 7, borderRadius: 10 }
+export const miniAppContainedIcon: Readonly<IconDisplayConfig> = { scale: 5 / 7, borderRadius: 10 }
 const providerListContainedIcon: IconDisplayConfig = { scale: 5 / 7, borderRadius: 5 }
 const defaultIcon: IconDisplayConfig = { scale: 1.2 }
 
@@ -20,7 +20,8 @@ const ICON_DISPLAY_CONFIG: Readonly<Record<IconDisplayContext, Readonly<Record<s
     felo: miniAppContainedIcon,
     mintop3: miniAppContainedIcon,
     '3mintop': miniAppContainedIcon,
-    coze: miniAppContainedIcon
+    coze: miniAppContainedIcon,
+    ling: miniAppContainedIcon
   },
   'provider-list': {
     cherryin: providerListContainedIcon,

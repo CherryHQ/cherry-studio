@@ -181,9 +181,7 @@ export default function HealthCheckDrawer({
           {isChecking ? (
             <div className="px-4 pt-3 pb-2">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="font-medium text-[13px] text-foreground/85">
-                  {t('settings.models.check.pipeline_heading')}
-                </span>
+                <span className="text-[13px] text-foreground/85">{t('settings.models.check.pipeline_heading')}</span>
                 <span className={drawerClasses.healthProgressMeta}>
                   {t('settings.models.check.progress_count', {
                     done: progressStats.done,
@@ -349,7 +347,7 @@ export default function HealthCheckDrawer({
         <>
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-foreground text-sm">{t('settings.models.check.use_all_keys')}</span>
+              <span className="text-foreground text-sm">{t('settings.models.check.use_all_keys')}</span>
               <SegmentedControl
                 size="sm"
                 value={keyCheckMode}
@@ -362,9 +360,7 @@ export default function HealthCheckDrawer({
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-foreground text-sm">
-                {t('settings.models.check.enable_concurrent')}
-              </span>
+              <span className="text-foreground text-sm">{t('settings.models.check.enable_concurrent')}</span>
               <SegmentedControl
                 size="sm"
                 value={isConcurrent ? 'on' : 'off'}
@@ -377,7 +373,7 @@ export default function HealthCheckDrawer({
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-foreground text-sm">{t('settings.models.check.timeout')}</span>
+              <span className="text-foreground text-sm">{t('settings.models.check.timeout')}</span>
               <div className="flex w-28 items-center gap-2">
                 <Input
                   type="number"
@@ -393,9 +389,7 @@ export default function HealthCheckDrawer({
 
           {keyCheckMode === 'single' && hasMultipleKeys ? (
             <div className="space-y-3 rounded-xl border border-border-muted bg-muted/20 p-4">
-              <div className="font-medium text-[13px] text-foreground/85">
-                {t('settings.models.check.select_api_key')}
-              </div>
+              <div className="text-[13px] text-foreground/85">{t('settings.models.check.select_api_key')}</div>
               <RadioGroup
                 value={String(selectedKeyIndex)}
                 onValueChange={(value) => setSelectedKeyIndex(Number(value))}>

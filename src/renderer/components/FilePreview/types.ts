@@ -1,8 +1,8 @@
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ComponentType } from 'react'
 
 export interface FilePreviewPluginProps {
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   fileName: string
   refreshKey: number
 }

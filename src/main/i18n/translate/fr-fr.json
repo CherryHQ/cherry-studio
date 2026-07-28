@@ -56,6 +56,12 @@
   },
   "dialog": {
     "all_files": "Tous les fichiers",
+    "data_reset": {
+      "cancel": "Annuler",
+      "confirm": "Réinitialiser et redémarrer",
+      "message": "Les discussions, assistants, bases de connaissances, fichiers et paramètres seront effacés, puis l’application redémarrera. Cette action est irréversible. Continuer ?",
+      "title": "Réinitialiser les données de l’application"
+    },
     "html_files": "Fichiers HTML",
     "open_file": "Ouvrir le fichier",
     "pdf_files": "Fichiers PDF",

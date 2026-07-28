@@ -1,11 +1,12 @@
 import { QuickPhrasesToolRuntime } from '@renderer/components/composer/tools/components/QuickPhrasesButton'
-import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
+import { QUICK_PHRASES_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
+import { defineTool } from '@renderer/components/composer/tools/types'
 
 const quickPhrasesTool = defineTool({
   key: 'quick_phrases',
-  label: (t) => t('settings.prompts.title'),
+  label: QUICK_PHRASES_TOOLBAR_MANIFEST.label,
 
-  visibleInScopes: [TopicType.Chat, TopicType.Session, 'quick-assistant', 'painting'],
+  visibleInScopes: QUICK_PHRASES_TOOLBAR_MANIFEST.visibleInScopes,
 
   dependencies: {
     actions: ['onTextChange'] as const

@@ -219,9 +219,14 @@ function getMcpToolGroupPresentation(
   return { action, icon, target: target ?? (action ? 'relatedContent' : undefined) }
 }
 
-function ToolGroupContentIcon({ tool, toolArguments }: { tool?: ToolGroupTool; toolArguments?: unknown }) {
-  const Icon =
+export function getToolGroupIcon(tool: ToolGroupTool | undefined, toolArguments?: unknown): LucideIcon {
+  return (
     (tool && TOOL_GROUP_ICON_BY_NAME[tool.name]) || getMcpToolGroupPresentation(tool, toolArguments)?.icon || Wrench
+  )
+}
+
+function ToolGroupContentIcon({ tool, toolArguments }: { tool?: ToolGroupTool; toolArguments?: unknown }) {
+  const Icon = getToolGroupIcon(tool, toolArguments)
   return <Icon aria-hidden="true" className={TOOL_GROUP_ICON_CLASS_NAME} />
 }
 
@@ -341,14 +346,14 @@ function getMcpToolGroupActivity(
   }
 }
 
-function getSemanticToolTitle(
-  candidate: Extract<ToolHeaderCandidate, { kind: 'tool' }>,
+export function getToolGroupSemanticTitle(
+  toolResponse: ToolResponseLike,
+  status: ToolStatus,
   t: ReturnType<typeof useTranslation>['t']
 ) {
-  const { toolResponse } = candidate.item
-  const isActive = candidate.status === 'invoking' || candidate.status === 'streaming' || candidate.status === 'waiting'
+  const isActive = status === 'invoking' || status === 'streaming' || status === 'waiting'
   const mcpPresentation = getMcpToolGroupPresentation(toolResponse.tool, toolResponse.arguments)
-  if (mcpPresentation && candidate.status === 'error') return t('message.tools.activity.extensionFailed')
+  if (mcpPresentation && status === 'error') return t('message.tools.activity.extensionFailed')
 
   const activity =
     getReadableToolActivity(toolResponse.tool.name, toolResponse.arguments, isActive, t) ??
@@ -359,6 +364,13 @@ function getSemanticToolTitle(
   return activity.description.toLocaleLowerCase().includes(activity.label.toLocaleLowerCase())
     ? activity.description
     : `${activity.label} ${activity.description}`
+}
+
+function getSemanticToolTitle(
+  candidate: Extract<ToolHeaderCandidate, { kind: 'tool' }>,
+  t: ReturnType<typeof useTranslation>['t']
+) {
+  return getToolGroupSemanticTitle(candidate.item.toolResponse, candidate.status, t)
 }
 
 const DynamicToolBlockGroupHeaderContent = React.memo(

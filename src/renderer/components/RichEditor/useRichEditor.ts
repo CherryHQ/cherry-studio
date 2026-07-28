@@ -1,4 +1,4 @@
-import 'katex/dist/katex.min.css'
+import '@renderer/assets/styles/vendor/katex.css'
 
 import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'

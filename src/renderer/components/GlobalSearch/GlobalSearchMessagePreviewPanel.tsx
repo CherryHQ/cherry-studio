@@ -209,7 +209,10 @@ export function GlobalSearchMessagePreviewPanel({
     loadNext: loadNextSessionPage
   } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
-    query: { messageId: target.sourceType === 'session' ? target.messageId : undefined },
+    query: {
+      messageId: target.sourceType === 'session' ? target.messageId : undefined,
+      deferToolOutputs: true
+    },
     limit: PREVIEW_PAGE_SIZE,
     enabled: target.sourceType === 'session'
   })

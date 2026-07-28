@@ -2,9 +2,7 @@ const { Arch } = require('electron-builder')
 const { execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
-const { parse, stringify } = require('yaml')
-
-const workspaceConfigPath = path.join(__dirname, '..', 'pnpm-workspace.yaml')
+const { parse } = require('yaml')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -61,52 +59,44 @@ const platformToArch = {
   linuxmusl: 'linuxmusl'
 }
 
+// Most native packages encode Electron's platform key (win32) in their name, but some
+// (e.g. sqlite-vec) use the npm `windows` convention. Match either so a win32 build keeps
+// sqlite-vec-windows-x64 instead of wrongly excluding it.
+const keepPackages = (platform, arch) => {
+  const platformTokens = platform === 'win32' ? ['win32', 'windows'] : [platform]
+  return packages.filter((p) => p.includes(arch) && platformTokens.some((t) => p.includes(t)))
+}
+
+// Cross-arch prebuilt packages come from supportedArchitectures in pnpm-workspace.yaml —
+// pnpm ignores that setting once node_modules exists, so it can't be flipped per pack pass.
+// Anything kept for this arch but never installed is a native module the app would fail to
+// load at runtime, so stop here instead of shipping it. musl builds are excluded: pnpm
+// installs them only on a musl host, and releases are built on glibc.
+const assertPrebuiltPackages = (platform, arch) => {
+  const missingPackages = keepPackages(platform, arch)
+    .filter((p) => !p.includes('musl'))
+    .filter((p) => !fs.existsSync(path.join(__dirname, '..', 'node_modules', p)))
+  if (missingPackages.length > 0) {
+    throw new Error(
+      `Missing prebuilt packages for ${platform}-${arch}: ${missingPackages.join(', ')}\n` +
+        `Run \`rm -rf node_modules && pnpm install\` — pnpm only reads supportedArchitectures ` +
+        `on a fresh install, so plain \`pnpm install\` (even --force) will not fix it.`
+    )
+  }
+}
+exports.assertPrebuiltPackages = assertPrebuiltPackages
+
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
 
+  assertPrebuiltPackages(platform, arch)
+
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)
   execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })
   // Fail the build rather than ship a half-empty resources/binaries/<platform>.
   require('./download-binaries').verifyBundledBinaries(platform, arch)
-
-  const downloadPackages = async () => {
-    // Skip if target platform and architecture match current system
-    if (platform === process.platform && arch === process.arch) {
-      console.log(`Skipping install: target (${platform}/${arch}) matches current system`)
-      return
-    }
-
-    console.log(`Installing packages for target platform=${platform} arch=${arch}...`)
-
-    // Backup and modify pnpm-workspace.yaml to add target platform support
-    const originalWorkspaceConfig = fs.readFileSync(workspaceConfigPath, 'utf-8')
-    const workspaceConfig = parse(originalWorkspaceConfig)
-
-    // Add target platform to supportedArchitectures.os
-    if (!workspaceConfig.supportedArchitectures.os.includes(platform)) {
-      workspaceConfig.supportedArchitectures.os.push(platform)
-    }
-
-    // Add target architecture to supportedArchitectures.cpu
-    if (!workspaceConfig.supportedArchitectures.cpu.includes(arch)) {
-      workspaceConfig.supportedArchitectures.cpu.push(arch)
-    }
-
-    const modifiedWorkspaceConfig = stringify(workspaceConfig)
-    console.log('Modified workspace config:', modifiedWorkspaceConfig)
-    fs.writeFileSync(workspaceConfigPath, modifiedWorkspaceConfig)
-
-    try {
-      execSync(`pnpm install`, { stdio: 'inherit' })
-    } finally {
-      // Restore original pnpm-workspace.yaml
-      fs.writeFileSync(workspaceConfigPath, originalWorkspaceConfig)
-    }
-  }
-
-  await downloadPackages()
 
   const excludePackages = async (packagesToExclude) => {
     // 从项目根目录的 electron-builder.yml 读取 files 配置，避免多次覆盖配置导致出错
@@ -120,18 +110,12 @@ exports.default = async function (context) {
     context.packager.config.files[0].filter = filters
   }
 
-  // Most native packages encode Electron's platform key (win32) in their name, but some
-  // (e.g. sqlite-vec) use the npm `windows` convention. Match either so a win32 build keeps
-  // sqlite-vec-windows-x64 instead of wrongly excluding it.
-  const platformTokens = platform === 'win32' ? ['win32', 'windows'] : [platform]
-  const matchesPlatform = (p) => platformTokens.some((t) => p.includes(t))
-
-  const arm64KeepPackages = packages.filter((p) => p.includes('arm64') && matchesPlatform(p))
+  const arm64KeepPackages = keepPackages(platform, 'arm64')
   const arm64ExcludePackages = packages
     .filter((p) => !arm64KeepPackages.includes(p))
     .map((p) => '!node_modules/' + p + '/**')
 
-  const x64KeepPackages = packages.filter((p) => p.includes('x64') && matchesPlatform(p))
+  const x64KeepPackages = keepPackages(platform, 'x64')
   const x64ExcludePackages = packages
     .filter((p) => !x64KeepPackages.includes(p))
     .map((p) => '!node_modules/' + p + '/**')

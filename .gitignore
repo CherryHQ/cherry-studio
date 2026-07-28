@@ -67,6 +67,9 @@ local
 CLAUDE.local.md
 AGENTS.override.md
 
+# Local Electron development
+.context/cherry-electron-dev/
+
 # vitest
 coverage
 .vitest-cache

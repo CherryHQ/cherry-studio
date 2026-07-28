@@ -39,6 +39,17 @@ export { KB_LIST_TOOL_NAME }
 // `{ error }`, so the output is a three-way union.
 const knowledgeListResultSchema = z.union([kbListOutputSchema, kbTreeOutputSchema, knowledgeLookupErrorSchema])
 
+function normalizeStrictInput(input: z.infer<typeof kbListStrictInputSchema>) {
+  // The model-facing strict schema uses primitive sentinels for Gemini/OpenAI compatibility.
+  // Keep that provider concern at the adapter boundary; the shared core receives normal optionals.
+  return {
+    query: input.query || undefined,
+    groupId: input.groupId || undefined,
+    baseId: input.baseId || undefined,
+    maxDepth: input.maxDepth < 0 ? undefined : input.maxDepth
+  }
+}
+
 const kbListTool = tool({
   description: KNOWLEDGE_LIST_DESCRIPTION,
   inputSchema: kbListStrictInputSchema,
@@ -46,9 +57,9 @@ const kbListTool = tool({
   strict: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
-    return listOrOutlineKnowledge(input, request.knowledgeBaseIds ?? [])
+    return listOrOutlineKnowledge(normalizeStrictInput(input), request.knowledgeBaseIds ?? [])
   },
-  toModelOutput: ({ input, output }) => knowledgeListModelOutput(output, input)
+  toModelOutput: ({ input, output }) => knowledgeListModelOutput(output, normalizeStrictInput(input))
 })
 
 export function createKbListToolEntry(): ToolEntry {

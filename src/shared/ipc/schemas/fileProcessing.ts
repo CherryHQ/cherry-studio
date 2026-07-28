@@ -19,12 +19,9 @@ import { defineRoute } from '../define'
  * cross-window-synced by CacheService; DataApi `/jobs/:id` is only a cold-cache fallback),
  * not IPC events — so there is no Event block (unlike window.ts/selection.ts).
  *
- * Inputs reuse the canonical file/job zod schemas. `start_job` is not annotated with
- * `z.ZodType<StartFileProcessingJobInput>`: that type's `file` is a `FileHandle` whose
- * `path` is the template-literal `FilePath`, but `FileHandleSchema` infers `path: string`,
- * so an exact-equality binding is impossible. The handler bridges that
- * template-literal-vs-`string` gap with the repo's `FileHandleSchema.parse(...) as FileHandle`
- * convention (see FileManager.ts).
+ * Inputs reuse the canonical file/job zod schemas. `FileHandleSchema.path` is
+ * `AbsoluteFilePathSchema`, so the schema infers the branded `FileHandle` directly —
+ * the parsed `start_job` input's `file` is already a `FileHandle`, needing no cast.
  */
 
 const startJobInputSchema = z

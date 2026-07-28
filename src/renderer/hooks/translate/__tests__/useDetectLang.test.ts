@@ -37,7 +37,7 @@ vi.mock('franc-min', () => ({
     options === undefined ? francMock(input) : francMock(input, options)
 }))
 
-// LLM goes through ipcApi.request('ai.generate_text', …) now (Main IPC). Tests can
+// LLM goes through ipcApi.request('ai.text.generate', …) now (Main IPC). Tests can
 // drive the response per case via mockImplementation/mockResolvedValueOnce.
 const { generateTextMock } = vi.hoisted(() => ({
   generateTextMock:
@@ -81,7 +81,7 @@ describe('detectLanguageByLLM', () => {
     generateTextMock.mockResolvedValue({ text: 'en-us' })
   })
 
-  it('returns the trimmed lang code from ai.generate_text', async () => {
+  it('returns the trimmed lang code from ai.text.generate', async () => {
     generateTextMock.mockResolvedValueOnce({ text: '  en-us  ' })
 
     await expect(detectLanguageByLLM('Hello', [lang('en-us'), lang('zh-cn')], TEST_MODEL)).resolves.toBe('en-us')

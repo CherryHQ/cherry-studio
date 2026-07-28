@@ -5,6 +5,7 @@ import {
   type AmazonBedrockProviderSettings,
   createAmazonBedrock
 } from '@ai-sdk/amazon-bedrock'
+import { type ByteDanceProviderSettings, createByteDance } from '@ai-sdk/bytedance'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import type { GatewayProviderSettings } from '@ai-sdk/gateway'
 import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
@@ -38,6 +39,7 @@ import {
   createLocalEmbeddingProvider,
   type LocalEmbeddingProviderSettings
 } from './custom/localEmbedding/localEmbeddingProvider'
+import { createMinimaxProvider, type MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
 import { createNewApi, type NewApiProviderSettings } from './custom/newapiProvider'
 import { createOllamaWithImageModel } from './custom/ollama/ollamaProvider'
@@ -179,6 +181,13 @@ export const OllamaExtension = ProviderExtension.create({
   create: (options?: OllamaProviderSettings) => createOllamaWithImageModel(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
 
+export const MinimaxExtension = ProviderExtension.create({
+  name: 'minimax',
+  aliases: ['minimax-global'] as const,
+  supportsImageGeneration: true,
+  create: createMinimaxProvider
+} as const satisfies ProviderExtensionConfig<MinimaxProviderSettings, ProviderV3, 'minimax'>)
+
 /** AiHubMix — multi-backend gateway (claude→anthropic, gemini→google, gpt→openai-responses). */
 export const AiHubMixExtension = ProviderExtension.create({
   name: 'aihubmix',
@@ -236,6 +245,27 @@ export const ZhipuExtension = ProviderExtension.create({
   supportsImageGeneration: true,
   create: createZhipuProvider
 } as const satisfies ProviderExtensionConfig<ZhipuProviderSettings, ProviderV3, 'zhipu'>)
+
+/**
+ * Doubao (Volcengine Ark) Extension — the official `@ai-sdk/bytedance` provider, for
+ * Ark's own image protocol: one `POST /images/generations` for both text-to-image and
+ * reference-image edits (the generic OpenAI-compatible model would switch to a multipart
+ * `/images/edits`, which Ark does not serve) plus the nested
+ * `sequential_image_generation_options.max_images` group-image shape.
+ *
+ * Only IMAGE models are routed here by `providerToAiSdkConfig` — chat/embedding stay on
+ * the generic openai-compatible provider, and this provider throws `NoSuchModelError`
+ * for them by design. Params ride under `providerOptions.bytedance`, which is why the
+ * wire registration re-keys the body (see `WIRE_REGISTRY.doubao`).
+ *
+ * Pinned to 1.x: 2.x moves to the `ProviderV4` / `ImageModelV4` specs, which the rest of
+ * the app is not on yet. It also ships Seedance video models we don't wire up yet.
+ */
+export const DoubaoExtension = ProviderExtension.create({
+  name: 'doubao',
+  supportsImageGeneration: true,
+  create: createByteDance
+} as const satisfies ProviderExtensionConfig<ByteDanceProviderSettings, ProviderV3, 'doubao'>)
 
 /**
  * OVMS Extension - unified chat + embedding + image (local OpenVINO Model Server, no auth)
@@ -306,12 +336,14 @@ export const extensions = [
   GatewayExtension,
   CerebrasExtension,
   OllamaExtension,
+  MinimaxExtension,
   AiHubMixExtension,
   NewApiExtension,
   PpioExtension,
   DmxapiExtension,
   SiliconExtension,
   ZhipuExtension,
+  DoubaoExtension,
   OvmsExtension,
   ModelscopeExtension,
   DashScopeExtension,

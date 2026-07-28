@@ -119,9 +119,7 @@ const KnowledgeItemList = ({
         role="grid"
         aria-label={t('knowledge.data_source.table.aria_label')}
         className="flex min-h-0 flex-1 flex-col">
-        <div
-          role="row"
-          className={cn(KNOWLEDGE_ITEM_ROW_GRID, 'mb-2 h-10 shrink-0 border-border-muted border-b px-2.5')}>
+        <div role="row" className={cn(KNOWLEDGE_ITEM_ROW_GRID, 'mb-2 h-11 shrink-0 border-border border-b px-2.5')}>
           <div role="columnheader" className="flex items-center self-stretch">
             {/* Full-cell label so the whole select-all column is clickable, matching the rows. */}
             <label className="flex size-full cursor-pointer items-center">

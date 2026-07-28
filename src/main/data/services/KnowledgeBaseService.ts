@@ -7,6 +7,7 @@
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import type { DbType } from '@data/db/types'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -376,8 +377,21 @@ export class KnowledgeBaseService {
     // Verify knowledge base exists
     this.getById(id)
 
-    const db = application.get('DbService').getDb()
-    db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).run()
+    let affectedAgentIds: string[] = []
+    application.get('DbService').withWriteTx((tx) => {
+      affectedAgentIds = agentService.removeKnowledgeBaseFromAllAgentsTx(tx, id)
+      tx.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).run()
+    })
+
+    try {
+      agentService.emitAgentUpdatedForIds(affectedAgentIds, 'knowledgeBaseIds')
+    } catch (error) {
+      logger.error('Knowledge base deleted but agent refresh failed; affected agents may retain stale tool scope', {
+        knowledgeBaseId: id,
+        affectedAgentIds,
+        error
+      })
+    }
 
     logger.info('Deleted knowledge base', { id })
   }

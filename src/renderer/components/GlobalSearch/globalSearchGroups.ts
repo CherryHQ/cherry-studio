@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type {
@@ -178,6 +179,21 @@ export function upsertGlobalSearchRecentEntry(
   }
 
   return next
+}
+
+/**
+ * Records a visit into the persisted recent list.
+ *
+ * Imperative on purpose: the three call sites (app shell route visit, chat topic
+ * activation, agent session activation) only ever WRITE this key — taking
+ * `usePersistCache` just for its setter would subscribe them to every recent-list
+ * change and rerender them for a value they never read. The functional updater
+ * resolves against the latest persisted value, and `upsertGlobalSearchRecentEntry`
+ * returns the same reference when nothing changes, so `setPersist`'s isEqual
+ * short-circuit drops the no-op write.
+ */
+export function recordGlobalSearchRecentEntry(entry: GlobalSearchRecentEntry): void {
+  cacheService.setPersist('ui.global_search.recent_items', (prev) => upsertGlobalSearchRecentEntry(prev, entry))
 }
 
 export function getDisplayGlobalSearchRecentEntries(

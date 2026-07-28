@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageVirtualList } from '../MessageVirtualList'
@@ -10,7 +11,12 @@ const runtimeMockState = vi.hoisted(() => ({
   scrollToBottom: vi.fn(),
   markUserInput: vi.fn(),
   onWheel: vi.fn(),
-  shift: false
+  shift: false,
+  scrollerRef: { current: null as HTMLDivElement | null }
+}))
+
+const virtuaMockState = vi.hoisted(() => ({
+  scrollRefReadyAtMount: [] as boolean[]
 }))
 
 vi.mock('@cherrystudio/ui', () => {
@@ -49,13 +55,16 @@ vi.mock('react-i18next', () => {
 
 vi.mock('virtua', () => {
   return {
-    Virtualizer: ({ ref, children, data, shift, startMargin }: any) => (
-      <div ref={ref} data-shift={String(shift)} data-start-margin={startMargin} data-testid="virtualizer">
-        {data.map((item: unknown, index: number) => (
-          <div key={index}>{children(item, index)}</div>
-        ))}
-      </div>
-    )
+    Virtualizer: ({ ref, scrollRef, children, data, shift, startMargin }: any) => {
+      virtuaMockState.scrollRefReadyAtMount.push(Boolean(scrollRef.current))
+      return (
+        <div ref={ref} data-shift={String(shift)} data-start-margin={startMargin} data-testid="virtualizer">
+          {data.map((item: unknown, index: number) => (
+            <div key={index}>{children(item, index)}</div>
+          ))}
+        </div>
+      )
+    }
   }
 })
 
@@ -71,7 +80,7 @@ vi.mock('../chatVirtualizerRuntime', async () => {
         onScrollEnd: vi.fn(),
         onWheel: runtimeMockState.onWheel
       },
-      scrollerRef: { current: null },
+      scrollerRef: runtimeMockState.scrollerRef,
       vlistHandleRef: { current: null },
       isScrollToBottomButtonVisible: runtimeMockState.isScrollToBottomButtonVisible,
       releaseUserControlIfAtBottomAfterLayout: runtimeMockState.releaseUserControlIfAtBottomAfterLayout,
@@ -95,6 +104,45 @@ describe('MessageVirtualList', () => {
     runtimeMockState.markUserInput.mockClear()
     runtimeMockState.onWheel.mockClear()
     runtimeMockState.shift = false
+    runtimeMockState.scrollerRef.current = null
+    virtuaMockState.scrollRefReadyAtMount.length = 0
+  })
+
+  it('mounts virtua only after the external scroller ref is ready', () => {
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={(item) => <span>{item}</span>}
+      />
+    )
+
+    expect(screen.getByTestId('virtualizer')).toBeInTheDocument()
+    expect(virtuaMockState.scrollRefReadyAtMount).not.toContain(false)
+    expect(virtuaMockState.scrollRefReadyAtMount.length).toBeGreaterThan(0)
+  })
+
+  it('keeps virtua mounted when a hidden tab detaches the scroller ref', () => {
+    const TabbedList = ({ visible }: { visible: boolean }) => (
+      <Activity mode={visible ? 'visible' : 'hidden'}>
+        <MessageVirtualList
+          items={['message-1']}
+          getItemKey={(item) => item}
+          renderItem={(item) => <span>{item}</span>}
+        />
+      </Activity>
+    )
+
+    const { rerender } = render(<TabbedList visible />)
+    const virtualizerAtMount = screen.getByTestId('virtualizer')
+
+    rerender(<TabbedList visible={false} />)
+    rerender(<TabbedList visible />)
+
+    // A remount would rebuild virtua from estimated sizes and drop every
+    // message's own state, so the node identity must survive the round trip.
+    expect(screen.getByTestId('virtualizer')).toBe(virtualizerAtMount)
+    expect(runtimeMockState.scrollerRef.current).not.toBeNull()
   })
 
   it('renders the top padding as real scroll content before the virtualizer', () => {

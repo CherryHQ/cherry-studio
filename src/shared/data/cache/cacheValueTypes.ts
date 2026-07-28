@@ -1,6 +1,7 @@
 import type { McpTool } from '@shared/types/mcp'
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
@@ -136,6 +137,7 @@ export type CachePaintingGenerationState = {
 
 export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
+export type CacheAgentSessionApiRetryState = AgentSessionApiRetryState | null
 export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
 
 /**

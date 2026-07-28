@@ -55,8 +55,10 @@ export interface MigrationPaths {
   readonly versionLogFile: string
   /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
   readonly legacyAgentDbFile: string
-  /** {userData}/Data/Agents — default v2 Claude Code workspace root. */
-  readonly agentWorkspacesDir: string
+  /** {userData}/Data/Agents — v2 agent identity/memory data and system-workspace root. */
+  readonly agentsDataDir: string
+  /** {userData}/Data/Agents/system — app-owned per-session workspace root. */
+  readonly agentSystemWorkspacesDir: string
   /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom miniapp records (logos stripped from Redux). */
   readonly customMiniAppsFile: string
 
@@ -212,7 +214,8 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     filesDataDir,
     versionLogFile: path.join(currentUserData, 'version.log'),
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
-    agentWorkspacesDir: path.join(currentUserData, 'Data', 'Agents'),
+    agentsDataDir: path.join(currentUserData, 'Data', 'Agents'),
+    agentSystemWorkspacesDir: path.join(currentUserData, 'Data', 'Agents', 'system'),
     customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged

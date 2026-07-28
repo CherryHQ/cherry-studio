@@ -1,4 +1,4 @@
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { render, screen, waitFor } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
@@ -34,7 +34,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const filePath = '/tmp/workspace/example.ts' as FilePath
+const filePath = '/tmp/workspace/example.ts' as AbsoluteFilePath
 
 function renderPreview(refreshKey = 0) {
   return render(<TextFilePreview filePath={filePath} fileName="example.ts" refreshKey={refreshKey} />)

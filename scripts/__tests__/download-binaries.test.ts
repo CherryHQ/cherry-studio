@@ -11,7 +11,7 @@ import * as path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 // CJS build script — vitest interops the module.exports fine.
-import { extract, verifyBundledBinaries } from '../download-binaries'
+import { extract, TOOLS, verifyBundledBinaries } from '../download-binaries'
 
 const FIXTURE_ZIP = path.join(__dirname, 'fixtures', 'mingit-tree.zip')
 
@@ -54,6 +54,8 @@ describe('extract – zip-tree mode', () => {
 })
 
 describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
+  const mise = TOOLS.find((tool) => tool.name === 'mise')!
+
   /** A resources dir with the given files pre-created under <platformKey>/. */
   function makeResourcesDir(platformKey: string, files: string[]): string {
     const resourcesDir = makeTmpDir('dl-verify-')
@@ -98,5 +100,40 @@ describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
     expect(() =>
       verifyBundledBinaries('win32', 'x64', { tools: [regularTool, windowsOnlyTool], resourcesDir })
     ).toThrow(/git[\\/]cmd[\\/]git\.exe/)
+  })
+
+  it.each([
+    ['darwin-arm64', 'mise-v2026.7.14-macos-arm64', '082262daa1cd73e22f71272c574afda560c4fcf39852bc18884eae9e13cd5f2c'],
+    ['darwin-x64', 'mise-v2026.7.14-macos-x64', '3a3cf40fd034f83bd5cdffd4d673d40b04a79d06affbd30e5fcc4f00ae0ac460'],
+    ['linux-x64', 'mise-v2026.7.14-linux-x64', 'fc96308f4fa085d7359892ac6351ededb35ecfabf1ddc34f5757bc755a2af8a6'],
+    ['linux-arm64', 'mise-v2026.7.14-linux-arm64', '94a01dd78c22819aa38f9ef6c0780f48d5160b7f1f557407d6d486667296be6d'],
+    [
+      'win32-x64',
+      'mise-v2026.7.14-windows-x64.zip',
+      'fdf01891877650bd0f30ff99e493d88f72423b280867ca44062ee2cecd75c78c'
+    ],
+    [
+      'win32-arm64',
+      'mise-v2026.7.14-windows-arm64.zip',
+      '10627ebedc1e0a53fe669b9e93b1701975f0cba1165759bc270796a0de37b691'
+    ]
+  ])('pins mise v2026.7.14 %s asset and checksum', (platformKey, asset, sha256) => {
+    expect(mise.version).toBe('2026.7.14')
+    expect(mise.packages[platformKey]).toMatchObject({
+      url: expect.stringContaining(asset),
+      sha256
+    })
+  })
+
+  it.each(['x64', 'arm64'])('requires mise-shim.exe in the Windows %s release resources', (arch) => {
+    const platformKey = `win32-${arch}`
+    const resourcesDir = makeResourcesDir(platformKey, ['mise.exe'])
+
+    expect(mise.packages[platformKey]).toMatchObject({
+      archive: 'zip',
+      binaries: ['mise.exe', 'mise-shim.exe'],
+      strip: 'mise/bin'
+    })
+    expect(() => verifyBundledBinaries('win32', arch, { tools: [mise], resourcesDir })).toThrow(/mise-shim\.exe/)
   })
 })

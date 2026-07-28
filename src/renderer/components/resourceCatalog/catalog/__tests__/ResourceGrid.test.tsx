@@ -749,6 +749,14 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('uses the settings group surface for Skill cards', () => {
+    render(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
+
+    expect(screen.getByRole('button', { name: 'Skill' })).toHaveStyle({
+      backgroundColor: 'var(--settings-group-background, var(--card))'
+    })
+  })
+
   it('shows the overflow menu only for assistant cards', () => {
     render(<ResourceCard resource={createAssistantResource()} {...getResourceCardProps()} />)
 

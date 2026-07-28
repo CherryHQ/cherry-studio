@@ -737,6 +737,96 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('ppio')
     })
 
+    it.each([
+      ['minimax', undefined, 'https://api.minimaxi.com/v1'],
+      ['minimax-global', 'minimax', 'https://api.minimax.io/v1']
+    ])('routes %s IMAGE models through MiniMax config', async (id, presetProviderId, baseUrl) => {
+      const provider = makeProvider({
+        id,
+        presetProviderId,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl,
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({ providerId: id, capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('minimax')
+      expect(settings.baseURL).toBe(baseUrl)
+    })
+
+    it('leaves MiniMax CHAT models on openai-compatible', async () => {
+      const provider = makeProvider({
+        id: 'minimax',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://api.minimaxi.com/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'minimax', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('openai-compatible')
+    })
+
+    it('routes Doubao IMAGE models through Doubao config (Ark protocol + the providerOptions key)', async () => {
+      // Two things ride on this id. The generic OpenAICompatibleImageModel would POST
+      // multipart /v1/images/edits once a reference image is attached — an endpoint Ark
+      // does not serve — and the vendor param body would ride under
+      // `providerOptions['openai-compatible']` while the image model read `doubao`,
+      // silently dropping every size/watermark/group control.
+      const provider = makeProvider({
+        id: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'doubao',
+        apiModelId: 'doubao-seedream-5-0-pro',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('doubao')
+      // `/api/v3` already carries a version, so no `/v1` is appended — the Ark image
+      // model appends `/images/generations` to exactly this.
+      expect(settings.baseURL).toBe('https://ark.cn-beijing.volces.com/api/v3')
+    })
+
+    it('leaves Doubao CHAT models on openai-compatible (image-only override)', async () => {
+      const provider = makeProvider({
+        id: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'doubao', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('openai-compatible')
+    })
+
     it('routes DMXAPI bespoke-family IMAGE models (e.g. qwen-image) through DMXAPI config', async () => {
       const provider = makeProvider({
         id: 'dmxapi',
@@ -756,6 +846,82 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const config = await providerToAiSdkConfig(provider, model)
       expect(config.providerId).toBe('dmxapi')
+    })
+
+    it('preserves a declared DMXAPI Gemini endpoint instead of replacing it with the Chat host', async () => {
+      const provider = makeProvider({
+        id: 'my-dmxapi',
+        presetProviderId: 'dmxapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://chat.dmx.example',
+            adapterFamily: 'dmxapi'
+          },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: 'https://gemini.dmx.example/custom/v1beta/',
+            adapterFamily: 'dmxapi'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'my-dmxapi::gemini-2.5-pro',
+        providerId: 'my-dmxapi',
+        apiModelId: 'gemini-2.5-pro'
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('dmxapi')
+      expect(settings.baseURL).toBe('https://gemini.dmx.example/custom/v1beta')
+      expect(settings.endpointBaseURLs).toMatchObject({
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: 'https://chat.dmx.example/v1',
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'https://gemini.dmx.example/custom/v1beta'
+      })
+    })
+
+    it('preserves separate AiHubMix Chat, Responses, Anthropic, and Gemini endpoint URLs', async () => {
+      const provider = makeProvider({
+        id: 'my-aihubmix',
+        presetProviderId: 'aihubmix',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://chat.aihubmix.example/v1',
+            adapterFamily: 'aihubmix'
+          },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://responses.aihubmix.example/v1',
+            adapterFamily: 'aihubmix'
+          },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            baseUrl: 'https://anthropic.aihubmix.example/v1',
+            adapterFamily: 'aihubmix'
+          },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: 'https://gemini.aihubmix.example/custom/v1beta',
+            adapterFamily: 'aihubmix'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'my-aihubmix::gemini-2.5-flash',
+        providerId: 'my-aihubmix',
+        apiModelId: 'gemini-2.5-flash'
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('aihubmix')
+      expect(settings.baseURL).toBe('https://gemini.aihubmix.example/custom/v1beta')
+      expect(settings.endpointBaseURLs).toEqual({
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: 'https://anthropic.aihubmix.example/v1',
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'https://gemini.aihubmix.example/custom/v1beta',
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: 'https://chat.aihubmix.example/v1',
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'https://responses.aihubmix.example/v1'
+      })
     })
 
     it('keeps DMXAPI native IMAGE models (gpt-image / dall-e / imagen) on openai-compatible (unchanged path)', async () => {

@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentPropsWithoutRef, ComponentType } from 'react'
@@ -57,14 +57,14 @@ afterEach(() => {
 
 describe('FilePreview', () => {
   it('shows unsupported state without reading the file when the registry is empty', () => {
-    render(<FilePreview filePath={'/tmp/report.zip' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/report.zip' as AbsoluteFilePath} />)
 
     expect(screen.getByText('file_preview.unsupported.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.unsupported.description')).toBeInTheDocument()
   })
 
   it('contains invalid paths in an inline state', () => {
-    render(<FilePreview filePath={'relative/report.pdf' as FilePath} />)
+    render(<FilePreview filePath={'relative/report.pdf' as AbsoluteFilePath} />)
 
     expect(screen.getByText('file_preview.invalid_path.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.invalid_path.description')).toBeInTheDocument()
@@ -72,7 +72,7 @@ describe('FilePreview', () => {
 
   it('opens unsupported files with the default app through safeOpen', () => {
     const path = '/tmp/report.zip'
-    render(<FilePreview filePath={path as FilePath} />)
+    render(<FilePreview filePath={path as AbsoluteFilePath} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.unsupported.action' }))
 
@@ -80,7 +80,7 @@ describe('FilePreview', () => {
   })
 
   it('does not offer an external open for invalid paths', () => {
-    render(<FilePreview filePath={'relative/report.pdf' as FilePath} />)
+    render(<FilePreview filePath={'relative/report.pdf' as AbsoluteFilePath} />)
 
     expect(screen.queryByRole('button', { name: 'file_preview.unsupported.action' })).not.toBeInTheDocument()
   })

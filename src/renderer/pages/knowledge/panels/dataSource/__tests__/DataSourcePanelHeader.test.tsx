@@ -11,8 +11,8 @@ vi.mock('@renderer/utils/time', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <button type="button" {...props}>
+  Button: ({ children, variant, ...props }: { children: ReactNode; variant?: string; [key: string]: unknown }) => (
+    <button type="button" data-variant={variant} {...props}>
       {children}
     </button>
   ),
@@ -62,8 +62,11 @@ describe('DataSourcePanelHeader', () => {
   it('renders the updated time and add button in the default state', () => {
     render(<DataSourcePanelHeader {...baseProps} selectedCount={0} />)
 
-    expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '添加' })).toBeInTheDocument()
+    expect(screen.getByText('更新于 刚刚')).toHaveClass('pl-1')
+    const addButton = screen.getByRole('button', { name: '添加' })
+
+    expect(addButton).toHaveAttribute('data-variant', 'outline')
+    expect(addButton).toHaveClass('h-7', 'gap-1', 'rounded-md', 'px-2', 'text-xs')
   })
 
   it('switches to the bulk toolbar when rows are selected', () => {

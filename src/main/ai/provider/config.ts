@@ -30,7 +30,7 @@ import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
+import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 
@@ -50,6 +50,7 @@ interface BuilderContext {
 
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
+  resolvedEndpoint?: ResolvedEndpoint
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
@@ -100,7 +101,7 @@ export async function providerToAiSdkConfig(
   model: Model,
   options?: ProviderToAiSdkConfigOptions
 ): Promise<ProviderConfig> {
-  const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
+  const { endpointType, baseUrl } = options?.resolvedEndpoint ?? resolveEffectiveEndpoint(provider, model)
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
@@ -139,12 +140,16 @@ export async function providerToAiSdkConfig(
       match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
       build: buildDashScopeConfig
     },
-    // modelscope / ppio / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
-    // generation needs the bespoke submit/poll transport inside the extension provider
-    // (createXProvider().imageModel()). Override the resolved `openai-compatible` id to
-    // the extension id for image models only — chat/embedding fall through to the generic
+    // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
+    // generation needs the bespoke transport inside the extension provider
+    // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
+    // `/images/generations` protocol for doubao. Override the resolved `openai-compatible` id
+    // to the extension id for image models only — chat/embedding fall through to the generic
     // openai-compatible builder (which keeps `includeUsage`). provider.id is the extension
-    // id here, since the match requires it.
+    // id here, since the match requires it. Routing here is also what makes the vendor
+    // params land under the `providerOptions` key the image model reads: the delivery
+    // adapter keys the body by this `providerId`, which the generic branch would leave as
+    // `openai-compatible` while the model looked under the provider's own id.
     {
       match: (p, id) =>
         id === 'openai-compatible' &&
@@ -152,10 +157,22 @@ export async function providerToAiSdkConfig(
         (p.id === SystemProviderIds.modelscope ||
           p.id === SystemProviderIds.ppio ||
           p.id === SystemProviderIds.silicon ||
+          p.id === SystemProviderIds.doubao ||
           (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
       // provider.id is guaranteed to be one of these by the match above.
       build: (ctx) => ({
-        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'silicon' | 'dmxapi',
+        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'silicon' | 'doubao' | 'dmxapi',
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+        }
+      })
+    },
+    {
+      match: (p, id) => id === 'openai-compatible' && isGenerateImageModel(model) && matchesPreset(p, 'minimax'),
+      build: (ctx) => ({
+        providerId: 'minimax',
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
@@ -170,7 +187,8 @@ export async function providerToAiSdkConfig(
     { match: (_, id) => id === 'google-vertex' || id === 'google-vertex-anthropic', build: buildVertexConfig },
     { match: (p) => matchesPreset(p, SystemProviderIds.cherryin), build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
-    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
+    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig },
+    { match: (_, id) => id === 'dmxapi', build: buildDmxapiConfig }
   ]
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
@@ -591,12 +609,34 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
   }
 }
 
+function buildEndpointBaseURLs(provider: Provider): Partial<Record<EndpointType, string>> {
+  const entries = Object.entries(provider.endpointConfigs ?? {}).flatMap(([endpointType, config]) => {
+    if (!config?.baseUrl) return []
+    const formatted = formatBaseURL(config.baseUrl, provider, endpointType as EndpointType)
+    return [[endpointType, routeToEndpoint(formatted).baseURL] as const]
+  })
+  return Object.fromEntries(entries)
+}
+
 function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
   return {
     providerId: 'aihubmix',
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
+      endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+    }
+  }
+}
+
+function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
+  return {
+    providerId: 'dmxapi',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
     }
   }

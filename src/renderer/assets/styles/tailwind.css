@@ -1,3 +1,6 @@
+/* Same statement as index.css; repeated here for windows that only load this file. */
+@layer properties, theme, base, components, utilities, app;
+
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@cherrystudio/ui/styles/theme.css';
@@ -34,6 +37,8 @@
 }
 
 /* Let the Electron window surface control the document background. */
-:root {
-  background-color: unset;
+@layer app {
+  :root {
+    background-color: unset;
+  }
 }

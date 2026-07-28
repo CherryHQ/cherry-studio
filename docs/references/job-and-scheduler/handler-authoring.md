@@ -1,6 +1,6 @@
 # Handler Authoring
 
-Phase 1 ship guarantees this doc has five sections. Further worked examples (retry / singleton recovery, failure-rate breaker, business-level mutex) are backported during Phase 2-4 business migrations to avoid speculative code that bit-rots before a real consumer appears.
+Further worked examples (retry / singleton recovery, failure-rate breaker, business-level mutex) are added as real consumers migrate — speculative examples bit-rot before anyone uses them.
 
 ## Registration timing
 
@@ -150,7 +150,7 @@ A few invariants govern recovery decisions; the matrix above abstracts over them
 
 ## 5. Error codes (renderer maps via i18next)
 
-Constants live at `src/main/core/job/errorCodes.ts` and are thrown by `JobManager` / `JobScheduleService`. Renderer reads the `code` string off `JobSnapshot.error`.
+Constants live in `JOB_ERROR_CODES` at `src/shared/data/api/schemas/jobs.ts` and are thrown by `JobManager` / `JobScheduleService`. Renderer reads the `code` string off `JobSnapshot.error`.
 
 | Code | Origin | Retryable | Meaning |
 |---|---|---|---|
@@ -162,6 +162,7 @@ Constants live at `src/main/core/job/errorCodes.ts` and are thrown by `JobManage
 | `JOB_SCHEDULE_NAME_INVALID` | schedule create/update | no | Name violates `JobScheduleNameAtomSchema` (empty / `__` prefix / control char / not trimmed / >200 chars) |
 | `JOB_SCHEDULE_NAME_CONFLICT` | schedule create/update | no | (type, name) already exists |
 | `JOB_SCHEDULE_SINGLETON_EXISTS` | schedule create | no | Unnamed schedule attempted on a type that already has a singleton |
+| `JOB_SCHEDULE_TRIGGER_INVALID` | schedule create/update (`*Tx`) | no | Trigger fails scheduling semantics (cron/timezone parse, delay over the timer limit) |
 | `JOB_HANDLER_TIMEOUT` | runtime | yes | Handler exceeded `timeoutMs` |
 | `JOB_HANDLER_THREW` | runtime | yes | Handler threw a non-abort error |
 | `JOB_CANCELLED` | recovery / cancel | no | Job cancelled by user, recovery, or shutdown |

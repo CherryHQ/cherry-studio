@@ -132,6 +132,21 @@ export class JobScheduleService {
    *     validation lives here.
    */
 
+  /**
+   * Validate a user-supplied schedule name against the soft-constraint atom.
+   * Exposed for callers composing `createTx` / `updateTx` into their own
+   * transaction (JobManager's `*Tx` primitives) — the non-Tx wrappers below
+   * call it themselves.
+   */
+  assertValidName(name: string): void {
+    const parsed = JobScheduleNameAtomSchema.safeParse(name)
+    if (!parsed.success) {
+      throw DataApiErrorFactory.invalidOperation(
+        `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
+      )
+    }
+  }
+
   createTx(tx: DbOrTx, dto: CreateJobScheduleDto): JobScheduleSnapshot {
     // Drizzle's `text({ mode: 'json' })` columns accept JS values directly —
     // no manual JSON.stringify needed. The ORM serializes on write and parses
@@ -163,14 +178,7 @@ export class JobScheduleService {
   }
 
   create(dto: CreateJobScheduleDto): JobScheduleSnapshot {
-    if (dto.name) {
-      const parsed = JobScheduleNameAtomSchema.safeParse(dto.name)
-      if (!parsed.success) {
-        throw DataApiErrorFactory.invalidOperation(
-          `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
-        )
-      }
-    }
+    if (dto.name) this.assertValidName(dto.name)
     return this.createTx(application.get('DbService').getDb(), dto)
   }
 
@@ -201,14 +209,7 @@ export class JobScheduleService {
   }
 
   update(id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
-    if (patch.name) {
-      const parsed = JobScheduleNameAtomSchema.safeParse(patch.name)
-      if (!parsed.success) {
-        throw DataApiErrorFactory.invalidOperation(
-          `${JOB_ERROR_CODES.SCHEDULE_NAME_INVALID}: Invalid schedule name: ${parsed.error.issues.map((i) => i.message).join('; ')}`
-        )
-      }
-    }
+    if (patch.name) this.assertValidName(patch.name)
     return this.updateTx(application.get('DbService').getDb(), id, patch)
   }
 

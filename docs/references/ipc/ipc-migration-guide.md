@@ -82,10 +82,10 @@ application.get('IpcApiService').send(windowId, 'window.maximized_changed', { ma
 useIpcOn('window.maximized_changed', ({ maximized }) => setMax(maximized))
 
 // B — topic stream (Ai_StreamChunk): the service's listener/batching/multi-window attach are unchanged; only "how to send" + ctx.senderId replaces event.sender
-export type AiEventSchemas = { 'ai.stream_chunk': { topicId: string; chunk: AiChunk } }
-'ai.stream_open': (req, { senderId }) => aiStream.attach(senderId, req.topicId)
-// service: for (const id of windowsOf(topicId)) application.get('IpcApiService').send(id, 'ai.stream_chunk', { topicId, chunk })
-useIpcOn('ai.stream_chunk', ({ topicId, chunk }) => { if (topicId === current) append(chunk) })
+export type AiEventSchemas = { 'ai.stream.chunk': { topicId: string; chunk: AiChunk } }
+'ai.stream.open': (req, { senderId }) => aiStream.attach(senderId, req.topicId)
+// service: for (const id of windowsOf(topicId)) application.get('IpcApiService').send(id, 'ai.stream.chunk', { topicId, chunk })
+useIpcOn('ai.stream.chunk', ({ topicId, chunk }) => { if (topicId === current) append(chunk) })
 
 // C — not collected (Preference_Changed / Cache_Sync): keep using the subsystem hooks
 const [theme] = usePreference('app.theme')

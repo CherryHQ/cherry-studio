@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,7 +14,8 @@ const harness = vi.hoisted(() => ({
   setTranslateModel: vi.fn(),
   setPaintingModel: vi.fn(),
   onDefaultModelSelected: vi.fn(),
-  selectorCallbacks: [] as Array<(model: Model | undefined) => void>
+  selectorCallbacks: [] as Array<(model: Model | undefined) => void>,
+  selectorFilters: [] as Array<(model: Model) => boolean>
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -43,8 +44,17 @@ vi.mock('@logger', () => ({
 
 vi.mock('@renderer/components/ModelSelector', () => ({
   getProviderDisplayName: () => undefined,
-  ModelSelector: ({ onSelect, trigger }: { onSelect: (model: Model | undefined) => void; trigger: ReactNode }) => {
+  ModelSelector: ({
+    filter,
+    onSelect,
+    trigger
+  }: {
+    filter: (model: Model) => boolean
+    onSelect: (model: Model | undefined) => void
+    trigger: ReactNode
+  }) => {
     harness.selectorCallbacks.push(onSelect)
+    harness.selectorFilters.push(filter)
     return trigger
   }
 }))
@@ -111,6 +121,7 @@ describe('ModelSettings', () => {
     harness.quickModel = undefined
     harness.translateModel = undefined
     harness.selectorCallbacks = []
+    harness.selectorFilters = []
     harness.setDefaultModel.mockResolvedValue(undefined)
     harness.setQuickModel.mockResolvedValue(undefined)
     harness.setTranslateModel.mockResolvedValue(undefined)
@@ -158,5 +169,36 @@ describe('ModelSettings', () => {
     await waitFor(() => expect(harness.setDefaultModel).toHaveBeenCalledWith(selectedModel))
     expect(harness.setQuickModel).not.toHaveBeenCalled()
     expect(harness.setTranslateModel).not.toHaveBeenCalled()
+  })
+
+  it('combines the onboarding provider filter with non-chat model filtering', () => {
+    render(
+      <ModelSettings
+        modelFilter={(model) => model.providerId !== 'cherryai'}
+        showPaintingModel={false}
+        showSettingsButton={false}
+      />
+    )
+
+    const filter = harness.selectorFilters[0]
+    expect(filter(createModel('openai', 'gpt-4o'))).toBe(true)
+    expect(filter(createModel('cherryai', 'qwen'))).toBe(false)
+    expect(
+      filter({ ...createModel('openai', 'text-embedding-3-small'), capabilities: [MODEL_CAPABILITY.EMBEDDING] })
+    ).toBe(false)
+    expect(
+      filter({
+        ...createModel('new-api', 'opaque-embedding-model'),
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+      })
+    ).toBe(false)
+    expect(
+      filter({
+        ...createModel('openai', 'whisper-1'),
+        capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION],
+        inputModalities: ['audio'],
+        outputModalities: ['text']
+      })
+    ).toBe(false)
   })
 })

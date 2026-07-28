@@ -2,6 +2,7 @@ import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { render, waitFor } from '@testing-library/react'
+import type * as LucideReact from 'lucide-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeBaseToolRuntime } from '../KnowledgeBaseButton'
@@ -25,7 +26,8 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: () => ({ bases: mocks.knowledgeBases })
 }))
 
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<typeof LucideReact>()),
   FileSearch: () => <span data-testid="file-search-icon" />
 }))
 

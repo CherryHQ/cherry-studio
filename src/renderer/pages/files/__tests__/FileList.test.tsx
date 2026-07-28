@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { FileContextMenuActions } from '../FileContextMenu'
 import type { FileItem } from '../fileDisplay'
 import { formatFileSize, getFormatLabel } from '../fileDisplay'
-import { FileList } from '../FileList'
+import { FileList, FileListHeader } from '../FileList'
 
 type VirtualizerOptionsMock = {
   count: number
@@ -63,17 +63,12 @@ function fileListProps(renamingId: string | null): ComponentProps<typeof FileLis
     selectedIds: new Set(),
     onSelect: vi.fn(),
     onOpen: vi.fn(),
-    onSelectAll: vi.fn(),
-    visibleSelectionState: false,
     onDelete: vi.fn(),
     onRestore: vi.fn(),
     onRename: vi.fn(),
     onShowInFolder: vi.fn(),
     isTrash: false,
     menuActions,
-    sortKey: 'name',
-    sortDir: 'asc',
-    onSort: vi.fn(),
     scrollRef: { current: document.createElement('div') },
     renamingId,
     onRenameConfirm: vi.fn(),
@@ -110,6 +105,26 @@ describe('fileDisplay helpers', () => {
 })
 
 describe('FileList', () => {
+  it('starts virtual rows at the scroll origin', () => {
+    render(<FileList {...fileListProps(null)} />)
+    const firstRow = screen.getByText(file.name).closest('.absolute')
+
+    expect(firstRow).toHaveStyle({ transform: 'translateY(0px)' })
+    expect(firstRow).toHaveClass('grid', 'h-10', 'rounded-md', 'px-2.5')
+    expect(firstRow).not.toHaveClass('border-b')
+    const format = screen.getByText(getFormatLabel(file.format))
+    expect(format).toHaveClass('text-foreground-secondary', 'text-xs')
+    expect(format).not.toHaveClass('rounded-md', 'border-border-subtle', 'bg-background-subtle')
+    expect(virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0].estimateSize()).toBe(44)
+  })
+
+  it('adds a quiet outline to selected rows', () => {
+    render(<FileList {...fileListProps(null)} selectedIds={new Set([file.id])} />)
+
+    const row = screen.getByText(file.name).closest('.absolute')
+    expect(row).toHaveClass('bg-accent', 'ring-1', 'ring-border-subtle', 'ring-inset')
+  })
+
   it('virtualizes accumulated files with stable file identity keys', () => {
     const files = Array.from({ length: 100 }, (_, index) => ({
       ...file,
@@ -175,7 +190,9 @@ describe('FileList', () => {
 
     render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
+    const openButton = screen.getByRole('button', { name: 'files.open' })
+    expect(openButton).toHaveClass('size-6', '!text-muted-foreground/70')
+    fireEvent.click(openButton)
 
     expect(onOpen).toHaveBeenCalledWith(file)
   })
@@ -259,5 +276,27 @@ describe('FileList', () => {
     expect(screen.queryByRole('button', { name: 'files.rename' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'files.show_in_folder' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
+  })
+})
+
+describe('FileListHeader', () => {
+  it('uses a fixed transparent row outside the scrolling list', () => {
+    render(
+      <FileListHeader
+        visibleSelectionState={false}
+        onSelectAll={vi.fn()}
+        sortKey="name"
+        sortDir="asc"
+        onSort={vi.fn()}
+      />
+    )
+    const header = screen.getByText('files.name').closest('.h-10')
+    const activeSort = screen.getByRole('button', { name: 'files.name' })
+    const inactiveSort = screen.getByRole('button', { name: 'files.size' })
+
+    expect(header).toHaveClass('grid', 'mx-3', 'mb-2', 'h-10', 'shrink-0', 'border-border', 'border-b', 'px-2.5')
+    expect(header).not.toHaveClass('sticky', 'bg-card', 'bg-background')
+    expect(activeSort).toHaveClass('!text-foreground-muted')
+    expect(inactiveSort).toHaveClass('!text-foreground-muted')
   })
 })

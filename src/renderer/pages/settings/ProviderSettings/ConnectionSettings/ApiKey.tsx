@@ -64,7 +64,7 @@ export default function ApiKey({
           className="space-y-2"
           title={
             <div className={fieldClasses.titleWithHelp}>
-              <span className="font-semibold">{t('settings.provider.api_key.label')}</span>
+              <span>{t('settings.provider.api_key.label')}</span>
               {meta.apiKeyWebsite && !meta.isDmxapi ? (
                 <ProviderHelpLink
                   target="_blank"

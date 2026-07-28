@@ -9,9 +9,6 @@ const mocks = vi.hoisted(() => ({
   getModelByKey: vi.fn(),
   applicationGet: vi.fn(),
   consumeWarmQuery: vi.fn(),
-  getWarmAgentSessionIds: vi.fn(),
-  closeAgentSessionWarm: vi.fn(),
-  sweepClaudeSessionFiles: vi.fn(),
   prepareTrace: vi.fn(),
   createClaudeQuery: vi.fn(),
   collectFileAttachments: vi.fn(),
@@ -51,10 +48,6 @@ vi.mock('@main/ai/messages/attachmentRouting', () => ({
 
 vi.mock('@main/ai/messages/fileProcessor', () => ({
   materializeNativeFilePart: mocks.materializeNativeFilePart
-}))
-
-vi.mock('../sessionFileSweep', () => ({
-  sweepClaudeSessionFiles: mocks.sweepClaudeSessionFiles
 }))
 
 vi.mock('../streamAdapter', () => ({
@@ -158,16 +151,13 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeWarmQueryManager') {
         return {
-          consume: mocks.consumeWarmQuery,
-          getWarmAgentSessionIds: mocks.getWarmAgentSessionIds,
-          closeAgentSessionWarm: mocks.closeAgentSessionWarm
+          consume: mocks.consumeWarmQuery
         }
       }
       if (name === 'ClaudeCodeTraceBridgeService') return { prepareTrace: mocks.prepareTrace }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
-    mocks.getWarmAgentSessionIds.mockReturnValue([])
     mocks.prepareTrace.mockResolvedValue(undefined)
     mocks.collectFileAttachments.mockReturnValue([])
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
@@ -798,6 +788,54 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  // Background agents/tasks keep emitting after their turn's result (SDK 0.3.186+ keeps stdin open
+  // while they run). There is no turn stream left to carry them, so they are dropped — this pins that
+  // the drop is silent-but-safe: the connection stays usable and later messages still flow.
+  it('drops task_notification arriving after the result without breaking the connection', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    // No `getContextUsage`, so the post-result context-usage probe emits nothing and the event
+    // sequence below stays deterministic.
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-result',
+      usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+    })
+
+    // Drain the turn's tail until it completes; the adapter is cleared at that point.
+    let event = await events.next()
+    while (event.value?.type !== 'turn-complete') {
+      event = await events.next()
+    }
+
+    // Arrives with no adapter → dropped. `commands_changed` is handled ahead of the drop, so seeing
+    // it next proves the task_notification produced no event rather than merely arriving late.
+    queryQueue.push({
+      type: 'system',
+      subtype: 'task_notification',
+      session_id: 'resume-result',
+      uuid: 'bg-task-uuid',
+      task_id: 'task-bg',
+      status: 'completed'
+    })
+    queryQueue.push({ type: 'system', subtype: 'commands_changed', session_id: 'resume-result', commands: ['/help'] })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'supported-commands', commands: ['/help'] }
+    })
+    void connection.close()
+  })
+
   it('maps SDK compaction status and boundary messages to runtime compaction events', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -841,6 +879,88 @@ describe('ClaudeCodeRuntimeDriver', () => {
           durationMs: 1234
         }
       }
+    })
+
+    void connection.close()
+  })
+
+  it('maps an SDK api_retry message to an ephemeral api-retry runtime event during an active turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // Open a turn so the adapter exists — retry status is turn-scoped and only forwarded below the
+    // no-adapter drop.
+    queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: 'resume-init' } })
+    await connection.send({ message: userMessage() })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } } }
+    })
+
+    queryQueue.push({
+      type: 'system',
+      subtype: 'api_retry',
+      session_id: 'resume-init',
+      attempt: 7,
+      max_retries: 10,
+      retry_delay_ms: 36_000,
+      error_status: 500,
+      error: 'server_error'
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'api-retry',
+        retry: {
+          attempt: 7,
+          maxRetries: 10,
+          retryDelayMs: 36_000,
+          errorStatus: 500,
+          errorCategory: 'server_error'
+        }
+      }
+    })
+
+    void connection.close()
+  })
+
+  it('drops an SDK api_retry message when there is no active turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // No `send()` → no adapter (prewarm / turn-less). A turn-less retry has no message to attach to and
+    // no clear boundary (init recovery only emits a resume-token), so it must be dropped, not surfaced
+    // as a stuck "retrying" state. Assert the retry produces nothing by proving the NEXT emitted event
+    // is the following commands_changed push.
+    queryQueue.push({
+      type: 'system',
+      subtype: 'api_retry',
+      session_id: 'resume-1',
+      attempt: 3,
+      max_retries: 10,
+      retry_delay_ms: 12_000,
+      error_status: 500,
+      error: 'server_error'
+    })
+    const commands = [{ name: 'deploy', description: 'Deploy the app', argumentHint: '' }]
+    queryQueue.push({ type: 'system', subtype: 'commands_changed', commands, session_id: 'resume-1' })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'supported-commands', commands }
     })
 
     void connection.close()
@@ -1620,38 +1740,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       await expect(first).resolves.toBe('current')
       await expect(second).resolves.toBe('current')
       expect(secondStarted).toBe(true)
-    })
-  })
-
-  describe('sweepSessionFiles', () => {
-    it('closes warm queries of dead sessions before any file is judged', async () => {
-      mocks.getWarmAgentSessionIds.mockReturnValue(['dead-session', 'live-session'])
-      const live = {
-        isSessionLive: (id: string) => id === 'live-session',
-        isResumeTokenLive: () => false
-      }
-
-      await new ClaudeCodeRuntimeDriver().sweepSessionFiles(live)
-
-      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledTimes(1)
-      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('dead-session')
-      expect(mocks.sweepClaudeSessionFiles).toHaveBeenCalledWith(live)
-      // The dying subprocess sits in the session's cwd — eviction must land before the sweep.
-      expect(mocks.closeAgentSessionWarm.mock.invocationCallOrder[0]).toBeLessThan(
-        mocks.sweepClaudeSessionFiles.mock.invocationCallOrder[0]
-      )
-    })
-
-    it('leaves warm queries of live sessions alone', async () => {
-      mocks.getWarmAgentSessionIds.mockReturnValue(['live-session'])
-
-      await new ClaudeCodeRuntimeDriver().sweepSessionFiles({
-        isSessionLive: () => true,
-        isResumeTokenLive: () => false
-      })
-
-      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
-      expect(mocks.sweepClaudeSessionFiles).toHaveBeenCalled()
     })
   })
 })

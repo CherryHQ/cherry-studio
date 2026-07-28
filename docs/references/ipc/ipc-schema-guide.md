@@ -24,11 +24,13 @@ export type IpcEventName = keyof IpcEventSchemas
 
 | Element | Rule | Example |
 |---|---|---|
-| Route name | dot **snake_case** `namespace.action` | `file.read_doc`, `window.set_minimum_size` |
-| Event name | dot **snake_case** `namespace.event` | `window.maximized_changed`, `shortcut.conflict` |
+| Route name | dot **snake_case** `namespace[.subdomain…].action` | `file.read_doc`, `window.main.set_minimum_size`, `ai.agent.task.create` |
+| Event name | dot **snake_case** `namespace[.subdomain…].event` | `window.maximized_changed`, `ai.stream.chunk` |
 | Payload fields | JS **camelCase** (snake constrains only the route/event string) | `{ minWidth: number }` |
 | Request value/type | `*RequestSchemas` / `IpcRequestSchemas` / `IpcRoute` | `windowRequestSchemas` |
 | Event contract/type | `*EventSchemas` / `IpcEventSchemas` / `IpcEventName` | `WindowEventSchemas` |
+
+Any depth ≥ 2 segments is allowed. Add a subdomain once a namespace's routes fall into distinct groups — put the **resource path first and the verb last** (`ai.agent.task.create`, not `ai.create_agent_task`), and never fake a level with an underscore (`ai.stream.open`, not `ai.stream_open`). Group by **domain, not by owning service**: `ai.tool.get_result` and `ai.tool.respond_approval` share a subtree while delegating to different services. Existing subdomain trees: `ai.*`, `mcp.{server,tool,package}`, `window.{main,sub}`, `system.{mac,shell}`, `app.{updater,data_reset,user_data_relocation}`, `channel.{feishu,wechat}`, `export.{obsidian,word}`.
 
 The dot structure is a naming convention, not type syntax — `IpcRoute` is the strong-typed union `keyof IpcRequestSchemas`; an undeclared route is a compile error. Reuse Preference's `data-schema-key`/`valid-key` ESLint rule for the snake-case keys.
 

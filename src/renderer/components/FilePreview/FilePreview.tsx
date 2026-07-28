@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { FileQuestion, FileWarning, FileX2, LoaderCircle } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useMemo } from 'react'
@@ -36,7 +36,7 @@ const FILE_PREVIEW_STATE_KEYS = {
 
 interface FilePreviewStateProps {
   kind: FilePreviewStateKind
-  filePath?: FilePath
+  filePath?: AbsoluteFilePath
 }
 
 function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
@@ -89,7 +89,7 @@ function PluginErrorFallback() {
 
 interface FilePreviewPluginRendererProps {
   fileName: string
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   plugin: FilePreviewPlugin
   refreshKey: number
 }
@@ -107,11 +107,11 @@ function FilePreviewShell({ children, header }: FilePreviewShellProps) {
       <FilePreviewLayout.Frame>
         <div
           data-testid="file-preview-header"
-          className="flex h-10 min-h-10 shrink-0 items-center border-border-muted border-b px-3">
+          className="relative flex h-11 min-h-11 shrink-0 items-center px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
           <div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
           <FilePreviewToolbarPortalHost />
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden px-3">{children}</div>
+        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
       </FilePreviewLayout.Frame>
     </FilePreviewToolbarPortalProvider>
   )
@@ -133,7 +133,7 @@ function FilePreviewPluginRenderer({ fileName, filePath, plugin, refreshKey }: F
 }
 
 export interface FilePreviewProps {
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   header?: ReactNode
   refreshKey?: number
 }

@@ -136,6 +136,24 @@ describe('diffAgentUpdate', () => {
     })
   })
 
+  it('emits knowledgeBaseIds when the bound knowledge bases change', () => {
+    const agent = createAgent({ knowledgeBaseIds: ['kb-1'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, knowledgeBaseIds: ['kb-2'] }
+
+    const result = diffAgentUpdate(baseline, next, agent)
+
+    expect(result?.dto).toEqual({ knowledgeBaseIds: ['kb-2'] })
+  })
+
+  it('does not emit knowledgeBaseIds when the bound knowledge base set is only reordered', () => {
+    const agent = createAgent({ knowledgeBaseIds: ['kb-1', 'kb-2'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, knowledgeBaseIds: ['kb-2', 'kb-1'] }
+
+    expect(diffAgentUpdate(baseline, next, agent)).toBeNull()
+  })
+
   it('includes skillUpdates when the enabled skill set changes', () => {
     const agent = createAgent()
     const baseline = buildInitialAgentFormState(agent, ['skill-1'])

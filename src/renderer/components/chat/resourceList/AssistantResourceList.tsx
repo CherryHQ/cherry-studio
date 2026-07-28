@@ -101,6 +101,7 @@ export function AssistantResourceList({
     topics: apiTopics,
     isLoadingAll: isTopicsLoadingAll,
     isFullyLoaded: isTopicsFullyLoaded,
+    isRefreshing: isTopicsRefreshing,
     error: topicsError
   } = assistantTopicsSource
   const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic')
@@ -141,8 +142,8 @@ export function AssistantResourceList({
     (assistantId: string) => onCreateTopic(assistantId === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistantId),
     [onCreateTopic]
   )
+  const hasDefaultAssistantTopics = useMemo(() => apiTopics.some((topic) => !topic.assistantId), [apiTopics])
   const entities = useMemo<ResourceEntityRailItem[]>(() => {
-    const hasDefaultAssistantTopics = topics.some((topic) => !topic.assistantId)
     const defaultAssistantEntity: ResourceEntityRailItem[] = hasDefaultAssistantTopics
       ? [
           {
@@ -208,8 +209,8 @@ export function AssistantResourceList({
     assistantPinnedIdSet,
     defaultModelId,
     handleCreateTopic,
-    t,
-    topics
+    hasDefaultAssistantTopics,
+    t
   ])
 
   const sortTopicsForEntity = useCallback(
@@ -524,6 +525,7 @@ export function AssistantResourceList({
         // Reorder persists the global assistant `orderKey`; grouped sections use Group.orderKey.
         // Disable assistant reorder while grouped because it cannot change group ordering.
         onReorder={isGroupGrouping ? undefined : handleReorder}
+        reorderEnabled={isTopicsFullyLoaded && !isTopicsLoadingAll && !isTopicsRefreshing}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

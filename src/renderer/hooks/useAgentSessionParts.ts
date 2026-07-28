@@ -64,9 +64,12 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
   const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
+    // Render-only read: a long session's tool outputs stay in main until a card actually needs one.
+    query: { deferToolOutputs: true },
     limit: PAGE_SIZE,
     enabled,
     swrOptions: {
+      keepPreviousData: false,
       ...(!fetchOnMount && {
         revalidateIfStale: false,
         revalidateOnMount: false

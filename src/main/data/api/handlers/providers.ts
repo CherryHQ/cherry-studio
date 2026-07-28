@@ -90,7 +90,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
       const parsed = ProviderPresetQuerySchema.parse(query ?? {})
       const provider = providerService.getByProviderId(params.providerId)
       const fields = Array.isArray(parsed.fields) ? parsed.fields : [parsed.fields]
-      return providerRegistryService.getProviderPreset(provider.id, fields, provider.presetProviderId)
+      return providerRegistryService.getProviderPreset(provider.id, fields, provider.presetProviderId ?? null)
     }
   },
 

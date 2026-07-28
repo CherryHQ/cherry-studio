@@ -1,11 +1,12 @@
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
+import { modeWire } from './wires'
 
-const thinkingWire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
-  auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] },
-  effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] }
-}
+const thinkingWire: ReasoningWireProfile = modeWire('thinking.type', {
+  off: 'disabled',
+  auto: 'enabled',
+  effort: 'enabled'
+})
 
 export default defineProvider({
   id: 'longcat',

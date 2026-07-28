@@ -18,7 +18,12 @@
  * refuses it too (it never runs an approval-gated tool blind) — an unreachable tool either way.
  */
 
-import { KB_MANAGE_TOOL_NAME, kbManageOutputSchema, kbManageStrictInputSchema } from '@shared/ai/builtinTools'
+import {
+  KB_MANAGE_TOOL_NAME,
+  KB_MANAGE_UNUSED_TYPE,
+  kbManageOutputSchema,
+  kbManageStrictInputSchema
+} from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -45,7 +50,21 @@ const kbManageTool = tool({
   needsApproval: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
-    return manageKnowledge(input, request.knowledgeBaseIds ?? [])
+    // Normalize the strict schema's primitive sentinels at the provider boundary. The shared
+    // mutation core keeps its natural optional-field contract.
+    return manageKnowledge(
+      {
+        baseId: input.baseId,
+        action: input.action,
+        type: input.type === KB_MANAGE_UNUSED_TYPE ? undefined : input.type,
+        path: input.path || undefined,
+        url: input.url || undefined,
+        content: input.content || undefined,
+        title: input.title || undefined,
+        conceptIds: input.conceptIds.length > 0 ? input.conceptIds : undefined
+      },
+      request.knowledgeBaseIds ?? []
+    )
   },
   toModelOutput: ({ output }) => knowledgeManageModelOutput(output)
 })

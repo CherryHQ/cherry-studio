@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 
+import { uiLocator } from '../utils'
 import { BasePage } from './base.page'
 
 /**
@@ -18,14 +19,14 @@ export class HomePage extends BasePage {
 
   constructor(page: Page) {
     super(page)
-    this.homePage = page.locator('#home-page, [class*="HomePage"], [class*="Home"]')
-    this.chatContainer = page.locator('#chat, [class*="Chat"]')
-    this.inputBar = page.locator('[class*="Inputbar"], [class*="InputBar"], [class*="input-bar"]')
-    this.messagesList = page.locator('#messages, [class*="Messages"], [class*="MessageList"]')
-    this.sendButton = page.locator('[class*="SendMessageButton"], [class*="send-button"], button[type="submit"]')
-    this.newTopicButton = page.locator('[class*="NewTopicButton"], [class*="new-topic"]')
+    this.homePage = uiLocator(page, 'chat.view')
+    this.chatContainer = uiLocator(page, 'chat.view')
+    this.inputBar = uiLocator(page, 'chat.composer')
+    this.messagesList = uiLocator(page, 'chat.message-list')
+    this.sendButton = uiLocator(page, 'chat.composer.action.send')
+    this.newTopicButton = uiLocator(page, 'chat.topic-list.action.create')
     this.assistantTabs = page.locator('[class*="HomeTabs"], [class*="AssistantTabs"]')
-    this.topicList = page.locator('[class*="TopicList"], [class*="topic-list"]')
+    this.topicList = uiLocator(page, 'chat.topic-list')
   }
 
   /**
@@ -50,9 +51,9 @@ export class HomePage extends BasePage {
    * Type a message in the input area.
    */
   async typeMessage(message: string): Promise<void> {
-    const input = this.page.locator(
-      '[class*="Inputbar"] textarea, [class*="Inputbar"] [contenteditable], [class*="InputBar"] textarea'
-    )
+    const input = this.inputBar
+      .locator('[data-ui~="part:composer-input"]')
+      .locator('textarea, [contenteditable="true"], input[type="text"]')
     await input.first().fill(message)
   }
 
@@ -75,8 +76,7 @@ export class HomePage extends BasePage {
    * Get the count of messages in the chat.
    */
   async getMessageCount(): Promise<number> {
-    const messages = this.page.locator('[class*="Message"]:not([class*="Messages"]):not([class*="MessageList"])')
-    return messages.count()
+    return uiLocator(this.page, 'chat.message').count()
   }
 
   /**
@@ -104,7 +104,9 @@ export class HomePage extends BasePage {
    * Get the placeholder text of the input field.
    */
   async getInputPlaceholder(): Promise<string | null> {
-    const input = this.page.locator('[class*="Inputbar"] textarea, [class*="InputBar"] textarea')
+    const input = this.inputBar
+      .locator('[data-ui~="part:composer-input"]')
+      .locator('textarea, [contenteditable="true"], input[type="text"]')
     return input.first().getAttribute('placeholder')
   }
 }

@@ -4,7 +4,7 @@ import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from 'motion/react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -23,6 +23,7 @@ import {
   isClosedRightPanePhase,
   isFullWidthRightPanePhase,
   type PersistentRightPaneVisualState,
+  planPersistentRightPaneReconnect,
   planPersistentRightPaneTransition,
   RIGHT_PANE_CLIP_COLLAPSED,
   RIGHT_PANE_CLIP_REVEALED,
@@ -362,6 +363,7 @@ export function PersistentRightPaneHost({
   const previousTargetModeRef = useRef(targetMode)
   const transitionTokenRef = useRef(0)
   const scheduledAnimationFrameRef = useRef<number | null>(null)
+  const effectsConnectedRef = useRef(false)
   const [initialAnimationState] = useState(() => ({
     clipPath: targetMode === 'closed' ? RIGHT_PANE_CLIP_COLLAPSED : RIGHT_PANE_CLIP_REVEALED,
     opacity: targetMode === 'closed' ? 0 : 1
@@ -373,20 +375,50 @@ export function PersistentRightPaneHost({
     setVisualStateState(nextState)
   }, [])
 
-  useLayoutEffect(() => {
-    onLayoutAnimationCompleteRef.current = onLayoutAnimationComplete
-  }, [onLayoutAnimationComplete])
-
-  useLayoutEffect(() => {
-    if (previousTargetModeRef.current === targetMode) return
-    previousTargetModeRef.current = targetMode
-
-    const token = ++transitionTokenRef.current
+  const invalidateActiveTransition = useCallback(() => {
+    transitionTokenRef.current += 1
     if (scheduledAnimationFrameRef.current !== null) {
       cancelAnimationFrame(scheduledAnimationFrameRef.current)
       scheduledAnimationFrameRef.current = null
     }
     animationControls.stop()
+  }, [animationControls])
+
+  useLayoutEffect(() => {
+    onLayoutAnimationCompleteRef.current = onLayoutAnimationComplete
+  }, [onLayoutAnimationComplete])
+
+  const reconcileAfterEffectsReconnect = useEffectEvent(() => {
+    const plan = planPersistentRightPaneReconnect(visualStateRef.current.phase, targetMode)
+    previousTargetModeRef.current = targetMode
+    if (!plan.completedMode) return
+
+    setVisualState(plan.settledState)
+    onLayoutAnimationCompleteRef.current?.(plan.completedMode)
+  })
+
+  // Activity preserves state while disconnecting effects. Invalidate any running
+  // transition on disconnect; when effects reconnect, converge an interrupted or
+  // hidden-time target change to the latest target without replaying the animation.
+  useLayoutEffect(() => {
+    if (effectsConnectedRef.current) {
+      reconcileAfterEffectsReconnect()
+    } else {
+      effectsConnectedRef.current = true
+    }
+
+    return invalidateActiveTransition
+    // `reconcileAfterEffectsReconnect` is an Effect Event that reads the latest
+    // target and visual state without turning normal renders into reconnects.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invalidateActiveTransition])
+
+  useLayoutEffect(() => {
+    if (previousTargetModeRef.current === targetMode) return
+    previousTargetModeRef.current = targetMode
+
+    invalidateActiveTransition()
+    const token = transitionTokenRef.current
 
     const plan = planPersistentRightPaneTransition(visualStateRef.current.phase, targetMode, {
       dockedClip,
@@ -432,28 +464,17 @@ export function PersistentRightPaneHost({
     if (plan.setBeforeStart) animationControls.set(plan.setBeforeStart)
     setVisualState(plan.runningState)
     start(plan.animateTo, complete, plan.deferUntilNextFrame)
-  }, [animationControls, dockedClip, paneRef, reduceMotion, setVisualState, targetMode])
+  }, [animationControls, dockedClip, invalidateActiveTransition, paneRef, reduceMotion, setVisualState, targetMode])
 
-  // Runs after the docked width commits (pre-paint), when the docked-strip calc()
-  // clip already equals a zero inset — visually a no-op that restores the plain
-  // resting value so later transitions animate from a canonical clip. The target
-  // guard keeps it out of commits where a new transition just staged its own clip.
+  // Every settled mode re-declares its canonical pre-paint Motion state. This
+  // normalizes the docked clip after width commits and restores external visual
+  // state whenever Activity reconnects effects.
   useLayoutEffect(() => {
-    if (phase === 'docked' && targetMode === 'docked') {
-      animationControls.set({ clipPath: RIGHT_PANE_CLIP_REVEALED, opacity: 1 })
-    }
-  }, [animationControls, phase, targetMode])
+    const plan = planPersistentRightPaneReconnect(phase, targetMode)
+    if (plan.completedMode) return
 
-  useEffect(() => {
-    return () => {
-      transitionTokenRef.current += 1
-      if (scheduledAnimationFrameRef.current !== null) {
-        cancelAnimationFrame(scheduledAnimationFrameRef.current)
-        scheduledAnimationFrameRef.current = null
-      }
-      animationControls.stop()
-    }
-  }, [animationControls])
+    animationControls.set(plan.motionState)
+  }, [animationControls, phase, targetMode])
 
   const isDocked = phase === 'docked' && targetMode === 'docked'
   const fullWidthLayout = isFullWidthRightPanePhase(phase)

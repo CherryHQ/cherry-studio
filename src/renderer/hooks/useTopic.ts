@@ -140,12 +140,19 @@ const MESSAGES_PAGE_SIZE = 200
  *
  * Used by one-off consumers (export, knowledge analysis, topic rename
  * pre-check). The main chat UI reads messages via `useTopicMessages`.
+ *
+ * `maxMessages` stops paging once that many of the newest messages are in
+ * hand, for consumers (composer references) that only need a recent tail.
  */
-export async function getTopicMessages(id: string): Promise<MessageExportView[]> {
+export async function getTopicMessages(
+  id: string,
+  options: { maxMessages?: number } = {}
+): Promise<MessageExportView[]> {
   try {
     const pages: MessageExportView[][] = []
     let assistantId = ''
     let cursor: string | undefined
+    let collected = 0
 
     do {
       const response = (await dataApiService.get(`/topics/${id}/messages`, {
@@ -165,9 +172,10 @@ export async function getTopicMessages(id: string): Promise<MessageExportView[]>
         }
       }
       pages.push(pageMessages)
+      collected += pageMessages.length
 
       cursor = response.nextCursor
-    } while (cursor)
+    } while (cursor && (!options.maxMessages || collected < options.maxMessages))
 
     return pages.reverse().flat()
   } catch (error: unknown) {
@@ -446,13 +454,13 @@ export function useTopicMutations() {
 }
 
 /**
- * Listens for `ai.topic_auto_renamed` and invalidates the renamed
+ * Listens for `ai.topic.auto_renamed` and invalidates the renamed
  * topic's SWR cache so the new name shows up without manual refetch.
  */
 export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
-  useIpcOn('ai.topic_auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
+  useIpcOn('ai.topic.auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────

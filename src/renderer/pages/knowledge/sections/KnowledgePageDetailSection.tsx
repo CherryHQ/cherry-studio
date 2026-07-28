@@ -59,29 +59,31 @@ const KnowledgePageDetailSection = () => {
     isLoadingMore: isLoadingMoreItems,
     loadMore: loadMoreItems
   } = useKnowledgeItems(selectedBaseId, currentDirectory?.id ?? null)
-  const { deleteItem } = useDeleteKnowledgeItem(selectedBaseId)
-  const { reindexItem } = useReindexKnowledgeItem(selectedBaseId)
+  const { deleteItem, deleteItems } = useDeleteKnowledgeItem(selectedBaseId)
+  const { reindexItem, reindexItems } = useReindexKnowledgeItem(selectedBaseId)
 
   if (!selectedBase) {
     return null
   }
 
   return (
-    <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <DetailHeader
-        base={selectedBase}
-        onOpenRagConfig={openRagConfigDrawer}
-        onOpenRecallTest={openRecallTestDrawer}
-        onRebuild={() => openRestoreBaseDialog(selectedBase)}
-      />
+    <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {!selectedItemId && !filePreview ? (
+        <DetailHeader
+          base={selectedBase}
+          onOpenRagConfig={openRagConfigDrawer}
+          onOpenRecallTest={openRecallTestDrawer}
+          onRebuild={() => openRestoreBaseDialog(selectedBase)}
+        />
+      ) : null}
 
-      <div className="min-h-0 flex-1 overflow-hidden bg-background">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {selectedItemId ? (
           <KnowledgeItemChunkDetailPanel baseId={selectedBaseId} itemId={selectedItemId} onBack={closeItemChunks} />
         ) : filePreview ? (
           <section
             aria-label={filePreview.fileName}
-            className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+            className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <FilePreview
               filePath={filePreview.filePath}
               header={
@@ -116,7 +118,9 @@ const KnowledgePageDetailSection = () => {
             currentDirectory={currentDirectory}
             onNavigateUp={navigateUp}
             onDelete={deleteItem}
+            onDeleteItems={deleteItems}
             onReindex={reindexItem}
+            onReindexItems={reindexItems}
           />
         )}
       </div>

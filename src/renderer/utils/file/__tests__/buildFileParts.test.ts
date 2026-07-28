@@ -1,12 +1,13 @@
 import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { buildFilePartsForAttachments } from '../buildFileParts'
 
 const attachment = (overrides: Partial<ComposerAttachment> = {}): ComposerAttachment => ({
   fileTokenSourceId: 'source-1',
-  path: '/tmp/image.png',
+  path: '/tmp/image.png' as AbsoluteFilePath,
   name: 'image.png',
   origin_name: 'image.png',
   ext: '.png',
@@ -56,7 +57,7 @@ describe('buildFilePartsForAttachments', () => {
 
     const [part] = await buildFilePartsForAttachments([
       attachment({
-        path: '/tmp/report.pdf',
+        path: '/tmp/report.pdf' as AbsoluteFilePath,
         name: 'report.pdf',
         origin_name: 'report.pdf',
         ext: '.pdf',
@@ -68,11 +69,25 @@ describe('buildFilePartsForAttachments', () => {
     expect(part.url).toBe('file:///p/fe-3.pdf')
   })
 
+  it('rejects a batch containing a path-less attachment BEFORE creating any entry', async () => {
+    // `ComposerAttachment.path` is branded, so a malformed path cannot reach here
+    // at all; what remains is an ABSENT path (the message-editing round-trip).
+    // The whole batch must be screened before the first `createInternalEntry`:
+    // that call copies bytes and inserts a row, and neither orphan sweep reclaims
+    // the result, so a half-run batch would leave permanent residue that every
+    // retry duplicates.
+    const goodAttachment = attachment()
+    const pathlessAttachment = attachment({ path: undefined, name: 'from-edit.png' })
+
+    await expect(buildFilePartsForAttachments([goodAttachment, pathlessAttachment])).rejects.toThrow(/no file path/i)
+    expect(window.api.file.createInternalEntry).not.toHaveBeenCalled()
+  })
+
   it('keeps the safe pasted-text marker on the sent file part', async () => {
     const [part] = await buildFilePartsForAttachments([
       attachment({
         composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT,
-        path: '/tmp/pasted_text.txt',
+        path: '/tmp/pasted_text.txt' as AbsoluteFilePath,
         name: 'pasted_text.txt',
         origin_name: 'Pasted text.txt',
         ext: '.txt',

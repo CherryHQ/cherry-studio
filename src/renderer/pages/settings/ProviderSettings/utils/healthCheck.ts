@@ -147,7 +147,7 @@ export async function checkApi(
   options?: { apiKey?: string; timeout?: number; signal?: AbortSignal }
 ): Promise<{ latency: number }> {
   options?.signal?.throwIfAborted()
-  return await ipcApi.request('ai.check_model', {
+  return await ipcApi.request('ai.provider.model.check', {
     apiKeyOverride: options?.apiKey,
     uniqueModelId,
     timeout: options?.timeout ?? 15000

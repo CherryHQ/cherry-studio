@@ -40,11 +40,11 @@ const COMPOSER_EDITOR_ELEMENT_STYLE = [
   'height: var(--composer-editor-height)'
 ].join('; ')
 
-function getComposerEditorMinHeight(fontSize: number) {
+export function getComposerEditorMinHeight(fontSize: number) {
   return Math.ceil(fontSize * 1.4 * 2 + 6)
 }
 
-function getCompactComposerEditorMinHeight(fontSize: number) {
+export function getCompactComposerEditorMinHeight(fontSize: number) {
   return Math.ceil(fontSize * 1.4 + 6)
 }
 

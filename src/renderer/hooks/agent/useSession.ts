@@ -178,7 +178,11 @@ export const useSessions = (
   // for row indicators, toggle handling, and display grouping/sorting that
   // promotes pinned sessions.
   const sessions = useInfiniteFlatItems(pages)
-  const { data: pinList, isLoading: isPinsLoading } = useQuery('/pins', { query: { entityType: 'session' } })
+  const {
+    data: pinList,
+    isLoading: isPinsLoading,
+    isRefreshing: isPinsRefreshing
+  } = useQuery('/pins', { query: { entityType: 'session' }, enabled })
   const pinIdBySessionId = useMemo(
     () => new Map(Array.isArray(pinList) ? pinList.map((p) => [p.entityId, p.id] as const) : []),
     [pinList]
@@ -340,7 +344,8 @@ export const useSessions = (
     togglePin,
     isFullyLoaded,
     isLoadingAll,
-    isPinsLoading
+    isPinsLoading,
+    isPinsRefreshing
   }
 }
 
@@ -407,14 +412,14 @@ export const useUpdateSession = () => {
 }
 
 /**
- * Listens for `ai.agent_session_auto_renamed` and invalidates the
+ * Listens for `ai.agent.session.auto_renamed` and invalidates the
  * renamed session's SWR cache so the new name appears without manual refetch.
  */
 export function useAgentSessionAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
   useIpcOn(
-    'ai.agent_session_auto_renamed',
+    'ai.agent.session.auto_renamed',
     ({ sessionId }) => void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
   )
 }

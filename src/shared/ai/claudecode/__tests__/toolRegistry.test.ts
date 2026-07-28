@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { claudeRegistrySdkDescriptors, claudeUserFacingTools } from '../toolRegistry'
+import { CLAUDE_KNOWLEDGE_TOOL_NAMES, claudeRegistrySdkDescriptors, claudeUserFacingTools } from '../toolRegistry'
 
 describe('claudeRegistrySdkDescriptors', () => {
   const descriptors = claudeRegistrySdkDescriptors()
@@ -52,5 +52,25 @@ describe('claudeUserFacingTools', () => {
     const tool = byName.get('mcp__cherry-tools__generate_image')
     expect(tool?.label).toBe('Generate Image')
     expect(tool?.category).toBe('media')
+  })
+})
+
+describe('CLAUDE_KNOWLEDGE_TOOL_NAMES', () => {
+  it('covers exactly the four in-process knowledge-base tool wire names', () => {
+    expect([...CLAUDE_KNOWLEDGE_TOOL_NAMES].sort()).toEqual([
+      'mcp__cherry-tools__kb_list',
+      'mcp__cherry-tools__kb_manage',
+      'mcp__cherry-tools__kb_read',
+      'mcp__cherry-tools__kb_search'
+    ])
+  })
+
+  it('contains the user-facing kb toggles so the edit-dialog catalog can gate them', () => {
+    // These are the two the builtin catalog hides when the agent has no bound base.
+    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry-tools__kb_search')).toBe(true)
+    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry-tools__kb_manage')).toBe(true)
+    // Non-kb cherry tools must not be swept in.
+    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry-tools__web_search')).toBe(false)
+    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry-tools__generate_image')).toBe(false)
   })
 })

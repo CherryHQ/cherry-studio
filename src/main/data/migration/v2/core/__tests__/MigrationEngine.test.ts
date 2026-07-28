@@ -33,7 +33,8 @@ const mockPaths: MigrationPaths = {
   filesDataDir: '/tmp/test-userdata/Data/Files',
   versionLogFile: '/tmp/test-userdata/version.log',
   legacyAgentDbFile: '/tmp/test-userdata/Data/agents.db',
-  agentWorkspacesDir: '/tmp/test-userdata/Data/AgentWorkspaces',
+  agentsDataDir: '/tmp/test-userdata/Data/Agents',
+  agentSystemWorkspacesDir: '/tmp/test-userdata/Data/Agents/system',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
   migrationsFolder: '/tmp/test-migrations'
@@ -230,6 +231,30 @@ describe('MigrationEngine', () => {
       expect(await freshEngine.needsMigration()).toBe(false)
       expect(markSpy).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('marks migration completed when the user skips migration', async () => {
+    const markSpy = vi.spyOn(engine as any, 'markCompleted').mockResolvedValue(undefined)
+
+    await engine.skipMigration()
+
+    expect(markSpy).toHaveBeenCalledOnce()
+  })
+
+  it('marks completed after global validation succeeds', async () => {
+    const events: string[] = []
+    const migrator = createTestMigrator('agents', 1, events)
+    vi.mocked((engine as any).verifyForeignKeys).mockImplementation(() => {
+      events.push('foreign-keys')
+    })
+    vi.mocked((engine as any).markCompleted).mockImplementation(async () => {
+      events.push('completed')
+    })
+    engine.registerMigrators([migrator as any])
+
+    await expect(engine.run({}, '/tmp/dexie_export')).resolves.toMatchObject({ success: true })
+
+    expect(events.slice(-2)).toEqual(['foreign-keys', 'completed'])
   })
 
   it('clears new architecture tables inside one transaction', async () => {

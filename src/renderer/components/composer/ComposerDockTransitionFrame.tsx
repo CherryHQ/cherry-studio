@@ -32,6 +32,16 @@ interface ComposerInlineInsets {
 
 const ZERO_COMPOSER_INLINE_INSETS: ComposerInlineInsets = { left: 0, right: 0 }
 
+function findComposerViewportInsetTarget(node: HTMLElement): HTMLElement | null {
+  const activeLayer = node.querySelector<HTMLElement>('[data-composer-active-layer]')
+  const targetRoot = activeLayer ?? node
+
+  return (
+    targetRoot.querySelector<HTMLElement>('[data-composer-viewport-inset-target]') ??
+    targetRoot.querySelector<HTMLElement>('[data-composer-inputbar]')
+  )
+}
+
 export default function ComposerDockTransitionFrame({
   placement,
   main,
@@ -62,6 +72,8 @@ export default function ComposerDockTransitionFrame({
   useLayoutEffect(() => {
     const node = composerRef.current
     if (!node) return
+    let observer: ResizeObserver | null = null
+    let observedInsetTarget: HTMLElement | null = null
 
     const updateInset = () => {
       if (!isDocked || !hasComposer) {
@@ -71,9 +83,12 @@ export default function ComposerDockTransitionFrame({
         )
         return
       }
-      const insetTarget =
-        node.querySelector<HTMLElement>('[data-composer-viewport-inset-target]') ??
-        node.querySelector<HTMLElement>('[data-composer-inputbar]')
+      const insetTarget = findComposerViewportInsetTarget(node)
+      if (observer && insetTarget !== observedInsetTarget) {
+        if (observedInsetTarget) observer.unobserve(observedInsetTarget)
+        if (insetTarget) observer.observe(insetTarget)
+        observedInsetTarget = insetTarget
+      }
       const root = rootRef.current
       if (!insetTarget || !root) {
         setBottomOverlayInsets(null)
@@ -83,6 +98,11 @@ export default function ComposerDockTransitionFrame({
         return
       }
       const insetTargetRect = insetTarget.getBoundingClientRect()
+      // A composer mid-swap (e.g. its lazy chunk still loading behind Suspense)
+      // measures as a zero rect. Deriving insets from it would push the message
+      // list's bottom margin to the full stage height and collapse the list to
+      // zero height, so keep the last good insets until the composer lays out.
+      if (insetTargetRect.width === 0 && insetTargetRect.height === 0) return
       const composerRect = node.getBoundingClientRect()
       const rootRect = root.getBoundingClientRect()
       const scroller = root.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
@@ -112,16 +132,24 @@ export default function ComposerDockTransitionFrame({
 
     if (typeof ResizeObserver === 'undefined') return
 
-    const observer = new ResizeObserver(updateInset)
+    observer = new ResizeObserver(updateInset)
     if (rootRef.current) observer.observe(rootRef.current)
     observer.observe(node)
-    const insetTarget =
-      node.querySelector<HTMLElement>('[data-composer-viewport-inset-target]') ??
-      node.querySelector<HTMLElement>('[data-composer-inputbar]')
-    if (insetTarget) observer.observe(insetTarget)
     const scroller = rootRef.current?.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
     if (scroller) observer.observe(scroller)
-    return () => observer.disconnect()
+    updateInset()
+
+    const mutationObserver = typeof MutationObserver === 'undefined' ? null : new MutationObserver(updateInset)
+    mutationObserver?.observe(node, {
+      attributes: true,
+      attributeFilter: ['data-composer-active-layer', 'data-composer-active-override'],
+      subtree: true
+    })
+
+    return () => {
+      mutationObserver?.disconnect()
+      observer?.disconnect()
+    }
   }, [hasComposer, isDocked])
 
   return (

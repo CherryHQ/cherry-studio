@@ -1,7 +1,8 @@
 /**
- * MiniApp migrator - migrates miniapp configurations from Redux to SQLite
+ * MiniApp migrator - migrates legacy Redux and sidecar configurations to SQLite
  */
 
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 
 import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
@@ -27,11 +28,26 @@ import {
 } from './utils/logoMigration'
 
 type MiniAppRowWithoutOrderKey = Omit<InsertMiniAppRow, 'orderKey'>
+type LegacyCustomMiniApp = Record<string, unknown> & { id: string }
 
 const logger = loggerService.withContext('MiniAppMigrator')
 
 function orderKeyScopeForStatus(status: MiniAppStatus | undefined): 'visible' | 'disabled' {
   return status === 'disabled' ? 'disabled' : 'visible'
+}
+
+function createSafeLegacyMiniAppId(legacyId: string, reservedIds: Set<string>): string {
+  let attempt = 0
+
+  while (true) {
+    const hashInput = attempt === 0 ? legacyId : `${legacyId}\0${attempt}`
+    const candidate = `legacy-${createHash('sha256').update(hashInput).digest('hex')}`
+    if (!reservedIds.has(candidate)) {
+      reservedIds.add(candidate)
+      return candidate
+    }
+    attempt++
+  }
 }
 
 /** The mini-app logo slot for a given appId (mirrors MiniAppService). */
@@ -42,7 +58,7 @@ function miniAppLogoSlot(appId: string) {
 export class MiniAppMigrator extends BaseMigrator {
   readonly id = 'miniapp'
   readonly name = 'MiniApp'
-  readonly description = 'Migrate miniapp configurations from Redux to SQLite'
+  readonly description = 'Migrate miniapp configurations from Redux and custom-minapps.json to SQLite'
   readonly order = 1.2
 
   private preparedRows: InsertMiniAppRow[] = []
@@ -68,33 +84,72 @@ export class MiniAppMigrator extends BaseMigrator {
         pinned?: Record<string, unknown>[]
       }>('minapps')
 
-      if (!state) {
-        logger.info('No miniApps state found, skipping migration')
-        return { success: true, itemCount: 0 }
-      }
+      // custom-minapps.json is v1's authoritative store for complete custom
+      // app records. Redux carries list membership/status and may be absent or
+      // stale because v1 writes this file before dispatching the Redux update.
+      const {
+        apps: customApps,
+        isAuthoritativeSnapshot,
+        invalidCount: invalidCustomAppCount,
+        warnings: customAppWarnings
+      } = await loadCustomMiniApps(ctx.paths.customMiniAppsFile)
+      warnings.push(...customAppWarnings)
+      this.skippedCount += invalidCustomAppCount
 
-      // Process each status group
+      // Copy every Redux group before supplementing it so the source object is
+      // never mutated during prepare().
       const groups: { data: Record<string, unknown>[]; status: MiniAppStatus }[] = [
-        { data: state.enabled ?? [], status: 'enabled' },
-        { data: state.disabled ?? [], status: 'disabled' },
-        { data: state.pinned ?? [], status: 'pinned' }
+        { data: [...(state?.enabled ?? [])], status: 'enabled' },
+        { data: [...(state?.disabled ?? [])], status: 'disabled' },
+        { data: [...(state?.pinned ?? [])], status: 'pinned' }
       ]
 
-      // Calculate original source count (total apps before filtering/deduplication)
-      this.originalSourceCount = groups.reduce((total, group) => total + group.data.length, 0)
+      const customAppsById = new Map<string, LegacyCustomMiniApp>()
+      let duplicateCustomAppCount = 0
+      for (const customApp of customApps) {
+        if (customAppsById.has(customApp.id)) {
+          duplicateCustomAppCount++
+          warnings.push(`Skipped duplicate custom app in custom-minapps.json: ${customApp.id}`)
+          continue
+        }
+        customAppsById.set(customApp.id, customApp)
+      }
+      this.skippedCount += duplicateCustomAppCount
 
-      // v1 stripped `logo` to undefined before persisting custom apps to its
-      // Redux Persist state, so the migrated data omits it. The full custom-app
-      // record — including logo — lives in `customMiniAppsFile` (resolved by
-      // MigrationPaths from {userData}/Data/Files/custom-minapps.json) and is
-      // reattached at runtime. Re-read it here so logos survive migration.
-      const { logos: customLogosByAppId, warnings: customLogoWarnings } = await loadCustomMiniAppLogos(
-        ctx.paths.customMiniAppsFile
-      )
-      warnings.push(...customLogoWarnings)
+      const reduxIds = new Set<string>()
+      for (const group of groups) {
+        for (const app of group.data) {
+          if (app && typeof app.id === 'string' && app.id.length > 0) {
+            reduxIds.add(app.id)
+          }
+        }
+      }
 
-      // Track seen IDs to detect duplicates across groups
-      // A pinned app also appears in enabled — prefer the pinned status (higher priority)
+      // A sidecar-only record has no Redux status. Restore it as enabled and
+      // append it in file order, matching v1's custom-app list behavior.
+      const sidecarOnlyApps = [...customAppsById.values()].filter((app) => !reduxIds.has(app.id))
+      groups[0].data.push(...sidecarOnlyApps)
+
+      // Count Redux entries plus only the sidecar records that represent
+      // otherwise-missing entities. Sidecar copies of Redux entities are the
+      // same logical source record, not additional items.
+      this.originalSourceCount =
+        groups.reduce((total, group) => total + group.data.length, 0) + invalidCustomAppCount + duplicateCustomAppCount
+
+      // Reserve all already-valid source IDs before remapping invalid custom
+      // IDs so a generated legacy hash can never shadow a real source row.
+      const reservedIds = new Set<string>()
+      for (const group of groups) {
+        for (const app of group.data) {
+          if (app && typeof app.id === 'string' && MINI_APP_ID_REGEX.test(app.id)) {
+            reservedIds.add(app.id)
+          }
+        }
+      }
+      const remappedCustomIds = new Map<string, string>()
+
+      // Track seen target IDs to detect duplicates across groups. A pinned app
+      // also appears in enabled, so process it first and keep the higher status.
       const seenIds = new Map<string, MiniAppRowWithoutOrderKey>()
 
       // Process pinned first (highest priority), then enabled, then disabled
@@ -105,44 +160,62 @@ export class MiniAppMigrator extends BaseMigrator {
         if (!group) continue
 
         for (const app of group.data) {
-          if (!app || !app.id || typeof app.id !== 'string') {
+          if (!app || typeof app !== 'object' || Array.isArray(app) || !app.id || typeof app.id !== 'string') {
             this.skippedCount++
             warnings.push(`Skipped ${status} app without valid id: ${app?.name ?? 'unknown'}`)
             continue
           }
 
-          // Reject ids that the v2 API would refuse on `POST /mini-apps`.
-          // Otherwise a stray `:` / `/` in a v1 custom-app id (legal in v1)
-          // migrates a row that the v2 schema can never recreate after deletion.
-          if (!MINI_APP_ID_REGEX.test(app.id)) {
+          const originalId = app.id
+          const customApp = customAppsById.get(originalId)
+
+          // v1 writes custom-minapps.json before updating Redux. If the app
+          // crashes after a deletion reaches the file but before Redux
+          // persists, Redux can still contain a stale custom record. Only a
+          // complete sidecar has authoritative membership; malformed entries
+          // may hide custom records that Redux can still recover.
+          if (isAuthoritativeSnapshot && app.type === 'Custom' && !customApp) {
             this.skippedCount++
-            warnings.push(`Skipped ${status} app with invalid id format: ${app.id}`)
+            warnings.push(`Skipped stale Redux custom app absent from custom-minapps.json: ${originalId}`)
             continue
           }
 
-          try {
-            // Reattach logo for custom apps from custom-minapps.json (v1 strips it from Redux).
-            if (!app.logo && customLogosByAppId.has(app.id)) {
-              app.logo = customLogosByAppId.get(app.id)
+          const source: Record<string, unknown> = customApp ? { ...customApp, type: 'Custom' } : { ...app }
+
+          if (!MINI_APP_ID_REGEX.test(originalId)) {
+            if (source.type !== 'Custom') {
+              this.skippedCount++
+              warnings.push(`Skipped ${status} app with invalid id format: ${originalId}`)
+              continue
             }
 
-            const row = transformMiniApp(app, status)
+            let remappedId = remappedCustomIds.get(originalId)
+            if (!remappedId) {
+              remappedId = createSafeLegacyMiniAppId(originalId, reservedIds)
+              remappedCustomIds.set(originalId, remappedId)
+              warnings.push(`Remapped custom app id "${originalId}" to "${remappedId}"`)
+            }
+            source.id = remappedId
+          }
+
+          try {
+            const row = transformMiniApp(source, status)
 
             // All rows must have name and url populated (full data + delta tracking).
             if (!row.name || !row.url) {
               this.skippedCount++
-              warnings.push(`Skipped ${status} app ${app.id}: missing name or url`)
+              warnings.push(`Skipped ${status} app ${originalId}: missing name or url`)
               continue
             }
 
-            // If already seen with same or higher priority, keep existing.
-            // If seen with lower priority, replace (e.g. enabled -> pinned).
-            // Either way the duplicate is counted as skipped so the engine's
+            // Status groups are processed from highest to lowest priority, so
+            // an existing row always wins. The duplicate is counted as skipped
+            // so the engine's
             // `targetCount >= sourceCount - skippedCount` invariant holds —
             // pinned apps in v1 also appear in `enabled`, inflating sourceCount.
-            const existing = seenIds.get(app.id)
+            const existing = seenIds.get(row.appId)
             if (!existing) {
-              seenIds.set(app.id, row)
+              seenIds.set(row.appId, row)
             } else {
               this.skippedCount++
             }
@@ -310,29 +383,32 @@ export class MiniAppMigrator extends BaseMigrator {
   }
 }
 
-interface LoadCustomLogosResult {
-  logos: Map<string, string>
+interface LoadCustomMiniAppsResult {
+  apps: LegacyCustomMiniApp[]
+  isAuthoritativeSnapshot: boolean
+  invalidCount: number
   warnings: string[]
 }
 
 /**
  * Load the v1 `custom-minapps.json` sidecar at the path supplied by
- * MigrationPaths and return a map from app id to its logo string. Tolerant of
- * missing/malformed files. When the file is present but unreadable/unparseable
- * /wrong-shape it is quarantined to `${file}.broken-<ts>.bak` so subsequent
- * runs don't keep tripping on the same broken file, and a user-visible
- * warning is surfaced through the returned `warnings`.
+ * MigrationPaths and return complete custom-app records. Tolerant of missing
+ * files and malformed array entries. When the whole file is unreadable,
+ * unparseable, or the wrong shape, it is quarantined to
+ * `${file}.broken-<ts>.bak` so subsequent runs don't keep tripping on it, and
+ * a user-visible warning is surfaced through the returned `warnings`.
  */
-async function loadCustomMiniAppLogos(file: string | undefined): Promise<LoadCustomLogosResult> {
-  const logos = new Map<string, string>()
+async function loadCustomMiniApps(file: string | undefined): Promise<LoadCustomMiniAppsResult> {
+  const apps: LegacyCustomMiniApp[] = []
+  let invalidCount = 0
   const warnings: string[] = []
-  if (!file) return { logos, warnings }
+  if (!file) return { apps, isAuthoritativeSnapshot: false, invalidCount, warnings }
 
   const quarantine = async (reason: string) => {
     const backup = `${file}.broken-${Date.now()}.bak`
     try {
       await fs.rename(file, backup)
-      const msg = `Quarantined unreadable custom-minapps.json (${reason}) to ${backup}; custom app logos will be lost`
+      const msg = `Quarantined unreadable custom-minapps.json (${reason}) to ${backup}; custom apps cannot be migrated`
       warnings.push(msg)
       logger.warn(msg)
     } catch (renameErr) {
@@ -347,10 +423,12 @@ async function loadCustomMiniAppLogos(file: string | undefined): Promise<LoadCus
   try {
     raw = await fs.readFile(file, 'utf-8')
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { logos, warnings }
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { apps, isAuthoritativeSnapshot: false, invalidCount, warnings }
+    }
     logger.warn('Failed to read custom-minapps.json', err instanceof Error ? err : new Error(String(err)))
     await quarantine(`read failed: ${(err as Error).message ?? String(err)}`)
-    return { logos, warnings }
+    return { apps, isAuthoritativeSnapshot: false, invalidCount, warnings }
   }
   let parsed: unknown
   try {
@@ -358,23 +436,31 @@ async function loadCustomMiniAppLogos(file: string | undefined): Promise<LoadCus
   } catch (err) {
     logger.warn('Failed to parse custom-minapps.json', err instanceof Error ? err : new Error(String(err)))
     await quarantine('invalid JSON')
-    return { logos, warnings }
+    return { apps, isAuthoritativeSnapshot: false, invalidCount, warnings }
   }
   if (!Array.isArray(parsed)) {
     logger.warn('custom-minapps.json is not a JSON array, ignoring')
     await quarantine('top-level value is not an array')
-    return { logos, warnings }
+    return { apps, isAuthoritativeSnapshot: false, invalidCount, warnings }
   }
-  for (const entry of parsed) {
-    if (
-      entry &&
-      typeof entry === 'object' &&
-      typeof (entry as Record<string, unknown>).id === 'string' &&
-      typeof (entry as Record<string, unknown>).logo === 'string'
-    ) {
-      const { id, logo } = entry as { id: string; logo: string }
-      if (logo.length > 0) logos.set(id, logo)
+
+  for (const [index, entry] of parsed.entries()) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      invalidCount++
+      warnings.push(`Skipped custom app at index ${index}: expected an object`)
+      continue
     }
+
+    const record = entry as Record<string, unknown>
+    if (typeof record.id !== 'string' || record.id.length === 0) {
+      invalidCount++
+      warnings.push(`Skipped custom app at index ${index}: missing valid id`)
+      continue
+    }
+
+    const logo = typeof record.logo === 'string' && record.logo.length > 0 ? record.logo : 'application'
+    apps.push({ ...record, id: record.id, logo, type: 'Custom' })
   }
-  return { logos, warnings }
+
+  return { apps, isAuthoritativeSnapshot: invalidCount === 0, invalidCount, warnings }
 }

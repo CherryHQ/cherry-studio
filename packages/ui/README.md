@@ -92,27 +92,19 @@ Import only primitives and existing foundation providers, then decide which valu
 - ✅ Works when you already own the semantic contract and only need selected Cherry Studio foundations
 - ⚠️ Does not expose the complete Shadcn or Cherry Studio product contract
 
-**Example:**
+**Component consumption after defining the adapter:**
 
 ```tsx
-{/* Use Cherry Studio tokens directly via CSS variables */}
-<button style={{ backgroundColor: 'var(--cs-brand-500)' }}>
-  Use the Cherry Studio brand color
-</button>
+{/* The consumer-owned adapter maps its primary utility to the selected foundation value. */}
+<button className="bg-primary text-primary-foreground">Use the adopted primary color</button>
 
 {/* Keep your original Tailwind theme untouched */}
 <div className="bg-red-500">
   Use the default Tailwind red
 </div>
 
-{/* Available CSS variables */}
-<div
-  style={{
-    color: 'var(--cs-brand-500)', // Brand foundation value
-    backgroundColor: 'var(--cs-red-500)', // Red-500
-    borderRadius: 'var(--cs-radius-lg)', // Radius
-  }}
-/>
+{/* Components consume the consumer-owned utility contract, not raw --cs-* providers. */}
+<div className="rounded-lg bg-primary text-primary-foreground" />
 ```
 
 `src/styles/contract.css` is an internal composition layer used by the generated `theme.css` entry to preserve the
@@ -132,8 +124,13 @@ To avoid mixing value sources, semantic variables, theme mappings, and runtime o
 1. `--background`, `--primary`, `--muted-foreground`, and the other variables in `shadcn.css` are the official Shadcn contract
 2. Approved Cherry Studio product semantics are also unprefixed, such as `--success` and `--background-subtle`
 3. Historical migration names are tooling-only and must not be recreated as runtime product variables
-4. Shared `--cs-*` variables are internal value providers; `--cs-theme-*` is the reserved host-written input subset
-5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; only the adapter owner declares `--color-*` inside `@theme`, while component CSS, page CSS, and renderer TypeScript/TSX-authored styles must neither declare nor consume it
+4. Shared `--cs-*` variables are internal value providers; a selective-foundation consumer may reference primitive
+   providers only while defining its own adapter, not from ordinary component styles. `--cs-theme-*` is the reserved
+   host-written input subset
+5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output, not another semantic input layer. Only the
+   adapter owner declares `--color-*` inside `@theme`; component CSS, page CSS, and renderer
+   TypeScript/TSX-authored styles must neither declare nor consume `--color-*`. Components normally consume generated
+   radius and typography mappings through Tailwind utilities.
 6. `--cs-theme-*` is a controlled host-written input, not a component-facing semantic role or Tailwind utility
 7. Component-, page-, and Electron-shell variables stay in their owning stylesheet and are not added to the shared contract merely because they are CSS custom properties
 
@@ -185,7 +182,7 @@ function App() {
 import { Button } from '@cherrystudio/ui/components'
 
 // Utilities only
-import { DIALOG_CLOSE_DURATION_MS, toUndefinedIfNull } from '@cherrystudio/ui/utils'
+import { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS, toUndefinedIfNull } from '@cherrystudio/ui/utils'
 ```
 
 ## Development
@@ -272,6 +269,17 @@ The `packages/ui` workspace contains both runtime code and development-only asse
 
 Only the runtime surface should be treated as consumable package API.
 
+### Structural Markers
+
+`packages/ui` keeps Shadcn-compatible `data-slot` attributes for component-internal styling and its standalone build.
+When Cherry Studio consumes the package source, the app's UI-contract generator treats those markers as structural
+semantics and emits the corresponding public `data-ui` `part:*` tokens without removing the original attributes.
+Existing renderer code, application tests, and custom themes that use `data-slot` continue to work; new selectors can
+use the generated semantic layer. The application-level token grammar, stability tiers, maintained anchors, and
+selector rules are defined by the
+[UI Semantic Contract](../../docs/references/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
+are public selectors; inferred roles are best-effort discovery coordinates.
+
 ## Directory Structure
 
 ```text
@@ -349,7 +357,11 @@ Converts `undefined` to `null` at API boundaries.
 
 ### DIALOG_CLOSE_DURATION_MS
 
-Shared duration for coordinating work with the Dialog close animation.
+Duration of the Dialog CSS close animation: 200 ms.
+
+### DIALOG_UNMOUNT_DELAY_MS
+
+Delay for imperative Dialog hosts before unmounting: 200 ms.
 
 ## License
 

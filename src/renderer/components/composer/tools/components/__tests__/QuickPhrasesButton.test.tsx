@@ -1,5 +1,6 @@
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { act, render, screen, waitFor } from '@testing-library/react'
+import type * as LucideReact from 'lucide-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { QuickPhrasesToolRuntime } from '../QuickPhrasesButton'
@@ -67,7 +68,8 @@ vi.mock('@renderer/utils/error', () => ({
   formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix
 }))
 
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<typeof LucideReact>()),
   Pencil: () => <span data-testid="pencil-icon" />,
   Plus: () => <span data-testid="plus-icon" />,
   Zap: () => <span data-testid="zap-icon" />

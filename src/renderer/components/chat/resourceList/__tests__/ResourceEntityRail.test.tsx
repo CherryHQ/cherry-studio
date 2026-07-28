@@ -491,6 +491,37 @@ describe('ResourceEntityRail', () => {
     ).toBeNull()
   })
 
+  it('keeps the sortable listbox mounted while reorder is temporarily disabled', () => {
+    const onReorder = vi.fn()
+    const props = {
+      addLabel: 'New',
+      ariaLabel: 'Assistants list',
+      items: ITEMS,
+      onAdd: vi.fn(),
+      onReorder,
+      onSelect: vi.fn(),
+      variant: 'assistant' as const
+    }
+    const { rerender } = render(<ResourceEntityRail {...props} />)
+    const listbox = screen.getByRole('listbox', { name: 'Assistants list' })
+
+    expect(listbox).toHaveAttribute('data-draggable', 'true')
+    expect(JSON.parse(listbox.getAttribute('data-drag-capabilities') ?? '{}')).toMatchObject({
+      items: true,
+      itemSameGroup: true
+    })
+
+    rerender(<ResourceEntityRail {...props} reorderEnabled={false} />)
+
+    const disabledListbox = screen.getByRole('listbox', { name: 'Assistants list' })
+    expect(disabledListbox).toBe(listbox)
+    expect(disabledListbox).toHaveAttribute('data-draggable', 'true')
+    expect(JSON.parse(disabledListbox.getAttribute('data-drag-capabilities') ?? '{}')).toMatchObject({
+      items: false,
+      itemSameGroup: false
+    })
+  })
+
   it('splits pinned and non-pinned entities into two flush section headers while keeping avatars', () => {
     render(
       <ResourceEntityRail

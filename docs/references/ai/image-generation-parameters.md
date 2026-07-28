@@ -26,7 +26,7 @@ for SDK delivery vs. a bespoke envelope the transport builds).
 │        user edits → painting.params  (canonical camelCase bag)                  │
 │    canonicalGenerate: buildParamsSchema(support,mode) validate / coerce         │
 │        → paramValues  (pure canonical bag; blanks dropped, customSize composed) │
-└──────────────────────────── ipcApi.request('ai.generate_image') ───────────────┘
+└──────────────────────────── ipcApi.request('ai.image.generate') ───────────────┘
                                        │  { uniqueModelId, prompt, mode, paramValues, inputImages?, mask? }
                                        ▼   (model routing is dynamic; paramValues validated + coerced by the catalog imageParamsSchema)
 ┌─ MAIN · AiService.generateImage ───────────────────────────────────────────────┐
@@ -182,7 +182,7 @@ are committed when the model is selected by `computeModelFieldReset`
 
 ### 1. Validate + collapse to one IPC bag (`canonicalGenerate`)
 
-[`.../model/canonicalGenerate.ts`](../../../src/renderer/pages/paintings/model/canonicalGenerate.ts) validates `painting.params` through `buildParamsSchema(support, mode)` (soft-fail to raw on a bad value), drops blanks, composes `customSize_*` → `size`, and ships one canonical **`paramValues`** bag plus `mode` (a request property, not a param — see §5) over IPC (`ai.generate_image`, [`src/shared/ipc/schemas/ai.ts`](../../../src/shared/ipc/schemas/ai.ts)). The IPC schema types `paramValues` as the catalog's `imageParamsSchema` — the router's `safeParse` yields a strict, coerced `ParamValues` (non-catalog keys stripped). Per-model option/range constraints already ran in the renderer's `buildParamsSchema`; this is the value-type gate.
+[`.../model/canonicalGenerate.ts`](../../../src/renderer/pages/paintings/model/canonicalGenerate.ts) validates `painting.params` through `buildParamsSchema(support, mode)` (soft-fail to raw on a bad value), drops blanks, composes `customSize_*` → `size`, and ships one canonical **`paramValues`** bag plus `mode` (a request property, not a param — see §5) over IPC (`ai.image.generate`, [`src/shared/ipc/schemas/ai.ts`](../../../src/shared/ipc/schemas/ai.ts)). The IPC schema types `paramValues` as the catalog's `imageParamsSchema` — the router's `safeParse` yields a strict, coerced `ParamValues` (non-catalog keys stripped). Per-model option/range constraints already ran in the renderer's `buildParamsSchema`; this is the value-type gate.
 
 ### 2. Partition in main (`splitParamValues` + `AI_SDK_NATIVE_BINDINGS`)
 

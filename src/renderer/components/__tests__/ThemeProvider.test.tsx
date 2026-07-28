@@ -1,10 +1,20 @@
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ThemeProvider } from '../ThemeProvider'
+
+const ipcMocks = vi.hoisted(() => ({
+  request: vi.fn(),
+  useIpcOn: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcMocks.request },
+  useIpcOn: ipcMocks.useIpcOn
+}))
 
 // The entry points await the preference preload before the first render (A2), so the
 // saved theme is already in cache when ThemeProvider first mounts. These tests lock the
@@ -35,6 +45,9 @@ describe('ThemeProvider first frame', () => {
     MockUsePreferenceUtils.resetMocks()
     // useUserTheme feeds Color() from this key during render — must be a real color.
     MockUsePreferenceUtils.setPreferenceValue('ui.theme_user.color_primary', '#00b96b')
+    ipcMocks.request.mockReset()
+    ipcMocks.request.mockResolvedValue(ThemeMode.dark)
+    ipcMocks.useIpcOn.mockClear()
     renderedThemes.length = 0
   })
 
@@ -62,5 +75,21 @@ describe('ThemeProvider first frame', () => {
     )
 
     expect(renderedThemes[0]).toBe(ThemeMode.dark)
+  })
+
+  it('uses Electron resolved theme when the renderer media query disagrees', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.theme_mode', ThemeMode.system)
+    stubMatchMedia(false)
+    ipcMocks.request.mockResolvedValue(ThemeMode.dark)
+
+    render(
+      <ThemeProvider>
+        <ThemeProbe />
+      </ThemeProvider>
+    )
+
+    expect(renderedThemes[0]).toBe(ThemeMode.light)
+    await waitFor(() => expect(renderedThemes.at(-1)).toBe(ThemeMode.dark))
+    expect(ipcMocks.request).toHaveBeenCalledWith('system.get_native_theme')
   })
 })

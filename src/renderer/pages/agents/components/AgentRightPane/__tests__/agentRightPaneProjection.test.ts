@@ -93,6 +93,30 @@ describe('agent right pane projections', () => {
     )
   })
 
+  it('uses a lazily resolved selected output and preserves child parts untouched', () => {
+    const deferred = { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'root' } }
+    const selected = toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Explore the repo' }, deferred)
+    const child = toolPart(
+      'child',
+      'Read',
+      'root',
+      'output-available',
+      { file_path: '/tmp/example' },
+      {
+        $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'child' }
+      }
+    )
+    const parts = [selected, child]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root', 'Loaded subagent summary')
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
+      expect.objectContaining({ toolCallId: 'child' }),
+      { type: 'text', text: 'Loaded subagent summary' }
+    ])
+  })
+
   it('degrades to the selected tool prompt when child metadata is missing', () => {
     const parts = [
       toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Run the subagent' }),

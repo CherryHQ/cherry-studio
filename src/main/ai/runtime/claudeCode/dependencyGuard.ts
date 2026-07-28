@@ -45,6 +45,34 @@ const RULES: Array<{ test: (seg: string) => boolean; reason: string }> = [
   {
     test: (s) => /\buv\s+pip\s+install\b/.test(s) && /(?:^|\s)--system(?:\s|$)/.test(s),
     reason: 'uv pip install --system'
+  },
+  {
+    // BinaryManager is the sole owner of Cherry's isolated mise state.
+    test: (s) =>
+      /\bmise\s+(?:(?:use|install|uninstall|remove|rm|prune|upgrade|update|reshim|trust|untrust)\b|plugins?\s+(?:install|uninstall|update)\b|settings?\s+(?:set|unset)\b)/.test(
+        s
+      ),
+    reason: 'direct mise mutation (use cli_search / cli_install)'
+  },
+  {
+    test: (s) => /\bcargo\s+install\b/.test(s),
+    reason: 'cargo install (persistent user tool)'
+  },
+  {
+    test: (s) => /\bgo\s+install\b/.test(s),
+    reason: 'go install (persistent user tool)'
+  },
+  {
+    test: (s) => /\bgem\s+install\b/.test(s),
+    reason: 'gem install (persistent user tool)'
+  },
+  {
+    test: (s) => /\b(?:brew|apt(?:-get)?|dnf|yum)\s+install\b/.test(s),
+    reason: 'system package-manager install'
+  },
+  {
+    test: (s) => /\bdotnet\s+tool\s+install\b/.test(s) && GLOBAL_FLAG.test(s),
+    reason: 'dotnet tool install --global'
   }
 ]
 

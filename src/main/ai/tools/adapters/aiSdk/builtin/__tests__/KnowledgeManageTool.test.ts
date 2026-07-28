@@ -42,17 +42,32 @@ type ManageArgs = {
   conceptIds?: string[]
 }
 
+type StrictManageArgs = Omit<Required<ManageArgs>, 'type'> & {
+  type: NonNullable<ManageArgs['type']> | 'none'
+}
+
 function callExecute(args: ManageArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
-  const execute = entry.tool.execute as (args: ManageArgs, options: ToolExecutionOptions) => Promise<unknown>
-  return execute(args, {
-    toolCallId: 'tc-1',
-    messages: [],
-    experimental_context: {
-      requestId: 'req-1',
-      knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
-      abortSignal: new AbortController().signal
-    }
-  } as ToolExecutionOptions)
+  const execute = entry.tool.execute as (args: StrictManageArgs, options: ToolExecutionOptions) => Promise<unknown>
+  return execute(
+    {
+      type: 'none',
+      path: '',
+      url: '',
+      content: '',
+      title: '',
+      conceptIds: [],
+      ...args
+    },
+    {
+      toolCallId: 'tc-1',
+      messages: [],
+      experimental_context: {
+        requestId: 'req-1',
+        knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
+        abortSignal: new AbortController().signal
+      }
+    } as ToolExecutionOptions
+  )
 }
 
 describe('kb_manage', () => {

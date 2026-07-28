@@ -39,6 +39,7 @@ type MessageListDataValue = Pick<
   MessageListState,
   | 'topic'
   | 'beforeList'
+  | 'activeTurnStatus'
   | 'isInitialLoading'
   | 'isMessagesStale'
   | 'hasOlder'
@@ -48,6 +49,7 @@ type MessageListDataValue = Pick<
   | 'loadOlderDelayMs'
   | 'loadingResetDelayMs'
   | 'listKey'
+  | 'localSendGeneration'
   | 'streamingLayers'
 >
 
@@ -89,6 +91,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     () => ({
       topic: state.topic,
       beforeList: state.beforeList,
+      activeTurnStatus: state.activeTurnStatus,
       isInitialLoading: state.isInitialLoading,
       isMessagesStale: state.isMessagesStale,
       hasOlder: state.hasOlder,
@@ -98,11 +101,13 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       loadOlderDelayMs: state.loadOlderDelayMs,
       loadingResetDelayMs: state.loadingResetDelayMs,
       listKey: state.listKey,
+      localSendGeneration: state.localSendGeneration,
       streamingLayers: state.streamingLayers
     }),
     [
       state.topic,
       state.beforeList,
+      state.activeTurnStatus,
       state.isInitialLoading,
       state.isMessagesStale,
       state.hasOlder,
@@ -112,6 +117,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.loadOlderDelayMs,
       state.loadingResetDelayMs,
       state.listKey,
+      state.localSendGeneration,
       state.streamingLayers
     ]
   )
@@ -222,6 +228,15 @@ export const useMessageListData = (): MessageListDataLegacyValue => {
 
 export const useMessageListMessages = (): MessageListItem[] => {
   return useRequiredContext(MessageListMessagesContext, 'useMessageListMessages')
+}
+
+/**
+ * Optional renderer for the active turn's processing status (e.g. agent api-retry). Reads the Data
+ * context narrowly, so it only re-renders when list metadata changes — not on every stream chunk.
+ * Returns null when unset (regular chat) or when used outside a provider.
+ */
+export const useMessageListActiveTurnStatus = (): ((placeholder: ReactNode) => ReactNode) | null => {
+  return use(MessageListDataContext)?.activeTurnStatus ?? null
 }
 
 export const useMessageListActions = (): MessageListActions => {

@@ -77,8 +77,19 @@ describe('importLegacySessionMessages', () => {
           updated_at TEXT
         )`)
       )
+      dbh.db.run(sql.raw('CREATE TABLE agents_legacy.agents (id TEXT PRIMARY KEY)'))
+      dbh.db.run(
+        sql.raw(
+          'CREATE TABLE agents_legacy.sessions (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL REFERENCES agents(id))'
+        )
+      )
+      dbh.db.run(sql.raw("INSERT INTO agents_legacy.agents (id) VALUES ('a1')"))
 
       for (const row of rows) {
+        dbh.db.run(sql`
+          INSERT OR IGNORE INTO agents_legacy.sessions (id, agent_id)
+          VALUES (${row.sessionId}, 'a1')
+        `)
         dbh.db.run(sql`
           INSERT INTO agents_legacy.session_messages
             (id, session_id, role, content, agent_session_id, created_at, updated_at)
@@ -96,6 +107,14 @@ describe('importLegacySessionMessages', () => {
       }
 
       const schemaInfo = createEmptyAgentsSchemaInfo()
+      schemaInfo.agents = {
+        exists: true,
+        columns: new Set(['id'])
+      }
+      schemaInfo.sessions = {
+        exists: true,
+        columns: new Set(['id', 'agent_id'])
+      }
       schemaInfo.session_messages = {
         exists: true,
         columns: new Set(['id', 'session_id', 'role', 'content', 'agent_session_id', 'created_at', 'updated_at'])

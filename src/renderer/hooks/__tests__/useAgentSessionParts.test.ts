@@ -80,6 +80,20 @@ describe('useAgentSessionParts', () => {
     mockAgentSessionPartsDataApi()
   })
 
+  it('does not reuse messages from the previous session while the session key changes', () => {
+    renderHook(() => useAgentSessionParts('session-1'))
+
+    expect(dataApiMocks.useInfiniteQuery).toHaveBeenCalledWith(
+      '/agent-sessions/:sessionId/messages',
+      expect.objectContaining({
+        params: { sessionId: 'session-1' },
+        swrOptions: expect.objectContaining({
+          keepPreviousData: false
+        })
+      })
+    )
+  })
+
   it('can suppress mount revalidation during a temporary handoff', () => {
     renderHook(() => useAgentSessionParts('session-1', { enabled: true, fetchOnMount: false }))
 

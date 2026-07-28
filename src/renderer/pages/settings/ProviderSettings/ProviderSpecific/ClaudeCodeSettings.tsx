@@ -84,16 +84,26 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
     )
   }
 
+  const agentOnlyNote = (
+    <div className="mt-1 text-foreground-muted text-xs">
+      {t('settings.provider.claude_code.agent_only_note')}{' '}
+      <ProviderHelpLink className="mx-0" href={LEGAL_AND_COMPLIANCE_URL} target="_blank" rel="noreferrer">
+        {t('settings.provider.claude_code.legal_link')}
+      </ProviderHelpLink>
+    </div>
+  )
+
   return (
     <div className="flex flex-col gap-3">
       {loggedIn ? (
         <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 p-3">
           <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
           <div className="min-w-0 flex-1">
-            <div className="font-medium text-foreground text-sm">{t('settings.provider.claude_code.logged_in')}</div>
+            <div className="text-foreground text-sm">{t('settings.provider.claude_code.logged_in')}</div>
             <div className="mt-1 text-foreground-muted text-xs">
               {t('settings.provider.claude_code.logged_in_detail')}
             </div>
+            {agentOnlyNote}
           </div>
           <Button variant="secondary" size="sm" disabled={checking} onClick={() => void checkLogin()}>
             <RefreshCw className="size-4" />
@@ -105,12 +115,11 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
           <div className="flex gap-3">
             <CircleAlert className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-foreground text-sm">
-                {t('settings.provider.claude_code.description')}
-              </div>
+              <div className="text-foreground text-sm">{t('settings.provider.claude_code.description')}</div>
               <div className="mt-1 text-foreground-muted text-xs">
                 {t('settings.provider.claude_code.description_detail')}
               </div>
+              {agentOnlyNote}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -129,12 +138,6 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
           </div>
         </div>
       )}
-      <div className="text-foreground-muted text-xs">
-        {t('settings.provider.claude_code.agent_only_note')}{' '}
-        <ProviderHelpLink className="mx-0" href={LEGAL_AND_COMPLIANCE_URL} target="_blank" rel="noreferrer">
-          {t('settings.provider.claude_code.legal_link')}
-        </ProviderHelpLink>
-      </div>
     </div>
   )
 }

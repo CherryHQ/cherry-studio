@@ -9,6 +9,7 @@ const {
   openPathMock,
   openExternalMock,
   isSafeMock,
+  nativeThemeMock,
   platform
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
@@ -19,6 +20,7 @@ const {
   openPathMock: vi.fn(),
   openExternalMock: vi.fn(),
   isSafeMock: vi.fn(),
+  nativeThemeMock: { shouldUseDarkColors: false },
   platform: { isMac: true }
 }))
 
@@ -32,6 +34,7 @@ vi.mock('@main/core/platform', () => ({
   }
 }))
 vi.mock('electron', () => ({
+  nativeTheme: nativeThemeMock,
   systemPreferences: { isTrustedAccessibilityClient: isTrustedMock },
   shell: { openPath: openPathMock, openExternal: openExternalMock }
 }))
@@ -47,6 +50,7 @@ const ctx = (senderId: string | null) => ({ senderId })
 beforeEach(() => {
   vi.clearAllMocks()
   platform.isMac = true
+  nativeThemeMock.shouldUseDarkColors = false
   appGetMock.mockImplementation((name: string) => {
     if (name === 'WindowManager') return windowManager
     throw new Error(`Unexpected application.get(${name})`)
@@ -57,6 +61,13 @@ describe('systemHandlers', () => {
   it('get_device_type delegates to the platform util', async () => {
     getDeviceTypeMock.mockReturnValue('mac')
     expect(await systemHandlers['system.get_device_type'](undefined, ctx('w1'))).toBe('mac')
+  })
+
+  it('get_native_theme returns Electron resolved theme', async () => {
+    expect(await systemHandlers['system.get_native_theme'](undefined, ctx('w1'))).toBe('light')
+
+    nativeThemeMock.shouldUseDarkColors = true
+    expect(await systemHandlers['system.get_native_theme'](undefined, ctx('w1'))).toBe('dark')
   })
 
   it('get_ip_country delegates to RegionService', async () => {

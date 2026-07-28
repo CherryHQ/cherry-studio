@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
@@ -87,14 +87,14 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     // 75 files exercises the > 50 threshold called out in the PR plan and
     // would have been chopped to 20 under the old `maxEntries` default.
     await writeMany(tmp, 75)
-    const results = await listDirectory(tmp as FilePath)
+    const results = await listDirectory(tmp as AbsoluteFilePath)
     expect(results.length).toBe(75)
   })
 
   it('uses the BinaryManager-resolved ripgrep path', async () => {
     await writeFile(path.join(tmp, 'root.md'), 'root')
 
-    await listDirectory(tmp as FilePath)
+    await listDirectory(tmp as AbsoluteFilePath)
 
     const checkedPaths = mockExistsSync.mock.calls.map(([p]) => String(p).replace(/\\/g, '/'))
     expect(checkedPaths.some((p) => path.basename(p) === (process.platform === 'win32' ? 'rg.exe' : 'rg'))).toBe(true)
@@ -105,7 +105,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     await mkdir(path.join(tmp, 'sub'))
     await writeFile(path.join(tmp, 'sub', 'inner.md'), 'inner')
 
-    const results = await listDirectory(tmp as FilePath)
+    const results = await listDirectory(tmp as AbsoluteFilePath)
     const basenames = results.map((p) => path.basename(p))
     expect(basenames).toContain('root.md')
     expect(basenames).toContain('inner.md')
@@ -116,10 +116,10 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     await writeFile(path.join(tmp, 'visible.txt'), '1')
     await writeFile(path.join(tmp, '.hidden'), '2')
 
-    const defaultRun = await listDirectory(tmp as FilePath)
+    const defaultRun = await listDirectory(tmp as AbsoluteFilePath)
     expect(defaultRun.some((p) => p.endsWith('/.hidden'))).toBe(false)
 
-    const withHidden = await listDirectory(tmp as FilePath, { includeHidden: true })
+    const withHidden = await listDirectory(tmp as AbsoluteFilePath, { includeHidden: true })
     expect(withHidden.some((p) => p.endsWith('/.hidden'))).toBe(true)
   })
 
@@ -128,7 +128,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     await mkdir(path.join(tmp, 'sub'))
     await writeFile(path.join(tmp, 'sub', 'nested.md'), 'nested')
 
-    const results = await listDirectory(tmp as FilePath, { maxDepth: 1 })
+    const results = await listDirectory(tmp as AbsoluteFilePath, { maxDepth: 1 })
     const basenames = results.map((p) => path.basename(p))
     expect(basenames).toContain('top.md')
     expect(basenames).not.toContain('nested.md')
@@ -149,7 +149,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     for (let i = 0; i < 12; i++) {
       await writeFile(path.join(tmp, `updater-${i}.ts`), 'x')
     }
-    const results = await listDirectory(tmp as FilePath, {
+    const results = await listDirectory(tmp as AbsoluteFilePath, {
       searchPattern: 'updater',
       maxEntries: 5
     })
@@ -165,7 +165,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     await mkdir(path.join(tmp, 'misc'))
     await writeFile(path.join(tmp, 'misc', 'inner-updater.ts'), 'c')
 
-    const results = await listDirectory(tmp as FilePath, {
+    const results = await listDirectory(tmp as AbsoluteFilePath, {
       searchPattern: 'updater',
       maxEntries: 10
     })
@@ -192,7 +192,7 @@ describe('listDirectory (error paths)', () => {
     // a missing binary.
     mockExistsSync.mockReturnValue(false)
 
-    await expect(listDirectory(tmp as FilePath)).rejects.toThrow(/Ripgrep binary not available/)
+    await expect(listDirectory(tmp as AbsoluteFilePath)).rejects.toThrow(/Ripgrep binary not available/)
   })
 
   it('throws when the root path is not readable (EACCES from fs.promises.stat)', async () => {
@@ -204,6 +204,6 @@ describe('listDirectory (error paths)', () => {
     }) as NodeJS.ErrnoException
     mockPromisesStat.mockRejectedValueOnce(eaccesErr)
 
-    await expect(listDirectory('/some/locked/path' as FilePath)).rejects.toBe(eaccesErr)
+    await expect(listDirectory('/some/locked/path' as AbsoluteFilePath)).rejects.toBe(eaccesErr)
   })
 })

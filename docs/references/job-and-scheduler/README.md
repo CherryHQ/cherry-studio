@@ -1,6 +1,6 @@
 # Job & Scheduler
 
-Cherry Studio unified background job + time-scheduling system. Phase 1 (basic infrastructure) is implemented; business migrations (agent task, FileProcessing, Knowledge) are scheduled for Phase 2-4.
+Cherry Studio unified background job + time-scheduling system.
 
 | Doc | What it covers | Audience |
 |---|---|---|
@@ -8,7 +8,7 @@ Cherry Studio unified background job + time-scheduling system. Phase 1 (basic in
 | [scheduler-usage.md](./scheduler-usage.md) | Decision tree: SchedulerService vs `registerInterval` vs raw `setInterval` | All consumers |
 | [concurrency-and-locks.md](./concurrency-and-locks.md) | Four-layer lock model + business-level resource locks | Handler authors |
 | [handler-authoring.md](./handler-authoring.md) | How to write a JobHandler (recovery / retry / catchUp / progress) | Handler authors |
-| [migration-checklist.md](./migration-checklist.md) | Step-by-step checklist for migrating existing services | Phase 2-4 migrators |
+| [migration-checklist.md](./migration-checklist.md) | Step-by-step checklist for migrating existing services | Service migrators |
 
 ## Quick navigation
 

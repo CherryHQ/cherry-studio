@@ -17,12 +17,12 @@ vi.mock('@ai-sdk/react', () => ({
   }
 }))
 
-// stop() now fires ipcApi.request('ai.stream_abort', …); route it to a spy for assertions.
+// stop() now fires ipcApi.request('ai.stream.abort', …); route it to a spy for assertions.
 const { streamAbortMock } = vi.hoisted(() => ({ streamAbortMock: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: async (route: string, input: unknown) =>
-      route === 'ai.stream_abort' ? streamAbortMock(input) : undefined,
+      route === 'ai.stream.abort' ? streamAbortMock(input) : undefined,
     on: () => () => {}
   }
 }))

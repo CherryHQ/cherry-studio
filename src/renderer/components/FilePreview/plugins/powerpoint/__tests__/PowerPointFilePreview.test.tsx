@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
@@ -136,7 +136,7 @@ vi.mock('react-i18next', () => ({
 
 import PowerPointFilePreview from '../PowerPointFilePreview'
 
-const filePath = '/tmp/presentations/roadmap.pptx' as FilePath
+const filePath = '/tmp/presentations/roadmap.pptx' as AbsoluteFilePath
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -169,7 +169,7 @@ describe('PowerPointFilePreview', () => {
       overscanViewport: 2
     })
     const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
-    expect(toolbar).toHaveClass('h-10')
+    expect(toolbar).toHaveClass('h-11', 'min-h-11')
     expect(toolbar).not.toHaveClass('bg-background')
     expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
     expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('1 / 3')

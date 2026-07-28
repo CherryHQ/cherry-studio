@@ -14,6 +14,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useSkills')
 
+// Stable fallback while the /skills query is in flight. An inline `data ?? []`
+// would change identity every render, and AgentComposer re-registers its skills
+// launcher whenever the array changes — an infinite render loop during load.
+const EMPTY_SKILLS: readonly InstalledSkill[] = Object.freeze([])
+
 function skillErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? 'Unknown error')
 }
@@ -61,7 +66,7 @@ export function useInstalledSkills(agentId?: string, options: { enabled?: boolea
   })
 
   return {
-    skills: data ?? [],
+    skills: data ?? (EMPTY_SKILLS as InstalledSkill[]),
     loading: isLoading,
     refreshing: isRefreshing,
     error: error?.message ?? null,

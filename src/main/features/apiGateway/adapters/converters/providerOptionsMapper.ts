@@ -11,7 +11,7 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { ReasoningEffort } from '@cherrystudio/openai/resources'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint, resolveProviderOptionsKey } from '@main/ai/provider/endpoint'
 import { buildResolvedReasoningProviderOptions } from '@main/ai/utils/options'
 import { resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { nearestEffortForBudget } from '@shared/ai/reasoning'
@@ -32,7 +32,8 @@ function buildProviderOptions(
   effort: GatewayReasoningEffort,
   maxTokens?: number
 ): ProviderOptions {
-  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const { endpointType } = resolvedEndpoint
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
   const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
   const reasoning = resolveReasoningInvocation({
@@ -44,9 +45,13 @@ function buildProviderOptions(
   })
   return buildResolvedReasoningProviderOptions({
     aiSdkProviderId,
+    providerOptionsKey: resolveProviderOptionsKey(aiSdkProviderId, {
+      actualProviderId: provider.id,
+      endpointType,
+      gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
+    }),
     endpointType,
-    reasoning,
-    actualProviderId: provider.id
+    reasoning
   }) as ProviderOptions
 }
 

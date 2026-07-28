@@ -54,7 +54,7 @@ function getNormalConversationSearchParamFromUrl(url: string, name: string): str
   }
 }
 
-function isMessageOnlyConversationUrl(url: string): boolean {
+export function isMessageOnlyConversationUrl(url: string): boolean {
   try {
     return new URL(url, 'app://x').searchParams.get('view') === 'message'
   } catch {

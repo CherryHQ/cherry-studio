@@ -56,22 +56,13 @@ export const useCreateKnowledgeBase = () => {
 
       const name = input.name.trim()
       const groupId = input.groupId?.trim()
+      const embeddingModelId = input.embeddingModelId?.trim()
 
       if (!name) {
         throw new Error('Knowledge base name is required')
       }
 
-      // A base is BM25-only by default and gets its embedding model later from the
-      // RAG settings. The one exception is creation-time backfill: the create dialog
-      // passes the local embedding model (paired with its dimensions) when it is
-      // already downloaded, so the base starts as a vector base. Keep the pair intact
-      // — the create schema rejects one without the other.
-      const body: {
-        name: string
-        groupId?: string
-        embeddingModelId?: string
-        dimensions?: number
-      } = {
+      const body: CreateKnowledgeBaseInput = {
         name
       }
 
@@ -79,8 +70,9 @@ export const useCreateKnowledgeBase = () => {
         body.groupId = groupId
       }
 
-      if (input.embeddingModelId && input.dimensions) {
-        body.embeddingModelId = input.embeddingModelId
+      // Embedding is optional; when present the schema requires its dimensions alongside it.
+      if (embeddingModelId) {
+        body.embeddingModelId = embeddingModelId
         body.dimensions = input.dimensions
       }
 
@@ -321,9 +313,9 @@ export const useDeleteKnowledgeBase = () => {
       }
 
       try {
-        await invalidateCache('/knowledge-bases')
+        await invalidateCache(['/knowledge-bases', '/agents', '/agents/*', '/assistants', '/assistants/*'])
       } catch (invalidateError) {
-        logger.error('Failed to refresh knowledge base list after delete', normalizeError(invalidateError), {
+        logger.error('Failed to refresh dependent data after knowledge base delete', normalizeError(invalidateError), {
           baseId
         })
       }

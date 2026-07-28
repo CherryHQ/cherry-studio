@@ -127,7 +127,8 @@ const [searchResults, setSearchResults] = useCache('search.results', [])
 const [sidebarCollapsed, setSidebarCollapsed] = useSharedCache('ui.sidebar.collapsed', false)
 
 // Good: Recent items (nice to have, not critical)
-const [recentSearches, setRecentSearches] = usePersistCache('search.recent', [])
+// `usePersistCache` takes no initValue — Persist seeds every key from the schema on load
+const [recentSearches, setRecentSearches] = usePersistCache('search.recent')
 ```
 
 ### PreferenceService - User Preferences

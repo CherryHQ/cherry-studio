@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +33,7 @@ describe('useOpenFilePreviewTab', () => {
     let tabId: string | undefined
 
     act(() => {
-      tabId = result.current('/tmp/notes/../report.md' as FilePath)
+      tabId = result.current('/tmp/notes/../report.md' as AbsoluteFilePath)
     })
 
     expect(tabId).toBe('file-preview-tab')
@@ -54,7 +54,7 @@ describe('useOpenFilePreviewTab', () => {
     const { result } = renderHook(() => useOpenFilePreviewTab())
 
     act(() => {
-      result.current('/tmp/report.md' as FilePath)
+      result.current('/tmp/report.md' as AbsoluteFilePath)
     })
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/file-preview?path=%2Ftmp%2Freport.md', {
@@ -69,7 +69,7 @@ describe('useOpenFilePreviewTab', () => {
     const { result } = renderHook(() => useOpenFilePreviewTab())
 
     act(() => {
-      result.current('/tmp/storage/opaque-id.docx' as FilePath, 'Quarterly report.docx')
+      result.current('/tmp/storage/opaque-id.docx' as AbsoluteFilePath, 'Quarterly report.docx')
     })
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/file-preview?path=%2Ftmp%2Fstorage%2Fopaque-id.docx', {
@@ -82,8 +82,8 @@ describe('useOpenFilePreviewTab', () => {
     const { result } = renderHook(() => useOpenFilePreviewTab())
 
     act(() => {
-      result.current('/tmp/notes/../report.md' as FilePath)
-      result.current('/tmp/report.md' as FilePath)
+      result.current('/tmp/notes/../report.md' as AbsoluteFilePath)
+      result.current('/tmp/report.md' as AbsoluteFilePath)
     })
 
     expect(mocks.openTab.mock.calls.map(([url]) => url)).toEqual([
@@ -95,7 +95,7 @@ describe('useOpenFilePreviewTab', () => {
   it('rejects invalid paths before opening a tab', () => {
     const { result } = renderHook(() => useOpenFilePreviewTab())
 
-    expect(() => result.current('relative/report.md' as FilePath)).toThrow()
+    expect(() => result.current('relative/report.md' as AbsoluteFilePath)).toThrow()
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 })

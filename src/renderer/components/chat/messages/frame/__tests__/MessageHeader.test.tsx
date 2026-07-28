@@ -133,6 +133,27 @@ describe('MessageHeader', () => {
     expect(queryByText('GPT-4')).toBeNull()
   })
 
+  it('shows the model avatar and name beside the assistant when model identity is requested', () => {
+    const { getByText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          }
+        })}
+      />
+    )
+
+    expect(getByText('My Assistant')).toBeTruthy()
+    expect(getByText('G').closest('[aria-hidden="true"]')).toBeTruthy()
+    expect(getByText('GPT-4')).toBeTruthy()
+  })
+
   it('shows the snapshot agent name as primary', () => {
     const { getByText } = render(
       <MessageHeader

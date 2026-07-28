@@ -142,11 +142,11 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       if (!provider) {
         return
       }
+      // Send only the toggled key: main shallow-merges the stored delta and
+      // reduces against the registry baseline — echoing the full merged
+      // snapshot would mark every baseline value as a user override.
       updateProvider({
-        apiFeatures: {
-          ...provider.apiFeatures,
-          [key]: checked
-        }
+        apiFeatures: { [key]: checked }
       }).catch(handleSaveError)
     },
     [handleSaveError, provider, updateProvider]

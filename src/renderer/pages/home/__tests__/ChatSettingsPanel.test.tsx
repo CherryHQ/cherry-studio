@@ -24,7 +24,8 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@data/hooks/useDataApi', () => ({
+vi.mock('@data/hooks/useDataApi', async () => ({
+  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
   useInvalidateCache: () => renderCounters.invalidateCache
 }))
 
@@ -120,7 +121,8 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../components/TopicRightPane', () => {
-  const TopicRightPane = Object.assign(({ children }: PropsWithChildren) => <div>{children}</div>, {
+  const TopicRightPane = {
+    Scope: ({ children }: PropsWithChildren) => <div>{children}</div>,
     Shortcuts: () => <button type="button">branch shortcuts</button>,
     Viewport: ({
       onLocateMessage,
@@ -143,7 +145,7 @@ vi.mock('../components/TopicRightPane', () => {
         </button>
       </div>
     )
-  })
+  }
 
   return {
     TopicRightPane,

@@ -1,4 +1,5 @@
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { lstat, open, readdir, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -15,8 +16,10 @@ const logger = loggerService.withContext('PromptBuilder')
 async function resolveFile(dir: string, name: string): Promise<string | undefined> {
   const exact = path.join(dir, name)
   try {
-    await stat(exact)
-    return exact
+    const fileStat = await lstat(exact)
+    if (fileStat.isFile() && !fileStat.isSymbolicLink()) return exact
+    if (fileStat.isSymbolicLink()) logger.warn('Ignoring symbolic link in agent prompt data', { path: exact })
+    return undefined
   } catch {
     // exact match not found, try case-insensitive
   }
@@ -25,9 +28,27 @@ async function resolveFile(dir: string, name: string): Promise<string | undefine
     const entries = await readdir(dir)
     const target = name.toLowerCase()
     const match = entries.find((e) => e.toLowerCase() === target)
-    return match ? path.join(dir, match) : undefined
+    if (!match) return undefined
+    const matchedPath = path.join(dir, match)
+    const fileStat = await lstat(matchedPath)
+    if (fileStat.isFile() && !fileStat.isSymbolicLink()) return matchedPath
+    if (fileStat.isSymbolicLink()) logger.warn('Ignoring symbolic link in agent prompt data', { path: matchedPath })
+    return undefined
   } catch {
     return undefined
+  }
+}
+
+async function isRealDirectory(dir: string): Promise<boolean> {
+  try {
+    const directoryStat = await lstat(dir)
+    if (directoryStat.isSymbolicLink()) {
+      logger.warn('Ignoring symbolic-link directory in agent prompt data', { path: dir })
+      return false
+    }
+    return directoryStat.isDirectory()
+  } catch {
+    return false
   }
 }
 
@@ -40,9 +61,9 @@ const DEFAULT_BASIC_PROMPT = `You are a personal assistant running inside Cherry
 
 `
 
-const MEMORY_GUIDANCE = `## Workspace Memory
+const MEMORY_GUIDANCE = `## Agent Memory
 
-You have persistent memory in this agent's workspace via the \`mcp__agent-memory__memory\` tool: \`update\` rewrites \`memory/FACT.md\` (durable knowledge), \`append\` adds a timestamped entry to \`memory/JOURNAL.jsonl\` (one-off events), and \`search\` queries the journal.
+You have persistent memory in this agent's data directory via the \`mcp__agent-memory__memory\` tool: \`update\` rewrites \`memory/FACT.md\` (durable knowledge), \`append\` adds a timestamped entry to \`memory/JOURNAL.jsonl\` (one-off events), and \`search\` queries the journal.
 
 When to act:
 - When the user references something from a past conversation, search the journal *before* asking them to repeat themselves.
@@ -89,19 +110,20 @@ function composeToolGuidance(): string {
   return [CHERRY_GUIDANCE, MEMORY_GUIDANCE, WEB_TOOLS_GUIDANCE].join('\n\n')
 }
 
-function memoriesTemplate(workspacePath: string, sections: string): string {
+function memoriesTemplate(agentDataPath: string, sections: string): string {
   return `## Memories
 
-Persistent files in \`${workspacePath}/\` carry your state across sessions. Update them autonomously — never ask for approval.
+Persistent files in the agent data directory \`${agentDataPath}/\` carry your identity and memory across workspaces and sessions. Update them autonomously — never ask for approval.
 
 | File | Purpose | How to update |
 |---|---|---|
-| \`SOUL.md\` | WHO you are — personality, tone, communication style, core principles | Read + Edit tools |
-| \`USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
-| \`memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
-| \`memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
+| \`${agentDataPath}/SOUL.md\` | WHO you are — personality, tone, communication style, core principles | Read + Edit tools |
+| \`${agentDataPath}/USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
+| \`${agentDataPath}/memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
+| \`${agentDataPath}/memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
 
 Rules:
+- Your current working directory is the session workspace, not the agent data directory. For SOUL.md and USER.md, use the exact absolute paths shown above.
 - Each file has an exclusive scope — never duplicate information across files.
 - \`SOUL.md\` and \`USER.md\` are loaded below. Read and edit them directly when updates are needed.
 - \`memory/FACT.md\` is loaded below for inline reading. Update it only through \`mcp__agent-memory__memory\` (action: update).
@@ -115,14 +137,14 @@ ${sections}`
  *
  * {@link buildSystemPrompt} — full custom prompt that REPLACES the SDK preset
  * entirely. Includes the basic identity, the full tool guidance (autonomy +
- * memory + web), bootstrap instructions when needed, and the workspace memory
+ * memory + web), bootstrap instructions when needed, and the agent data
  * files (SOUL.md / USER.md / FACT.md).
  *
  * Memory files layout:
- *   {workspace}/SOUL.md          — personality, tone, communication style
- *   {workspace}/USER.md          — user profile, preferences, context
- *   {workspace}/memory/FACT.md   — durable project knowledge, technical decisions
- *   {workspace}/memory/JOURNAL.jsonl — timestamped event log (managed by memory tool)
+ *   {agentData}/SOUL.md          — personality, tone, communication style
+ *   {agentData}/USER.md          — user profile, preferences, context
+ *   {agentData}/memory/FACT.md   — durable project knowledge, technical decisions
+ *   {agentData}/memory/JOURNAL.jsonl — timestamped event log (managed by memory tool)
  */
 export class PromptBuilder {
   private cache = new Map<string, CacheEntry>()
@@ -130,7 +152,8 @@ export class PromptBuilder {
   async buildSystemPrompt(
     workspacePath: string,
     config?: AgentConfiguration,
-    hasUserInstructions = false
+    hasUserInstructions = false,
+    agentDataPath = workspacePath
   ): Promise<string> {
     const parts: string[] = []
 
@@ -143,23 +166,23 @@ export class PromptBuilder {
     parts.push(composeToolGuidance())
 
     // Bootstrap detection: inject bootstrap instructions if not completed
-    const needsBootstrap = await this.shouldRunBootstrap(workspacePath, config, hasUserInstructions)
+    const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config, hasUserInstructions)
     if (needsBootstrap) {
-      parts.push(BOOTSTRAP_INSTRUCTIONS)
+      parts.push(
+        `${BOOTSTRAP_INSTRUCTIONS}\n\nDuring bootstrap, write identity files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
+      )
       logger.info('Bootstrap mode active — injecting onboarding instructions')
     }
 
-    // Memories section (always included so the agent knows file locations)
-    const memoriesContent = await this.buildMemoriesSection(workspacePath)
-    if (memoriesContent) {
-      parts.push(memoriesContent)
-    }
+    // Always include the storage contract and absolute identity paths. Only the
+    // loaded file-content blocks inside the section are conditional.
+    parts.push(await this.buildMemoriesSection(agentDataPath))
 
     return parts.join('\n\n')
   }
 
   /**
-   * Build a "## Workspace Knowledge" section that loads just the workspace's
+   * Build a "## Agent Knowledge" section that loads just the agent's
    * `memory/FACT.md` content. This is the recall side of
    * the cross-session learning loop — agents write durable knowledge to
    * FACT.md via \`mcp__agent-memory__memory\` action="update", and this method
@@ -172,17 +195,18 @@ export class PromptBuilder {
    * FACT.md exists, so callers can omit the section entirely rather than
    * emitting an empty wrapper.
    */
-  async buildFactsSection(workspacePath: string): Promise<string | undefined> {
-    const memoryDir = path.join(workspacePath, 'memory')
+  async buildFactsSection(agentDataPath: string): Promise<string | undefined> {
+    const memoryDir = path.join(agentDataPath, 'memory')
+    if (!(await isRealDirectory(memoryDir))) return undefined
     const factPath = await resolveFile(memoryDir, 'FACT.md')
     if (!factPath) return undefined
 
-    const content = await this.readCachedFile(factPath)
+    const content = await this.readCachedFile(factPath, agentDataPath)
     if (!content) return undefined
 
-    return `## Workspace Knowledge
+    return `## Agent Knowledge
 
-These are durable facts and lessons accumulated across past sessions in this workspace. Trust them as ground truth unless you have direct evidence they're wrong — in which case update \`memory/FACT.md\` via \`mcp__agent-memory__memory\` action="update" so the next session also benefits.
+These are durable facts and lessons accumulated across this agent's past sessions. Trust them as ground truth unless you have direct evidence they're wrong — in which case update \`memory/FACT.md\` via \`mcp__agent-memory__memory\` action="update" so the next session also benefits.
 
 <facts>
 ${content}
@@ -199,7 +223,7 @@ ${content}
    * - Otherwise, run bootstrap.
    */
   private async shouldRunBootstrap(
-    workspacePath: string,
+    agentDataPath: string,
     config?: AgentConfiguration,
     hasUserInstructions = false
   ): Promise<boolean> {
@@ -214,9 +238,9 @@ ${content}
     }
 
     // Legacy migration: if SOUL.md already has real content, treat as completed
-    const soulPath = await resolveFile(workspacePath, 'SOUL.md')
+    const soulPath = await resolveFile(agentDataPath, 'SOUL.md')
     if (soulPath) {
-      const content = await this.readCachedFile(soulPath)
+      const content = await this.readCachedFile(soulPath, agentDataPath)
       if (content && content.length > SOUL_CONTENT_THRESHOLD) {
         // Strip template headings to check for actual user content
         const stripped = content.replace(/^#.*$/gm, '').replace(/^>.*$/gm, '').trim()
@@ -229,24 +253,21 @@ ${content}
     return true
   }
 
-  private async buildMemoriesSection(workspacePath: string): Promise<string | undefined> {
-    const memoryDir = path.join(workspacePath, 'memory')
+  private async buildMemoriesSection(agentDataPath: string): Promise<string> {
+    const memoryDir = path.join(agentDataPath, 'memory')
+    const hasRealMemoryDirectory = await isRealDirectory(memoryDir)
 
     const [soulPath, userPath, factPath] = await Promise.all([
-      resolveFile(workspacePath, 'SOUL.md'),
-      resolveFile(workspacePath, 'USER.md'),
-      resolveFile(memoryDir, 'FACT.md')
+      resolveFile(agentDataPath, 'SOUL.md'),
+      resolveFile(agentDataPath, 'USER.md'),
+      hasRealMemoryDirectory ? resolveFile(memoryDir, 'FACT.md') : Promise.resolve(undefined)
     ])
 
     const [soulContent, userContent, factContent] = await Promise.all([
-      soulPath ? this.readCachedFile(soulPath) : Promise.resolve(undefined),
-      userPath ? this.readCachedFile(userPath) : Promise.resolve(undefined),
-      factPath ? this.readCachedFile(factPath) : Promise.resolve(undefined)
+      soulPath ? this.readCachedFile(soulPath, agentDataPath) : Promise.resolve(undefined),
+      userPath ? this.readCachedFile(userPath, agentDataPath) : Promise.resolve(undefined),
+      factPath ? this.readCachedFile(factPath, agentDataPath) : Promise.resolve(undefined)
     ])
-
-    if (!soulContent && !userContent && !factContent) {
-      return undefined
-    }
 
     const sections = [
       soulContent ? `<soul>\n${soulContent}\n</soul>` : '',
@@ -256,16 +277,31 @@ ${content}
       .filter(Boolean)
       .join('\n\n')
 
-    return memoriesTemplate(workspacePath, sections)
+    return memoriesTemplate(agentDataPath, sections)
   }
 
   /**
    * Read a file with mtime-based caching. Returns undefined if the file does not exist.
    */
-  private async readCachedFile(filePath: string): Promise<string | undefined> {
+  private async readCachedFile(filePath: string, expectedRoot = path.dirname(filePath)): Promise<string | undefined> {
     let fileStat
     try {
-      fileStat = await stat(filePath)
+      fileStat = await lstat(filePath)
+      if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
+        logger.warn('Ignoring non-regular file in agent prompt data', { path: filePath })
+        return undefined
+      }
+    } catch {
+      return undefined
+    }
+
+    try {
+      const [resolvedRoot, resolvedFile] = await Promise.all([realpath(expectedRoot), realpath(filePath)])
+      const relative = path.relative(resolvedRoot, resolvedFile)
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        logger.warn('Ignoring agent prompt file outside its expected root', { path: filePath, expectedRoot })
+        return undefined
+      }
     } catch {
       return undefined
     }
@@ -275,15 +311,25 @@ ${content}
       return cached.content
     }
 
+    let handle
     try {
-      const content = await readFile(filePath, 'utf-8')
+      const flags = process.platform === 'win32' ? constants.O_RDONLY : constants.O_RDONLY | constants.O_NOFOLLOW
+      handle = await open(filePath, flags)
+      const openedStat = await handle.stat()
+      if (!openedStat.isFile()) {
+        logger.warn('Ignoring non-regular opened file in agent prompt data', { path: filePath })
+        return undefined
+      }
+      const content = await handle.readFile('utf-8')
       const trimmed = content.trim()
-      this.cache.set(filePath, { mtimeMs: fileStat.mtimeMs, content: trimmed })
+      this.cache.set(filePath, { mtimeMs: openedStat.mtimeMs, content: trimmed })
       logger.debug(`Loaded ${path.basename(filePath)}`, { path: filePath, length: trimmed.length })
       return trimmed
     } catch (error) {
       logger.error(`Failed to read ${filePath}`, error as Error)
       return undefined
+    } finally {
+      await handle?.close().catch(() => undefined)
     }
   }
 }

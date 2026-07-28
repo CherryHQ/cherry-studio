@@ -19,18 +19,25 @@ See [Adapter Family](./adapter-family.md) for the full design.
 
 ## Resolver
 
-`src/main/ai/provider/endpoint.ts` exposes three pure helpers:
+`src/main/ai/provider/endpoint.ts` exposes four pure helpers:
 
 ```ts
-resolveEffectiveEndpoint(provider, model): { endpointType, baseUrl }
+resolveEffectiveEndpoint(provider, model): { endpointType, baseUrl, providerOptionsKey? }
 resolveProviderVariant(baseProviderId, endpointType): AppProviderId
 resolveAiSdkProviderId(provider, endpointType): AppProviderId
+resolveProviderOptionsKey(aiSdkProviderId, context): string
 ```
 
 `resolveAiSdkProviderId` is the runtime hot-path entry. It reads
 `provider.endpointConfigs[endpointType].adapterFamily`, applies the
 variant suffix if the endpoint type has one, falls back to
 `openai-compatible` when no family is set.
+
+`resolveEffectiveEndpoint` also resolves registered multi-backend gateway routes
+(AiHubMix and DMXAPI) once. The route supplies both the wire endpoint and the
+`providerOptions` namespace used by that gateway's concrete model. The result is
+carried through `SdkConfig`; reasoning encoders consume the resolved namespace
+and never inspect provider or model ids themselves.
 
 ```ts
 // Full resolver — 6 lines
@@ -76,13 +83,14 @@ idempotent when the base id is already a variant.
 
 ## Provider config
 
-`providerToAiSdkConfig(provider, model)`
+`providerToAiSdkConfig(provider, model, { resolvedEndpoint? })`
 (`src/main/ai/provider/config.ts`) returns
 `{ providerId: AppProviderId, providerSettings: AppProviderSettingsMap[id] }`.
-It calls `resolveAiSdkProviderId` internally, then dispatches through an
+The standard request path passes its already-resolved endpoint into this
+function, which then calls `resolveAiSdkProviderId` and dispatches through an
 ordered `{ match, build }` table to build the provider-specific settings
-object (apiKey, baseURL, organization, headers, ...). There is **no
-"gateway" branch**.
+object (apiKey, baseURL, organization, headers, ...). Direct callers may omit
+the option and let the function resolve the endpoint itself.
 
 The builder table (`config.ts`, first match wins):
 
@@ -96,7 +104,8 @@ The builder table (`config.ts`, first match wins):
 | `id === 'google-vertex'` | `buildVertexConfig` | returns `google-vertex` or `google-vertex-anthropic` for Claude; leaves `baseURL` undefined when no host is configured so the SDK derives the aiplatform host |
 | `provider.id === 'cherryin'` | `buildCherryinConfig` | matches the **provider id**, not the resolved variant — the default chat endpoint resolves to `cherryin-chat`, so an `id === 'cherryin'` check never fires; async — resolves relay base URLs |
 | `id === 'newapi'` | `buildNewApiConfig` | |
-| `id === 'aihubmix'` | `buildAiHubMixConfig` | |
+| `id === 'aihubmix'` | `buildAiHubMixConfig` | passes the Chat, Responses, Anthropic, and Gemini URLs independently |
+| `id === 'dmxapi'` | `buildDmxapiConfig` | passes the Chat, Anthropic, and Gemini URLs independently |
 | _(no match)_ | `buildGenericProviderConfig` / `buildOpenAICompatibleConfig` | generic fallback |
 
 Several builders are `async` (Copilot token, CherryIN relay URLs), which is
@@ -106,12 +115,14 @@ why `providerToAiSdkConfig` returns a promise.
 
 `src/main/ai/provider/custom/`:
 
-- **aihubmix** — multi-vendor relay. `provider.id='aihubmix'` but each
-  model carries `model.provider='aihubmix.<vendor>'`; the registry's
-  aggregator fallback uses the suffix to pick the right `toolFactory`.
+- **aihubmix** — multi-vendor relay. Its model-id router selects the
+  Anthropic, Gemini, OpenAI Responses, or OpenAI-compatible model and consumes
+  the matching endpoint URL from provider settings.
+- **dmxapi** — multi-vendor relay. Its model-id router selects Anthropic,
+  Gemini, OpenAI, or compatible models and consumes the matching endpoint URL.
 - **newapi** — same shape, different relay.
 
-Both register through `ProviderExtension.create(...)` with their own
+All three register through `ProviderExtension.create(...)` with their own
 `AppProviderSettings` shape.
 
 ## Provider extensions

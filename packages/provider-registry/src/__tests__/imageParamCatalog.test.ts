@@ -77,7 +77,7 @@ describe('buildParamsSchema', () => {
   it('still coerces/catches catalog keys with no per-model support block (custom/unregistered model)', () => {
     // A stale value carried over from a previous model (computeModelFieldReset
     // skips clearing when the new model has no registry block) must not ride raw
-    // into the strict IPC-boundary schema and reject the whole ai.generate_image
+    // into the strict IPC-boundary schema and reject the whole ai.image.generate
     // request — the catalog's own `.catch(undefined)` still applies.
     const parsed = buildParamsSchema(undefined).parse({ seed: 'abc', numImages: '2', anything: 1 })
     expect(parsed.seed).toBeUndefined()

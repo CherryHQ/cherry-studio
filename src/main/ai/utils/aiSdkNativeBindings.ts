@@ -1,6 +1,6 @@
 /**
  * Canonical param key → its structured request field (+ optional wire
- * normalization). After the `ai.generate_image` payload collapse, the renderer
+ * normalization). After the `ai.image.generate` payload collapse, the renderer
  * sends one canonical `paramValues` bag; `splitParamValues` (in `imageOptions.ts`)
  * uses this table to partition it into the structured fields the AI SDK
  * `imageParams` consume vs the leftover vendor bag the WireProfile engine

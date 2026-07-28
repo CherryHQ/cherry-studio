@@ -1,6 +1,8 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import type { MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import { cn } from '@renderer/utils/style'
 import { Save, X } from 'lucide-react'
 import type { FC, HTMLAttributes } from 'react'
@@ -12,6 +14,7 @@ interface Props {
   onSave?: () => void
   onCopy?: () => void
   onDelete?: () => void
+  deleteDisabledReason?: Extract<MessageDeleteAvailability, { enabled: false }>['reason']
   onClose: () => void
 }
 
@@ -21,6 +24,7 @@ const MultiSelectActionPopup: FC<Props> = ({
   onSave,
   onCopy,
   onDelete,
+  deleteDisabledReason,
   onClose
 }) => {
   const { t } = useTranslation()
@@ -28,6 +32,7 @@ const MultiSelectActionPopup: FC<Props> = ({
   if (!isMultiSelectMode) return null
 
   const isActionDisabled = selectedMessageIds.length === 0
+  const deleteTooltip = getMessageDeleteUnavailableText(deleteDisabledReason, t) ?? t('common.delete')
 
   return (
     <Container>
@@ -49,11 +54,11 @@ const MultiSelectActionPopup: FC<Props> = ({
             </Tooltip>
           )}
           {onDelete && (
-            <Tooltip content={t('common.delete')}>
+            <Tooltip content={deleteTooltip}>
               <Button
                 className="rounded-full"
                 variant="ghost"
-                disabled={isActionDisabled}
+                disabled={isActionDisabled || !!deleteDisabledReason}
                 onClick={onDelete}
                 size="icon">
                 <DeleteIcon size={16} className="lucide-custom" />

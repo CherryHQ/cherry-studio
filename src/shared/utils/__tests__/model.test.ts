@@ -1,5 +1,5 @@
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
   isAudioModel,
   isEmbeddingModel,
@@ -88,9 +88,29 @@ describe('shared model capability helpers', () => {
       expect(isNonChatModel(multimodalChatModel)).toBe(false)
     })
 
-    it('classifies dedicated speech-to-text / text-to-speech only by explicit capability', () => {
+    it('classifies dedicated speech-to-text / text-to-speech by explicit capability', () => {
       expect(isSpeechToTextModel(createModel([MODEL_CAPABILITY.AUDIO_TRANSCRIPT]))).toBe(true)
       expect(isTextToSpeechModel(createModel([MODEL_CAPABILITY.AUDIO_GENERATION]))).toBe(true)
+    })
+
+    it('classifies an audio-only input model as dedicated speech-to-text', () => {
+      const speechToTextModel: Model = {
+        ...createModel([MODEL_CAPABILITY.AUDIO_RECOGNITION]),
+        inputModalities: ['audio'],
+        outputModalities: ['text']
+      }
+
+      expect(isSpeechToTextModel(speechToTextModel)).toBe(true)
+      expect(isNonChatModel(speechToTextModel)).toBe(true)
+    })
+
+    it('classifies a capability-exclusive primary endpoint as non-chat', () => {
+      const embeddingModel: Model = {
+        ...createModel(),
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+      }
+
+      expect(isNonChatModel(embeddingModel)).toBe(true)
     })
   })
 

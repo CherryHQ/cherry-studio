@@ -26,7 +26,7 @@ vi.mock('@cherrystudio/ui', () => {
       dialogMock.onOpenChange = onOpenChange
       return open ? React.createElement(React.Fragment, null, children) : null
     },
-    DialogContent: ({ children, closeOnOverlayClick = true, onInteractOutside, ...props }) => {
+    DialogContent: ({ children, closeOnOverlayClick = true, motion, onInteractOutside, ...props }) => {
       delete props.showCloseButton
       delete props.overlayClassName
 
@@ -51,7 +51,7 @@ vi.mock('@cherrystudio/ui', () => {
             }
           }
         }),
-        React.createElement('div', { role: 'dialog', ...props }, children)
+        React.createElement('div', { role: 'dialog', 'data-motion': motion, ...props }, children)
       )
     },
     DialogDescription: ({ children }) => React.createElement('div', null, children),
@@ -98,6 +98,7 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
 
     await screen.findByText('Delete item')
     expect(screen.getByText('This cannot be undone.')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-motion', 'fade-scale')
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     await act(async () => {})
@@ -130,6 +131,7 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
     })
 
     await screen.findByText('Backup failed')
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-motion', 'fade-scale')
     expect(screen.queryByRole('button', { name: i18n.t('common.cancel') })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: i18n.t('common.confirm') }))

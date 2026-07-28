@@ -466,7 +466,7 @@ describe('AiService tool approval', () => {
   }
 
   /**
-   * The `ai.respond_tool_approval` flow lives in `AiService.respondToolApproval(payload, senderWc)`
+   * The `ai.tool.respond_approval` flow lives in `AiService.respondToolApproval(payload, senderWc)`
    * (the IpcApi handler in `handlers/ai.ts` resolves the WebContents from `ctx.senderId` and calls
    * it). Adapt to the old `(event, payload)` call shape so the cases below read unchanged.
    */
@@ -763,7 +763,7 @@ describe('AiService tool approval', () => {
   })
 
   // Payload validation (empty `approvalId`, missing `approved`) now lives in the IpcApi router's
-  // zod parse of `ai.respond_tool_approval`, not in `respondToolApproval` — so the invalid-payload
+  // zod parse of `ai.tool.respond_approval`, not in `respondToolApproval` — so the invalid-payload
   // case is no longer unit-tested here (a thin schema contract; see ipc-usage.md "Testing").
 
   it('routes rerank requests through ai-core rerank', async () => {
@@ -1161,7 +1161,10 @@ describe('AiService.listModels', () => {
     const result = await service.listModels({ providerId: 'claude-code' })
 
     expect(result).toBe(registryModels)
-    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({ providerId: 'claude-code' })
+    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
+      providerId: 'claude-code',
+      presetProviderId: null
+    })
     expect(mockListModelsFromProvider).not.toHaveBeenCalled()
   })
 
@@ -1177,7 +1180,10 @@ describe('AiService.listModels', () => {
 
     expect(result).toBe(apiModels)
     expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: undefined })
-    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({ providerId: 'openai' })
+    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
+      providerId: 'openai',
+      presetProviderId: null
+    })
   })
 
   it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {

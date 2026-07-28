@@ -384,8 +384,7 @@ export class OpenClawService extends BaseService {
    */
   private async waitForGatewayStop(maxRetries = 3, intervalMs = 1000): Promise<boolean> {
     for (let i = 0; i < maxRetries; i++) {
-      const { status } = await this.checkGatewayHealth()
-      const stillRunning = status === 'healthy'
+      const stillRunning = await this.checkPortOpen(this.gatewayPort)
       if (!stillRunning) {
         return false
       }

@@ -2,11 +2,11 @@ import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/m
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
 
-import { getIconDisplayConfig } from './iconDisplayConfig'
+import { getIconDisplayConfig, miniAppContainedIcon } from './iconDisplayConfig'
 
 interface Props {
   app: Pick<MiniApp, 'logo' | 'logoSrc' | 'name' | 'background'>
-  /** `avatar` keeps the bordered Avatar chrome; `plain` strips it from icon logos; `bare` also strips it from image logos. */
+  /** `avatar` keeps the bordered Avatar chrome; `plain` uses launchpad sizing; `bare` leaves chrome to the caller. */
   appearance?: 'avatar' | 'plain' | 'bare'
   size?: number
   style?: React.CSSProperties
@@ -76,13 +76,18 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
       )
     }
 
+    const imageDisplayConfig = appearance === 'plain' ? miniAppContainedIcon : undefined
+    const imageSize = size * (imageDisplayConfig?.scale ?? 1)
+
     return (
       <img
         src={src}
-        className="select-none rounded-2xl border border-border"
+        className={appearance === 'plain' ? 'select-none' : 'select-none rounded-2xl border border-border'}
         style={{
-          width: `${size}px`,
-          height: `${size}px`,
+          width: `${imageSize}px`,
+          height: `${imageSize}px`,
+          borderRadius:
+            imageDisplayConfig?.borderRadius === undefined ? undefined : `${imageDisplayConfig.borderRadius}px`,
           backgroundColor: app.background,
           userSelect: 'none',
           ...style

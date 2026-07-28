@@ -1146,7 +1146,7 @@ describe('ComposerToken', () => {
 
   it('rejects unsupported token kinds', () => {
     expect(() =>
-      render(<ComposerToken token={{ id: 'reference:docs', kind: 'reference', label: 'Docs' } as never} />)
+      render(<ComposerToken token={{ id: 'command:run', kind: 'command', label: 'Run' } as never} />)
     ).toThrow()
   })
 

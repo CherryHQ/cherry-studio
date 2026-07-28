@@ -100,11 +100,15 @@ allowBuilds:
   unrs-resolver: true
   zipfile: true
 
+# Every platform builds both arches (`electron-builder --x64 --arm64`), so both prebuilt
+# sets must be installed up front: pnpm does not record supportedArchitectures in the
+# node_modules state, so changing it after the first install is a silent no-op.
 supportedArchitectures:
   os:
     - current
   cpu:
-    - current
+    - x64
+    - arm64
 
 minimumReleaseAgeExclude:
   - '@aiany/sqlite-vec-darwin-arm64@0.1.10-alpha.4.aiany.2'

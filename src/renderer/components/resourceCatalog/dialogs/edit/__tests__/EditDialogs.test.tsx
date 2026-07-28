@@ -14,6 +14,7 @@ const {
   fetchGenerateMock,
   installedSkillsState,
   ipcRequestMock,
+  knowledgeBasesState,
   mcpStatusState,
   openSettingsTabMock,
   settingsNavigateMock,
@@ -66,6 +67,15 @@ const {
     }
   },
   ipcRequestMock: vi.fn(),
+  knowledgeBasesState: {
+    current: [
+      {
+        id: 'kb-1',
+        name: 'Knowledge One',
+        itemCount: 3
+      }
+    ]
+  },
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
   settingsNavigateMock: vi.fn(),
@@ -549,13 +559,7 @@ beforeEach(() => {
     if (path === '/knowledge-bases') {
       return {
         data: {
-          items: [
-            {
-              id: 'kb-1',
-              name: 'Knowledge One',
-              itemCount: 3
-            }
-          ]
+          items: knowledgeBasesState.current
         },
         isLoading: false
       }
@@ -589,6 +593,13 @@ beforeEach(() => {
   updateAssistantMock.mockResolvedValue({ ...ASSISTANT, name: 'Updated Assistant' })
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   fetchGenerateMock.mockResolvedValue('Generated prompt')
+  knowledgeBasesState.current = [
+    {
+      id: 'kb-1',
+      name: 'Knowledge One',
+      itemCount: 3
+    }
+  ]
 })
 
 afterEach(() => {
@@ -1025,6 +1036,57 @@ describe('edit dialogs', () => {
 
     selectTab('技能')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('removes deleted knowledge bases from an open agent form', async () => {
+    const boundAgent = { ...AGENT, knowledgeBaseIds: ['kb-1'] }
+    const { rerender } = render(<AgentEditDialog open resource={boundAgent} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Built-in tools')
+    expect(screen.getByText('Knowledge Search')).toBeInTheDocument()
+
+    knowledgeBasesState.current = []
+    rerender(
+      <AgentEditDialog
+        open
+        resource={{ ...boundAgent, knowledgeBaseIds: [] }}
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(screen.queryByText('Knowledge Search')).not.toBeInTheDocument())
+    expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves a knowledge-base re-selection made while its removal is saving', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, knowledgeBaseIds: [] })
+        })
+    )
+    const boundAgent = { ...AGENT, knowledgeBaseIds: ['kb-1'] }
+    const props = { open: true, onOpenChange: vi.fn(), onSaved: vi.fn(), initialTab: 'tools.knowledge' }
+    const { rerender } = render(<AgentEditDialog {...props} resource={boundAgent} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove knowledge base' }))
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
+    fireEvent.click(screen.getByText('Knowledge One'))
+    rerender(<AgentEditDialog {...props} resource={{ ...boundAgent, knowledgeBaseIds: [] }} />)
+
+    selectTab('Built-in tools')
+    expect(screen.getByText('Knowledge Search')).toBeInTheDocument()
+
+    resolveFirstSave?.()
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({
+        body: expect.objectContaining({ knowledgeBaseIds: ['kb-1'] })
+      })
+    )
   })
 
   it('opens the agent edit dialog directly on the requested initial tab', () => {

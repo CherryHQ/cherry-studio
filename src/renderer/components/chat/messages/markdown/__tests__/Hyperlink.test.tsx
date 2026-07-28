@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Hyperlink from '../Hyperlink'
 
@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   Favicon: ({ hostname, alt }: { hostname: string; alt: string }) => (
     <img data-testid="favicon" data-hostname={hostname} alt={alt} />
   ),
+  hoverCardOpenChange: { current: undefined as ((open: boolean) => void) | undefined },
+  hoverCardProps: [] as Array<{ openDelay?: number; closeDelay?: number }>,
+  ogCardProps: [] as Array<{ link: string; show: boolean }>,
   useMetaDataParser: vi.fn(() => ({
     metadata: {},
     isLoading: false,
@@ -26,59 +29,28 @@ vi.mock('@renderer/hooks/useMetaDataParser', () => ({
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
-  const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
 
   return {
-    Popover: ({ children, open = false, onOpenChange, ...props }) =>
-      React.createElement(
-        PopoverContext.Provider,
-        { value: { open, onOpenChange } },
-        React.createElement('div', { ...props, 'data-testid': 'popover' }, children)
-      ),
-    PopoverTrigger: ({ children, asChild, ...props }) => {
-      if (asChild && React.isValidElement(children)) {
-        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
-        return React.cloneElement(children, { ...props, 'data-testid': 'popover-trigger' })
-      }
-      return React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children)
+    HoverCard: ({ children, openDelay, closeDelay, onOpenChange, ...props }) => {
+      mocks.hoverCardProps.push({ openDelay, closeDelay })
+      mocks.hoverCardOpenChange.current = onOpenChange
+      return React.createElement('div', { ...props, 'data-testid': 'hover-card' }, children)
     },
-    PopoverContent: ({ children, sideOffset, ...props }) => {
-      void sideOffset
-      const context = React.use(PopoverContext)
-      return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
-    }
-  }
-})
-
-vi.mock('@cherrystudio/ui', () => {
-  const React = require('react')
-  const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
-
-  return {
-    Popover: ({ children, open = false, onOpenChange, ...props }) =>
-      React.createElement(
-        PopoverContext.Provider,
-        { value: { open, onOpenChange } },
-        React.createElement('div', { ...props, 'data-testid': 'popover' }, children)
-      ),
-    PopoverTrigger: ({ children, asChild, ...props }) => {
-      if (asChild && React.isValidElement(children)) {
-        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
-        return React.cloneElement(children, { ...props, 'data-testid': 'popover-trigger' })
-      }
-      return React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children)
+    HoverCardTrigger: ({ children, asChild, ...props }) => {
+      void asChild
+      return React.createElement('div', { ...props, 'data-testid': 'hover-card-trigger' }, children)
     },
-    PopoverContent: ({ children, sideOffset, ...props }) => {
+    HoverCardContent: ({ children, sideOffset, ...props }) => {
       void sideOffset
-      const context = React.use(PopoverContext)
-      return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
+      return React.createElement('div', { ...props, 'data-testid': 'hover-card-content' }, children)
     }
   }
 })
 
 // Mock the OgCard component
 vi.mock('@renderer/components/OgCard', () => ({
-  OgCard: ({ link }: { link: string; show: boolean }) => {
+  OgCard: ({ link, show }: { link: string; show: boolean }) => {
+    mocks.ogCardProps.push({ link, show })
     let hostname = ''
     try {
       hostname = new URL(link).hostname
@@ -99,11 +71,9 @@ vi.mock('@renderer/components/OgCard', () => ({
 describe('Hyperlink', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.useRealTimers()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
+    mocks.hoverCardOpenChange.current = undefined
+    mocks.hoverCardProps.length = 0
+    mocks.ogCardProps.length = 0
   })
 
   it('should match snapshot for normal url', () => {
@@ -121,7 +91,7 @@ describe('Hyperlink', () => {
         <span>Only Child</span>
       </Hyperlink>
     )
-    expect(screen.queryByTestId('popover')).toBeNull()
+    expect(screen.queryByTestId('hover-card')).toBeNull()
     expect(screen.getByText('Only Child')).toBeInTheDocument()
   })
 
@@ -132,11 +102,8 @@ describe('Hyperlink', () => {
       </Hyperlink>
     )
 
-    // Popover wrapper exists
-    const popover = screen.getByTestId('popover')
-    expect(popover).toBeInTheDocument()
-    fireEvent.mouseEnter(screen.getByTestId('popover-trigger'))
-    expect(screen.getByTestId('popover-content')).toHaveClass('w-auto max-w-none overflow-hidden rounded-lg p-0')
+    expect(screen.getByTestId('hover-card')).toBeInTheDocument()
+    expect(screen.getByTestId('hover-card-content')).toHaveClass('w-auto max-w-none overflow-hidden rounded-lg p-0')
 
     // Content includes decoded url text and favicon with hostname
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')
@@ -153,8 +120,6 @@ describe('Hyperlink', () => {
       </Hyperlink>
     )
 
-    fireEvent.mouseEnter(screen.getByTestId('popover-trigger'))
-
     // decodeURIComponent succeeds => "not/url" is displayed
     expect(screen.queryByTestId('favicon')).toBeNull()
     // Since there's no hostname and no og:title, title shows empty, but text shows the URL
@@ -169,8 +134,6 @@ describe('Hyperlink', () => {
       </Hyperlink>
     )
 
-    fireEvent.mouseEnter(screen.getByTestId('popover-trigger'))
-
     // Decoded to mailto:test@example.com, hostname is empty => no favicon
     expect(screen.queryByTestId('favicon')).toBeNull()
     // Since there's no hostname and no og:title, title shows empty, but text shows the decoded URL
@@ -178,47 +141,32 @@ describe('Hyperlink', () => {
     expect(screen.getByTestId('text')).toHaveTextContent('mailto:test@example.com')
   })
 
-  it('should open the popover when hovering the link trigger', () => {
+  it('should configure the hover card with a 1.5 second open delay', () => {
     render(
       <Hyperlink href="https://domain.com/a%20b">
         <span>child</span>
       </Hyperlink>
     )
 
-    expect(screen.queryByTestId('popover-content')).toBeNull()
-
-    fireEvent.mouseEnter(screen.getByTestId('popover-trigger'))
-
-    expect(screen.getByTestId('popover-content')).toBeInTheDocument()
+    expect(mocks.hoverCardProps.at(-1)).toEqual({
+      openDelay: 1500,
+      closeDelay: 100
+    })
   })
 
-  it('should stay open when moving from the trigger to the popover content and close after leaving content', () => {
-    vi.useFakeTimers()
-
+  it('should defer metadata loading until the hover card opens', () => {
     render(
       <Hyperlink href="https://domain.com/a%20b">
         <span>child</span>
       </Hyperlink>
     )
 
-    fireEvent.mouseEnter(screen.getByTestId('popover-trigger'))
-    const content = screen.getByTestId('popover-content')
-
-    fireEvent.mouseLeave(screen.getByTestId('popover-trigger'))
-    fireEvent.mouseEnter(content)
+    expect(mocks.ogCardProps.at(-1)).toMatchObject({ show: false })
 
     act(() => {
-      vi.advanceTimersByTime(120)
+      mocks.hoverCardOpenChange.current?.(true)
     })
 
-    expect(screen.getByTestId('popover-content')).toBeInTheDocument()
-
-    fireEvent.mouseLeave(screen.getByTestId('popover-content'))
-
-    act(() => {
-      vi.advanceTimersByTime(120)
-    })
-
-    expect(screen.queryByTestId('popover-content')).toBeNull()
+    expect(mocks.ogCardProps.at(-1)).toMatchObject({ show: true })
   })
 })

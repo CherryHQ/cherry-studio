@@ -1,3 +1,4 @@
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { loggerService } from '@logger'
 import {
   ResourceCreateWizard,
@@ -10,7 +11,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
-import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
+import { lazy, type ReactElement, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -98,6 +99,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingAssistant, setEditingAssistant] = useState<Assistant | null>(null)
+  const editDialogCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -162,26 +164,49 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [isPinActionDisabled, togglePin, t]
   )
 
+  const clearEditDialogCloseTimer = useCallback(() => {
+    if (editDialogCloseTimerRef.current === null) return
+
+    clearTimeout(editDialogCloseTimerRef.current)
+    editDialogCloseTimerRef.current = null
+  }, [])
+
+  useEffect(() => clearEditDialogCloseTimer, [clearEditDialogCloseTimer])
+
+  const scheduleEditDialogClose = useCallback(() => {
+    setEditDialogOpen(false)
+    if (editDialogCloseTimerRef.current !== null) return
+
+    editDialogCloseTimerRef.current = setTimeout(() => {
+      editDialogCloseTimerRef.current = null
+      setEditingAssistant(null)
+      onDialogCloseAutoFocus?.()
+    }, DIALOG_UNMOUNT_DELAY_MS)
+  }, [onDialogCloseAutoFocus])
+
   const handleEditItem = useCallback(
     (item: AssistantSelectorItem) => {
       const assistant = data?.items.find((candidate) => candidate.id === item.id)
       if (!assistant) return
 
+      clearEditDialogCloseTimer()
       setEditingAssistant(assistant)
       setEditDialogOpen(true)
     },
-    [data?.items]
+    [clearEditDialogCloseTimer, data?.items]
   )
 
   const handleEditDialogOpenChange = useCallback(
     (nextOpen: boolean) => {
-      setEditDialogOpen(nextOpen)
-      if (!nextOpen) {
-        setEditingAssistant(null)
-        onDialogCloseAutoFocus?.()
+      if (nextOpen) {
+        clearEditDialogCloseTimer()
+        setEditDialogOpen(true)
+        return
       }
+
+      scheduleEditDialogClose()
     },
-    [onDialogCloseAutoFocus]
+    [clearEditDialogCloseTimer, scheduleEditDialogClose]
   )
 
   const handleCreateDialogOpenChange = useCallback(
@@ -234,15 +259,14 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   )
 
   const handleEditSaved = useCallback(async () => {
-    setEditDialogOpen(false)
-    setEditingAssistant(null)
+    scheduleEditDialogClose()
     try {
       await refetch()
     } catch (error) {
       logger.warn('Failed to refresh assistants after selector edit', { error })
       toast.error(t('selector.edit_dialog.refresh_failed'))
     }
-  }, [refetch, t])
+  }, [refetch, scheduleEditDialogClose, t])
 
   const createDialog = (
     <ResourceCreateWizard

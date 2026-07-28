@@ -178,6 +178,9 @@ function BatchCloseControls() {
       <button type="button" onClick={() => setActiveTab('home')}>
         Activate Home
       </button>
+      <button type="button" onClick={() => setActiveTab('d')}>
+        Activate D
+      </button>
       <button type="button" onClick={() => closeTabs(['b', 'c'])}>
         Close B and C
       </button>
@@ -189,6 +192,9 @@ function BatchCloseControls() {
       </button>
       <button type="button" onClick={() => closeTabs(['b', 'c'], 'c')}>
         Close B and C keeping C
+      </button>
+      <button type="button" onClick={() => closeTabs(['d'])}>
+        Close D
       </button>
       <button type="button" onClick={() => closeTabs(['home', 'b', 'c', 'd'], 'files')}>
         Close all normals to Files
@@ -361,6 +367,33 @@ describe('TabsProvider', () => {
     await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalled())
   })
 
+  it('removes a menu-closed pinned tab from the persistent pinned list', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <CloseTabOnMount tabId="files" />
+      </TabsProvider>
+    )
+
+    // The mocked pinned cache never re-renders, so assert on the persisted write:
+    // the pinned list must drop the tab, or it resurrects on restart.
+    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalled())
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+
+    // Mount also fires a one-time pinned-session hydration write, so the close's
+    // functional updater isn't necessarily the last call — find it explicitly.
+    const updater = setPinnedTabsMock.mock.calls.map((call) => call[0]).find((arg) => typeof arg === 'function')
+    expect(typeof updater).toBe('function')
+    expect(updater([PINNED_FILES_TAB])).toEqual([])
+  })
+
   it('drops legacy assistant-library pinned tabs when restoring the main tab list', async () => {
     pinnedTabsValue = [LEGACY_LIBRARY_PINNED_TAB, PINNED_FILES_TAB]
 
@@ -435,7 +468,8 @@ describe('TabsProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close B and C' }))
 
     await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,d'))
-    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+    // Chrome-style: the surviving right neighbor takes over the active slot.
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('d')
   })
 
   it('activates the designated survivor instead of the nearest neighbor when the active tab is batch-closed', async () => {
@@ -549,12 +583,38 @@ describe('TabsProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Activate C' }))
     await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
 
-    // activateId 'c' is inside the closing set, so it cannot survive — the
-    // nearest-neighbor rule applies (b closes too, so home wins).
+    // activateId 'c' is inside the closing set, so it cannot survive. The
+    // Chrome-style fallback selects the right neighbor that slides into place.
     fireEvent.click(screen.getByRole('button', { name: 'Close B and C keeping C' }))
 
     await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,d'))
-    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('d')
+  })
+
+  it('falls back to the left neighbor when the active tab is last in the strip', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c,d'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate D' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('d'))
+    fireEvent.click(screen.getByRole('button', { name: 'Close D' }))
+
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c'))
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c')
   })
 
   it('wakes a dormant pinned survivor through the pinned store', async () => {

@@ -9,13 +9,17 @@ import {
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import type {
+  ChatComposerResolvedContext,
+  ChatConversationControlsChangeHandler
+} from '@renderer/components/composer/variants/ChatComposer'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
-import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,6 +40,9 @@ interface Props {
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
   onStartBranchDraft?: MessageListActions['startMessageBranch']
+  assistantContext?: ChatComposerResolvedContext
+  providers?: Provider[]
+  onConversationControlsChange?: ChatConversationControlsChangeHandler
 }
 
 /**
@@ -58,7 +65,10 @@ const ChatContent: FC<Props> = ({
   onBranchLiveStateChange,
   clearBranchDraft,
   getBranchDraftAnchorId,
-  onStartBranchDraft
+  onStartBranchDraft,
+  assistantContext,
+  providers,
+  onConversationControlsChange
 }) => {
   const {
     uiMessages,
@@ -85,6 +95,9 @@ const ChatContent: FC<Props> = ({
       clearBranchDraft={clearBranchDraft}
       getBranchDraftAnchorId={getBranchDraftAnchorId}
       onStartBranchDraft={onStartBranchDraft}
+      assistantContext={assistantContext}
+      providers={providers}
+      onConversationControlsChange={onConversationControlsChange}
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
       initialMessages={uiMessages}
@@ -132,6 +145,9 @@ const ChatContentInner: FC<InnerProps> = ({
   clearBranchDraft,
   getBranchDraftAnchorId,
   onStartBranchDraft,
+  assistantContext,
+  providers,
+  onConversationControlsChange,
   isHistoryLoading,
   isHistoryStale,
   initialMessages,
@@ -145,7 +161,7 @@ const ChatContentInner: FC<InnerProps> = ({
   messagesCacheMutate
 }) => {
   const { t } = useTranslation()
-  const { assistant } = useAssistantApiById(topic.assistantId ?? undefined)
+  const assistant = assistantContext?.assistant
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
   const runtime = useChatRuntimeState({
     topic,
@@ -156,6 +172,7 @@ const ChatContentInner: FC<InnerProps> = ({
     activeNodeId,
     rootId,
     messagesCacheMutate,
+    assistant,
     onBranchLiveStateChange,
     clearBranchDraft,
     getBranchDraftAnchorId
@@ -203,9 +220,12 @@ const ChatContentInner: FC<InnerProps> = ({
       <ChatMain
         key={topic.id}
         topic={topic}
+        assistant={assistant}
         messages={runtime.messages}
         partsByMessageId={runtime.partsByMessageId}
         streamingLayers={runtime.streamingLayers}
+        localSendGeneration={runtime.localSendGeneration}
+        onBindRuntime={runtime.bindMessageListRuntime}
         isInitialLoading={isHistoryLoading}
         isMessagesStale={isHistoryStale}
         loadOlder={loadOlder}
@@ -220,18 +240,26 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="home"
       topic={topic}
       onSend={runtime.sendMessage}
+      captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       onNewTopic={onNewTopic}
       composerContext={runtime.composerContext}
+      assistantContext={assistantContext}
+      providers={providers}
+      onConversationControlsChange={onConversationControlsChange}
     />
   ) : (
     <ChatComposerSlot
       placement="docked"
       topic={topic}
       onSend={runtime.sendMessage}
+      captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       onNewTopic={onNewTopic}
       onCreateEmptyTopic={onCreateEmptyTopic}
       sendDisabled={isHistoryLoading}
       composerContext={runtime.composerContext}
+      assistantContext={assistantContext}
+      providers={providers}
+      onConversationControlsChange={onConversationControlsChange}
     />
   )
   const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'

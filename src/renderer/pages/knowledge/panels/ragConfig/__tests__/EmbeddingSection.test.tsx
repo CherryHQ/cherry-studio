@@ -18,7 +18,7 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
   )
 }))
 
-vi.mock('../LocalEmbeddingDownloadButton', () => ({
+vi.mock('../../../components/LocalEmbeddingDownloadButton', () => ({
   default: ({ onSelected }: { onSelected: (id: string) => void }) => (
     <button type="button" onClick={() => onSelected('local-embedding::qwen3-embedding-0.6b')}>
       local-download
@@ -31,7 +31,11 @@ describe('EmbeddingSection', () => {
     const { rerender } = render(
       <EmbeddingSection embeddingModelId={null} onEmbeddingModelChange={vi.fn()} onLocalEmbeddingDownloaded={vi.fn()} />
     )
-    expect(screen.getByText('local-download')).toBeInTheDocument()
+    const downloadButton = screen.getByText('local-download')
+    const modelSelect = screen.getByText('knowledge.not_set')
+
+    expect(downloadButton).toBeInTheDocument()
+    expect(downloadButton.compareDocumentPosition(modelSelect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     rerender(
       <EmbeddingSection

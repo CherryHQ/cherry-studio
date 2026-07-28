@@ -210,7 +210,7 @@ describe('ResourceCreateWizard', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('shows the capability step (not knowledge) for the agent kind', async () => {
+  it('shows the knowledge step after capability for the agent kind', async () => {
     const user = userEvent.setup()
     render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
@@ -220,6 +220,25 @@ describe('ResourceCreateWizard', () => {
 
     expect(screen.getByTestId('capability-step')).toBeInTheDocument()
     expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: NEXT }))
+
+    expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
+    expect(screen.queryByTestId('capability-step')).not.toBeInTheDocument()
+  })
+
+  it('does not render an invalid step when a closed agent wizard falls back to assistant kind', async () => {
+    const user = userEvent.setup()
+    const props = { open: true, onOpenChange: vi.fn(), onSubmit: vi.fn() }
+    const { rerender } = render(<ResourceCreateWizard {...props} kind="agent" />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
+
+    expect(() => rerender(<ResourceCreateWizard {...props} kind="assistant" open={false} />)).not.toThrow()
   })
 
   it('does not prefill the default model for agent kind when rejected by the model filter', async () => {

@@ -378,6 +378,11 @@
         "label": "Instrumente pre-aprobate",
         "placeholder": "Selectează instrumente pre-aprobate"
       },
+      "api_retry": {
+        "reason": "Cerere eșuată ({{error}}, HTTP {{status}}) — se reîncearcă",
+        "retrying": "Se reîncearcă {{attempt}}/{{max}}…",
+        "retrying_in": "Reîncercare {{attempt}}/{{max}} în {{seconds}}s"
+      },
       "auto_rename": "Generați numele sarcinii",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Nu s-a reușit ștergerea sarcinii",
         "loadFailed": "Nu s-au putut încărca sarcinile",
         "runFailed": "Nu s-a reușit executarea sarcinii",
+        "triggerInvalid": "Programare invalidă: verificați expresia, fusul orar sau intervalul de timp",
         "updateFailed": "Nu s-a reușit actualizarea sarcinii"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "Rulează",
       "runTriggered": "Sarcină declanșată",
       "save": "Salvează",
+      "schedule": {
+        "custom": "Program personalizat",
+        "daily": "Zilnic",
+        "hour": "Oră",
+        "hourly": "Orară",
+        "interval": "Interval personalizat",
+        "intervalMinutes": "Interval",
+        "invalid": "Introduceți o frecvență de execuție validă.",
+        "minute": "Minut",
+        "once": "O dată",
+        "runAt": "Execută la",
+        "summary": {
+          "daily": "Zilnic la {{time}}",
+          "hourly": "La începutul fiecărei ore",
+          "interval": "La fiecare {{count}} minute",
+          "weekdays": "Zilele săptămânii la {{time}}",
+          "weekly": "În fiecare {{weekday}} la {{time}}"
+        },
+        "time": "Timp",
+        "weekday": "Ziua săptămânii",
+        "weekdays": {
+          "friday": "Vineri",
+          "monday": "Luni",
+          "saturday": "Sâmbătă",
+          "sunday": "Duminică",
+          "thursday": "Joi",
+          "tuesday": "Marți",
+          "wednesday": "Miercuri"
+        },
+        "weekdaysOnly": "Zilele săptămânii",
+        "weekly": "Săptămânal"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Interval",
@@ -869,6 +907,7 @@
       "expired": "Expirat",
       "inputPreview": "Previzualizare intrare instrument",
       "pending": "În așteptare ({{seconds}}s)",
+      "pendingBadge": "În așteptare",
       "permissionExpired": "Cererea de permisiune a expirat. Se așteaptă instrucțiuni noi...",
       "requiresElevatedPermissions": "Acest instrument necesită permisiuni elevate.",
       "suggestion": {
@@ -996,7 +1035,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copiază",
       "regenerate": "Regenerează",
       "restart": {
         "button": "Repornește",
@@ -1008,8 +1046,6 @@
     "authHeader": {
       "title": "Header de autorizare"
     },
-    "authHeaderText": "Utilizează în header-ul Authorization:",
-    "configuration": "Configurare",
     "description": "Expune capacitățile AI ale Cherry Studio prin API-uri HTTP compatibile cu OpenAI",
     "documentation": {
       "title": "Documentație API"
@@ -1017,13 +1053,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copiază cheia API",
-        "description": "Token de autentificare securizat pentru acces API",
         "label": "Cheie API",
         "placeholder": "Cheia API va fi generată automat"
       },
       "port": {
-        "description": "Numărul portului TCP pentru serverul HTTP (1000-65535)",
-        "helpText": "Oprește serverul pentru a schimba portul",
         "label": "Port"
       },
       "url": {
@@ -1032,7 +1065,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Cheia API a fost copiată în clipboard",
       "apiKeyRegenerated": "Cheia API a fost regenerată",
       "notEnabled": "Serverul API nu este activat.",
       "operationFailed": "Operațiunea serverului API a eșuat: ",
@@ -1042,8 +1074,7 @@
       "startError": "Nu s-a putut porni serverul API: ",
       "startSuccess": "Serverul API a pornit cu succes",
       "stopError": "Nu s-a putut opri serverul API: ",
-      "stopSuccess": "Serverul API s-a oprit cu succes",
-      "urlCopied": "URL-ul serverului a fost copiat în clipboard"
+      "stopSuccess": "Serverul API s-a oprit cu succes"
     },
     "status": {
       "running": "Rulează",
@@ -1425,6 +1456,24 @@
       "pause": "Pauză",
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",
       "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",
+      "reference_panel": {
+        "load_failed": "Nu s-a putut încărca conversația referențiată",
+        "no_room": "Nu mai este suficient spațiu în mesaj pentru a adăuga această conversație",
+        "session": {
+          "no_results": {
+            "description": "Nicio sesiune nu corespunde căutării tale",
+            "label": "Nu s-au găsit sesiuni"
+          },
+          "title": "Sesiuni"
+        },
+        "topic": {
+          "no_results": {
+            "description": "Niciun subiect nu corespunde căutării tale",
+            "label": "Niciun subiect găsit"
+          },
+          "title": "Subiecte"
+        }
+      },
       "resize_height": "Redimensionează înălțimea intrării",
       "resource_panel": {
         "categories": {
@@ -2121,7 +2170,7 @@
     "terminal": "Terminal",
     "terminal_hint": "Alege în ce aplicație terminal să rulezi CLI-ul",
     "terminal_placeholder": "Selectează aplicația terminal",
-    "title": "Instrumente de cod",
+    "title": "Code Mate",
     "tool_parameters": "Setări Parametri",
     "up_to_date": "La zi",
     "update_options": "Opțiuni de actualizare",
@@ -2274,6 +2323,7 @@
     "provider": "Furnizor",
     "reasoning_content": "Raționament profund",
     "refresh": "Reîmprospătează",
+    "refresh_failed": "Nu s-a putut actualiza lista. Se afișează ultima versiune încărcată.",
     "regenerate": "Regenerează",
     "remove_image": "Elimină imaginea",
     "rename": "Redenumește",
@@ -2588,7 +2638,8 @@
     "edit": "Editează",
     "empty": {
       "no_match_description": "Niciun fișier nu corespunde filtrelor curente",
-      "no_match_title": "Nu au fost găsite fișiere potrivite"
+      "no_match_title": "Nu au fost găsite fișiere potrivite",
+      "title": "Niciun fișier încă"
     },
     "empty_trash": "Coș de gunoi gol",
     "error": {
@@ -3761,6 +3812,8 @@
         "title": "Confirmare ștergere"
       },
       "failed": "Ștergere eșuată",
+      "first_turn_not_supported": "Primul mesaj al utilizatorului nu poate fi șters.",
+      "root_unavailable": "Mesajele se încarcă în continuare și nu pot fi șterse încă.",
       "success": "Ștergere reușită"
     },
     "dialog": {
@@ -3903,18 +3956,6 @@
     "processing": "Se procesează...",
     "regenerate": {
       "confirm": "Regenerarea va înlocui mesajul curent"
-    },
-    "reset": {
-      "confirm": {
-        "content": "Ești sigur că vrei să ștergi toate datele?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Toate datele vor fi pierdute, vrei să continui?",
-          "title": "DATE PIERDUTE !!!"
-        }
-      },
-      "success": "Retelearea datelor a reușit"
     },
     "restore": {
       "failed": "Restaurare eșuată",
@@ -5760,6 +5801,13 @@
       "data": {
         "title": "Director de date"
       },
+      "data_reset": {
+        "button": "Resetează",
+        "confirm_content": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",
+        "confirm_title": "Resetarea datelor aplicației",
+        "error": "Pornirea resetării datelor a eșuat",
+        "title": "Resetare date"
+      },
       "divider": {
         "basic": "Setări date de bază",
         "cloud_storage": "Setări backup în cloud",
@@ -6385,6 +6433,7 @@
       "viewErrorDetails": "Vizualizați detaliile"
     },
     "developer": {
+      "client_id": "ID client",
       "enable_developer_mode": "Activează modul dezvoltator",
       "help": "După activarea modului dezvoltator, poți folosi funcția de urmărire (trace) pentru a vizualiza fluxul de date în timpul invocării modelului.",
       "title": "Mod dezvoltator"
@@ -6492,10 +6541,6 @@
       "emoji_picker": "Selector emoji",
       "image_upload": "Încărcare imagine",
       "label": "Setări generale",
-      "reset": {
-        "button": "Resetează",
-        "title": "Resetare date"
-      },
       "restore": {
         "button": "Restaurează"
       },
@@ -6571,7 +6616,9 @@
       "active": "Activ",
       "addError": "Nu s-a putut adăuga serverul",
       "addServer": {
+        "advanced": "Avansat",
         "create": "Creare rapidă",
+        "createDescription": "Completați detaliile de conectare pentru a crea serverul; tot restul poate fi ajustat ulterior.",
         "importFrom": {
           "connectionFailed": "Conexiune eșuată",
           "dxt": "Importă pachet DXT",
@@ -6651,7 +6698,11 @@
         "success": "Serverele MCP au fost preluate cu succes"
       },
       "filter": {
-        "label": "Filtru"
+        "allStatuses": "Toate statusurile",
+        "allTypes": "Toate tipurile",
+        "builtinOnly": "Doar încorporat",
+        "status": "Filtrare după stare",
+        "type": "Filtrare după tip"
       },
       "findMore": "Găsește mai multe MCP",
       "headers": "Headere",
@@ -6708,6 +6759,7 @@
         "usage": "Utilizare",
         "version": "Versiune"
       },
+      "pageDescription": "Gestionează serverele MCP. Odată activate, agenții pot apela instrumentele și resursele pe care acestea le oferă.",
       "prompts": {
         "arguments": "Argumente",
         "availablePrompts": "Prompturi disponibile",
@@ -7671,12 +7723,39 @@
       "titlePlaceholder": "Vă rugăm să introduceți titlul expresiei"
     },
     "scheduledTasks": {
+      "agentCreate": "Creează cu Agent",
+      "allAgents": "Toți agenții",
+      "allStatuses": "Toate statusurile",
+      "clearFilters": "Șterge filtrele",
+      "createDescription": "Setează ce trebuie să facă Agentul și când trebuie să ruleze.",
+      "createTitle": "Sarcină programată nouă",
       "description": "Gestionați sarcinile programate pentru toți agenții. Sarcinile rulează automat conform programului configurat.",
+      "editDescription": "Actualizați ce ar trebui să facă Agentul și când ar trebui să ruleze.",
+      "editTitle": "Editare sarcină programată",
+      "filterAgent": "Filtrare după Agent",
+      "filterStatus": "Filtrare după stare",
+      "manualCreate": "Crea manual",
+      "newTask": "Nou",
       "noAgents": "Niciun agent găsit. Creează mai întâi un agent pentru a adăuga sarcini programate.",
       "noAgentsTip": "Sfat: Îți poți ruga, de asemenea, agentul să creeze sarcini programate prin chat.",
+      "noAgentsTitle": "Fără agenți",
+      "noMatches": "Încercați o căutare sau un filtru diferit.",
+      "noMatchesTitle": "Nicio sarcină potrivită",
       "noTasks": "Nu există sarcini programate. Faceți clic pe „+ Adăugați” pentru a crea una pentru un agent.",
+      "noTasksTitle": "Nicio sarcină programată",
+      "notFoundDescription": "Această sarcină ar fi putut fi ștearsă, sau linkul este invalid.",
+      "notFoundTitle": "Sarcina nu a fost găsită",
+      "paginationLabel": "Paginarea sarcinilor programate",
+      "paginationStatus": "Pagina {{page}} din {{pageCount}} · {{total}} sarcini",
+      "search": "Căutare sarcini programate",
+      "searchPlaceholder": "Căutați sarcini sau agenți",
       "selectTask": "Selectați o sarcină pentru a vizualiza detaliile",
-      "title": "Sarcini programate"
+      "title": "Sarcini programate",
+      "validation": {
+        "agent": "Selectați un agent.",
+        "name": "Introduceți un nume de sarcină.",
+        "prompt": "Introduceți un prompt de sarcină."
+      }
     },
     "shortcuts": {
       "action": "Acțiune",
@@ -7765,6 +7844,7 @@
       "noInstalled": "Nicio competență instalată",
       "noResults": "Nicio competență găsită",
       "noSkillFile": "Nu s-a găsit SKILL.md",
+      "pageDescription": "Gestionați abilitățile instalate. Abilitățile extind ceea ce pot face agenții dvs. și sunt invocate la cerere.",
       "searchPlaceholder": "Descoperă mai multe competențe...",
       "searchRegistryTitle": "Caută registre de competențe online",
       "searchTitle": "Abilități de căutare",
@@ -8050,7 +8130,7 @@
   "title": {
     "apps": "Aplicații",
     "chat": "Chat",
-    "code": "Cod",
+    "code": "Code Mate",
     "files": "Fișiere",
     "home": "Acasă",
     "knowledge": "Bază de cunoștințe",

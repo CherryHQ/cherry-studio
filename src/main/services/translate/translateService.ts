@@ -127,7 +127,13 @@ export class TranslateService {
     listeners.push(wcListener)
 
     const streamManager = application.get('AiStreamManager')
-    streamManager.streamPrompt({ streamId: req.streamId, uniqueModelId, prompt: content, listener: listeners })
+    streamManager.streamPrompt({
+      streamId: req.streamId,
+      uniqueModelId,
+      prompt: content,
+      listener: listeners,
+      reasoningEffort: 'none'
+    })
 
     logger.debug('translate stream opened', {
       streamId: req.streamId,

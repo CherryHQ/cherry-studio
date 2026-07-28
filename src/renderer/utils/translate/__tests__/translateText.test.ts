@@ -35,7 +35,7 @@ import { translateText } from '../translateText'
  *   4. Call `ipcApi.request('translate.open', { streamId, text, targetLangCode })`
  *   5. Accumulate text-delta chunks, fire `onResponse`, resolve trimmed
  *      final text on done
- *   6. Abort via the `ai.stream_abort` route keyed on `streamId`
+ *   6. Abort via the `ai.stream.abort` route keyed on `streamId`
  */
 
 const TARGET = {
@@ -99,7 +99,7 @@ function createMocks(): {
     switch (route) {
       case 'translate.open':
         return translateOpen(input as { streamId: string })
-      case 'ai.stream_abort':
+      case 'ai.stream.abort':
         return ai.streamAbort(input)
       default:
         return Promise.resolve(undefined)
@@ -107,11 +107,11 @@ function createMocks(): {
   })
   const on = (event: string, cb: (p: unknown) => void): (() => void) => {
     switch (event) {
-      case 'ai.stream_chunk':
+      case 'ai.stream.chunk':
         return ai.onStreamChunk(cb as never)
-      case 'ai.stream_done':
+      case 'ai.stream.done':
         return ai.onStreamDone(cb as never)
-      case 'ai.stream_error':
+      case 'ai.stream.error':
         return ai.onStreamError(cb as never)
       default:
         return () => {}

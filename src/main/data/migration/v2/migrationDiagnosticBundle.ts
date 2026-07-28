@@ -7,7 +7,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { createAtomicWriteStream } from '@main/utils/file'
 import type { MigrationStage } from '@shared/data/migration/v2/types'
-import type { FilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { ZipArchive } from 'archiver'
 import { app } from 'electron'
 
@@ -23,7 +23,7 @@ interface SaveMigrationDiagnosticBundleInput {
 }
 
 interface MigrationDiagnosticBundleDependencies {
-  readonly openLogFile?: (filePath: FilePath) => Promise<FileHandle>
+  readonly openLogFile?: (filePath: AbsoluteFilePath) => Promise<FileHandle>
   readonly createLogReadStream?: (handle: FileHandle, snapshotBytes: number) => Readable
   readonly readLogDirectory?: (logsPath: string) => Promise<readonly LogDirectoryEntry[]>
 }
@@ -35,7 +35,7 @@ interface LogDirectoryEntry {
 
 interface LogCandidate {
   readonly fileName: string
-  readonly filePath: FilePath
+  readonly filePath: AbsoluteFilePath
 }
 
 interface LogSnapshot {
@@ -60,13 +60,13 @@ class LogReadFailure extends Error {
   }
 }
 
-function validateDestination(value: string): FilePath | undefined {
+function validateDestination(value: string): AbsoluteFilePath | undefined {
   if (typeof value !== 'string' || !path.isAbsolute(value)) return undefined
   const terminal = value.split(process.platform === 'win32' ? /[\\/]/ : '/').at(-1)
   if (!terminal || terminal === '.' || terminal === '..') return undefined
   const normalized = path.normalize(value)
   if (normalized === path.parse(normalized).root) return undefined
-  return value as FilePath
+  return AbsoluteFilePathSchema.parse(value)
 }
 
 async function selectLogFiles(
@@ -92,11 +92,11 @@ async function selectLogFiles(
     .sort(({ fileName: a }, { fileName: b }) => (a < b ? -1 : a > b ? 1 : 0))
     .map(({ fileName }) => ({
       fileName,
-      filePath: application.getPath('app.logs', fileName) as FilePath
+      filePath: AbsoluteFilePathSchema.parse(application.getPath('app.logs', fileName))
     }))
 }
 
-async function probeFileIdentity(filePath: FilePath): Promise<FileIdentity> {
+async function probeFileIdentity(filePath: AbsoluteFilePath): Promise<FileIdentity> {
   try {
     const fileStat = await stat(filePath)
     return { status: 'present', dev: fileStat.dev, ino: fileStat.ino }
@@ -109,7 +109,7 @@ async function createSnapshots(
   candidates: LogCandidate[],
   handles: FileHandle[],
   sourceIdentities: PresentFileIdentity[],
-  openLogFile: (filePath: FilePath) => Promise<FileHandle>
+  openLogFile: (filePath: AbsoluteFilePath) => Promise<FileHandle>
 ): Promise<LogSnapshot[]> {
   const snapshots: LogSnapshot[] = []
   for (const { fileName, filePath } of candidates) {
@@ -132,7 +132,7 @@ function hasSameIdentity(a: PresentFileIdentity, b: PresentFileIdentity): boolea
 }
 
 async function canWriteDestination(
-  destination: FilePath,
+  destination: AbsoluteFilePath,
   initialIdentity: FileIdentity,
   sourceIdentities: readonly PresentFileIdentity[]
 ): Promise<boolean> {
@@ -171,7 +171,7 @@ function exactLengthStream(expectedBytes: number, onFailure: (error: Error) => v
 }
 
 async function writeZip(
-  destination: FilePath,
+  destination: AbsoluteFilePath,
   metadata: string,
   snapshots: LogSnapshot[],
   createLogReadStream: (handle: FileHandle, snapshotBytes: number) => Readable

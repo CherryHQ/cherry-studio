@@ -19,9 +19,11 @@ const baseProps = {
 export default function NewConversationIcon({ size = 24, className, ...props }: NewConversationIconProps) {
   return (
     <svg width={size} height={size} {...baseProps} {...props} className={cn('new-conversation-icon', className)}>
-      <path d="M13 4H6a2 2 0 0 0-2 2v13l4-3h10a2 2 0 0 0 2-2v-3" />
-      <path d="M18 3.5v5" />
-      <path d="M15.5 6h5" />
+      <g transform="translate(12 12) scale(1.1) translate(-12 -12)">
+        <path vectorEffect="non-scaling-stroke" d="M13 4H6a2 2 0 0 0-2 2v13l4-3h10a2 2 0 0 0 2-2v-3" />
+        <path vectorEffect="non-scaling-stroke" d="M18 3.5v5" />
+        <path vectorEffect="non-scaling-stroke" d="M15.5 6h5" />
+      </g>
     </svg>
   )
 }

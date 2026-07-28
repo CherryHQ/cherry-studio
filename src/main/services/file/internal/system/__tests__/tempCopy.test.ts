@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -82,7 +82,7 @@ describe('internal/system/tempCopy', () => {
     })
     expect(result).toBe(seen[0].length)
     // tmp path is cleaned up
-    expect(await exists(seen[0] as FilePath)).toBe(false)
+    expect(await exists(seen[0] as AbsoluteFilePath)).toBe(false)
   })
 
   it('cleans up tmp dir even when fn throws', async () => {
@@ -94,7 +94,7 @@ describe('internal/system/tempCopy', () => {
         throw new Error('library failed')
       })
     ).rejects.toThrow(/library failed/)
-    expect(await exists(seenPath as FilePath)).toBe(false)
+    expect(await exists(seenPath as AbsoluteFilePath)).toBe(false)
   })
 
   it('writes by the library to the tmp copy do not affect the source', async () => {

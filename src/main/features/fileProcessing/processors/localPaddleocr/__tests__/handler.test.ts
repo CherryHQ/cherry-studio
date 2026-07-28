@@ -1,5 +1,5 @@
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
-import { type FileInfo, FileInfoSchema } from '@shared/types/file'
+import { FileInfoSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { recognizeMock, isLocalPaddleocrModelDownloadedMock, ocrModelPathsMock } = vi.hoisted(() => ({
@@ -41,7 +41,7 @@ const imageFile = FileInfoSchema.parse({
   type: 'image',
   createdAt: 1,
   modifiedAt: 1
-}) as FileInfo
+})
 
 const documentFile = FileInfoSchema.parse({
   path: '/tmp/input.pdf',
@@ -52,7 +52,7 @@ const documentFile = FileInfoSchema.parse({
   type: 'document',
   createdAt: 1,
   modifiedAt: 1
-}) as FileInfo
+})
 
 const config = { id: 'local-paddleocr', type: 'builtin', capabilities: [] } as unknown as FileProcessorMerged
 

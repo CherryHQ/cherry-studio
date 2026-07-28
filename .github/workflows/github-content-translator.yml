@@ -143,6 +143,19 @@ jobs:
               }
             }
 
+            const isWorkflowTranslationEdit = (target) => {
+              const previousBody = context.payload.changes?.body?.from
+              const translatedMarker = `> ${getTranslatedMarker(target.kind)}`
+
+              return (
+                context.payload.action === 'edited' &&
+                typeof previousBody === 'string' &&
+                !previousBody.includes(translatedMarker) &&
+                target.body.startsWith(translatedMarker) &&
+                target.body.includes(ORIGINAL_SUMMARY)
+              )
+            }
+
             const updateTarget = async (target, translatedTitle, translatedBody, originalBody) => {
               const body = buildBody(target.kind, translatedBody, originalBody)
               const { owner, repo } = context.repo
@@ -261,6 +274,10 @@ jobs:
             }
 
             const target = getTarget()
+            if (isWorkflowTranslationEdit(target)) {
+              core.info('Skipping the edit event emitted by this workflow translation.')
+              return
+            }
 
             const result = await callTranslator(target)
             if (!result.should_update) {

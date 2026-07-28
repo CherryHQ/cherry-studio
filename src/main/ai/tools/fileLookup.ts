@@ -106,7 +106,8 @@ export async function readFile(
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
     }
     if (!text.trim()) return textResult(noExtractableTextNote(entry.handle))
-    return paginate(text, input.offset ?? undefined, input.limit ?? undefined)
+    // 0 is the "use the default" sentinel for both (see `readFileInputSchema`).
+    return paginate(text, input.offset || undefined, input.limit || undefined)
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
     // Log the detail; return a sanitized, filename-level message (no entry ids / paths).

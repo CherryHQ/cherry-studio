@@ -144,12 +144,12 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
         </DialogHeader>
 
         <SettingContainer theme={theme} style={{ background: 'transparent' }} className="gap-5 p-0">
-          <SettingGroup theme={theme} className="border-t-0 pt-0">
+          <SettingGroup theme={theme} variant="plain" className="border-t-0 pt-0">
             <SettingTitle className="mb-2.5">{t('code.tool_parameters')}</SettingTitle>
             {toolFields}
           </SettingGroup>
           {files.length > 0 && (
-            <SettingGroup theme={theme} className="border-t-0 pt-0">
+            <SettingGroup theme={theme} variant="plain" className="border-t-0 pt-0">
               <AdvancedConfigToggle open={advancedOpen} onToggle={() => setAdvancedOpen((o) => !o)}>
                 <CliConfigEditor files={files} error={error} onChange={handleFilesChange} />
               </AdvancedConfigToggle>

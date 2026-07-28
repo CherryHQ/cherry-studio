@@ -31,15 +31,18 @@ import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntryListResponse, FileEntryStats } from '@shared/data/api/schemas/files'
-import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
+import type { FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import {
-  AbsolutePathSchema,
+  chatMessageSourceType,
   ExternalEntrySchema,
   FileEntrySchema,
   InternalEntrySchema,
+  miniAppLogoRef,
+  paintingSourceType,
+  providerLogoRef,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { chatMessageSourceType, miniAppLogoRef, paintingSourceType, providerLogoRef } from '@shared/data/types/file'
+import type { CanonicalFilePath } from '@shared/utils/file'
 import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
@@ -121,12 +124,12 @@ export interface FileEntryService {
 
   /**
    * Look up an external entry by canonical `externalPath`. Returns `null` when
-   * no row matches. The `CanonicalExternalPath` brand forces callers through
-   * `canonicalizeExternalPath()` at compile time — raw `string` values are
-   * not assignable here, which prevents the "caller forgot to canonicalize"
-   * class of bug that would silently miss all matches.
+   * no row matches. The `CanonicalFilePath` brand forces callers through
+   * `canonicalizeFilePath()` at compile time — raw `string` / bare `AbsoluteFilePath`
+   * values are not assignable here, which prevents the "caller forgot to
+   * canonicalize" class of bug that would silently miss all matches.
    */
-  findByExternalPath(canonicalPath: CanonicalExternalPath): FileEntry | null
+  findByExternalPath(canonicalPath: CanonicalFilePath): FileEntry | null
 
   /**
    * Return external entries whose `externalPath` matches `canonicalPath`
@@ -154,7 +157,7 @@ export interface FileEntryService {
    *
    * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
-  findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): FileEntry[]
+  findCaseInsensitivePeers(canonicalPath: CanonicalFilePath): FileEntry[]
 
   /**
    * Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted.
@@ -224,10 +227,10 @@ export interface FileEntryService {
    * doing it as a single statement keeps the (path, name) pair consistent under
    * partial-failure scenarios (transient lock, schema constraint).
    */
-  setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): FileEntry
+  setExternalPathAndName(id: FileEntryId, externalPath: CanonicalFilePath, name: string): FileEntry
 
   /** Tx-scoped variant of `setExternalPathAndName` for composing write flows. */
-  setExternalPathAndNameTx(tx: DbOrTx, id: FileEntryId, externalPath: CanonicalExternalPath, name: string): FileEntry
+  setExternalPathAndNameTx(tx: DbOrTx, id: FileEntryId, externalPath: CanonicalFilePath, name: string): FileEntry
 
   /** Remove the row (CASCADE drops dependent persistent file refs). No-op if already gone. */
   delete(id: FileEntryId): void
@@ -394,7 +397,7 @@ class FileEntryServiceImpl implements FileEntryService {
     return entry
   }
 
-  findByExternalPath(canonicalPath: CanonicalExternalPath): FileEntry | null {
+  findByExternalPath(canonicalPath: CanonicalFilePath): FileEntry | null {
     const rows = this.getDb()
       .select()
       .from(fileEntryTable)
@@ -404,7 +407,7 @@ class FileEntryServiceImpl implements FileEntryService {
     return rows.length === 0 ? null : rowToFileEntry(rows[0])
   }
 
-  findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): FileEntry[] {
+  findCaseInsensitivePeers(canonicalPath: CanonicalFilePath): FileEntry[] {
     const rows = this.getDb()
       .select()
       .from(fileEntryTable)
@@ -615,19 +618,24 @@ class FileEntryServiceImpl implements FileEntryService {
    * the only sanctioned mutation site for `externalPath`. Used by the rename
    * flow so the (path, name) pair stays consistent under failure.
    */
-  setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): FileEntry {
+  setExternalPathAndName(id: FileEntryId, externalPath: CanonicalFilePath, name: string): FileEntry {
     return this.setExternalPathAndNameTx(this.getDb(), id, externalPath, name)
   }
 
-  setExternalPathAndNameTx(tx: DbOrTx, id: FileEntryId, externalPath: CanonicalExternalPath, name: string): FileEntry {
-    // Same pre-SQL validation rationale as `update` above; an unsafe value
-    // for either column would corrupt the row past `rowToFileEntry` parse.
-    // The `CanonicalExternalPath` brand is TS-only — defense-in-depth at the
-    // runtime layer rejects path strings the brand failed to flag (e.g. a
-    // caller that `as`-cast a raw user string instead of going through
-    // `canonicalizeExternalPath`).
+  setExternalPathAndNameTx(tx: DbOrTx, id: FileEntryId, externalPath: CanonicalFilePath, name: string): FileEntry {
+    // Same pre-SQL validation rationale as `update` above; an unsafe `name`
+    // would corrupt the row past `rowToFileEntry` parse. `externalPath` needs
+    // no full re-canonicalization here: the `CanonicalFilePath` brand can only
+    // be produced by `canonicalizeFilePath()`, so callers already proved
+    // canonicalization at construction time. The null-byte check below is
+    // cheap defense-in-depth against a forged `as CanonicalFilePath` cast
+    // (e.g. from the lint-exempt `watcher/**` / `tree/**` regimes) that would
+    // otherwise persist a poison value SQLite happily stores but that later
+    // makes the row unreadable once `canonicalizeAbsolutePath` throws on it.
     SafeNameSchema.parse(name)
-    AbsolutePathSchema.parse(externalPath)
+    if (externalPath.includes('\0')) {
+      throw new Error('setExternalPathAndNameTx: externalPath contains a null byte')
+    }
     const rows = tx
       .update(fileEntryTable)
       .set({ externalPath, name, updatedAt: Date.now() })

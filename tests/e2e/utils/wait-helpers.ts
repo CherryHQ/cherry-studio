@@ -45,7 +45,7 @@ export async function waitForNavigation(page: Page, path: string, timeout: numbe
  */
 export async function waitForChatReady(page: Page, timeout: number = 30000): Promise<void> {
   await page.waitForSelector(
-    ['#home-page', '[class*="Chat"]', '[class*="Inputbar"]', '[class*="home-tabs"]'].join(', '),
+    ['#home-page', '[class*="Chat"]', '[class*="Inputbar"]', '[class*="conversation-navigation-pane"]'].join(', '),
     { state: 'visible', timeout }
   )
 }

@@ -8,7 +8,7 @@
 
 import path from 'node:path'
 
-import { FILE_TYPE, type FilePath, type FileType } from '@shared/types/file'
+import { type AbsoluteFilePath, FILE_TYPE, type FileType } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { getFileTypeByExt } from '@shared/utils/file'
 import chardet from 'chardet'
@@ -74,13 +74,13 @@ export function decodeTextBufferIfText(data: Buffer): string | null {
 }
 
 /** Detect file type from extension. */
-export async function getFileType(target: FilePath): Promise<FileType> {
+export async function getFileType(target: AbsoluteFilePath): Promise<FileType> {
   const ext = path.extname(target)
   return getFileTypeByExt(ext)
 }
 
 /** Check if a file is a text file by extension. */
-export async function isTextFile(target: FilePath): Promise<boolean> {
+export async function isTextFile(target: AbsoluteFilePath): Promise<boolean> {
   return (await getFileType(target)) === FILE_TYPE.TEXT
 }
 

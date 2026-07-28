@@ -6,6 +6,7 @@ import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as z from 'zod'
 
 import type { PreparedTesseractContext } from '../../types'
 
@@ -48,7 +49,7 @@ async function flushPromises(): Promise<void> {
   await Promise.resolve()
 }
 
-function createFileInfo(overrides: Partial<FileInfo> = {}): FileInfo {
+function createFileInfo(overrides: Partial<z.input<typeof FileInfoSchema>> = {}): FileInfo {
   return FileInfoSchema.parse({
     path: '/tmp/scan.png',
     name: 'scan',
@@ -59,7 +60,7 @@ function createFileInfo(overrides: Partial<FileInfo> = {}): FileInfo {
     createdAt: 1,
     modifiedAt: 1,
     ...overrides
-  }) as FileInfo
+  })
 }
 
 const cleanupCases = [

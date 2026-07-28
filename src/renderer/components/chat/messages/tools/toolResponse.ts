@@ -74,8 +74,7 @@ function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus 
   }
 }
 
-function extractOutputMetadata(part: ToolResponsePart): { response: unknown; metadata?: ToolMetadata } {
-  const output = part.output
+function extractOutputMetadata(output: unknown): { response: unknown; metadata?: ToolMetadata } {
   if (!isRecord(output)) return { response: output }
 
   const metadata = isRecord(output.metadata) ? output.metadata : undefined
@@ -94,6 +93,10 @@ function extractOutputMetadata(part: ToolResponsePart): { response: unknown; met
   }
 
   return { response: output }
+}
+
+export function normalizeToolOutputResponse(output: unknown): unknown {
+  return extractOutputMetadata(output).response
 }
 
 function hasProviderMetadata(part: ToolResponsePart, provider: string): boolean {
@@ -184,12 +187,16 @@ function buildBaseToolDescriptor(toolType: Exclude<ToolType, 'mcp'>, toolCallId:
   return baseTool
 }
 
-function normalizeErrorOutput(part: ToolResponsePart): unknown {
-  if (part.state !== 'output-error') return undefined
+export function normalizeToolErrorResponse(errorText: string): unknown {
   return {
     isError: true,
-    content: [{ type: 'text', text: part.errorText || 'Error' }]
+    content: [{ type: 'text', text: errorText || 'Error' }]
   }
+}
+
+function normalizeErrorOutput(part: ToolResponsePart): unknown {
+  if (part.state !== 'output-error') return undefined
+  return normalizeToolErrorResponse(part.errorText)
 }
 
 export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: string): ToolResponseLike | null {
@@ -201,7 +208,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const toolName = normalizeToolName(toolPart)
   const status = mapPartStateToStatus(toolPart.state)
 
-  const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart)
+  const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart.output)
   const cherryMetadata = extractCherryToolMetadata(toolPart)
   const metadata = outputMetadata ?? cherryMetadata
   const toolType = resolveToolType(toolPart, toolName, metadata)

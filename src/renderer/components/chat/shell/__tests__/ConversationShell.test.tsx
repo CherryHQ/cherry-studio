@@ -89,6 +89,7 @@ describe('ConversationShell', () => {
     expect(screen.getByTestId('chat-app-shell')).toContainElement(screen.getByTestId('center-overlay'))
     expect(screen.getByTestId('right-pane')).toBeInTheDocument()
     expect(shellProps.current?.centerContent).toBeTruthy()
+    expect(document.getElementById('conversation')).toHaveAttribute('data-ui', 'chat.view')
     expect(document.getElementById('conversation')).toHaveClass('message-style')
   })
 

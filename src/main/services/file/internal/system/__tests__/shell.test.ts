@@ -1,5 +1,5 @@
 import { fileErrorCodes } from '@shared/ipc/errors/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const openPathSpy = vi.fn(async () => '')
@@ -23,13 +23,13 @@ describe('internal/system/shell', () => {
   })
 
   it('open delegates to shell.openPath', async () => {
-    await open('/some/file.pdf' as FilePath)
+    await open('/some/file.pdf' as AbsoluteFilePath)
     expect(openPathSpy).toHaveBeenCalledWith('/some/file.pdf')
   })
 
   it('open throws when shell.openPath returns a non-empty error string', async () => {
     openPathSpy.mockResolvedValueOnce('No application is associated with this file.')
-    await expect(open('/x' as FilePath)).rejects.toThrow(/No application/)
+    await expect(open('/x' as AbsoluteFilePath)).rejects.toThrow(/No application/)
   })
 
   it.each([
@@ -37,7 +37,7 @@ describe('internal/system/shell', () => {
     ['trailing dot', '/tmp/payload.exe.']
   ])('path default-open guard normalizes fallback extension with %s', (_label, physicalPath) => {
     try {
-      assertSafePathForDefaultOpen(physicalPath as FilePath)
+      assertSafePathForDefaultOpen(physicalPath as AbsoluteFilePath)
       throw new Error('expected unsafe default-open to be blocked')
     } catch (error) {
       expect(error).toMatchObject({ code: fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE })
@@ -46,7 +46,7 @@ describe('internal/system/shell', () => {
 
   it('path default-open guard blocks dangerous fallback extension', () => {
     try {
-      assertSafePathForDefaultOpen('/tmp/payload.cmd' as FilePath)
+      assertSafePathForDefaultOpen('/tmp/payload.cmd' as AbsoluteFilePath)
       throw new Error('expected unsafe default-open to be blocked')
     } catch (error) {
       expect(error).toMatchObject({ code: fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE })
@@ -54,11 +54,11 @@ describe('internal/system/shell', () => {
   })
 
   it.each(['/tmp/report.md', '/tmp/payload'])('path default-open guard allows safe path %s', (physicalPath) => {
-    expect(() => assertSafePathForDefaultOpen(physicalPath as FilePath)).not.toThrow()
+    expect(() => assertSafePathForDefaultOpen(physicalPath as AbsoluteFilePath)).not.toThrow()
   })
 
   it('showInFolder delegates to shell.showItemInFolder', async () => {
-    await showInFolder('/some/file.pdf' as FilePath)
+    await showInFolder('/some/file.pdf' as AbsoluteFilePath)
     expect(showItemInFolderSpy).toHaveBeenCalledWith('/some/file.pdf')
   })
 })

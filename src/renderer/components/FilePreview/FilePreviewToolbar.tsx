@@ -45,7 +45,7 @@ export function FilePreviewToolbar({ 'aria-label': ariaLabel, children }: FilePr
     <div
       role="toolbar"
       aria-label={ariaLabel}
-      className="flex h-10 min-h-10 shrink-0 items-center overflow-x-auto border-border-subtle border-b px-3">
+      className="relative flex h-11 min-h-11 shrink-0 items-center overflow-x-auto px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
       <div className="mx-auto flex min-w-max shrink-0 items-center justify-center gap-1">{children}</div>
     </div>
   )

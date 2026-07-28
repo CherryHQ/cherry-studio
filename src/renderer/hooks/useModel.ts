@@ -188,7 +188,7 @@ export function useModelMutations() {
    *
    * One IPC + one DB transaction + one `/models` revalidation. Per-item field
    * semantics match `updateModel` (only fields present in `patch` are written;
-   * other columns and `userOverrides` tracking are preserved). On any failure
+   * other columns and sparse preset deltas are preserved). On any failure
    * the whole batch rolls back — there is no partial-success state for
    * callers to reason about.
    */

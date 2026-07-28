@@ -96,6 +96,119 @@ describe('buildAgentParams provider resolution', () => {
   })
 })
 
+describe('buildAgentParams assistant-less reasoning', () => {
+  const makeOffCapableSetup = () => {
+    providerToAiSdkConfigMock.mockResolvedValue({
+      providerId: 'anthropic',
+      providerSettings: {}
+    })
+    const provider = makeProvider({
+      id: 'custom-claude',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+      }
+    })
+    const model = makeModel({
+      id: 'custom-claude::claude-x',
+      providerId: 'custom-claude',
+      apiModelId: 'claude-x',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+    return { provider, model }
+  }
+
+  it("encodes an explicit 'none' selection into the off wire mode without an assistant (translate)", async () => {
+    const { provider, model } = makeOffCapableSetup()
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'none' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions).toEqual({ anthropic: { thinking: { type: 'disabled' } } })
+  })
+
+  it("omits reasoning params when the model cannot be turned off ('none' degrades to omit)", async () => {
+    const { provider } = makeOffCapableSetup()
+    const model = makeModel({
+      id: 'custom-claude::claude-fixed',
+      providerId: 'custom-claude',
+      apiModelId: 'claude-fixed',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'none' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions).toBeUndefined()
+  })
+
+  it('carries the AiHubMix Gemini provider-options namespace from endpoint resolution into translation', async () => {
+    providerToAiSdkConfigMock.mockResolvedValue({
+      providerId: 'aihubmix',
+      providerSettings: {}
+    })
+    const provider = makeProvider({
+      id: 'aihubmix',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'aihubmix' },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'aihubmix' }
+      }
+    })
+    const model = makeModel({
+      id: 'aihubmix::gemini-2.5-flash',
+      providerId: 'aihubmix',
+      apiModelId: 'gemini-2.5-flash',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'none' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.sdkConfig.providerOptionsKey).toBe('google')
+    expect(result.options.providerOptions).toEqual({
+      google: { thinkingConfig: { includeThoughts: false, thinkingLevel: 'minimal' } }
+    })
+  })
+
+  it('leaves assistant-less requests without an explicit selection un-emitted (gateway regression guard)', async () => {
+    const { provider, model } = makeOffCapableSetup()
+
+    const result = await buildAgentParams({
+      request: {},
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions).toBeUndefined()
+  })
+})
+
 describe('resolveReasoningMaxTokens', () => {
   const model = makeModel({ maxOutputTokens: 64_000 })
 

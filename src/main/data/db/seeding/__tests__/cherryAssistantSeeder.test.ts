@@ -15,7 +15,8 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull, sql } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
+import { app } from 'electron'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 function builtinAgents(db: ReturnType<typeof setupTestDatabase>['db']) {
   return db
@@ -27,6 +28,10 @@ function builtinAgents(db: ReturnType<typeof setupTestDatabase>['db']) {
 
 describe('CherryAssistantSeeder', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    vi.mocked(app.getPreferredSystemLanguages).mockReturnValue(['en-US'])
+  })
 
   it('uses a constant version so preset changes cannot bypass deletion memory', () => {
     expect(new CherryAssistantSeeder().version).toBe('1')
@@ -84,6 +89,26 @@ describe('CherryAssistantSeeder', () => {
       .where(eq(agentWorkspaceTable.id, session.workspaceId))
       .all()
     expect(workspace).toMatchObject({ type: AGENT_WORKSPACE_TYPE.SYSTEM })
+  })
+
+  it('creates the builtin agent with a Chinese name for Chinese systems', () => {
+    vi.mocked(app.getPreferredSystemLanguages).mockReturnValue(['zh-CN'])
+
+    new CherryAssistantSeeder().run(dbh.db)
+
+    const [agent] = builtinAgents(dbh.db)
+    expect(agent.name).toBe('Cherry 助理')
+  })
+
+  it('falls back to the English name when preferred system languages are unavailable', () => {
+    vi.mocked(app.getPreferredSystemLanguages).mockImplementation(() => {
+      throw new Error('preferred languages unavailable')
+    })
+
+    expect(() => new CherryAssistantSeeder().run(dbh.db)).not.toThrow()
+
+    const [agent] = builtinAgents(dbh.db)
+    expect(agent.name).toBe('Cherry Assistant')
   })
 
   it('skips when any active agent exists and SeedRunner still journals the one-time eligibility check', () => {

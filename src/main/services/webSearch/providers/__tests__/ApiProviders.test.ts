@@ -902,7 +902,7 @@ describe('main web search API providers', () => {
     await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow('HTTP error: 500')
   })
 
-  it('matches Bocha request and normalized response snapshots from fixtures', async () => {
+  it('accepts nullable Bocha fields and normalizes content fallbacks from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('bocha-response.json')))
 
     const provider = createProviderDriver(
@@ -951,6 +951,24 @@ describe('main web search API providers', () => {
               "sourceInput": "hello",
               "title": "Bocha Title",
               "url": "https://bocha.example/result",
+            },
+            {
+              "content": "Bocha Summary Content",
+              "sourceInput": "hello",
+              "title": "Bocha Summary Title",
+              "url": "https://bocha.example/summary-result",
+            },
+            {
+              "content": "Bocha Preferred Summary Content",
+              "sourceInput": "hello",
+              "title": "Bocha Preferred Summary Title",
+              "url": "https://bocha.example/preferred-summary-result",
+            },
+            {
+              "content": "",
+              "sourceInput": "hello",
+              "title": "Bocha Empty Content Title",
+              "url": "https://bocha.example/empty-content-result",
             },
           ],
         },

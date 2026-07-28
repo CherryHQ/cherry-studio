@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { QUICK_PHRASES_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
@@ -206,14 +207,11 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   useEffect(() => {
     const disposeLauncher = launcher.registerLaunchers([
       {
-        id: 'quick-phrases',
-        kind: 'panel',
+        ...QUICK_PHRASES_TOOLBAR_MANIFEST.toolbar,
         sources: ['popover', 'root-panel'],
-        order: 70,
         label: t('settings.prompts.title'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
-        icon: <Zap />,
         action: ({ parentPanel, queryAnchor, triggerInfo }) => {
           openQuickPanel(parentPanel, queryAnchor, triggerInfo)
         }

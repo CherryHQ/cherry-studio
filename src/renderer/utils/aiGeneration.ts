@@ -1,5 +1,5 @@
 /**
- * Renderer helpers that call the AI (`ai.generate_text`) to produce short text:
+ * Renderer helpers that call the AI (`ai.text.generate`) to produce short text:
  * generic text generation plus topic/note auto-naming. Stateless request/response.
  */
 import { preferenceService } from '@data/PreferenceService'
@@ -52,7 +52,7 @@ export async function fetchMessagesSummary({
   const conversation = JSON.stringify(structuredMessages)
 
   try {
-    const { text } = await ipcApi.request('ai.generate_text', {
+    const { text } = await ipcApi.request('ai.text.generate', {
       uniqueModelId: model.id,
       system: prompt,
       prompt: conversation
@@ -82,7 +82,7 @@ export async function fetchNoteSummary({ content }: { content: string; assistant
   const purifiedContent = purifyMarkdownImages(content.substring(0, 2000))
 
   try {
-    const { text } = await ipcApi.request('ai.generate_text', {
+    const { text } = await ipcApi.request('ai.text.generate', {
       uniqueModelId: model.id,
       system: prompt,
       prompt: purifiedContent
@@ -111,7 +111,7 @@ export async function fetchGenerate({
       if (throwOnError) throw new Error(i18n.t('error.model.not_exists'))
       return ''
     }
-    const { text } = await ipcApi.request('ai.generate_text', {
+    const { text } = await ipcApi.request('ai.text.generate', {
       uniqueModelId: resolvedModel.id,
       system: prompt,
       prompt: content
