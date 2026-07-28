@@ -112,7 +112,8 @@ export default function OnboardingPage() {
       })
     const agentUpdate = dataApiService.get('/agents', { query: { limit: 2 } }).then(async ({ items, total }) => {
       const agent = total === 1 ? items[0] : undefined
-      if (agent?.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
+      const isSeededAgent = agent?.configuration?.builtin_role === 'assistant'
+      if (isSeededAgent && (agent.model === null || agent.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)) {
         await dataApiService.patch(`/agents/${agent.id}`, { body: { model: model.id } })
       }
     })

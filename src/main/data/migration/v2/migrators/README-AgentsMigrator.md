@@ -15,6 +15,7 @@ files.
 | `agents.db.channels` | `agent_channel` |
 | `agents.db.scheduled_tasks`, `channel_task_subscriptions` | `job_schedule`, `agent_channel_task` |
 | `agents.db.agents.mcps` | `agent_mcp_server` |
+| `.claude` | `Data/Agents/.claude` |
 | `Data/Agents/{legacyAgentId suffix}` | `Data/Agents/{agentId}` and `Data/Agents/system/YYYY-MM-DD/{sessionId}` |
 
 `MigrationPaths` supplies every source and destination root. The migrator never
@@ -43,6 +44,15 @@ Filesystem probing and message-file materialization complete before `BEGIN`.
 
 ## Filesystem split
 
+Before importing `agents.db`, the migrator copies ordinary files and directories
+from the v1 `{userData}/.claude` tree to
+`{userData}/Data/Agents/.claude`. Symlinks are skipped so Windows migration does
+not require permission to create them. The copy uses a private staging
+directory, verifies the copied source and destination content, and atomically
+publishes the result. If the destination directory already exists, migration
+leaves it untouched and skips the legacy Claude config copy. This copy also
+runs when `agents.db` is absent.
+
 For each migrated Agent:
 
 - `SOUL.md`, `USER.md`, and `memory/` are materialized as real files and
@@ -67,8 +77,8 @@ target and the v1 source in place.
 ## Copy-only and downgrade contract
 
 The filesystem migration is additive. It never removes or rewrites the v1
-`agents.db` or `Data/Agents/{legacyAgentId suffix}` workspace because those
-paths remain the source of truth when a user downgrades to v1.
+`.claude`, `agents.db`, or `Data/Agents/{legacyAgentId suffix}` workspace
+because those paths remain the source of truth when a user downgrades to v1.
 
 Each entry records its source metadata before copying, verifies that the source
 metadata is unchanged after the copy, and requires the private staging entry
