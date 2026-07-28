@@ -53,6 +53,13 @@ import { stageDirectoryWithDriftCheck, stageFileWithDriftCheck } from '../source
 
 const logger = loggerService.withContext('backupStageResources')
 
+/** Deterministic seam for source changes between root inspection and directory scanning. */
+export const stageResourceHooks = {
+  async afterBaselineInspect(sourcePath: string): Promise<void> {
+    void sourcePath
+  }
+}
+
 /** Kinds whose unit root carries a rebuildable index that export excludes (§6.7). */
 const KNOWLEDGE_KIND = 'knowledge-base'
 
@@ -159,6 +166,7 @@ export async function captureResourceStageBaseline(
       units.set(requirement.livePath, inspected)
       continue
     }
+    await stageResourceHooks.afterBaselineInspect(sourcePath)
 
     if (requirement.resourceType === 'file') {
       const sizeBytes = inspected.stats.size
@@ -190,6 +198,10 @@ export async function captureResourceStageBaseline(
         }
         if (error instanceof CeilingExceededError) {
           units.set(requirement.livePath, { kind: 'excluded', reason: 'resource-ceiling-exceeded' })
+          continue
+        }
+        if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+          units.set(requirement.livePath, { kind: 'excluded', reason: 'changed-after-snapshot' })
           continue
         }
         throw error

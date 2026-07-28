@@ -13,6 +13,8 @@ import {
   InsufficientDiskSpaceError,
   NonRegularSourceError,
   OutputPathExistsError,
+  presentDegradations,
+  presentJournalDegradations,
   ResourceInstallPlanError,
   RestoreStateError,
   SourceDriftError,
@@ -24,7 +26,7 @@ import {
   BackupMigrationCompatibilityDiagnosticSchema
 } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { BackupDegradationCode, backupRequestSchemas } from '@shared/ipc/schemas/backup'
+import type { backupRequestSchemas } from '@shared/ipc/schemas/backup'
 import type { IpcContext, IpcHandlersFor } from '@shared/ipc/types'
 import { app, type BrowserWindow, dialog } from 'electron'
 
@@ -39,53 +41,6 @@ import { app, type BrowserWindow, dialog } from 'electron'
  */
 
 const ARCHIVE_EXTENSION = 'cherrybackup'
-
-const RESOURCE_DIAGNOSTIC_SAMPLE_LIMIT = 3
-
-function resourceDegradationCode(reason: string): BackupDegradationCode {
-  if (reason === 'changed-after-snapshot') return 'resource-changed'
-  if (reason === 'non-regular-source' || reason === 'unportable-source') return 'resource-nonportable'
-  if (reason === 'resource-ceiling-exceeded') return 'resource-limit'
-  return 'resource-unavailable'
-}
-
-function presentDegradations(
-  degradations: readonly { readonly kind: string; readonly reason: string; readonly livePath?: string }[]
-): Array<{ code: BackupDegradationCode; count: number; paths?: string[] }> {
-  const presented = new Map<BackupDegradationCode, { count: number; paths: string[] }>()
-  for (const degradation of degradations) {
-    let code: BackupDegradationCode = 'unknown'
-    let count = 1
-    if (degradation.kind.startsWith('resource:')) {
-      code = resourceDegradationCode(degradation.reason)
-    } else {
-      const parsed =
-        /^(capability-malformed|external-file-dropped|path-unportable|path-collision) \((\d+) rows?\)$/.exec(
-          degradation.reason
-        )
-      if (parsed) {
-        code = parsed[1] as BackupDegradationCode
-        const parsedCount = Number(parsed[2])
-        count = Number.isSafeInteger(parsedCount) && parsedCount > 0 ? parsedCount : 1
-      }
-    }
-    const entry = presented.get(code) ?? { count: 0, paths: [] }
-    entry.count += count
-    if (
-      degradation.kind.startsWith('resource:') &&
-      degradation.livePath &&
-      entry.paths.length < RESOURCE_DIAGNOSTIC_SAMPLE_LIMIT
-    ) {
-      entry.paths.push(degradation.livePath)
-    }
-    presented.set(code, entry)
-  }
-  return [...presented].map(([code, { count, paths }]) => ({
-    code,
-    count,
-    ...(paths.length > 0 ? { paths } : {})
-  }))
-}
 
 /**
  * Every route here either replaces the database or releases the material that
@@ -242,7 +197,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     const { degradations, ...journal } = restore
     return {
       operation: status.operation,
-      restore: degradations ? { ...journal, degradations: presentDegradations(degradations) } : journal
+      restore: degradations ? { ...journal, degradations: presentJournalDegradations(degradations) } : journal
     }
   },
 

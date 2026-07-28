@@ -37,7 +37,7 @@ const DegradationSchema = z.strictObject({
   code: z.enum(BACKUP_DEGRADATION_CODES),
   count: z.number().int().positive(),
   /** Bounded userData-relative display sample; never an install input. */
-  paths: z.array(z.string().min(1).max(512)).max(3).optional()
+  paths: z.array(z.string().min(1).max(1024)).max(3).optional()
 })
 
 /** Does THIS device have the files the restored database will point at (§2)? */

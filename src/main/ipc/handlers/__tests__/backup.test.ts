@@ -115,6 +115,37 @@ describe('backupHandlers', () => {
         restore: { degradations: [{ code: 'path-unportable', count: 2 }] }
       })
     })
+
+    it('preserves a compacted journal total and only safe bounded path samples', async () => {
+      service.getStatus.mockReturnValue({
+        operation: null,
+        restore: {
+          kind: 'journal',
+          state: 'completed',
+          restoreId: 'r1',
+          preset: 'full',
+          degradations: [
+            { kind: 'report:resource-changed', reason: 'count:500' },
+            { kind: 'report-sample:resource-changed', reason: 'sample', livePath: 'Data/Notes/a' },
+            { kind: 'report-sample:resource-changed', reason: 'sample', livePath: '/Users/private/note' },
+            { kind: 'report-sample:resource-changed', reason: 'sample', livePath: 'Data/Notes/b' },
+            { kind: 'report-sample:resource-changed', reason: 'sample', livePath: 'Data/Notes/c' },
+            { kind: 'report-sample:resource-changed', reason: 'sample', livePath: 'Data/Notes/d' }
+          ]
+        }
+      })
+
+      const result = await backupHandlers['backup.get_status'](undefined, detachedCtx)
+
+      expect(result).toMatchObject({
+        restore: {
+          degradations: [
+            { code: 'resource-changed', count: 500, paths: ['Data/Notes/a', 'Data/Notes/b', 'Data/Notes/c'] }
+          ]
+        }
+      })
+      expect(JSON.stringify(result)).not.toContain('/Users/private')
+    })
   })
 
   describe('export', () => {
@@ -155,6 +186,47 @@ describe('backupHandlers', () => {
         resourceCount: 0,
         degradations: [{ code: 'resource-unavailable', count: 1 }]
       })
+    })
+
+    it('groups resource causes and exposes at most three safe relative samples', async () => {
+      showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
+      service.export.mockResolvedValue({
+        outPath: '/tmp/backup.cherrybackup',
+        manifest: {
+          preset: 'full',
+          resourcePayloads: [],
+          degradations: [
+            ...['a', 'b', 'c', 'd'].map((name) => ({
+              kind: 'resource:note-root',
+              reason: 'changed-after-snapshot',
+              livePath: `Data/Notes/${name}`
+            })),
+            {
+              kind: 'resource:note-root',
+              reason: 'changed-after-snapshot',
+              livePath: '/Users/private/note'
+            },
+            { kind: 'resource:knowledge-base', reason: 'non-regular-source', livePath: 'Data/KnowledgeBase/k1' },
+            { kind: 'resource:knowledge-base', reason: 'unportable-source', livePath: 'Data/KnowledgeBase/k2' },
+            { kind: 'resource:file-blob', reason: 'resource-ceiling-exceeded', livePath: 'Data/Files/big' }
+          ]
+        }
+      })
+
+      const result = await backupHandlers['backup.export']({ preset: 'full' }, ctx)
+
+      expect(result.status).toBe('exported')
+      if (result.status !== 'exported') return
+      expect(result.degradations).toEqual([
+        { code: 'resource-changed', count: 5, paths: ['Data/Notes/a', 'Data/Notes/b', 'Data/Notes/c'] },
+        {
+          code: 'resource-nonportable',
+          count: 2,
+          paths: ['Data/KnowledgeBase/k1', 'Data/KnowledgeBase/k2']
+        },
+        { code: 'resource-limit', count: 1, paths: ['Data/Files/big'] }
+      ])
+      expect(JSON.stringify(result)).not.toContain('/Users/private')
     })
 
     it('maps a concurrent operation to BUSY', async () => {

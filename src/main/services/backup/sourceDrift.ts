@@ -68,6 +68,7 @@ function mapEnospc(err: unknown): unknown {
  * `afterInitialLstat` runs after the initial `lstat` and BEFORE `open`, so a test
  * can swap the path to prove the symlink-race identity gate. `afterStagePreVerify`
  * runs after a file's bytes are staged and BEFORE its post-`fstat`, to prove drift.
+ * `beforeAncestorVerify` runs before the next directory ancestor identity walk.
  */
 export const driftHooks = {
   async afterInitialLstat(sourcePath: string): Promise<void> {
@@ -75,6 +76,10 @@ export const driftHooks = {
   },
   async afterStagePreVerify(sourcePath: string): Promise<void> {
     void sourcePath
+  },
+  async beforeAncestorVerify(sourceDir: string, fileRel: string): Promise<void> {
+    void sourceDir
+    void fileRel
   }
 }
 
@@ -235,11 +240,20 @@ async function assertAncestorsUnchanged(
   rootId: FsIdentity,
   dirById: ReadonlyMap<string, FsIdentity>
 ): Promise<void> {
+  await driftHooks.beforeAncestorVerify(sourceDir, fileRel)
   for (const anc of ancestorRelPaths(fileRel)) {
     const expected = anc === '' ? rootId : dirById.get(anc)
     if (!expected) throw new SourceDriftError(sourceDir, `ancestor '${anc}' vanished during staging`)
     const absAnc = anc === '' ? sourceDir : path.join(sourceDir, ...anc.split('/'))
-    const st = await lstat(absAnc, { bigint: true })
+    let st: Awaited<ReturnType<typeof lstat>>
+    try {
+      st = await lstat(absAnc, { bigint: true })
+    } catch (error) {
+      if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+        throw new SourceDriftError(absAnc, 'ancestor disappeared during staging')
+      }
+      throw error
+    }
     if (st.isSymbolicLink() || !st.isDirectory()) {
       throw new SourceDriftError(absAnc, 'ancestor is no longer a real directory')
     }

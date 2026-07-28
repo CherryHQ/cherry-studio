@@ -141,6 +141,31 @@ describe('BackupV2Settings', () => {
     expect(requestMock).toHaveBeenCalledWith('backup.get_status')
   })
 
+  it('shows degraded export details instead of an ordinary success toast', async () => {
+    requestMock.mockImplementation(async (route: string) =>
+      route === 'backup.export'
+        ? {
+            status: 'exported',
+            archivePath: '/tmp/a.cherrybackup',
+            preset: 'full',
+            resourceCount: 1,
+            degradations: [{ code: 'resource-changed', count: 2, paths: ['Data/Notes/a', 'Data/Notes/b'] }]
+          }
+        : { operation: null, restore: { kind: 'none' } }
+    )
+    await renderSettings()
+
+    click('settings.general.backup.button')
+
+    await waitFor(() => expect(popup.info).toHaveBeenCalledOnce())
+    const details = render(vi.mocked(popup.info).mock.calls[0][0].content as React.ReactElement)
+    expect(details.getByText('settings.data.backup_v2.export.done_degraded')).toBeInTheDocument()
+    expect(details.getByText('settings.data.backup_v2.outcome.degradation.resource_changed')).toBeInTheDocument()
+    expect(details.getByText('Data/Notes/a')).toBeInTheDocument()
+    expect(details.getByText('Data/Notes/b')).toBeInTheDocument()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('says nothing when the user dismisses the export dialog', async () => {
     requestMock.mockImplementation(async (route: string) =>
       route === 'backup.export' ? { status: 'canceled' } : { operation: null, restore: { kind: 'none' } }
@@ -182,6 +207,29 @@ describe('BackupV2Settings', () => {
         name: 'settings.data.backup_v2.restore.arm_button'
       })
     ).toBeInTheDocument()
+  })
+
+  it('shows omitted resource paths in the restore preview', async () => {
+    requestMock.mockImplementation(async (route: string) =>
+      route === 'backup.prepare_restore'
+        ? {
+            status: 'prepared',
+            preview: {
+              ...preview,
+              degradations: [
+                { code: 'resource-unavailable', count: 2, paths: ['Data/Files/a.pdf', 'Data/Files/b.pdf'] }
+              ]
+            }
+          }
+        : { operation: null, restore: { kind: 'journal', state: 'prepared', restoreId: 'r1' } }
+    )
+    await renderSettings()
+
+    click('settings.general.restore.button')
+
+    await waitFor(() => expect(screen.getByText('Data/Files/a.pdf')).toBeInTheDocument())
+    expect(screen.getByText('Data/Files/b.pdf')).toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup_v2.outcome.degradation.resource_unavailable')).toBeInTheDocument()
   })
 
   it('never arms a restore that the user did not confirm', async () => {
@@ -302,7 +350,7 @@ describe('BackupV2Settings', () => {
       state: 'completed',
       restoreId: 'r1',
       degradations: [
-        { code: 'path-unportable', count: 2 },
+        { code: 'path-unportable', count: 2, paths: ['Data/Notes/a', 'Data/Notes/b'] },
         { code: 'external-file-dropped', count: 1 }
       ]
     })
@@ -314,6 +362,8 @@ describe('BackupV2Settings', () => {
     expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.outcome.degradation.external_file_dropped', {
       count: 1
     })
+    expect(screen.getByText('Data/Notes/a')).toBeInTheDocument()
+    expect(screen.getByText('Data/Notes/b')).toBeInTheDocument()
   })
 
   it('withholds acknowledgement while a completed restore still owes a file', async () => {

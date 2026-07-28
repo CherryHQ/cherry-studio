@@ -92,12 +92,12 @@ function degradationCount(degradations: readonly PresentedDegradation[]): number
 
 const DegradationDetails: FC<{
   degradations: readonly PresentedDegradation[]
-  consequenceKey: string
+  consequenceKey?: string
 }> = ({ degradations, consequenceKey }) => {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-2">
-      <p>{t(consequenceKey, { count: degradationCount(degradations) })}</p>
+      {consequenceKey && <p>{t(consequenceKey, { count: degradationCount(degradations) })}</p>}
       <ul className="list-disc pl-5">
         {degradations.map((degradation) => (
           <li key={degradation.code}>
@@ -105,7 +105,9 @@ const DegradationDetails: FC<{
             {degradation.paths?.length ? (
               <ul className="list-[circle] pl-5 text-muted-foreground">
                 {degradation.paths.map((path) => (
-                  <li key={path}>{path}</li>
+                  <li key={path} dir="auto" className="break-all [unicode-bidi:isolate]">
+                    {path}
+                  </li>
                 ))}
               </ul>
             ) : null}
@@ -701,9 +703,10 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
       )}
       {preview.degradations.length > 0 && (
         <SettingHelpText>
-          {t('settings.data.backup_v2.preview.degradations', {
-            count: degradationCount(preview.degradations)
-          })}
+          <DegradationDetails
+            degradations={preview.degradations}
+            consequenceKey="settings.data.backup_v2.preview.degradations"
+          />
         </SettingHelpText>
       )}
       <Alert type="warning" showIcon message={t('settings.data.backup_v2.preview.destructive')} />
@@ -804,13 +807,7 @@ const RestoreOutcome: FC<{
           message={t('settings.data.backup_v2.outcome.degradations', {
             count: degradationCount(restore.degradations)
           })}
-          description={
-            <ul>
-              {restore.degradations.map((degradation) => (
-                <li key={degradation.code}>{t(DEGRADATION_KEYS[degradation.code], { count: degradation.count })}</li>
-              ))}
-            </ul>
-          }
+          description={<DegradationDetails degradations={restore.degradations} />}
         />
       )}
     </>
