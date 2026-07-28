@@ -23,6 +23,7 @@ import {
   ensureAgentDataDirectory,
   ensureAgentStorageDirectory
 } from '@main/ai/agents/agentDataDirectory'
+import { isWin } from '@main/core/platform'
 import { isPathInside } from '@main/utils/file'
 
 const logger = loggerService.withContext('AgentsFilesystemMigration')
@@ -396,7 +397,42 @@ function migratedLinkTarget(
   return path.isAbsolute(relativeTarget) ? migratedTarget : relativeTarget || '.'
 }
 
-async function rewriteCopiedWorkspaceLinks(
+type WorkspaceLinkType = 'dir' | 'file'
+
+async function workspaceLinkType(sourcePath: string): Promise<WorkspaceLinkType> {
+  try {
+    return (await stat(sourcePath)).isDirectory() ? 'dir' : 'file'
+  } catch {
+    // Dangling links retain their text and use the file default on Windows.
+    return 'file'
+  }
+}
+
+function copiedWorkspaceLinkTarget(
+  migratedTarget: string,
+  finalDestinationPath: string,
+  linkType: WorkspaceLinkType
+): string {
+  if (!isWin || linkType !== 'dir') return migratedTarget
+  return path.resolve(path.dirname(finalDestinationPath), migratedTarget)
+}
+
+async function createWorkspaceLink(linkTarget: string, linkPath: string, linkType: WorkspaceLinkType): Promise<void> {
+  if (!isWin || linkType !== 'dir') {
+    await symlink(linkTarget, linkPath, linkType)
+    return
+  }
+
+  try {
+    await symlink(linkTarget, linkPath, 'junction')
+  } catch {
+    // Junctions avoid Windows symlink privileges but cannot represent every
+    // directory target, including network shares. Preserve those as dir links.
+    await symlink(linkTarget, linkPath, 'dir')
+  }
+}
+
+async function copyWorkspaceLink(
   sourcePath: string,
   copiedPath: string,
   finalDestinationPath: string,
@@ -404,42 +440,22 @@ async function rewriteCopiedWorkspaceLinks(
   destinationWorkspaceRoot: string,
   agentDataPath: string
 ): Promise<void> {
-  const sourceStat = await lstat(sourcePath)
-  if (sourceStat.isSymbolicLink()) {
-    const linkTarget = await readlink(sourcePath)
-    let linkType: 'dir' | 'file' = 'file'
-    try {
-      if ((await stat(sourcePath)).isDirectory()) linkType = 'dir'
-    } catch {
-      // Dangling links retain their text and use the file default on Windows.
-    }
-    await unlink(copiedPath)
-    await symlink(
-      migratedLinkTarget(
-        sourcePath,
-        finalDestinationPath,
-        linkTarget,
-        sourceWorkspaceRoot,
-        destinationWorkspaceRoot,
-        agentDataPath
-      ),
-      copiedPath,
-      linkType
-    )
-    return
-  }
-  if (sourceStat.isDirectory()) {
-    for (const entry of await readdir(sourcePath)) {
-      await rewriteCopiedWorkspaceLinks(
-        path.join(sourcePath, entry),
-        path.join(copiedPath, entry),
-        path.join(finalDestinationPath, entry),
-        sourceWorkspaceRoot,
-        destinationWorkspaceRoot,
-        agentDataPath
-      )
-    }
-  }
+  const linkTarget = await readlink(sourcePath)
+  const linkType = await workspaceLinkType(sourcePath)
+  const migratedTarget = migratedLinkTarget(
+    sourcePath,
+    finalDestinationPath,
+    linkTarget,
+    sourceWorkspaceRoot,
+    destinationWorkspaceRoot,
+    agentDataPath
+  )
+  await mkdir(path.dirname(copiedPath), { recursive: true })
+  await createWorkspaceLink(
+    copiedWorkspaceLinkTarget(migratedTarget, finalDestinationPath, linkType),
+    copiedPath,
+    linkType
+  )
 }
 
 async function copyWorkspaceEntryPreservingLinks(
@@ -450,22 +466,35 @@ async function copyWorkspaceEntryPreservingLinks(
   destinationWorkspaceRoot: string,
   agentDataPath: string
 ): Promise<void> {
+  const links: Array<{ sourcePath: string; copiedPath: string; finalDestinationPath: string }> = []
   await cp(sourcePath, destinationPath, {
     recursive: true,
     force: false,
     errorOnExist: true,
     dereference: false,
     verbatimSymlinks: true,
-    mode: constants.COPYFILE_FICLONE
+    mode: constants.COPYFILE_FICLONE,
+    filter: async (entrySourcePath, entryCopiedPath) => {
+      const entryStat = await lstat(entrySourcePath)
+      if (!entryStat.isSymbolicLink()) return true
+      links.push({
+        sourcePath: entrySourcePath,
+        copiedPath: entryCopiedPath,
+        finalDestinationPath: path.join(finalDestinationPath, path.relative(sourcePath, entrySourcePath))
+      })
+      return false
+    }
   })
-  await rewriteCopiedWorkspaceLinks(
-    sourcePath,
-    destinationPath,
-    finalDestinationPath,
-    sourceWorkspaceRoot,
-    destinationWorkspaceRoot,
-    agentDataPath
-  )
+  for (const linkPlan of links) {
+    await copyWorkspaceLink(
+      linkPlan.sourcePath,
+      linkPlan.copiedPath,
+      linkPlan.finalDestinationPath,
+      sourceWorkspaceRoot,
+      destinationWorkspaceRoot,
+      agentDataPath
+    )
+  }
 }
 
 type FilesystemEntryKind = 'directory' | 'file' | 'symlink'
@@ -477,6 +506,7 @@ interface FilesystemEntrySnapshot {
 interface CopySourceSnapshot {
   copiedFingerprint: string
   metadataFingerprint: string
+  linkType?: WorkspaceLinkType
 }
 
 function filesystemEntryKind(targetStat: BigIntStats): FilesystemEntryKind {
@@ -715,17 +745,28 @@ async function workspaceCopySourceSnapshot(
 
   if (kind === 'symlink') {
     const linkTarget = await readlink(sourcePath)
+    const linkType = await workspaceLinkType(sourcePath)
     updateFingerprintField(
       copiedHash,
-      migratedLinkTarget(
-        sourcePath,
+      copiedWorkspaceLinkTarget(
+        migratedLinkTarget(
+          sourcePath,
+          finalDestinationPath,
+          linkTarget,
+          sourceWorkspaceRoot,
+          destinationWorkspaceRoot,
+          agentDataPath
+        ),
         finalDestinationPath,
-        linkTarget,
-        sourceWorkspaceRoot,
-        destinationWorkspaceRoot,
-        agentDataPath
+        linkType
       )
     )
+    await assertFilesystemEntryUnchanged(sourcePath, sourceStat)
+    return {
+      copiedFingerprint: copiedHash.digest('hex'),
+      metadataFingerprint: metadataHash.digest('hex'),
+      linkType
+    }
   } else if (kind === 'file') {
     for await (const chunk of createReadStream(sourcePath)) {
       copiedHash.update(chunk)
@@ -769,16 +810,15 @@ async function requiredFilesystemEntrySnapshot(
   return snapshot
 }
 
-async function publishStagedWorkspaceEntry(stagingPath: string, destinationPath: string): Promise<void> {
+async function publishStagedWorkspaceEntry(
+  stagingPath: string,
+  destinationPath: string,
+  sourceLinkType?: WorkspaceLinkType
+): Promise<void> {
   const stagingStat = await lstat(stagingPath)
   if (stagingStat.isSymbolicLink()) {
-    let linkType: 'dir' | 'file' = 'file'
-    try {
-      if ((await stat(stagingPath)).isDirectory()) linkType = 'dir'
-    } catch {
-      // Dangling links use the file default on Windows.
-    }
-    await symlink(await readlink(stagingPath), destinationPath, linkType)
+    const linkType = sourceLinkType ?? (await workspaceLinkType(stagingPath))
+    await createWorkspaceLink(await readlink(stagingPath), destinationPath, linkType)
     return
   }
   if (stagingStat.isFile()) {
@@ -849,7 +889,7 @@ async function copyWorkspaceEntry(
       }
     } else {
       try {
-        await publishStagedWorkspaceEntry(stagingPath, destinationPath)
+        await publishStagedWorkspaceEntry(stagingPath, destinationPath, sourceSnapshot.linkType)
       } catch (error) {
         destinationSnapshot = await filesystemEntrySnapshot(destinationPath)
         if (!destinationSnapshot || destinationSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
