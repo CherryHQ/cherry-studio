@@ -48,9 +48,10 @@ export interface AiBaseRequest {
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
   /**
-   * Knowledge bases selected for this turn. Scope is resolved by `resolveKnowledgeBaseIds`: the
-   * assistant's own bound bases take precedence when non-empty (these ids are then ignored); only
-   * when the assistant has none does this selection define the scope.
+   * Knowledge bases selected for this turn. Scope is resolved by `resolveKnowledgeBaseScope`: when
+   * the assistant has its own bound bases they are a ceiling — these ids may narrow that binding but
+   * never widen it, and are ignored entirely when none of them falls inside it. Only when the
+   * assistant has no binding does this selection define the scope on its own.
    */
   knowledgeBaseIds?: string[]
   requestOptions?: AiTransportOptions

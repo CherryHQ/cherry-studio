@@ -185,6 +185,7 @@ const MessageActionMenuPopover = ({
       align={align}
       side="top"
       onOpenChange={onOpenChange}
+      deferActionsUntilClosed
       contentClassName="[-webkit-app-region:no-drag]">
       {children}
     </CommandPopupMenu>
