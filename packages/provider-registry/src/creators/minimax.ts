@@ -7,6 +7,31 @@ export default defineCreator({
   idPrefixes: ['minimax', 'abab'],
   reasoningFamilies: [{ pattern: 'minimax-m\\d' }],
   models: [
+    // Video generation models (text-to-video / image-to-video). The MiniMax video API is an async
+    // submit/poll flow (/v1/video_generation → /v1/query/video_generation); request params such as
+    // duration/resolution belong on the serving provider transport, so the catalog only declares the
+    // capability and modality per model — the same pattern as the other video creators (kling/runway/vidu).
+    {
+      id: 'i2v-01',
+      name: 'I2V-01',
+      capabilities: ['video-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['video']
+    },
+    {
+      id: 'i2v-01-director',
+      name: 'I2V-01 Director',
+      capabilities: ['video-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['video']
+    },
+    {
+      id: 'i2v-01-live',
+      name: 'I2V-01 Live',
+      capabilities: ['video-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['video']
+    },
     {
       id: 'image-01',
       name: 'image-01',
@@ -88,6 +113,41 @@ export default defineCreator({
           }
         }
       }
+    },
+    {
+      id: 'minimax-hailuo-02',
+      name: 'MiniMax Hailuo 02',
+      capabilities: ['video-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['video']
+    },
+    {
+      id: 'minimax-hailuo-2-3',
+      name: 'MiniMax Hailuo 2.3',
+      capabilities: ['video-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['video']
+    },
+    {
+      id: 'minimax-hailuo-2-3-fast',
+      name: 'MiniMax Hailuo 2.3 Fast',
+      capabilities: ['video-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['video']
+    },
+    {
+      id: 't2v-01',
+      name: 'T2V-01',
+      capabilities: ['video-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['video']
+    },
+    {
+      id: 't2v-01-director',
+      name: 'T2V-01 Director',
+      capabilities: ['video-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['video']
     }
   ]
 })
