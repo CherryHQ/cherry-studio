@@ -58,8 +58,8 @@ vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => 
   useToolApprovalComposerOverrides: () => []
 }))
 
-vi.mock('@renderer/services/MessageDisclosureStateService', () => ({
-  messageDisclosureStateService: { invalidateMessages: mocks.invalidateMessages }
+vi.mock('@renderer/components/chat/messages/utils/messageUiStateCache', () => ({
+  invalidateCachedMessageUiStates: mocks.invalidateMessages
 }))
 
 vi.mock('react-i18next', () => ({

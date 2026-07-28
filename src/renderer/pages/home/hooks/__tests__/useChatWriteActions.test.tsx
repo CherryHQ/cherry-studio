@@ -16,8 +16,8 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
 }))
-vi.mock('@renderer/services/MessageDisclosureStateService', () => ({
-  messageDisclosureStateService: { invalidateMessages }
+vi.mock('@renderer/components/chat/messages/utils/messageUiStateCache', () => ({
+  invalidateCachedMessageUiStates: invalidateMessages
 }))
 
 import type { Topic } from '@renderer/types/topic'

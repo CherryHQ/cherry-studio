@@ -14,9 +14,9 @@
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import { ipcApi } from '@renderer/ipc'
-import { messageDisclosureStateService } from '@renderer/services/MessageDisclosureStateService'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
@@ -105,7 +105,7 @@ export function useChatWriteActions(params: Params): Result {
     await clearBranchCache()
     try {
       const result = await clearTopicMessagesTrigger({ params: { topicId: topic.id } })
-      messageDisclosureStateService.invalidateMessages(result.deletedIds)
+      invalidateCachedMessageUiStates(result.deletedIds)
       logger.info('Cleared all messages', { topicId: topic.id, count: result.deletedIds.length })
     } catch (err) {
       await rollbackBranch()
@@ -141,7 +141,7 @@ export function useChatWriteActions(params: Params): Result {
 
       try {
         await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
-        messageDisclosureStateService.invalidateMessages([id])
+        invalidateCachedMessageUiStates([id])
       } catch (err: unknown) {
         await rollbackBranch()
         throw err
@@ -165,7 +165,7 @@ export function useChatWriteActions(params: Params): Result {
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set([id])))
       try {
         const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
-        messageDisclosureStateService.invalidateMessages(result.deletedIds)
+        invalidateCachedMessageUiStates(result.deletedIds)
         const deletedSet = new Set(result.deletedIds)
         await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
         logger.info('Deleted message group', { id, count: result.deletedIds.length })

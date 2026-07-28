@@ -1,7 +1,11 @@
-import { messageDisclosureStateService } from '@renderer/services/MessageDisclosureStateService'
-import { useCallback, useState } from 'react'
+import { type Dispatch, type SetStateAction, useCallback, useState, useSyncExternalStore } from 'react'
 
 import { useMessagePartsScopeId } from '../blocks/MessagePartsContext'
+import {
+  getCachedMessageUiState,
+  subscribeCachedMessageUiState,
+  updateCachedMessageUiState
+} from '../utils/messageUiStateCache'
 
 function readExpanded(
   messageId: string | undefined,
@@ -9,28 +13,54 @@ function readExpanded(
   defaultExpanded: boolean
 ): boolean {
   if (!messageId || !disclosureId) return defaultExpanded
-  return messageDisclosureStateService.get(messageId, disclosureId) ?? defaultExpanded
+  return getCachedMessageUiState(messageId).disclosures?.[disclosureId] ?? defaultExpanded
 }
 
 /**
- * Retains a message disclosure's visual state across streamed subtree
- * replacement and Activity unmount/remount without subscribing to stream data.
+ * Retains disclosure state in the message's existing window-local UI cache.
+ * The external-store snapshot follows message/disclosure key changes instead
+ * of carrying a useState initializer across two different identities.
  */
 export function useMessageDisclosureState(
   disclosureId: string | undefined,
   defaultExpanded = false
-): readonly [boolean, (expanded: boolean) => void] {
+): readonly [boolean, Dispatch<SetStateAction<boolean>>] {
   const messageId = useMessagePartsScopeId()
-  const [isExpanded, setIsExpanded] = useState(() => readExpanded(messageId, disclosureId, defaultExpanded))
+  const [unscopedExpanded, setUnscopedExpanded] = useState(defaultExpanded)
 
-  const setExpanded = useCallback(
-    (expanded: boolean) => {
-      setIsExpanded(expanded)
-      if (!messageId || !disclosureId) return
-
-      messageDisclosureStateService.set(messageId, disclosureId, expanded)
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      if (!messageId || !disclosureId) return () => {}
+      return subscribeCachedMessageUiState(messageId, listener)
     },
     [disclosureId, messageId]
+  )
+  const getSnapshot = useCallback(
+    () => (messageId && disclosureId ? readExpanded(messageId, disclosureId, defaultExpanded) : unscopedExpanded),
+    [defaultExpanded, disclosureId, messageId, unscopedExpanded]
+  )
+  const isExpanded = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+
+  const setExpanded = useCallback<Dispatch<SetStateAction<boolean>>>(
+    (update) => {
+      if (!messageId || !disclosureId) {
+        setUnscopedExpanded(update)
+        return
+      }
+
+      updateCachedMessageUiState(messageId, (current) => {
+        const previous = current.disclosures?.[disclosureId] ?? defaultExpanded
+        const expanded = typeof update === 'function' ? update(previous) : update
+        return {
+          ...current,
+          disclosures: {
+            ...current.disclosures,
+            [disclosureId]: expanded
+          }
+        }
+      })
+    },
+    [defaultExpanded, disclosureId, messageId]
   )
 
   return [isExpanded, setExpanded]

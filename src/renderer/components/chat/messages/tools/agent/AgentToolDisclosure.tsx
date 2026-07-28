@@ -51,7 +51,7 @@ export function AgentToolDisclosure({
   )
   const toggleExpanded = () => {
     if (!canExpand) return
-    setIsExpanded(!isExpanded)
+    setIsExpanded((current) => !current)
   }
   const openOrToggle = () => {
     if (onOpenDetails) {
