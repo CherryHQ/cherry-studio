@@ -225,7 +225,7 @@ describe('exportArchive', () => {
     expect(result.manifest.degradations).toContainEqual({
       kind: 'resource:agent-workspace',
       livePath: 'Data/Agents/system/s-1',
-      reason: 'absent at snapshot time'
+      reason: 'absent-at-snapshot'
     })
 
     const stagingParent = await mkdtemp(join(tmpdir(), 'cs-admit-'))

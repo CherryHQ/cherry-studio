@@ -99,7 +99,15 @@ export async function stageFileWithDriftCheck(args: {
   const maxEntryBytes = args.maxEntryBytes ?? BACKUP_CEILINGS.maxEntryUncompressedBytes
   throwIfAborted(signal)
 
-  const initialStat = await lstat(sourcePath, { bigint: true })
+  let initialStat: Awaited<ReturnType<typeof lstat>>
+  try {
+    initialStat = await lstat(sourcePath, { bigint: true })
+  } catch (error) {
+    if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+      throw new SourceDriftError(sourcePath, 'source disappeared after the database snapshot boundary')
+    }
+    throw error
+  }
   if (initialStat.isSymbolicLink() || !initialStat.isFile()) throw new NonRegularSourceError(sourcePath)
   const initial: FsIdentity = fsIdentityOf(initialStat, 'file')
   if (args.expectedIdentity && !identitiesEqual(args.expectedIdentity, initial)) {
@@ -273,7 +281,15 @@ export async function stageDirectoryWithDriftCheck(args: {
   }
 
   try {
-    const initial = await scanDirectoryUnit(sourceDir, { signal, excludeKnowledgeDerivedIndex })
+    let initial: DirScanResult
+    try {
+      initial = await scanDirectoryUnit(sourceDir, { signal, excludeKnowledgeDerivedIndex })
+    } catch (error) {
+      if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+        throw new SourceDriftError(sourceDir, 'source disappeared after the database snapshot boundary')
+      }
+      throw error
+    }
     if (args.expectedScan && !scansEqual(args.expectedScan, initial)) {
       throw new SourceDriftError(sourceDir, 'directory tree changed since the database snapshot boundary')
     }
@@ -297,7 +313,15 @@ export async function stageDirectoryWithDriftCheck(args: {
       files.push({ relPath: entry.relPath, ...staged })
     }
 
-    const final = await scanDirectoryUnit(sourceDir, { signal, excludeKnowledgeDerivedIndex })
+    let final: DirScanResult
+    try {
+      final = await scanDirectoryUnit(sourceDir, { signal, excludeKnowledgeDerivedIndex })
+    } catch (error) {
+      if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+        throw new SourceDriftError(sourceDir, 'source disappeared during staging')
+      }
+      throw error
+    }
     if (!scansEqual(initial, final)) {
       throw new SourceDriftError(sourceDir, 'directory tree changed during staging')
     }

@@ -19,6 +19,17 @@ export const BACKUP_FORMAT_VERSION = 2 as const
 export const BACKUP_PRESETS = ['lite', 'full'] as const
 export type BackupPreset = (typeof BACKUP_PRESETS)[number]
 
+/** Stable producer-side reasons for omitting one managed resource unit. */
+export const RESOURCE_DEGRADATION_REASONS = [
+  'absent-at-snapshot',
+  'type-mismatch-at-snapshot',
+  'changed-after-snapshot',
+  'non-regular-source',
+  'unportable-source',
+  'resource-ceiling-exceeded'
+] as const
+export type ResourceDegradationReason = (typeof RESOURCE_DEGRADATION_REASONS)[number]
+
 const ResourceTypeSchema = z.enum(['file', 'directory'])
 
 /**
