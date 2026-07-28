@@ -86,7 +86,8 @@ export const providerListClasses = {
     'flex w-2.5 shrink-0 items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[dragging=true]:opacity-100',
   itemAvatar:
     'shrink-0 rounded-md border border-border-muted [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
-  itemLabel: 'min-w-0 truncate text-sm leading-[1.35] text-foreground font-[weight:500]',
+  itemLabel:
+    'min-w-0 truncate text-sm leading-[1.35] text-foreground font-normal group-data-[selected=true]/row:font-medium',
   itemTrailingSlot: 'relative -mr-1 ml-1 flex shrink-0 items-center justify-center',
   itemTrailingSlotAction: 'size-5',
   itemTrailingSlotIndicatorOnly: 'size-2',
@@ -141,7 +142,7 @@ export const drawerClasses = {
   sectionDescription: 'text-xs leading-tight text-foreground-muted',
   fieldList: 'space-y-3.5',
   field: 'space-y-1.5',
-  fieldTitle: 'font-medium text-sm leading-5 text-foreground-secondary',
+  fieldTitle: 'text-sm leading-5 text-foreground-secondary',
   input:
     'h-8 min-h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm leading-5 text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-primary',
   inputDisabled: 'bg-muted text-foreground-muted',
@@ -250,15 +251,15 @@ export const modelListClasses = {
    */
   manageListGroupShell: 'mb-1',
   manageListGroupHeader: 'flex items-center gap-1.5 px-1 py-[3px]',
-  manageListGroupTitle: 'font-medium text-xs leading-tight text-foreground-muted',
+  manageListGroupTitle: 'text-xs leading-tight text-foreground-muted',
   manageListGroupRule: 'h-px min-w-0 flex-1 bg-muted/50',
   manageListRow: 'group flex items-center gap-2 rounded-lg px-1.5 py-[5px] transition-colors hover:bg-accent/50',
   manageListRowLast: 'mb-0.5',
-  manageDrawerFilterChipBase: 'h-auto min-h-0 rounded-full px-2 py-[2px] font-medium text-xs transition-colors',
+  manageDrawerFilterChipBase: 'h-auto min-h-0 rounded-full px-2 py-[2px] text-xs transition-colors',
   manageDrawerFilterChipActive: 'bg-accent/50 !text-foreground',
   manageDrawerFilterChipIdle: 'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground',
   manageDrawerCapChipBase:
-    'h-auto min-h-0 min-w-0 items-center gap-[3px] rounded-full px-1.5 py-[2px] font-medium text-xs transition-colors',
+    'h-auto min-h-0 min-w-0 items-center gap-[3px] rounded-full px-1.5 py-[2px] text-xs transition-colors',
   manageDrawerCapChipActive: 'bg-accent/50 !text-foreground',
   manageDrawerCapChipIdle: 'text-foreground-muted hover:bg-accent/50 hover:text-foreground',
   manageDrawerCountBadge:
@@ -267,7 +268,7 @@ export const modelListClasses = {
   manageDrawerCloseInTitle:
     "ml-1 !size-6 !min-h-6 shrink-0 gap-0 rounded-lg p-0 text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground [&_svg:not([class*='size-'])]:size-[11px]",
   manageDrawerBulkGhost:
-    'inline-flex !h-auto !min-h-0 items-center justify-center gap-1 rounded-lg px-1.5 py-[2px] text-xs font-medium tracking-[-0.14px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent has-[>svg]:px-1.5',
+    'inline-flex !h-auto !min-h-0 items-center justify-center gap-1 rounded-lg px-1.5 py-[2px] text-xs tracking-[-0.14px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent has-[>svg]:px-1.5',
   /** Enable-all hover — primary action color. */
   manageDrawerBulkGhostEnableHover: 'hover:!text-primary',
   /** Disable-all hover — destructive (design draft). */
@@ -282,7 +283,7 @@ export const modelListClasses = {
     'flex min-w-0 max-w-full items-center gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupHeaderActions: 'flex h-6 shrink-0 items-center gap-1',
   groupHeaderIconTooltipTrigger: 'inline-flex h-6 shrink-0 items-center justify-center leading-none',
-  groupTitle: 'min-w-0 truncate text-sm leading-5 text-foreground font-medium',
+  groupTitle: 'min-w-0 truncate text-sm leading-5 text-foreground',
   groupChevron: 'size-4 shrink-0 text-muted-foreground/65 transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
   groupBody: 'grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out',
@@ -322,7 +323,7 @@ export const modelListClasses = {
 export const modelSyncClasses = {
   panel: 'flex min-h-0 flex-1 flex-col gap-4',
   summaryCard: 'rounded-2xl border border-border-muted bg-muted/30 px-4 py-3',
-  summaryTitle: 'text-sm leading-5 text-foreground/85 font-medium',
+  summaryTitle: 'text-sm leading-5 text-foreground/85',
   summaryMeta: 'text-[13px] leading-tight text-muted-foreground/75',
   summaryGrid: 'mt-3 grid gap-2 sm:grid-cols-3',
   summaryMetric:
@@ -330,7 +331,7 @@ export const modelSyncClasses = {
   section: 'rounded-2xl border border-border-muted bg-background px-4 py-4 shadow-none',
   sectionHeader: 'flex flex-wrap items-center justify-between gap-3',
   sectionTitleWrap: 'min-w-0',
-  sectionTitle: 'text-sm leading-5 text-foreground/85 font-medium',
+  sectionTitle: 'text-sm leading-5 text-foreground/85',
   sectionMeta: 'text-[13px] leading-tight text-muted-foreground/75',
   sectionActions: 'flex flex-wrap items-center gap-2',
   toggleButton: cn(
@@ -356,14 +357,14 @@ export const modelSyncClasses = {
   fetchEmpty: 'flex flex-col items-center justify-center px-4 py-12 text-center',
   fetchEmptyIconWrap: 'mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted',
   fetchEmptyIcon: 'size-4 text-foreground-muted',
-  fetchEmptyTitle: 'font-medium text-xs leading-tight text-foreground-secondary',
+  fetchEmptyTitle: 'text-xs leading-tight text-foreground-secondary',
   fetchEmptyDescription: 'mt-1 text-xs leading-tight text-foreground-muted',
   fetchSection: 'min-w-0',
   fetchSectionHeader: 'mb-2.5 flex items-center justify-between gap-3',
   fetchSectionTitleRow: 'flex items-center gap-1.5',
   fetchDotNew: 'h-[6px] w-[6px] shrink-0 rounded-full bg-primary',
   fetchDotRemoved: 'h-[6px] w-[6px] shrink-0 rounded-full bg-destructive',
-  fetchSectionTitle: 'text-sm font-medium text-foreground leading-5',
+  fetchSectionTitle: 'text-sm text-foreground leading-5',
   fetchSectionCount: 'text-xs leading-tight text-foreground-muted tabular-nums',
   fetchGhostAll:
     'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-accent hover:text-foreground',
@@ -377,7 +378,7 @@ export const modelSyncClasses = {
   fetchRowRemoved:
     'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-destructive/15 hover:bg-destructive/[0.03] focus-visible:border-destructive/30 focus-visible:bg-destructive/[0.03] focus-visible:outline-none data-[checked=true]:border-destructive/15 data-[checked=true]:bg-background',
   fetchAvatar:
-    'flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted font-medium text-xs leading-none text-foreground-muted',
+    'flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs leading-none text-foreground-muted',
   fetchRowId: 'truncate text-sm leading-tight text-foreground',
   fetchRowIdStrike: 'truncate text-sm leading-tight text-foreground-muted line-through decoration-foreground-muted',
   fetchContextValue: 'shrink-0 text-xs leading-tight text-foreground-muted tabular-nums',
@@ -441,7 +442,7 @@ export const apiKeyListClasses = {
   keyDisplayRow: 'flex min-w-0 items-center gap-3',
   keyTextBlock: 'min-w-0 flex-1',
   keyRowActions: 'flex shrink-0 items-center gap-1.5',
-  keyLabel: 'min-w-0 truncate text-[13px] leading-tight text-foreground font-medium',
+  keyLabel: 'min-w-0 truncate text-[13px] leading-tight text-foreground',
   keyValue: 'min-w-0 flex-1 truncate font-mono text-xs leading-tight text-foreground-muted',
   keyDraftRow: 'flex min-w-0 items-center gap-2',
   keyDraftInputs: 'grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(4.5rem,6rem)_minmax(0,1fr)]',
@@ -477,14 +478,13 @@ export const oauthCardClasses = {
   nameRow: 'flex flex-wrap items-center gap-1.5',
   name: 'truncate text-[15px] leading-[1.2] font-semibold tracking-tight text-foreground',
   /** Logged-in title line — `text-xs` in structured. */
-  loggedInName: 'truncate text-xs font-medium leading-tight text-foreground',
+  loggedInName: 'truncate text-xs leading-tight text-foreground',
   loggedInEmail: 'mt-0.5 truncate text-xs leading-[1.35] text-muted-foreground/40',
-  badge:
-    'inline-flex items-center rounded bg-warning/10 px-1 py-[0.5px] text-[10px] font-medium leading-tight text-warning',
+  badge: 'inline-flex items-center rounded bg-warning/10 px-1 py-[0.5px] text-[10px] leading-tight text-warning',
   loggedInActions: 'flex shrink-0 flex-wrap items-center justify-end gap-2',
   inlineBalanceBlock: 'text-right',
   inlineBalanceLabel: 'text-xs text-muted-foreground/40',
-  inlineBalanceValue: 'text-sm font-semibold leading-tight text-foreground tabular-nums',
+  inlineBalanceValue: 'text-sm leading-tight text-foreground tabular-nums',
   balanceValueSkeleton: 'inline-block w-20',
   /** CherryIN top-up CTA — solid primary background, white label (compact inline size). */
   topupPrimaryButton: 'h-auto min-h-0 px-2.5 py-[3px] text-xs shadow-none',
@@ -523,7 +523,7 @@ export const fieldClasses = {
   /** Inline show/hide control kept inside the field without adding another border. */
   apiKeyVisibilityToggle:
     'flex size-5 shrink-0 items-center justify-center text-muted-foreground/70 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
-  titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-semibold',
+  titleWithHelp: 'flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1',
   titleHelpLink:
     'mx-0 inline-flex shrink-0 items-center font-normal text-xs leading-5 text-foreground-muted/70 transition-colors hover:text-primary hover:no-underline'
 } as const

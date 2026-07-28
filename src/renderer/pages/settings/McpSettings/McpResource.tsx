@@ -77,7 +77,7 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
                 <AccordionTrigger className="py-3">
                   <ColFlex className="w-full min-w-0 items-start">
                     <Flex className="w-full min-w-0 items-center">
-                      <span className="truncate font-medium text-foreground text-sm">{`${resource.name} (${resource.uri})`}</span>
+                      <span className="truncate text-foreground text-sm">{`${resource.name} (${resource.uri})`}</span>
                     </Flex>
                     {resource.description && (
                       <span className="mt-1 text-[13px] text-foreground-secondary leading-5">

@@ -67,7 +67,11 @@ export const KnowledgeModelSelect = ({
             aria-label={ariaLabel}
             aria-invalid={invalid || undefined}
             className={cn(
-              'h-8 w-full justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
+              // The trigger must give way to the clear button beside it, and Button's
+              // base class ships `shrink-0`. Both overrides are needed: `shrink` to
+              // allow shrinking at all, `min-w-0` to shrink past the label — otherwise
+              // a long model name pushes the clear button outside the container.
+              'h-8 w-full min-w-0 shrink justify-between gap-2 rounded-md px-3 font-normal text-sm shadow-none',
               hasValue ? 'text-foreground' : 'text-muted-foreground',
               invalid && 'border-destructive'
             )}>
@@ -79,10 +83,10 @@ export const KnowledgeModelSelect = ({
       {allowClear && hasValue ? (
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           size="icon-sm"
           aria-label={clearAriaLabel}
-          className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+          className="size-8 shrink-0 rounded-md text-muted-foreground shadow-none hover:text-foreground"
           onClick={() => onChange(null)}>
           <X className="size-3.5" />
         </Button>

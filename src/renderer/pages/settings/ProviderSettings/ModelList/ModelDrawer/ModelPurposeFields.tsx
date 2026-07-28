@@ -1,6 +1,7 @@
 import {
   FieldLegend,
   FieldSet,
+  Label,
   RadioGroup,
   RadioGroupItem,
   Select,
@@ -75,7 +76,7 @@ export function ModelPurposeFields({
           const optionId = `${uid}-${option}`
           const label = PURPOSE_LABEL_KEYS[option]
           return (
-            <label
+            <Label
               key={option}
               htmlFor={optionId}
               className={cn(
@@ -85,19 +86,19 @@ export function ModelPurposeFields({
               )}>
               <RadioGroupItem id={optionId} value={option} className="mt-0.5" />
               <span>
-                <span className="block font-medium text-[13px] text-foreground">{t(label.label)}</span>
-                <span className="mt-0.5 block text-foreground-muted text-xs">{t(label.description)}</span>
+                <span className="block text-[13px] text-foreground">{t(label.label)}</span>
+                <span className="mt-0.5 block font-normal text-foreground-muted text-xs">{t(label.description)}</span>
               </span>
-            </label>
+            </Label>
           )
         })}
       </RadioGroup>
 
       {purpose === 'chat' && chatEndpointTypes.length > 1 && (
         <div className="mt-1 flex flex-col gap-2">
-          <label htmlFor={`${uid}-chat-protocol`} className="font-medium text-[13px] text-foreground">
+          <Label htmlFor={`${uid}-chat-protocol`} className="text-[13px] text-foreground">
             {t('settings.models.add.purpose.chat_protocol')}
-          </label>
+          </Label>
           <Select
             value={chatEndpointType}
             onValueChange={(value) => onChatEndpointTypeChange(value as ModelChatEndpointType)}>

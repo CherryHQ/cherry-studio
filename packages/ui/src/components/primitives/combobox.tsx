@@ -158,6 +158,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   const [internalValue, setInternalValue] = React.useState<string | string[]>(defaultValue ?? (multiple ? [] : ''))
   const [triggerSearch, setTriggerSearch] = React.useState('')
   const [contentSearch, setContentSearch] = React.useState('')
+  const [activeValue, setActiveValue] = React.useState('')
   const triggerInputRef = React.useRef<HTMLInputElement>(null)
 
   const open = controlledOpen ?? internalOpen
@@ -181,6 +182,16 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   }
 
   const selectedOption = !multiple ? options.find((opt) => opt.value === value) : undefined
+
+  // Seed cmdk's active (highlighted) descendant to the current selection each
+  // time the list opens. Without this, cmdk defaults the highlight to the first
+  // option, making it look selected even when another option is the real value.
+  React.useEffect(() => {
+    if (open && !multiple && typeof value === 'string') {
+      setActiveValue(value)
+    }
+  }, [open, multiple, value])
+
   const triggerSearchEnabled = searchable && searchPlacement === 'trigger' && !multiple
   const contentSearchEnabled = searchable && !triggerSearchEnabled
   const manualFilterEnabled = triggerSearchEnabled || (contentSearchEnabled && Boolean(filterOption))
@@ -530,7 +541,9 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           event.preventDefault()
           triggerInputRef.current?.focus()
         }}>
-        <Command shouldFilter={!manualFilterEnabled}>
+        <Command
+          shouldFilter={!manualFilterEnabled}
+          {...(!multiple ? { value: activeValue, onValueChange: setActiveValue } : {})}>
           {contentSearchEnabled && (
             <CommandInput
               placeholder={searchPlaceholder}

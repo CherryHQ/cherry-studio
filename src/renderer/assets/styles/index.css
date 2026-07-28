@@ -29,7 +29,17 @@
     *::after {
       box-sizing: border-box;
       /* margin: 0; */
-      font-weight: normal;
+    }
+
+    /* Headings only — a `*` reset would give every element an explicit weight,
+       breaking inheritance from `font-semibold` containers. */
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      font-weight: inherit;
     }
   }
 

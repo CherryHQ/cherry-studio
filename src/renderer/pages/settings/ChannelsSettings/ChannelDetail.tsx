@@ -8,6 +8,7 @@ import {
   DialogTitle,
   EmptyState,
   Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -165,9 +166,7 @@ const ChannelLogModal: FC<{
           {logs.map((entry, i) => (
             <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
               <span className="shrink-0 text-muted-foreground">{formatTime(entry.timestamp)}</span>
-              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? '#8c8c8c', fontWeight: 500 }}>
-                [{entry.level.toUpperCase()}]
-              </span>
+              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? '#8c8c8c' }}>[{entry.level.toUpperCase()}]</span>
               <span className="break-all">{entry.message}</span>
             </div>
           ))}
@@ -261,7 +260,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
             </DialogHeader>
             <div className="flex flex-col gap-4">
               <div>
-                <label className="mb-1 block font-medium text-xs">{t('common.name')}</label>
+                <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -270,7 +269,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                 />
               </div>
               <div>
-                <label className="mb-1 block font-medium text-xs">{t('agent.channels.bindAgent')}</label>
+                <Label className="mb-1 block text-xs">{t('agent.channels.bindAgent')}</Label>
                 <Select value={agentId ?? NO_AGENT_VALUE} onValueChange={handleAgentChange}>
                   <SelectTrigger size="sm" className="w-full">
                     <SelectValue placeholder={t('agent.channels.selectAgent')} />
@@ -331,21 +330,21 @@ const ChannelInstanceRow: FC<{
   const isConnected = connectionStatus?.connected ?? false
   const hasError = connectionStatus?.error
 
-  let statusColor = 'bg-gray-400' // inactive or unknown
+  let statusColor = 'bg-muted-foreground' // inactive or unknown
   let statusTag: React.ReactNode = null
   if (channel.isActive) {
     if (isConnected) {
-      statusColor = 'bg-green-500'
+      statusColor = 'bg-success'
       statusTag = (
         <Badge className="border-success/30 bg-success/10 px-1.5 py-0 text-[10px] text-success leading-3.5">
           {t('agent.channels.connected')}
         </Badge>
       )
     } else if (hasError) {
-      statusColor = 'bg-red-500'
+      statusColor = 'bg-error'
       statusTag = (
         <Tooltip title={hasError}>
-          <Badge className="border-destructive/30 bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive leading-3.5">
+          <Badge className="border-error-border bg-error-subtle px-1.5 py-0 text-[10px] text-error-subtle-foreground leading-3.5">
             {t('agent.channels.error')}
           </Badge>
         </Tooltip>
@@ -357,12 +356,12 @@ const ChannelInstanceRow: FC<{
     <div className="flex items-center gap-3 border-border border-b-[0.5px] px-1 py-2.5 last:border-b-0">
       <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 font-medium text-sm">
+        <div className="flex items-center gap-2 text-sm">
           {channel.name}
           {statusTag}
         </div>
         <div className="truncate text-foreground-400 text-xs">
-          {agentName && <span className="mr-2 text-blue-400">{agentName}</span>}
+          {agentName && <span className="mr-2 text-info">{agentName}</span>}
           {summary}
         </div>
       </div>
@@ -473,7 +472,10 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
       config: channelDef.defaultConfig,
-      isActive: true
+      // Created inactive: defaultConfig has empty credentials, and active channels
+      // must pass ActiveAgentChannelConfigSchemasByType validation. The row switch
+      // activates the channel once credentials are filled in.
+      isActive: false
     } as never)
     if (newChannel) {
       setEditingChannelId(newChannel.id)
