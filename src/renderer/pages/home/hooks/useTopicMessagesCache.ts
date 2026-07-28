@@ -45,7 +45,9 @@ function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMess
       topicId,
       parentId: metadata.parentId ?? null,
       role: message.role,
-      data: { parts: (message.parts ?? []) as CherryMessagePart[] },
+      data: {
+        parts: (message.parts ?? []) as CherryMessagePart[]
+      },
       searchableText: '',
       status:
         metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
@@ -170,6 +172,9 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   const { trigger: createSiblingTrigger } = useMutation('POST', '/messages/:id/siblings', {
     refresh: branchCachePaths
   })
+  const { trigger: createMessageTrigger } = useMutation('POST', '/topics/:topicId/messages', {
+    refresh: branchCachePaths
+  })
   const { trigger: setActiveNodeTrigger } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: branchCachePaths
   })
@@ -187,6 +192,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     deleteMessageTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
+    createMessageTrigger,
     setActiveNodeTrigger,
     clearTopicMessagesTrigger
   }

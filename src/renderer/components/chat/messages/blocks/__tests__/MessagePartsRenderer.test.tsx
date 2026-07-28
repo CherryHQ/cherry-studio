@@ -91,7 +91,9 @@ vi.mock('@iconify/react', () => ({
 vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
   __esModule: true,
   default: ({ block, postProcess }: any) => (
-    <div data-testid="mock-markdown">{postProcess ? postProcess(block.content) : block.content}</div>
+    <div data-testid="mock-markdown" data-status={block.status}>
+      {postProcess ? postProcess(block.content) : block.content}
+    </div>
   ),
   MarkdownBlockContext: React.createContext(null)
 }))
@@ -474,7 +476,13 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('leaf rendering', () => {
-    it('renders nothing for empty completed messages and a placeholder for active empty messages', () => {
+    it('renders paused feedback for an interrupted empty message', () => {
+      renderParts([], msg({ status: 'paused' }))
+
+      expect(screen.getByTestId('mock-markdown')).toHaveAttribute('data-status', 'paused')
+    })
+
+    it('renders nothing for empty successful messages and a placeholder for active empty messages', () => {
       const completed = renderParts([])
       expect(completed.container.innerHTML).toBe('')
       completed.unmount()

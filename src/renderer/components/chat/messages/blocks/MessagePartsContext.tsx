@@ -41,6 +41,7 @@ interface MessagePartsScopeValue {
 }
 
 const MessagePartsScopeContext = createContext<MessagePartsScopeValue | null>(null)
+const MessageIdContext = createContext<string | undefined>(undefined)
 
 /**
  * Provide the complete parts map. A nested message scope takes precedence for
@@ -66,7 +67,11 @@ export function MessagePartsScopeProvider({
   children: ReactNode
 }) {
   const value = useMemo(() => ({ messageId, parts }), [messageId, parts])
-  return <MessagePartsScopeContext value={value}>{children}</MessagePartsScopeContext>
+  return (
+    <MessageIdContext value={messageId}>
+      <MessagePartsScopeContext value={value}>{children}</MessagePartsScopeContext>
+    </MessageIdContext>
+  )
 }
 
 /** Read the parts map from context (null when no provider is present). */
@@ -77,6 +82,11 @@ export function usePartsMap() {
 /** Check if parts data is provided. */
 export function useHasMessageParts(): boolean {
   return use(PartsContext) !== null
+}
+
+/** Read the current message ID without subscribing to the complete parts map. */
+export function useMessagePartsScopeId(): string | undefined {
+  return use(MessageIdContext)
 }
 
 // ============================================================================

@@ -3,6 +3,8 @@
  */
 
 import {
+  CURRENCY,
+  type Currency,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
   type EndpointType,
@@ -523,13 +525,25 @@ function mapEndpointTypes(
   return mapped.length > 0 ? Array.from(new Set(mapped)) : null
 }
 
+/** Map only currencies the v2 pricing contract can represent without changing value semantics. */
+function mapPricingCurrency(currencySymbol?: string): Currency | null {
+  const symbol = currencySymbol?.trim()
+  if (!symbol || symbol === '$') return CURRENCY.USD
+  if (symbol === '¥' || symbol === '￥') return CURRENCY.CNY
+
+  logger.warn('Unsupported legacy pricing currency dropped during migration', { currencySymbol })
+  return null
+}
+
 function mapPricing(pricing?: LegacyModel['pricing']): RuntimeModelPricing | null {
   if (!pricing) {
     return null
   }
 
+  const currency = mapPricingCurrency(pricing.currencySymbol)
+  if (!currency) return null
   return {
-    input: { perMillionTokens: pricing.input_per_million_tokens },
-    output: { perMillionTokens: pricing.output_per_million_tokens }
+    input: { perMillionTokens: pricing.input_per_million_tokens, currency },
+    output: { perMillionTokens: pricing.output_per_million_tokens, currency }
   }
 }
