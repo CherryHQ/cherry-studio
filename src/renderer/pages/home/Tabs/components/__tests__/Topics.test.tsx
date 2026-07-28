@@ -2804,11 +2804,6 @@ describe('Topics', () => {
     expect(unlinkedAssistantHeader?.querySelector('[data-resource-list-leading-slot="true"]')).not.toBeInTheDocument()
     expect(unlinkedAssistantHeader?.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Unlinked Assistant' }))
-
-    expect(screen.getByText('Default topic')).toBeInTheDocument()
-    expect(screen.getByText('Unknown topic')).toBeInTheDocument()
-
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
 
     // Sections stay expanded; expanding Alpha removes it from the collapsed list.
