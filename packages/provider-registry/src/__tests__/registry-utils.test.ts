@@ -259,9 +259,13 @@ describe('inferAdapterFamily', () => {
 describe('endpointImpliedCapability', () => {
   it('maps capability-exclusive endpoints to their capability', () => {
     expect(endpointImpliedCapability(ENDPOINT_TYPE.JINA_RERANK)).toBe(MODEL_CAPABILITY.RERANK)
+    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION)).toBe(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
+    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION)).toBe(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
     expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_EMBEDDINGS)).toBe(MODEL_CAPABILITY.EMBEDDING)
     expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)).toBe(MODEL_CAPABILITY.IMAGE_GENERATION)
     expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)).toBe(MODEL_CAPABILITY.IMAGE_GENERATION)
+    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH)).toBe(MODEL_CAPABILITY.AUDIO_GENERATION)
+    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION)).toBe(MODEL_CAPABILITY.VIDEO_GENERATION)
   })
 
   it('returns undefined for general-purpose chat endpoints', () => {
