@@ -12,10 +12,24 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { app } from 'electron'
 
 import { CHERRY_HOME, LOGS_DIR } from './constants'
+
+const logger = loggerService.withContext('PathRegistry')
+
+type UserSystemPathName = 'desktop' | 'documents' | 'downloads' | 'music' | 'pictures' | 'videos'
+
+function getUserSystemPath(name: UserSystemPathName, fallback: string): string {
+  try {
+    return app.getPath(name)
+  } catch (error) {
+    logger.warn(`Failed to resolve system path '${name}', using fallback '${fallback}'`, error as Error)
+    return fallback
+  }
+}
 
 /**
  * Build the frozen path registry. Called once during preboot (after
@@ -29,6 +43,7 @@ import { CHERRY_HOME, LOGS_DIR } from './constants'
  */
 export function buildPathRegistry() {
   // Intermediate vars (primitives only — no object literals in this file).
+  const sysHome = os.homedir()
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
@@ -49,14 +64,14 @@ export function buildPathRegistry() {
     'cherry.config': path.join(CHERRY_HOME, 'config'),
 
     // -- B. sys.* — OS directories (prefer app.* or cherry.* for Cherry-owned paths) --
-    'sys.home': os.homedir(),
+    'sys.home': sysHome,
     'sys.temp': sysTemp, // OS-wide; prefer app.temp for Cherry-specific temp
-    'sys.downloads': app.getPath('downloads'),
-    'sys.documents': app.getPath('documents'),
-    'sys.desktop': app.getPath('desktop'),
-    'sys.music': app.getPath('music'),
-    'sys.pictures': app.getPath('pictures'),
-    'sys.videos': app.getPath('videos'),
+    'sys.downloads': getUserSystemPath('downloads', path.join(sysHome, 'Downloads')),
+    'sys.documents': getUserSystemPath('documents', path.join(sysHome, 'Documents')),
+    'sys.desktop': getUserSystemPath('desktop', path.join(sysHome, 'Desktop')),
+    'sys.music': getUserSystemPath('music', path.join(sysHome, 'Music')),
+    'sys.pictures': getUserSystemPath('pictures', path.join(sysHome, 'Pictures')),
+    'sys.videos': getUserSystemPath('videos', path.join(sysHome, isMac ? 'Movies' : 'Videos')),
     'sys.appdata': app.getPath('appData'), // OS root; use app.userdata for Cherry-owned
     'sys.appdata.autostart': path.join(app.getPath('appData'), 'autostart'), // Linux only
 

@@ -1,14 +1,19 @@
+import os from 'node:os'
 import path from 'node:path'
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const getPathMock = vi.hoisted(() => vi.fn((key: string) => `/mock/${key}`))
 
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
-    getPath: vi.fn((key: string) => `/mock/${key}`),
+    getPath: getPathMock,
     isPackaged: false
   }
 }))
+
+import { isMac } from '@main/core/platform'
 
 import { buildPathRegistry, shouldAutoEnsure } from '../pathRegistry'
 
@@ -21,6 +26,10 @@ import { buildPathRegistry, shouldAutoEnsure } from '../pathRegistry'
 // We do NOT mock buildPathRegistry. The shouldAutoEnsure rule is pure; the
 // local Electron mock also lets the path-layout test exercise the real registry.
 
+beforeEach(() => {
+  getPathMock.mockReset().mockImplementation((key: string) => `/mock/${key}`)
+})
+
 describe('buildPathRegistry', () => {
   it('keeps the isolated mise tree under the userData toolchain', () => {
     const registry = buildPathRegistry()
@@ -29,6 +38,20 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data']).toBe(miseRoot)
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+
+  it('falls back when Electron cannot resolve an optional user system path', () => {
+    getPathMock.mockImplementation((key: string) => {
+      if (key === 'videos') {
+        throw new Error("Failed to get 'videos' path")
+      }
+      return `/mock/${key}`
+    })
+
+    const registry = buildPathRegistry()
+
+    expect(registry['sys.videos']).toBe(path.join(os.homedir(), isMac ? 'Movies' : 'Videos'))
+    expect(registry['sys.documents']).toBe('/mock/documents')
   })
 })
 
