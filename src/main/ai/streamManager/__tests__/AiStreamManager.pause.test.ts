@@ -443,7 +443,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
 
     it('re-kicks a suppressed steer continuation exactly once on last-hold release', async () => {
       const hold = mgr.pause('test: release kick')
-      internals(mgr).pendingSteers.set('t', ['u1'])
+      internals(mgr).pendingSteers.set('t', [{ userMessageId: 'u1' }])
       await internals(mgr).startNextChatTurn('t') // suppressed under the hold
       expect(internals(mgr).suppressedChatContinuationTopicIds.has('t')).toBe(true)
       expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
@@ -474,7 +474,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
 
     it('newer hold inherits the suppressed-continuation debt', async () => {
       const hA = mgr.pause('holder-A')
-      internals(mgr).pendingSteers.set('t', ['u1'])
+      internals(mgr).pendingSteers.set('t', [{ userMessageId: 'u1' }])
       await internals(mgr).startNextChatTurn('t') // suppressed under A
       const hB = mgr.pause('holder-B')
 

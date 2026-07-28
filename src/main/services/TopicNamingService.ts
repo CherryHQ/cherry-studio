@@ -46,18 +46,6 @@ function trackNamingWrite(prefix: string, run: () => Promise<void>): Promise<voi
   return promise
 }
 
-// "Topic was auto-summary-renamed once already" gate — delegated to the
-// shared CacheService so the entry is automatically TTL'd (`GC` every 10
-// min via CacheService) and cleared on service stop. Without this, a
-// module-level Set grew monotonically and the only cleanup was process
-// exit.
-//
-// Key shape: `topic.summary_named:${topicId}`
-// TTL: 1h — long enough that "already named once in this conversation"
-//      semantics hold for an active chat; short enough that an idle
-//      topic releases its entry naturally.
-const SUMMARY_NAMED_KEY_PREFIX = 'topic.summary_named:'
-const SUMMARY_NAMED_TTL_MS = 60 * 60 * 1000
 // New placeholder agent sessions store `''`, matching topic names. Keep the
 // localized values so legacy sessions created before that change still auto-rename.
 // The locale-sync test in TopicNamingService.test.ts should fail when a new
