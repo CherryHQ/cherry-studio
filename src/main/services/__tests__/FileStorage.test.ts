@@ -82,6 +82,12 @@ describe('FileStorage', () => {
       await expect(fileStorage.isTextFile(event, tmpFile)).resolves.toBe(true)
     })
 
+    it('accepts UTF-8 text when the sniff window ends inside a multibyte character', async () => {
+      fs.writeFileSync(tmpFile, `${'a'.repeat(8 * 1024 - 1)}秋tail`)
+
+      await expect(fileStorage.isTextFile(event, tmpFile)).resolves.toBe(true)
+    })
+
     it('rejects an extensionless binary file', async () => {
       fs.writeFileSync(tmpFile, Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj'))
 

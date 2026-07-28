@@ -880,6 +880,19 @@ describe('Sessions', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps the sortable session list mounted and preserves scroll position during refresh', () => {
+    const view = render(<SessionsForTest />)
+    const listbox = screen.getByRole('listbox')
+    listbox.scrollTop = 640
+
+    setupSessions({ isValidating: true })
+    view.rerender(<SessionsForTest />)
+
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+    expect(screen.getByRole('listbox')).toBe(listbox)
+    expect(listbox.scrollTop).toBe(640)
+  })
+
   it('defaults workspace display groups to collapsed before the user changes expansion', () => {
     setSessionGroupExpansionCache({
       ...createExpandedSessionGroupExpansionFixture(),

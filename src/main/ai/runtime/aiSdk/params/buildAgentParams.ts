@@ -4,17 +4,23 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { createHttpTraceFetch } from '../../../observability'
 import { providerToAiSdkConfig } from '../../../provider/config'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import {
+  resolveAiSdkProviderId,
+  type ResolvedEndpoint,
+  resolveEffectiveEndpoint,
+  resolveProviderOptionsKey
+} from '../../../provider/endpoint'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
@@ -27,6 +33,7 @@ import type { AiBaseRequest, CallOverrides } from '../../../types'
 import { filterStandardParams } from '../../../utils/modelParameters'
 import {
   buildCapabilityProviderOptions,
+  buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
   mergeCustomProviderParameters
 } from '../../../utils/options'
@@ -75,17 +82,18 @@ export interface BuiltAgentParams {
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
-  const sdkConfig = await resolveSdkConfig(provider, model, request.apiKeyOverride)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const sdkConfig = await resolveSdkConfig(provider, model, resolvedEndpoint, request.apiKeyOverride)
   applyHttpTrace(sdkConfig, request.chatId, model)
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
-  const knowledgeBaseIds = resolveKnowledgeBaseIds(assistant, request.knowledgeBaseIds)
+  const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
     ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
-  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  const { endpointType } = resolvedEndpoint
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
   const runtimeProviderId = sdkConfig.providerId
   const reasoningEndpointType =
@@ -162,9 +170,20 @@ export function resolveReasoningMaxTokens(
   return model.maxOutputTokens
 }
 
-async function resolveSdkConfig(provider: Provider, model: Model, apiKeyOverride?: string): Promise<SdkConfig> {
+async function resolveSdkConfig(
+  provider: Provider,
+  model: Model,
+  resolvedEndpoint: ResolvedEndpoint,
+  apiKeyOverride?: string
+): Promise<SdkConfig> {
+  const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride, resolvedEndpoint })
   return {
-    ...(await providerToAiSdkConfig(provider, model, { apiKeyOverride })),
+    ...config,
+    providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
+      actualProviderId: provider.id,
+      endpointType: resolvedEndpoint.endpointType,
+      gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
+    }),
     modelId: model.apiModelId ?? model.id
   }
 }
@@ -267,20 +286,6 @@ function resolveHasAnyKnowledgeBase(): boolean {
 }
 
 /**
- * Effective knowledge base scope for this request. When the assistant has its own static binding,
- * that binding IS the scope — the composer's per-turn selection can never expand it, since main
- * cannot trust a renderer/IPC-supplied id list to stay within the assistant's configured bases (the
- * composer UI happens to restrict picks to that set today, but that's a UI nicety, not a security
- * boundary). Only an assistant with no static binding lets the per-turn selection define the scope —
- * which is the actual gap this resolves: composer-only, ad-hoc knowledge base use.
- */
-export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, requestIds: string[] | undefined): string[] {
-  const assistantIds = assistant?.knowledgeBaseIds ?? []
-  if (assistantIds.length > 0) return assistantIds
-  return Array.from(new Set(requestIds ?? []))
-}
-
-/**
  * Assemble `AgentOptions`: capability-driven providerOptions overlaid with
  * the user's customParameters (split into AI-SDK standard params vs
  * provider-scoped params), per-call headers/maxRetries, stop-after-N-tools,
@@ -305,10 +310,21 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
       ? buildCapabilityProviderOptions(assistant, model, provider, capabilities, {
           aiSdkProviderId,
           runtimeProviderId: sdkConfig.providerId,
+          providerOptionsKey: sdkConfig.providerOptionsKey,
           endpointType,
           reasoning
         })
-      : {}
+      : // Assistant-less callers (translate, prompt streams) opt into reasoning by setting
+        // `request.reasoningEffort` explicitly; without it the invocation stays un-emitted so
+        // gateway/topic-naming requests are unchanged.
+        request.reasoningEffort !== undefined
+        ? (buildResolvedReasoningProviderOptions({
+            aiSdkProviderId: sdkConfig.providerId,
+            providerOptionsKey: sdkConfig.providerOptionsKey,
+            endpointType,
+            reasoning
+          }) as Record<string, Record<string, JSONValue>>)
+        : {}
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
     const customParams = getCustomParameters(assistant)

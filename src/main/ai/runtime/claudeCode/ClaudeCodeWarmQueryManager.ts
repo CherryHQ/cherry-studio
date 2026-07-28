@@ -26,7 +26,12 @@ export interface WarmQueryRequest {
    * this fingerprint keeps the signature sensitive to the key set actually changing.
    */
   credentialsFingerprint?: string
-  /** Agent knowledge bindings baked into cherry-tools at startup. */
+  /**
+   * Effective knowledge scope (binding, else composer selection) baked into cherry-tools at startup.
+   * It is signature material precisely because it is frozen here: a warm query built for one scope
+   * must not be consumed by a turn that needs another. Prewarm runs with no composer selection, so a
+   * prewarmed entry carries binding-only scope and deliberately misses for a scoped turn.
+   */
   knowledgeBaseIds?: readonly string[]
 }
 
@@ -140,12 +145,6 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     } catch (error) {
       logger.debug('Failed to close agent session warm query', { sessionId, error })
     }
-  }
-
-  /** Session ids with a live prewarmed query — warm entries are keyed by session id
-   *  (`warmQueryKey` is always `session.id`). The file sweep evicts dead ones first. */
-  getWarmAgentSessionIds(): string[] {
-    return [...this.entries.keys()]
   }
 
   prewarm(request: WarmQueryRequest): void {

@@ -19,7 +19,7 @@ describe('createAihubmix', () => {
     }
 
     expect(model.constructor.name).toBe('OpenAIChatLanguageModel')
-    expect(model.provider).toBe('openai-compatible.aihubmix')
+    expect(model.provider).toBe('aihubmix.chat')
   })
 
   it('keeps non-OpenAI ids on the OpenAI-compatible fallback', () => {
@@ -29,7 +29,7 @@ describe('createAihubmix', () => {
     }
 
     expect(model.constructor.name).toBe('OpenAICompatibleChatLanguageModel')
-    expect(model.provider).toBe('openai-compatible.aihubmix')
+    expect(model.provider).toBe('aihubmix.chat')
   })
 
   it('routes the o-series (^o[134]) to the Responses API model', () => {
@@ -44,7 +44,7 @@ describe('createAihubmix', () => {
       const model = provider.languageModel(id) as unknown as { constructor: { name: string }; provider: string }
 
       expect(model.constructor.name).toBe('OpenAIChatLanguageModel')
-      expect(model.provider).toBe('openai-compatible.aihubmix')
+      expect(model.provider).toBe('aihubmix.chat')
     }
   })
 
@@ -55,6 +55,6 @@ describe('createAihubmix', () => {
     }
 
     expect(model.constructor.name).toBe('OpenAICompatibleChatLanguageModel')
-    expect(model.provider).toBe('openai-compatible.aihubmix')
+    expect(model.provider).toBe('aihubmix.chat')
   })
 })
