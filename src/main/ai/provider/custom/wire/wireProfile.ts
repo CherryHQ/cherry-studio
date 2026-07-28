@@ -197,6 +197,15 @@ export const OLLAMA_WIRE_PROFILE: WireProfile = {
   }
 }
 
+/** MiniMax image API fields that differ from the canonical catalog names. */
+export const MINIMAX_WIRE_PROFILE: WireProfile = {
+  fields: {
+    addWatermark: { to: 'aigc_watermark' },
+    outputFormat: { to: 'response_format' },
+    promptEnhancement: { to: 'prompt_optimizer' }
+  }
+}
+
 /** A provider's engine registration: its body profile + delivery flags. */
 export interface WireRegistration {
   readonly profile: WireProfile
@@ -254,7 +263,8 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   // `openai` mirror stays clean (mapped fields only).
   aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
   dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] },
-  ollama: { profile: OLLAMA_WIRE_PROFILE }
+  ollama: { profile: OLLAMA_WIRE_PROFILE },
+  minimax: { profile: MINIMAX_WIRE_PROFILE }
 }
 
 /**

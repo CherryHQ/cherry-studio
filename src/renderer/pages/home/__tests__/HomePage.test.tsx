@@ -533,43 +533,41 @@ vi.mock('../Tabs/components/Topics', () => ({
 }))
 
 vi.mock('../components/TopicRightPane', () => {
-  const TopicRightPane = Object.assign(
-    ({
-      children,
-      defaultOpen,
-      onOpenChange,
-      present,
-      resourcePane,
-      userOpenIntentSeq
-    }: {
-      children: ReactNode
-      defaultOpen?: boolean
-      onOpenChange?: (open: boolean) => void
-      present?: boolean
-      resourcePane?: { node?: ReactNode; label?: string } | null
-      userOpenIntentSeq?: number
-    }) => (
-      <div
-        data-default-open={String(Boolean(defaultOpen))}
-        data-default-tab={resourcePane ? 'resources' : 'branch'}
-        data-present={String(present !== false)}
-        data-user-open-intent-seq={String(userOpenIntentSeq ?? 0)}
-        data-testid="topic-right-pane-provider">
-        {onOpenChange && (
-          <button type="button" onClick={() => onOpenChange(false)}>
-            Close topic right pane
-          </button>
-        )}
-        {resourcePane?.node}
-        {children}
-      </div>
-    ),
-    {
-      Viewport: () => <div data-testid="topic-right-pane-viewport" />,
-      Shortcuts: () => <button type="button">Topic right pane shortcuts</button>,
-      Toggle: () => <button type="button">Toggle topic right pane</button>
-    }
+  const TopicRightPaneScope = ({
+    children,
+    defaultOpen,
+    onOpenChange,
+    present,
+    resourcePane,
+    userOpenIntentSeq
+  }: {
+    children: ReactNode
+    defaultOpen?: boolean
+    onOpenChange?: (open: boolean) => void
+    present?: boolean
+    resourcePane?: { node?: ReactNode; label?: string } | null
+    userOpenIntentSeq?: number
+  }) => (
+    <div
+      data-default-open={String(Boolean(defaultOpen))}
+      data-default-tab={resourcePane ? 'resources' : 'branch'}
+      data-present={String(present !== false)}
+      data-user-open-intent-seq={String(userOpenIntentSeq ?? 0)}
+      data-testid="topic-right-pane-provider">
+      {onOpenChange && (
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Close topic right pane
+        </button>
+      )}
+      {resourcePane?.node}
+      {children}
+    </div>
   )
+  const TopicRightPane = {
+    Scope: TopicRightPaneScope,
+    Viewport: () => <div data-testid="topic-right-pane-viewport" />,
+    Shortcuts: () => <button type="button">Topic right pane shortcuts</button>
+  }
 
   return {
     TopicRightPane

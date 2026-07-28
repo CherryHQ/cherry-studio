@@ -1,13 +1,21 @@
-import { appendFile, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { constants } from 'node:fs'
+import { lstat, open, readdir, rename, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { assertAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
+import { isWin } from '@main/core/platform'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 
-const logger = loggerService.withContext('McpServer:WorkspaceMemory')
+const logger = loggerService.withContext('McpServer:AgentMemory')
+
+function withNoFollow(flags: number): number {
+  return isWin ? flags : flags | constants.O_NOFOLLOW
+}
 
 /**
  * Resolve a filename within a directory using case-insensitive matching.
@@ -16,12 +24,13 @@ const logger = loggerService.withContext('McpServer:WorkspaceMemory')
 async function resolveFileCI(dir: string, name: string): Promise<string> {
   const exact = path.join(dir, name)
   try {
-    await stat(exact)
+    const fileStat = await lstat(exact)
+    if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
+      throw new Error(`Agent memory file must be a real file: ${exact}`)
+    }
     return exact
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.warn('Unexpected error checking file', { path: exact, error: (err as Error).message })
-    }
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
     // exact match not found, try case-insensitive
   }
 
@@ -29,7 +38,13 @@ async function resolveFileCI(dir: string, name: string): Promise<string> {
     const entries = await readdir(dir)
     const target = name.toLowerCase()
     const match = entries.find((e) => e.toLowerCase() === target)
-    return match ? path.join(dir, match) : exact
+    if (!match) return exact
+    const matchedPath = path.join(dir, match)
+    const fileStat = await lstat(matchedPath)
+    if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
+      throw new Error(`Agent memory file must be a real file: ${matchedPath}`)
+    }
+    return matchedPath
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       logger.warn('Unexpected error reading directory', { dir, error: (err as Error).message })
@@ -47,7 +62,7 @@ type JournalEntry = {
 const MEMORY_TOOL: Tool = {
   name: 'memory',
   description:
-    "Manage persistent memory in this agent's workspace across sessions. Actions: 'update' overwrites memory/FACT.md (durable knowledge and decisions that should survive across sessions). 'append' logs to memory/JOURNAL.jsonl (one-time events, completed tasks, session notes). 'search' queries the journal. Before writing to FACT.md, ask: will this still matter in 6 months? If not, use append instead.",
+    "Manage persistent memory in this agent's data directory across sessions and workspaces. Actions: 'update' overwrites memory/FACT.md (durable knowledge and decisions that should survive across sessions). 'append' logs to memory/JOURNAL.jsonl (one-time events, completed tasks, session notes). 'search' queries the journal. Before writing to FACT.md, ask: will this still matter in 6 months? If not, use append instead.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -90,23 +105,23 @@ const MEMORY_TOOL: Tool = {
 /**
  * MCP server exposing cross-session memory to any agent.
  *
- * Memory lives in the agent's workspace under `memory/` — `FACT.md` for
+ * Memory lives in the agent data directory under `memory/` — `FACT.md` for
  * durable knowledge and `JOURNAL.jsonl` for timestamped events. Any agent
- * with a stable workspace benefits from this; the tool itself is just a
+ * keeps the same memory across session workspaces; the tool itself is just a
  * thin, safe wrapper over file operations.
  *
  * Distinct from the built-in `memory.ts` knowledge-graph server, which is
  * a user-opt-in MCP that stores entity/relation graphs in a global JSON
  * file rather than in the agent's workspace.
  */
-class WorkspaceMemoryServer {
+class AgentMemoryServer {
   public mcpServer: McpServer
   private agentId: string
-  private workspacePath: string
+  private agentDataPath: string
 
-  constructor(agentId: string, workspacePath: string) {
+  constructor(agentId: string, agentDataPath: string) {
     this.agentId = agentId
-    this.workspacePath = workspacePath
+    this.agentDataPath = agentDataPath
     this.mcpServer = new McpServer(
       {
         name: 'agent-memory',
@@ -156,27 +171,60 @@ class WorkspaceMemoryServer {
     })
   }
 
-  private getWorkspacePath(): string {
+  private async getAgentDataPath(): Promise<string> {
     // Deliberate existence check: memory writes must stop once the owning agent is gone.
     const agent = agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-    return this.workspacePath
+    const assertedPath = await assertAgentDataDirectory(path.dirname(this.agentDataPath), this.agentId)
+    if (path.resolve(assertedPath) !== path.resolve(this.agentDataPath)) {
+      throw new McpError(ErrorCode.InternalError, `Agent data path mismatch for ${this.agentId}`)
+    }
+    return assertedPath
+  }
+
+  private async assertMemoryDirectory(): Promise<string> {
+    const agentDataPath = await this.getAgentDataPath()
+    const memoryDir = path.join(agentDataPath, 'memory')
+    const memoryStat = await lstat(memoryDir)
+    if (!memoryStat.isDirectory() || memoryStat.isSymbolicLink()) {
+      throw new Error(`Agent memory directory must be a real directory: ${memoryDir}`)
+    }
+    return memoryDir
+  }
+
+  private async assertRegularFileOrMissing(filePath: string): Promise<void> {
+    try {
+      const fileStat = await lstat(filePath)
+      if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
+        throw new Error(`Agent memory file must be a real file: ${filePath}`)
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
   }
 
   private async memoryUpdate(args: Record<string, string | undefined>) {
     const content = args.content
     if (!content) throw new McpError(ErrorCode.InvalidParams, "'content' is required for update action")
 
-    const workspace = this.getWorkspacePath()
-    const memoryDir = path.join(workspace, 'memory')
+    const memoryDir = await this.assertMemoryDirectory()
     const factPath = await resolveFileCI(memoryDir, 'FACT.md')
-
-    await mkdir(memoryDir, { recursive: true })
+    await this.assertRegularFileOrMissing(factPath)
 
     // Atomic write via temp file + rename
-    const tmpPath = `${factPath}.${Date.now()}.tmp`
-    await writeFile(tmpPath, content, 'utf-8')
-    await rename(tmpPath, factPath)
+    const tmpPath = path.join(memoryDir, `.FACT.md.${randomUUID()}.tmp`)
+    const handle = await open(tmpPath, 'wx', 0o600)
+    try {
+      await handle.writeFile(content, 'utf-8')
+      await handle.close()
+      await this.assertMemoryDirectory()
+      await this.assertRegularFileOrMissing(factPath)
+      await rename(tmpPath, factPath)
+    } catch (error) {
+      await handle.close().catch(() => undefined)
+      await unlink(tmpPath).catch(() => undefined)
+      throw error
+    }
 
     logger.info('Memory FACT.md updated via tool', { agentId: this.agentId, length: content.length })
     return {
@@ -196,12 +244,9 @@ class WorkspaceMemoryServer {
       }
     }
 
-    const workspace = this.getWorkspacePath()
-    const memoryDir = path.join(workspace, 'memory')
-
-    await mkdir(memoryDir, { recursive: true })
-
+    const memoryDir = await this.assertMemoryDirectory()
     const journalPath = await resolveFileCI(memoryDir, 'JOURNAL.jsonl')
+    await this.assertRegularFileOrMissing(journalPath)
 
     const entry: JournalEntry = {
       ts: new Date().toISOString(),
@@ -209,7 +254,18 @@ class WorkspaceMemoryServer {
       text
     }
 
-    await appendFile(journalPath, JSON.stringify(entry) + '\n', 'utf-8')
+    const handle = await open(
+      journalPath,
+      withNoFollow(constants.O_APPEND | constants.O_CREAT | constants.O_WRONLY),
+      0o600
+    )
+    try {
+      const fileStat = await handle.stat()
+      if (!fileStat.isFile()) throw new Error(`Agent journal must be a regular file: ${journalPath}`)
+      await handle.appendFile(JSON.stringify(entry) + '\n', 'utf-8')
+    } finally {
+      await handle.close()
+    }
 
     logger.info('Journal entry appended via tool', { agentId: this.agentId, tags })
     return {
@@ -222,13 +278,19 @@ class WorkspaceMemoryServer {
     const tagFilter = args.tag ?? ''
     const limit = Math.max(1, parseInt(args.limit ?? '20', 10) || 20)
 
-    const workspace = this.getWorkspacePath()
-    const memoryDir = path.join(workspace, 'memory')
+    const memoryDir = await this.assertMemoryDirectory()
     const journalPath = await resolveFileCI(memoryDir, 'JOURNAL.jsonl')
 
     let fileContent: string
     try {
-      fileContent = await readFile(journalPath, 'utf-8')
+      const handle = await open(journalPath, withNoFollow(constants.O_RDONLY))
+      try {
+        const fileStat = await handle.stat()
+        if (!fileStat.isFile()) throw new Error(`Agent journal must be a regular file: ${journalPath}`)
+        fileContent = await handle.readFile('utf-8')
+      } finally {
+        await handle.close()
+      }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
         return { content: [{ type: 'text' as const, text: 'No journal entries found.' }] }
@@ -268,4 +330,4 @@ class WorkspaceMemoryServer {
   }
 }
 
-export default WorkspaceMemoryServer
+export default AgentMemoryServer
