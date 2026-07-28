@@ -636,13 +636,12 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
 
 function HtmlArtifactPopupOutlet() {
   const popupContext = useHtmlArtifactPopupContext()
-  const { t } = useTranslation()
   const popupSession = popupContext.popupSession
   if (!popupSession) return null
 
-  const requiresUserConsent = popupSession.kind === 'document' && htmlArtifactRequiresUserConsent(popupSession.html)
-  const isPreviewBlocked =
-    requiresUserConsent && popupContext.approvedInteractiveHtmlById[popupSession.artifactId] !== popupSession.html
+  // Opening the full-screen popup is the explicit viewing action, so it never renders a consent surface.
+  const requiresInteractivePreview =
+    popupSession.kind === 'document' && htmlArtifactRequiresUserConsent(popupSession.html)
 
   return (
     <Suspense fallback={null}>
@@ -652,18 +651,9 @@ function HtmlArtifactPopupOutlet() {
         html={popupSession.html}
         onSave={popupSession.onSave}
         editable={popupSession.editable}
-        canCapturePreview={!requiresUserConsent}
+        canCapturePreview={!requiresInteractivePreview}
         renderPreview={(iframeRef) =>
-          isPreviewBlocked ? (
-            <div className="flex h-full w-full items-center justify-center p-6">
-              <HtmlArtifactConsentCard
-                title={popupSession.title}
-                description={t('html_artifacts.interactive_preview.description')}
-                actionLabel={t('html_artifacts.interactive_preview.action')}
-                onAccept={() => popupContext.approveInteractiveHtml(popupSession.artifactId, popupSession.html)}
-              />
-            </div>
-          ) : requiresUserConsent ? (
+          requiresInteractivePreview ? (
             <InteractiveHtmlPreview
               html={popupSession.html}
               title={popupSession.title}
@@ -679,7 +669,12 @@ function HtmlArtifactPopupOutlet() {
             />
           )
         }
-        onClose={popupContext.closePopup}
+        onClose={() => {
+          if (requiresInteractivePreview) {
+            popupContext.approveInteractiveHtml(popupSession.artifactId, popupSession.html)
+          }
+          popupContext.closePopup()
+        }}
       />
     </Suspense>
   )

@@ -266,7 +266,7 @@ describe('HtmlArtifactView', () => {
     )
   })
 
-  it('keeps the popup open and requires consent again when changed interactive HTML is written back', async () => {
+  it('keeps the popup open and previews saved interactive HTML without another consent surface', async () => {
     const html = '<script>original()</script>'
     const updatedHtml = '<script>updated()</script>'
     const onSave = vi.fn()
@@ -308,11 +308,6 @@ describe('HtmlArtifactView', () => {
 
     expect(screen.getByTestId('html-artifacts-popup')).toBeInTheDocument()
     expect(screen.getByTestId('html-artifacts-popup-html')).toHaveTextContent(updatedHtml)
-    expect(screen.getByTestId('html-artifact-consent-card')).toBeInTheDocument()
-    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
-
     expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
     expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
 
@@ -336,6 +331,35 @@ describe('HtmlArtifactView', () => {
     fireEvent.click(screen.getByTestId('html-artifacts-popup-close'))
 
     expect(onSave).toHaveBeenCalledWith('<script>updated()</script>')
+    expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+  })
+
+  it('previews interactive HTML saved from a static popup without a consent surface', async () => {
+    const onSave = vi.fn()
+    const { rerender } = render(
+      <HtmlArtifactView artifactId="artifact" html="<main>Static</main>" title="Preview" onSave={onSave} editable />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('html-artifacts-popup-save'))
+
+    rerender(
+      <HtmlArtifactView
+        artifactId="artifact"
+        html="<script>updated()</script>"
+        title="Preview"
+        onSave={onSave}
+        editable
+      />
+    )
+
+    expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('html-artifacts-popup-close'))
+
     expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
     expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
   })
