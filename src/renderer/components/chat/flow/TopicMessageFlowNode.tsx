@@ -52,9 +52,10 @@ function formatNodeTime(createdAt: string) {
   return value.isValid() ? value.format('MM/DD HH:mm') : createdAt || '-'
 }
 
-function useRoleLabel(role: MessageRole) {
+function useRoleLabel(role: MessageRole, type?: TopicMessageFlowNodeModel['data']['type']) {
   const { t } = useTranslation()
 
+  if (type === 'clear') return t('chat.message.new.context')
   if (role === 'user') return t('export.user')
   if (role === 'assistant') return t('export.assistant')
   return t('assistants.tag.system')
@@ -163,7 +164,8 @@ function TopicMessageFlowNodePreviewCard({
 }
 
 const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNodeModel>) => {
-  const roleLabel = useRoleLabel(data.role)
+  const { t } = useTranslation()
+  const roleLabel = useRoleLabel(data.role, data.type)
   const statusLabel = useStatusLabel(data.status, data.isInputDraft)
   const modelLabel = getModelShortLabel(data.modelId)
   const timeLabel = formatNodeTime(data.createdAt)
@@ -222,6 +224,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
             'group/topic-message-flow-node relative w-55 rounded-md border bg-card px-3 py-2 shadow-xs transition-[border-color,box-shadow,opacity]',
             'focus-within:ring-2 focus-within:ring-ring/35',
             roleClassNames[data.role],
+            data.type === 'clear' && 'border-border bg-muted/45',
             data.isActive && 'border-primary shadow-sm ring-2 ring-primary/20',
             selected && !data.isActive && 'ring-2 ring-ring/25',
             data.isInactiveBranch && 'opacity-55'
@@ -229,9 +232,9 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
           data-active={data.isActive ? 'true' : 'false'}
           data-message-id={data.messageId}
           data-on-active-path={data.isOnActivePath ? 'true' : 'false'}
-          onMouseEnter={data.isInputDraft ? undefined : scheduleOpen}
-          onMouseLeave={data.isInputDraft ? undefined : scheduleClose}
-          onMouseMove={data.isInputDraft ? undefined : scheduleOpen}>
+          onMouseEnter={data.isInputDraft || data.type === 'clear' ? undefined : scheduleOpen}
+          onMouseLeave={data.isInputDraft || data.type === 'clear' ? undefined : scheduleClose}
+          onMouseMove={data.isInputDraft || data.type === 'clear' ? undefined : scheduleOpen}>
           <Handle className="opacity-0" isConnectable={false} position={Position.Top} type="target" />
 
           <div className="flex min-w-0 items-center gap-2">
@@ -252,7 +255,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
           </div>
 
           <p className={cn('mt-2 line-clamp-2 min-h-9 text-foreground', bodyXsTypographyClassName)}>
-            {data.preview || '-'}
+            {data.type === 'clear' ? t('chat.message.new.context') : data.preview || '-'}
           </p>
 
           <div
@@ -280,7 +283,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
         onOpenAutoFocus={(event) => event.preventDefault()}
         side="right"
         sideOffset={10}>
-        {open && !data.isInputDraft ? (
+        {open && !data.isInputDraft && data.type !== 'clear' ? (
           <TopicMessageFlowNodePreviewCard
             messageId={data.messageId}
             modelLabel={modelLabel}

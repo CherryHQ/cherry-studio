@@ -252,6 +252,7 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
     // Tree nodes carry content roles only; toContentRole narrows (the root never reaches
     // here — guarded above) and 'system' is surfaced as 'assistant' for display.
     role: message.role === 'system' ? 'assistant' : toContentRole(message.role),
+    type: message.data.type,
     preview: extractPreview(message),
     modelId: message.modelId,
     status: message.status,

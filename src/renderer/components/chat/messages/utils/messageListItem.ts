@@ -53,6 +53,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     assistantId: ctx.assistantId,
     topicId: ctx.topicId,
     parentId: metadata.parentId ?? null,
+    type: metadata.type,
     createdAt: metadata.createdAt ?? '',
     status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
     modelId,

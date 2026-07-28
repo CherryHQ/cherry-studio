@@ -197,6 +197,7 @@ function toNodeData(
   const data: TopicMessageFlowNodeData = {
     messageId: node.id,
     role: node.role,
+    type: node.type,
     status: node.status,
     preview: node.preview,
     modelId: node.modelId,

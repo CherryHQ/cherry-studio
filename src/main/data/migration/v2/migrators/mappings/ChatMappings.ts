@@ -515,8 +515,11 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
  *
+ * ## Message Type:
+ * `type: 'clear'` is preserved as a context-boundary marker. Other message
+ * type values are dropped.
+ *
  * ## Dropped Fields:
- * - type ('clear' | 'text' | '@')
  * - useful (boolean)
  * - enabledMCPs (deprecated)
  * - agentSessionId (session identifier)
@@ -558,7 +561,10 @@ export async function transformMessage(
     parentId,
     topicId: correctTopicId,
     role: oldMessage.role,
-    data: { parts },
+    data: {
+      parts,
+      ...(oldMessage.type === 'clear' ? { type: 'clear' as const } : {})
+    },
     searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,

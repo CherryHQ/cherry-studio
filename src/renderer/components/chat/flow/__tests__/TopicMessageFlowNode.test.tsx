@@ -154,6 +154,18 @@ describe('TopicMessageFlowNode', () => {
     expect(screen.getByText(preview).closest(`[data-message-id="${messageId}"]`)).toHaveClass(border, background)
   })
 
+  it('renders a clear marker as a neutral non-preview node', async () => {
+    renderNode({ type: 'clear', role: 'user', preview: '' })
+
+    const labels = screen.getAllByText('chat.message.new.context')
+    const node = labels[0].closest('[data-message-id="message-1"]')!
+    expect(node).toHaveClass('border-border', 'bg-muted/45')
+
+    fireEvent.mouseEnter(node)
+    await advancePreviewDelay()
+    expect(mocks.useQuery).not.toHaveBeenCalled()
+  })
+
   it('fetches the message preview only after hovering the node for 300ms', async () => {
     renderNode()
 

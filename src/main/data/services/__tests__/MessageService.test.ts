@@ -931,6 +931,29 @@ describe('MessageService', () => {
       expect(result.nodes.find((node) => node.id === 'm-preview')?.preview).toContain('v2 parts payload')
     })
 
+    it('projects clear-context markers into tree nodes', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-clear', activeNodeId: 'clear-1', orderKey: 'clear' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-clear', [
+          {
+            id: 'clear-1',
+            parentId: null,
+            topicId: 'topic-clear',
+            role: 'user',
+            data: { type: 'clear', parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          }
+        ])
+      )
+
+      const result = messageService.getTree('topic-clear', { depth: -1 })
+
+      expect(result.nodes.find((node) => node.id === 'clear-1')?.type).toBe('clear')
+    })
+
     it('returns every same-topic root tree even when roots are not in a sibling group', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-multi-root', activeNodeId: 'a-second', orderKey: 'roots' })
       await dbh.db.insert(messageTable).values(

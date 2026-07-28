@@ -16,7 +16,11 @@ import {
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
-import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
+import {
+  useTopicAwaitingApproval,
+  useTopicOverlayHandoffOnTerminal,
+  useTopicStreamStatus
+} from '@renderer/hooks/useTopicStreamStatus'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
@@ -108,6 +112,8 @@ export function useChatRuntimeState({
   getBranchDraftAnchorId
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
+  const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
+  const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
   const messages = uiMessages
   const invalidateCache = useInvalidateCache()
   const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
@@ -121,6 +127,9 @@ export function useChatRuntimeState({
   }, [])
   const captureLocalSendScrollEligibility = useCallback(() => {
     messageListRuntimeRef.current?.captureLocalSendScrollEligibility()
+  }, [])
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => messageListRuntimeRef.current?.scrollToBottom())
   }, [])
 
   // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after
@@ -230,6 +239,7 @@ export function useChatRuntimeState({
   )
 
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
+  const seedMessagesCache = cache.seedReservedMessages
   const seedReservedMessages = useCallback(
     async (reservedMessages: CherryUIMessage[]) => {
       if (reservedMessages.length > 0) {
@@ -242,9 +252,9 @@ export function useChatRuntimeState({
         }
         setBranchLiveMessages((current) => mergeMessagesById(current, reservedMessages))
       }
-      await cache.seedReservedMessages(reservedMessages)
+      await seedMessagesCache(reservedMessages)
     },
-    [cache.seedReservedMessages]
+    [seedMessagesCache]
   )
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
@@ -369,6 +379,7 @@ export function useChatRuntimeState({
   const { actions: chatWriteActions } = useChatWriteActions({
     topic,
     uiMessages: messages,
+    activeNodeId,
     rootId,
     regenerate,
     setMessages,
@@ -378,6 +389,13 @@ export function useChatRuntimeState({
     seedReservedMessages,
     captureLocalSendScrollEligibility,
     onLocalSendStarted: turnController.markLocalSendStarted,
+    scrollToBottom,
+    startNewContextBlocked:
+      isHistoryLoading ||
+      isTopicStreamPending ||
+      isTopicAwaitingApproval ||
+      turnController.phase === 'persisting' ||
+      turnController.phase === 'opening',
     assistant
   })
 

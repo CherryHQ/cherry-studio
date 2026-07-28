@@ -12,6 +12,7 @@ export interface TopicMessageFlowLiveNode {
   id: string
   parentId: string
   role: TreeNode['role']
+  type?: TreeNode['type']
   preview: string
   modelId?: string | null
   status: MessageStatus
@@ -98,6 +99,7 @@ export function buildTopicMessageFlowLiveState({
         id: message.id,
         parentId,
         role: message.role === 'system' ? 'assistant' : message.role,
+        type: metadata.type,
         preview: extractTopicMessageFlowLivePreview(parts),
         modelId: metadata.modelId ?? null,
         status: isStreamingMessage ? 'pending' : (metadata.status ?? fallbackStatus),
@@ -125,6 +127,7 @@ function toTreeNode(node: TopicMessageFlowLiveNode, existing?: TreeNode): TopicM
     id: node.id,
     parentId: node.parentId,
     role: node.role,
+    type: node.type ?? existing?.type,
     preview: node.preview || existing?.preview || '',
     modelId: node.modelId ?? existing?.modelId ?? null,
     status: node.status,

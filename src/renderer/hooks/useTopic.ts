@@ -164,10 +164,14 @@ export async function getTopicMessages(
 
       const pageMessages: MessageExportView[] = []
       for (const item of response.items) {
-        pageMessages.push(convertSharedMessage(item.message, assistantId))
+        if (item.message.data.type !== 'clear') {
+          pageMessages.push(convertSharedMessage(item.message, assistantId))
+        }
         if (item.siblingsGroup) {
           for (const sibling of item.siblingsGroup) {
-            pageMessages.push(convertSharedMessage(sibling, assistantId))
+            if (sibling.data.type !== 'clear') {
+              pageMessages.push(convertSharedMessage(sibling, assistantId))
+            }
           }
         }
       }

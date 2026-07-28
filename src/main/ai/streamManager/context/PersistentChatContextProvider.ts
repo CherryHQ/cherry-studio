@@ -493,7 +493,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
    */
   private buildHistory(anchorMessageId: string): CherryUIMessage[] {
     const messagePath = messageService.getPathToNode(anchorMessageId)
-    return messagePath.map((msg) => ({
+    const lastClearIndex = messagePath.findLastIndex((message) => message.data.type === 'clear')
+    return messagePath.slice(lastClearIndex + 1).map((msg) => ({
       id: msg.id,
       role: toContentRole(msg.role),
       parts: msg.data.parts ?? []

@@ -2,7 +2,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
-import { act, createEvent, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -135,8 +135,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     LOCATE_MESSAGE: 'locate-message',
-    EDIT_MESSAGE: 'edit-message',
-    NEW_CONTEXT: 'new-context'
+    EDIT_MESSAGE: 'edit-message'
   },
   EventEmitter: mocks.EventEmitter
 }))
@@ -288,6 +287,51 @@ describe('MessageGroup', () => {
     const messageElement = container.querySelector('#message-msg-1 .message')
 
     expect(messageElement).not.toHaveClass('px-4')
+  })
+
+  it('renders a clear-context divider and routes clicks through the injected action', () => {
+    const startNewContext = vi.fn()
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      deleteMessageGroup: vi.fn(),
+      regenerateMessage: vi.fn(),
+      updateMessageUiState: vi.fn(),
+      startNewContext
+    })
+    const message = {
+      id: 'clear-1',
+      parentId: 'message-1',
+      role: 'user',
+      topicId: 'topic-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success',
+      type: 'clear'
+    } as MessageListItem
+
+    const { container } = render(<MessageGroup messages={[message]} topic={{ id: 'topic-1' } as Topic} />)
+
+    fireEvent.click(screen.getByText('chat.message.new.context'))
+    expect(startNewContext).toHaveBeenCalledOnce()
+    expect(mocks.MessageContent).not.toHaveBeenCalled()
+    expect(container.querySelector('.clear-context-divider > div')).toHaveClass('my-4')
+  })
+
+  it('renders the clear-context divider as disabled when its action is unavailable', () => {
+    const message = {
+      id: 'clear-1',
+      parentId: 'message-1',
+      role: 'user',
+      topicId: 'topic-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success',
+      type: 'clear'
+    } as MessageListItem
+
+    render(<MessageGroup messages={[message]} topic={{ id: 'topic-1' } as Topic} />)
+
+    const divider = screen.getByText('chat.message.new.context').closest('.clear-context-divider')
+    expect(divider).toHaveAttribute('aria-disabled', 'true')
+    expect(divider).toHaveClass('cursor-default')
   })
 
   it('passes updated parts when only the parts map changes', () => {

@@ -154,9 +154,18 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   }, [actions, handleStartEditing, message.id, messageHighlightHandler])
 
   const handleStartNewContext = useCallback(() => {
-    if (isMultiSelectMode) return
+    if (isMultiSelectMode || !actions.startNewContext) return
     actions.startNewContext?.()
   }, [actions, isMultiSelectMode])
+  const canStartNewContext = !isMultiSelectMode && Boolean(actions.startNewContext)
+  const handleStartNewContextKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      handleStartNewContext()
+    },
+    [handleStartNewContext]
+  )
 
   const handleMessageSelectClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -173,9 +182,13 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   if (message.type === 'clear') {
     return (
       <div
-        className={cn('clear-context-divider flex-1 cursor-pointer', isMultiSelectMode && 'cursor-default')}
-        onClick={handleStartNewContext}>
-        <div className="mx-5 my-0 flex items-center gap-2 text-foreground-muted text-sm">
+        aria-disabled={!canStartNewContext}
+        className={cn('clear-context-divider flex-1', canStartNewContext ? 'cursor-pointer' : 'cursor-default')}
+        onClick={handleStartNewContext}
+        onKeyDown={handleStartNewContextKeyDown}
+        role="button"
+        tabIndex={canStartNewContext ? 0 : -1}>
+        <div className="mx-5 my-4 flex items-center gap-2 text-foreground-muted text-sm">
           <hr className="flex-1 border-border border-dashed" />
           <span>{t('chat.message.new.context')}</span>
           <hr className="flex-1 border-border border-dashed" />
