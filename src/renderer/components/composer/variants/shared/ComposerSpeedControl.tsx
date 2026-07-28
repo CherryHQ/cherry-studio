@@ -12,7 +12,6 @@ import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import { ChevronDown, Gauge, Zap } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -121,19 +120,12 @@ export function ComposerSpeedControl({
           {supportsReasoning ? (
             <div className="flex min-w-0 items-baseline gap-1 text-xs">
               <span className="shrink-0 text-muted-foreground">{t('agent.speed.effort')}:</span>
-              <AnimatePresence initial={false} mode="wait">
-                <motion.span
-                  key={displayedEffort}
-                  data-testid="composer-effort-slider-label"
-                  aria-live="polite"
-                  className="truncate font-medium text-foreground"
-                  initial={{ y: 2, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: -2, opacity: 0 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}>
-                  {effortLabel}
-                </motion.span>
-              </AnimatePresence>
+              <span
+                data-testid="composer-effort-slider-label"
+                aria-live="polite"
+                className="truncate font-medium text-foreground">
+                {effortLabel}
+              </span>
             </div>
           ) : (
             <span className="text-muted-foreground">{t('agent.speed.label')}</span>

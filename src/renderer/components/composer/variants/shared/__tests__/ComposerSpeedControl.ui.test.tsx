@@ -118,7 +118,7 @@ describe('ComposerSpeedControl UI', () => {
     ).toBe('default')
   })
 
-  it('uses only a slider for GPT-5.6, with Off first and Default filtered out', async () => {
+  it('uses only a slider for GPT-5.6, with Off first and Default filtered out', () => {
     const { container } = render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
 
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
@@ -140,10 +140,8 @@ describe('ComposerSpeedControl UI', () => {
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.max'
     )
-    await waitFor(() =>
-      expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
-        'assistants.settings.reasoning_effort.max'
-      )
+    expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
+      'assistants.settings.reasoning_effort.max'
     )
   })
 
