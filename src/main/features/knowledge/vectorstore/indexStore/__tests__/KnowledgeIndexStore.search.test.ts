@@ -104,14 +104,49 @@ describe('KnowledgeIndexStore.search', () => {
     expect(matches.map((m) => m.materialId)).toEqual(['m1'])
   })
 
-  it('LIKE fallback ANDs every token, so a mixed short+long query still filters correctly', async () => {
+  it('drops a too-short token from a mixed query instead of routing the whole query to LIKE', async () => {
     await indexMaterial('m1', 'a.md', '系统 architecture overview', [1, 0, 0])
     await indexMaterial('m2', 'b.md', '系统 design notes', [0, 1, 0])
 
-    // The 2-char '系统' routes the whole query to LIKE; 'architecture' must still constrain it.
+    // The 2-char '系统' cannot be trigram-indexed, but it must not poison the query:
+    // 'architecture' stays on the ranked MATCH path and constrains the result.
+    expect(needsLikeFallback('系统 architecture')).toBe(false)
     const matches = await store.search({ queryText: '系统 architecture', mode: 'bm25', topK: 10 })
 
     expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('bm25 mode answers a CJK question phrased around the indexed wording', async () => {
+    // Regression: the whole CJK clause was sent as one quoted token, which the trigram
+    // tokenizer reads as an exact-substring demand — so a question that merely *contains*
+    // the indexed words ('报销流程') matched nothing, leaving a BM25-only base unusable.
+    await indexMaterial('m1', 'a.md', '员工报销流程：先在系统中提交申请，财务审核后打款。', [1, 0, 0])
+    await indexMaterial('m2', 'b.md', '年假政策：入职满一年的员工每年享有五天带薪年假。', [0, 1, 0])
+
+    const matches = await store.search({ queryText: '公司的报销流程是什么', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('bm25 mode answers a multi-word question without requiring every word in one unit', async () => {
+    // Regression: tokens were AND-ed, so the filler a natural question carries
+    // ('how', 'to') had to appear in the matching unit too, and nothing matched.
+    await indexMaterial('m1', 'a.md', 'The proxy timeout is set in the network settings panel.', [1, 0, 0])
+    await indexMaterial('m2', 'b.md', 'Keyboard shortcuts are listed under general preferences.', [0, 1, 0])
+
+    const matches = await store.search({ queryText: 'how to configure proxy timeout', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('bm25 mode ranks a unit matching more query terms above one matching fewer', async () => {
+    // OR-ing terms only works if bm25() then sorts by how much of the query was hit.
+    await indexMaterial('m1', 'a.md', 'proxy timeout configuration', [1, 0, 0])
+    await indexMaterial('m2', 'b.md', 'timeout values in milliseconds', [0, 1, 0])
+
+    const matches = await store.search({ queryText: 'proxy timeout', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1', 'm2'])
   })
 
   it('bm25 mode answers a 3+ character CJK query through the trigram MATCH path', async () => {

@@ -512,8 +512,9 @@ export class KnowledgeIndexStore {
   }
 
   private bm25Search(queryText: string, topK: number): KnowledgeIndexSearchMatch[] {
-    // Short tokens (notably 1–2 char CJK words) produce no trigram, so MATCH would
-    // silently return nothing — route those queries to the LIKE fallback instead.
+    // A query whose every term is too short to trigram (notably a bare 1–2 char CJK
+    // word) can never MATCH, so scan with LIKE instead. A query with at least one
+    // indexable term takes the ranked MATCH path below.
     if (needsLikeFallback(queryText)) {
       return this.bm25LikeSearch(extractFtsTokens(queryText), topK)
     }

@@ -1,38 +1,92 @@
 import { describe, expect, it } from 'vitest'
 
-import { needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from '../ftsQuery'
+import { extractMatchTerms, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from '../ftsQuery'
+
+describe('extractMatchTerms', () => {
+  it('keeps space-delimited tokens whole — they are already words', () => {
+    expect(extractMatchTerms('configure proxy timeout')).toEqual(['configure', 'proxy', 'timeout'])
+  })
+
+  it('windows an unsegmented CJK run into overlapping trigrams', () => {
+    // The run is a clause, not a word: quoting it whole would make MATCH demand the
+    // entire clause as one contiguous substring.
+    expect(extractMatchTerms('报销流程')).toEqual(['报销流', '销流程'])
+  })
+
+  it('splits a token that mixes Latin and CJK, windowing only the CJK part', () => {
+    expect(extractMatchTerms('RAG检索增强')).toEqual(['RAG', '检索增', '索增强'])
+  })
+
+  it('drops terms too short to produce a trigram instead of letting them poison the query', () => {
+    // 'to' and '天气' cannot be indexed, but the indexable terms must still be searched.
+    expect(extractMatchTerms('how to configure')).toEqual(['how', 'configure'])
+    expect(extractMatchTerms('the 天气 today')).toEqual(['the', 'today'])
+  })
+
+  it('keeps an exactly-3-character run as one term', () => {
+    expect(extractMatchTerms('系统统')).toEqual(['系统统'])
+  })
+
+  it('de-duplicates repeated terms', () => {
+    expect(extractMatchTerms('proxy proxy')).toEqual(['proxy'])
+    // Overlapping windows of a repeated clause collapse to the distinct trigrams.
+    expect(extractMatchTerms('报销报销')).toEqual(['报销报', '销报销'])
+  })
+
+  it('caps the term count so a long CJK question cannot explode the FTS query', () => {
+    // 100 distinct Han characters — one trigram per character, none de-duplicated.
+    const longQuery = String.fromCodePoint(...Array.from({ length: 100 }, (_, index) => 0x4e00 + index))
+    expect(extractMatchTerms(longQuery).length).toBe(64)
+  })
+
+  it('is empty when nothing in the text can be indexed', () => {
+    expect(extractMatchTerms('')).toEqual([])
+    expect(extractMatchTerms('!!! --- ???')).toEqual([])
+    expect(extractMatchTerms('天气')).toEqual([])
+  })
+})
 
 describe('toFtsMatchQuery', () => {
-  it('extracts word/number/underscore tokens and ANDs them, each quoted', () => {
-    expect(toFtsMatchQuery('hello world')).toBe('"hello" AND "world"')
-    expect(toFtsMatchQuery('rag2 系统 v_2')).toBe('"rag2" AND "系统" AND "v_2"')
+  it('ORs the terms so a natural-language question is not required to match in full', () => {
+    // Regression: these were AND-ed, so a question carrying filler its target chunk
+    // lacks ("how to …") matched nothing at all.
+    expect(toFtsMatchQuery('hello world')).toBe('"hello" OR "world"')
+    expect(toFtsMatchQuery('how to configure proxy timeout')).toBe('"how" OR "configure" OR "proxy" OR "timeout"')
   })
 
-  it('splits on punctuation/whitespace and drops the separators', () => {
-    expect(toFtsMatchQuery('a, b.c-d!')).toBe('"a" AND "b" AND "c" AND "d"')
+  it('ORs the trigrams of a CJK question', () => {
+    // Regression: the whole clause was one quoted token, i.e. an exact-substring
+    // demand, so a question phrased around the indexed words never matched.
+    expect(toFtsMatchQuery('公司的报销流程')).toBe('"公司的" OR "司的报" OR "的报销" OR "报销流" OR "销流程"')
   })
 
-  it('returns null when the text yields no usable token', () => {
+  it('quotes each term and escapes embedded quotes', () => {
+    expect(toFtsMatchQuery('rag2 系统 v_2')).toBe('"rag2" OR "v_2"')
+  })
+
+  it('returns null when the text yields no indexable term', () => {
     expect(toFtsMatchQuery('')).toBeNull()
     expect(toFtsMatchQuery('   \n\t')).toBeNull()
     expect(toFtsMatchQuery('!!! --- ???')).toBeNull()
+    // Every token is below the trigram minimum — MATCH could only return nothing.
+    expect(toFtsMatchQuery('a, b.c-d!')).toBeNull()
   })
 })
 
 describe('needsLikeFallback', () => {
-  it('is false when every token is long enough for the trigram tokenizer', () => {
+  it('is false when at least one term is indexable', () => {
     expect(needsLikeFallback('hello world')).toBe(false)
-    expect(needsLikeFallback('rag2 系统统')).toBe(false) // 系统统 is 3 code points
+    expect(needsLikeFallback('rag2 系统统')).toBe(false)
   })
 
-  it('is true when any token is shorter than 3 code points (1–2 char CJK words)', () => {
+  it('is false for a mixed query, whose short tokens are dropped rather than routed to LIKE', () => {
+    // A short token no longer poisons the query, so the ranked MATCH path is kept.
+    expect(needsLikeFallback('the 天气 today')).toBe(false)
+  })
+
+  it('is true only when tokens exist but none can be indexed', () => {
     expect(needsLikeFallback('天气')).toBe(true)
     expect(needsLikeFallback('ab')).toBe(true)
-  })
-
-  it('routes the whole query to fallback when even one short token is mixed with long ones', () => {
-    // One short token poisons an AND of longer tokens, so the decision is per-query.
-    expect(needsLikeFallback('the 天气 today')).toBe(true)
   })
 
   it('is false when the text yields no token at all', () => {
