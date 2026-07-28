@@ -1,4 +1,4 @@
-import { NormalTooltip, Tooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
@@ -220,7 +220,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       // the list's selectItem action → onSelectItem (handleSelectItemById → handleItemClick), so
       // every path stays consistent and fires exactly once.
       const row = (
-        <ResourceList.Item item={item} data-testid="resource-entity-rail-row">
+        <ResourceList.Item item={item} data-testid="resource-entity-rail-row" tooltip={item.tooltip}>
           {item.icon && (
             <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
               {item.icon}
@@ -253,14 +253,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           )}
         </ResourceList.Item>
       )
-      const rowWithTooltip = item.tooltip ? (
-        <NormalTooltip content={item.tooltip} side="right" sideOffset={4} delayDuration={500}>
-          {row}
-        </NormalTooltip>
-      ) : (
-        row
-      )
-      if (!actions.length || !onContextMenuAction) return rowWithTooltip
+      if (!actions.length || !onContextMenuAction) return row
 
       return (
         <ResourceListActionContextMenu
@@ -268,7 +261,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           item={item}
           actions={actions}
           onAction={(action) => onContextMenuAction(item, action)}>
-          {rowWithTooltip}
+          {row}
         </ResourceListActionContextMenu>
       )
     },

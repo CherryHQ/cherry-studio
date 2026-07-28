@@ -503,7 +503,7 @@ describe('ResourceEntityRail', () => {
       />
     )
 
-    expect(screen.getByText('Assistant A').closest('[role="option"]')).toHaveAttribute('data-slot', 'tooltip-trigger')
+    expect(screen.getByText('Assistant A').closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
     expect(screen.getByText('Assistant A')).not.toHaveAttribute('title')
   })
 
