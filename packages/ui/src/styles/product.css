@@ -15,7 +15,7 @@
   --border-subtle: var(--cs-border-subtle);
   --border-strong: var(--cs-border-strong);
   --border-selected: var(--cs-border-selected);
-  --link: var(--primary);
+  --link: var(--cs-blue-600);
 
   /* Feedback */
   --success: var(--cs-success);
@@ -53,6 +53,9 @@
 }
 
 .dark {
+  /* Shared product semantics */
+  --link: var(--cs-blue-400);
+
   /* Stable product domain: rich text and code */
   --code-block: #323232;
   --inline-code: #323232;

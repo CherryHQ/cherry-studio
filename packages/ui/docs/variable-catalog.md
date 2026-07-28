@@ -122,7 +122,7 @@ Stable product variables are allowed in new code when no official Shadcn role ex
 | `--border-subtle` | Very quiet `border-color` |
 | `--border-strong` | Higher-emphasis structural `border-color` |
 | `--border-selected` | Selected-state `border-color`; focus remains `--ring` |
-| `--link` | Clickable text `color`; initially follows `--primary` |
+| `--link` | Clickable text `color`; independent default blue, separate from `--primary` |
 
 ### Feedback families
 
@@ -179,7 +179,7 @@ Preferred custom CSS usage:
 
 ```css
 .rich-text a {
-  color: var(--primary);
+  color: var(--link);
 }
 
 .reference {

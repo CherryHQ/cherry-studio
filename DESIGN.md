@@ -125,9 +125,11 @@ in new component APIs.
 Do not use a page-local chromatic brand color for new UI chrome. `--cs-brand-*` is a foundation scale, not a component-facing semantic contract; new component styling should express action hierarchy through `var(--primary)` and status through the stable product roles.
 
 ### Links
-Application and rendered-content links use `var(--link)`. Its initial provider is `var(--primary)`, so links
-continue to follow user theme selection while exposing a stable product role that can evolve independently.
-Hover normally adds underline without changing color; do not add a global `link-hover` token.
+- Clickable text uses `text-link` / `var(--link)`. Link color is independent from `primary`; reserve `primary` for
+  primary actions, selected states, and component accents.
+- Links use the product default blue. Hover normally adds underline without changing color; do not add a global
+  `link-hover` token.
+- See the [Variable Catalog](./packages/ui/docs/variable-catalog.md) for token ownership and contract details.
 
 ### Floating Scrims
 No dedicated public glass or overlay product role is exported today. `--color-*` is reserved for generated Tailwind mappings; a future shared runtime role would require an approved unprefixed semantic contract. Use the shared primitive defaults first:

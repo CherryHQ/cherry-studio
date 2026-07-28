@@ -338,7 +338,8 @@ with:
 ```
 
 Foreground roles use solid providers so their resolved contrast is independent of the surface beneath them.
-`--link` initially follows `--primary`, while remaining a separate product role for clickable text.
+`--link` is independent from `--primary` and uses the mode-aware product defaults `--cs-blue-600` in light mode
+and `--cs-blue-400` in dark mode.
 
 The feedback intents are:
 

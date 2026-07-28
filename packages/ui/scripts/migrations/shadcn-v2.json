@@ -118,7 +118,7 @@
       "source": "--cs-link",
       "target": null,
       "strategy": "review",
-      "reason": "Historical blue link styling is not equivalent to the runtime primary used by current rendered content."
+      "reason": "The historical link followed the runtime accent text input, while the product link now uses an independent mode-aware blue."
     },
     { "source": "--cs-code-block", "target": "--code-block", "strategy": "exact" },
     { "source": "--cs-inline-code", "target": "--inline-code", "strategy": "exact" },
@@ -258,7 +258,7 @@
       "target": "--link",
       "strategy": "contextual",
       "contexts": ["color"],
-      "reason": "Historical blue links require visual review before adopting the runtime-theme-backed product link role."
+      "reason": "The historical adapter followed runtime accent text, so adopting the independent mode-aware product link requires visual review."
     },
     {
       "source": "--color-primary-bg",
