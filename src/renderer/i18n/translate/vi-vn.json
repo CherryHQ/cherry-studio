@@ -1035,7 +1035,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Kopi",
       "regenerate": "Tái tạo",
       "restart": {
         "button": "Khởi động lại",
@@ -1047,8 +1046,6 @@
     "authHeader": {
       "title": "Tiêu đề ủy quyền"
     },
-    "authHeaderText": "Sử dụng trong tiêu đề Ủy quyền:",
-    "configuration": "Konfiguracja",
     "description": "Phơi bày khả năng AI của Cherry Studio qua các API HTTP tương thích với OpenAI",
     "documentation": {
       "title": "API Documentación"
@@ -1056,13 +1053,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Sao chép Khóa API",
-        "description": "Mã xác thực bảo mật để truy cập API",
         "label": "Khóa API",
         "placeholder": "API key wird automatisch generiert"
       },
       "port": {
-        "description": "Số cổng TCP cho máy chủ HTTP (1000-65535)",
-        "helpText": "Detener servidor para cambiar puerto",
         "label": "Harbor"
       },
       "url": {
@@ -1071,7 +1065,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Khóa API đã được sao chép vào clipboard",
       "apiKeyRegenerated": "Khóa API đã được tạo lại",
       "notEnabled": "Máy chủ API chưa được kích hoạt.",
       "operationFailed": "Hoạt động của Máy chủ API không thành công:",
@@ -1081,8 +1074,7 @@
       "startError": "Không thể khởi động Máy chủ API:",
       "startSuccess": "Máy chủ API đã khởi động thành công",
       "stopError": "Không thể dừng Máy chủ API:",
-      "stopSuccess": "Máy chủ API đã dừng thành công",
-      "urlCopied": "URL máy chủ đã được sao chép vào bộ nhớ tạm"
+      "stopSuccess": "Máy chủ API đã dừng thành công"
     },
     "status": {
       "running": "Chạy",
