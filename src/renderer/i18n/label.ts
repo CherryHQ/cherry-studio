@@ -122,38 +122,6 @@ export const getFileProcessorLabelKey = (id: string): string => {
   return getLabelKey(fileProcessorKeyMap, id)
 }
 
-const backupProgressKeyMap = {
-  completed: 'backup.progress.completed',
-  compressing: 'backup.progress.compressing',
-  copying_database: 'backup.progress.copying_database',
-  copying_files: 'backup.progress.copying_files',
-  preparing: 'backup.progress.preparing',
-  preparing_compression: 'backup.progress.preparing_compression',
-  title: 'backup.progress.title',
-  writing_data: 'backup.progress.writing_data'
-} as const
-
-export const getBackupProgressLabelKey = (key: string): string => {
-  return getLabelKey(backupProgressKeyMap, key)
-}
-
-const restoreProgressKeyMap = {
-  completed: 'restore.progress.completed',
-  copying_files: 'restore.progress.copying_files',
-  extracted: 'restore.progress.extracted',
-  extracting: 'restore.progress.extracting',
-  preparing: 'restore.progress.preparing',
-  reading_data: 'restore.progress.reading_data',
-  restoring_data: 'restore.progress.restoring_data',
-  restoring_database: 'restore.progress.restoring_database',
-  title: 'restore.progress.title',
-  validating: 'restore.progress.validating'
-}
-
-export const getRestoreProgressLabelKey = (key: string): string => {
-  return getLabelKey(restoreProgressKeyMap, key)
-}
-
 const titleKeyMap = {
   // TODO: update i18n key
   apps: 'title.apps',

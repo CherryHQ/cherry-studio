@@ -1,8 +1,8 @@
 /**
  * Central registry of legacy Electron IPC channel names. Command IPC has largely moved to
  * IpcApi (`ipcApi.request`); what remains here is the data/IpcApi transport infrastructure
- * plus channels not yet migrated — v1-only backup / nutstore / copilot, the file module,
- * LAN transfer, and a handful of micro-domains.
+ * plus channels not yet migrated — copilot, the file module, LAN transfer, and a handful
+ * of micro-domains.
  */
 export enum IpcChannel {
   App_GetCacheSize = 'app:get-cache-size',
@@ -34,11 +34,6 @@ export enum IpcChannel {
   Copilot_GetToken = 'copilot:get-token',
   Copilot_Logout = 'copilot:logout',
   Copilot_GetUser = 'copilot:get-user',
-
-  // nutstore
-  Nutstore_GetSsoUrl = 'nutstore:get-sso-url',
-  Nutstore_DecryptToken = 'nutstore:decrypt-token',
-  Nutstore_GetDirectoryContents = 'nutstore:get-directory-contents',
 
   //aes
   Aes_Decrypt = 'aes:decrypt',
@@ -94,35 +89,11 @@ export enum IpcChannel {
   File_TreeRename = 'file:tree:rename',
   File_TreeMutation = 'file:tree:mutation',
 
-  // backup
-  Backup_Backup = 'backup:backup',
-  Backup_Restore = 'backup:restore',
-  Backup_BackupToWebdav = 'backup:backupToWebdav',
-  Backup_RestoreFromWebdav = 'backup:restoreFromWebdav',
-  Backup_ListWebdavFiles = 'backup:listWebdavFiles',
-  Backup_CheckConnection = 'backup:checkConnection',
-  Backup_CreateDirectory = 'backup:createDirectory',
-  Backup_DeleteWebdavFile = 'backup:deleteWebdavFile',
-  Backup_BackupToLocalDir = 'backup:backupToLocalDir',
-  Backup_RestoreFromLocalBackup = 'backup:restoreFromLocalBackup',
-  Backup_ListLocalBackupFiles = 'backup:listLocalBackupFiles',
-  Backup_DeleteLocalBackupFile = 'backup:deleteLocalBackupFile',
-  Backup_BackupToS3 = 'backup:backupToS3',
-  Backup_RestoreFromS3 = 'backup:restoreFromS3',
-  Backup_ListS3Files = 'backup:listS3Files',
-  Backup_DeleteS3File = 'backup:deleteS3File',
-  Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
-  Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
-
   // zip
   Zip_Decompress = 'zip:decompress',
 
   // system
   System_GetHostname = 'system:getHostname',
-
-  // events
-  BackupProgress = 'backup-progress',
-  RestoreProgress = 'restore-progress',
 
   // Data: Preference
   Preference_Get = 'preference:get',
