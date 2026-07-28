@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
@@ -34,10 +34,12 @@ export function usePaintingGenerationSubmit({
   })
 
   const submittingRef = useRef(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const submit = useCallback(async () => {
     if (submittingRef.current) return
     submittingRef.current = true
+    setSubmitting(true)
     try {
       const guardResult = await validateBeforeGenerate()
       if (!guardResult.ok) {
@@ -47,8 +49,9 @@ export function usePaintingGenerationSubmit({
       await generate()
     } finally {
       submittingRef.current = false
+      setSubmitting(false)
     }
   }, [generate, painting.providerId, validateBeforeGenerate])
 
-  return { generating, submit, cancel }
+  return { generating, submitting, submit, cancel }
 }

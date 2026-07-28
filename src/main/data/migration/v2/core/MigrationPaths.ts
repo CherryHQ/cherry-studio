@@ -57,10 +57,14 @@ export interface MigrationPaths {
   readonly legacyAgentDbFile: string
   /** {userData}/.claude — v1 Claude Agent SDK config source. */
   readonly legacyClaudeConfigDir: string
+  /** {userData}/.claude/projects — v1 Claude Agent SDK project-session source. */
+  readonly legacyClaudeProjectsDir: string
   /** {userData}/Data/Agents — v2 agent identity/memory data and system-workspace root. */
   readonly agentsDataDir: string
   /** {userData}/Data/Agents/.claude — v2 Claude Agent SDK config destination. */
   readonly claudeConfigDir: string
+  /** {userData}/Data/Agents/.claude/projects — v2 Claude Agent SDK project-session destination. */
+  readonly claudeProjectsDir: string
   /** {userData}/Data/Agents/system — app-owned per-session workspace root. */
   readonly agentSystemWorkspacesDir: string
   /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom miniapp records (logos stripped from Redux). */
@@ -219,8 +223,10 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     versionLogFile: path.join(currentUserData, 'version.log'),
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
     legacyClaudeConfigDir: path.join(currentUserData, '.claude'),
+    legacyClaudeProjectsDir: path.join(currentUserData, '.claude', 'projects'),
     agentsDataDir: path.join(currentUserData, 'Data', 'Agents'),
     claudeConfigDir: path.join(currentUserData, 'Data', 'Agents', '.claude'),
+    claudeProjectsDir: path.join(currentUserData, 'Data', 'Agents', '.claude', 'projects'),
     agentSystemWorkspacesDir: path.join(currentUserData, 'Data', 'Agents', 'system'),
     customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
     legacyConfigFile,

@@ -47,7 +47,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { Cable } from 'lucide-react'
+import { Cable, Eraser } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -90,6 +90,7 @@ import { useLatest } from './shared/useLatest'
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_NEW_CONVERSATION_TOOL_ID = 'composer:new-conversation'
+const CHAT_CLEAR_CONTEXT_TOOL_ID = 'composer:clear-context'
 const EMPTY_MODELS: Model[] = []
 const CHAT_TOOLBAR_CUSTOM_TOOLS: readonly ComposerToolbarCustomTool[] = [
   {
@@ -464,6 +465,7 @@ const ChatComposerInner = ({
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
   const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
+  const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
@@ -732,6 +734,12 @@ const ChatComposerInner = ({
   }, [scopeKey])
 
   const loading = isPending || isSending || awaitingApproval
+  const clearContextDisabled =
+    loading ||
+    Boolean(editingMessageForCurrentTopic) ||
+    isSavingEdit ||
+    isStartingNewContext ||
+    chatWrite?.canStartNewContext === false
   // Steer: while a turn is streaming (but not paused for tool approval) a new message is sent as a
   // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
   const canSteer = isPending && !awaitingApproval
@@ -916,14 +924,27 @@ const ChatComposerInner = ({
   }, [addNewTopic])
   const hasNewTopicAction = Boolean(onCreateEmptyTopic || onNewTopic)
   const newTopicDisabled = Boolean(onCreateEmptyTopic) && (isAssistantLoading || hasMissingPersistedAssistant)
+  const handleStartNewContext = useCallback(async () => {
+    if (!chatWrite || clearContextDisabled) return
+
+    setIsStartingNewContext(true)
+    try {
+      await chatWrite.startNewContext()
+      actionsRef.current.focus('end')
+    } catch (error) {
+      logger.warn('Failed to update context boundary', { error })
+      toast.error(t('message.error.operation_unavailable'))
+    } finally {
+      setIsStartingNewContext(false)
+    }
+  }, [actionsRef, chatWrite, clearContextDisabled, t])
 
   const rootPanelLeadingItems = useMemo<QuickPanelListItem[]>(() => {
-    const label = t('chat.conversation.new')
+    const items: QuickPanelListItem[] = []
 
-    if (!hasNewTopicAction) return []
-
-    return [
-      {
+    if (hasNewTopicAction) {
+      const label = t('chat.conversation.new')
+      items.push({
         id: CHAT_NEW_CONVERSATION_TOOL_ID,
         label,
         icon: <NewConversationIcon size={16} />,
@@ -933,8 +954,10 @@ const ChatComposerInner = ({
         action: () => {
           addNewTopic()
         }
-      }
-    ]
+      })
+    }
+
+    return items
   }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(
     () => [
@@ -951,12 +974,41 @@ const ChatComposerInner = ({
             }
           ]
         : []),
+      ...(chatWrite
+        ? [
+            {
+              id: CHAT_CLEAR_CONTEXT_TOOL_ID,
+              label: t('chat.input.new.context'),
+              icon: <Eraser size={18} aria-hidden />,
+              disabled: clearContextDisabled,
+              customizePlacement: 'leading' as const,
+              requiresPanel: false,
+              availableWithoutModel: true,
+              onSelect: () => void handleStartNewContext()
+            }
+          ]
+        : []),
       ...CHAT_TOOLBAR_CUSTOM_TOOLS
     ],
-    [addNewTopic, hasNewTopicAction, newTopicDisabled, t]
+    [addNewTopic, chatWrite, clearContextDisabled, handleStartNewContext, hasNewTopicAction, newTopicDisabled, t]
   )
 
-  const rootPanelCustomizeItems = useMemo(() => [customizePanelItem], [customizePanelItem])
+  const rootPanelAdditionalItems = useMemo<QuickPanelListItem[]>(() => {
+    const items = [customizePanelItem]
+    if (!chatWrite || pinnedToolIds.includes(CHAT_CLEAR_CONTEXT_TOOL_ID)) return items
+
+    const label = t('chat.input.new.context')
+    items.push({
+      id: CHAT_CLEAR_CONTEXT_TOOL_ID,
+      label,
+      icon: <Eraser size={16} />,
+      disabled: clearContextDisabled,
+      filterText: label,
+      searchAliases: getQuickPanelSearchAliases(t, 'chat.input.new.context', ['clear context']),
+      action: () => void handleStartNewContext()
+    })
+    return items
+  }, [chatWrite, clearContextDisabled, customizePanelItem, handleStartNewContext, pinnedToolIds, t])
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
@@ -981,6 +1033,9 @@ const ChatComposerInner = ({
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
+  useCommandHandler('chat.context.toggle_new', () => void handleStartNewContext(), {
+    enabled: isActiveTab && Boolean(chatWrite) && !clearContextDisabled
+  })
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
@@ -1415,7 +1470,7 @@ const ChatComposerInner = ({
           getToolLaunchers={() => getLaunchers()}
           toolLaunchersVersion={toolLaunchersVersion}
           rootPanelLeadingItems={rootPanelLeadingItems}
-          rootPanelAdditionalItems={rootPanelCustomizeItems}
+          rootPanelAdditionalItems={rootPanelAdditionalItems}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           deferQuickPanel={deferQuickPanel}
           {...controlSlots}
