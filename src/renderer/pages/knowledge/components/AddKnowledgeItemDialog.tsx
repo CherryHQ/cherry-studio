@@ -40,6 +40,18 @@ const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ex
 
 const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
 
+// The `url` source persists a real data source the moment it's added, so a bad value creates a
+// broken item that only fails asynchronously (e.g. "Invalid knowledge url: abc"). Gate submission
+// on a parseable http(s) URL instead of any non-empty text.
+const isValidHttpUrl = (value: string): boolean => {
+  try {
+    const { protocol } = new URL(value)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 const resolveFileEntryDataFromFile = (file: File) => {
   const filePath = window.api.file.getPathForFile(file)
 
@@ -94,13 +106,26 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     switch (activeSource) {
       case 'url':
-        return urlValue.trim().length > 0
+        return isValidHttpUrl(urlValue.trim())
       case 'note':
         return selectedNotes.length > 0
       default:
         return false
     }
   }, [activeSource, selectedBaseId, selectedNotes.length, urlValue])
+
+  // Warn once the field holds text that isn't a valid http(s) URL; stays quiet while empty so the
+  // hint reads as guidance for a bad entry rather than a nag on the pristine input.
+  const urlHint = useMemo(() => {
+    if (activeSource !== 'url') {
+      return ''
+    }
+    const value = urlValue.trim()
+    if (value.length === 0 || isValidHttpUrl(value)) {
+      return ''
+    }
+    return t('knowledge.data_source.add_dialog.url.invalid')
+  }, [activeSource, t, urlValue])
 
   const buildPanelSubmitItems = useCallback(async (): Promise<KnowledgeAddItemInput[]> => {
     if (activeSource === 'url') {
@@ -329,7 +354,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
             <AddKnowledgeItemDialogFooter
               activeSource={activeSource}
               canSubmit={canSubmit}
-              errorMessage={submitErrorMessage}
+              errorMessage={submitErrorMessage || urlHint}
               isSubmitting={isSubmitting}
               selectedNoteCount={selectedNotes.length}
               onSubmit={handleSubmit}

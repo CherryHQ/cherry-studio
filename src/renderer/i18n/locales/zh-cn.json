@@ -3018,6 +3018,7 @@
           "description": "输入网页链接：",
           "help": "将自动抓取页面文本并分块索引",
           "input_label": "网页地址",
+          "invalid": "请输入以 http:// 或 https:// 开头的有效链接",
           "placeholder": "https://example.com",
           "title": "导入单个网页"
         }

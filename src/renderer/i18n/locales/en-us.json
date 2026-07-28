@@ -3018,6 +3018,7 @@
           "description": "Enter a webpage URL:",
           "help": "Page text will be fetched, chunked, and indexed automatically",
           "input_label": "Webpage URL",
+          "invalid": "Enter a valid URL starting with http:// or https://",
           "placeholder": "https://example.com",
           "title": "Import a single webpage"
         }
