@@ -71,6 +71,14 @@ async function entryStillExists(id: FileEntryId): Promise<boolean> {
  *   the draft, mirroring `switchModel`'s `inputFiles: []`. It does NOT rely on the
  *   stale `painting.inputFiles === files` assumption the removed writeback used to
  *   uphold.
+ *
+ * SEED and CLEAR are separate effects racing over the same draft, so both go through
+ * `draftEpochRef`: CLEAR bumps it, SEED refuses to commit results from a superseded
+ * epoch. See the ref's own comment for the failure it prevents.
+ *
+ * Note the draft is *only* the next request's inputs. `painting.inputFiles` is the
+ * archive of the run that produced `painting.files`; SEED projects it into the tray
+ * as a starting point, and nothing writes back to it outside `generate`.
  */
 export function usePaintingComposerInputFiles({
   paintingId,
@@ -87,6 +95,14 @@ export function usePaintingComposerInputFiles({
   // shrinks the input list handed to generation (see materializeInputs).
   const unseededEntriesRef = useRef<FileEntry[]>([])
   const seededPaintingIdRef = useRef<string | null>(null)
+  // Draft generation counter. Every event that discards the current draft bumps it,
+  // so an in-flight SEED can tell its results are stale before writing them back.
+  // An effect-local `cancelled` flag is not enough: it is only flipped by SEED's own
+  // cleanup (painting change / unmount), while CLEAR lives in a *separate* effect —
+  // so a SEED still awaiting `getPhysicalPath` when the user switched models would
+  // resolve afterwards and restore the very chips CLEAR just dropped, handing images
+  // to a model or provider that should never have seen them.
+  const draftEpochRef = useRef(0)
   const inputFilesRef = useRef(inputFiles)
   inputFilesRef.current = inputFiles
   const filesRef = useRef(files)
@@ -109,7 +125,7 @@ export function usePaintingComposerInputFiles({
       return
     }
 
-    let cancelled = false
+    const epoch = draftEpochRef.current
     void (async () => {
       const cache = new Map<string, FileEntry>()
       const attachments: ComposerAttachment[] = []
@@ -133,14 +149,14 @@ export function usePaintingComposerInputFiles({
           unseeded.push(entry)
         }
       }
-      if (cancelled) return
+      if (draftEpochRef.current !== epoch) return
       entryCacheRef.current = cache
       unseededEntriesRef.current = unseeded
       setFiles(attachments)
     })()
 
     return () => {
-      cancelled = true
+      draftEpochRef.current++
     }
   }, [paintingId, setFiles])
 
@@ -158,6 +174,9 @@ export function usePaintingComposerInputFiles({
 
     if (!providerChanged && !droppedImageSupport) return
 
+    // Bump first: a SEED still awaiting `getPhysicalPath` must lose the right to
+    // write back, or it would undo this clear the moment it resolves.
+    draftEpochRef.current++
     entryCacheRef.current = new Map()
     unseededEntriesRef.current = []
     setFiles([])

@@ -327,4 +327,87 @@ describe('usePaintingComposerInputFiles', () => {
     rerender({ inputCapability: 'reject', providerId: 'openai' })
     expect(result.current.files).toEqual([])
   })
+
+  // SEED × CLEAR race. SEED's own cleanup only fires on a painting change / unmount,
+  // so before the epoch guard a SEED still awaiting `getPhysicalPath` would resolve
+  // after the switch and reinstate the chips, cache and unseeded carry-through that
+  // CLEAR had just dropped — handing images to a model that cannot take them.
+  const renderRaceHarness = (initial: SwitchProps) =>
+    renderHook(
+      (props: SwitchProps) => {
+        const [files, setFiles] = useState<ComposerAttachment[]>([])
+        const { materializeInputs } = usePaintingComposerInputFiles({
+          paintingId: 'p-race',
+          inputFiles: [makeEntry('fe-race')],
+          files,
+          setFiles,
+          inputCapability: props.inputCapability,
+          providerId: props.providerId
+        })
+        return { files, materializeInputs }
+      },
+      { initialProps: initial }
+    )
+
+  const deferPhysicalPath = () => {
+    let release!: () => void
+    const pending = new Promise<AbsoluteFilePath>((resolve) => {
+      release = () => resolve('/p/fe-race.png' as AbsoluteFilePath)
+    })
+    window.api = {
+      ...window.api,
+      file: { ...window.api.file, getPhysicalPath: vi.fn(() => pending) }
+    } as unknown as typeof window.api
+    return release
+  }
+
+  /** Let the hook's own `await` continuation run before asserting. */
+  const flushMicrotasks = async () => {
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+  }
+
+  it('ignores an in-flight SEED that resolves after a model switch cleared the draft', async () => {
+    const release = deferPhysicalPath()
+    const { result, rerender } = renderRaceHarness({ inputCapability: 'accept', providerId: 'openai' })
+
+    // SEED is parked on getPhysicalPath; the user switches to a generate-only model.
+    rerender({ inputCapability: 'reject', providerId: 'openai' })
+    expect(result.current.files).toEqual([])
+
+    release()
+    await flushMicrotasks()
+
+    expect(result.current.files).toEqual([])
+    // Nor may the stale cache / unseeded carry-through leak into the next request.
+    let out = { entries: [makeEntry('leak')] as FileEntry[], complete: false }
+    await act(async () => {
+      out = await result.current.materializeInputs()
+    })
+    expect(out.entries).toEqual([])
+  })
+
+  it('ignores an in-flight SEED that resolves after a provider switch cleared the draft', async () => {
+    const release = deferPhysicalPath()
+    const { result, rerender } = renderRaceHarness({ inputCapability: 'accept', providerId: 'openai' })
+
+    rerender({ inputCapability: 'accept', providerId: 'gemini' })
+    release()
+    await flushMicrotasks()
+
+    expect(result.current.files).toEqual([])
+  })
+
+  it('still seeds normally when no switch intervenes', async () => {
+    // Guards the fix against over-reach: the epoch must only invalidate a SEED that
+    // a clear actually superseded, not every deferred one.
+    const release = deferPhysicalPath()
+    const { result } = renderRaceHarness({ inputCapability: 'accept', providerId: 'openai' })
+
+    release()
+    await waitFor(() => expect(result.current.files).toHaveLength(1))
+    expect(result.current.files[0].path).toBe('/p/fe-race.png')
+  })
 })
