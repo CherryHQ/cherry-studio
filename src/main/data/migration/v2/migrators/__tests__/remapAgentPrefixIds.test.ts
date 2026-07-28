@@ -77,7 +77,11 @@ describe('remapAgentPrefixIds', () => {
       status: 'success',
       role: 'assistant',
       data: { parts: [{ type: 'text', text: 'hello' }] } as never,
-      messageSnapshot: { id: agentId, name: 'Test Agent' }
+      messageSnapshot: {
+        id: agentId,
+        name: 'Test Agent',
+        model: { id: 'test-model', name: 'Test Model', provider: 'test-provider' }
+      }
     })
 
     const remap = remapAgentPrefixIds(dbh.db)
