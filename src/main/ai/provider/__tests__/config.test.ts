@@ -832,11 +832,17 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
       const model = makeModel({ providerId: id, capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
 
-      const config = await providerToAiSdkConfig(provider, model)
+      const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
       const settings = config.providerSettings as Record<string, unknown>
 
       expect(config.providerId).toBe('minimax')
       expect(settings.baseURL).toBe(baseUrl)
+      expect(settings.apiKey).toBe('sk-test-key')
+      expect(credentialReceipt).toEqual({
+        attribution: 'explicit',
+        id: 'test-key',
+        masked: 'sk-t****-key'
+      })
     })
 
     it('leaves MiniMax CHAT models on openai-compatible', async () => {
