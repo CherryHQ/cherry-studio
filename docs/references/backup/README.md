@@ -220,7 +220,7 @@ producer's `DiskFullError` backstop for races after those checks.
 | Field group | Records |
 |---|---|
 | Preset | `preset: 'lite' \| 'full'` |
-| Producer diagnostics | Format + producer version, producer **platform**, and **managed-root identities** needed for deterministic rebasing |
+| Producer diagnostics | Format + producer version, producer **platform**, optional packaged/development build type, and **managed-root identities** needed for deterministic rebasing |
 | Migration identity | The **complete** source migration chain, not just its tip |
 | DB payload | Hash + size of the portable DB payload |
 | Resource requirements | Existence-oriented requirement inventory (both presets) |
@@ -290,6 +290,30 @@ created file and proves actual bytes equal the declared size while enforcing sha
 per-entry and cumulative actual-byte budgets. Extraction occurs only under an
 identity-tracked, operation-owned staging root after disk preflight; cancellation and
 failure clean that root without touching siblings.
+
+Migration compatibility is directional and item-wise; the final schema alone is not a
+compatibility proof because a migration may transform data or establish semantic invariants:
+
+| Archive chain vs bundled chain | Admission | User-facing action |
+|---|---|---|
+| Exact | Accept | Continue restore |
+| Strict prefix (archive older) | Apply trusted bundled suffix, then re-prove | Continue restore; preview records migrate-forward |
+| Archive extends bundled chain | Reject as `source-ahead` | Upgrade to a build containing that suffix, then retry |
+| Mismatch inside shared prefix | Reject as `lineage-fork` | Use the producing lineage or one of its descendants |
+
+Ahead/fork and unsupported-format failures cross IPC as closed, bounded diagnostics rather
+than raw admission prose. They contain only producer/current versions and build types,
+chain counts, one-based divergence/extra indices, and fixed migration-tip hash prefixes.
+Archive paths, managed-root paths, raw Zod/library errors, and arbitrary manifest detail do
+not cross that boundary. New archives record whether the producer was packaged or a
+development build; the field is optional so existing format-v2 archives remain readable and
+report `unknown`. The complete chain remains authoritative—there is no duplicated
+`minRestoreVersion` or migration-tip claim.
+
+Malformed, corrupt, tampered, manifest↔DB chain-mismatched, or failed-migration archives
+remain generic archive rejections: presenting any of those as “upgrade required” would turn
+an integrity failure into misleading compatibility advice. Every compatibility refusal still
+runs admission's owned-staging cleanup and occurs before restore-journal creation.
 
 A valid **older-chain** staged DB migrates forward with the production migrations and
 passes integrity checks (it is not rejected). The staged DB's actual complete chain must

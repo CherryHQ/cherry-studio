@@ -1,3 +1,47 @@
+import * as z from 'zod'
+
+const MigrationTipDiagnosticSchema = z.strictObject({
+  folderMillis: z.number().int().safe().nonnegative(),
+  hashPrefix: z.union([z.string().regex(/^[0-9a-f]{12}$/), z.literal('unavailable')])
+})
+
+const CompatibilityCommonSchema = z.object({
+  archiveAppVersion: z.string().min(1).max(64),
+  archiveBuildType: z.enum(['packaged', 'development', 'unknown']),
+  currentAppVersion: z.string().min(1).max(64),
+  currentBuildType: z.enum(['packaged', 'development']),
+  sourceMigrationCount: z.number().int().safe().positive(),
+  targetMigrationCount: z.number().int().safe().positive(),
+  sourceTip: MigrationTipDiagnosticSchema,
+  targetTip: MigrationTipDiagnosticSchema
+})
+
+export const BackupMigrationCompatibilityDiagnosticSchema = z.discriminatedUnion('kind', [
+  CompatibilityCommonSchema.extend({
+    kind: z.literal('source-ahead'),
+    missingMigrationCount: z.number().int().safe().positive(),
+    firstExtraIndex: z.number().int().safe().positive()
+  }).strict(),
+  CompatibilityCommonSchema.extend({
+    kind: z.literal('lineage-fork'),
+    firstDivergentIndex: z.number().int().safe().positive()
+  }).strict()
+])
+
+export type BackupMigrationCompatibilityDiagnostic = z.infer<typeof BackupMigrationCompatibilityDiagnosticSchema>
+
+export const BackupFormatCompatibilityDiagnosticSchema = z.strictObject({
+  kind: z.enum(['archive-newer', 'archive-legacy']),
+  archiveFormatVersion: z.number().int().safe().nonnegative(),
+  currentFormatVersion: z.number().int().safe().nonnegative(),
+  archiveAppVersion: z.string().min(1).max(64).optional(),
+  archiveBuildType: z.enum(['packaged', 'development', 'unknown']),
+  currentAppVersion: z.string().min(1).max(64),
+  currentBuildType: z.enum(['packaged', 'development'])
+})
+
+export type BackupFormatCompatibilityDiagnostic = z.infer<typeof BackupFormatCompatibilityDiagnosticSchema>
+
 /**
  * Backup-domain IpcApi error codes. Import directly from this module on both
  * sides.
@@ -10,8 +54,14 @@ export const backupErrorCodes = {
   BUSY: 'BACKUP_BUSY',
   /** The caller is not a window this app manages, so it may not drive a restore. */
   SENDER_NOT_ALLOWED: 'BACKUP_SENDER_NOT_ALLOWED',
-  /** The chosen archive is malformed, tampered with, or built by an incompatible version. */
+  /** The chosen archive is malformed, corrupt, tampered with, or otherwise unsafe. */
   ARCHIVE_REJECTED: 'BACKUP_ARCHIVE_REJECTED',
+  /** The archive database has a strict extension of this build's migration chain. */
+  RESTORE_REQUIRES_NEWER_APP: 'BACKUP_RESTORE_REQUIRES_NEWER_APP',
+  /** The archive database and this build diverge within their shared migration prefix. */
+  RESTORE_LINEAGE_INCOMPATIBLE: 'BACKUP_RESTORE_LINEAGE_INCOMPATIBLE',
+  /** The archive uses a different Backup container/manifest format. */
+  FORMAT_UNSUPPORTED: 'BACKUP_FORMAT_UNSUPPORTED',
   /** Cancel/arm/acknowledge found no restore in the state the action needs. */
   RESTORE_STATE: 'BACKUP_RESTORE_STATE',
   /** The restore journal cannot be parsed; the next boot quarantines it. */

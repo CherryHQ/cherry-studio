@@ -2,8 +2,11 @@ import { application } from '@application'
 import { t } from '@main/i18n'
 import {
   ArchiveAdmissionError,
+  BACKUP_FORMAT_VERSION,
   BackupBusyError,
   BackupCancelledError,
+  BackupFormatCompatibilityError,
+  BackupMigrationCompatibilityError,
   CeilingExceededError,
   DiskFullError,
   HardLinkUnsupportedError,
@@ -15,11 +18,15 @@ import {
   SourceDriftError,
   UnportableSourceError
 } from '@main/services/backup'
-import { backupErrorCodes } from '@shared/ipc/errors/backup'
+import {
+  backupErrorCodes,
+  BackupFormatCompatibilityDiagnosticSchema,
+  BackupMigrationCompatibilityDiagnosticSchema
+} from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { BackupDegradationCode, backupRequestSchemas } from '@shared/ipc/schemas/backup'
 import type { IpcContext, IpcHandlersFor } from '@shared/ipc/types'
-import { type BrowserWindow, dialog } from 'electron'
+import { app, type BrowserWindow, dialog } from 'electron'
 
 /**
  * Backup v2 request routes — sender policy, the file dialogs, error mapping, and
@@ -77,9 +84,62 @@ function requireManagedWindow({ senderId }: IpcContext): BrowserWindow {
  * branches on. Anything unmapped stays an unexpected fault (`INTERNAL`), which
  * is the honest answer for a fault we did not predict.
  */
+function currentBuildType(): 'packaged' | 'development' {
+  return app.isPackaged ? 'packaged' : 'development'
+}
+
+function migrationTipForIpc(tip: { readonly folderMillis: number; readonly hash: string }) {
+  return {
+    folderMillis: tip.folderMillis,
+    hashPrefix: /^[0-9a-f]{12,}$/.test(tip.hash) ? tip.hash.slice(0, 12) : ('unavailable' as const)
+  }
+}
+
 function toIpcError(error: unknown): unknown {
   if (error instanceof BackupBusyError) {
     return new IpcError(backupErrorCodes.BUSY, error.message, { running: error.running })
+  }
+  if (error instanceof BackupMigrationCompatibilityError) {
+    const { diagnostic } = error
+    const common = {
+      archiveAppVersion: diagnostic.archiveAppVersion,
+      archiveBuildType: diagnostic.archiveBuildType,
+      currentAppVersion: app.getVersion(),
+      currentBuildType: currentBuildType(),
+      sourceMigrationCount: diagnostic.sourceMigrationCount,
+      targetMigrationCount: diagnostic.targetMigrationCount,
+      sourceTip: migrationTipForIpc(diagnostic.sourceTip),
+      targetTip: migrationTipForIpc(diagnostic.targetTip)
+    }
+    const data = BackupMigrationCompatibilityDiagnosticSchema.parse(
+      diagnostic.kind === 'source-ahead'
+        ? {
+            ...common,
+            kind: diagnostic.kind,
+            missingMigrationCount: diagnostic.missingMigrationCount,
+            firstExtraIndex: diagnostic.firstExtraIndex
+          }
+        : { ...common, kind: diagnostic.kind, firstDivergentIndex: diagnostic.firstDivergentIndex }
+    )
+    return new IpcError(
+      diagnostic.kind === 'source-ahead'
+        ? backupErrorCodes.RESTORE_REQUIRES_NEWER_APP
+        : backupErrorCodes.RESTORE_LINEAGE_INCOMPATIBLE,
+      error.message,
+      data
+    )
+  }
+  if (error instanceof BackupFormatCompatibilityError) {
+    const data = BackupFormatCompatibilityDiagnosticSchema.parse({
+      kind: error.archiveFormatVersion > BACKUP_FORMAT_VERSION ? 'archive-newer' : 'archive-legacy',
+      archiveFormatVersion: error.archiveFormatVersion,
+      currentFormatVersion: BACKUP_FORMAT_VERSION,
+      archiveAppVersion: error.archiveAppVersion,
+      archiveBuildType: error.archiveBuildType,
+      currentAppVersion: app.getVersion(),
+      currentBuildType: currentBuildType()
+    })
+    return new IpcError(backupErrorCodes.FORMAT_UNSUPPORTED, error.message, data)
   }
   if (error instanceof ArchiveAdmissionError) {
     return new IpcError(backupErrorCodes.ARCHIVE_REJECTED, error.message, { reason: error.reason })
