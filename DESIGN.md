@@ -501,7 +501,7 @@ These patterns reflect the current v2 pages and should be treated as valid desig
 **Tool Gallery / Code Tools**
 - Use a focused, centered gallery on `bg-background` with a constrained width (`max-w-5xl` style scale) and responsive card grid.
 - Prominent tool-entry cards may use `bg-card`, `border-border`, `p-4`, and `var(--radius-2xl)` to create a launchpad feel without adding shadows.
-- Selection should use border/ring feedback (`border-border-strong`, `ring-ring`) rather than a new chromatic accent.
+- Selection should use border/ring feedback (`border-border-selected`, `ring-ring`) rather than a new chromatic accent.
 - Hero or product icons may be circular (`rounded-full`) and use `shadow-lg` only when they behave as a visual anchor, not as repeated card elevation.
 
 **Mini App Launchpad / Settings Drawer**
