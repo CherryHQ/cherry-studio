@@ -868,6 +868,93 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('scrolls smoothly when the raw offset overshoots the reachable bottom but the real movement is short', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 3400
+      render(
+        <RuntimeDomProbe
+          items={['message-a', 'message-b']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 4000)
+      // message-b's raw offset (6000px) is far past the reachable bottom
+      // (3600px). The raw distance (2600px) exceeds 3 viewports, but the real
+      // movement is only 200px — so it must animate, not jump.
+      runtime!.vlistHandleRef.current = createHandle({
+        getItemOffset: vi.fn((index) => index * 6000),
+        getItemSize: vi.fn(() => 400)
+      })
+
+      act(() => handle!.scrollToKey('message-b', 'start'))
+      expect(scrollTop).toBe(3400)
+
+      raf.tick(60)
+      expect(scrollTop).toBe(3600)
+    } finally {
+      raf.restore()
+    }
+  })
+
+  it('jumps instantly when even the clamped movement exceeds a few viewports', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      render(
+        <RuntimeDomProbe
+          items={['message-a', 'message-b']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 4000)
+      // message-b's raw offset (6000px) clamps to the reachable bottom
+      // (3600px), still more than 3 viewports away — so it jumps instantly.
+      runtime!.vlistHandleRef.current = createHandle({
+        getItemOffset: vi.fn((index) => index * 6000),
+        getItemSize: vi.fn(() => 400)
+      })
+
+      act(() => handle!.scrollToKey('message-b', 'start'))
+
+      expect(scrollTop).toBe(3600)
+    } finally {
+      raf.restore()
+    }
+  })
+
   it('keeps the requested heading anchored when content before it grows inside a block wrapper', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)

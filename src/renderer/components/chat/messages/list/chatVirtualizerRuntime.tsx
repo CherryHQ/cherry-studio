@@ -824,6 +824,14 @@ export function useChatVirtualizerRuntime<T>({
 
   // ---- imperative API -------------------------------------------------
 
+  // Reading navigations can only land within [0, realBottom]; both the scroll
+  // itself and any distance measured against it must use this same bound.
+  const clampToReachable = useCallback(
+    (scroller: HTMLElement, target: number) =>
+      Math.min(getRealBottom(scroller, bottomFollowInsetRef.current), Math.max(0, target)),
+    []
+  )
+
   const navigateForReading = useCallback(
     (
       getTarget: (scroller: HTMLElement) => number,
@@ -841,7 +849,7 @@ export function useChatVirtualizerRuntime<T>({
       const resolveTarget = () => {
         const current = scrollerRef.current
         if (!current) return 0
-        return Math.min(getRealBottom(current, bottomFollowInsetRef.current), Math.max(0, getTarget(current)))
+        return clampToReachable(current, getTarget(current))
       }
       const finish = () => {
         if (!readNavigationActiveRef.current) return
@@ -857,7 +865,7 @@ export function useChatVirtualizerRuntime<T>({
         takeUserControl(getPreferredAnchor?.() ?? null)
       }
     },
-    [atBottom, handBackToRuntime, smoothScroll, takeUserControl]
+    [atBottom, clampToReachable, handBackToRuntime, smoothScroll, takeUserControl]
   )
 
   const scrollToBottom = useCallback(
@@ -938,11 +946,15 @@ export function useChatVirtualizerRuntime<T>({
         // discard every heavy message the animation flies over, frame by
         // frame — janky over hundreds of turns. Past a few viewports the
         // in-between content is never read anyway, so jump instantly and only
-        // mount the destination window.
+        // mount the destination window. Measure the distance from the clamped
+        // target — the same reachable bound navigateForReading scrolls to —
+        // so an out-of-range raw offset cannot inflate a short real movement
+        // into an instant jump.
         const scroller = scrollerRef.current
         const behavior: ScrollBehavior =
           scroller &&
-          Math.abs(resolveTarget(scroller) - scroller.scrollTop) > scroller.clientHeight * LONG_JUMP_VIEWPORTS
+          Math.abs(clampToReachable(scroller, resolveTarget(scroller)) - scroller.scrollTop) >
+            scroller.clientHeight * LONG_JUMP_VIEWPORTS
             ? 'instant'
             : 'smooth'
         navigateForReading(resolveTarget, behavior, () => {
@@ -967,6 +979,7 @@ export function useChatVirtualizerRuntime<T>({
     [
       atBottom.isAtBottom,
       captureLocalSendScrollEligibility,
+      clampToReachable,
       findDataIndexByKey,
       navigateForReading,
       scrollToBottom,
