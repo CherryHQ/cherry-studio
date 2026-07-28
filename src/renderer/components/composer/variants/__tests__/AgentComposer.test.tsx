@@ -64,6 +64,8 @@ const mocks = vi.hoisted(() => ({
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   shortcutHandlers: new Map<string, () => void>(),
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
+  topicFulfilled: false,
+  markTopicSeen: vi.fn(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   sessionLayout: undefined as string | undefined,
@@ -426,7 +428,11 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false, isFulfilled: false, markSeen: () => {} })
+  useTopicStreamStatus: () => ({
+    isPending: false,
+    isFulfilled: mocks.topicFulfilled,
+    markSeen: mocks.markTopicSeen
+  })
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -617,8 +623,8 @@ function getAgentSkillsPanelItems() {
   return list
 }
 
-// `queueContent` is now the whole above-input slot (background-task chips + the followups dock), so
-// dock assertions locate the dock child instead of assuming the slot IS the dock.
+// `queueContent` is the whole above-input slot, so dock assertions locate the dock child instead of
+// assuming the slot IS the dock.
 function getQueueDock(): any {
   const slot = mocks.surfaceProps?.queueContent as any
   if (!slot) return undefined
@@ -674,6 +680,8 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
+    mocks.topicFulfilled = false
+    mocks.markTopicSeen.mockReset()
     mocks.isDirectory.mockReset()
     mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
@@ -3012,31 +3020,11 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeTruthy()
   })
 
-  it('opens a live subagent chip in its tool flow while keeping other background work inert', () => {
-    const openAgentToolFlow = vi.fn()
+  it('queues a follow-up while background tasks remain after the foreground stream ends', () => {
     MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
       { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },
       { id: 'shell-1', type: 'local_bash', description: 'sleep 300' }
     ])
-    MockUseCacheUtils.setSharedCacheValue('agent.session.task_events.session-1', {
-      'subagent-1': {
-        event: 'started',
-        taskId: 'subagent-1',
-        toolUseId: 'tool-use-1',
-        status: 'in_progress',
-        title: 'Audit the codebase',
-        taskType: 'subagent',
-        isBackgrounded: true
-      },
-      'shell-edge-1': {
-        event: 'started',
-        taskId: 'shell-edge-1',
-        status: 'in_progress',
-        title: 'sleep 300',
-        taskType: 'local_bash',
-        isBackgrounded: true
-      }
-    })
 
     render(
       <AgentComposer
@@ -3044,19 +3032,41 @@ describe('AgentComposer', () => {
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        openAgentToolFlow={openAgentToolFlow}
         isStreaming={false}
       />
     )
-    render(<>{mocks.surfaceProps?.queueContent}</>)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Audit the codebase' }))
+    fireEvent.click(screen.getByText('send'))
 
-    expect(openAgentToolFlow).toHaveBeenCalledWith({
-      toolCallId: 'tool-use-1',
-      title: 'Audit the codebase'
-    })
-    expect(screen.getByText('sleep 300').closest('button')).toBeNull()
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(getQueueDock()).toBeTruthy()
+  })
+
+  it('drains a background-period follow-up only after every background task ends', async () => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
+      { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' }
+    ])
+    const props = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const { rerender } = render(<AgentComposer {...props} />)
+
+    fireEvent.click(screen.getByText('send'))
+    mocks.topicFulfilled = true
+    rerender(<AgentComposer {...props} />)
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.markTopicSeen).not.toHaveBeenCalled()
+
+    MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [])
+    rerender(<AgentComposer {...props} />)
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+    expect(mocks.markTopicSeen).toHaveBeenCalledTimes(1)
   })
 
   it('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {

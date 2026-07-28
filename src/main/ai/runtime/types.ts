@@ -70,8 +70,9 @@ export type AgentRuntimeEvent =
   | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
-  /** Whether work outliving the current turn still needs this connection kept alive. This does not
-   *  imply an autonomous generation and must not block host-admitted user turns. */
+  /** Whether work outliving the current turn still needs this connection kept alive. `false` is a
+   *  runtime-quiescence boundary: all trailing lifecycle output and autonomous generation for that
+   *  work have drained. This does not block host-admitted user turns unless a rebuild is required. */
   | { type: 'background-work-state'; active: boolean }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }

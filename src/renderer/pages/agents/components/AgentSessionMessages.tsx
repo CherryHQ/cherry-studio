@@ -14,6 +14,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { memo, useEffect, useMemo } from 'react'
 
 import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
+import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
@@ -76,6 +77,25 @@ const AgentSessionMessages = ({
         : undefined,
     [activeAgent]
   )
+  const backgroundTaskAnchorMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      if (message?.role !== 'assistant') continue
+      const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+      if (parts.length > 0) return message.id
+    }
+    return undefined
+  }, [messages, partsByMessageId])
+  const messageTail = useMemo(
+    () =>
+      backgroundTaskAnchorMessageId
+        ? {
+            messageId: backgroundTaskAnchorMessageId,
+            content: <AgentSessionBackgroundTasks sessionId={sessionId} />
+          }
+        : undefined,
+    [backgroundTaskAnchorMessageId, sessionId]
+  )
 
   const derivedTopic = useMemo<Topic>(
     () => ({
@@ -108,7 +128,8 @@ const AgentSessionMessages = ({
     deleteMessage,
     respondToolApproval,
     messageNavigation,
-    workspacePath: session?.workspace?.path
+    workspacePath: session?.workspace?.path,
+    messageTail
   })
 
   useEffect(() => {

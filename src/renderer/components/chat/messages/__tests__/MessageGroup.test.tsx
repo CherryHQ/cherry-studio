@@ -430,6 +430,22 @@ describe('MessageGroup', () => {
     expect(contentContainer.style.width).toBe('')
   })
 
+  it('renders adapter-owned tail content only after its target assistant message', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical'), createMessage('msg-2', 1, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(
+      <MessageGroup
+        messages={messages}
+        topic={topic}
+        messageTail={{ messageId: 'msg-2', content: <div data-testid="message-tail">background tasks</div> }}
+      />
+    )
+
+    expect(container.querySelector('#message-msg-1 [data-testid="message-tail"]')).toBeNull()
+    expect(container.querySelector('#message-msg-2 [data-testid="message-tail"]')).toHaveTextContent('background tasks')
+  })
+
   it('renders assistant footer actions in the same message body column as content', () => {
     const messages = [createMessage('msg-1', 0, 'vertical')]
     const topic = { id: 'topic-1' } as Topic

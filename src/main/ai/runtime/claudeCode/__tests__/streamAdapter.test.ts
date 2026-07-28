@@ -981,7 +981,66 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(parts).toEqual([])
     })
 
-    it('releases background keepalive on completion without requiring a wake', () => {
+    it('releases background keepalive after the terminal bookend and idle without requiring a wake', () => {
+      const { adapter, statusEvents } = createAdapter({}, { openTurn: false })
+      const task = { task_id: 'bg-1', task_type: 'subagent', description: 'Audit the codebase' }
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [task]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'session_state_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        state: 'idle'
+      } as any)
+      // A foreground turn can become idle while its detached task is still live.
+      expect(statusEvents).not.toContainEqual({ type: 'background-work-state', active: false })
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: []
+      } as any)
+
+      // Empty membership is delivered before the terminal edge in practice and is not quiescence.
+      expect(statusEvents.at(-1)).toEqual({ type: 'background-tasks', tasks: [] })
+      expect(statusEvents).not.toContainEqual({ type: 'background-work-state', active: false })
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_notification',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'bg-1',
+        status: 'completed',
+        output_file: '/tmp/bg-1.md',
+        summary: 'Audited the codebase'
+      } as any)
+      expect(statusEvents.at(-1)).toMatchObject({
+        type: 'background-task-event',
+        data: { event: 'notification', taskId: 'bg-1', status: 'completed' }
+      })
+      expect(statusEvents).not.toContainEqual({ type: 'background-work-state', active: false })
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'session_state_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        state: 'idle'
+      } as any)
+      expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: false })
+    })
+
+    it('keeps background work alive through a terminal bookend and parentless wake until idle', () => {
       const { adapter, statusEvents } = createAdapter({}, { openTurn: false })
       const task = { task_id: 'bg-1', task_type: 'subagent', description: 'Audit the codebase' }
 
@@ -999,16 +1058,41 @@ describe('ClaudeCodeStreamAdapter', () => {
         uuid: crypto.randomUUID(),
         tasks: []
       } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_notification',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'bg-1',
+        status: 'completed',
+        output_file: '/tmp/bg-1.md',
+        summary: 'Audited the codebase'
+      } as any)
+      adapter.handleMessage({
+        ...streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'done' } }),
+        parent_tool_use_id: null
+      })
+      adapter.handleMessage(successResult())
 
-      expect(statusEvents).toEqual([
-        {
-          type: 'background-tasks',
-          tasks: [{ id: 'bg-1', type: 'subagent', description: 'Audit the codebase' }]
-        },
-        { type: 'background-work-state', active: true },
-        { type: 'background-tasks', tasks: [] },
-        { type: 'background-work-state', active: false }
+      expect(statusEvents.map((event) => event.type)).toEqual([
+        'background-tasks',
+        'background-work-state',
+        'background-tasks',
+        'background-task-event',
+        'autonomous-generation-state',
+        'receive-only-turn',
+        'autonomous-generation-state'
       ])
+      expect(statusEvents).not.toContainEqual({ type: 'background-work-state', active: false })
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'session_state_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        state: 'idle'
+      } as any)
+      expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: false })
     })
 
     it('reports compaction through the status sink, including a boundary anchor', () => {

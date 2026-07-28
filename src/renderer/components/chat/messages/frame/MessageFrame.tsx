@@ -49,6 +49,7 @@ interface Props {
   isLatestAssistantMessage?: boolean
   showModelIdentity?: boolean
   lockedMentionedModels?: Model[]
+  messageTail?: React.ReactNode
 }
 
 const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
@@ -63,7 +64,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   isHorizontalMultiModelLayout = false,
   isLatestAssistantMessage = false,
   showModelIdentity = false,
-  lockedMentionedModels
+  lockedMentionedModels,
+  messageTail
 }) => {
   const { t } = useTranslation()
   const actions = useMessageListActions()
@@ -185,18 +187,21 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   }
 
   const plainMessageContent = (
-    <Scrollbar
-      data-ui="part:message-content"
-      className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
-      style={{
-        fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-        fontSize,
-        overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
-      }}>
-      <MessageErrorBoundary>
-        <MessageContent message={message} />
-      </MessageErrorBoundary>
-    </Scrollbar>
+    <>
+      <Scrollbar
+        data-ui="part:message-content"
+        className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
+        style={{
+          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+          fontSize,
+          overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
+        }}>
+        <MessageErrorBoundary>
+          <MessageContent message={message} />
+        </MessageErrorBoundary>
+      </Scrollbar>
+      {isAssistantMessage ? messageTail : undefined}
+    </>
   )
 
   const userFooter = showUserFooterActions ? (

@@ -13,6 +13,7 @@ import type {
   SDKMessage,
   SDKPartialAssistantMessage,
   SDKResultMessage,
+  SDKSessionStateChangedMessage,
   SDKStatusMessage,
   SDKTaskNotificationMessage,
   SDKTaskProgressMessage,
@@ -318,6 +319,8 @@ export class ClaudeCodeStreamAdapter {
   private turnActive = false
   /** The current turn was started by parentless SDK content rather than a host `send()`. */
   private autonomousTurn = false
+  /** An empty task snapshot was seen; wait for the SDK's authoritative idle boundary to release it. */
+  private backgroundWorkReleasePending = false
   /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
   private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
 
@@ -986,8 +989,9 @@ export class ClaudeCodeStreamAdapter {
         this.handlePermissionDeniedSystemMessage(message, ctx)
         return
       case 'background_tasks_changed':
-        // The snapshot feeds presentation while the level only keeps the connection alive. Neither
-        // claims autonomous generation ownership; that begins only if parentless content arrives.
+        // Membership feeds presentation immediately, but an empty snapshot may precede the terminal
+        // task bookend and an autonomous wake. Keep the connection alive until session idle, which
+        // the SDK defines as occurring after held-back results and the background-agent loop drain.
         this.statusSink.emit({
           type: 'background-tasks',
           tasks: message.tasks.map((task) => ({
@@ -996,7 +1000,15 @@ export class ClaudeCodeStreamAdapter {
             description: task.description
           }))
         })
-        this.statusSink.emit({ type: 'background-work-state', active: message.tasks.length > 0 })
+        if (message.tasks.length > 0) {
+          this.backgroundWorkReleasePending = false
+          this.statusSink.emit({ type: 'background-work-state', active: true })
+        } else {
+          this.backgroundWorkReleasePending = true
+        }
+        return
+      case 'session_state_changed':
+        this.handleSessionStateChangedSystemMessage(message)
         return
       case 'commands_changed':
         // Mid-session catalog push (skills discovered in a subdirectory, etc.); consumers replace
@@ -1009,7 +1021,6 @@ export class ClaudeCodeStreamAdapter {
       case 'hook_started':
       case 'hook_progress':
       case 'hook_response':
-      case 'session_state_changed':
       case 'memory_recall':
       case 'local_command_output':
       case 'elicitation_complete':
@@ -1148,6 +1159,12 @@ export class ClaudeCodeStreamAdapter {
       // not stay `compacting` until the idle TTL; a real boundary below still wins with the anchor.
       this.statusSink.emit({ type: 'compaction-complete' })
     }
+  }
+
+  private handleSessionStateChangedSystemMessage(message: SDKSessionStateChangedMessage): void {
+    if (message.state !== 'idle' || !this.backgroundWorkReleasePending) return
+    this.backgroundWorkReleasePending = false
+    this.statusSink.emit({ type: 'background-work-state', active: false })
   }
 
   private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage): void {

@@ -119,7 +119,8 @@ const MessageHistoryLayer = memo(MessageGroupLayer, (previous, next) => {
     previous.captureMode === next.captureMode &&
     previous.registerMessageElement === next.registerMessageElement &&
     previous.isLatestAssistantGroup === next.isLatestAssistantGroup &&
-    previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId
+    previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
+    previous.messageTail === next.messageTail
   )
 })
 
@@ -135,7 +136,7 @@ const MessageList = () => {
   const messageUi = useMessageListUi()
   const partsByMessageId = usePartsMap()
   const { setForceWideLayout } = useChatLayoutMode()
-  const { topic, messages, beforeList, hasOlder = false, messageNavigation } = data
+  const { topic, messages, beforeList, messageTail, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
@@ -592,11 +593,16 @@ const MessageList = () => {
             onScrollContainerReady={handleScrollContainerReady}
             onReachTop={loadMoreMessages}
             renderItem={([key, groupMessages], index) => {
+              const groupMessageTail =
+                messageTail && groupMessages.some((message) => message.id === messageTail.messageId)
+                  ? messageTail
+                  : undefined
               const props: MessageGroupLayerProps = {
                 groupKey: key,
                 narrowMode: messageListNarrowMode,
                 isLatestAssistantGroup: key === latestAssistantGroupKey,
                 directAssistantModelsByUserId,
+                messageTail: groupMessageTail,
                 messages: groupMessages,
                 partsByMessageId:
                   index < firstLiveGroupIndex && streamingLayers

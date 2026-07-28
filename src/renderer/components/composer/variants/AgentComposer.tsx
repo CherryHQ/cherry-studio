@@ -1,7 +1,6 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
-import type { OpenAgentToolFlowInput } from '@renderer/components/chat/messages/types'
 import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
@@ -36,7 +35,6 @@ import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSe
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
-import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -63,7 +61,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { OutputFor } from '@shared/ipc/types'
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Cable, Loader2, Settings2, Terminal, ToolCase } from 'lucide-react'
+import { Cable, Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -252,7 +250,6 @@ type Props = {
   sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
   captureLocalSendScrollEligibility?: () => void
   stop: () => Promise<void>
-  openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
   onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
@@ -283,7 +280,6 @@ const AgentComposerRoot = ({
   sendMessage,
   captureLocalSendScrollEligibility,
   stop,
-  openAgentToolFlow,
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
@@ -368,7 +364,6 @@ const AgentComposerRoot = ({
         chatSendMessage={sendMessage}
         captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
         chatStop={stop}
-        openAgentToolFlow={openAgentToolFlow}
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
@@ -401,7 +396,6 @@ interface InnerProps {
   chatSendMessage: Props['sendMessage']
   captureLocalSendScrollEligibility?: Props['captureLocalSendScrollEligibility']
   chatStop: Props['stop']
-  openAgentToolFlow?: Props['openAgentToolFlow']
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
@@ -416,76 +410,6 @@ interface InnerProps {
   forceNarrowLayout?: boolean
   deferQuickPanel?: boolean
   resolvedWorkspaceWarning?: string | null
-}
-
-/**
- * Chip row above the input for background work that keeps running after a turn ends. The SDK will
- * wake the agent with a follow-up response when it settles; without this the gap in between reads
- * as a truncated answer.
- */
-function AgentComposerBackgroundTasks({
-  sessionId,
-  openAgentToolFlow
-}: {
-  sessionId: string
-  openAgentToolFlow?: Props['openAgentToolFlow']
-}) {
-  const { t } = useTranslation()
-  const backgroundTasks = useAgentSessionBackgroundTasks(sessionId)
-  const taskEvents = useAgentSessionTaskEvents(sessionId)
-  if (backgroundTasks.length === 0) return null
-  const liveTaskEvents = Object.values(taskEvents).filter(
-    (event) => event.isBackgrounded === true && event.status !== 'completed' && event.status !== 'error'
-  )
-  // The aggregate level explicitly forbids id correlation with lifecycle edges. Prefer the
-  // per-task edge surface when it is available; use aggregate rows only as an inert fallback.
-  const chips =
-    liveTaskEvents.length > 0
-      ? liveTaskEvents.map((event) => ({
-          key: `event:${event.taskId}`,
-          description: event.title ?? event.description ?? event.taskId,
-          toolCallId:
-            event.taskType === 'subagent' || event.taskType === 'local_agent' || event.subagentType
-              ? event.toolUseId
-              : undefined
-        }))
-      : backgroundTasks.map((task) => ({
-          key: `level:${task.id}`,
-          description: task.description,
-          toolCallId: undefined
-        }))
-
-  return (
-    <div
-      aria-label={t('agent.composer.background_running', { count: backgroundTasks.length })}
-      className="mt-1 mb-2 flex flex-wrap justify-center gap-1">
-      {chips.map((task) => {
-        const content = (
-          <>
-            <Loader2 size={12} className="shrink-0 animate-spin" />
-            <span className="max-w-60 truncate">{task.description}</span>
-          </>
-        )
-
-        return task.toolCallId && openAgentToolFlow ? (
-          <Button
-            key={task.key}
-            type="button"
-            variant="ghost"
-            className="h-auto min-w-0 gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5 font-normal text-muted-foreground text-xs hover:bg-muted hover:text-foreground"
-            onClick={() => openAgentToolFlow({ toolCallId: task.toolCallId!, title: task.description })}>
-            {content}
-          </Button>
-        ) : (
-          <div
-            key={task.key}
-            className="flex min-w-0 items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5 text-muted-foreground text-xs">
-            {content}
-          </div>
-        )
-      })}
-    </div>
-  )
 }
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
@@ -701,7 +625,6 @@ const AgentComposerInner = ({
   chatSendMessage,
   captureLocalSendScrollEligibility,
   chatStop,
-  openAgentToolFlow,
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
@@ -740,6 +663,8 @@ const AgentComposerInner = ({
     customizePanelItem
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
+  const backgroundTasks = useAgentSessionBackgroundTasks(sessionId)
+  const hasBackgroundTasks = backgroundTasks.length > 0
   const agentModelFilter = useAgentModelFilter(agent?.type)
   const isModelUnavailable = Boolean(agent) && !model && !modelPending
   const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
@@ -1142,7 +1067,7 @@ const AgentComposerInner = ({
     setPaused: setFollowupPaused
   } = useFollowupQueue({
     scopeKey: sessionTopicId,
-    isFulfilled: sessionFulfilled,
+    isFulfilled: sessionFulfilled && !hasBackgroundTasks,
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload,
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
@@ -1181,7 +1106,7 @@ const AgentComposerInner = ({
 
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items.
-      if (isStreaming) {
+      if (isStreaming || hasBackgroundTasks) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
@@ -1214,6 +1139,7 @@ const AgentComposerInner = ({
       draftCacheKey,
       enqueueFollowup,
       files,
+      hasBackgroundTasks,
       isStreaming,
       model,
       sendDisabled,
@@ -1368,7 +1294,6 @@ const AgentComposerInner = ({
           onPause={abortAgentSession}
           queueContent={
             <>
-              <AgentComposerBackgroundTasks sessionId={sessionId} openAgentToolFlow={openAgentToolFlow} />
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock
                   items={queuedFollowups}
