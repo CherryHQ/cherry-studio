@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
+const refetchMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
@@ -33,6 +34,9 @@ function stubSkillRoutes() {
         return discoverSystemSkillsMock(input)
       case 'skill.import_system':
         return importSystemSkillMock(input)
+      case 'skill.reconcile':
+        // Fired by useReconcileSkillsOnOpen when a skill view mounts; irrelevant to these assertions.
+        return Promise.resolve(undefined)
       default:
         throw new Error(`Unexpected skill route: ${route}`)
     }
@@ -55,6 +59,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     sourceUrl: null,
     namespace: null,
     author: null,
+    version: null,
     sourceTags: [],
     contentHash: 'hash-1',
     isEnabled: false,
@@ -78,11 +83,12 @@ describe('useInstalledSkills', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: refetchMock,
       mutate: vi.fn()
     })
 
     invalidateMock.mockResolvedValue(undefined)
+    refetchMock.mockResolvedValue(undefined)
     listLocalSkillsMock.mockResolvedValue({ success: true, data: [] })
 
     stubSkillRoutes()
@@ -93,6 +99,28 @@ describe('useInstalledSkills', () => {
 
     expect(result.current.skills).toHaveLength(2)
     expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
+  })
+
+  it('reconciles the on-disk library when the agent Skills view opens, then refreshes', async () => {
+    renderHook(() => useInstalledSkills('agent-1'))
+
+    await waitFor(() => expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {}))
+    await waitFor(() => expect(invalidateMock).toHaveBeenCalledWith('/skills'))
+  })
+
+  it('reconciles before an explicit Composer skills refresh', async () => {
+    const { result } = renderHook(() => useAvailableSkills('agent-1', '/repo'))
+    await waitFor(() => expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {}))
+    skillMocks.request.mockClear()
+    refetchMock.mockClear()
+
+    await act(async () => {
+      await result.current.refresh()
+    })
+
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {})
+    expect(refetchMock).toHaveBeenCalledOnce()
+    expect(skillMocks.request.mock.invocationCallOrder[0]).toBeLessThan(refetchMock.mock.invocationCallOrder[0])
   })
 
   it('keeps cached skills visible during background refresh', () => {
