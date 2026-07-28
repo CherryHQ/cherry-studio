@@ -1280,7 +1280,7 @@ describe('ChatComposer', () => {
     expect(newConversationIcon).toHaveAttribute('height', '18')
     expect(newConversationIcon).toHaveAttribute('viewBox', '0 0 24 24')
     expect(newConversationIcon).toHaveAttribute('stroke', 'currentColor')
-    expect(newConversationIcon).toHaveAttribute('stroke-width', '2')
+    expect(newConversationIcon).toHaveAttribute('stroke-width', '1.8')
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
@@ -1787,6 +1787,39 @@ describe('ChatComposer', () => {
       await waitFor(() => {
         expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['final message'])
       })
+    })
+
+    it('strips the knowledge sentence from the saved entry', async () => {
+      // Input history is the one composer path backed by localStorage, so it is the only place a
+      // knowledge token's prompt text could outlive its `data-knowledge-scope` part across a restart —
+      // replayed as prose it would claim a base the kb_* tools were never authorized for.
+      const knowledgePrompt = 'The user attached knowledge base "Base 1" (id: base-1).'
+      const onSend = vi.fn().mockResolvedValue(undefined)
+
+      render(<ChatComposer topic={topic} onSend={onSend} />)
+
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({
+          text: `summarize ${knowledgePrompt} now`,
+          tokens: [
+            {
+              id: 'knowledge:base-1',
+              kind: 'knowledge',
+              label: 'Base 1',
+              promptText: knowledgePrompt,
+              index: 0,
+              textOffset: 'summarize '.length
+            } as ComposerSerializedToken
+          ]
+        })
+      })
+
+      await waitFor(() => expect(onSend).toHaveBeenCalled())
+      const [saved = ''] = MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history') ?? []
+      expect(saved).not.toContain('base-1')
+      expect(saved).not.toContain(knowledgePrompt)
+      expect(saved).toContain('summarize')
+      expect(saved).toContain('now')
     })
 
     it('does NOT save input history when onSend rejects', async () => {

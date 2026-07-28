@@ -96,6 +96,7 @@ export function AgentToolCallCard({
       isStreaming={isStreaming}
       item={toolContentItem}
       onOpenDetails={openToolFlow}
+      stateId={toolCallId}
       showInlineDetails={canShowInlineDetails}
     />
   )

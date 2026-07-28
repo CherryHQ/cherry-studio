@@ -276,13 +276,15 @@ describe('cherryBuiltinTools', () => {
     expect(kbSearch).not.toHaveBeenCalledWith('b2', 'topic')
   })
 
-  it('rejects a direct kb_* call when the agent has no bound knowledge base', async () => {
+  it('rejects a direct kb_* call when the effective knowledge scope is empty', async () => {
     const result = await callCherryBuiltinTool('kb_search', { query: 'topic', baseIds: ['b1'] }, signal, [])
 
     expect(result.isError).toBe(true)
-    expect(textOf(result)).toContain('no knowledge base bound')
+    // "in scope", not "bound": an empty scope means no binding AND no composer selection, so naming
+    // only the binding would send the model after the wrong remedy.
+    expect(textOf(result)).toContain('no knowledge base in scope')
     expect(kbSearch).not.toHaveBeenCalled()
-    expect(loggerWarn).toHaveBeenCalledWith('Rejected direct knowledge tool call without a bound knowledge base', {
+    expect(loggerWarn).toHaveBeenCalledWith('Rejected direct knowledge tool call with an empty knowledge scope', {
       tool: 'kb_search'
     })
   })

@@ -34,7 +34,6 @@ const {
   applyCallOverrides,
   buildAgentParams,
   composeStopWhen,
-  resolveKnowledgeBaseIds,
   resolveReasoningMaxTokens,
   resolveToolCallLimit,
   resolveTools
@@ -340,29 +339,80 @@ describe('resolveToolCallLimit', () => {
   })
 })
 
-describe('resolveKnowledgeBaseIds', () => {
-  it('falls back to the assistant-bound bases when the request selects none', () => {
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), undefined)).toEqual(['kb-1'])
+/**
+ * The resolver's own semantics live in `utils/__tests__/knowledgeScope.test.ts`. These tests pin the
+ * *call site* instead: that `buildAgentParams` composes the assistant binding with the request
+ * selection in that order, and hands the result to `resolveTools`. Asserting the resolver directly
+ * here would leave a swapped-argument call site (`resolveKnowledgeBaseScope(request, assistant)`)
+ * green while the trust boundary inverts.
+ */
+describe('buildAgentParams knowledge-scope enforcement', () => {
+  const SCOPE_PROBE_TOOL_NAME = 'test-scope-probe-tool'
+  let observedScope: readonly string[] | undefined
+
+  const scopeProbeEntry: ToolEntry = {
+    name: SCOPE_PROBE_TOOL_NAME,
+    namespace: 'test',
+    description: 'test-only tool that records the effective knowledge scope it is resolved with',
+    defer: 'never',
+    tool: {} as Tool,
+    applies: (scope) => {
+      observedScope = scope.knowledgeBaseIds
+      return true
+    }
+  }
+
+  afterEach(() => {
+    registry.deregister(SCOPE_PROBE_TOOL_NAME)
   })
 
-  it('trusts the request-selected bases when the assistant has no static binding', () => {
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), ['kb-2'])).toEqual(['kb-2'])
-    expect(resolveKnowledgeBaseIds(undefined, ['kb-2'])).toEqual(['kb-2'])
+  /** Drive the real `buildAgentParams` and report the scope that actually reached the tool layer. */
+  const effectiveScopeFor = async (
+    assistantKnowledgeBaseIds: string[] | undefined,
+    requestKnowledgeBaseIds: string[] | undefined
+  ): Promise<readonly string[] | undefined> => {
+    observedScope = undefined
+    providerToAiSdkConfigMock.mockResolvedValue({ providerId: 'anthropic', providerSettings: {} })
+    registry.register(scopeProbeEntry)
+
+    await buildAgentParams({
+      request: { knowledgeBaseIds: requestKnowledgeBaseIds },
+      signal: undefined,
+      provider: makeProvider({
+        id: 'custom-claude',
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+      }),
+      model: makeModel({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }),
+      assistant: makeAssistant({ knowledgeBaseIds: assistantKnowledgeBaseIds })
+    })
+
+    return observedScope
+  }
+
+  it('narrows the assistant binding to the request selection instead of ignoring it', async () => {
+    await expect(effectiveScopeFor(['kb-1', 'kb-2'], ['kb-1'])).resolves.toEqual(['kb-1'])
   })
 
-  it('drops request-selected bases outside the assistant scope instead of expanding it', () => {
-    // An assistant statically bound to `kb-public` must not become searchable for `kb-private`
-    // just because the renderer/IPC request asked for it — the assistant's own binding is the
-    // trust boundary, not whatever the composer UI happened to let the user pick.
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-public'] }), ['kb-private'])).toEqual([
-      'kb-public'
-    ])
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), ['kb-1', 'kb-2'])).toEqual(['kb-1'])
+  it('never widens the assistant binding, whichever bases the request asks for', async () => {
+    // An assistant statically bound to `kb-public` must not become searchable for `kb-private` just
+    // because the renderer/IPC request asked for it — the binding is the trust boundary, not whatever
+    // the composer UI happened to let the user pick. A wholly out-of-scope selection is no narrowing
+    // at all, so the full binding stands rather than the assistant losing its own bases.
+    await expect(effectiveScopeFor(['kb-public'], ['kb-private'])).resolves.toEqual(['kb-public'])
+    await expect(effectiveScopeFor(['kb-1'], ['kb-1', 'kb-2'])).resolves.toEqual(['kb-1'])
   })
 
-  it('returns an empty array when neither source selects a base', () => {
-    expect(resolveKnowledgeBaseIds(undefined, undefined)).toEqual([])
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), undefined)).toEqual([])
+  it('falls back to the assistant binding when the request selects none', async () => {
+    await expect(effectiveScopeFor(['kb-1'], undefined)).resolves.toEqual(['kb-1'])
+  })
+
+  it('lets the request selection define the scope when the assistant has no binding', async () => {
+    await expect(effectiveScopeFor(undefined, ['kb-2'])).resolves.toEqual(['kb-2'])
+  })
+
+  it('resolves to an empty scope when neither source selects a base', async () => {
+    await expect(effectiveScopeFor(undefined, undefined)).resolves.toEqual([])
   })
 })
 

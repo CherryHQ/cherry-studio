@@ -1,9 +1,10 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import type { ToolRenderItem } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
-import React, { useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import { formatPlaceholderElapsed, usePlaceholderElapsedMs } from './PlaceholderBlock'
 import { ToolBlockGroupHeaderContent } from './ToolBlockGroup'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -53,7 +54,7 @@ const ActiveProcessHeader = React.memo(function ActiveProcessHeader({
 const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props) {
   const { children, message, toolItems } = props
   const { t } = useTranslation()
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useMessageDisclosureState('completed-process')
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
   const completedElapsedMs = useMemo(() => {
     if (props.phase === 'active') return undefined
