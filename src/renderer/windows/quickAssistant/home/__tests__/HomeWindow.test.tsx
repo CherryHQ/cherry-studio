@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -97,7 +97,15 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../components/InputBar', () => ({
-  default: ({ placeholder }: { placeholder: string }) => <input data-testid="quick-input" placeholder={placeholder} />
+  default: ({
+    text,
+    placeholder,
+    handleChange
+  }: {
+    text: string
+    placeholder: string
+    handleChange: (event: React.ChangeEvent<HTMLInputElement>) => void
+  }) => <input data-testid="quick-input" value={text} placeholder={placeholder} onChange={handleChange} />
 }))
 
 vi.mock('../components/FeatureMenus', () => ({
@@ -116,7 +124,8 @@ vi.mock('../components/Footer', () => ({
 }))
 
 vi.mock('../components/ClipboardPreview', () => ({
-  default: () => <div data-testid="clipboard-preview" />
+  default: ({ clipboardText }: { clipboardText: string }) =>
+    clipboardText ? <div data-testid="clipboard-preview">{clipboardText}</div> : null
 }))
 
 vi.mock('../../chat/ChatWindow', () => ({
@@ -141,5 +150,14 @@ describe('HomeWindow', () => {
     render(<HomeWindow draggable={false} />)
 
     expect(screen.getByTestId('quick-input')).toHaveAttribute('placeholder', 'Ask Qwen')
+  })
+
+  it('keeps typed input out of the clipboard preview', () => {
+    render(<HomeWindow draggable={false} />)
+
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+
+    expect(screen.getByTestId('quick-input')).toHaveValue('hello')
+    expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
   })
 })

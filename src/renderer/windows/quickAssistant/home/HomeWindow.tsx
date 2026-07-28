@@ -114,14 +114,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     reset: resetTemporaryTopic
   } = useTemporaryTopic({ enabled: true, assistantId: chosenAssistant?.id })
 
-  const referenceText = clipboardText || userInputText
-
-  const userContent = useMemo(() => {
-    if (isFirstMessage) {
-      return referenceText === userInputText ? userInputText : `${referenceText}\n\n${userInputText}`.trim()
-    }
-    return userInputText.trim()
-  }, [isFirstMessage, referenceText, userInputText])
+  const requestText = useMemo(() => {
+    const trimmedUserInput = userInputText.trim()
+    if (!isFirstMessage || !clipboardText) return trimmedUserInput
+    if (!trimmedUserInput || clipboardText === trimmedUserInput) return clipboardText
+    return `${clipboardText}\n\n${trimmedUserInput}`
+  }, [clipboardText, isFirstMessage, userInputText])
 
   const [isPreparing, setIsPreparing] = useState(false)
   const [flowError, setFlowError] = useState<string | null>(null)
@@ -295,7 +293,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const handleSendMessage = useCallback(
     async (prompt?: string) => {
-      if (isEmpty(userContent)) return
+      if (isEmpty(requestText)) return
       if (!isTopicReady || !temporaryTopicId) return
 
       try {
@@ -304,14 +302,14 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setUserInputText('')
         setIsPreparing(true)
         // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
-        void sendMessage({ text: [prompt, userContent].filter(Boolean).join('\n\n') })
+        void sendMessage({ text: [prompt, requestText].filter(Boolean).join('\n\n') })
       } catch (streamError) {
         const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
         setFlowError(resolvedError.message)
         logger.error('Error fetching result:', resolvedError)
       }
     },
-    [sendMessage, temporaryTopicId, isTopicReady, userContent]
+    [sendMessage, temporaryTopicId, isTopicReady, requestText]
   )
 
   const handlePause = useCallback(() => {
@@ -358,7 +356,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       case 'NumpadEnter':
         if (isLoading) return
         e.preventDefault()
-        if (userContent) {
+        if (requestText) {
           if (route === 'home') {
             featureMenusRef.current?.useFeature()
           } else {
@@ -403,13 +401,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [windowStyle, theme])
 
   const inputPlaceholder = useMemo(() => {
-    if (referenceText && route === 'home') {
+    if (clipboardText && route === 'home') {
       return t('quickAssistant.input.placeholder.title')
     }
     return t('quickAssistant.input.placeholder.empty', {
       model: quickAssistantId ? (currentAssistant?.name ?? '') : (currentModel?.name ?? '')
     })
-  }, [referenceText, route, t, quickAssistantId, currentAssistant, currentModel])
+  }, [clipboardText, route, t, quickAssistantId, currentAssistant, currentModel])
 
   const baseFooterProps = useMemo(
     () => ({
@@ -433,7 +431,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               <InputBar
                 text={userInputText}
                 model={currentModel}
-                referenceText={referenceText}
                 placeholder={inputPlaceholder}
                 loading={isLoading}
                 handleKeyDown={handleKeyDown}
@@ -445,7 +442,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           )}
           {['summary', 'explanation'].includes(route) && (
             <div className="mt-2.5">
-              <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
+              <ClipboardPreview clipboardText={clipboardText} clearClipboard={clearClipboard} t={t} />
             </div>
           )}
           <Suspense fallback={<LazyBranchFallback />}>
@@ -472,7 +469,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       return (
         <div className={containerClassName(draggable)} style={{ backgroundColor }}>
           <Suspense fallback={<LazyBranchFallback />}>
-            <TranslateWindow text={referenceText} />
+            <TranslateWindow text={requestText} />
           </Suspense>
           <Separator className="my-2.5" />
           <Footer key="footer" {...baseFooterProps} />
@@ -486,7 +483,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             <InputBar
               text={userInputText}
               model={currentModel}
-              referenceText={referenceText}
               placeholder={inputPlaceholder}
               loading={isLoading}
               handleKeyDown={handleKeyDown}
@@ -495,12 +491,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             />
           )}
           <Separator className="my-2.5" />
-          <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
+          <ClipboardPreview clipboardText={clipboardText} clearClipboard={clearClipboard} t={t} />
           <main className="flex flex-1 flex-col overflow-hidden">
             <FeatureMenus
               setRoute={setRoute}
               onSendMessage={handleSendMessage}
-              text={userContent}
+              text={requestText}
               ref={featureMenusRef}
             />
           </main>
