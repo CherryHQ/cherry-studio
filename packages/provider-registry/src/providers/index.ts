@@ -34,6 +34,7 @@ import p_minimax from './minimax'
 import p_minimax_global from './minimax-global'
 import p_mistral from './mistral'
 import p_modelscope from './modelscope'
+import p_modelsell from './modelsell'
 import p_moonshot from './moonshot'
 import p_new_api from './new-api'
 import p_nvidia from './nvidia'
@@ -107,6 +108,7 @@ export const PROVIDERS: Provider[] = [
   p_nvidia,
   p_grok,
   p_mistral,
+  p_modelsell,
   p_jina,
   p_perplexity,
   p_modelscope,
