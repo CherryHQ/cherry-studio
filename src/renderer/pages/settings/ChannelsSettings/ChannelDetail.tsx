@@ -472,7 +472,10 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
       config: channelDef.defaultConfig,
-      isActive: true
+      // Created inactive: defaultConfig has empty credentials, and active channels
+      // must pass ActiveAgentChannelConfigSchemasByType validation. The row switch
+      // activates the channel once credentials are filled in.
+      isActive: false
     } as never)
     if (newChannel) {
       setEditingChannelId(newChannel.id)

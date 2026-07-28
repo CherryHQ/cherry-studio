@@ -2,6 +2,7 @@ import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
+import { createAgent } from '@main/ai/agents/createAgent'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -141,7 +142,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.tool.respond_approval': (payload, { senderId }) =>
     application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
 
-  // ── Agent session warm-connection lifecycle. ──
+  // ── Agent creation + session warm-connection lifecycle. ──
+  'ai.agent.create': createAgent,
   'ai.agent.session.prewarm': async ({ sessionId }) => {
     // Trace mode needs each connection created fresh with trace env at turn start; priming a
     // trace-less connection ahead of the turn would have the first traced turn reuse it. Mirror the

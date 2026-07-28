@@ -45,6 +45,13 @@ export interface RightPanelCapability<TScope> {
   resolve: (scope: TScope) => RightPanelInstance | null
 }
 
+/** Shape every right-pane module exposes; apply with `satisfies` to keep component types precise. */
+export interface RightPanelComposition {
+  Scope: ComponentType<any>
+  Viewport: ComponentType<any>
+  Shortcuts: ComponentType<any>
+}
+
 interface ResolvedRightPanelEntry<TScope = unknown> extends RightPanelInstance {
   component: ComponentType<RightPanelComponentProps<TScope>>
 }
@@ -538,7 +545,7 @@ function RightPanelKeyboardShortcut() {
   return null
 }
 
-export function RightPanelViewport({ children }: { children: ReactNode }) {
+export function RightPanelViewport({ children = <RightPanel /> }: { children?: ReactNode }) {
   const state = useRightPanelState()
   const actions = useRightPanelControllerActions()
 

@@ -4,6 +4,7 @@ import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
+import { useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerPinnedToolsProvider,
@@ -453,6 +454,7 @@ const ChatComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
+  const composerOverridden = useActiveComposerOverride() !== null
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const { t } = useTranslation()
@@ -698,8 +700,8 @@ const ChatComposerInner = ({
     ]
   )
   useLayoutEffect(() => {
-    onConversationControlsChange?.(conversationControlsSnapshot)
-  }, [conversationControlsSnapshot, onConversationControlsChange])
+    onConversationControlsChange?.(composerOverridden ? null : conversationControlsSnapshot)
+  }, [composerOverridden, conversationControlsSnapshot, onConversationControlsChange])
   useLayoutEffect(() => {
     if (!onConversationControlsChange) return
     return () => onConversationControlsChange(null)
@@ -714,6 +716,12 @@ const ChatComposerInner = ({
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
+  const isModelUnavailable =
+    !missingAssistantMessage &&
+    !runtimeModelPending &&
+    !runtimeModel &&
+    !selectedModelForMissingAssistantDefault &&
+    !selectedModelForUnlinkedHome
 
   useEffect(() => {
     if (isPending) setIsSending(false)
@@ -1267,12 +1275,14 @@ const ChatComposerInner = ({
         customTools={toolbarCustomTools}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
+        isModelUnavailable={isModelUnavailable}
         inputAdapter={inputAdapter}
         unifiedPanelControl={unifiedPanelControl}
       />
     ),
     [
       customizeToolbarOpen,
+      isModelUnavailable,
       pinnedToolIds,
       pinnedToolsAtDefault,
       resetPinnedToolIds,

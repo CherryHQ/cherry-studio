@@ -5,6 +5,7 @@
  */
 
 import type * as NodeFs from 'node:fs'
+import path from 'node:path'
 
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -18,7 +19,9 @@ const {
   mockRealpath,
   mockGetPath,
   mockPreferenceGet,
-  mockListOrOutlineKnowledge
+  mockListOrOutlineKnowledge,
+  mockMemoryConstructor,
+  mockEnsureManagedDirectory
 } = vi.hoisted(() => ({
   mockGetAgent: vi.fn(),
   mockGetPathStatus: vi.fn(),
@@ -26,7 +29,9 @@ const {
   mockRealpath: vi.fn(),
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
   mockPreferenceGet: vi.fn(() => undefined),
-  mockListOrOutlineKnowledge: vi.fn()
+  mockListOrOutlineKnowledge: vi.fn(),
+  mockMemoryConstructor: vi.fn(),
+  mockEnsureManagedDirectory: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -66,6 +71,11 @@ vi.mock('@main/utils/file', () => ({
   getPathStatus: mockGetPathStatus
 }))
 
+vi.mock('@main/ai/agents/agentDataDirectory', () => ({
+  ensureAgentDataDirectory: vi.fn(),
+  ensureAgentStorageDirectory: mockEnsureManagedDirectory
+}))
+
 vi.mock('@main/i18n', () => ({
   getAppLanguage: vi.fn(() => 'en-US'),
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
@@ -84,6 +94,16 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@main/ai/tools/knowledgeLookup', async (importOriginal) => ({
   ...(await importOriginal<typeof KnowledgeLookup>()),
   listOrOutlineKnowledge: mockListOrOutlineKnowledge
+}))
+
+vi.mock('@main/ai/mcp/servers/agentMemory', () => ({
+  default: class {
+    mcpServer = {}
+
+    constructor(agentId: string, agentDataPath: string) {
+      mockMemoryConstructor(agentId, agentDataPath)
+    }
+  }
 }))
 
 const {
@@ -163,12 +183,14 @@ describe('adjustAllowedToolsForMcp', () => {
 describe('buildMcpServers', () => {
   beforeEach(() => {
     mockGetAgent.mockReset()
+    mockMemoryConstructor.mockClear()
   })
 
   it('injects the agent-memory server for every agent (REGRESSION agents-jobs-3)', async () => {
-    const result = buildMcpServers(session, agent, false)
+    const result = buildMcpServers(session, agent, false, undefined, undefined, '/data/Agents/agent-1')
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory']))
     expect(Object.keys(result ?? {})).not.toContain('skills')
+    expect(mockMemoryConstructor).toHaveBeenCalledWith('agent-1', '/data/Agents/agent-1')
   })
 
   it('injects cherry-tools for every session; the standalone cherry server and exa are gone', async () => {
@@ -212,7 +234,9 @@ describe('buildMcpServers', () => {
 
   it('exposes the kb_* tools from a frozen composer selection when the Agent has no binding', async () => {
     mockGetAgent.mockReturnValue(agent)
-    const names = await cherryToolNames(buildMcpServers(session, agent, false, undefined, undefined, ['kb-selected']))
+    const names = await cherryToolNames(
+      buildMcpServers(session, agent, false, undefined, undefined, undefined, ['kb-selected'])
+    )
 
     expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
   })
@@ -243,7 +267,7 @@ describe('buildMcpServers', () => {
     mockGetAgent.mockReturnValue(boundAgent)
 
     const scope = await scopePassedToKnowledgeCore(
-      buildMcpServers(session, boundAgent, false, undefined, undefined, ['kb-a'])
+      buildMcpServers(session, boundAgent, false, undefined, undefined, undefined, ['kb-a'])
     )
 
     expect(scope).toEqual(['kb-a'])
@@ -254,7 +278,7 @@ describe('buildMcpServers', () => {
     mockGetAgent.mockReturnValue(boundAgent)
 
     const scope = await scopePassedToKnowledgeCore(
-      buildMcpServers(session, boundAgent, false, undefined, undefined, ['kb-selected'])
+      buildMcpServers(session, boundAgent, false, undefined, undefined, undefined, ['kb-selected'])
     )
 
     expect(scope).toEqual(['kb-bound'])
@@ -263,7 +287,7 @@ describe('buildMcpServers', () => {
 
   it('fails closed when the Agent backing a frozen composer selection is deleted', async () => {
     mockGetAgent.mockReturnValueOnce(agent).mockReturnValueOnce(undefined)
-    const servers = buildMcpServers(session, agent, false, undefined, undefined, ['kb-selected'])
+    const servers = buildMcpServers(session, agent, false, undefined, undefined, undefined, ['kb-selected'])
 
     expect(await cherryToolNames(servers)).toContain('kb_search')
     expect(await cherryToolNames(servers)).not.toContain('kb_search')
@@ -286,6 +310,14 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     mockRealpath.mockReset()
     mockRealpath.mockImplementation(async (targetPath: string) => targetPath)
     mockGetPath.mockReturnValue('/tmp/managed-workspaces')
+    mockEnsureManagedDirectory.mockImplementation(async (root: string, target: string) => {
+      const [resolvedRoot, resolvedTarget] = await Promise.all([mockRealpath(root), mockRealpath(target)])
+      const relative = path.relative(resolvedRoot, resolvedTarget)
+      if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+        throw new Error('managed path escape')
+      }
+      await mockMkdir(target, { recursive: true })
+    })
   })
 
   it('does not create a missing user workspace', async () => {
@@ -300,9 +332,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
 
   it('creates a missing system workspace before asserting it', async () => {
     const workspacePath = '/tmp/managed-workspaces/sess-workspace'
-    mockGetPathStatus
-      .mockResolvedValueOnce({ ok: false, reason: 'missing' })
-      .mockResolvedValueOnce({ ok: true, kind: 'directory' })
+    mockGetPathStatus.mockResolvedValueOnce({ ok: true, kind: 'directory' })
     mockMkdir.mockResolvedValueOnce(undefined)
 
     await prepareClaudeCodeWorkspaceDirectory(makeSession(workspacePath, 'system'))

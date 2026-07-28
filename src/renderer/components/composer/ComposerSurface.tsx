@@ -34,6 +34,7 @@ import { CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucid
 import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useActiveComposerOverride } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
 import {
   getComposerClipboardPasteOverride,
@@ -591,6 +592,9 @@ export default function ComposerSurface({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
+  const composerOverridden = useActiveComposerOverride() !== null
+  const closeQuickPanel = quickPanel.close
+  const isQuickPanelVisible = quickPanel.isVisible
   const pinnedLauncherIds = useComposerPinnedTools()
   const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
   const quickPanelRef = useRef(quickPanel)
@@ -643,6 +647,12 @@ export default function ComposerSurface({
     sendMessageShortcut,
     setFiles
   ])
+
+  useLayoutEffect(() => {
+    if (composerOverridden && isQuickPanelVisible) {
+      closeQuickPanel('composer_override')
+    }
+  }, [closeQuickPanel, composerOverridden, isQuickPanelVisible])
 
   useEffect(() => {
     textRef.current = text

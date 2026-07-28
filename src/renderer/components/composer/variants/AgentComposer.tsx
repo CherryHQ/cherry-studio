@@ -306,7 +306,9 @@ const AgentComposerRoot = ({
   const session = sessionOverride ?? loadedSession
   const { agent: loadedAgent } = useAgent(externalContextControls || resolvedAgent ? null : agentId)
   const agent = resolvedAgent ?? loadedAgent
-  const { model: loadedModel } = useModelById(externalContextControls || resolvedModel ? null : agent?.model)
+  const { model: loadedModel, isLoading: isModelLoading } = useModelById(
+    externalContextControls || resolvedModel ? null : agent?.model
+  )
   const sessionModel = resolvedModel ?? loadedModel
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
   const handleNewSessionShortcut = useCallback(() => {
@@ -360,6 +362,7 @@ const AgentComposerRoot = ({
       <AgentComposerInner
         agent={agent}
         model={sessionModel}
+        modelPending={!resolvedModel && (isModelLoading || (externalContextControls && sendDisabled))}
         agentId={agentId}
         sessionId={sessionId}
         sessionData={sessionData}
@@ -391,6 +394,7 @@ const AgentComposerRoot = ({
 interface InnerProps {
   agent?: AgentEntity
   model?: Model
+  modelPending?: boolean
   agentId: string
   sessionId: string
   sessionData?: ToolContext['session']
@@ -613,6 +617,7 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
 const AgentComposerInner = ({
   agent,
   model,
+  modelPending,
   agentId,
   sessionId,
   sessionData,
@@ -661,6 +666,8 @@ const AgentComposerInner = ({
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter(agent?.type)
+  const isModelUnavailable = Boolean(agent) && !model && !modelPending
+  const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const pinnedLauncherIds = useMemo(
     () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
@@ -1249,12 +1256,14 @@ const AgentComposerInner = ({
         customTools={toolbarCustomTools}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
+        isModelUnavailable={isModelUnavailable}
         inputAdapter={inputAdapter}
         unifiedPanelControl={unifiedPanelControl}
       />
     ),
     [
       customizeToolbarOpen,
+      isModelUnavailable,
       pinnedToolIds,
       pinnedToolsAtDefault,
       resetPinnedToolIds,
@@ -1314,9 +1323,11 @@ const AgentComposerInner = ({
           sendDisabled={
             sendDisabled ||
             hasPendingReference ||
+            modelPending ||
+            !!missingModelMessage ||
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
-          sendBlockedReason={sendDisabled || hasPendingReference ? t('common.loading') : undefined}
+          sendBlockedReason={sendDisabled || hasPendingReference ? t('common.loading') : missingModelMessage}
           isLoading={isStreaming}
           onSendDraft={handleSendDraft}
           onPause={abortAgentSession}

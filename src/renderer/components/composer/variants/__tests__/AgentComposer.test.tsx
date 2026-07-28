@@ -30,6 +30,8 @@ const mocks = vi.hoisted(() => ({
   agentKnowledgeBaseIds: [] as string[],
   agentLookupId: undefined as string | null | undefined,
   modelLookupId: undefined as UniqueModelId | null | undefined,
+  modelResult: undefined as Model | undefined,
+  modelLoading: false,
   sendMessage: vi.fn(),
   stop: vi.fn(),
   isDirectory: vi.fn(),
@@ -432,7 +434,7 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
 vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: (id: UniqueModelId | null) => {
     mocks.modelLookupId = id
-    return { model }
+    return { model: mocks.modelResult, isLoading: mocks.modelLoading }
   }
 }))
 
@@ -686,6 +688,8 @@ describe('AgentComposer', () => {
     mocks.agentKnowledgeBaseIds = []
     mocks.agentLookupId = undefined
     mocks.modelLookupId = undefined
+    mocks.modelResult = model
+    mocks.modelLoading = false
     mocks.sendMessage.mockReset()
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
@@ -950,6 +954,28 @@ describe('AgentComposer', () => {
     void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseTwo]))
     await act(async () => queued.props.onEdit(queued.props.items[0].id))
     expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
+  })
+
+  it('blocks the send button with a model-required prompt when the agent has no configured model', async () => {
+    mocks.modelResult = undefined
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
   it('uses page-resolved context without subscribing to agent and model data again', () => {
