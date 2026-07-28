@@ -178,6 +178,20 @@ describe('BackupV2Settings', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('withholds acknowledgement while a rollback is still incomplete', async () => {
+    statusIs({ kind: 'journal', state: 'failed', restoreId: 'r1', recoveryIncomplete: true })
+    await renderSettings()
+
+    await waitFor(() =>
+      expect(screen.getByText('settings.data.backup_v2.outcome.recovery_incomplete')).toBeInTheDocument()
+    )
+    // Acknowledging would delete exactly what the pending repair needs, so the
+    // button is not offered until a boot has finished the rollback.
+    expect(
+      screen.queryByRole('button', { name: 'settings.data.backup_v2.outcome.acknowledge_button' })
+    ).not.toBeInTheDocument()
+  })
+
   it('surfaces an unreadable journal instead of pretending there is no restore', async () => {
     statusIs({ kind: 'unreadable' })
     await renderSettings()

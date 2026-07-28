@@ -27,7 +27,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
-import { clearRestoreJournalV2, readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
+import {
+  clearRestoreJournalV2,
+  dbAsideRelPathV2,
+  readRestoreJournalV2,
+  writeRestoreJournalV2
+} from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 
 import { admitArchive } from './admission/admitArchive'
@@ -81,18 +86,6 @@ function stagedDbRelPath(restoreId: string): string {
 /** Where this restore's staged resource payloads live, mirroring the archive's `resources/`. */
 function stagedResourcesRelDir(restoreId: string): string {
   return `${stagingRelDir(restoreId)}/${RESOURCES_DIR_NAME}`
-}
-
-/**
- * Park slot for the live database, named per restore.
- *
- * A fixed name would let a stale aside from an earlier restore be mistaken for
- * this one's rollback source — the recovery table decides from `(staged, live,
- * aside)` existence, so an aside that belongs to a different restore is worse
- * than no aside at all.
- */
-function dbAsideRelPath(restoreId: string): string {
-  return `${path.basename(application.getPath('app.database.file'))}.pre-restore-${restoreId}`
 }
 
 /** Target-side rebase table, resolved once per restore from the trusted registry. */
@@ -209,7 +202,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
       state: 'prepared',
       db: {
         promote: stagedDbRelPath(restoreId),
-        aside: dbAsideRelPath(restoreId),
+        aside: dbAsideRelPathV2(restoreId),
         chain: materialized.chain.map((entry) => ({ folderMillis: entry.folderMillis, hash: entry.hash }))
       },
       resourceInstalls: [...plan.entries]

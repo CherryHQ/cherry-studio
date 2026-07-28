@@ -150,7 +150,15 @@ const journalVariants = [
     ...commonFields,
     state: z.literal('failed'),
     step: PromotionStepSchema.optional(),
-    reason: z.string().min(1).optional()
+    reason: z.string().min(1).optional(),
+    /**
+     * The rollback could not put every unit back, so this journal's asides are
+     * still the only copy of what they hold — `failed` alone would let the GC
+     * guard and acknowledgement treat them as spent (§6.5). Absent means the
+     * rollback finished; `true` is the only other value, so there is exactly one
+     * way to say each thing.
+     */
+    recoveryIncomplete: z.literal(true).optional()
   }),
   z.strictObject({
     ...commonFields,
@@ -176,6 +184,46 @@ export type RestoreJournalV2 = z.infer<typeof RestoreJournalV2Schema>
 export type RestoreJournalV2State = RestoreJournalV2['state']
 export type ResourceInstallEntry = z.infer<typeof ResourceInstallEntrySchema>
 export type RestoreSummary = z.infer<typeof RestoreSummarySchema>
+
+/**
+ * Park slot for the live database, named per restore and owned here.
+ *
+ * The name is a contract between the code that creates the slot and the recovery
+ * that has to FIND it when the journal naming it can no longer be parsed
+ * ({@link findDbAside}), so the two cannot be allowed to drift apart. A fixed
+ * name would let a stale aside from an earlier restore be mistaken for this
+ * one's rollback source — the recovery table decides from `(staged, live,
+ * aside)` existence, so an aside belonging to a different restore is worse than
+ * no aside at all.
+ */
+export function dbAsideRelPathV2(restoreId: string): string {
+  return `${dbAsidePrefix()}${restoreId}`
+}
+
+/**
+ * The prefix every park slot shares. A function, not a constant: resolving it at
+ * import time would read the path registry before preboot freezes it.
+ */
+function dbAsidePrefix(): string {
+  return `${path.basename(application.getPath('app.database.file'))}.pre-restore-`
+}
+
+/**
+ * Any park slot left on disk, or `null`. Used when the journal is unreadable and
+ * the only remaining evidence that a database was parked is the file itself.
+ */
+export function findDbAside(): string | null {
+  const userData = application.getPath('app.userdata')
+  let names: string[]
+  try {
+    names = fs.readdirSync(userData)
+  } catch {
+    return null
+  }
+  const prefix = dbAsidePrefix()
+  const found = names.find((name) => name.startsWith(prefix))
+  return found === undefined ? null : path.join(userData, found)
+}
 
 export type ReadJournalV2Result =
   | { readonly kind: 'ok'; readonly journal: RestoreJournalV2 }

@@ -95,6 +95,15 @@ describe('hasPendingRestore', () => {
 
       expect(hasPendingRestore()).toBe(expected)
     })
+
+    it('keeps protecting a failed restore whose rollback could not finish', () => {
+      // Terminal to a reader, but its asides are still the ONLY copy of what
+      // they hold until a later boot finishes the rollback — sweeping now would
+      // unlink the repair material (§6.5).
+      writeRestoreJournalV2({ ...v2Journal('failed'), recoveryIncomplete: true } as RestoreJournalV2)
+
+      expect(hasPendingRestore()).toBe(true)
+    })
   })
 
   it('protects storage when the journal cannot be parsed', () => {

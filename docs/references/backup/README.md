@@ -277,6 +277,15 @@ quarantine without touching live data (the journal schema is a `strictObject` wi
 literal version — an unrecognized version parses as corrupt, so the gate cleans up rather
 than misinterpreting; see `RestoreJournalSchema`).
 
+**Quarantine has one exception: a stranded live slot.** An unreadable journal beside a
+**missing** live DB while a park slot still exists means the crash landed after the live DB
+was parked and the journal can no longer name what it parked. Quarantining there would clear
+the last record of the restore and let the boot create a fresh **empty** DB beside the
+user's real one, so the gate refuses to boot instead, leaving every artifact where a repair
+needs it (the park slot is found by the naming contract in `dbAsideRelPathV2`/`findDbAside`,
+which is why that name may not drift). With no park slot there is nothing to strand —
+refusing would only wedge an app whose data is already gone — so quarantine proceeds.
+
 ### 5.3 Frozen operating ceilings
 
 Bounded ceilings are frozen in the format contract and shared by preflight and admission
@@ -332,7 +341,7 @@ prepared → armed → promoting → completed | failed | expired
 | `armed` | Durably written *immediately before* `application.relaunch()` on explicit user confirmation. If relaunch initiation fails, the service clears the arm and reports failure. |
 | `promoting` | Preboot is executing; `step` is the durable last-completed global-step marker (compare via `indexOf` on the step-order table, never lexicographically). |
 | `completed` | New DB (and, for Full, all resources) live. Asides retained until acknowledgement. |
-| `failed` | Crash rollback or integrity failure; old DB is live. |
+| `failed` | Crash rollback or integrity failure; old DB is live. `recoveryIncomplete: true` marks a rollback that could not put every unit back (§6.5). |
 | `expired` | An **unarmed** `prepared` journal an unrelated restart found; cleaned rather than promoted. |
 
 Only `armed` enters promotion. Once armed, later local DB writes are intentionally
@@ -422,6 +431,13 @@ state. Existence alone is insufficient — `(present, absent, present)` is ambig
 The table MUST be **total** over every reachable `(direction/step, staged, live, aside)`
 state and must reject overlapping/symlink/EXDEV states before mutation.
 
+**The terminal state is durable before anything is deleted.** Every terminal outcome writes
+the journal **first** and drops the staging tree **second**, and a terminal write that fails
+keeps the tree (making the write retryable) instead of proceeding. The reverse order costs
+data: with the tree gone under a still-`promoting` journal, every rolled-back unit sits at
+pre-commit `-L-`, which the table above reads as an installed backup — so the next boot
+would move the user's own files back out.
+
 ### 6.5 Completed-restore GC protection & acknowledgement
 
 While a completed restore's DB/resource asides are retained, orphan sweep must **abort or
@@ -436,6 +452,16 @@ across both journal versions.
 asides **first**, clears the journal **last**, then releases GC protection. A crash
 anywhere before the last step leaves protection active and cleanup resumable. This is crash
 rollback protection, not a hidden long-term undo feature.
+
+**An incomplete rollback keeps its asides.** `failed` normally holds nothing — everything went
+back where it came from. When the rollback could **not** finish (a unit the OS refused to
+move), its asides are still the only copy of what they hold, so the journal records
+`recoveryIncomplete: true` and that fact drives all three readers: `hasPendingRestore()` keeps
+protecting the files, acknowledgement **refuses** (releasing them would delete exactly what the
+repair needs), and the next boot **retries** the rollback before reporting — clearing the marker
+only once every unit is back, and deliberately leaving the staging tree for acknowledgement to
+collect (per §6.4, removing it first is what poisons the recovery triple). The retry is what
+keeps the refusal temporary rather than an unbounded hold.
 
 **The user must be asked, not waited on.** Because protection holds double storage and keeps
 orphan sweep standing aside, an unacknowledged `completed` restore that is never revisited

@@ -58,6 +58,17 @@ export function acknowledgeRestore(): AcknowledgeResult {
     )
   }
 
+  if (journal.state === 'failed' && journal.recoveryIncomplete) {
+    // The rollback did not finish, so these asides are not spent rollback
+    // material — they are the only copy of what they hold. Acknowledging would
+    // delete exactly what the repair needs. The next boot retries the rollback
+    // and clears the marker, which is what makes this refusal temporary.
+    throw new RestoreStateError(
+      'recovery-incomplete',
+      'the last restore could not put every file back; restart the app to finish it before releasing anything'
+    )
+  }
+
   const userData = application.getPath('app.userdata')
   const artifacts = [
     journal.db.aside,
