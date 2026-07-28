@@ -171,10 +171,10 @@ function seedSourceResources(): void {
   write(join('Data', 'Skills', 'skill-1', 'SKILL.md'), 'SOURCE-SKILL')
 }
 
-async function exportFrom(preset: 'lite' | 'full', name: string): Promise<string> {
+async function exportFrom(name: string): Promise<string> {
   const out = join(workDir, 'out', `${name}.cherrybackup`)
   activeUserData = sourceUserData
-  await exportArchive({ outPath: out, preset })
+  await exportArchive({ outPath: out })
   return out
 }
 
@@ -264,9 +264,9 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('Lite restore, cross-device', () => {
+describe('restore, cross-device', () => {
   it('replaces the whole database and keeps the replaced one until acknowledgement', async () => {
-    const archive = await exportFrom('lite', 'lite')
+    const archive = await exportFrom('cross-device')
 
     await restoreOnTarget(archive)
 
@@ -291,7 +291,7 @@ describe('Lite restore, cross-device', () => {
   })
 
   it('rebases the producer’s managed roots onto this device', async () => {
-    const archive = await exportFrom('lite', 'lite-rebase')
+    const archive = await exportFrom('rebase')
 
     await restoreOnTarget(archive)
 
@@ -302,31 +302,13 @@ describe('Lite restore, cross-device', () => {
     expect(note?.root_path).toBe(join(targetUserData, 'Data', 'Notes'))
     expect(workspace?.path).toBe(join(targetUserData, 'Data', 'Agents', 'system', 's-1'))
   })
-
-  it('installs no resources and leaves this device’s files exactly as they were', async () => {
-    seedSourceResources()
-    const archive = await exportFrom('lite', 'lite-files')
-    mkdirSync(join(targetUserData, 'Data', 'Files'), { recursive: true })
-    writeFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'TARGET-BLOB')
-
-    activeUserData = targetUserData
-    const preview = await prepareRestore({ archivePath: archive })
-    expect(preview.resources).toEqual({ install: 0, replace: 0 })
-    armPreparedRestore(preview.restoreId)
-    await runRestorePromotionV2()
-
-    // Lite is a database-only restore: the blob the restored rows point at is
-    // whatever this device already had, untouched.
-    expect(readFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'utf8')).toBe('TARGET-BLOB')
-    expect(existsSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1'))).toBe(false)
-  })
 })
 
 describe('Full restore, empty target device', () => {
   it('restores ordinary Notes even when the sparse note state table has zero rows', async () => {
     dbh.db.delete(noteTable).run()
     seedSourceResources()
-    const archive = await exportFrom('full', 'full-notes-without-state')
+    const archive = await exportFrom('full-notes-without-state')
 
     await restoreOnTarget(archive)
 
@@ -335,11 +317,10 @@ describe('Full restore, empty target device', () => {
 
   it('installs every declared resource next to the database that references it', async () => {
     seedSourceResources()
-    const archive = await exportFrom('full', 'full-empty')
+    const archive = await exportFrom('full-empty')
 
     activeUserData = targetUserData
     const preview = await prepareRestore({ archivePath: archive })
-    expect(preview.preset).toBe('full')
     // Nothing to park on a device that has none of them.
     expect(preview.resources).toEqual({ install: 6, replace: 0 })
     armPreparedRestore(preview.restoreId)
@@ -369,7 +350,7 @@ describe('Full restore, empty target device', () => {
 
   it('names the knowledge bases it installed so the reindex has something to schedule', async () => {
     seedSourceResources()
-    const archive = await exportFrom('full', 'full-summary')
+    const archive = await exportFrom('full-summary')
 
     await restoreOnTarget(archive)
 
@@ -387,7 +368,7 @@ describe('Full restore with an atomically excluded source unit', () => {
         writeFileSync(join(sourceUserData, 'Data', 'Notes', 'changed-during-export.md'), 'DRIFT')
       }
     }
-    const archive = await exportFrom('full', 'full-with-exclusion')
+    const archive = await exportFrom('full-with-exclusion')
     driftHooks.afterStagePreVerify = async () => {}
 
     mkdirSync(join(targetUserData, 'Data', 'Notes'), { recursive: true })
@@ -426,7 +407,7 @@ describe('Full restore, same device with content already there', () => {
   it('parks what it replaces and leaves undeclared paths alone', async () => {
     seedSourceResources()
     writeFileSync(join(sourceUserData, 'Data', 'Files', 'not-in-the-backup.bin'), 'TARGET-ONLY')
-    const archive = await exportFrom('full', 'full-same')
+    const archive = await exportFrom('full-same')
     // Change the live content so "replaced" is observable.
     writeFileSync(join(sourceUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'STALE-BLOB')
 
@@ -444,7 +425,7 @@ describe('Full restore, same device with content already there', () => {
 
   it('replaces a declared directory as a whole, and holds the old one until acknowledgement', async () => {
     seedSourceResources()
-    const archive = await exportFrom('full', 'full-dir')
+    const archive = await exportFrom('full-dir')
     // A note this device made after the backup. The notes root is ONE unit, so
     // the restore replaces the whole directory rather than merging into it.
     writeFileSync(join(sourceUserData, 'Data', 'Notes', 'newer.md'), '# written after the backup')
@@ -487,7 +468,7 @@ describe('what a restored archive may not switch on', () => {
         trustedAt: 1_700_000_000_000
       })
       .run()
-    const archive = await exportFrom('lite', 'lite-mcp')
+    const archive = await exportFrom('mcp')
 
     await restoreOnTarget(archive)
 
@@ -508,18 +489,18 @@ describe('what a restored archive may not switch on', () => {
 
   it('still admits an archive that was only unpacked and repacked', async () => {
     seedSourceResources()
-    const archive = await exportFrom('full', 'full-repacked')
+    const archive = await exportFrom('full-repacked')
     const repacked = await retargetFirstPayload(archive, null)
 
     // The control for the case below: unpack/repack alone must not be what a
     // rejection is measuring.
     activeUserData = targetUserData
-    await expect(prepareRestore({ archivePath: repacked })).resolves.toMatchObject({ preset: 'full' })
+    await expect(prepareRestore({ archivePath: repacked })).resolves.toBeDefined()
   })
 
   it('refuses a payload redirected inside a managed root but outside the database closure', async () => {
     seedSourceResources()
-    const archive = await exportFrom('full', 'full-redirected')
+    const archive = await exportFrom('full-redirected')
     const unrelated = join(targetUserData, 'Data', 'Files', 'unrelated.pdf')
     mkdirSync(join(unrelated, '..'), { recursive: true })
     writeFileSync(unrelated, 'TARGET-ONLY')
@@ -534,7 +515,7 @@ describe('what a restored archive may not switch on', () => {
 
   it('refuses an archive whose manifest aims a payload outside userData', async () => {
     seedSourceResources()
-    const archive = await exportFrom('full', 'full-tampered')
+    const archive = await exportFrom('full-tampered')
     const tampered = await retargetFirstPayload(archive, '../../evil')
 
     activeUserData = targetUserData
@@ -555,7 +536,7 @@ describe('what a restored archive may not switch on', () => {
 describe('a crash before the commit boundary', () => {
   it('rolls a Full restore back to the database and files this device already had', async () => {
     seedSourceResources()
-    const archive = await exportFrom('full', 'full-crash')
+    const archive = await exportFrom('full-crash')
     activeUserData = targetUserData
     mkdirSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1'), { recursive: true })
     writeFileSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'TARGET-KB')
@@ -588,7 +569,7 @@ describe('a crash before the commit boundary', () => {
 describe('relocated userData', () => {
   it('acknowledges a completed restore after the whole profile moved', async () => {
     seedSourceResources()
-    const archive = await exportFrom('full', 'full-relocate')
+    const archive = await exportFrom('full-relocate')
 
     await restoreOnTarget(archive)
     const read = readRestoreJournalV2()

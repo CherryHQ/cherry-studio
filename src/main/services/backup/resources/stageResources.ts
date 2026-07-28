@@ -1,5 +1,5 @@
 /**
- * Full-preset resource staging (docs/references/backup/README.md §1.7, §5.4).
+ * Resource staging (docs/references/backup/README.md §1.7, §5.4).
  *
  * Turns the requirement inventory — what the exported database SAYS it needs —
  * into the payload inventory the archive actually carries. Each unit is copied

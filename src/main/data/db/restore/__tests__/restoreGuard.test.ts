@@ -34,7 +34,7 @@ function v2Journal(state: RestoreJournalV2State): RestoreJournalV2 {
   const base = {
     version: 2 as const,
     restoreId: '11111111-2222-4333-8444-555555555555',
-    preset: 'lite' as const,
+    preset: 'full' as const,
     createdAt: '2026-07-27T00:00:00.000Z',
     db: {
       promote: 'restore-staging/backup.sqlite',

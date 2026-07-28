@@ -53,10 +53,8 @@ import { backupHandlers } from '../backup'
 const ctx = { senderId: 'w1' }
 const detachedCtx = { senderId: null }
 
-function manifest(preset: 'lite' | 'full') {
-  return preset === 'lite'
-    ? { preset, degradations: [{ kind: 'resource:knowledge-base', reason: 'absent at snapshot time' }] }
-    : { preset, degradations: [], resourcePayloads: [{ livePath: 'Data/KnowledgeBase/base-1' }] }
+function manifest(resourcePayloads: { livePath: string }[], degradations: { kind: string; reason: string }[] = []) {
+  return { preset: 'full' as const, degradations, resourcePayloads }
 }
 
 beforeEach(() => {
@@ -67,7 +65,7 @@ beforeEach(() => {
 describe('backupHandlers', () => {
   describe('sender policy', () => {
     it.each([
-      ['backup.export', () => backupHandlers['backup.export']({ preset: 'lite' }, detachedCtx)],
+      ['backup.export', () => backupHandlers['backup.export'](undefined, detachedCtx)],
       ['backup.prepare_restore', () => backupHandlers['backup.prepare_restore'](undefined, detachedCtx)],
       ['backup.cancel_operation', () => backupHandlers['backup.cancel_operation'](undefined, detachedCtx)],
       ['backup.cancel_restore', () => backupHandlers['backup.cancel_restore'](undefined, detachedCtx)],
@@ -89,7 +87,7 @@ describe('backupHandlers', () => {
     it('refuses a sender whose managed window disappeared before the dialog opened', async () => {
       windowManager.getWindow.mockReturnValueOnce(undefined as never)
 
-      await expect(backupHandlers['backup.export']({ preset: 'lite' }, ctx)).rejects.toMatchObject({
+      await expect(backupHandlers['backup.export'](undefined, ctx)).rejects.toMatchObject({
         code: backupErrorCodes.SENDER_NOT_ALLOWED
       })
       expect(showSaveDialog).not.toHaveBeenCalled()
@@ -108,7 +106,7 @@ describe('backupHandlers', () => {
       const degradations = [{ kind: 'restore-db:note', reason: 'path-unportable (2 rows)' }]
       service.getStatus.mockReturnValue({
         operation: null,
-        restore: { kind: 'journal', state: 'completed', restoreId: 'r1', preset: 'lite', degradations }
+        restore: { kind: 'journal', state: 'completed', restoreId: 'r1', degradations }
       })
 
       await expect(backupHandlers['backup.get_status'](undefined, detachedCtx)).resolves.toMatchObject({
@@ -123,7 +121,6 @@ describe('backupHandlers', () => {
           kind: 'journal',
           state: 'completed',
           restoreId: 'r1',
-          preset: 'full',
           degradations: [
             { kind: 'report:resource-changed', reason: 'count:500' },
             { kind: 'report-sample:resource-changed', reason: 'sample', livePath: 'Data/Notes/a' },
@@ -151,11 +148,14 @@ describe('backupHandlers', () => {
   describe('export', () => {
     it('never takes a path from the caller — main asks, then exports what the user chose', async () => {
       showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
-      service.export.mockResolvedValue({ outPath: '/tmp/backup.cherrybackup', manifest: manifest('full') })
+      service.export.mockResolvedValue({
+        outPath: '/tmp/backup.cherrybackup',
+        manifest: manifest([{ livePath: 'Data/KnowledgeBase/base-1' }])
+      })
 
-      const result = await backupHandlers['backup.export']({ preset: 'full' }, ctx)
+      const result = await backupHandlers['backup.export'](undefined, ctx)
 
-      expect(service.export).toHaveBeenCalledWith('/tmp/backup.cherrybackup', 'full')
+      expect(service.export).toHaveBeenCalledWith('/tmp/backup.cherrybackup')
       expect(showSaveDialog).toHaveBeenCalledWith(
         windowMock,
         expect.objectContaining({ filters: [{ name: 'Cherry Studio Backup', extensions: ['cherrybackup'] }] })
@@ -163,7 +163,6 @@ describe('backupHandlers', () => {
       expect(result).toEqual({
         status: 'exported',
         archivePath: '/tmp/backup.cherrybackup',
-        preset: 'full',
         resourceCount: 1,
         degradations: []
       })
@@ -172,15 +171,18 @@ describe('backupHandlers', () => {
     it('reports a dismissed dialog as canceled without touching the service', async () => {
       showSaveDialog.mockResolvedValue({ canceled: true, filePath: undefined })
 
-      await expect(backupHandlers['backup.export']({ preset: 'lite' }, ctx)).resolves.toEqual({ status: 'canceled' })
+      await expect(backupHandlers['backup.export'](undefined, ctx)).resolves.toEqual({ status: 'canceled' })
       expect(service.export).not.toHaveBeenCalled()
     })
 
-    it('reports a Lite export as carrying no resources, degradations included', async () => {
+    it('reports an export that carried no resources, degradations included', async () => {
       showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
-      service.export.mockResolvedValue({ outPath: '/tmp/backup.cherrybackup', manifest: manifest('lite') })
+      service.export.mockResolvedValue({
+        outPath: '/tmp/backup.cherrybackup',
+        manifest: manifest([], [{ kind: 'resource:knowledge-base', reason: 'absent at snapshot time' }])
+      })
 
-      const result = await backupHandlers['backup.export']({ preset: 'lite' }, ctx)
+      const result = await backupHandlers['backup.export'](undefined, ctx)
 
       expect(result).toMatchObject({
         resourceCount: 0,
@@ -213,7 +215,7 @@ describe('backupHandlers', () => {
         }
       })
 
-      const result = await backupHandlers['backup.export']({ preset: 'full' }, ctx)
+      const result = await backupHandlers['backup.export'](undefined, ctx)
 
       expect(result.status).toBe('exported')
       if (result.status !== 'exported') return
@@ -233,7 +235,7 @@ describe('backupHandlers', () => {
       showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
       service.export.mockRejectedValue(new BackupBusyError('prepare-restore', 'export'))
 
-      await expect(backupHandlers['backup.export']({ preset: 'lite' }, ctx)).rejects.toMatchObject({
+      await expect(backupHandlers['backup.export'](undefined, ctx)).rejects.toMatchObject({
         code: backupErrorCodes.BUSY
       })
     })
@@ -242,7 +244,7 @@ describe('backupHandlers', () => {
       showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
       service.export.mockRejectedValue(new InsufficientDiskSpaceError({ needed: 10, available: 1, path: '/tmp' }))
 
-      await expect(backupHandlers['backup.export']({ preset: 'lite' }, ctx)).rejects.toMatchObject({
+      await expect(backupHandlers['backup.export'](undefined, ctx)).rejects.toMatchObject({
         code: backupErrorCodes.STORAGE_UNAVAILABLE
       })
     })
@@ -251,7 +253,7 @@ describe('backupHandlers', () => {
       showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
       service.export.mockRejectedValue(new SourceDriftError('/profile/Data/Notes', 'tree changed'))
 
-      await expect(backupHandlers['backup.export']({ preset: 'full' }, ctx)).rejects.toMatchObject({
+      await expect(backupHandlers['backup.export'](undefined, ctx)).rejects.toMatchObject({
         code: backupErrorCodes.EXPORT_SOURCE
       })
     })
@@ -260,14 +262,13 @@ describe('backupHandlers', () => {
       showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
       service.export.mockRejectedValue(new BackupCancelledError())
 
-      await expect(backupHandlers['backup.export']({ preset: 'lite' }, ctx)).resolves.toEqual({ status: 'canceled' })
+      await expect(backupHandlers['backup.export'](undefined, ctx)).resolves.toEqual({ status: 'canceled' })
     })
   })
 
   describe('prepare restore', () => {
     const preview = {
       restoreId: 'r1',
-      preset: 'full' as const,
       coverage: { available: 2, missing: 1, unverifiable: 0 },
       resources: { install: 1, replace: 1 },
       degradations: [],

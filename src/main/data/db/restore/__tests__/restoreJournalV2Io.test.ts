@@ -34,7 +34,7 @@ function preparedJournal(): RestoreJournalV2 {
   return {
     version: 2,
     restoreId: '11111111-2222-4333-8444-555555555555',
-    preset: 'lite',
+    preset: 'full',
     createdAt: '2026-07-27T00:00:00.000Z',
     state: 'prepared',
     db: {

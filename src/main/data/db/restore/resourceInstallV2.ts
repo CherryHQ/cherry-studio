@@ -8,7 +8,7 @@ import { decideRecoveryAction, type RecoveryPhase } from './restoreRecovery'
 
 /**
  * The unified `resource-install` operation (docs/references/backup/README.md
- * §6.3, §6.4) — the Full preset's half of the promotion, executed in the same
+ * §6.3, §6.4) — the resource half of the promotion, executed in the same
  * zero-connection preboot window as the database replacement and under the same
  * durable step marker.
  *

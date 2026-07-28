@@ -93,7 +93,7 @@ export interface AdmittedArchive {
   readonly migratedForward: boolean
   /** The sealed final applied chain (equals the bundled production chain). */
   readonly finalChain: readonly AppliedMigration[]
-  /** Verified resource units (Full); empty for Lite. */
+  /** Verified resource units; empty when the archive declared none. */
   readonly resources: readonly AdmittedResource[]
   /** Idempotent removal of the owned staging tree; refuses a replacement root. */
   readonly cleanup: () => Promise<void>

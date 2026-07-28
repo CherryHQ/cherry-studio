@@ -45,7 +45,7 @@ prepared ──armed by the user──▶ armed ──gate passed──▶ promo
 
 - **`live-checkpointed` is the first effectful step** (§6.2). v2 has no fingerprint, so this checkpoint is the only thing that proves the database about to be parked aside carries the user's last committed transactions — a rename moves the main file alone. It comes before any resource effect, so a checkpoint failure aborts having mutated nothing.
 - **`db-promoted` is the commit point** (`DB_COMMIT_STEP`). Before it, recovery rolls back; at or after it, recovery goes forward.
-- `resources-installed` is the Full-archive unified install (§6.3); Lite journals declare no entries and this build fails closed on any that appear.
+- `resources-installed` is the unified resource install (§6.3); a journal for an archive that carried no resources declares no entries.
 - A resource recovery that cannot converge leaves its active direction on disk and escapes to the preboot shell, which refuses this launch. No normal service sees a new-DB/old-resource or old-DB/archive-resource mixture.
 
 ## Ownership

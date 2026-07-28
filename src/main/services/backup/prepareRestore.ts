@@ -38,7 +38,7 @@ import { loggerService } from '@logger'
 import { admitArchive } from './admission/admitArchive'
 import { compactDegradationsForJournal } from './degradationReport'
 import { RestoreStateError } from './errors'
-import type { BackupManifestDegradation, BackupPreset } from './manifest'
+import type { BackupManifestDegradation } from './manifest'
 import { currentBackupPlatform } from './platform'
 import { type ManagedRootRebaseTable, prepareManagedRootRebase } from './portability/managedPathRebase'
 import { materializePortableDatabase, summarizeMaterializationDegradations } from './portability/materializeDatabase'
@@ -62,12 +62,11 @@ export interface PrepareRestoreInputs {
 
 export interface RestorePreview {
   readonly restoreId: string
-  readonly preset: BackupPreset
   readonly coverage: ResourceCoverage
   /**
-   * What Full would do to this device's files, counted at preparation time
-   * (§8). Zero for Lite, which installs nothing. The preboot state machine owns
-   * the final result — a target can still appear or vanish before boot.
+   * What the restore would do to this device's files, counted at preparation
+   * time (§8). The preboot state machine owns the final result — a target can
+   * still appear or vanish before boot.
    */
   readonly resources: { readonly install: number; readonly replace: number }
   /** What materialization reduced, so a degraded restore never looks complete. */
@@ -158,8 +157,6 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
   let promoted = false
   let journalWritten = false
   try {
-    const preset = admitted.manifest.preset
-
     const materialized = await materializePortableDatabase({
       dbPath: admitted.db.path,
       mode: { kind: 'restore', rebase: buildRebaseTable(admitted.manifest.producer) },
@@ -215,7 +212,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
     writeRestoreJournalV2({
       version: 2,
       restoreId,
-      preset,
+      preset: admitted.manifest.preset,
       createdAt: new Date().toISOString(),
       state: 'prepared',
       db: {
@@ -232,7 +229,6 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
 
     logger.info('Restore prepared', {
       restoreId,
-      preset,
       coverage,
       installs: plan.entries.length,
       replacing: plan.replace,
@@ -240,7 +236,6 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
     })
     const preview = {
       restoreId,
-      preset,
       coverage,
       resources: { install: plan.install, replace: plan.replace },
       degradations,

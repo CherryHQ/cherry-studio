@@ -22,7 +22,7 @@ function admitted(overrides: Partial<AdmittedResource> = {}): AdmittedResource {
   }
 }
 
-function manifest(overrides: Partial<Extract<BackupManifest, { preset: 'full' }>> = {}): BackupManifest {
+function manifest(overrides: Partial<BackupManifest> = {}): BackupManifest {
   return {
     backupFormatVersion: 2,
     createdAt: '2026-07-28T00:00:00.000Z',

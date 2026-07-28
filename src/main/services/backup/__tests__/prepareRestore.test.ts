@@ -61,7 +61,7 @@ describe('restore preparation', () => {
     snapshotMock().mockImplementation((target: string) => snapshotTo(dbh.sqlite, target))
 
     seedResources()
-    await exportArchive({ outPath: archivePath, preset: 'lite' })
+    await exportArchive({ outPath: archivePath })
   })
 
   afterEach(() => {
@@ -148,7 +148,6 @@ describe('restore preparation', () => {
       const preview = await prepareRestore({ archivePath })
 
       expect(preview.coverage).toEqual({ available: 4, missing: 0, unverifiable: 0 })
-      expect(preview.preset).toBe('lite')
     })
 
     it('reports resources missing on an empty device without creating any of them', async () => {
@@ -251,7 +250,7 @@ describe('restore preparation', () => {
       async function exportWithUnportableNote(): Promise<string> {
         dbh.db.insert(noteTable).values({ id: 'n-bad', rootPath: 'not/absolute', path: 'b.md', isStarred: true }).run()
         const out = join(workDir, 'out', 'degraded.cherrybackup')
-        await exportArchive({ outPath: out, preset: 'lite' })
+        await exportArchive({ outPath: out })
         return out
       }
 
@@ -272,11 +271,19 @@ describe('restore preparation', () => {
         const read = readRestoreJournalV2()
         expect(read.kind).toBe('ok')
         if (read.kind !== 'ok') return
-        expect(read.journal.degradations).toEqual([{ kind: 'report:path-unportable', reason: 'count:1' }])
+        expect(read.journal.degradations).toEqual(
+          expect.arrayContaining([{ kind: 'report:path-unportable', reason: 'count:1' }])
+        )
       })
 
       it('omits the field entirely when nothing was reduced', async () => {
-        await prepareRestore({ archivePath })
+        // Every export inventories this device's resources, so "nothing was
+        // reduced" only holds once the files the database references exist.
+        createTargetResources()
+        const clean = join(workDir, 'out', 'clean.cherrybackup')
+        await exportArchive({ outPath: clean })
+
+        await prepareRestore({ archivePath: clean })
 
         const read = readRestoreJournalV2()
         expect(read.kind).toBe('ok')
@@ -293,13 +300,13 @@ describe('restore preparation', () => {
       createTargetResources()
       writeFileSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'SOURCE')
       writeFileSync(join(userData, 'Data', 'Notes', 'a.md'), '# note')
-      await exportArchive({ outPath: out, preset: 'full' })
+      await exportArchive({ outPath: out })
       return out
     }
 
     it('compacts omitted resources into durable totals and bounded path samples', async () => {
       const out = join(workDir, 'out', 'degraded-full.cherrybackup')
-      await exportArchive({ outPath: out, preset: 'full' })
+      await exportArchive({ outPath: out })
 
       const preview = await prepareRestore({ archivePath: out })
       const read = readRestoreJournalV2()
@@ -329,7 +336,6 @@ describe('restore preparation', () => {
 
       const preview = await prepareRestore({ archivePath: full })
 
-      expect(preview.preset).toBe('full')
       expect(preview.resources).toEqual({ install: 4, replace: 0 })
       const read = readRestoreJournalV2()
       if (read.kind !== 'ok') throw new Error('expected a prepared journal')

@@ -729,8 +729,8 @@ function revertToAside(ctx: PromotionContext, reason: string): void {
 }
 
 /**
- * Finish a rolled-back attempt: the Full preset's resource units go back out
- * before the journal turns terminal.
+ * Finish a rolled-back attempt: the restore's resource units go back out before
+ * the journal turns terminal.
  *
  * A restore is ONE replacement. Leaving the archive's files installed over a
  * database that rolled back would produce exactly the mixed state §1 forbids, so
@@ -826,14 +826,14 @@ function finalize(
   return true
 }
 
-/** The database and every Full resource are live; record success, then clean staging. */
+/** The database and every resource are live; record success, then clean staging. */
 function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2): void {
   writeRestoreJournalV2({
     ...ctx.journal,
     state: 'completed',
     step,
     // Exactly the transported Knowledge bases eligible for restore-only rebuild
-    // (§6.7). Lite installs no material and therefore schedules none.
+    // (§6.7). An archive that installed no material schedules nothing.
     summary: {
       knowledgeBaseIds: installedKnowledgeBaseIds(
         ctx.journal.resourceInstalls,

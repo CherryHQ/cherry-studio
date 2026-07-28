@@ -94,7 +94,7 @@ export interface PublishArchiveInputs {
   readonly manifest: BackupManifest
   /** Path to the staged DB snapshot → stored as `backup.sqlite`. Verified against the manifest. */
   readonly dbCopyPath: string
-  /** Optional staged resource tree → walked + scanned, then stored under `resources/` (Full only). */
+  /** Optional staged resource tree → walked + scanned, then stored under `resources/`. */
   readonly resourcesDir?: string
   readonly signal?: AbortSignal
 }
@@ -110,7 +110,6 @@ async function verifyExactResourceInventory(
   limits: DirScanLimits,
   signal: AbortSignal | undefined
 ): Promise<void> {
-  if (manifest.preset !== 'full') throw new ManifestPayloadMismatchError('Lite manifest cannot carry resources')
   const pathSet = validateResourcePathSet(manifest.resourcePayloads.map((payload) => payload.livePath))
   if (!pathSet.ok) {
     throw new ManifestPayloadMismatchError(`resource payload paths are ${pathSet.violation.code}`)
@@ -197,17 +196,11 @@ export async function publishArchiveWithCeilings(
   const validated = parsed.manifest
 
   // Provable resource-presence shape.
-  if (validated.preset === 'lite') {
-    if (resourcesDir !== undefined) {
-      throw new Error('publishArchive: a Lite archive carries no resources, but a resourcesDir was provided')
-    }
-  } else {
-    const hasPayloads = validated.resourcePayloads.length > 0
-    if (hasPayloads !== (resourcesDir !== undefined)) {
-      throw new Error(
-        `publishArchive: Full resource-presence mismatch (declared payloads=${validated.resourcePayloads.length}, resourcesDir ${resourcesDir === undefined ? 'absent' : 'present'})`
-      )
-    }
+  const hasPayloads = validated.resourcePayloads.length > 0
+  if (hasPayloads !== (resourcesDir !== undefined)) {
+    throw new Error(
+      `publishArchive: resource-presence mismatch (declared payloads=${validated.resourcePayloads.length}, resourcesDir ${resourcesDir === undefined ? 'absent' : 'present'})`
+    )
   }
 
   // Verify the DB payload IS the one the manifest advertises: a regular file of
