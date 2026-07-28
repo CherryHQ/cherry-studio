@@ -108,13 +108,20 @@ const DbPromotionSchema = z
  * installed or already present in the restored DB. `strictObject` so later
  * phases add fields deliberately, never silently.
  */
+const uniqueKnowledgeBaseIds = z
+  .array(z.string().min(1))
+  .max(MAX_RESOURCE_INSTALL_ENTRIES)
+  .refine((ids) => new Set(ids).size === ids.length, {
+    message: 'knowledge-base IDs must be unique'
+  })
+
 const RestoreSummarySchema = z.strictObject({
-  knowledgeBaseIds: z
-    .array(z.string().min(1))
-    .max(MAX_RESOURCE_INSTALL_ENTRIES)
-    .refine((ids) => new Set(ids).size === ids.length, {
-      message: 'knowledge-base IDs must be unique'
-    })
+  knowledgeBaseIds: uniqueKnowledgeBaseIds
+})
+
+/** Durable completion, independent of the mere existence of an index file. */
+const KnowledgeRebuildSchema = z.strictObject({
+  completedBaseIds: uniqueKnowledgeBaseIds
 })
 
 /**
@@ -187,19 +194,22 @@ const journalVariants = [
      * delete both and leave that unit with nothing (§6.5). Absent means every
      * unit is installed; `true` is the only other value.
      */
-    resourcesIncomplete: z.literal(true).optional()
+    resourcesIncomplete: z.literal(true).optional(),
+    knowledgeRebuild: KnowledgeRebuildSchema.optional()
   }),
   z.strictObject({
     ...commonFields,
     state: z.literal('rollback-armed'),
     step: PromotionStepSchema.optional(),
-    summary: RestoreSummarySchema
+    summary: RestoreSummarySchema,
+    knowledgeRebuild: KnowledgeRebuildSchema.optional()
   }),
   z.strictObject({
     ...commonFields,
     state: z.literal('rolled-back'),
     step: PromotionStepSchema.optional(),
-    summary: RestoreSummarySchema
+    summary: RestoreSummarySchema,
+    knowledgeRebuild: KnowledgeRebuildSchema.optional()
   }),
   z.strictObject({
     ...commonFields,
@@ -234,6 +244,16 @@ export const RestoreJournalV2Schema = z
     message: 'a lite restore journal must declare no resource-install entries',
     path: ['resourceInstalls']
   })
+  .refine(
+    (journal) =>
+      !('knowledgeRebuild' in journal) ||
+      journal.knowledgeRebuild === undefined ||
+      journal.knowledgeRebuild.completedBaseIds.every((id) => journal.summary.knowledgeBaseIds.includes(id)),
+    {
+      message: 'completed knowledge rebuild IDs must belong to the restore summary',
+      path: ['knowledgeRebuild', 'completedBaseIds']
+    }
+  )
 
 export type RestoreJournalV2 = z.infer<typeof RestoreJournalV2Schema>
 export type RestoreJournalV2State = RestoreJournalV2['state']
@@ -293,16 +313,33 @@ export function parseRestoreJournalV2(value: unknown): ReadJournalV2Result {
 
 /**
  * The journal is a standalone sidecar in the database's own directory
- * (`feature.backup.restore.file`), and that CO-LOCATION IS A DURABILITY
- * INVARIANT, not convenience: every write below fsyncs the shared parent
- * directory, which also flushes a not-yet-durable DB rename in that same
- * directory — so "marker at/past the commit step" implies "the commit rename is
- * durable" even if the rename's own directory fsync was lost. Moving this file
- * elsewhere reopens a power-loss window where a completed journal survives a
- * rolled-back rename, i.e. booting into an empty database.
+ * (`feature.backup.restore.file`). On POSIX that co-location is a durability
+ * invariant: fsyncing the shared parent couples the step marker to the DB rename.
+ * Moving it elsewhere reopens a power-loss window where a completed journal
+ * survives a rolled-back rename. Windows cannot make that metadata ordering
+ * claim through Node/libuv; co-location still keeps process-crash recovery and
+ * path ownership simple, while sudden power loss remains outside the guarantee.
  */
 function journalFilePath(): string {
   return application.getPath('feature.backup.restore.file')
+}
+
+export type RestoreJournalFormatVersion = 1 | 2 | 'none' | 'unknown'
+
+/** Peek only the on-disk version so the preboot gate can dispatch an active v1 upgrade safely. */
+export function readRestoreJournalFormatVersion(): RestoreJournalFormatVersion {
+  let raw: string
+  try {
+    raw = fs.readFileSync(journalFilePath(), 'utf8')
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'none' : 'unknown'
+  }
+  try {
+    const parsed = JSON.parse(raw) as { version?: unknown } | null
+    return parsed?.version === 1 ? 1 : parsed?.version === 2 ? 2 : 'unknown'
+  } catch {
+    return 'unknown'
+  }
 }
 
 export type ReadJournalV2FileResult =
@@ -343,8 +380,9 @@ export function readRestoreJournalV2(): ReadJournalV2FileResult {
  *
  * Idempotent: an already-absent journal is success, which is what lets
  * acknowledgement cleanup and cancellation be re-run after a crash. The parent
- * directory is fsynced for the same reason writes are — the unlink must survive
- * power loss, or a cleared restore would come back and promote again.
+ * directory is fsynced on POSIX for the same reason writes are — the unlink must
+ * survive power loss, or a cleared restore would come back and promote again.
+ * Windows provides the narrower process-crash guarantee documented below.
  *
  * ORDERING CONTRACT (§6.5): this is the LAST step of acknowledgement. While the
  * journal exists, the recovery asides are protected; clearing it first would
@@ -372,20 +410,40 @@ export function clearRestoreJournalV2(): void {
 /**
  * Crash-safe journal write: write-ahead to a `.tmp` sibling, fsync it, rename
  * over the journal path, then fsync the parent directory on POSIX so the rename
- * itself is durable. Windows moves are write-through and its directory handles
- * cannot be fsynced, so the same guarantee is inherited from the platform there.
+ * itself is durable. Windows directory handles cannot be fsynced and Node/libuv
+ * rename does not request `MOVEFILE_WRITE_THROUGH`, so Windows guarantees
+ * process-crash recovery only; sudden power loss may roll metadata back.
  *
  * Deliberately mirrors the v1 writer rather than sharing it: v1 disappears at
  * the promotion cutover, and coupling two on-disk contracts that are about to
  * diverge would be the wrong dependency to create for one phase of overlap.
  */
+/** Narrow fault-injection seam for short-write recovery tests. */
+export const restoreJournalIo: {
+  writeSync(fd: number, bytes: Uint8Array, offset: number, length: number, position: number | null): number
+} = {
+  writeSync: (fd, bytes, offset, length, position) => fs.writeSync(fd, bytes, offset, length, position)
+}
+
+function writeBufferFully(fd: number, bytes: Buffer): void {
+  let offset = 0
+  while (offset < bytes.length) {
+    const written = restoreJournalIo.writeSync(fd, bytes, offset, bytes.length - offset, null)
+    if (written <= 0) {
+      throw new Error(`restore journal write made no progress at ${offset}/${bytes.length} bytes`)
+    }
+    offset += written
+  }
+}
+
 export function writeRestoreJournalV2(journal: RestoreJournalV2): void {
   const journalPath = journalFilePath()
   const tmpPath = `${journalPath}.tmp`
+  const bytes = Buffer.from(JSON.stringify(journal, null, 2), 'utf8')
 
   const fd = fs.openSync(tmpPath, 'w')
   try {
-    fs.writeSync(fd, JSON.stringify(journal, null, 2))
+    writeBufferFully(fd, bytes)
     fs.fsyncSync(fd)
   } finally {
     fs.closeSync(fd)

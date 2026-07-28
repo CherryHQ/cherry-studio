@@ -12,7 +12,14 @@ const service = vi.hoisted(() => ({
   rollbackRestore: vi.fn(),
   acknowledgeRestore: vi.fn()
 }))
-const applicationGet = vi.hoisted(() => vi.fn(() => service))
+const windowMock = vi.hoisted(() => ({ id: 'window-1' }))
+const windowManager = vi.hoisted(() => ({ getWindow: vi.fn(() => windowMock) }))
+const applicationGet = vi.hoisted(() =>
+  vi.fn((name: string) => {
+    if (name === 'WindowManager') return windowManager
+    return service
+  })
+)
 const showSaveDialog = vi.hoisted(() => vi.fn())
 const showOpenDialog = vi.hoisted(() => vi.fn())
 
@@ -49,6 +56,7 @@ function manifest(preset: 'lite' | 'full') {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  windowManager.getWindow.mockReturnValue(windowMock)
 })
 
 describe('backupHandlers', () => {
@@ -68,6 +76,15 @@ describe('backupHandlers', () => {
       expect(showSaveDialog).not.toHaveBeenCalled()
       expect(showOpenDialog).not.toHaveBeenCalled()
       expect(applicationGet).not.toHaveBeenCalled()
+    })
+
+    it('refuses a sender whose managed window disappeared before the dialog opened', async () => {
+      windowManager.getWindow.mockReturnValueOnce(undefined as never)
+
+      await expect(backupHandlers['backup.export']({ preset: 'lite' }, ctx)).rejects.toMatchObject({
+        code: backupErrorCodes.SENDER_NOT_ALLOWED
+      })
+      expect(showSaveDialog).not.toHaveBeenCalled()
     })
 
     it('reads status for any caller — it changes nothing', async () => {
@@ -101,6 +118,7 @@ describe('backupHandlers', () => {
 
       expect(service.export).toHaveBeenCalledWith('/tmp/backup.cherrybackup', 'full')
       expect(showSaveDialog).toHaveBeenCalledWith(
+        windowMock,
         expect.objectContaining({ filters: [{ name: 'Cherry Studio Backup', extensions: ['cherrybackup'] }] })
       )
       expect(result).toEqual({
@@ -182,6 +200,10 @@ describe('backupHandlers', () => {
 
       const result = await backupHandlers['backup.prepare_restore'](undefined, ctx)
 
+      expect(showOpenDialog).toHaveBeenCalledWith(
+        windowMock,
+        expect.objectContaining({ filters: [{ name: 'Cherry Studio Backup', extensions: ['cherrybackup'] }] })
+      )
       expect(service.prepareRestore).toHaveBeenCalledWith('/tmp/in.cherrybackup')
       expect(result).toEqual({ status: 'prepared', preview })
     })

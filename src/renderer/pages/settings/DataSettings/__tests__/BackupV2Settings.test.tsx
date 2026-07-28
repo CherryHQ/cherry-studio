@@ -278,13 +278,19 @@ describe('BackupV2Settings', () => {
       kind: 'journal',
       state: 'completed',
       restoreId: 'r1',
-      degradations: [{ code: 'path-unportable', count: 2 }]
+      degradations: [
+        { code: 'path-unportable', count: 2 },
+        { code: 'external-file-dropped', count: 1 }
+      ]
     })
     await renderSettings()
 
     await waitFor(() => expect(screen.getByText('settings.data.backup_v2.outcome.degradations')).toBeInTheDocument())
     expect(screen.getByText('settings.data.backup_v2.outcome.degradation.path_unportable')).toBeInTheDocument()
     expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.outcome.degradation.path_unportable', { count: 2 })
+    expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.outcome.degradation.external_file_dropped', {
+      count: 1
+    })
   })
 
   it('withholds acknowledgement while a completed restore still owes a file', async () => {
@@ -301,6 +307,26 @@ describe('BackupV2Settings', () => {
     )
     // The staging tree and the aside are that unit's only two copies, and this
     // button deletes both.
+    expect(
+      screen.queryByRole('button', {
+        name: 'settings.data.backup_v2.outcome.acknowledge_button'
+      })
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps rollback available but withholds acknowledgement while Knowledge rebuilds', async () => {
+    statusIs({
+      kind: 'journal',
+      state: 'completed',
+      restoreId: 'r1',
+      knowledgeRebuildPending: true
+    })
+    await renderSettings()
+
+    await waitFor(() =>
+      expect(screen.getByText('settings.data.backup_v2.outcome.knowledge_rebuild_pending')).toBeInTheDocument()
+    )
+    expect(screen.getByRole('button', { name: 'settings.data.backup_v2.rollback.button' })).toBeInTheDocument()
     expect(
       screen.queryByRole('button', {
         name: 'settings.data.backup_v2.outcome.acknowledge_button'

@@ -82,6 +82,7 @@ function mapExtractionError(err: unknown): Error {
 
 interface PumpOptions {
   readonly declaredBytes: number
+  readonly executable: boolean
   readonly absoluteCap: number
   readonly budget: ExtractionBudget
   /** Reason used when the ABSOLUTE cap (not the declared size) is the binding breach. */
@@ -94,7 +95,7 @@ async function pumpBounded(stream: Readable, destPath: string, opts: PumpOptions
   const { declaredBytes, absoluteCap, budget, overflowReason, entryLabel, signal } = opts
   const perEntryCap = Math.min(declaredBytes, absoluteCap)
   await mkdir(path.dirname(destPath), { recursive: true })
-  const out = createWriteStream(destPath, { flags: 'wx', mode: 0o600 })
+  const out = createWriteStream(destPath, { flags: 'wx', mode: opts.executable ? 0o700 : 0o600 })
   let bytes = 0
   let settled = false
 
@@ -202,6 +203,7 @@ export async function extractEntryToFile(
   const stream = await streamEntry(zip, entry)
   return pumpBounded(stream, stagedPathOf(stagingDir, entry.path), {
     declaredBytes: entry.uncompressedSize,
+    executable: entry.executable,
     absoluteCap: opts.absoluteCap,
     budget: opts.budget,
     overflowReason: opts.overflowReason,

@@ -51,6 +51,8 @@ const O_NOFOLLOW = fsConstants.O_NOFOLLOW ?? 0
 export interface StagedFile {
   readonly hash: string
   readonly size: number
+  /** The only transported POSIX mode fact; restoration maps it to 0700/0600. */
+  readonly executable: boolean
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
@@ -78,7 +80,7 @@ export const driftHooks = {
 
 /**
  * Stage one regular file to `stagingPath` while streaming through a SHA-256.
- * Creates the destination EXCLUSIVELY (`O_EXCL`, mode `0600`) — a pre-existing
+ * Creates the destination EXCLUSIVELY (`O_EXCL`, safe mode `0600`/`0700`) — a pre-existing
  * `stagingPath` is never truncated — and removes it on failure ONLY if this call
  * created it. Rejects a symlink/special source (and the lstat↔open swap race),
  * enforces the shared per-entry byte ceiling BEFORE creating any staging output,
@@ -87,6 +89,8 @@ export const driftHooks = {
 export async function stageFileWithDriftCheck(args: {
   sourcePath: string
   stagingPath: string
+  /** Identity captured at the database snapshot boundary, when available. */
+  expectedIdentity?: FsIdentity
   signal?: AbortSignal
   /** Per-entry uncompressed byte ceiling (defaults to the shared frozen ceiling; narrow it in tests). */
   maxEntryBytes?: number
@@ -98,6 +102,9 @@ export async function stageFileWithDriftCheck(args: {
   const initialStat = await lstat(sourcePath, { bigint: true })
   if (initialStat.isSymbolicLink() || !initialStat.isFile()) throw new NonRegularSourceError(sourcePath)
   const initial: FsIdentity = fsIdentityOf(initialStat, 'file')
+  if (args.expectedIdentity && !identitiesEqual(args.expectedIdentity, initial)) {
+    throw new SourceDriftError(sourcePath, 'file changed since the database snapshot boundary')
+  }
 
   // Per-entry ceiling BEFORE any staging output is created (no partial left behind).
   if (initial.size > BigInt(maxEntryBytes)) {
@@ -130,7 +137,12 @@ export async function stageFileWithDriftCheck(args: {
     // Exclusive create for OWNERSHIP: O_EXCL throws EEXIST on a pre-existing
     // (foreign) staging file BEFORE `ownedStaging` is set, so cleanup never
     // touches a file we did not create.
-    dest = await open(stagingPath, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL, 0o600)
+    const executable = (initialStat.mode & 0o111n) !== 0n
+    dest = await open(
+      stagingPath,
+      fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
+      executable ? 0o700 : 0o600
+    )
     ownedStaging = true
 
     const hash = createHash('sha256')
@@ -158,7 +170,7 @@ export async function stageFileWithDriftCheck(args: {
     if (BigInt(bytes) !== initial.size) {
       throw new SourceDriftError(sourcePath, `staged ${bytes} bytes but source size is ${initial.size}`)
     }
-    return { hash: hash.digest('hex'), size: bytes }
+    return { hash: hash.digest('hex'), size: bytes, executable }
   } catch (err) {
     if (ownedStaging) await rm(stagingPath, { force: true }).catch(() => {})
     throw mapEnospc(err)
@@ -172,14 +184,18 @@ export interface StagedDirectoryFile extends StagedFile {
   readonly relPath: string
 }
 
-function scansEqual(a: DirScanResult, b: DirScanResult): boolean {
+export function scansEqual(a: DirScanResult, b: DirScanResult): boolean {
   if (!identitiesEqual(a.rootId, b.rootId)) return false
   if (a.dirs.length !== b.dirs.length || a.entries.length !== b.entries.length) return false
   for (let i = 0; i < a.dirs.length; i++) {
     if (a.dirs[i].relPath !== b.dirs[i].relPath || !identitiesEqual(a.dirs[i].id, b.dirs[i].id)) return false
   }
   for (let i = 0; i < a.entries.length; i++) {
-    if (a.entries[i].relPath !== b.entries[i].relPath || !identitiesEqual(a.entries[i].id, b.entries[i].id))
+    if (
+      a.entries[i].relPath !== b.entries[i].relPath ||
+      a.entries[i].executable !== b.entries[i].executable ||
+      !identitiesEqual(a.entries[i].id, b.entries[i].id)
+    )
       return false
   }
   return true
@@ -238,6 +254,8 @@ async function assertAncestorsUnchanged(
 export async function stageDirectoryWithDriftCheck(args: {
   sourceDir: string
   stagingDir: string
+  /** Tree identity captured at the database snapshot boundary, when available. */
+  expectedScan?: DirScanResult
   signal?: AbortSignal
   excludeKnowledgeDerivedIndex?: boolean
 }): Promise<{ files: readonly StagedDirectoryFile[] }> {
@@ -256,6 +274,9 @@ export async function stageDirectoryWithDriftCheck(args: {
 
   try {
     const initial = await scanDirectoryUnit(sourceDir, { signal, excludeKnowledgeDerivedIndex })
+    if (args.expectedScan && !scansEqual(args.expectedScan, initial)) {
+      throw new SourceDriftError(sourceDir, 'directory tree changed since the database snapshot boundary')
+    }
     const dirById = new Map(initial.dirs.map((d) => [d.relPath, d.id]))
     // Directory entries are authoritative too: create them before copying files
     // so nested empty folders survive the archive round trip.

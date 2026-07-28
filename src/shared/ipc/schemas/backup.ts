@@ -36,6 +36,7 @@ const PresetSchema = z.enum(['lite', 'full'])
 
 export const BACKUP_DEGRADATION_CODES = [
   'capability-malformed',
+  'external-file-dropped',
   'path-unportable',
   'path-collision',
   'resource-unavailable',
@@ -95,6 +96,8 @@ const RestoreStatusSchema = z.discriminatedUnion('kind', [
     recoveryIncomplete: z.literal(true).optional(),
     /** A `completed` restore whose resource units are not all in place yet (§6.5). */
     resourcesIncomplete: z.literal(true).optional(),
+    /** Archive-transported Knowledge material still lacks owner-proven index completion. */
+    knowledgeRebuildPending: z.literal(true).optional(),
     /** What materializing this archive on THIS device reduced (§4). Absent when nothing was. */
     degradations: z.array(DegradationSchema).optional()
   })

@@ -24,9 +24,10 @@ export const restoreStagingDurability = {
 }
 
 /**
- * Make an operation-owned restore tree durable before a journal is allowed to
- * name it. Files are flushed first, directories bottom-up, then the root's
- * parent so both contents and directory entries survive a power loss.
+ * Flush an operation-owned restore tree before a journal may name it. POSIX
+ * flushes files plus directories bottom-up, including the root's parent, for
+ * sudden-power-loss durability. Windows flushes file contents but cannot fsync
+ * directory metadata through Node, so its contract is process-crash recovery.
  */
 export function durabilizeRestoreStaging(root: string): void {
   function walk(directory: string): void {

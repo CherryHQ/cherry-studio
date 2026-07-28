@@ -9,6 +9,7 @@ import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
+import { fileEntryTable } from '@data/db/schemas/file'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
@@ -205,6 +206,36 @@ describe('materializePortableDatabase', () => {
       // error, so the status can never be written on its own.
       expect(byId.get('k-deleting')?.status).toBe('failed')
       expect((byId.get('k-deleting')?.error ?? '').trim().length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('external file references', () => {
+    it('drops source-device absolute paths before they can be resolved by restored UI', async () => {
+      dbh.db
+        .insert(fileEntryTable)
+        .values({
+          id: '11111111-2222-4333-8444-555555555555',
+          origin: 'external',
+          name: 'probe',
+          ext: 'png',
+          size: null,
+          externalPath: '\\\\server\\share\\probe.png'
+        })
+        .run()
+
+      const dbPath = snapshot()
+      const result = await materializePortableDatabase({ dbPath, mode: EXPORT_MODE })
+
+      expect(result.summary.externalFileEntriesDeleted).toBe(1)
+      expect(result.summary.degradations).toEqual([
+        {
+          table: 'file_entry',
+          rowId: '11111111-2222-4333-8444-555555555555',
+          reason: 'external-file-dropped',
+          detail: undefined
+        }
+      ])
+      expect(inspect(dbPath, (db) => db.select().from(fileEntryTable).all())).toEqual([])
     })
   })
 

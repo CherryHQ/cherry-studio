@@ -123,10 +123,10 @@ export const PORTABLE_DB_POLICIES: readonly TablePolicyEntry[] = Object.freeze([
   },
   {
     table: 'file_entry',
-    policy: 'inert',
+    policy: 'reset',
     columns: ['externalPath', 'origin'],
     evidence:
-      '§4: `external.*` content is third-party owned and never an overlay target. `externalPath` is a user file outside every managed root (src/main/data/db/schemas/file.ts:47) and CHECK constraints bind it to origin=external; it is preserved as metadata so the UI can report the file as unavailable, and is never rebased or followed. Internal blobs carry no path column at all — they are addressed by id under the managed Files root — so they need no rebase.'
+      '§3.1/§4: an external absolute path cannot be retained as inert metadata because existing renderers resolve FileEntry ids automatically (for example generated-image tool output) and turn UNC paths into file:// authorities. Materialization deletes origin=external rows; FK-owned relation rows cascade, while historical message payloads keep their display metadata but can no longer resolve the removed id. Internal blobs carry no path column and remain portable.'
   },
   {
     table: 'agent_global_skill',

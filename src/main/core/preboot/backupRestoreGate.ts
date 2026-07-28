@@ -1,3 +1,11 @@
+import { readRestoreJournalFormatVersion } from '@data/db/restore/restoreJournalV2'
+import {
+  clearConvergedV1Restore,
+  isLiveDbStranded as isLiveDbStrandedV1,
+  isRestoreRecoveryPending as isRestoreRecoveryPendingV1,
+  markRestoreFailedAfterCrash as markRestoreFailedAfterCrashV1,
+  runRestorePromotion as runRestorePromotionV1
+} from '@data/db/restore/restorePromotionV1Compat'
 import {
   isLiveDbStrandedV2,
   isRestoreRecoveryPendingV2,
@@ -18,8 +26,8 @@ const logger = loggerService.withContext('BackupRestoreGate')
  * renames and must hold the single-instance lock) and after the path registry
  * is frozen (all journal paths resolve against the final userData).
  *
- * No return value: whatever happens, boot continues — promotion success means
- * the new DB is live, any refusal or failure means the old DB is. An
+ * No return value on a coherent outcome: promotion success means the new DB is
+ * live, and a safely reverted failure means the old DB is. An
  * unexpected crash of the promotion logic is logged and handed to
  * markRestoreFailedAfterCrashV2, which restores the live DB from the aside if
  * needed and freezes the journal to failed (or leaves a committed promotion
@@ -27,12 +35,36 @@ const logger = loggerService.withContext('BackupRestoreGate')
  * itself poisonous.
  *
  * This shell normally does not throw — a preboot exception falls into
- * startApp's fail-fast catch (forceExit). It refuses to boot only when recovery
- * cannot prove a coherent live state: either the DB is stranded aside or an
- * explicitly armed rollback has not converged. Booting the latter would expose
- * a mixed old/new DB-resource state and let new writes make recovery ambiguous.
+ * startApp's fail-fast catch (forceExit). It refuses to boot whenever recovery
+ * cannot prove a coherent live state: a corrupt/future journal, a stranded DB,
+ * or any forward/reverse direction that has not converged. The journal and its
+ * staging evidence are preserved rather than guessed away.
  */
 export async function runBackupRestoreGate(): Promise<void> {
+  if (readRestoreJournalFormatVersion() === 1) {
+    try {
+      await runRestorePromotionV1()
+      clearConvergedV1Restore()
+    } catch (error) {
+      logger.error('v1 restore upgrade recovery crashed — attempting its last-resort recovery', error as Error)
+      try {
+        markRestoreFailedAfterCrashV1()
+        clearConvergedV1Restore()
+      } catch (journalError) {
+        logger.error('Failed to converge the v1 restore journal', journalError as Error)
+      }
+      if (isLiveDbStrandedV1()) {
+        throw new Error(
+          'Restore recovery failed: the live database is missing while the previous database is still parked aside — refusing to boot into an empty database'
+        )
+      }
+      if (isRestoreRecoveryPendingV1()) {
+        throw new Error('v1 restore recovery is incomplete — refusing to boot into a mixed restore state')
+      }
+    }
+    return
+  }
+
   try {
     await runRestorePromotionV2()
   } catch (error) {

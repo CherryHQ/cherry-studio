@@ -6,7 +6,7 @@ import type {
 } from '@data/db/restore/restoreJournalV2'
 import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
 import { BackupBusyError, BackupCancelledError } from './errors'
@@ -17,6 +17,7 @@ import { armPreparedRestore, cancelPreparedRestore, prepareRestore, type Restore
 import { armRestoreRollback } from './rollbackRestore'
 
 const logger = loggerService.withContext('BackupService')
+const POST_PROMOTION_POLL_MS = 10_000
 
 /** The mutually exclusive long-running operations this service owns. */
 export type BackupOperation = 'export' | 'prepare-restore'
@@ -36,7 +37,7 @@ interface InFlightOperation {
  */
 export type RestoreStatus =
   | { readonly kind: 'none' }
-  /** The journal exists but no version can parse it; the gate quarantines it at the next boot. */
+  /** The journal exists but no version can parse it; preboot preserves it and refuses unsafe startup. */
   | { readonly kind: 'unreadable'; readonly error: string }
   | {
       readonly kind: 'journal'
@@ -57,6 +58,8 @@ export type RestoreStatus =
        * until a restart finishes the job — so acknowledgement is withheld.
        */
       readonly resourcesIncomplete?: true
+      /** Knowledge jobs are still rebuilding archive-transported material. */
+      readonly knowledgeRebuildPending?: true
       /**
        * What this restore reduced (§4), carried by the journal so the report
        * survives the relaunch. Absent when nothing was reduced.
@@ -82,8 +85,8 @@ export interface BackupStatus {
  * the service directly instead of waiting for the renderer.
  *
  * What it deliberately does NOT own: the preboot promotion (no service is alive
- * at preboot — see `core/preboot/backupRestoreGate.ts`), and journal quarantine
- * or aside cleanup, which belong to the promotion gate and to acknowledgement.
+ * at preboot — see `core/preboot/backupRestoreGate.ts`), and journal/aside
+ * cleanup, which belong to the promotion gate and to acknowledgement.
  */
 @Injectable('BackupService')
 @ServicePhase(Phase.WhenReady)
@@ -91,8 +94,14 @@ export class BackupService extends BaseService {
   /** The one operation in flight, with the handle that can abort it; `null` when idle. */
   private inFlight: InFlightOperation | null = null
   private shuttingDown = false
-  /** The post-promotion rebuild, tracked so `onStop` can join it (§6.7). */
+  /** The current bounded reconciliation pass, tracked so `onStop` can join it (§6.7). */
   private postPromotionWork: Promise<unknown> | null = null
+  private postPromotionPoll: Disposable | null = null
+
+  protected onInit(): void {
+    // Lifecycle services may be restarted on the same instance.
+    this.shuttingDown = false
+  }
 
   /**
    * Report what the last boot's restore attempt left behind. Read-only on
@@ -105,7 +114,7 @@ export class BackupService extends BaseService {
       case 'none':
         return
       case 'unreadable':
-        logger.error('Restore journal is unreadable — the next boot gate will quarantine it', {
+        logger.error('Restore journal is unreadable — preboot will preserve it and refuse unsafe startup', {
           error: status.error
         })
         return
@@ -126,14 +135,39 @@ export class BackupService extends BaseService {
    * service running, and the job queue open — none of which exist at preboot.
    */
   protected onAllReady(): void {
-    this.postPromotionWork = runPostPromotionWork(() => !this.shuttingDown).catch((error) => {
-      // Derived work is a repair, never a boot dependency.
-      logger.error('Post-promotion work failed', error as Error)
-    })
+    this.startPostPromotionPass()
+  }
+
+  private startPostPromotionPass(): void {
+    if (this.shuttingDown || this.postPromotionWork) return
+    const work = runPostPromotionWork(() => !this.shuttingDown)
+      .then((outcome) => {
+        if (this.shuttingDown) return
+        if (outcome.pending) {
+          this.postPromotionPoll ??= this.registerInterval(() => this.startPostPromotionPass(), POST_PROMOTION_POLL_MS)
+        } else {
+          this.postPromotionPoll?.dispose()
+          this.postPromotionPoll = null
+        }
+      })
+      .catch((error) => {
+        // Derived work is a repair, never a boot dependency. Poll again: the
+        // durable journal remains the source of truth until completion.
+        logger.error('Post-promotion work failed', error as Error)
+        if (!this.shuttingDown) {
+          this.postPromotionPoll ??= this.registerInterval(() => this.startPostPromotionPass(), POST_PROMOTION_POLL_MS)
+        }
+      })
+      .finally(() => {
+        if (this.postPromotionWork === work) this.postPromotionWork = null
+      })
+    this.postPromotionWork = work
   }
 
   protected async onStop(): Promise<void> {
     this.shuttingDown = true
+    this.postPromotionPoll?.dispose()
+    this.postPromotionPoll = null
     const waits: Promise<unknown>[] = []
     if (this.inFlight) {
       this.inFlight.controller.abort()
@@ -266,6 +300,10 @@ export class BackupService extends BaseService {
       ...(journal.state === 'promoting' ? { step: journal.step } : {}),
       ...(journal.state === 'failed' && journal.recoveryIncomplete ? { recoveryIncomplete: true as const } : {}),
       ...(journal.state === 'completed' && journal.resourcesIncomplete ? { resourcesIncomplete: true as const } : {}),
+      ...(journal.state === 'completed' &&
+      journal.summary.knowledgeBaseIds.some((id) => !journal.knowledgeRebuild?.completedBaseIds.includes(id))
+        ? { knowledgeRebuildPending: true as const }
+        : {}),
       ...(journal.degradations && journal.degradations.length > 0 ? { degradations: journal.degradations } : {})
     }
   }

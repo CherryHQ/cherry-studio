@@ -4,6 +4,7 @@ import { type AppliedMigration, readAppliedChain } from '@data/db/restore/applie
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { fileEntryTable } from '@data/db/schemas/file'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
@@ -74,6 +75,8 @@ export interface MaterializeInputs {
 export type MaterializationDegradationReason =
   /** A known capability JSON field did not match its declared shape; the sanitizer failed that field closed. */
   | 'capability-malformed'
+  /** An external file reference was removed because its absolute path can trigger automatic local/network I/O. */
+  | 'external-file-dropped'
   /** A managed path could not be rebased portably, so the row keeps its producer path as inert metadata. */
   | 'path-unportable'
   /** The rebased path is already claimed by another row, so this row keeps its producer path as inert metadata. */
@@ -100,6 +103,7 @@ export interface MaterializationSummary {
   readonly agentsSanitized: number
   readonly channelsSanitized: number
   readonly knowledgeItemsReset: number
+  readonly externalFileEntriesDeleted: number
   readonly preferencesDeleted: number
   readonly codeCliConfigsRewritten: number
   readonly codeCliConfigsDeleted: number
@@ -257,6 +261,7 @@ class SummaryBuilder {
   agentsSanitized = 0
   channelsSanitized = 0
   knowledgeItemsReset = 0
+  externalFileEntriesDeleted = 0
   preferencesDeleted = 0
   codeCliConfigsRewritten = 0
   codeCliConfigsDeleted = 0
@@ -276,6 +281,7 @@ class SummaryBuilder {
       agentsSanitized: this.agentsSanitized,
       channelsSanitized: this.channelsSanitized,
       knowledgeItemsReset: this.knowledgeItemsReset,
+      externalFileEntriesDeleted: this.externalFileEntriesDeleted,
       preferencesDeleted: this.preferencesDeleted,
       codeCliConfigsRewritten: this.codeCliConfigsRewritten,
       codeCliConfigsDeleted: this.codeCliConfigsDeleted,
@@ -559,9 +565,25 @@ function rebaseAgentWorkspaces(db: DbOrTx, table: ManagedRootRebaseTable, summar
  * external-content indexes are keyed on a stable `fts_rowid` column precisely so
  * they survive `VACUUM INTO` transport, so there is nothing to rebuild.
  */
+function dropExternalFileEntries(db: DbOrTx, summary: SummaryBuilder): void {
+  const rows = db
+    .select({ id: fileEntryTable.id })
+    .from(fileEntryTable)
+    .where(eq(fileEntryTable.origin, 'external'))
+    .all()
+  if (rows.length === 0) return
+
+  summary.externalFileEntriesDeleted = db
+    .delete(fileEntryTable)
+    .where(eq(fileEntryTable.origin, 'external'))
+    .run().changes
+  for (const row of rows) summary.degrade('file_entry', row.id, 'external-file-dropped')
+}
+
 function applyPolicy(db: DbOrTx, mode: MaterializeMode): MaterializationSummary {
   const summary = new SummaryBuilder()
   resetJobs(db, summary)
+  dropExternalFileEntries(db, summary)
   resetMcpServers(db, summary)
   resetAgents(db, summary)
   resetAgentChannels(db, summary)

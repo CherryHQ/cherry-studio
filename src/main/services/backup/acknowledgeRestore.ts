@@ -44,8 +44,8 @@ export function acknowledgeRestore(): AcknowledgeResult {
   }
   if (read.kind === 'corrupt') {
     // Nothing can be proven about which asides it owns, so deleting from it
-    // would be guesswork. The next boot's promotion gate quarantines it.
-    throw new RestoreStateError('unreadable', 'the restore journal is unreadable; the next boot will quarantine it')
+    // would be guesswork. Preboot preserves it and refuses unsafe startup.
+    throw new RestoreStateError('unreadable', 'the restore journal is unreadable and requires explicit repair')
   }
 
   const journal = read.journal
@@ -71,6 +71,19 @@ export function acknowledgeRestore(): AcknowledgeResult {
     throw new RestoreStateError(
       'recovery-incomplete',
       'the last restore could not put every file in place; restart the app to finish it before releasing anything'
+    )
+  }
+
+  if (
+    journal.state === 'completed' &&
+    journal.summary.knowledgeBaseIds.some((id) => !journal.knowledgeRebuild?.completedBaseIds.includes(id))
+  ) {
+    // The journal is also the durable retry marker for derived Knowledge work.
+    // Clearing it while a base is pending would turn the next shutdown into a
+    // permanent empty/partial index.
+    throw new RestoreStateError(
+      'wrong-state',
+      'the restored knowledge index is still rebuilding; wait for it to finish before releasing recovery data'
     )
   }
 

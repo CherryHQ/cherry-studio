@@ -67,7 +67,8 @@ function fullManifest(withPayload: boolean): BackupManifest {
             archivePath: 'resources/Data/Files/blob.bin',
             livePath: 'Data/Files/blob.bin',
             hash: RESOURCE_HASH,
-            sizeBytes: 3
+            sizeBytes: 3,
+            executable: false
           }
         ]
       : []
@@ -79,7 +80,12 @@ function fullManifestWithPayload(patch: Partial<ResourcePayload>): BackupManifes
   if (manifest.preset !== 'full') throw new Error('expected Full fixture')
   const payload = manifest.resourcePayloads[0]
   if (!payload) throw new Error('expected fixture payload')
-  return { ...manifest, resourcePayloads: [{ ...payload, ...patch }] }
+  const next = { ...payload, ...patch } as Record<string, unknown>
+  if (next.resourceType === 'directory') delete next.executable
+  return {
+    ...manifest,
+    resourcePayloads: [next as unknown as ResourcePayload]
+  }
 }
 
 beforeEach(async () => {

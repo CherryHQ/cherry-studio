@@ -170,6 +170,8 @@ export interface PrepareRebaseInput {
 }
 
 export type PrepareRebaseError =
+  /** A required rebasable root was omitted, so managed paths could be misclassified as external. */
+  | { readonly code: 'producer-root-missing'; readonly key: RebasableManagedRootKey }
   /** A rebasable producer root's path is not an absolute, normalized, non-volume-root path. */
   | { readonly code: 'producer-root-unusable'; readonly key: string; readonly path: string }
   /** Two rebasable producer roots declare the same path — longest-match resolution would be ambiguous. */
@@ -224,6 +226,15 @@ export function prepareManagedRootRebase(input: PrepareRebaseInput): PrepareReba
     }
 
     pairings.push({ key, producer, producerKeys, target, targetPath })
+  }
+
+  // Every root this build uses to classify managed database paths is mandatory.
+  // Omitting one cannot degrade safely: rows under it would become `external`
+  // and retain a source-device absolute path while appearing portable.
+  for (const key of REBASABLE_MANAGED_ROOT_KEYS) {
+    if (input.targetRoots[key] !== undefined && !pairings.some((pairing) => pairing.key === key)) {
+      return { ok: false, error: { code: 'producer-root-missing', key } }
+    }
   }
 
   // Longest producer root first: nested roots then resolve to the most specific

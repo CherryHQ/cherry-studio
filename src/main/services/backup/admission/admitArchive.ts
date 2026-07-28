@@ -212,6 +212,7 @@ export async function admitArchive(inputs: AdmitArchiveInputs): Promise<Admitted
       stagingDir,
       units,
       stagedResourceFiles,
+      shape.resourceFiles,
       dirScanLimitsOf(ceilings),
       signal
     )

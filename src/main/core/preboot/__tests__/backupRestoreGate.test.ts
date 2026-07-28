@@ -9,10 +9,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * must refuse and fail fast instead.
  */
 
+const journalVersionMock = vi.fn<() => 1 | 2 | 'none' | 'unknown'>()
 const runRestorePromotionMock = vi.fn<() => Promise<void>>()
 const markRestoreFailedAfterCrashMock = vi.fn<() => void>()
 const isLiveDbStrandedMock = vi.fn<() => boolean>()
 const isRestoreRollbackPendingMock = vi.fn<() => boolean>()
+
+vi.mock('@data/db/restore/restoreJournalV2', () => ({
+  readRestoreJournalFormatVersion: () => journalVersionMock()
+}))
+
+const runRestorePromotionV1Mock = vi.fn<() => Promise<void>>()
+const markRestoreFailedAfterCrashV1Mock = vi.fn<() => void>()
+const clearConvergedV1RestoreMock = vi.fn<() => void>()
+const isLiveDbStrandedV1Mock = vi.fn<() => boolean>()
+const isRestoreRecoveryPendingV1Mock = vi.fn<() => boolean>()
+
+vi.mock('@data/db/restore/restorePromotionV1Compat', () => ({
+  runRestorePromotion: () => runRestorePromotionV1Mock(),
+  markRestoreFailedAfterCrash: () => markRestoreFailedAfterCrashV1Mock(),
+  clearConvergedV1Restore: () => clearConvergedV1RestoreMock(),
+  isLiveDbStranded: () => isLiveDbStrandedV1Mock(),
+  isRestoreRecoveryPending: () => isRestoreRecoveryPendingV1Mock()
+}))
 
 vi.mock('@data/db/restore/restorePromotionV2', () => ({
   runRestorePromotionV2: () => runRestorePromotionMock(),
@@ -24,15 +43,44 @@ vi.mock('@data/db/restore/restorePromotionV2', () => ({
 import { runBackupRestoreGate } from '../backupRestoreGate'
 
 beforeEach(() => {
+  journalVersionMock.mockReset()
+  journalVersionMock.mockReturnValue(2)
   runRestorePromotionMock.mockReset()
   markRestoreFailedAfterCrashMock.mockReset()
   isLiveDbStrandedMock.mockReset()
   isLiveDbStrandedMock.mockReturnValue(false)
   isRestoreRollbackPendingMock.mockReset()
   isRestoreRollbackPendingMock.mockReturnValue(false)
+  runRestorePromotionV1Mock.mockReset()
+  markRestoreFailedAfterCrashV1Mock.mockReset()
+  clearConvergedV1RestoreMock.mockReset()
+  isLiveDbStrandedV1Mock.mockReset()
+  isLiveDbStrandedV1Mock.mockReturnValue(false)
+  isRestoreRecoveryPendingV1Mock.mockReset()
+  isRestoreRecoveryPendingV1Mock.mockReturnValue(false)
 })
 
 describe('runBackupRestoreGate', () => {
+  it('dispatches an upgrade-time v1 journal to the v1 recovery bridge and clears it only after convergence', async () => {
+    journalVersionMock.mockReturnValue(1)
+    runRestorePromotionV1Mock.mockResolvedValue(undefined)
+
+    await expect(runBackupRestoreGate()).resolves.toBeUndefined()
+
+    expect(runRestorePromotionV1Mock).toHaveBeenCalledOnce()
+    expect(clearConvergedV1RestoreMock).toHaveBeenCalledOnce()
+    expect(runRestorePromotionMock).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when an active v1 journal cannot converge', async () => {
+    journalVersionMock.mockReturnValue(1)
+    runRestorePromotionV1Mock.mockRejectedValue(new Error('v1 rename failed'))
+    isRestoreRecoveryPendingV1Mock.mockReturnValue(true)
+
+    await expect(runBackupRestoreGate()).rejects.toThrow(/v1 restore recovery is incomplete/)
+    expect(markRestoreFailedAfterCrashV1Mock).toHaveBeenCalledOnce()
+  })
+
   it('delegates to the promotion logic and skips the crash net on success', async () => {
     runRestorePromotionMock.mockResolvedValue(undefined)
 

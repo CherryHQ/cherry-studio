@@ -6,7 +6,7 @@ import type { ArchiveShape, NormalizedEntry } from '../catalog'
 import { classifyPayloadLayout } from '../layout'
 
 function entry(path: string, isDirectory: boolean): NormalizedEntry {
-  return { path, isDirectory, uncompressedSize: 0, zipEntry: null as never }
+  return { path, isDirectory, uncompressedSize: 0, executable: false, zipEntry: null as never }
 }
 
 function shape(resourceFiles: string[], resourceDirs: string[] = []): ArchiveShape {
@@ -20,7 +20,8 @@ function shape(resourceFiles: string[], resourceDirs: string[] = []): ArchiveSha
 }
 
 function payload(archivePath: string, resourceType: 'file' | 'directory'): ResourcePayload {
-  return { kind: 'k', resourceType, archivePath, livePath: `Data/${archivePath}`, hash: '0'.repeat(64), sizeBytes: 0 }
+  const common = { kind: 'k', archivePath, livePath: `Data/${archivePath}`, hash: '0'.repeat(64), sizeBytes: 0 }
+  return resourceType === 'file' ? { ...common, resourceType, executable: false } : { ...common, resourceType }
 }
 
 const COMMON = {

@@ -70,6 +70,8 @@ export interface DirScanEntry {
   readonly relPath: string
   /** File byte size as a Number (files are ≤ 8 GiB < 2^53; used for hash framing). */
   readonly size: number
+  /** Portable permission surface: execute for the owner or not; no other mode bits cross devices. */
+  readonly executable: boolean
   readonly id: FsIdentity
 }
 
@@ -195,7 +197,12 @@ export async function scanDirectoryUnit(rootDir: string, options: DirScanOptions
         throw new CeilingExceededError('total-bytes', `> ${limits.maxTotalBytes}`)
       }
       countOne(rel)
-      entries.push({ relPath: rel, size: Number(size), id: fsIdentityOf(st, 'file') })
+      entries.push({
+        relPath: rel,
+        size: Number(size),
+        executable: (st.mode & 0o111n) !== 0n,
+        id: fsIdentityOf(st, 'file')
+      })
       hasIncludedNode = true
     }
     return hasIncludedNode

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -8,7 +8,7 @@ import { CeilingExceededError, SourceDriftError } from '../../errors'
 import { hashDirectoryUnit, sha256File } from '../../hashing'
 import type { ResourceRequirement } from '../../manifest'
 import { driftHooks } from '../../sourceDrift'
-import { measureResourceStageBytes, stageResources } from '../stageResources'
+import { captureResourceStageBaseline, measureResourceStageBytes, stageResources } from '../stageResources'
 
 /**
  * What the Full producer promises about its payloads (§1.7, §5.4): every unit it
@@ -79,10 +79,32 @@ describe('stageResources', () => {
         archivePath: 'resources/Data/Files/blob.pdf',
         livePath: 'Data/Files/blob.pdf',
         hash: await sha256File(source),
-        sizeBytes: 'ATTACHMENT'.length
+        sizeBytes: 'ATTACHMENT'.length,
+        executable: false
       }
     ])
     expect(readFileSync(join(resourcesDir, 'Data', 'Files', 'blob.pdf'), 'utf8')).toBe('ATTACHMENT')
+  })
+
+  it('carries only the safe executable bit for a file unit', async () => {
+    const source = writeSource('Data/Files/tool.sh', '#!/bin/sh\necho ok\n')
+    chmodSync(source, 0o755)
+
+    const result = await stage([req('file-blob', 'file', 'Data/Files/tool.sh')])
+
+    expect(result.payloads).toMatchObject([{ resourceType: 'file', executable: true }])
+    expect(statSync(join(resourcesDir, 'Data', 'Files', 'tool.sh')).mode & 0o777).toBe(0o700)
+  })
+
+  it('rejects a source changed after the database snapshot baseline', async () => {
+    const source = writeSource('Data/Files/blob.pdf', 'BEFORE')
+    const requirements = [req('file-blob', 'file', 'Data/Files/blob.pdf')]
+    const baseline = await captureResourceStageBaseline({ requirements, userDataPath: userData })
+    writeFileSync(source, 'AFTER')
+
+    await expect(
+      stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
+    ).rejects.toBeInstanceOf(SourceDriftError)
   })
 
   it('content-addresses a directory unit with the canonical unit hash', async () => {

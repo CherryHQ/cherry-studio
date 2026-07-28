@@ -123,6 +123,21 @@ describe('RestoreJournalV2Schema — terminal fields', () => {
     ).toBe(false)
   })
 
+  it('allows durable Knowledge completion only for bases in the restore summary', () => {
+    const valid = liteJournal({
+      state: 'completed',
+      summary: { knowledgeBaseIds: ['kb-1', 'kb-2'] },
+      knowledgeRebuild: { completedBaseIds: ['kb-2'] }
+    })
+    expect(RestoreJournalV2Schema.safeParse(valid).success).toBe(true)
+    expect(
+      RestoreJournalV2Schema.safeParse({
+        ...valid,
+        knowledgeRebuild: { completedBaseIds: ['kb-3'] }
+      }).success
+    ).toBe(false)
+  })
+
   it('rejects a summary on states that never crossed the commit (strict)', () => {
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'prepared', summary })).success).toBe(false)
   })
