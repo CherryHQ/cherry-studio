@@ -15,6 +15,7 @@ vi.mock('@renderer/utils/image', () => ({
 }))
 
 const mockComputeImageNaturalSize = vi.hoisted(() => vi.fn())
+const mockWriteText = vi.hoisted(() => vi.fn())
 vi.mock('../../utils/computeImageNaturalSize', () => ({
   computeImageNaturalSize: mockComputeImageNaturalSize
 }))
@@ -107,9 +108,12 @@ describe('Artboard', () => {
 
   beforeEach(() => {
     mockComputeImageNaturalSize.mockReset()
+    mockWriteText.mockReset()
+    mockWriteText.mockResolvedValue(undefined)
     mockSkeletonProps.mockClear()
     mockUsePaintingSizeInfo.mockReset()
     mockUsePaintingSizeInfo.mockReturnValue({ ratio: null, sizeLabel: undefined })
+    Object.assign(navigator, { clipboard: { writeText: mockWriteText } })
   })
 
   it('renders the shimmer skeleton while generating', () => {
@@ -398,8 +402,6 @@ describe('Artboard', () => {
   })
 
   describe('prompt bar', () => {
-    // The Tooltip mock renders both the trigger and a `tooltip-content` echo of the
-    // same text, so assertions target the visible `.truncate` preview specifically.
     const previewText = () => document.querySelector('.truncate')?.textContent
 
     it('renders a short prompt in full', () => {
@@ -408,14 +410,43 @@ describe('Artboard', () => {
       expect(previewText()).toBe('a red cat')
     })
 
-    it('keeps the full prompt in the DOM for long prompts, truncating via CSS not JS', () => {
-      render(<Artboard painting={makePainting({ prompt: 'a red cat wearing a tiny hat' })} isLoading={true} />)
+    it('truncates a long prompt responsively and exposes the full text with a copy action', async () => {
+      const prompt = 'a red cat wearing a tiny hat'
+      render(<Artboard painting={makePainting({ prompt })} isLoading={true} />)
 
       const preview = document.querySelector('.truncate') as HTMLElement
-      // The full prompt stays in the DOM (and tooltip); the `.truncate` class clips
+      // The full prompt stays in the DOM (and popover); the `.truncate` class clips
       // it to the available width via CSS rather than a fixed-length JS slice.
-      expect(preview.textContent).toBe('a red cat wearing a tiny hat')
+      expect(preview.textContent).toBe(prompt)
       expect(preview).toHaveClass('truncate')
+      const trigger = screen.getByRole('button', { name: prompt })
+      expect(trigger).toHaveAttribute('type', 'button')
+      expect(trigger).toContainElement(preview)
+
+      fireEvent.focus(trigger)
+
+      const popoverContent = screen.getByTestId('popover-content')
+      const copyButtons = screen.getAllByRole('button', { name: 'common.copy' })
+      expect(copyButtons).toHaveLength(1)
+      const copyButton = copyButtons[0]
+      fireEvent.keyDown(trigger, { key: 'Tab' })
+      expect(copyButton).toHaveFocus()
+      expect(popoverContent).toHaveTextContent(prompt)
+      expect(popoverContent.querySelector('.float-right')).toBe(copyButton)
+      expect(popoverContent).toHaveClass('bg-neutral-900', 'text-neutral-50', 'shadow-md')
+      expect(copyButton).toHaveClass(
+        'float-right',
+        'ml-0.5',
+        'size-5',
+        'text-neutral-50',
+        '[&_svg]:stroke-neutral-50!',
+        '[&_svg]:text-neutral-50!'
+      )
+      expect(copyButton).not.toHaveClass('absolute', 'bg-neutral-700')
+
+      fireEvent.click(copyButton)
+
+      await waitFor(() => expect(mockWriteText).toHaveBeenCalledWith(prompt))
     })
 
     it('shows the resolved size label alongside the prompt', () => {
