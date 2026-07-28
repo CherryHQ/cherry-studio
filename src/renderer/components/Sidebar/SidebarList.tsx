@@ -68,7 +68,9 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 aria-label={entry.label}
                 onClick={guardClick(entry.key, entry.onOpen)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
-                  isActive ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  isActive
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                 }`}>
                 {entry.renderIcon(18, 'lg')}
               </button>
@@ -99,7 +101,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 label={entry.label}
                 active={isActive}
                 onClick={guardClick(entry.key, entry.onOpen)}
-                className="hover:!bg-muted data-[active=true]:!bg-muted rounded-xl"
+                className="rounded-xl !text-sidebar-foreground hover:!bg-sidebar-accent hover:!text-sidebar-accent-foreground data-[active=true]:!bg-sidebar-accent data-[active=true]:!text-sidebar-accent-foreground"
               />
             </EntryContextMenu>
           </div>

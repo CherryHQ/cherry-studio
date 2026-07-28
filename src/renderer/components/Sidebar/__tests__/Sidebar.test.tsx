@@ -453,7 +453,7 @@ describe('Sidebar resize handle', () => {
     expect(getByText('Qwen')).toBeInTheDocument()
   })
 
-  it('gives docked mini apps the shared icon-row button sizing and settings-style hover state', () => {
+  it('gives docked mini apps the shared icon-row button sizing and sidebar hover state', () => {
     const { container } = render(
       <Sidebar
         width={SIDEBAR_ICON_WIDTH}
@@ -474,16 +474,16 @@ describe('Sidebar resize handle', () => {
 
     expect(miniAppLogo).toHaveStyle({ width: '22px', height: '22px' })
     expect(dockedMiniAppButton).toHaveClass('h-9', 'w-9')
-    expect(dockedMiniAppButton).toHaveClass('hover:bg-muted', 'hover:text-foreground')
+    expect(dockedMiniAppButton).toHaveClass('hover:bg-sidebar-accent', 'hover:text-sidebar-accent-foreground')
   })
 
-  it('uses the settings navigation selected state in icon and full layouts', () => {
+  it('uses the sidebar selected state in icon and full layouts', () => {
     const { rerender } = render(
       <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
     )
 
     const iconButton = screen.getByRole('button', { name: 'Chat' })
-    expect(iconButton).toHaveClass('bg-muted', 'text-foreground')
+    expect(iconButton).toHaveClass('bg-sidebar-accent', 'text-sidebar-accent-foreground')
     expect(iconButton.children).toHaveLength(1)
 
     rerender(
@@ -491,7 +491,12 @@ describe('Sidebar resize handle', () => {
     )
 
     const fullButton = screen.getByRole('button', { name: 'Chat' })
-    expect(fullButton).toHaveClass('hover:!bg-muted', 'data-[active=true]:!bg-muted')
+    expect(fullButton).toHaveClass(
+      'hover:!bg-sidebar-accent',
+      'hover:!text-sidebar-accent-foreground',
+      'data-[active=true]:!bg-sidebar-accent',
+      'data-[active=true]:!text-sidebar-accent-foreground'
+    )
     expect(fullButton.parentElement?.children).toHaveLength(1)
   })
 
