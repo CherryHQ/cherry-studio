@@ -1,6 +1,7 @@
 import { cn } from '@renderer/utils/style'
-import { type KeyboardEvent, type ReactNode, useId, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useId } from 'react'
 
+import { useMessageDisclosureState } from '../../hooks/useMessageDisclosureState'
 import { StreamingContext } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 
@@ -29,6 +30,7 @@ export function AgentToolDisclosure({
   isStreaming = false,
   item,
   onOpenDetails,
+  stateId,
   showInlineDetails = true
 }: {
   className?: string
@@ -36,16 +38,20 @@ export function AgentToolDisclosure({
   isStreaming?: boolean
   item: ToolDisclosureItem
   onOpenDetails?: () => void
+  stateId?: string
   showInlineDetails?: boolean
 }) {
   const contentId = useId()
   const itemKey = String(item.key)
   const canExpand = showInlineDetails && item.children !== undefined && item.children !== null
   const isInteractive = canExpand || !!onOpenDetails
-  const [isExpanded, setIsExpanded] = useState(() => defaultActiveKey.includes(itemKey))
+  const [isExpanded, setIsExpanded] = useMessageDisclosureState(
+    stateId ? `agent-tool:${stateId}` : undefined,
+    defaultActiveKey.includes(itemKey)
+  )
   const toggleExpanded = () => {
     if (!canExpand) return
-    setIsExpanded((expanded) => !expanded)
+    setIsExpanded(!isExpanded)
   }
   const openOrToggle = () => {
     if (onOpenDetails) {

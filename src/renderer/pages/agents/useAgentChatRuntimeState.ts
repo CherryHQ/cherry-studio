@@ -19,6 +19,7 @@ import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
+import { messageDisclosureStateService } from '@renderer/services/MessageDisclosureStateService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
@@ -196,6 +197,7 @@ export function useAgentChatRuntimeState({
   const deleteMessage = useCallback(
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
+      messageDisclosureStateService.invalidateMessages([messageId])
       setMessages((current) => current.filter((message) => message.id !== messageId))
     },
     [deleteSessionMessage, setMessages]

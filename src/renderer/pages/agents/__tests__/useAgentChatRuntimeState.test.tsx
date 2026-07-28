@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
+  invalidateMessages: vi.fn(),
   toastWarning: vi.fn()
 }))
 
@@ -55,6 +56,10 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
   useToolApprovalComposerOverrides: () => []
+}))
+
+vi.mock('@renderer/services/MessageDisclosureStateService', () => ({
+  messageDisclosureStateService: { invalidateMessages: mocks.invalidateMessages }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -206,6 +211,23 @@ describe('useAgentChatRuntimeState', () => {
     result.current.captureLocalSendScrollEligibility()
 
     expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
+  })
+
+  it('invalidates disclosure state after deleting a session message', async () => {
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.deleteMessage('assistant-1')
+    })
+
+    expect(mocks.deleteSessionMessage).toHaveBeenCalledWith('assistant-1')
+    expect(mocks.invalidateMessages).toHaveBeenCalledWith(['assistant-1'])
   })
 
   it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
