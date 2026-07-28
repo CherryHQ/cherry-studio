@@ -24,6 +24,9 @@ export const BACKUP_DEGRADATION_CODES = [
   'path-unportable',
   'path-collision',
   'resource-unavailable',
+  'resource-changed',
+  'resource-nonportable',
+  'resource-limit',
   'unknown'
 ] as const
 
@@ -32,7 +35,9 @@ export type BackupDegradationCode = (typeof BACKUP_DEGRADATION_CODES)[number]
 /** Localizable, bounded presentation of what export/restore reduced (§4). */
 const DegradationSchema = z.strictObject({
   code: z.enum(BACKUP_DEGRADATION_CODES),
-  count: z.number().int().positive()
+  count: z.number().int().positive(),
+  /** Bounded userData-relative display sample; never an install input. */
+  paths: z.array(z.string().min(1).max(512)).max(3).optional()
 })
 
 /** Does THIS device have the files the restored database will point at (§2)? */
