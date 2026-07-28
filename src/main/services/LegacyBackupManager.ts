@@ -132,8 +132,8 @@ class BackupManager {
   }
 
   /**
-   * Direct backup method - copies the complete Data directory plus cache.json,
-   * IndexedDB, and Local Storage.
+   * Direct backup method - copies Data (excluding transient SQLite sidecars)
+   * plus cache.json, IndexedDB, and Local Storage.
    * @param _ - Electron IPC event
    * @param fileName - Name of the backup file
    * @param destinationPath - Path to save the backup (defaults to this.backupDir)
@@ -192,6 +192,10 @@ class BackupManager {
         if (await fs.pathExists(sourcePath)) {
           const copyOptions: CopyDirOptions = {
             dereferenceSymlinks: true,
+            excludeRelativePath: (relativePath) => {
+              const normalizedPath = path.normalize(relativePath)
+              return normalizedPath === `${databaseDataPath}-wal` || normalizedPath === `${databaseDataPath}-shm`
+            },
             sourceRootPath: sourcePath
           }
           const totalSize = await this.getDirSize(sourcePath, copyOptions)

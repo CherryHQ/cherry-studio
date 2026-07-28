@@ -394,7 +394,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
   })
 
-  it('copies Data without excluding any relative path', async () => {
+  it('copies Data while excluding only transient SQLite sidecars', async () => {
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
       return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
     })
@@ -407,13 +407,14 @@ describe('BackupManager direct v2 data compatibility', () => {
 
     const dataCopyCall = copyDirectory.mock.calls.find(([source]) => source === '/mock/userData/Data')
     expect(dataCopyCall).toBeDefined()
-    const options = dataCopyCall?.[3] as { excludeRelativePath?: (relativePath: string) => boolean }
+    const options = dataCopyCall?.[3] as { excludeRelativePath: (relativePath: string) => boolean }
     expect(getDirSize).toHaveBeenCalledWith('/mock/userData/Data', dataCopyCall?.[3])
-    expect(options).toEqual({
-      dereferenceSymlinks: true,
-      sourceRootPath: '/mock/userData/Data'
-    })
-    expect(options.excludeRelativePath).toBeUndefined()
+    expect(options.excludeRelativePath('cherrystudio.sqlite')).toBe(false)
+    expect(options.excludeRelativePath('cherrystudio.sqlite-wal')).toBe(true)
+    expect(options.excludeRelativePath('cherrystudio.sqlite-shm')).toBe(true)
+    expect(options.excludeRelativePath('restore-journal.json')).toBe(false)
+    expect(options.excludeRelativePath('Agents/.claude/projects/session.jsonl')).toBe(false)
+    expect(options.excludeRelativePath('Files/document.pdf')).toBe(false)
   })
 
   it('fails instead of archiving a stale cache.json when the strict flush fails', async () => {
