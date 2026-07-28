@@ -1,4 +1,4 @@
-import type { SourceSnapshot } from '@main/data/services/aiUsageRecord'
+import type { SourceSnapshot } from '@main/ai/types'
 import type { FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 

@@ -19,14 +19,13 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
-import type { Message, MessageRole, MessageStatus } from '@shared/data/types/message'
+import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
-import { aiUsageRecordService } from './aiUsageRecord'
+import { aiUsageRecordService, mergeMessageUsageProjection } from './AiUsageRecordService'
 import { messageService } from './MessageService'
-import { mergeMessageUsageProjection, type MessageRuntimeStatsInput } from './utils/messageStats'
 import { insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('DataApi:TemporaryChatService')

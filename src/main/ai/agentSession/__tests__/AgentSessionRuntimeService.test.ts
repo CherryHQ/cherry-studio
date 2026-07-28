@@ -43,8 +43,11 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
-vi.mock('@data/services/aiUsageRecord', () => ({
-  aiUsageRecordService: { recordInvocation: mocks.recordUsage },
+vi.mock('@data/services/AiUsageRecordService', () => ({
+  aiUsageRecordService: { recordInvocation: mocks.recordUsage }
+}))
+
+vi.mock('@main/ai/utils/usageCapture', () => ({
   createAiUsageCaptureContext: (input: unknown) => input
 }))
 

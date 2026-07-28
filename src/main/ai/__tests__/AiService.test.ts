@@ -134,7 +134,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
   }
 }))
 
-vi.mock('@main/data/services/aiUsageRecord', async (importActual) => {
+vi.mock('@main/data/services/AiUsageRecordService', async (importActual) => {
   const actual = (await importActual()) as object
   return {
     ...actual,

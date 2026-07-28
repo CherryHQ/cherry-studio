@@ -20,7 +20,6 @@ type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
 type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
-import type { AgentSessionUsageCapture } from '@data/services/aiUsageRecord'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
@@ -51,7 +50,8 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeUserInput,
-  AgentSessionRuntimeDriver
+  AgentSessionRuntimeDriver,
+  AgentSessionUsageCapture
 } from '../types'
 import {
   buildClaudeCodeQueryRequestForAgentSession,

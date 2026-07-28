@@ -9,3 +9,11 @@ export type {
   InProcessUsageContext,
   ListModelsRequest
 } from './requests'
+export type {
+  AiUsageCaptureContext,
+  AiUsageCredentialReceipt,
+  AiUsageProviderCost,
+  MessageRef,
+  RecordAiInvocationInput,
+  SourceSnapshot
+} from './usage'

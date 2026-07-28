@@ -52,8 +52,10 @@ vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: getByProviderIdMock, getApiKeys: getApiKeysMock }
 }))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: getByKeyMock } }))
-vi.mock('@main/data/services/aiUsageRecord', () => ({
-  aiUsageRecordService: { recordInvocation: recordRequestMock },
+vi.mock('@main/data/services/AiUsageRecordService', () => ({
+  aiUsageRecordService: { recordInvocation: recordRequestMock }
+}))
+vi.mock('@main/ai/utils/usageCapture', () => ({
   createAiUsageCaptureContext: (input: Record<string, unknown>) => ({
     ...input,
     pricingSnapshot: input.pricing

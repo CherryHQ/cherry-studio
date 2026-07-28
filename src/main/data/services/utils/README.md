@@ -6,21 +6,6 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
-### `messageStats.ts` — Message stats ownership merge
-
-Provides the pure merge boundary between record-owned usage projection and
-message-owned runtime timing.
-
-**Boundaries:**
-
-- `MessageUsageProjection` fields are replaced only by the AI usage record
-  projector.
-- Runtime writers can provide only `runtimeTiming`; they cannot persist
-  usage, cost, request counts, provider performance, or legacy scalar timing.
-- Scalar timing is preserved only for rows without `runtimeTiming`, so
-  historical messages remain readable without becoming a second source for
-  new messages.
-
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
 Serves each Service's `rowToEntity` function, performing the boundary translation from a SQLite row to a domain entity.

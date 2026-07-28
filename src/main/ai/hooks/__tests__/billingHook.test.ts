@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const recordInvocation = vi.fn()
 
-vi.mock('@main/data/services/aiUsageRecord', () => ({
+vi.mock('@main/data/services/AiUsageRecordService', () => ({
   aiUsageRecordService: { recordInvocation }
 }))
 

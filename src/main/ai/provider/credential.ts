@@ -1,4 +1,4 @@
-import type { AiUsageCredentialReceipt } from '@data/services/aiUsageRecord'
+import type { AiUsageCredentialReceipt } from '@main/ai/types'
 
 export type ServingAuthMethod = Extract<AiUsageCredentialReceipt, { attribution: 'auth' }>['method']
 

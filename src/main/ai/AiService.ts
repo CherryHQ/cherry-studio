@@ -11,15 +11,10 @@ import type { ParamValues } from '@cherrystudio/provider-registry'
 import { assistantDataService } from '@data/services/AssistantService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
+import type { AiUsageCaptureContext, MessageRef, SourceSnapshot } from '@main/ai/types'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import {
-  type AiUsageCaptureContext,
-  aiUsageRecordService,
-  createAiUsageCaptureContext,
-  type MessageRef,
-  type SourceSnapshot
-} from '@main/data/services/aiUsageRecord'
+import { aiUsageRecordService } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -68,6 +63,7 @@ import type {
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
+import { createAiUsageCaptureContext } from './utils/usageCapture'
 
 const logger = loggerService.withContext('AiService')
 

@@ -2,14 +2,11 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import {
-  type AgentSessionUsageCapture,
-  aiUsageRecordService,
-  createAiUsageCaptureContext,
-  type SourceSnapshot
-} from '@data/services/aiUsageRecord'
+import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
+import type { SourceSnapshot } from '@main/ai/types'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
@@ -44,7 +41,8 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeUserInput
+  AgentRuntimeUserInput,
+  AgentSessionUsageCapture
 } from '../runtime/types'
 import {
   PersistenceListener,

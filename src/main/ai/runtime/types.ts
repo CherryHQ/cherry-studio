@@ -1,4 +1,4 @@
-import type { AgentSessionUsageCapture } from '@data/services/aiUsageRecord'
+import type { AiUsageCredentialReceipt, SourceSnapshot } from '@main/ai/types'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -6,11 +6,33 @@ import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashComma
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
+
+/**
+ * Agent-session usage has exactly one capture owner per runtime route.
+ * Direct/external SDK routes emit per-assistant-message invocation records;
+ * gateway routes are captured by the normal provider-call middleware.
+ */
+export type AgentSessionUsageCapture =
+  | {
+      owner: 'agent-sdk'
+      credentialReceipt: AiUsageCredentialReceipt
+      providerId: string
+      providerName: string | null
+      source: SourceSnapshot | null
+      frozenModels: ReadonlyArray<{
+        modelId: string
+        modelName: string | null
+        aliases: readonly string[]
+        pricingSnapshot: AiUsagePricingSnapshot | null
+      }>
+    }
+  | { owner: 'provider-calls' }
 
 export interface AiRuntimeDriver {
   readonly type: string

@@ -5,13 +5,14 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import {
   aiUsageRecordService,
-  createAiUsageCaptureContext,
-  createAiUsagePricingSnapshot,
-  type RecordAiInvocationInput
-} from '@data/services/aiUsageRecord'
+  mergeMessageRuntimeStats,
+  mergeMessageUsageProjection
+} from '@data/services/AiUsageRecordService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createLanguageUsageMiddleware } from '@main/ai/hooks/billingHook'
 import { gatewayUsageNormalizeFeature } from '@main/ai/runtime/aiSdk/params/features/gatewayUsageNormalize'
+import type { RecordAiInvocationInput } from '@main/ai/types'
+import { createAiUsageCaptureContext, createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import type { LanguageModelMiddleware } from 'ai'
@@ -78,6 +79,26 @@ async function getGatewayUsageNormalizeMiddleware(): Promise<LanguageModelMiddle
 
 describe('AiUsageRecordService', () => {
   const dbh = setupTestDatabase()
+
+  it('replaces projection fields while preserving legacy message timing', () => {
+    expect(
+      mergeMessageUsageProjection(
+        {
+          totalTokens: 999,
+          requestCount: 9,
+          timeCompletionMs: 750
+        },
+        {
+          totalTokens: 12,
+          requestCount: 1
+        }
+      )
+    ).toEqual({
+      totalTokens: 12,
+      requestCount: 1,
+      timeCompletionMs: 750
+    })
+  })
 
   beforeEach(() => {
     notifyDataApiDataChangeMock.mockClear()
@@ -597,5 +618,54 @@ describe('AiUsageRecordService', () => {
     } while (cursor)
 
     expect(requestIds).toEqual(['tokens-derived-120', 'tokens-explicit-100', 'tokens-unknown'])
+  })
+
+  it('merges continuation timing without replacing record-owned performance or retaining scalar timing', () => {
+    const merged = mergeMessageRuntimeStats(
+      {
+        outputTokens: 20,
+        providerPerformance: { measuredOutputTokens: 20, generationDurationMs: 500 },
+        timeFirstTokenMs: 100,
+        runtimeTiming: {
+          startedAt: 1_000,
+          spans: [
+            {
+              id: 'tool:first',
+              kind: 'tool-execution',
+              toolCallId: 'first',
+              startedAt: 1_500,
+              completedAt: 2_000
+            }
+          ]
+        }
+      },
+      {
+        runtimeTiming: {
+          startedAt: 1_000,
+          completedAt: 4_000,
+          spans: [
+            {
+              id: 'tool:second',
+              kind: 'tool-execution',
+              toolCallId: 'second',
+              startedAt: 3_000,
+              completedAt: 3_500
+            }
+          ]
+        }
+      }
+    )
+
+    expect(merged).toMatchObject({
+      outputTokens: 20,
+      providerPerformance: { measuredOutputTokens: 20, generationDurationMs: 500 },
+      runtimeTiming: {
+        startedAt: 1_000,
+        completedAt: 4_000,
+        spans: [{ id: 'tool:first' }, { id: 'tool:second' }]
+      }
+    })
+    expect(merged).not.toHaveProperty('timeFirstTokenMs')
+    expect(merged).not.toHaveProperty('timeCompletionMs')
   })
 })

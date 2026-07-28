@@ -24,14 +24,17 @@ import {
 } from '@shared/data/api/schemas/agentSessionMessages'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
+import {
+  AGENT_SESSION_MESSAGE_SEARCH_ROLES,
+  coerceSearchRole,
+  type MessageRuntimeStatsInput
+} from '@shared/data/types/message'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
-import { aiUsageRecordService } from './aiUsageRecord'
+import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
-import { mergeMessageRuntimeStats, type MessageRuntimeStatsInput } from './utils/messageStats'
 
 const logger = loggerService.withContext('AgentSessionMessageService')
 const MESSAGE_CURSOR_CONFIG = {

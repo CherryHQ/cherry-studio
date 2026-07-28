@@ -1,10 +1,10 @@
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
-import type { AgentSessionUsageCapture } from '@data/services/aiUsageRecord'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
+import type { AgentSessionUsageCapture } from '../types'
 import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')

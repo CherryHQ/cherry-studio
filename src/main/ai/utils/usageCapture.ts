@@ -1,7 +1,6 @@
+import type { AiUsageCaptureContext, AiUsageCredentialReceipt, MessageRef, SourceSnapshot } from '@main/ai/types'
 import { type AiUsagePricingSnapshot, AiUsagePricingSnapshotSchema } from '@shared/data/types/aiUsageRecord'
 import type { Currency, RuntimeModelPricing } from '@shared/data/types/model'
-
-import type { AiUsageCaptureContext, AiUsageCredentialReceipt, MessageRef, SourceSnapshot } from './types'
 
 export interface CreateAiUsageCaptureContextInput {
   providerId: string

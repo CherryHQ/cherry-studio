@@ -32,6 +32,7 @@ import {
   coerceSearchRole,
   type Message,
   type MessageData,
+  type MessageRuntimeStatsInput,
   type MessageStats,
   type SiblingsGroup,
   toContentRole,
@@ -44,10 +45,9 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
-import { aiUsageRecordService } from './aiUsageRecord'
+import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
-import { mergeMessageRuntimeStats, type MessageRuntimeStatsInput } from './utils/messageStats'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')

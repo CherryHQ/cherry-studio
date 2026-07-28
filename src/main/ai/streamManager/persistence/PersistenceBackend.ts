@@ -8,8 +8,7 @@
  * synthesise UIMessages or repeat projection logic.
  */
 
-import type { MessageRuntimeStatsInput } from '@main/data/services/utils/messageStats'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import {
   type AgentTaskEventPartData,

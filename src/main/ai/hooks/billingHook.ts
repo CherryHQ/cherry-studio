@@ -1,10 +1,7 @@
 import type { LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
 import { type AiPlugin, definePlugin } from '@cherrystudio/ai-core'
-import {
-  type AiUsageCaptureContext,
-  aiUsageRecordService,
-  type RecordAiInvocationInput
-} from '@main/data/services/aiUsageRecord'
+import type { AiUsageCaptureContext, RecordAiInvocationInput } from '@main/ai/types'
+import { aiUsageRecordService } from '@main/data/services/AiUsageRecordService'
 import type { LanguageModelMiddleware } from 'ai'
 
 import { extractProviderCostWithCurrency } from '../utils/billingCost'

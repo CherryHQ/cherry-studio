@@ -119,6 +119,7 @@ export const MessageStatsSchema = z.strictObject({
   timeThinkingMs: z.number().optional()
 })
 export type MessageStats = z.infer<typeof MessageStatsSchema>
+export type MessageRuntimeStatsInput = Readonly<Pick<MessageStats, 'runtimeTiming'>>
 
 // ============================================================================
 // Message Data
