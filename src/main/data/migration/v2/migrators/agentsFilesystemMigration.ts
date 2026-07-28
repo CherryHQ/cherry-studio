@@ -290,10 +290,19 @@ async function removeTreeWithoutFollowing(targetPath: string): Promise<void> {
 /**
  * Copy the v1 global Claude Agent SDK config into its v2 Agent-data location.
  * The source remains intact for downgrade compatibility. Publication is
- * atomic, retries accept an identical destination, conflicts fail closed, and
- * symlinks are skipped so the copy does not require Windows symlink privileges.
+ * atomic, an existing destination directory is left untouched, and symlinks
+ * are skipped so the copy does not require Windows symlink privileges.
  */
 export async function copyLegacyClaudeConfig(sourcePath: string, destinationPath: string): Promise<boolean> {
+  const destinationStat = await lstatIfExists(destinationPath)
+  if (destinationStat?.isDirectory() && !destinationStat.isSymbolicLink()) {
+    logger.info('Skipping legacy Claude config migration because the destination directory already exists', {
+      sourcePath,
+      destinationPath
+    })
+    return false
+  }
+
   const sourceStat = await lstatIfExists(sourcePath)
   if (!sourceStat) return false
   if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink()) {

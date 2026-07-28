@@ -49,9 +49,9 @@ from the v1 `{userData}/.claude` tree to
 `{userData}/Data/Agents/.claude`. Symlinks are skipped so Windows migration does
 not require permission to create them. The copy uses a private staging
 directory, verifies the copied source and destination content, and atomically
-publishes the result. A retry accepts an identical destination; different
-existing content aborts without overwriting either side. This copy also runs
-when `agents.db` is absent.
+publishes the result. If the destination directory already exists, migration
+leaves it untouched and skips the legacy Claude config copy. This copy also
+runs when `agents.db` is absent.
 
 For each migrated Agent:
 
