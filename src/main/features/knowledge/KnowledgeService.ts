@@ -3,7 +3,6 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
@@ -50,12 +49,6 @@ import {
   toKnowledgeItemId
 } from './types'
 
-class ProfileMutationKeyedMutex extends KeyedMutex {
-  override async runExclusive<T>(key: string, task: () => T | Promise<T>): Promise<T> {
-    return super.runExclusive(key, () => profileMutationBarrier.runMutation(task))
-  }
-}
-
 const logger = loggerService.withContext('KnowledgeService')
 
 /**
@@ -68,7 +61,7 @@ const logger = loggerService.withContext('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService', 'WebSearchService'])
 export class KnowledgeService extends BaseService {
-  private readonly knowledgeLockManager = new ProfileMutationKeyedMutex()
+  private readonly knowledgeLockManager = new KeyedMutex()
   private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)
   private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
   private readonly queryService = new KnowledgeQueryService()
@@ -98,7 +91,7 @@ export class KnowledgeService extends BaseService {
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    return profileMutationBarrier.runMutation(() => this.baseAdmin.createBase(dto))
+    return await this.baseAdmin.createBase(dto)
   }
 
   async deleteBase(baseId: string): Promise<void> {
@@ -114,7 +107,7 @@ export class KnowledgeService extends BaseService {
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
-    return profileMutationBarrier.runMutation(() => this.baseAdmin.restoreBase(dto))
+    return await this.baseAdmin.restoreBase(dto)
   }
 
   listBasesForDiscovery(options: KnowledgeBaseDiscoveryOptions): KnowledgeBaseDiscoveryPage {

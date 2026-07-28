@@ -8,7 +8,6 @@ import { Mutex } from 'async-mutex'
 import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
-import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import { isWin } from '@main/core/platform'
 import { runPathMutationExclusive } from '@main/services/file'
 import { isPathInside } from '@main/utils/file'
@@ -184,32 +183,28 @@ export class SkillService {
   }
 
   async uninstall(skillId: string): Promise<void> {
-    return profileMutationBarrier.runMutation(() =>
-      this.mutationLock.runExclusive(async () => {
-        const skill = agentGlobalSkillService.getById(skillId)
-        if (!skill) {
-          throw new Error(`Skill not found: ${skillId}`)
-        }
-        await this.uninstallLocked(skill)
-      })
-    )
+    return this.mutationLock.runExclusive(async () => {
+      const skill = agentGlobalSkillService.getById(skillId)
+      if (!skill) {
+        throw new Error(`Skill not found: ${skillId}`)
+      }
+      await this.uninstallLocked(skill)
+    })
   }
 
   /** Remove an app-owned conditional builtin without touching a colliding user skill. */
   async uninstallBuiltinSkill(folderName: string, namespace: string): Promise<boolean> {
-    return profileMutationBarrier.runMutation(() =>
-      this.mutationLock.runExclusive(async () => {
-        const skill = this.findCatalogSkillCaseInsensitive(sanitizeFolderName(folderName))
-        if (!skill) return false
-        if (skill.source !== 'builtin' || skill.namespace !== namespace) {
-          throw new Error(
-            `Skill folder "${folderName}" is not owned by builtin namespace "${namespace}"; refusing to remove it.`
-          )
-        }
-        await this.uninstallLocked(skill)
-        return true
-      })
-    )
+    return this.mutationLock.runExclusive(async () => {
+      const skill = this.findCatalogSkillCaseInsensitive(sanitizeFolderName(folderName))
+      if (!skill) return false
+      if (skill.source !== 'builtin' || skill.namespace !== namespace) {
+        throw new Error(
+          `Skill folder "${folderName}" is not owned by builtin namespace "${namespace}"; refusing to remove it.`
+        )
+      }
+      await this.uninstallLocked(skill)
+      return true
+    })
   }
 
   /**
@@ -500,17 +495,6 @@ export class SkillService {
     source: string,
     sourceUrl: string | null,
     provenance: { namespace?: string | null } = {}
-  ): Promise<InstalledSkill> {
-    return profileMutationBarrier.runMutation(() =>
-      this.installSkillDirWithinBarrier(skillDir, source, sourceUrl, provenance)
-    )
-  }
-
-  private async installSkillDirWithinBarrier(
-    skillDir: string,
-    source: string,
-    sourceUrl: string | null,
-    provenance: { namespace?: string | null }
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 

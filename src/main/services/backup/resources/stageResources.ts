@@ -70,7 +70,7 @@ export interface StageResourcesInput {
   readonly userDataPath: string
   /** Operation-owned directory the payloads are staged under (`resources/` in the archive). */
   readonly resourcesDir: string
-  /** Baseline captured while cross-store profile mutations were frozen. */
+  /** Unit identities captured right after the database snapshot; staging is checked against them. */
   readonly baseline?: ResourceStageBaseline
   readonly signal?: AbortSignal
 }
