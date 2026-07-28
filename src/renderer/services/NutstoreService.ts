@@ -159,6 +159,7 @@ export async function backupToNutstore({
 
   setNutstoreSyncState({ syncing: true, lastSyncError: null })
 
+  const skipBackupFile = await preferenceService.get('data.backup.nutstore.skip_backup_file')
   const maxBackups = await preferenceService.get('data.backup.nutstore.max_backups')
 
   try {
@@ -167,7 +168,8 @@ export async function backupToNutstore({
 
     const isSuccess = await window.api.backup.backupToWebdav({
       ...config,
-      fileName: finalFileName
+      fileName: finalFileName,
+      skipBackupFile
     })
 
     if (isSuccess) {

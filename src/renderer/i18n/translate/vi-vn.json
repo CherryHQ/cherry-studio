@@ -5803,6 +5803,10 @@
         "button": "Mở Nhật ký",
         "label": "Nhật ký ứng dụng"
       },
+      "backup": {
+        "skip_file_data_help": "Bỏ qua việc sao lưu các tệp dữ liệu như hình ảnh và cơ sở tri thức, chỉ sao lưu lịch sử trò chuyện và cài đặt. Giảm chiếm dụng dung lượng và tăng tốc độ sao lưu.",
+        "skip_file_data_title": "Sao lưu mỏng"
+      },
       "clear_cache": {
         "button": "Xóa bộ nhớ đệm",
         "confirm": "Xóa bộ nhớ cache sẽ xóa dữ liệu cache của ứng dụng, bao gồm cả dữ liệu minapp. Hành động này không thể hoàn tác, bạn có muốn tiếp tục?",
@@ -6177,6 +6181,10 @@
         "secretAccessKey": {
           "label": "Khóa Truy Cập Bí Mật",
           "placeholder": "Khóa truy cập bí mật"
+        },
+        "skipBackupFile": {
+          "help": "Khi được bật, dữ liệu tập tin sẽ được bỏ qua trong quá trình sao lưu, chỉ thông tin cấu hình được sao lưu, giảm đáng kể kích thước tệp sao lưu",
+          "label": "Sao lưu Nhẹ"
         },
         "syncStatus": {
           "error": "Lỗi đồng bộ: {{message}}",

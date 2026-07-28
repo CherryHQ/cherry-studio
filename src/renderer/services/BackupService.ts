@@ -100,12 +100,12 @@ async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: WebDavC
   return false
 }
 
-export async function backup() {
+export async function backup(skipBackupFile = false) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
   const selectFolder = await window.api.file.selectFolder()
   if (selectFolder) {
-    // Use the direct compatibility archive (Data, IndexedDB, Local Storage, and cache.json).
-    await window.api.backup.backup(filename, selectFolder)
+    // Use the direct compatibility archive with the selected full or slim resource set.
+    await window.api.backup.backup(filename, selectFolder, skipBackupFile)
     toast.success(i18n.t('message.backup.success'))
   }
 }
@@ -170,15 +170,23 @@ export async function backupToWebdav({
 
   setWebDAVSyncState({ syncing: true, lastSyncError: null })
 
-  const { webdavHost, webdavUser, webdavPass, webdavPath, webdavMaxBackups, webdavDisableStream } =
-    await preferenceService.getMultiple({
-      webdavHost: 'data.backup.webdav.host',
-      webdavUser: 'data.backup.webdav.user',
-      webdavPass: 'data.backup.webdav.pass',
-      webdavPath: 'data.backup.webdav.path',
-      webdavMaxBackups: 'data.backup.webdav.max_backups',
-      webdavDisableStream: 'data.backup.webdav.disable_stream'
-    })
+  const {
+    webdavHost,
+    webdavUser,
+    webdavPass,
+    webdavPath,
+    webdavMaxBackups,
+    webdavSkipBackupFile,
+    webdavDisableStream
+  } = await preferenceService.getMultiple({
+    webdavHost: 'data.backup.webdav.host',
+    webdavUser: 'data.backup.webdav.user',
+    webdavPass: 'data.backup.webdav.pass',
+    webdavPath: 'data.backup.webdav.path',
+    webdavMaxBackups: 'data.backup.webdav.max_backups',
+    webdavSkipBackupFile: 'data.backup.webdav.skip_backup_file',
+    webdavDisableStream: 'data.backup.webdav.disable_stream'
+  })
 
   let deviceType = 'unknown'
   let hostname = 'unknown'
@@ -200,6 +208,7 @@ export async function backupToWebdav({
       webdavPass,
       webdavPath,
       fileName: finalFileName,
+      skipBackupFile: webdavSkipBackupFile,
       disableStream: webdavDisableStream
     })
     if (success) {
@@ -351,6 +360,7 @@ export async function backupToS3({
     region: 'data.backup.s3.region',
     root: 'data.backup.s3.root',
     maxBackups: 'data.backup.s3.max_backups',
+    skipBackupFile: 'data.backup.s3.skip_backup_file',
     syncInterval: 'data.backup.s3.sync_interval'
   })
   let deviceType = 'unknown'
@@ -366,7 +376,7 @@ export async function backupToS3({
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
 
   try {
-    // Use direct backup method (copy IndexedDB/LocalStorage directories)
+    // Use the direct backup method with the configured full or slim resource set.
     const success = await window.api.backup.backupToS3({
       ...s3Config,
       fileName: finalFileName
@@ -965,10 +975,12 @@ export async function backupToLocal({
 
   setLocalBackupSyncState({ syncing: true, lastSyncError: null })
 
-  const { localBackupDirSetting, localBackupMaxBackups } = await preferenceService.getMultiple({
-    localBackupDirSetting: 'data.backup.local.dir',
-    localBackupMaxBackups: 'data.backup.local.max_backups'
-  })
+  const { localBackupDirSetting, localBackupMaxBackups, localBackupSkipBackupFile } =
+    await preferenceService.getMultiple({
+      localBackupDirSetting: 'data.backup.local.dir',
+      localBackupMaxBackups: 'data.backup.local.max_backups',
+      localBackupSkipBackupFile: 'data.backup.local.skip_backup_file'
+    })
   const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
   let deviceType = 'unknown'
   let hostname = 'unknown'
@@ -985,7 +997,8 @@ export async function backupToLocal({
   try {
     // Use direct backup method (copy IndexedDB/LocalStorage directories)
     const result = await window.api.backup.backupToLocalDir(finalFileName, {
-      localBackupDir
+      localBackupDir,
+      skipBackupFile: localBackupSkipBackupFile
     })
 
     if (result) {

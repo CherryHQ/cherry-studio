@@ -5803,6 +5803,10 @@
         "button": "Abrir registros",
         "label": "Registros de la aplicación"
       },
+      "backup": {
+        "skip_file_data_help": "Omitir la copia de seguridad de archivos de datos como imágenes y bases de conocimiento durante la copia de seguridad, respaldando únicamente historial de chat y configuraciones. Reduce el uso de espacio y acelera el proceso de copia de seguridad",
+        "skip_file_data_title": "Copia de seguridad reducida"
+      },
       "clear_cache": {
         "button": "Limpiar caché",
         "confirm": "Limpiar caché eliminará los datos de la caché de la aplicación, incluyendo los datos de las aplicaciones mini. Esta acción no se puede deshacer, ¿desea continuar?",
@@ -6177,6 +6181,10 @@
         "secretAccessKey": {
           "label": "Clave de acceso secreta",
           "placeholder": "Clave de acceso secreta"
+        },
+        "skipBackupFile": {
+          "help": "Al activarlo, durante el respaldo se omitirán los datos de archivos, respaldando solo la configuración, lo que reduce significativamente el tamaño del archivo de respaldo",
+          "label": "Respaldo reducido"
         },
         "syncStatus": {
           "error": "Error de sincronización: {{message}}",

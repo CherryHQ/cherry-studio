@@ -5803,6 +5803,10 @@
         "button": "Deschide jurnalele",
         "label": "Jurnale aplicație"
       },
+      "backup": {
+        "skip_file_data_help": "Omite salvarea fișierelor de date precum imagini și baze de cunoștințe în timpul backup-ului și salvează doar înregistrările de chat și setările. Reduce ocuparea spațiului și accelerează viteza de backup.",
+        "skip_file_data_title": "Backup simplificat"
+      },
       "clear_cache": {
         "button": "Golește memoria cache",
         "confirm": "Golirea memoriei cache va șterge datele cache ale aplicației, inclusiv datele miniapp. Această acțiune este ireversibilă, continui?",
@@ -6177,6 +6181,10 @@
         "secretAccessKey": {
           "label": "Cheie secretă de acces",
           "placeholder": "Cheie secretă de acces"
+        },
+        "skipBackupFile": {
+          "help": "Când este activat, datele fișierelor vor fi omise în timpul backup-ului, vor fi salvate doar informațiile de configurare, reducând semnificativ dimensiunea fișierului de backup",
+          "label": "Backup ușor"
         },
         "syncStatus": {
           "error": "Eroare sincronizare: {{message}}",

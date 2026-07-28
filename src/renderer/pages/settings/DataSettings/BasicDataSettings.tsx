@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import {
   SettingDivider,
   SettingGroup,
+  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -29,6 +30,7 @@ const BasicDataSettings: React.FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<string>('')
   const { theme } = useTheme()
+  const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
   useEffect(() => {
@@ -227,6 +229,14 @@ const BasicDataSettings: React.FC = () => {
               {t('settings.general.restore.button')}
             </Button>
           </RowFlex>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+          <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

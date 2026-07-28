@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { getBackupProgressLabelKey } from '@renderer/i18n/label'
 import { backup } from '@renderer/services/BackupService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
@@ -27,6 +28,7 @@ interface ProgressData {
 const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [progressData, setProgressData] = useState<ProgressData>()
   const { t } = useTranslation()
+  const [skipBackupFile] = usePreference('data.backup.general.skip_backup_file')
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.BackupProgress, (_, data: ProgressData) => {
@@ -39,7 +41,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   }, [])
 
   const onOk = async () => {
-    await backup()
+    await backup(skipBackupFile)
     resolve({})
   }
 

@@ -5803,6 +5803,10 @@
         "button": "Protokoll öffnen",
         "label": "Anwendungsprotokolle"
       },
+      "backup": {
+        "skip_file_data_help": "Bilder und Wissensdatenbank-Dateien beim Backup überspringen, nur Chat-Verlauf und Einstellungen sichern. Spart Speicher und beschleunigt Backup",
+        "skip_file_data_title": "Kompaktes Backup"
+      },
       "clear_cache": {
         "button": "Cache löschen",
         "confirm": "Cache leeren entfernt alle zwischengespeicherten Daten inkl. Mini-App-Daten. Nicht wiederherstellbar. Fortfahren?",
@@ -6177,6 +6181,10 @@
         "secretAccessKey": {
           "label": "Secret Access Key",
           "placeholder": "Secret Access Key"
+        },
+        "skipBackupFile": {
+          "help": "Nach Aktivierung werden beim Backup Dateidaten übersprungen, nur Konfiguration gesichert. Reduziert Backup-Größe erheblich",
+          "label": "Kompaktes Backup"
         },
         "syncStatus": {
           "error": "Synchronisationsfehler: {{message}}",

@@ -332,6 +332,14 @@ describe('BackupManager direct v2 data compatibility', () => {
       data: true
     }
   }
+  const slimDataMetadata = {
+    ...completeDataMetadata,
+    resources: {
+      ...completeDataMetadata.resources,
+      indexedDB: false,
+      localStorage: false
+    }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -453,6 +461,45 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(options.excludeRelativePath('restore-journal.json.tmp')).toBe(true)
     expect(options.excludeRelativePath('Agents/.claude/projects/session.jsonl')).toBe(false)
     expect(options.excludeRelativePath('Files/document.pdf')).toBe(false)
+  })
+
+  it('writes a slim archive with only Data/cherrystudio.sqlite and cache.json', async () => {
+    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
+      return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
+    })
+    const copyDirectories = vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
+    const getDirSize = vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(42)
+    const copyDirectory = vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+    mockArchiveClose()
+
+    await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', true)
+
+    expect(copyDirectories).not.toHaveBeenCalled()
+    const dataCopyCall = copyDirectory.mock.calls.find(([source]) => source === '/mock/userData/Data')
+    expect(dataCopyCall).toBeDefined()
+    const options = dataCopyCall?.[3] as { excludeRelativePath: (relativePath: string) => boolean }
+    expect(getDirSize).toHaveBeenCalledWith('/mock/userData/Data', dataCopyCall?.[3])
+    expect(options.excludeRelativePath('cherrystudio.sqlite')).toBe(false)
+    expect(options.excludeRelativePath('cherrystudio.sqlite-wal')).toBe(true)
+    expect(options.excludeRelativePath('cherrystudio.sqlite-shm')).toBe(true)
+    expect(options.excludeRelativePath('restore-journal.json')).toBe(true)
+    expect(options.excludeRelativePath('Agents')).toBe(true)
+    expect(options.excludeRelativePath('Files/document.pdf')).toBe(true)
+    expect(fs.writeJson).toHaveBeenCalledWith(
+      '/mock/temp/backup/create-operation-id/metadata.json',
+      expect.objectContaining({
+        version: 7,
+        resources: {
+          database: false,
+          cache: true,
+          indexedDB: false,
+          localStorage: false,
+          appClaude: false,
+          data: true
+        }
+      }),
+      { spaces: 2 }
+    )
   })
 
   it('fails instead of archiving a stale cache.json when the strict flush fails', async () => {
@@ -591,6 +638,37 @@ describe('BackupManager direct v2 data compatibility', () => {
       sourceRootPath: '/extract/Data'
     })
     expect(dataStageCall?.[3]?.excludeRelativePath).toBeUndefined()
+  })
+
+  it('restores a slim archive without replacing IndexedDB, Local Storage, or non-database Data', async () => {
+    arrangeDirectRestore(slimDataMetadata)
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      return createStats(String(entryPath) === '/extract/Data' ? 'directory' : 'file') as never
+    })
+    const createDataResources = vi.spyOn(backupManager as any, 'createDataJournalResources').mockResolvedValue([])
+
+    await (backupManager as any).restoreDirect('/extract')
+
+    expect((backupManager as any).stageArchiveDirectory).not.toHaveBeenCalledWith(
+      '/extract/IndexedDB',
+      expect.anything()
+    )
+    expect((backupManager as any).stageArchiveDirectory).not.toHaveBeenCalledWith(
+      '/extract/Local Storage',
+      expect.anything()
+    )
+    expect(createDataResources).not.toHaveBeenCalled()
+    expect(mockWriteRestoreJournal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileResources: [
+          expect.objectContaining({
+            kind: 'overwrite',
+            livePath: 'cache.json',
+            stagingPath: 'restore-staging/operation-id/resources/cache.json'
+          })
+        ]
+      })
+    )
   })
 
   it('journals Data children without overlapping SQLite, the restore journal, or .claude', async () => {

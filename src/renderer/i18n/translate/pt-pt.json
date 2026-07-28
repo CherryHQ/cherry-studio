@@ -5803,6 +5803,10 @@
         "button": "Abrir logs",
         "label": "Logs do aplicativo"
       },
+      "backup": {
+        "skip_file_data_help": "Pule arquivos de dados como imagens e bancos de conhecimento durante o backup e realize apenas o backup das conversas e configurações. Diminua o consumo de espaço e aumente a velocidade do backup.",
+        "skip_file_data_title": "Backup simplificado"
+      },
       "clear_cache": {
         "button": "Limpar cache",
         "confirm": "Limpar cache removerá os dados armazenados em cache do aplicativo, incluindo dados de aplicativos minúsculos. Esta ação não pode ser desfeita, deseja continuar?",
@@ -6177,6 +6181,10 @@
         "secretAccessKey": {
           "label": "Chave de Acesso Secreta",
           "placeholder": "Chave de Acesso Secreta"
+        },
+        "skipBackupFile": {
+          "help": "Quando ativado, o backup pulará os dados de arquivos, salvando apenas as configurações, reduzindo significativamente o tamanho do arquivo de backup",
+          "label": "Backup reduzido"
         },
         "syncStatus": {
           "error": "Erro de sincronização: {{message}}",

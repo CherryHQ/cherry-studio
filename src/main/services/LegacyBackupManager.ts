@@ -52,8 +52,8 @@ interface DirectBackupMetadata {
   resources: {
     database: boolean
     cache: true
-    indexedDB: true
-    localStorage: true
+    indexedDB: boolean
+    localStorage: boolean
     appClaude: boolean
     data: boolean
   }
@@ -108,11 +108,11 @@ class BackupManager {
   /**
    * Backup metadata for direct backup format.
    *
-   * New version 7 archives store the complete Data directory instead of
-   * separate SQLite and .claude resources. The resource flags distinguish
-   * this layout from earlier version 7 archives, which remain restorable.
+   * Version 7 archives store SQLite inside Data instead of as a standalone
+   * resource. Full backups include all supported resources, while slim
+   * backups include only Data/cherrystudio.sqlite and cache.json.
    */
-  private createDirectBackupMetadata(): DirectBackupMetadata {
+  private createDirectBackupMetadata(slimBackup: boolean): DirectBackupMetadata {
     return {
       version: DIRECT_BACKUP_VERSION,
       timestamp: Date.now(),
@@ -123,8 +123,8 @@ class BackupManager {
       resources: {
         database: false,
         cache: true,
-        indexedDB: true,
-        localStorage: true,
+        indexedDB: !slimBackup,
+        localStorage: !slimBackup,
         appClaude: false,
         data: true
       }
@@ -134,16 +134,27 @@ class BackupManager {
   /**
    * Direct backup method - copies Data (excluding transient SQLite sidecars
    * and the internal restore journal) plus cache.json, IndexedDB, and Local Storage.
+   * Slim backups keep only Data/cherrystudio.sqlite and cache.json.
    * @param _ - Electron IPC event
    * @param fileName - Name of the backup file
    * @param destinationPath - Path to save the backup (defaults to this.backupDir)
+   * @param slimBackup - Whether to omit browser storage and non-database Data files
    * @returns Path to the created backup file
    */
-  async backup(_: Electron.IpcMainInvokeEvent, fileName: string, destinationPath?: string): Promise<string> {
-    return this.operationMutex.runExclusive(() => this.backupDirect(fileName, destinationPath))
+  async backup(
+    _: Electron.IpcMainInvokeEvent,
+    fileName: string,
+    destinationPath?: string,
+    slimBackup: boolean = false
+  ): Promise<string> {
+    return this.operationMutex.runExclusive(() => this.backupDirect(fileName, destinationPath, slimBackup))
   }
 
-  private async backupDirect(fileName: string, destinationPath: string | undefined): Promise<string> {
+  private async backupDirect(
+    fileName: string,
+    destinationPath: string | undefined,
+    slimBackup: boolean
+  ): Promise<string> {
     const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
     const workDir = await this.createOperationDir('create')
     const outputDirectory = destinationPath ?? this.backupDir
@@ -194,11 +205,13 @@ class BackupManager {
           }
           await fs.copy(cacheSource, path.join(workDir, 'cache.json'))
 
-          await this.copyDirectoryOrCreate(path.join(userDataPath, 'IndexedDB'), path.join(workDir, 'IndexedDB'))
-          await this.copyDirectoryOrCreate(
-            path.join(userDataPath, 'Local Storage'),
-            path.join(workDir, 'Local Storage')
-          )
+          if (!slimBackup) {
+            await this.copyDirectoryOrCreate(path.join(userDataPath, 'IndexedDB'), path.join(workDir, 'IndexedDB'))
+            await this.copyDirectoryOrCreate(
+              path.join(userDataPath, 'Local Storage'),
+              path.join(workDir, 'Local Storage')
+            )
+          }
 
           onProgress({ stage: 'copying_files', progress: 50, total: 100 })
 
@@ -215,6 +228,9 @@ class BackupManager {
               dereferenceSymlinks: true,
               excludeRelativePath: (relativePath) => {
                 const normalizedPath = path.normalize(relativePath)
+                if (slimBackup) {
+                  return normalizedPath !== databaseDataPath
+                }
                 return (
                   normalizedPath === `${databaseDataPath}-wal` ||
                   normalizedPath === `${databaseDataPath}-shm` ||
@@ -235,7 +251,7 @@ class BackupManager {
             await fs.ensureDir(tempDataDir)
           }
 
-          await fs.writeJson(path.join(workDir, 'metadata.json'), this.createDirectBackupMetadata(), {
+          await fs.writeJson(path.join(workDir, 'metadata.json'), this.createDirectBackupMetadata(slimBackup), {
             spaces: 2
           })
 
@@ -474,11 +490,15 @@ class BackupManager {
    * @param localConfig - Local backup configuration (directory path and options)
    * @returns Path to the created backup file
    */
-  async backupToLocalDir(_: Electron.IpcMainInvokeEvent, fileName: string, localConfig: { localBackupDir?: string }) {
+  async backupToLocalDir(
+    _: Electron.IpcMainInvokeEvent,
+    fileName: string,
+    localConfig: { localBackupDir?: string; skipBackupFile?: boolean }
+  ) {
     try {
       const backupDir = localConfig.localBackupDir || this.backupDir
       await fs.ensureDir(backupDir)
-      return await this.backup(_, fileName, backupDir)
+      return await this.backup(_, fileName, backupDir, localConfig.skipBackupFile)
     } catch (error) {
       logger.error('[backupToLocalDir] Local backup failed:', error as Error)
       throw error
@@ -494,7 +514,7 @@ class BackupManager {
    */
   async backupToWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-    const backupedFilePath = await this.backup(_, filename)
+    const backupedFilePath = await this.backup(_, filename, undefined, webdavConfig.skipBackupFile)
     const webdavClient = this.getWebDavInstance(webdavConfig)
     try {
       let result
@@ -534,7 +554,7 @@ class BackupManager {
 
     logger.debug(`[backupToS3] Starting S3 backup to ${filename}`)
 
-    const backupedFilePath = await this.backup(_, filename)
+    const backupedFilePath = await this.backup(_, filename, undefined, s3Config.skipBackupFile)
     const s3Client = this.getS3Storage(s3Config)
     try {
       const fileBuffer = await fs.promises.readFile(backupedFilePath)
@@ -625,6 +645,7 @@ class BackupManager {
 
     try {
       const metadata = await this.readDirectBackupMetadata(extractionDir)
+      const isSlimBackup = !metadata.resources.indexedDB && !metadata.resources.localStorage
 
       if (metadata.platform && metadata.platform !== process.platform) {
         logger.warn(
@@ -644,8 +665,12 @@ class BackupManager {
       await this.assertArchiveFile(path.join(extractionDir, 'cache.json'), 'cache.json')
       await fs.copy(path.join(extractionDir, 'cache.json'), stagedCache)
 
-      await this.stageArchiveDirectory(path.join(extractionDir, 'IndexedDB'), stagedIndexedDB)
-      await this.stageArchiveDirectory(path.join(extractionDir, 'Local Storage'), stagedLocalStorage)
+      if (metadata.resources.indexedDB) {
+        await this.stageArchiveDirectory(path.join(extractionDir, 'IndexedDB'), stagedIndexedDB)
+      }
+      if (metadata.resources.localStorage) {
+        await this.stageArchiveDirectory(path.join(extractionDir, 'Local Storage'), stagedLocalStorage)
+      }
 
       if (metadata.resources.data) {
         const dataSource = path.join(extractionDir, 'Data')
@@ -703,21 +728,29 @@ class BackupManager {
           stagingPath: stagedCache,
           livePath: application.getPath('app.userdata', 'cache.json'),
           directory: false
-        }),
-        await this.createJournalResource({
-          restoreDir,
-          stagingPath: stagedIndexedDB,
-          livePath: path.join(userDataPath, 'IndexedDB'),
-          directory: true
-        }),
-        await this.createJournalResource({
-          restoreDir,
-          stagingPath: stagedLocalStorage,
-          livePath: path.join(userDataPath, 'Local Storage'),
-          directory: true
         })
       )
-      if (metadata.resources.data) {
+      if (metadata.resources.indexedDB) {
+        fileResources.push(
+          await this.createJournalResource({
+            restoreDir,
+            stagingPath: stagedIndexedDB,
+            livePath: path.join(userDataPath, 'IndexedDB'),
+            directory: true
+          })
+        )
+      }
+      if (metadata.resources.localStorage) {
+        fileResources.push(
+          await this.createJournalResource({
+            restoreDir,
+            stagingPath: stagedLocalStorage,
+            livePath: path.join(userDataPath, 'Local Storage'),
+            directory: true
+          })
+        )
+      }
+      if (metadata.resources.data && !isSlimBackup) {
         fileResources.push(...(await this.createDataJournalResources(restoreDir, stagedData)))
       }
       if (stagedClaude && !bundleClaudeWithData) {
@@ -793,10 +826,14 @@ class BackupManager {
     const resources = raw.resources as Record<string, unknown> | undefined
     const hasCommonResources =
       resources?.cache === true &&
-      resources.indexedDB === true &&
-      resources.localStorage === true &&
+      typeof resources.indexedDB === 'boolean' &&
+      resources.indexedDB === resources.localStorage &&
       typeof resources.data === 'boolean'
-    const hasLegacyLayout = resources?.database === true && resources.appClaude === true
+    const hasLegacyLayout =
+      resources?.database === true &&
+      resources.appClaude === true &&
+      resources.indexedDB === true &&
+      resources.localStorage === true
     const hasCompleteDataLayout =
       resources?.database === false && resources.appClaude === false && resources.data === true
     if (!resources || !hasCommonResources || (!hasLegacyLayout && !hasCompleteDataLayout)) {

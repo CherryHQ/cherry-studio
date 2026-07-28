@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-07-28T15:38:32.401Z
+ * Generated at: 2026-07-28T17:06:00.229Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -259,6 +259,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'chat.message.navigation_mode'
     },
     {
+      originalKey: 'skipBackupFile',
+      targetKey: 'data.backup.general.skip_backup_file'
+    },
+    {
       originalKey: 'webdavHost',
       targetKey: 'data.backup.webdav.host'
     },
@@ -285,6 +289,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'webdavMaxBackups',
       targetKey: 'data.backup.webdav.max_backups'
+    },
+    {
+      originalKey: 'webdavSkipBackupFile',
+      targetKey: 'data.backup.webdav.skip_backup_file'
     },
     {
       originalKey: 'webdavDisableStream',
@@ -523,6 +531,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.local.max_backups'
     },
     {
+      originalKey: 'localBackupSkipBackupFile',
+      targetKey: 'data.backup.local.skip_backup_file'
+    },
+    {
       originalKey: 'defaultPaintingProvider',
       targetKey: 'feature.paintings.default_provider'
     },
@@ -561,6 +573,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 's3.maxBackups',
       targetKey: 'data.backup.s3.max_backups'
+    },
+    {
+      originalKey: 's3.skipBackupFile',
+      targetKey: 'data.backup.s3.skip_backup_file'
     },
     {
       originalKey: 'navbarPosition',
@@ -659,6 +675,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'nutstoreMaxBackups',
       targetKey: 'data.backup.nutstore.max_backups'
+    },
+    {
+      originalKey: 'nutstoreSkipBackupFile',
+      targetKey: 'data.backup.nutstore.skip_backup_file'
     }
   ],
   preprocess: [
@@ -783,11 +803,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 2
- * - Redux Store项: 170
+ * - Redux Store项: 175
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 5
  * - localStorage项: 0
- * - 总配置项: 177
+ * - 总配置项: 182
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
