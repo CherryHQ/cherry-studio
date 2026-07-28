@@ -84,7 +84,7 @@ interface ManagerInternals {
   inFlightDispatches: Map<Promise<unknown>, string>
   suppressedChatContinuationTopicIds: Set<string>
   inFlightChatContinuations: Map<string, Promise<void>>
-  pendingSteers: Map<string, string[]>
+  pendingSteers: Map<string, Array<{ userMessageId: string }>>
   activeStreams: Map<string, ActiveStream>
   startNextChatTurn(topicId: string): Promise<void>
 }
@@ -242,12 +242,12 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
 
     it('suppresses a paused startNextChatTurn without consuming the queue head', async () => {
       mgr.pause('test: suppression')
-      internals(mgr).pendingSteers.set('t', ['u1', 'u2'])
+      internals(mgr).pendingSteers.set('t', [{ userMessageId: 'u1' }, { userMessageId: 'u2' }])
 
       await internals(mgr).startNextChatTurn('t')
 
       // Queue intact (the steer stays answerable after release) and the topic recorded as debt.
-      expect(internals(mgr).pendingSteers.get('t')).toEqual(['u1', 'u2'])
+      expect(internals(mgr).pendingSteers.get('t')).toEqual([{ userMessageId: 'u1' }, { userMessageId: 'u2' }])
       expect(internals(mgr).suppressedChatContinuationTopicIds.has('t')).toBe(true)
       expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
     })
