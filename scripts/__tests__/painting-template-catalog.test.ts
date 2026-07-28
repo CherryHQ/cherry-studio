@@ -13,8 +13,11 @@ type LocalizedTemplate = {
   prompt: string
 }
 
+type PaintingShowcaseTranslation = Record<'caption' | 'styles_label' | 'title', string>
+
 const root = path.resolve(__dirname, '..', '..')
 const catalogRoot = path.join(root, 'resources', 'data', 'painting-templates')
+const rendererI18nRoot = path.join(root, 'src', 'renderer', 'i18n')
 const catalog = JSON.parse(fs.readFileSync(path.join(catalogRoot, 'catalog.json'), 'utf8')) as CatalogEntry[]
 const englishTemplates = JSON.parse(fs.readFileSync(path.join(catalogRoot, 'locales', 'en-us.json'), 'utf8')) as Record<
   string,
@@ -95,6 +98,32 @@ const expectedVariableCounts: Record<string, number> = {
   'low-angle-fashion': 7
 }
 
+const expectedAppLocaleFiles = [
+  'locales/en-us.json',
+  'locales/zh-cn.json',
+  'translate/de-de.json',
+  'translate/el-gr.json',
+  'translate/es-es.json',
+  'translate/fr-fr.json',
+  'translate/ja-jp.json',
+  'translate/pt-pt.json',
+  'translate/ro-ro.json',
+  'translate/ru-ru.json',
+  'translate/vi-vn.json',
+  'translate/zh-tw.json'
+]
+
+const readPaintingShowcaseTranslation = (relativeFilePath: string) => {
+  const locale = JSON.parse(fs.readFileSync(path.join(rendererI18nRoot, relativeFilePath), 'utf8')) as {
+    paintings?: { showcase?: PaintingShowcaseTranslation }
+  }
+  const showcase = locale.paintings?.showcase
+  if (!showcase) {
+    throw new Error(`Missing paintings.showcase translation in ${relativeFilePath}`)
+  }
+  return showcase
+}
+
 describe('painting template catalog contract', () => {
   it('keeps catalog IDs, localized templates, and WebP previews aligned', () => {
     const catalogIds = catalog.map((entry) => entry.id)
@@ -167,5 +196,22 @@ describe('painting template catalog contract', () => {
     expect(chineseTemplates['birthday-poster'].prompt).toContain('${2}')
     expect(variableValues(englishTemplates['storyboard-sketch'].prompt)[2]).toContain('watching the horizon')
     expect(variableValues(chineseTemplates['storyboard-sketch'].prompt)[2]).toContain('眺望远方')
+  })
+
+  it('keeps the painting showcase translated for every app locale', () => {
+    const englishShowcase = readPaintingShowcaseTranslation('locales/en-us.json')
+
+    for (const localeFile of expectedAppLocaleFiles) {
+      const showcase = readPaintingShowcaseTranslation(localeFile)
+
+      expect(Object.keys(showcase).sort()).toEqual(['caption', 'styles_label', 'title'])
+      for (const key of ['caption', 'styles_label', 'title'] as const) {
+        expect(showcase[key].trim()).not.toHaveLength(0)
+        expect(showcase[key]).not.toMatch(/^\[to be translated\]/)
+        if (localeFile !== 'locales/en-us.json') {
+          expect(showcase[key]).not.toBe(englishShowcase[key])
+        }
+      }
+    }
   })
 })

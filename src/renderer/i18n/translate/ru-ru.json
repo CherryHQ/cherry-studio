@@ -4928,9 +4928,9 @@
     "seed_tip": "Одинаковый ключ генерации и промпт могут производить похожие изображения",
     "select_model": "Выбрать модель",
     "showcase": {
-      "caption": "[to be translated]:Choose a template to start, then make the prompt your own below.",
-      "styles_label": "[to be translated]:Prompt templates",
-      "title": "[to be translated]:A place for your next masterpiece."
+      "caption": "Выберите шаблон для начала, а затем настройте промпт ниже под себя.",
+      "styles_label": "Шаблоны промптов",
+      "title": "Место для вашего следующего шедевра."
     },
     "style_options": {
       "anime": "Аниме",

@@ -4928,9 +4928,9 @@
     "seed_tip": "Cùng một hạt giống và lời nhắc có thể tạo ra những hình ảnh tương tự",
     "select_model": "Chọn Mô hình",
     "showcase": {
-      "caption": "[to be translated]:Choose a template to start, then make the prompt your own below.",
-      "styles_label": "[to be translated]:Prompt templates",
-      "title": "[to be translated]:A place for your next masterpiece."
+      "caption": "Chọn một mẫu để bắt đầu, rồi tùy chỉnh lời nhắc bên dưới theo ý bạn.",
+      "styles_label": "Mẫu lời nhắc",
+      "title": "Không gian cho kiệt tác tiếp theo của bạn."
     },
     "style_options": {
       "anime": "Phim hoạt hình Nhật Bản",

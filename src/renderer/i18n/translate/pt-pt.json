@@ -4928,9 +4928,9 @@
     "seed_tip": "A mesma semente e palavra-chave podem gerar imagens semelhantes",
     "select_model": "Selecionar modelo",
     "showcase": {
-      "caption": "[to be translated]:Choose a template to start, then make the prompt your own below.",
-      "styles_label": "[to be translated]:Prompt templates",
-      "title": "[to be translated]:A place for your next masterpiece."
+      "caption": "Escolha um modelo para começar e personalize o prompt abaixo.",
+      "styles_label": "Modelos de prompts",
+      "title": "Um espaço para a sua próxima obra-prima."
     },
     "style_options": {
       "anime": "Anime",

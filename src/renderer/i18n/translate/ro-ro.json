@@ -4928,9 +4928,9 @@
     "seed_tip": "Același seed și prompt pot produce imagini similare",
     "select_model": "Selectează modelul",
     "showcase": {
-      "caption": "[to be translated]:Choose a template to start, then make the prompt your own below.",
-      "styles_label": "[to be translated]:Prompt templates",
-      "title": "[to be translated]:A place for your next masterpiece."
+      "caption": "Alege un șablon pentru început, apoi personalizează promptul de mai jos.",
+      "styles_label": "Șabloane de prompturi",
+      "title": "Un spațiu pentru următoarea ta capodoperă."
     },
     "style_options": {
       "anime": "Anime",
