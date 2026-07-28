@@ -7209,7 +7209,7 @@
       },
       "retry": {
         "backoff": "指数退避",
-        "description": "自动重试失败的模型调用，并回退到其他模型",
+        "description": "重试聊天、嵌入和重排调用；聊天失败时可回退到其他模型",
         "fallback_models": "回退模型",
         "fallback_models_count": "已选择 {{count}} 个模型",
         "fallback_models_description": "主模型失败时按顺序尝试的模型",

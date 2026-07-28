@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next'
  */
 const RetryStatusBlock: React.FC<{ data: RetryPartData }> = ({ data }) => {
   const { t } = useTranslation()
+  if (data.state === 'settled') return null
+
   return (
     <div className="mb-1.25 flex flex-row items-center gap-1.5 text-muted-foreground text-xs" title={data.reason}>
       <RefreshCw size={12} className="animate-spin" />

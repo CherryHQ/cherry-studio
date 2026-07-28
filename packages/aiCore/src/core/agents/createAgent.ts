@@ -41,7 +41,7 @@ export async function createAgent<
   const resolvedModel = await executor.pluginEngine.resolveModel(modelId)
 
   // 4. Optional outermost wrapper (e.g. retry/fallback) around the fully resolved model
-  const finalModel = wrapModel ? await wrapModel(resolvedModel as LanguageModelV3) : resolvedModel
+  const finalModel = wrapModel ? await wrapModel(resolvedModel) : resolvedModel
 
   // 5. Build ToolLoopAgent
   return new ToolLoopAgent({

@@ -3,6 +3,8 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
+const mockAgentGenerate = vi.fn()
+const mockCreateAgent = vi.fn()
 const mockRerank = vi.fn()
 const mockEmbedMany = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
@@ -13,8 +15,20 @@ const mockMessageApplyApproval = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
-const mockCreateRetryableWrap = vi.fn(() => undefined)
-const mockBuildFallbackModels = vi.fn(() => [] as unknown[])
+const mockCreateRetryableWrap = vi.fn((options?: unknown): ((model: unknown) => unknown) | undefined => {
+  void options
+  return undefined
+})
+const mockBuildFallbackModels = vi.fn((options?: unknown) => {
+  void options
+  return [] as unknown[]
+})
+const mockReadRetryPolicy = vi.fn(() => ({
+  enabled: true,
+  maxAttempts: 3,
+  backoffEnabled: true,
+  fallbackModelIds: ['fallback::model']
+}))
 const mockGetImageGenerationSupport = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
 const mockListModelsFromProvider = vi.fn()
@@ -83,21 +97,25 @@ vi.mock('@main/data/services/MessageService', () => ({
 }))
 
 vi.mock('@cherrystudio/ai-core', () => ({
-  createAgent: vi.fn(),
+  createAgent: (...args: unknown[]) => mockCreateAgent(...args),
   embedMany: (...args: unknown[]) => mockEmbedMany(...args),
   generateImage: (...args: unknown[]) => mockGenerateImage(...args),
   rerank: (...args: unknown[]) => mockRerank(...args)
 }))
 
 vi.mock('../runtime/aiSdk/retry/createRetryableWrap', () => ({
-  createRetryableWrap: () => mockCreateRetryableWrap()
+  createRetryableWrap: (options: unknown) => mockCreateRetryableWrap(options)
 }))
 
 vi.mock('../runtime/aiSdk/retry/buildFallbackModels', () => ({
-  buildFallbackModels: () => mockBuildFallbackModels()
+  buildFallbackModels: (options: unknown) => mockBuildFallbackModels(options)
 }))
 
-const { AiService, imageInputEntryParams } = await import('../AiService')
+vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
+  readRetryPolicy: () => mockReadRetryPolicy()
+}))
+
+const { AiService, imageInputEntryParams, resolveRequiredNativeFileSupport } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
 
 /**
@@ -112,6 +130,18 @@ function createService(): InstanceType<typeof AiService> {
 describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: true,
+      maxAttempts: 3,
+      backoffEnabled: true,
+      fallbackModelIds: ['fallback::model']
+    })
+    mockAgentGenerate.mockResolvedValue({
+      text: 'ok',
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: {}, outputTokenDetails: {} },
+      steps: []
+    })
+    mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
     mockProviderGetRotatedApiKey.mockReturnValue('test-key')
     mockProviderGetByProviderId.mockReturnValue({
       id: 'test-provider',
@@ -177,6 +207,28 @@ describe('AiService', () => {
 
     expect(buildAgentParamsFor).not.toHaveBeenCalled()
     expect(mockApplicationGet).not.toHaveBeenCalled()
+  })
+
+  it('detects only native attachment shapes that the primary model preserves', () => {
+    const primarySupport = { image: true, pdf: true, audio: false, video: true }
+    const messages = [
+      {
+        parts: [
+          { type: 'file', mediaType: 'image/png' },
+          { type: 'file', mediaType: 'application/pdf' },
+          { type: 'file', mediaType: 'audio/mpeg' },
+          { type: 'file', mediaType: 'video/mp4' }
+        ]
+      },
+      { content: [{ type: 'image' }] }
+    ]
+
+    expect(resolveRequiredNativeFileSupport(messages, primarySupport)).toEqual({
+      image: true,
+      pdf: true,
+      audio: false,
+      video: true
+    })
   })
 
   it('flushes accumulated token analytics once when an agent run errors', async () => {
@@ -840,14 +892,12 @@ describe('AiService tool approval', () => {
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       model: { id: 'test-provider::test-embed' }
     } as never)
-    mockApplicationGet.mockImplementation((name: string) =>
-      name === 'PreferenceService'
-        ? {
-            get: (key: string) =>
-              key === 'chat.retry.enabled' ? true : key === 'chat.retry.max_attempts' ? 3 : undefined
-          }
-        : undefined
-    )
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: true,
+      maxAttempts: 3,
+      backoffEnabled: false,
+      fallbackModelIds: []
+    })
     mockEmbedMany.mockResolvedValue({ embeddings: [[0.1]], usage: { tokens: 4 } })
 
     await service.embedMany({ uniqueModelId: 'test-provider::test-embed', values: ['a', 'b'] })
@@ -875,16 +925,18 @@ describe('AiService tool approval', () => {
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       model: { id: 'test-provider::test-embed' }
     } as never)
-    mockApplicationGet.mockImplementation((name: string) =>
-      name === 'PreferenceService'
-        ? { get: (key: string) => (key === 'chat.retry.enabled' ? false : undefined) }
-        : undefined
-    )
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: false,
+      maxAttempts: 3,
+      backoffEnabled: false,
+      fallbackModelIds: []
+    })
     mockEmbedMany.mockResolvedValue({ embeddings: [[0.1]], usage: { tokens: 1 } })
 
     await service.embedMany({ uniqueModelId: 'test-provider::test-embed', values: ['a'] })
 
-    expect(mockEmbedMany.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 2, maxParallelCalls: 5 }))
+    expect(mockEmbedMany.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 2 }))
+    expect(mockEmbedMany.mock.calls[0][2]).not.toHaveProperty('maxParallelCalls')
   })
 
   it('derives rerank maxRetries from the retry preference (0 when disabled)', async () => {
@@ -894,19 +946,36 @@ describe('AiService tool approval', () => {
       options: {}
     } as never)
     // Retry enabled with 4 retries → rerank passes maxRetries: 4.
-    mockApplicationGet.mockImplementation((name: string) =>
-      name === 'PreferenceService'
-        ? {
-            get: (key: string) =>
-              key === 'chat.retry.enabled' ? true : key === 'chat.retry.max_attempts' ? 4 : undefined
-          }
-        : undefined
-    )
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: true,
+      maxAttempts: 4,
+      backoffEnabled: false,
+      fallbackModelIds: []
+    })
     mockRerank.mockResolvedValue({ ranking: [{ originalIndex: 0, score: 1 }] })
 
     await service.rerank({ uniqueModelId: 'test-provider::test-reranker', query: 'q', documents: ['a'] })
 
     expect(mockRerank.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 4 }))
+  })
+
+  it('keeps rerank retries disabled when the retry feature is disabled', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-reranker' },
+      options: {}
+    } as never)
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: false,
+      maxAttempts: 3,
+      backoffEnabled: false,
+      fallbackModelIds: []
+    })
+    mockRerank.mockResolvedValue({ ranking: [{ originalIndex: 0, score: 1 }] })
+
+    await service.rerank({ uniqueModelId: 'test-provider::test-reranker', query: 'q', documents: ['a'] })
+
+    expect(mockRerank.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 0 }))
   })
 
   it('disables the chat retry wrapper when requestOptions.maxRetries is 0', async () => {
@@ -919,7 +988,9 @@ describe('AiService tool approval', () => {
       system: undefined,
       options: {},
       hookParts: [],
-      assistant: undefined
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
     } as never)
 
     await service.streamText({
@@ -936,6 +1007,12 @@ describe('AiService tool approval', () => {
 
   it('builds the chat retry wrapper when no explicit maxRetries override is given', async () => {
     const service = createService()
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: true,
+      maxAttempts: 3,
+      backoffEnabled: true,
+      fallbackModelIds: ['fallback::model']
+    })
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       model: { id: 'test-provider::test-model', capabilities: [] },
@@ -944,7 +1021,9 @@ describe('AiService tool approval', () => {
       system: undefined,
       options: {},
       hookParts: [],
-      assistant: undefined
+      assistant: undefined,
+      nativeFileSupport: { image: true, pdf: false, audio: false, video: false },
+      fileAttachments: []
     } as never)
 
     await service.streamText({
@@ -955,6 +1034,88 @@ describe('AiService tool approval', () => {
     } as never)
 
     expect(mockCreateRetryableWrap).toHaveBeenCalledTimes(1)
+    expect(mockBuildFallbackModels).toHaveBeenCalledWith(
+      expect.objectContaining({
+        primaryUniqueModelId: 'test-provider::test-model',
+        primaryHasTools: false,
+        requiredNativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+        retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 3 })
+      })
+    )
+    expect(mockCreateRetryableWrap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fallbacks: [],
+        retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 3 }),
+        onRetryEvent: expect.any(Function)
+      })
+    )
+  })
+
+  it('honors maxRetries: 0 for generateText without building fallbacks', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      model: { id: 'test-provider::test-model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    } as never)
+
+    await service.generateText({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'hello',
+      requestOptions: { maxRetries: 0 }
+    } as never)
+
+    expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
+    expect(mockBuildFallbackModels).not.toHaveBeenCalled()
+  })
+
+  it('wires retry policy and native requirements into generateText fallbacks', async () => {
+    const service = createService()
+    mockCreateRetryableWrap.mockReturnValue(((model: unknown) => model) as never)
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: true,
+      maxAttempts: 3,
+      backoffEnabled: true,
+      fallbackModelIds: ['fallback::model']
+    })
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      model: { id: 'test-provider::test-model', capabilities: [] },
+      tools: { search: {} },
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: true, pdf: false, audio: false, video: false }
+    } as never)
+
+    await service.generateText({
+      uniqueModelId: 'test-provider::test-model',
+      messages: [{ role: 'user', content: [{ type: 'image', image: new Uint8Array() }] }]
+    } as never)
+
+    expect(mockBuildFallbackModels).toHaveBeenCalledWith(
+      expect.objectContaining({
+        primaryUniqueModelId: 'test-provider::test-model',
+        primaryHasTools: true,
+        requiredNativeFileSupport: { image: true, pdf: false, audio: false, video: false },
+        retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 3 })
+      })
+    )
+    expect(mockCreateRetryableWrap).toHaveBeenCalledWith(
+      expect.objectContaining({ fallbacks: [], retryPolicy: expect.objectContaining({ enabled: true }) })
+    )
+    expect(mockCreateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ agentSettings: expect.objectContaining({ maxRetries: 0 }) })
+    )
+    mockCreateRetryableWrap.mockReturnValue(undefined)
   })
 
   it('checks rerank models with rerank before embedding or text generation', async () => {

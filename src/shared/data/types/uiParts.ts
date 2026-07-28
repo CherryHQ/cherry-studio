@@ -99,14 +99,19 @@ export interface CodePartData {
  * is being retried or failed over to a fallback model, and stripped before the
  * assistant message is persisted (see PersistenceListener). Never written to DB.
  */
-export interface RetryPartData {
-  /** Model id of the attempt that triggered the retry. */
-  modelId: string
-  /** 1-based count of attempts made so far. */
-  attempt: number
-  /** Short human reason, e.g. "http 429". */
-  reason: string
-}
+export type RetryPartData =
+  | {
+      state: 'retrying'
+      /** Model id that will handle the upcoming attempt. */
+      modelId: string
+      /** 1-based number of the upcoming attempt, including the original call. */
+      attempt: number
+      /** Short human reason, e.g. "http 429: rate limit exceeded". */
+      reason: string
+    }
+  | {
+      state: 'settled'
+    }
 
 // ============================================================================
 // Cherry DataUIPart type map (for useChat dataPartSchemas)

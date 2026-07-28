@@ -50,28 +50,6 @@ describe('finalizeInterruptedParts', () => {
     expect(result).toBe(parts)
   })
 
-  describe('stripTransientStatusParts', () => {
-    const retryPart = (): CherryMessagePart =>
-      ({
-        type: 'data-retry',
-        id: 'retry',
-        data: { modelId: 'gpt-4', attempt: 2, reason: 'http 429' }
-      }) as unknown as CherryMessagePart
-
-    it('removes data-retry parts, preserving order of the rest', () => {
-      const text = textPart('answer')
-      const result = stripTransientStatusParts([retryPart(), text])
-
-      expect(result).toEqual([text])
-    })
-
-    it('returns the same array reference when there is nothing to strip', () => {
-      const parts: CherryMessagePart[] = [textPart('hi')]
-
-      expect(stripTransientStatusParts(parts)).toBe(parts)
-    })
-  })
-
   describe("status='paused' (interrupted by user)", () => {
     it('rewrites an in-progress tool part to output-error with the paused reason', () => {
       const parts: CherryMessagePart[] = [inProgressToolPart('input-available')]
@@ -275,6 +253,28 @@ describe('finalizeInterruptedParts', () => {
     })
     const cherryMeta = (result[0] as any).providerMetadata?.cherry
     expect(cherryMeta?.thinkingMs).toBeUndefined()
+  })
+})
+
+describe('stripTransientStatusParts', () => {
+  const retryPart = (): CherryMessagePart =>
+    ({
+      type: 'data-retry',
+      id: 'retry',
+      data: { state: 'retrying', modelId: 'gpt-4', attempt: 2, reason: 'http 429' }
+    }) as unknown as CherryMessagePart
+
+  it('removes data-retry parts, preserving order of the rest', () => {
+    const text = textPart('answer')
+    const result = stripTransientStatusParts([retryPart(), text])
+
+    expect(result).toEqual([text])
+  })
+
+  it('returns the same array reference when there is nothing to strip', () => {
+    const parts: CherryMessagePart[] = [textPart('hi')]
+
+    expect(stripTransientStatusParts(parts)).toBe(parts)
   })
 })
 

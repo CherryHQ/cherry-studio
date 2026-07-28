@@ -187,7 +187,7 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'chat.retry.enabled': boolean
     // target-key-definitions/complex/complex
-    'chat.retry.fallback_model_ids': string[]
+    'chat.retry.fallback_model_ids': PreferenceTypes.RetryFallbackModelId[]
     // target-key-definitions/complex/complex
     'chat.retry.max_attempts': number
     // target-key-definitions/complex/complex

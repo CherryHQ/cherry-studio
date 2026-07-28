@@ -7209,7 +7209,7 @@
       },
       "retry": {
         "backoff": "Exponential backoff",
-        "description": "Automatically retry failed model calls and fall back to other models",
+        "description": "Retry chat, embedding, and rerank calls; chat can fall back to other models",
         "fallback_models": "Fallback models",
         "fallback_models_count": "{{count}} models selected",
         "fallback_models_description": "Models tried in order when the primary model fails",

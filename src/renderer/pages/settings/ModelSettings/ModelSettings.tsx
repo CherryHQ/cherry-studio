@@ -21,7 +21,7 @@ import { toast } from '@renderer/services/toast'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import { type Model, type UniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
 import {
@@ -412,9 +412,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 <ModelSelector
                   multiple={true}
                   selectionType="id"
-                  value={retryFallbackModelIds as UniqueModelId[]}
+                  value={retryFallbackModelIds}
                   onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds)}
-                  filter={modelFilter}
+                  filter={chatModelFilter}
                   trigger={
                     <Button
                       type="button"

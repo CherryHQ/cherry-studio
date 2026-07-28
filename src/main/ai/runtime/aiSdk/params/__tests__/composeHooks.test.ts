@@ -103,14 +103,32 @@ describe('composeHooks', () => {
   })
 
   describe('onError', () => {
-    it('runs every onError part (void fan-out)', async () => {
+    it('runs every onError part and defaults to abort', async () => {
       const a = vi.fn()
       const b = vi.fn()
       const composed = composeHooks([{ onError: a }, { onError: b }])
       const ctx: ErrorContext = { error: new Error('x') }
-      await composed.onError!(ctx)
+      await expect(composed.onError!(ctx)).resolves.toBe('abort')
       expect(a).toHaveBeenCalledTimes(1)
       expect(b).toHaveBeenCalledTimes(1)
+    })
+
+    it('returns retry when any onError handler requests retry', async () => {
+      const composed = composeHooks([
+        { onError: () => 'abort' },
+        { onError: () => 'retry' },
+        { onError: () => 'abort' }
+      ])
+
+      await expect(composed.onError!({ error: new Error('x') })).resolves.toBe('retry')
+    })
+
+    it('still runs handlers after one requests retry', async () => {
+      const afterRetry = vi.fn(() => 'abort' as const)
+      const composed = composeHooks([{ onError: () => 'retry' }, { onError: afterRetry }])
+
+      await expect(composed.onError!({ error: new Error('x') })).resolves.toBe('retry')
+      expect(afterRetry).toHaveBeenCalledOnce()
     })
 
     it('isolates a throwing onError handler — later handlers still run', async () => {

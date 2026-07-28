@@ -38,12 +38,12 @@ export async function createExecutor<
 }
 
 /**
- * 解析任意 provider 的语言模型实例（middleware 已应用）
- * 用于构造 retry/fallback 等需要独立模型实例的场景。
+ * Resolves a language model for any provider with its middleware applied.
  *
- * 传入 `plugins` 时，其 `configureContext` 注入的中间件会随 `resolveModel`
- * 一并 `wrapLanguageModel` 到返回的模型上 —— 用于让 fallback 模型携带它自己的
- * 特性中间件（qwen-thinking / deepseek 解析 / PDF 兼容 等）。
+ * When `plugins` are provided, middleware contributed through
+ * `configureContext` is applied to the returned model. This lets independently
+ * resolved models, such as retry fallbacks, retain their model-specific
+ * adapters.
  */
 export async function resolveLanguageModel<
   TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,

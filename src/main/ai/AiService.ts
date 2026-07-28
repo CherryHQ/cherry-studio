@@ -40,13 +40,14 @@ import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './prov
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
-import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
+import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import {
   Agent,
   buildAgentParams,
   buildFallbackModels,
   createRetryableWrap,
   mergeUsage,
+  readRetryPolicy,
   ZERO_USAGE
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
@@ -72,19 +73,30 @@ const logger = loggerService.withContext('AiService')
  */
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
-/** True when any message carries image input (UIMessage `file` part or ModelMessage `image` part). */
-function requestHasImageInput(messages: ReadonlyArray<unknown> | undefined): boolean {
-  if (!messages) return false
+const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
+type MutableNativeFileSupport = { -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K] }
+
+/** Native attachment shapes preserved for the primary and therefore replayed unchanged to a fallback. */
+export function resolveRequiredNativeFileSupport(
+  messages: ReadonlyArray<unknown> | undefined,
+  primarySupport: NativeFileSupport
+): NativeFileSupport {
+  if (!messages) return NO_NATIVE_FILE_REQUIREMENTS
+  const required: MutableNativeFileSupport = { ...NO_NATIVE_FILE_REQUIREMENTS }
   for (const message of messages) {
     const m = message as { parts?: unknown[]; content?: unknown }
     const parts = Array.isArray(m.parts) ? m.parts : Array.isArray(m.content) ? m.content : []
     for (const part of parts) {
       const p = part as { type?: string; mediaType?: string }
-      if (p.type === 'image') return true
-      if (p.type === 'file' && typeof p.mediaType === 'string' && p.mediaType.startsWith('image/')) return true
+      if (p.type === 'image' && primarySupport.image) required.image = true
+      if (p.type !== 'file' || typeof p.mediaType !== 'string') continue
+      if (p.mediaType.startsWith('image/') && primarySupport.image) required.image = true
+      else if (p.mediaType.startsWith('video/') && primarySupport.video) required.video = true
+      else if (p.mediaType.startsWith('audio/') && primarySupport.audio) required.audio = true
+      else if (p.mediaType === 'application/pdf' && primarySupport.pdf) required.pdf = true
     }
   }
-  return false
+  return required
 }
 
 // ── Model listing ──────────────────────────────────────────────────
@@ -443,23 +455,28 @@ export class AiService extends BaseService {
     // — honor it (like embedding/rerank), overriding the global retry preference.
     const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
     const agentRef: { current?: Agent } = {}
-    const wrapModel = retryDisabledForRequest
-      ? undefined
-      : createRetryableWrap({
-          fallbacks: buildFallbackModels({
-            request,
-            assistant,
-            signal,
-            primaryUniqueModelId: model.id,
-            primaryHasTools: !!tools && Object.keys(tools).length > 0,
-            requestHasImages: requestHasImageInput(request.messages),
-            extraFeatures
-          }),
-          // Stable `id` so repeated retries reconcile into one live status part (latest wins).
-          // Not transient: it rides message.parts so the renderer can show it; the
-          // PersistenceListener strips it before the message is saved.
-          onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
-        })
+    let wrapModel: ReturnType<typeof createRetryableWrap>
+    if (!retryDisabledForRequest) {
+      const retryPolicy = readRetryPolicy()
+      wrapModel = createRetryableWrap({
+        retryPolicy,
+        diagnosticContext: { chatId: request.chatId, messageId: request.messageId, assistantId: request.assistantId },
+        fallbacks: buildFallbackModels({
+          request,
+          assistant,
+          signal,
+          primaryUniqueModelId: model.id,
+          primaryHasTools: !!tools && Object.keys(tools).length > 0,
+          requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
+          extraFeatures,
+          retryPolicy
+        }),
+        // Stable `id` so repeated retries reconcile into one live status part (latest wins).
+        // Not transient: it rides message.parts so the renderer can show it; the
+        // PersistenceListener strips it before the message is saved.
+        onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+      })
+    }
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
@@ -470,7 +487,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system,
-      options,
+      options: wrapModel ? { ...options, maxRetries: 0 } : options,
       hookParts: [this.analyticsHookPart(model), ...hookParts],
       mediaCapabilities: resolveMediaCapabilities(model)
     })
@@ -510,27 +527,28 @@ export class AiService extends BaseService {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, tools, plugins, system, options, model, assistant, hookParts } = await this.buildAgentParamsFor(
-      request,
-      signal,
-      extraFeatures
-    )
+    const { sdkConfig, tools, plugins, system, options, model, assistant, hookParts, nativeFileSupport } =
+      await this.buildAgentParamsFor(request, signal, extraFeatures)
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
-    const wrapModel =
-      request.requestOptions?.maxRetries === 0
-        ? undefined
-        : createRetryableWrap({
-            fallbacks: buildFallbackModels({
-              request,
-              assistant,
-              signal,
-              primaryUniqueModelId: model.id,
-              primaryHasTools: !!tools && Object.keys(tools).length > 0,
-              requestHasImages: requestHasImageInput(request.messages),
-              extraFeatures
-            })
-          })
+    let wrapModel: ReturnType<typeof createRetryableWrap>
+    if (request.requestOptions?.maxRetries !== 0) {
+      const retryPolicy = readRetryPolicy()
+      wrapModel = createRetryableWrap({
+        retryPolicy,
+        diagnosticContext: { assistantId: request.assistantId },
+        fallbacks: buildFallbackModels({
+          request,
+          assistant,
+          signal,
+          primaryUniqueModelId: model.id,
+          primaryHasTools: !!tools && Object.keys(tools).length > 0,
+          requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
+          extraFeatures,
+          retryPolicy
+        })
+      })
+    }
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
@@ -540,7 +558,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system: request.system ?? system,
-      options,
+      options: wrapModel ? { ...options, maxRetries: 0 } : options,
       hookParts: [this.analyticsHookPart(model), ...hookParts]
     })
 
@@ -776,40 +794,23 @@ export class AiService extends BaseService {
 
   // ── Embedding ──
 
-  /**
-   * AI SDK `maxRetries` (retries beyond the first attempt) derived from the
-   * retry preference. Embedding/rerank use the SDK's built-in per-batch retry
-   * (respects `Retry-After` + exponential backoff) rather than ai-retry — there
-   * is no cross-model fallback for these, so the model wrapper adds no value.
-   *
-   * When the retry feature is off, `disabledDefault` is returned so each caller
-   * keeps its pre-feature behavior (rerank already defaulted to 0; embedMany
-   * relied on the AI SDK default of 2) — i.e. behavior is unchanged unless the
-   * user opts in.
-   */
-  private maxRetriesFromPreference(disabledDefault: number): number {
-    const preferences = application.get('PreferenceService')
-    return preferences.get('chat.retry.enabled')
-      ? Math.max(0, preferences.get('chat.retry.max_attempts'))
-      : disabledDefault
-  }
-
   async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
     const { sdkConfig, model } = await this.buildAgentParamsFor(request, signal)
 
+    const retryPolicy = readRetryPolicy()
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
       values: request.values,
       // A long document splits into many batches and embedMany defaults to
       // unbounded parallelism — firing them all at once is the main rate-limit
-      // trigger. Cap fan-out; the SDK's built-in retry handles transient 429s.
-      maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS,
+      // trigger. Keep the pre-feature default when retry is disabled.
+      ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
       // Disabled-default 2 = AI SDK's default, so default-config embedding keeps
       // its prior transient-error resilience (this PR only adds, never removes).
-      maxRetries: request.requestOptions?.maxRetries ?? this.maxRetriesFromPreference(2),
+      maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
       ...(signal ? { abortSignal: signal } : {})
     })
 
@@ -824,6 +825,7 @@ export class AiService extends BaseService {
     const signal = request.requestOptions?.signal
 
     const { sdkConfig, options = {} } = await this.buildAgentParamsFor(request, signal)
+    const retryPolicy = readRetryPolicy()
     const headers = options.headers
       ? (Object.fromEntries(Object.entries(options.headers).filter(([, value]) => value !== undefined)) as Record<
           string,
@@ -840,7 +842,7 @@ export class AiService extends BaseService {
       // ai-retry doesn't support RerankingModelV3 — use the AI SDK's built-in
       // exponential-backoff retry, defaulted from the retry preference. Rerank
       // already defaulted to 0 retries pre-feature, so keep that when disabled.
-      maxRetries: request.requestOptions?.maxRetries ?? this.maxRetriesFromPreference(0),
+      maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 0),
       ...(signal ? { abortSignal: signal } : {})
     }
 

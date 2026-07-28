@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 
-import type { Model } from '@shared/data/types/model'
-import { act, render, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const harness = vi.hoisted(() => ({
@@ -14,7 +14,10 @@ const harness = vi.hoisted(() => ({
   setTranslateModel: vi.fn(),
   setPaintingModel: vi.fn(),
   onDefaultModelSelected: vi.fn(),
-  selectorCallbacks: [] as Array<(model: Model | undefined) => void>
+  selectorCallbacks: [] as Array<(model: Model | undefined) => void>,
+  selectorFilters: [] as Array<((model: Model) => boolean) | undefined>,
+  preferenceValues: {} as Record<string, unknown>,
+  preferenceSetters: {} as Record<string, ReturnType<typeof vi.fn>>
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -23,9 +26,15 @@ vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
   Divider: () => <hr />,
   InfoTooltip: () => null,
-  Input: () => null,
+  Input: (props: ComponentProps<'input'>) => <input {...props} />,
   PageSidePanel: () => null,
-  Switch: () => null,
+  Switch: ({
+    checked,
+    onCheckedChange,
+    ...props
+  }: ComponentProps<'button'> & { checked?: boolean; onCheckedChange?: (checked: boolean) => void }) => (
+    <button type="button" aria-pressed={checked} onClick={() => onCheckedChange?.(!checked)} {...props} />
+  ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -34,7 +43,10 @@ vi.mock('@cherrystudio/ui/icons', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => ['', vi.fn()]
+  usePreference: (key: string) => {
+    const setter = (harness.preferenceSetters[key] ??= vi.fn())
+    return [harness.preferenceValues[key], setter]
+  }
 }))
 
 vi.mock('@logger', () => ({
@@ -45,8 +57,17 @@ vi.mock('@logger', () => ({
 
 vi.mock('@renderer/components/ModelSelector', () => ({
   getProviderDisplayName: () => undefined,
-  ModelSelector: ({ onSelect, trigger }: { onSelect: (model: Model | undefined) => void; trigger: ReactNode }) => {
+  ModelSelector: ({
+    onSelect,
+    trigger,
+    filter
+  }: {
+    onSelect: (model: Model | undefined) => void
+    trigger: ReactNode
+    filter?: (model: Model) => boolean
+  }) => {
     harness.selectorCallbacks.push(onSelect)
+    harness.selectorFilters.push(filter)
     return trigger
   }
 }))
@@ -113,6 +134,14 @@ describe('ModelSettings', () => {
     harness.quickModel = undefined
     harness.translateModel = undefined
     harness.selectorCallbacks = []
+    harness.selectorFilters = []
+    harness.preferenceValues = {
+      'chat.retry.enabled': false,
+      'chat.retry.max_attempts': 2,
+      'chat.retry.backoff_enabled': true,
+      'chat.retry.fallback_model_ids': []
+    }
+    harness.preferenceSetters = {}
     harness.setDefaultModel.mockResolvedValue(undefined)
     harness.setQuickModel.mockResolvedValue(undefined)
     harness.setTranslateModel.mockResolvedValue(undefined)
@@ -160,5 +189,47 @@ describe('ModelSettings', () => {
     await waitFor(() => expect(harness.setDefaultModel).toHaveBeenCalledWith(selectedModel))
     expect(harness.setQuickModel).not.toHaveBeenCalled()
     expect(harness.setTranslateModel).not.toHaveBeenCalled()
+  })
+
+  it('shows retry controls and restricts fallback selection to chat models', () => {
+    harness.preferenceValues['chat.retry.enabled'] = true
+    harness.preferenceValues['chat.retry.max_attempts'] = 3
+    harness.preferenceValues['chat.retry.fallback_model_ids'] = ['openai::gpt-4o']
+
+    render(
+      <ModelSettings
+        modelFilter={(model) => model.providerId !== 'hidden'}
+        showPaintingModel={false}
+        showSettingsButton={false}
+      />
+    )
+
+    expect(screen.getByLabelText('settings.models.retry.max_attempts')).toHaveValue(3)
+    expect(screen.getByLabelText('settings.models.retry.backoff')).toBeInTheDocument()
+
+    const fallbackFilter = harness.selectorFilters.at(-1)
+    expect(fallbackFilter?.(createModel('openai', 'gpt-4o'))).toBe(true)
+    expect(
+      fallbackFilter?.({
+        ...createModel('openai', 'embed'),
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+    ).toBe(false)
+    expect(fallbackFilter?.(createModel('hidden', 'chat'))).toBe(false)
+  })
+
+  it('writes retry preference changes through the shared preference hook', () => {
+    harness.preferenceValues['chat.retry.enabled'] = true
+    harness.preferenceValues['chat.retry.max_attempts'] = 2
+
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    fireEvent.click(screen.getByLabelText('settings.models.retry.label'))
+    fireEvent.change(screen.getByLabelText('settings.models.retry.max_attempts'), { target: { value: '99' } })
+    fireEvent.change(screen.getByLabelText('settings.models.retry.max_attempts'), { target: { value: '' } })
+
+    expect(harness.preferenceSetters['chat.retry.enabled']).toHaveBeenCalledWith(false)
+    expect(harness.preferenceSetters['chat.retry.max_attempts']).toHaveBeenNthCalledWith(1, 10)
+    expect(harness.preferenceSetters['chat.retry.max_attempts']).toHaveBeenNthCalledWith(2, 1)
   })
 })

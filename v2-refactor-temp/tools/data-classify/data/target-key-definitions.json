@@ -174,7 +174,7 @@
     },
     {
       "targetKey": "chat.retry.fallback_model_ids",
-      "type": "string[]",
+      "type": "PreferenceTypes.RetryFallbackModelId[]",
       "defaultValue": [],
       "status": "classified",
       "description": "Fallback model UniqueModelIds tried in order on failure (v2 新增，非迁移)"
