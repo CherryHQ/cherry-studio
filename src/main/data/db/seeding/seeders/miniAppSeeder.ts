@@ -19,11 +19,19 @@ export class MiniAppSeeder implements ISeeder {
   readonly description = 'Insert/refresh preset miniapp rows from PRESETS_MINI_APPS'
   readonly version: string
 
+  /**
+   * Bump when the seeder's output shape changes without PRESETS_MINI_APPS
+   * changing, so already-seeded rows get refreshed. Rev 2: migration 0020's
+   * logo → logo_key column rename (#16440) dropped the old column without
+   * copying data, leaving pre-existing preset rows with NULL logo_key.
+   */
+  private static readonly OUTPUT_REVISION = 2
+
   /** Pre-generated fractional-indexing keys, one per preset in declared order. */
   private readonly presetDefaultOrderKeys: ReadonlyMap<string, string>
 
   constructor() {
-    this.version = hashObject(PRESETS_MINI_APPS)
+    this.version = `${MiniAppSeeder.OUTPUT_REVISION}:${hashObject(PRESETS_MINI_APPS)}`
     const keys = generateOrderKeySequence(PRESETS_MINI_APPS.length)
     this.presetDefaultOrderKeys = new Map(PRESETS_MINI_APPS.map((p, i) => [p.id, keys[i]]))
   }

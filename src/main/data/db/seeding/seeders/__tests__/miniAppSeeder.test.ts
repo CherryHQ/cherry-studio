@@ -1,4 +1,5 @@
 import { miniAppTable } from '@data/db/schemas/miniApp'
+import { hashObject } from '@data/db/seeding/hashObject'
 import { MiniAppSeeder } from '@data/db/seeding/seeders/miniAppSeeder'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -77,6 +78,34 @@ describe('MiniAppSeeder', () => {
     expect(row).toBeDefined()
     expect(row.name).toBe('My Custom')
     expect(row.presetMiniAppId).toBeNull()
+  })
+
+  it('should restore logoKey on preset rows that lost it to the logo → logo_key rename (#16440)', async () => {
+    const preset = PRESETS_MINI_APPS.find((p) => p.logo)
+    if (!preset) throw new Error('expected at least one preset with a logo')
+    // Rows seeded before migration 0020 came out of the column rename with
+    // logo_key = NULL; a re-run must backfill them from the preset data.
+    await dbh.db.insert(miniAppTable).values({
+      appId: preset.id,
+      presetMiniAppId: preset.id,
+      name: preset.name,
+      url: preset.url,
+      logoKey: null,
+      status: 'enabled',
+      orderKey: 'a0'
+    })
+
+    const seed = new MiniAppSeeder()
+    seed.run(dbh.db)
+
+    const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
+    expect(row.logoKey).toBe(preset.logo)
+  })
+
+  it('should version-gate on the output revision so pre-#16440 journals re-seed', () => {
+    // The plain preset hash was the recorded journal version before the fix;
+    // the revision prefix is what forces SeedRunner to re-run on those DBs.
+    expect(new MiniAppSeeder().version).toBe(`2:${hashObject(PRESETS_MINI_APPS)}`)
   })
 
   it('should not refresh display fields when a custom row collides with a preset id (#3198809691)', async () => {
