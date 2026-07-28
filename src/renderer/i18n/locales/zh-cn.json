@@ -433,7 +433,7 @@
         "show_more": "展开显示",
         "this_week": "本周",
         "today": "今天",
-        "unknown_agent": "Cherry 智能体",
+        "unknown_agent": "未关联智能体",
         "unknown_agent_tip": "这是未关联智能体的历史会话分组，并非真实智能体。仅供查看，无法继续运行。",
         "yesterday": "昨天"
       },

@@ -540,7 +540,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.show_more': 'Expand display',
         'agent.session.group.this_week': 'This week',
         'agent.session.group.today': 'Today',
-        'agent.session.group.unknown_agent': 'Cherry Agent',
+        'agent.session.group.unknown_agent': 'Unlinked Agent',
         'agent.session.group.unknown_agent_tip': 'Historical sessions without an agent',
         'agent.session.group.yesterday': 'Yesterday',
         'agent.session.list.title': 'Tasks',
@@ -1183,7 +1183,7 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
   })
 
-  it('renders orphan sessions under the Cherry Agent placeholder with an icon and explanation', () => {
+  it('renders orphan sessions under the unlinked agent group without a virtual agent icon', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     setupSessions({
       sessions: [createSession({ id: 'session-orphan', name: 'Orphan session', agentId: null })]
@@ -1191,12 +1191,9 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    const cherryAgentGroup = screen.getByRole('button', { name: 'Cherry Agent' })
-    expect(cherryAgentGroup).toHaveTextContent('🤖')
-    expect(cherryAgentGroup.querySelector('[data-resource-list-leading-slot="true"]')?.firstElementChild).toHaveClass(
-      'rounded-full'
-    )
-    expect(cherryAgentGroup.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
+    const unlinkedAgentGroup = screen.getByRole('button', { name: 'Unlinked Agent' })
+    expect(unlinkedAgentGroup.querySelector('[data-resource-list-leading-slot="true"]')).not.toBeInTheDocument()
+    expect(unlinkedAgentGroup.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
   })
 
   it('defaults agent display groups to collapsed before the user changes expansion', () => {

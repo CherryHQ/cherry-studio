@@ -1583,9 +1583,7 @@ const Sessions = ({
       }
 
       if (displayMode !== 'agent') return undefined
-      if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) {
-        return renderAgentEntityIcon(assistantIconType, undefined, defaultModelId)
-      }
+      if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return null
 
       const agentId = getAgentIdFromSessionGroupId(group.id)
       const agent = agentId ? agentById.get(agentId) : undefined
@@ -1601,7 +1599,7 @@ const Sessions = ({
         return group.id !== SESSION_NO_WORKDIR_GROUP_ID && group.id !== SESSION_NO_PROJECT_GROUP_ID
       }
 
-      return displayMode === 'agent' && assistantIconType !== 'none'
+      return displayMode === 'agent' && group.id !== SESSION_UNKNOWN_AGENT_GROUP_ID && assistantIconType !== 'none'
     },
     [assistantIconType, displayMode]
   )

@@ -221,6 +221,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
       }
     ],
     error: null,
+    hasLoaded: true,
     isLoading: false,
     refetch: assistantDataMocks.refetchAssistants
   })
@@ -489,7 +490,7 @@ describe('classic layout entity resource list actions', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('keeps the default assistant visible in the classic assistant rail without a create action', () => {
+  it('keeps assistant-less topics under a non-actionable unlinked assistant entry in the classic rail', () => {
     assistantDataMocks.topics = [
       { id: 'topic-default', name: 'Default topic' },
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
@@ -498,24 +499,35 @@ describe('classic layout entity resource list actions', () => {
 
     render(<TestAssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={onCreateTopic} />)
 
-    const defaultAssistantRegion = screen.getByRole('region', { name: 'chat.default.name' })
+    const unlinkedAssistantRegion = screen.getByRole('region', { name: 'chat.topics.group.unknown_assistant' })
     const assistantRegion = screen.getByRole('region', { name: 'Assistant 1' })
 
-    expect(defaultAssistantRegion).toBeInTheDocument()
-    expect(defaultAssistantRegion).toHaveAttribute('title', 'chat.topics.group.unknown_assistant_tip')
+    expect(unlinkedAssistantRegion).toBeInTheDocument()
+    expect(unlinkedAssistantRegion).toHaveAttribute('title', 'chat.topics.group.unknown_assistant_tip')
     expect(assistantRegion).toBeInTheDocument()
     expect(
-      assistantRegion.compareDocumentPosition(defaultAssistantRegion) & Node.DOCUMENT_POSITION_FOLLOWING
+      assistantRegion.compareDocumentPosition(unlinkedAssistantRegion) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent('assistants.edit.title')
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent('assistants.delete.title')
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent(
-      'assistants.clear.menu_title'
+    expect(screen.getByTestId('assistant-entity:unlinked-context-menu')).toBeEmptyDOMElement()
+
+    expect(within(unlinkedAssistantRegion).queryByRole('button', { name: 'chat.conversation.new' })).toBeNull()
+  })
+
+  it('groups dangling assistant topics under the unlinked assistant entry in the classic rail', () => {
+    assistantDataMocks.topics = [
+      { id: 'topic-unlinked', assistantId: 'missing-assistant', name: 'Unlinked topic' },
+      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
+    ]
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="missing-assistant"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+      />
     )
 
-    // The default group is a display-only bucket for legacy assistant-less topics: no "new topic"
-    // action, since a null-assistant create can't reuse an empty placeholder and would stack blanks.
-    expect(within(defaultAssistantRegion).queryByRole('button', { name: 'chat.conversation.new' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'chat.topics.group.unknown_assistant' })).toBeInTheDocument()
   })
 
   it('creates a fresh topic after clearing the only classic assistant topics', async () => {
