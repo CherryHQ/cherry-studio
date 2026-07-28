@@ -54,6 +54,8 @@ export interface AgentRuntimeConnectInput {
   modelId: UniqueModelId
   /** Canonical reasoning selection frozen for this connection's turn. */
   reasoningEffort?: ReasoningEffortOption
+  /** Per-turn composer knowledge selection; static Agent bindings still take precedence. */
+  knowledgeBaseIds?: readonly string[]
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
   /**
@@ -151,14 +153,15 @@ export interface AgentRuntimeConnection {
    * decides the verdict (see {@link AgentRuntimeReconcileResult}). Serialized per connection:
    * concurrent push/pull reconciles queue instead of interleaving SDK and snapshot writes.
    *
-   * The input is the config the connection should serve right now (a live turn's frozen model and
-   * reasoning selection, or the agent's latest model with defaults) — the same pinning the host uses
-   * for `connect`.
+   * The input is the config the connection should serve right now (a live turn's frozen model,
+   * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same
+   * pinning the host uses for `connect`.
    */
   // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
   reconcile(input: {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
+    knowledgeBaseIds?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the

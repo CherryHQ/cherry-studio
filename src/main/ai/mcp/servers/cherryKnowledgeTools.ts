@@ -3,16 +3,20 @@
  * in-process `cherry-tools` MCP server (see `cherryBuiltinTools.ts`).
  *
  * This provider owns the whole knowledge-base domain on the agent path: it exposes the
- * kb_* tools only when the agent has a bound knowledge base, re-reads that binding live
- * on every tool listing and call, rejects an unscoped call (fail-closed), and scopes
- * every `knowledgeLookup` core call to the agent's bound bases. The generic builtin
+ * kb_* tools only when the agent's *effective* knowledge scope is non-empty, re-derives
+ * that scope on every tool listing and call, rejects an unscoped call (fail-closed), and
+ * scopes every `knowledgeLookup` core call to it. The effective scope is
+ * `resolveKnowledgeBaseScope(binding, composerSelection)`, so an agent with no static
+ * binding still gets the tools when the composer picked bases for the turn. Only the
+ * binding half is live — the composer selection is frozen when the connection is built, so
+ * changing it takes a connection rebuild, not a re-listing. The generic builtin
  * pipeline (`cherryBuiltinTools.ts`) stays unaware of knowledge authorization — it only
  * aggregates providers and dispatches by protocol, mirroring how `CherryAutonomyTools`
  * owns the autonomy domain. The destructive `kb_manage` tool relies on Claude Code's own
  * per-call permission prompt for approval (the AI-SDK path uses `needsApproval` instead).
  *
  * Scope is modelled as an explicit {@link KnowledgeScope} rather than a bare id array so
- * the "no binding" case can never be silently reinterpreted as "all bases": the shared
+ * the "empty scope" case can never be silently reinterpreted as "all bases": the shared
  * `knowledgeLookup` core treats an empty `allowedIds` as unrestricted (its assistant path
  * relies on that), so this provider turns `none` into a rejection and only ever passes a
  * non-empty `baseIds` down.
@@ -51,12 +55,12 @@ import type { CherryAgentContext } from './cherryAutonomyTools'
 const logger = loggerService.withContext('McpServer:CherryKnowledgeTools')
 
 /**
- * The agent's knowledge access as an explicit domain type. `none` = no bound base
- * (kb_* tools hidden, calls rejected); `restricted` = the bound bases a lookup may reach,
- * typed as a non-empty tuple. Modelling this as a type — instead of the bare id array the
- * shared `knowledgeLookup` core takes, where `[]` means "all bases" — makes an empty
- * binding unrepresentable as a scope, so it can never be read as unrestricted on the agent
- * path.
+ * The agent's knowledge access as an explicit domain type. `none` = empty effective scope,
+ * i.e. neither a static binding nor a frozen composer selection (kb_* tools hidden, calls
+ * rejected); `restricted` = the bases a lookup may reach, typed as a non-empty tuple.
+ * Modelling this as a type — instead of the bare id array the shared `knowledgeLookup` core
+ * takes, where `[]` means "all bases" — makes an empty scope unrepresentable, so it can
+ * never be read as unrestricted on the agent path.
  */
 type KnowledgeScope = { kind: 'none' } | { kind: 'restricted'; baseIds: readonly [string, ...string[]] }
 
@@ -140,8 +144,9 @@ export class CherryKnowledgeTools {
   }
 
   /**
-   * The kb_* tools, exposed only when the agent currently has a bound knowledge base.
-   * An empty binding hides them entirely (mirrors the assistant path).
+   * The kb_* tools, exposed only when the effective knowledge scope is currently non-empty —
+   * a static binding, or the composer selection frozen into this connection. An empty scope
+   * hides them entirely (mirrors the assistant path).
    */
   tools(): Tool[] {
     return this.scope().kind === 'none' ? [] : [...KNOWLEDGE_TOOL_LIST]
@@ -156,14 +161,16 @@ export class CherryKnowledgeTools {
       return { content: [{ type: 'text', text: `Unknown tool: ${toolName}` }], isError: true }
     }
     const tool = KNOWLEDGE_TOOLS[toolName]
-    // Fail-closed: the kb_* tools are hidden from the listing for an empty binding, but reject a
+    // Fail-closed: the kb_* tools are hidden from the listing for an empty scope, but reject a
     // direct call too so an unscoped lookup can never run — and never reaches the shared core with
     // an empty `allowedIds`, which that core would treat as "all bases".
     const scope = this.scope()
     if (scope.kind === 'none') {
-      logger.warn('Rejected direct knowledge tool call without a bound knowledge base', { tool: toolName })
+      logger.warn('Rejected direct knowledge tool call with an empty knowledge scope', { tool: toolName })
+      // "in scope", not "bound": an empty scope means no static binding AND no composer selection,
+      // so naming only the binding would point the model at the wrong remedy.
       return {
-        content: [{ type: 'text', text: `Tool unavailable: ${toolName} (no knowledge base bound)` }],
+        content: [{ type: 'text', text: `Tool unavailable: ${toolName} (no knowledge base in scope)` }],
         isError: true
       }
     }

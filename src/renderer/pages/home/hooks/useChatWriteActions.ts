@@ -217,6 +217,8 @@ export function useChatWriteActions(params: Params): Result {
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
     async (messageId?: string, options?: { modelId?: UniqueModelId }) => {
+      captureLocalSendScrollEligibility()
+
       // Anchor semantics depend on the target role:
       //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
       //   - user:      keep the user itself, spawn assistant child — anchor = target.id
@@ -242,7 +244,7 @@ export function useChatWriteActions(params: Params): Result {
       // lives at the call site.
       setMessages(uiMessages)
 
-      await regenerate({
+      const regeneratePromise = regenerate({
         messageId,
         body: {
           ...capabilityBody,
@@ -250,8 +252,10 @@ export function useChatWriteActions(params: Params): Result {
           ...(regenModelId && { mentionedModels: [regenModelId] })
         }
       })
+      onLocalSendStarted()
+      await regeneratePromise
     },
-    [regenerate, capabilityBody, uiMessages, setMessages]
+    [regenerate, capabilityBody, uiMessages, setMessages, captureLocalSendScrollEligibility, onLocalSendStarted]
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(

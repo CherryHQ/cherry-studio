@@ -4,6 +4,7 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -96,7 +97,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   applyHttpTrace(sdkConfig, request.chatId, model)
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
-  const knowledgeBaseIds = resolveKnowledgeBaseIds(assistant, request.knowledgeBaseIds)
+  const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
     ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
@@ -299,20 +300,6 @@ function resolveHasAnyKnowledgeBase(): boolean {
     logger.warn('Failed to check for knowledge bases during tool resolution; treating as present', { error })
     return true
   }
-}
-
-/**
- * Effective knowledge base scope for this request. When the assistant has its own static binding,
- * that binding IS the scope — the composer's per-turn selection can never expand it, since main
- * cannot trust a renderer/IPC-supplied id list to stay within the assistant's configured bases (the
- * composer UI happens to restrict picks to that set today, but that's a UI nicety, not a security
- * boundary). Only an assistant with no static binding lets the per-turn selection define the scope —
- * which is the actual gap this resolves: composer-only, ad-hoc knowledge base use.
- */
-export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, requestIds: string[] | undefined): string[] {
-  const assistantIds = assistant?.knowledgeBaseIds ?? []
-  if (assistantIds.length > 0) return assistantIds
-  return Array.from(new Set(requestIds ?? []))
 }
 
 /**
