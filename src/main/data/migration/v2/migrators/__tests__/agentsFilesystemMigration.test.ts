@@ -182,10 +182,10 @@ describe('agentsFilesystemMigration', () => {
       await expect(lstat(path.join(destination, 'dangling-link.json'))).rejects.toThrow()
     }
 
-    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(false)
   })
 
-  it('reuses an identical Claude config destination on retry', async () => {
+  it('skips an existing identical Claude config destination on retry', async () => {
     const { tempRoot, agentsDataRoot } = await createFixture()
     const source = path.join(tempRoot, '.claude')
     const destination = path.join(agentsDataRoot, '.claude')
@@ -194,11 +194,11 @@ describe('agentsFilesystemMigration', () => {
 
     await copyLegacyClaudeConfig(source, destination)
 
-    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(false)
     expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"theme":"dark"}')
   })
 
-  it('rejects a conflicting Claude config destination without overwriting either side', async () => {
+  it('skips a conflicting Claude config destination without overwriting either side', async () => {
     const { tempRoot, agentsDataRoot } = await createFixture()
     const source = path.join(tempRoot, '.claude')
     const destination = path.join(agentsDataRoot, '.claude')
@@ -207,7 +207,7 @@ describe('agentsFilesystemMigration', () => {
     await writeFile(path.join(source, 'settings.json'), '{"source":true}')
     await writeFile(path.join(destination, 'settings.json'), '{"destination":true}')
 
-    await expect(copyLegacyClaudeConfig(source, destination)).rejects.toThrow('destination conflict')
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(false)
 
     expect(await readFile(path.join(source, 'settings.json'), 'utf8')).toBe('{"source":true}')
     expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"destination":true}')
