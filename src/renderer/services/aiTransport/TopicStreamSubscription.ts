@@ -79,6 +79,16 @@ export class TopicStreamSubscription {
     return branch !== undefined && !branch.closed
   }
 
+  /** True when any open branch remains — e.g. a continuation round's chunks
+   *  arrived after the previous round's reader retired and are queuing,
+   *  unclaimed, for the next mounted reader. */
+  hasAnyOpenBranch(): boolean {
+    for (const branch of this.#branches.values()) {
+      if (!branch.closed) return true
+    }
+    return false
+  }
+
   unregister(executionId: UniqueModelId, anchorMessageId?: string): void {
     const key = branchKey(executionId, anchorMessageId)
     const branch = this.#branches.get(key)

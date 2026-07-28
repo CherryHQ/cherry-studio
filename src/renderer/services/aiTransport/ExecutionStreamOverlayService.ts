@@ -407,6 +407,11 @@ export class ExecutionStreamOverlayService {
       needsRemountReconcile: false
     }
     this.#entries.set(topicId, entry)
+    // Re-check droppability when terminals close branches: an entry retained
+    // only for unclaimed continuation chunks must not outlive their stream.
+    sub.onExecutionTerminal(() => {
+      if (this.#entries.get(topicId) === entry) this.#maybeDrop(entry)
+    })
     return entry
   }
 
@@ -434,6 +439,12 @@ export class ExecutionStreamOverlayService {
 
   #maybeDrop(entry: Entry): void {
     if (entry.refCount > 0 || entry.liveReaderCount > 0) return
+    // A continuation round's chunks may already be queuing in auto-created
+    // transport branches before any reader claims them (hidden steer/agent
+    // handoff: A ends with isTopicDone=false, B streams right after).
+    // Dropping now would detach the topic mid-turn; the terminal that
+    // eventually closes those branches re-runs this check.
+    if (entry.sub.hasAnyOpenBranch()) return
     this.#dropEntry(entry)
   }
 

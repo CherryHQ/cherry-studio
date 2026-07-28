@@ -46,6 +46,12 @@ const { fake } = vi.hoisted(() => {
       const b = branches.get(keyOf(executionId, anchorMessageId))
       return !!b && !b.closed
     },
+    hasAnyOpenBranch() {
+      for (const b of branches.values()) {
+        if (!b.closed) return true
+      }
+      return false
+    },
     unregister(executionId: string, anchorMessageId?: string) {
       const key = keyOf(executionId, anchorMessageId)
       const b = branches.get(key)

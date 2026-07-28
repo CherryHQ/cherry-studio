@@ -52,6 +52,13 @@ const mocks = vi.hoisted(() => {
       return branch !== undefined && !branch.closed
     }
 
+    hasAnyOpenBranch() {
+      for (const branch of this.branches.values()) {
+        if (!branch.closed) return true
+      }
+      return false
+    }
+
     #find(executionId: string, anchorMessageId?: string) {
       const exact = this.branches.get(this.#key(executionId, anchorMessageId))
       if (exact || anchorMessageId !== undefined) return exact
@@ -101,7 +108,7 @@ const mocks = vi.hoisted(() => {
     }
 
     terminal(executionId: string, t: { isAbort: boolean; isError: boolean }, anchorMessageId?: string) {
-      for (const cb of [...this.terminalCbs]) cb(executionId, { ...t, anchorMessageId })
+      // Mirror production #emitTerminal: the branch closes before listeners fire.
       const branch = this.#find(executionId, anchorMessageId)
       if (branch) {
         branch.closed = true
@@ -111,6 +118,7 @@ const mocks = vi.hoisted(() => {
           /* already closed */
         }
       }
+      for (const cb of [...this.terminalCbs]) cb(executionId, { ...t, anchorMessageId })
     }
   }
 
@@ -396,6 +404,57 @@ describe('ExecutionStreamOverlayService', () => {
     sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b')
     await nextFrame()
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live-more')
+  })
+
+  it('hidden steer continuation: keeps the entry attached while the next round’s chunks queue unclaimed', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const seed = () => [asst('anchor-a'), asst('anchor-b')]
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], seed)
+    const sub = mocks.subs.get(TOPIC)!
+
+    streamText(sub, A, 't1', 'first')
+    await nextFrame()
+    service.release(TOPIC, consumer)
+
+    // Main ends round A (isTopicDone=false) and streams round B onto a new
+    // anchor right away — its chunks auto-queue before A's finalizer runs.
+    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
+    sub.emit(A, { type: 'text-delta', id: 't2', delta: 'second' } as CherryUIMessageChunk, 'anchor-b')
+    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
+    await drainStreamMicrotasks()
+
+    // The unclaimed continuation pins the entry: no drop, no detach.
+    expect(sub.disposed).toBe(false)
+
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-b')], seed)
+    await nextFrame()
+    expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('second')
+  })
+
+  it('hidden steer continuation: drops the pinned entry once its queued round terminates unobserved', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const seed = () => [asst('anchor-a'), asst('anchor-b')]
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], seed)
+    const sub = mocks.subs.get(TOPIC)!
+
+    streamText(sub, A, 't1', 'first')
+    await nextFrame()
+    service.release(TOPIC, consumer)
+
+    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
+    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
+    await drainStreamMicrotasks()
+    expect(sub.disposed).toBe(false)
+
+    // The user never returns; round B ends and closes the queued branch.
+    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-b')
+    await drainStreamMicrotasks()
+    expect(sub.disposed).toBe(true)
   })
 
   it('restarts a finished execution only when a new turn’s chunks are already queued in the transport', async () => {

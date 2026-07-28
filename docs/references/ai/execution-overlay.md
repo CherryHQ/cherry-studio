@@ -172,7 +172,7 @@ Destruction policy:
 |---|---|
 | Stream running | Entry retained regardless of mounts |
 | Stream ends, view mounted | Terminal status edge → `refresh()` DB → `reset()` drops the settled snapshots |
-| Stream ends, no view | That execution's overlay is dropped immediately (the persisted DB row owns it); the entry drops once its last reader ends |
+| Stream ends, no view | That execution's overlay is dropped immediately (the persisted DB row owns it); the entry drops once its last reader ends — unless a continuation round's chunks are already queuing unclaimed in the transport, which pins the entry (and the Main attachment) until they are read or their round terminates |
 | Leak backstop | `MAX_ENTRIES` LRU eviction of refCount-0 entries (readers cancelled first) |
 
 Three guards keep the lifecycle race-free without any turn-identity
