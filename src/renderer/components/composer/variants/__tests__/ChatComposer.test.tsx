@@ -1446,7 +1446,7 @@ describe('ChatComposer', () => {
     expect(newConversationIcon).toHaveAttribute('height', '18')
     expect(newConversationIcon).toHaveAttribute('viewBox', '0 0 24 24')
     expect(newConversationIcon).toHaveAttribute('stroke', 'currentColor')
-    expect(newConversationIcon).toHaveAttribute('stroke-width', '2')
+    expect(newConversationIcon).toHaveAttribute('stroke-width', '1.8')
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
