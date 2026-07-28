@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { KB } from '@shared/utils/constants'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
@@ -88,6 +89,21 @@ describe('isTextByContent', () => {
     const f = path.join(tmp, 'data.txt')
     await writeFile(f, BINARY_SAMPLE)
     expect(await isTextByContent(f as AbsoluteFilePath)).toBe(false)
+  })
+
+  // The 8 KB sniff window lands one byte into `秋`, so a window-sized sample
+  // decodes as invalid. Ported from the v1 `FileStorage._isTextFile` fix (#17551)
+  // — this function inherited the same fixed-window bug when it replaced it.
+  it('accepts UTF-8 text when the sniff window ends inside a multibyte character', async () => {
+    const f = path.join(tmp, 'split-character')
+    await writeFile(f, `${'a'.repeat(8 * KB - 1)}秋tail`)
+    expect(await isTextByContent(f as AbsoluteFilePath)).toBe(true)
+  })
+
+  it('accepts an extensionless GBK text file', async () => {
+    const f = path.join(tmp, 'gbk-no-ext')
+    await writeFile(f, iconv.encode('这是一个没有扩展名的 GBK 文本文件，用于验证文件选择。', 'gbk'))
+    expect(await isTextByContent(f as AbsoluteFilePath)).toBe(true)
   })
 
   it('returns false (does not throw) for a missing file', async () => {

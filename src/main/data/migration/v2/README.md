@@ -37,7 +37,9 @@ paths with `path.join()` from scratch inside migration code.
 | Correct ✅ | Wrong ❌ |
 |-----------|---------|
 | `ctx.paths.userData` | `app.getPath('userData')` |
-| `ctx.paths.databaseFile` | `path.join(app.getPath('userData'), 'cherrystudio.sqlite')` |
+| `ctx.paths.databaseFile` | `path.join(app.getPath('userData'), 'Data', 'cherrystudio.sqlite')` |
+| `ctx.paths.legacyClaudeConfigDir` | `path.join(ctx.paths.userData, '.claude')` |
+| `ctx.paths.claudeConfigDir` | `path.join(ctx.paths.userData, 'Data', 'Agents', '.claude')` |
 | `ctx.paths.knowledgeBaseDir` | `path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')` |
 | `ctx.paths.legacyConfigFile` | `path.join(os.homedir(), '.cherrystudio', 'config', 'config.json')` |
 | `new Store({ cwd: ctx.paths.userData })` | `new Store()` |
@@ -103,7 +105,7 @@ Path Safety section above.
 ### Creating a New Migrator
 
 1. Extend `BaseMigrator` in `migrators/`
-2. Implement `prepare`, `execute`, `validate` methods
+2. Implement `prepare`, `execute`, and `validate`
 3. Add it to the `getAllMigrators()` list in `migrators/migratorRegistry.ts`
 4. Use `ctx.paths` for all filesystem paths — **NEVER** call `app.getPath()` directly
 

@@ -132,7 +132,7 @@ describe('Artboard', () => {
     expect(document.querySelector('img')).toBeNull()
     expect(mockComputeImageNaturalSize).toHaveBeenCalledWith('file:///tmp/image-1.png')
     // Pending: the natural size is still decoding, so the image url (and the whole
-    // reveal choreography it drives) is withheld from the skeleton until `ready`.
+    // reveal transition it drives) is withheld from the skeleton until `ready`.
     expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute('data-image-url', '')
   })
 
@@ -328,6 +328,7 @@ describe('Artboard', () => {
       // it to the available width via CSS rather than a fixed-length JS slice.
       expect(preview.textContent).toBe('a red cat wearing a tiny hat')
       expect(preview).toHaveClass('truncate')
+      expect(preview.closest('.flex-1')).toHaveClass('min-w-0', 'max-w-full', 'overflow-hidden')
     })
 
     it('shows the resolved size label alongside the prompt', () => {
@@ -391,20 +392,20 @@ describe('Artboard', () => {
 
         fireEvent.load(document.querySelector('img') as HTMLImageElement)
 
-        expect(screen.getByTestId('artboard-image-transform').style.width).toBe('376px')
+        expect(screen.getByTestId('artboard-image-layout').style.width).toBe('376px')
       })
 
       it('re-measures when switching to a differently sized generated image', () => {
         render(<Artboard painting={makePainting({ prompt: 'a red cat' })} isLoading={false} />)
 
         fireEvent.load(document.querySelector('img') as HTMLImageElement)
-        expect(screen.getByTestId('artboard-image-transform').style.width).toBe('376px')
+        expect(screen.getByTestId('artboard-image-layout').style.width).toBe('376px')
 
         fireEvent.click(screen.getByRole('button', { name: 'preview.next' }))
 
         // The new image hasn't reported its natural size yet — falls back to filling
         // the container instead of carrying over the previous image's locked width.
-        expect(screen.getByTestId('artboard-image-transform').style.width).toBe('')
+        expect(screen.getByTestId('artboard-image-layout').style.width).toBe('')
       })
 
       it('measures the wrapper even when Artboard first mounted while still loading', async () => {
@@ -420,7 +421,7 @@ describe('Artboard', () => {
 
         fireEvent.load(document.querySelector('img') as HTMLImageElement)
 
-        expect(screen.getByTestId('artboard-image-transform').style.width).toBe('376px')
+        expect(screen.getByTestId('artboard-image-layout').style.width).toBe('376px')
       })
 
       it('reserves the prompt bar height instead of using the full container', () => {
@@ -441,8 +442,6 @@ describe('Artboard', () => {
     render(<Artboard painting={makePainting()} isLoading={false} />)
 
     const image = document.querySelector('img') as HTMLImageElement
-    // The transform lives on the image's flex-col wrapper (which also holds the
-    // prompt bar) so the bar pans/zooms/rotates together with the artwork.
     const transformTarget = screen.getByTestId('artboard-image-transform')
 
     fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
@@ -456,6 +455,31 @@ describe('Artboard', () => {
 
     expect(image).toHaveAttribute('src', 'file:///tmp/image-2.png')
     expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
+  })
+
+  it('transforms only the image while keeping the prompt fixed', () => {
+    render(
+      <Artboard painting={makePainting({ prompt: 'a long prompt that must stay above the image' })} isLoading={false} />
+    )
+
+    const image = document.querySelector('img') as HTMLImageElement
+    const transformTarget = screen.getByTestId('artboard-image-transform')
+    const promptBar = screen.getByTestId('artboard-prompt-bar-measure')
+
+    fireEvent.click(screen.getByRole('button', { name: 'preview.rotate_left' }))
+    firePointer(image, 'pointerdown', { button: 0, clientX: 10, clientY: 10, pointerId: 1 })
+    firePointer(image, 'pointermove', { clientX: 35, clientY: 45, pointerId: 1 })
+
+    expect(transformTarget.style.transform).toBe('translate(25px, 35px) scale(1) rotate(-90deg)')
+    expect(promptBar.style.transform).toBe('')
+    expect(image).not.toHaveClass('bg-secondary')
+    expect(document.querySelector('.truncate')).toHaveTextContent('a long prompt that must stay above the image')
+
+    fireEvent.click(screen.getByRole('button', { name: 'preview.reset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'preview.rotate_right' }))
+
+    expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(1) rotate(90deg)')
+    expect(promptBar.style.transform).toBe('')
   })
 
   it('shows copy and download actions from the generated image context menu', () => {

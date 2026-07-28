@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next'
 
 interface Props {
   launcher: ToolLauncherApi
-  configuredKnowledgeBaseIds?: string[]
+  configuredKnowledgeBaseIds?: readonly string[]
   selectedBases?: KnowledgeBase[]
   onSelect: (bases: KnowledgeBase[]) => void
   disabled?: boolean
@@ -27,7 +27,7 @@ interface Props {
 
 const KNOWLEDGE_BASE_IDS_KEY_SEPARATOR = '\u0000'
 
-function getKnowledgeBaseIdsKey(ids: string[] | undefined) {
+function getKnowledgeBaseIdsKey(ids: readonly string[] | undefined) {
   return (ids ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
 }
 

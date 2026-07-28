@@ -7,6 +7,7 @@ import type {
   MessageStreamingLayers,
   MessageToolApprovalInput
 } from '@renderer/components/chat/messages/types'
+import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
@@ -196,6 +197,7 @@ export function useAgentChatRuntimeState({
   const deleteMessage = useCallback(
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
+      invalidateCachedMessageUiStates([messageId])
       setMessages((current) => current.filter((message) => message.id !== messageId))
     },
     [deleteSessionMessage, setMessages]

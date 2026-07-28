@@ -9,13 +9,13 @@ import {
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import {
+  createResourcePaneCapability,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
-  ResourcePaneProvider,
-  RightPanel,
   type RightPanelCapability,
   type RightPanelComponentProps,
+  type RightPanelComposition,
   RightPanelHeaderControls,
   RightPanelProvider,
   type RightPanelReadiness,
@@ -528,55 +528,49 @@ function AgentRightPaneStateProvider({
 
   return (
     <AgentFileNavigationContext value={requestFileTransition}>
-      <ResourcePaneProvider value={resourcePane}>
-        <AgentRightPaneMetaContext value={meta}>
-          <AgentRightPaneFileStateContext value={fileState}>
-            <AgentRightPaneRuntimeContext value={runtime}>
-              <RightPanelProvider
-                capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
-                scope={scope}
-                defaultPanelId={RESOURCE_PANE_TAB}
-                defaultOpen={defaultOpen}
-                onOpenChange={onOpenChange}
-                userOpenIntentSeq={userOpenIntentSeq}
-                present={present}>
-                <ResourcePaneLocateOpener revealRequest={revealRequest} />
-                <AgentRightPaneActionsProvider
-                  conversationState={conversationState}
-                  sessionId={sessionId}
-                  workspacePath={workspacePath}
-                  replaceFlowTab={replaceFlowTab}
-                  closeFilePreview={closeFilePreview}
-                  requestFileSelection={requestFileSelection}
-                  selectFile={selectFile}
-                  setFileEditMode={requestFileEditMode}
-                  setFileTreeExpandedIds={setFileTreeExpandedIds}
-                  setFileTreeSearchKeyword={setFileTreeSearchKeyword}
-                  workspaceCurrent={fileWorkspace.key === workspaceKey}>
-                  {children}
-                </AgentRightPaneActionsProvider>
-                <ConfirmDialog
-                  open={showDirtyLeaveConfirmation}
-                  onOpenChange={handleDirtyLeaveConfirmationChange}
-                  title={t('agent.preview_pane.edit.leave.title')}
-                  description={t('agent.preview_pane.edit.leave.description')}
-                  confirmText={t('agent.preview_pane.edit.leave.discard_and_continue')}
-                  cancelText={t('common.cancel')}
-                  destructive
-                  confirmLoading={fileSession.isSaving}
-                  onConfirm={handleDiscardAndContinue}
-                />
-              </RightPanelProvider>
-            </AgentRightPaneRuntimeContext>
-          </AgentRightPaneFileStateContext>
-        </AgentRightPaneMetaContext>
-      </ResourcePaneProvider>
+      <AgentRightPaneMetaContext value={meta}>
+        <AgentRightPaneFileStateContext value={fileState}>
+          <AgentRightPaneRuntimeContext value={runtime}>
+            <RightPanelProvider
+              capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
+              scope={scope}
+              defaultPanelId={RESOURCE_PANE_TAB}
+              defaultOpen={defaultOpen}
+              onOpenChange={onOpenChange}
+              userOpenIntentSeq={userOpenIntentSeq}
+              present={present}>
+              <ResourcePaneLocateOpener revealRequest={revealRequest} />
+              <AgentRightPaneActionsProvider
+                conversationState={conversationState}
+                sessionId={sessionId}
+                workspacePath={workspacePath}
+                replaceFlowTab={replaceFlowTab}
+                closeFilePreview={closeFilePreview}
+                requestFileSelection={requestFileSelection}
+                selectFile={selectFile}
+                setFileEditMode={requestFileEditMode}
+                setFileTreeExpandedIds={setFileTreeExpandedIds}
+                setFileTreeSearchKeyword={setFileTreeSearchKeyword}
+                workspaceCurrent={fileWorkspace.key === workspaceKey}>
+                {children}
+              </AgentRightPaneActionsProvider>
+              <ConfirmDialog
+                open={showDirtyLeaveConfirmation}
+                onOpenChange={handleDirtyLeaveConfirmationChange}
+                title={t('agent.preview_pane.edit.leave.title')}
+                description={t('agent.preview_pane.edit.leave.description')}
+                confirmText={t('agent.preview_pane.edit.leave.discard_and_continue')}
+                cancelText={t('common.cancel')}
+                destructive
+                confirmLoading={fileSession.isSaving}
+                onConfirm={handleDiscardAndContinue}
+              />
+            </RightPanelProvider>
+          </AgentRightPaneRuntimeContext>
+        </AgentRightPaneFileStateContext>
+      </AgentRightPaneMetaContext>
     </AgentFileNavigationContext>
   )
-}
-
-function AgentResourceRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
-  return scope.resourcePane?.node ?? null
 }
 
 function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
@@ -860,16 +854,21 @@ function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelRead
 }
 
 /** Stable capability registry; runtime messages are intentionally absent. */
+const TRACE_PANE_ID = 'trace'
+const AGENT_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<AgentRightPanelScope>({
+  instanceKey: 'agent-resources'
+})
+const AGENT_TRACE_PANE_CAPABILITY = {
+  component: AgentTraceRightPanel,
+  resolve: (scope: AgentRightPanelScope) => ({
+    id: TRACE_PANE_ID,
+    instanceKey: `session:${scope.meta.sessionId ?? ''}:trace:${scope.meta.traceId ?? ''}`,
+    title: scope.traceTitle,
+    readiness: resolveAgentTraceReadiness(scope)
+  })
+} satisfies RightPanelCapability<AgentRightPanelScope>
 const AGENT_RIGHT_PANEL_CAPABILITIES = [
-  {
-    component: AgentResourceRightPanel,
-    resolve: (scope) => ({
-      id: RESOURCE_PANE_TAB,
-      instanceKey: 'agent-resources',
-      title: scope.resourcePane?.label,
-      readiness: scope.resourcePane ? 'ready' : 'unavailable'
-    })
-  },
+  AGENT_RESOURCE_PANE_CAPABILITY,
   {
     component: AgentRightPaneFilesPanel,
     resolve: (scope) => ({
@@ -890,15 +889,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       readiness: scope.meta.conversationState
     })
   },
-  {
-    component: AgentTraceRightPanel,
-    resolve: (scope) => ({
-      id: 'trace',
-      instanceKey: `session:${scope.meta.sessionId ?? ''}:trace:${scope.meta.traceId ?? ''}`,
-      title: scope.traceTitle,
-      readiness: resolveAgentTraceReadiness(scope)
-    })
-  },
+  AGENT_TRACE_PANE_CAPABILITY,
   {
     component: AgentFlowRightPanel,
     resolve: (scope) => {
@@ -915,11 +906,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
 ] satisfies readonly RightPanelCapability<AgentRightPanelScope>[]
 
 const AgentRightPaneViewport = memo(function AgentRightPaneViewport() {
-  return (
-    <RightPanelViewport>
-      <RightPanel />
-    </RightPanelViewport>
-  )
+  return <RightPanelViewport />
 })
 
 function SubagentStatusIcon({ status }: { status: AgentSubagent['status'] }) {
@@ -1107,7 +1094,7 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
         icon={<FolderOpen className="size-3.5" />}
       />
       <AgentRightPaneStatusShortcut />
-      <RightPanelShortcut tab="trace" label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />
+      <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />
     </>
   )
 })
@@ -1116,6 +1103,6 @@ export const AgentRightPane = {
   Scope: AgentRightPaneStateProvider,
   Viewport: AgentRightPaneViewport,
   Shortcuts: AgentRightPaneShortcuts
-}
+} satisfies RightPanelComposition
 
 export type { AgentToolFlowOpenInput }

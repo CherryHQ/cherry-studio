@@ -82,15 +82,27 @@ export function decodeTextBufferIfText(data: Buffer): string | null {
  * `decodeTextBufferIfText`, so it inherits the same encoding-aware handling
  * (UTF-8 plus high-confidence legacy encodings). Best-effort — returns `false`
  * on any read/detection error.
+ *
+ * A fixed byte window can end midway through a UTF-8, GB18030, or other
+ * multibyte character, which decodes as invalid and would reject the whole
+ * file. Read a few bytes past the window and retry at successive boundaries so
+ * text is not rejected solely because the sample split a character.
  */
 export async function isTextByContent(target: AbsoluteFilePath): Promise<boolean> {
   try {
     const length = 8 * KB
+    const maxCharacterBytes = 4
     const fileHandle = await open(target, 'r')
     try {
-      const buffer = Buffer.alloc(length)
-      const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
-      return decodeTextBufferIfText(buffer.subarray(0, bytesRead)) !== null
+      const buffer = Buffer.alloc(length + maxCharacterBytes)
+      const { bytesRead } = await fileHandle.read(buffer, 0, buffer.length, 0)
+
+      const firstEnd = Math.min(bytesRead, length)
+      const lastEnd = Math.min(bytesRead, length + maxCharacterBytes)
+      for (let end = firstEnd; end <= lastEnd; end++) {
+        if (decodeTextBufferIfText(buffer.subarray(0, end)) !== null) return true
+      }
+      return false
     } finally {
       // Close on every path — a throwing read must not leak the descriptor.
       await fileHandle.close()

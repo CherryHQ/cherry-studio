@@ -17,7 +17,8 @@ export const chatRoutes = new Elysia({ prefix: '/chat' }).post(
       params: body,
       inputFormat: 'openai',
       outputFormat: 'openai',
-      signal: request.signal
+      signal: request.signal,
+      requestHeaders: request.headers
     }),
   {
     body: ChatCompletionBodySchema,
