@@ -2110,7 +2110,7 @@ export default function ComposerSurface({
       <button
         data-ui="chat.composer.action.pause"
         type="button"
-        className="flex size-7.5 items-center justify-center rounded-full text-error-base hover:bg-accent"
+        className="flex size-7.5 items-center justify-center rounded-full text-error hover:bg-accent"
         aria-label={t('chat.input.pause')}
         onClick={() => void onPause()}>
         <CirclePause size={20} />

@@ -136,29 +136,7 @@ export const CHERRY_PRODUCT_COLOR_TOKENS = [
  */
 export const COMPATIBILITY_SEMANTIC_COLOR_TOKENS = [] as const
 
-export const COMPATIBILITY_STATUS_COLOR_TOKENS = [
-  'error-base',
-  'error-text',
-  'error-bg',
-  'error-text-hover',
-  'error-bg-hover',
-  'error-border-hover',
-  'error-active',
-  'success-base',
-  'success-text-hover',
-  'success-bg',
-  'success-bg-hover',
-  'warning-base',
-  'warning-text-hover',
-  'warning-bg',
-  'warning-bg-hover',
-  'warning-active',
-  'info-base',
-  'info-text-hover',
-  'info-bg',
-  'info-bg-hover',
-  'info-active'
-] as const
+export const COMPATIBILITY_STATUS_COLOR_TOKENS = [] as const
 
 export const COMPATIBILITY_COLOR_TOKENS = [
   ...COMPATIBILITY_SEMANTIC_COLOR_TOKENS,

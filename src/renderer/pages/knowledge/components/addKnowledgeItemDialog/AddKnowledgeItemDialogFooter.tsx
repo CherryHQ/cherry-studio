@@ -36,7 +36,7 @@ const AddKnowledgeItemDialogFooter = ({
         <div
           role="alert"
           title={errorMessage}
-          className="wrap-break-word max-h-16 w-full min-w-0 overflow-y-auto whitespace-pre-wrap rounded-lg border border-error-border bg-error-bg px-3 py-2 text-error-text text-xs leading-4">
+          className="wrap-break-word max-h-16 w-full min-w-0 overflow-y-auto whitespace-pre-wrap rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
           {errorMessage}
         </div>
       ) : null}

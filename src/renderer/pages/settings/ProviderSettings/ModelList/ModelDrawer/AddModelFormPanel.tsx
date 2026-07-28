@@ -395,7 +395,7 @@ export default function AddModelFormPanel({
       {submitError && (
         <div
           role="alert"
-          className="rounded-md border border-error-border bg-error-bg px-3 py-2 text-error-text text-xs leading-4">
+          className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
           {submitError}
         </div>
       )}

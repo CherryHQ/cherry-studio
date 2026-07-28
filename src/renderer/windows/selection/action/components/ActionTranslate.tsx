@@ -413,7 +413,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           )}
         </div>
         {error && (
-          <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+          <div className="mb-3 break-all rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
             {error}
           </div>
         )}

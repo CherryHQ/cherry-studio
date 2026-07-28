@@ -334,31 +334,6 @@
   --color-error-border: var(--error-border);
 
   /* ==================== */
-  /* Compatibility: Existing Status Colors */
-  /* ==================== */
-  --color-error-base: var(--cs-error-base);
-  --color-error-text: var(--cs-error-text);
-  --color-error-bg: var(--cs-error-bg);
-  --color-error-text-hover: var(--cs-error-text-hover);
-  --color-error-bg-hover: var(--cs-error-bg-hover);
-  --color-error-border-hover: var(--cs-error-border-hover);
-  --color-error-active: var(--cs-error-active);
-  --color-success-base: var(--cs-success-base);
-  --color-success-text-hover: var(--cs-success-text-hover);
-  --color-success-bg: var(--cs-success-bg);
-  --color-success-bg-hover: var(--cs-success-bg-hover);
-  --color-warning-base: var(--cs-warning-base);
-  --color-warning-text-hover: var(--cs-warning-text-hover);
-  --color-warning-bg: var(--cs-warning-bg);
-  --color-warning-bg-hover: var(--cs-warning-bg-hover);
-  --color-warning-active: var(--cs-warning-active);
-  --color-info-base: var(--cs-info-base);
-  --color-info-text-hover: var(--cs-info-text-hover);
-  --color-info-bg: var(--cs-info-bg);
-  --color-info-bg-hover: var(--cs-info-bg-hover);
-  --color-info-active: var(--cs-info-active);
-
-  /* ==================== */
   /* Spacing */
   /* ==================== */
   /* Keep spacing opt-in for now to avoid overriding Tailwind container names. */

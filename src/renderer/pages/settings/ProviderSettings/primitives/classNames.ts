@@ -171,7 +171,7 @@ export const drawerClasses = {
   footerTextButton:
     'h-auto min-h-0 rounded-md px-0 py-0 text-xs leading-tight text-foreground-tertiary shadow-none hover:bg-transparent hover:text-foreground-tertiary',
   healthCostWarning:
-    'shrink-0 rounded-lg border-warning bg-warning-bg px-3 py-2.5 text-xs leading-tight text-warning shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-medium',
+    'shrink-0 rounded-lg border-warning bg-warning-subtle px-3 py-2.5 text-xs leading-tight text-warning shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-medium',
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
   healthProgressTrack:
     'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--muted-foreground)_12%,transparent)]',
@@ -396,8 +396,7 @@ export const modelSyncClasses = {
     'h-8 rounded-lg px-2.5 text-xs text-muted-foreground/80 shadow-none hover:bg-accent/40 hover:text-foreground [&_svg]:size-3.5',
   manageTitleErrorRetryButton:
     'relative size-7 shrink-0 rounded-lg p-0 text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground [&_svg]:size-3.5',
-  manageTitleErrorDot:
-    'pointer-events-none absolute right-1.5 top-1.5 size-1.5 rounded-full bg-error-base ring-1 ring-card',
+  manageTitleErrorDot: 'pointer-events-none absolute right-1.5 top-1.5 size-1.5 rounded-full bg-error ring-1 ring-card',
   manageStickyHeader: 'sticky top-0 z-10 shrink-0 bg-card pt-1 pb-3',
   manageToolbar: 'mb-2.5 flex items-center gap-2',
   manageSearchIcon: 'pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/60',
@@ -410,7 +409,7 @@ export const modelSyncClasses = {
     'h-auto w-full max-w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-lg bg-muted/40 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
   manageTabsTrigger: 'h-7 shrink-0 cursor-pointer gap-1.5 rounded-md px-2 text-xs',
   manageTabsTriggerDestructive:
-    'text-error-text hover:text-error-text data-[state=active]:border-error-border data-[state=active]:bg-error-bg data-[state=active]:text-error-text dark:text-error-text dark:data-[state=active]:border-error-border dark:data-[state=active]:bg-error-bg dark:data-[state=active]:text-error-text',
+    'text-error-subtle-foreground hover:text-error-subtle-foreground data-[state=active]:border-error-border data-[state=active]:bg-error-subtle data-[state=active]:text-error-subtle-foreground dark:text-error-subtle-foreground dark:data-[state=active]:border-error-border dark:data-[state=active]:bg-error-subtle dark:data-[state=active]:text-error-subtle-foreground',
   manageTabCount: 'text-[11px] text-muted-foreground/70 tabular-nums',
   manageScrollArea: 'min-h-0 flex-1 pr-1 [scrollbar-gutter:stable]',
   manageLoading: 'flex min-h-52 items-center justify-center text-muted-foreground',

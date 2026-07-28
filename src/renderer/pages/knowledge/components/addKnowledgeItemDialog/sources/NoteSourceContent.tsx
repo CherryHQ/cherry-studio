@@ -54,7 +54,7 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
     // is not told to "create some notes" when the real problem is a read failure.
     if (error) {
       return (
-        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center rounded-md border border-error-border bg-error-bg p-4 text-center text-error-text text-xs leading-4">
+        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center rounded-md border border-error-border bg-error-subtle p-4 text-center text-error-subtle-foreground text-xs leading-4">
           {t('notes.tree_load_failed')}
         </div>
       )

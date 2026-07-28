@@ -188,7 +188,7 @@ export default function ProviderConnectionCheckDrawer({
             className="group w-full cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-left text-[13px] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border"
             onClick={handleShowConnectionErrorDetail}>
             <div className="mb-1.5 flex items-center gap-2">
-              <div className="flex shrink-0 items-center justify-center text-error-base">
+              <div className="flex shrink-0 items-center justify-center text-error">
                 <AlertTriangle size={15} className="lucide-custom" />
               </div>
               <div className="pr-5 text-[13px] leading-[1.4]">{t('message.api.connection.failed')}</div>

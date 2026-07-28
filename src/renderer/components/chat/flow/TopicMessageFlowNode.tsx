@@ -23,8 +23,8 @@ const bodyXsTypographyClassName = 'text-[length:var(--font-size-body-xs)] leadin
 const bodySmTypographyClassName = 'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)]'
 
 const roleClassNames: Record<MessageRole, string> = {
-  user: 'border-success/35 bg-success-bg',
-  assistant: 'border-info/35 bg-info-bg',
+  user: 'border-success/35 bg-success-subtle',
+  assistant: 'border-info/35 bg-info-subtle',
   system: 'border-border bg-muted/45',
   // The virtual root is never rendered as a flow node; entry exists only to satisfy the
   // exhaustive Record<MessageRole> type.

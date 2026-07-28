@@ -271,7 +271,7 @@ function PromptRow({ onDelete, onEdit, prompt }: { onDelete: () => void; onEdit:
           size="icon-sm"
           aria-label={t('common.delete')}
           onClick={onDelete}
-          className="text-foreground-tertiary hover:bg-error-bg hover:text-error-text">
+          className="text-foreground-tertiary hover:bg-error-subtle hover:text-error-subtle-foreground">
           <Trash2 size={12} />
         </Button>
       </div>

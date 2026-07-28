@@ -118,8 +118,8 @@ base `--{intent}` token is an accent for icons, text, or markers rather than a s
 runtime families expose `--{intent}`, `--{intent}-subtle`, `--{intent}-subtle-foreground`, and
 `--{intent}-border`; Tailwind exposes matching semantic utility names.
 
-The older `*-base`, `*-text`, `*-bg`, hover, and active outputs are compatibility providers. Do not introduce them
-in new component APIs.
+The older `*-base`, `*-text`, `*-bg`, hover, and active names remain internal frozen providers or migration
+sources only; they are no longer Tailwind utilities. Do not introduce them in component APIs.
 
 ### Brand
 Do not use a page-local chromatic brand color for new UI chrome. `--cs-brand-*` is a foundation scale, not a component-facing semantic contract; new component styling should express action hierarchy through `var(--primary)` and status through the stable product roles.

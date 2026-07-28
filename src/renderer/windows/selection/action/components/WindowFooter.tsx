@@ -163,10 +163,9 @@ const WindowFooter: FC<FooterProps> = ({
       'flex h-[22px] cursor-pointer select-none flex-row items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap rounded bg-muted px-2 text-muted-foreground text-xs transition-colors',
       enabled ? 'opacity-100' : 'opacity-20',
       danger
-        ? 'hover:text-error-base hover:[&_.btn-icon]:text-error-base'
+        ? 'hover:text-error hover:[&_.btn-icon]:text-error'
         : 'hover:text-foreground hover:[&_.btn-icon]:text-foreground',
-      hovered &&
-        (danger ? 'text-error-base [&_.btn-icon]:text-error-base' : 'text-foreground [&_.btn-icon]:text-foreground')
+      hovered && (danger ? 'text-error [&_.btn-icon]:text-error' : 'text-foreground [&_.btn-icon]:text-foreground')
     )
 
   return (
@@ -185,8 +184,8 @@ const WindowFooter: FC<FooterProps> = ({
           {loading ? (
             <>
               <span className="relative size-4">
-                <Pause size={14} className="btn-icon absolute top-px left-px text-error-base" />
-                <Loader2 className="btn-icon absolute top-0 left-0 size-4 animate-spin text-error-base" />
+                <Pause size={14} className="btn-icon absolute top-px left-px text-error" />
+                <Loader2 className="btn-icon absolute top-0 left-0 size-4 animate-spin text-error" />
               </span>
               {t('selection.action.window.esc_stop')}
             </>

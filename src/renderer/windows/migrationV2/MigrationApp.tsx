@@ -62,9 +62,9 @@ type BadgeTone = 'primary' | 'success' | 'warning' | 'destructive' | 'neutral'
 
 const badgeToneClass: Record<BadgeTone, string> = {
   primary: 'border-primary-mute bg-primary/10 text-primary',
-  success: 'border-success bg-success-bg text-success',
-  warning: 'border-warning bg-warning-bg text-warning',
-  destructive: 'border-error-border bg-error-bg text-error-text',
+  success: 'border-success bg-success-subtle text-success',
+  warning: 'border-warning bg-warning-subtle text-warning',
+  destructive: 'border-error-border bg-error-subtle text-error-subtle-foreground',
   neutral: 'border-border bg-muted/40 text-muted-foreground'
 }
 
@@ -543,7 +543,7 @@ const MigrationApp: React.FC = () => {
             </Button>
 
             {warnings.length > 0 && (
-              <Accordion type="single" collapsible className="rounded-xl border border-warning bg-warning-bg px-4">
+              <Accordion type="single" collapsible className="rounded-xl border border-warning bg-warning-subtle px-4">
                 <AccordionItem value="migration-warnings" className="border-0 first:border-t-0">
                   <AccordionTrigger className="py-3 font-medium text-sm text-warning hover:no-underline">
                     {t('migration.completed.warning_heading', { count: warnings.length })}
@@ -577,8 +577,8 @@ const MigrationApp: React.FC = () => {
                 {t('migration.error.description')}
               </p>
             </TopContent>
-            <div className="rounded-xl border border-error-border bg-error-bg px-4 py-3">
-              <p className="wrap-break-words text-error-text text-xs leading-relaxed">
+            <div className="rounded-xl border border-error-border bg-error-subtle px-4 py-3">
+              <p className="wrap-break-words text-error-subtle-foreground text-xs leading-relaxed">
                 {t('migration.error.error_prefix')}
                 {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>

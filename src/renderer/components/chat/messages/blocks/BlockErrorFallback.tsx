@@ -7,8 +7,8 @@ const BlockErrorFallback: ComponentType<FallbackProps> = ({ error }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="rounded-lg border border-error-border border-dashed bg-error-bg px-3 py-2 text-xs">
-      <div className="text-error-text">
+    <div className="rounded-lg border border-error-border border-dashed bg-error-subtle px-3 py-2 text-xs">
+      <div className="text-error-subtle-foreground">
         {t('error.render.block', { defaultValue: 'This content block failed to render' })}
       </div>
       {!isProd && error && <div className="mt-1 break-all font-mono text-foreground-tertiary">{error.message}</div>}

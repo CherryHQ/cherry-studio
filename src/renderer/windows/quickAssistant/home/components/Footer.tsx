@@ -45,7 +45,7 @@ const Footer: FC<FooterProps> = ({
       <div className="flex items-center justify-center gap-1 text-muted-foreground text-xs">
         <FooterAction onClick={onEsc}>
           {loading ? (
-            <Loader2 size={12} className="animate-spin text-error-base" />
+            <Loader2 size={12} className="animate-spin text-error" />
           ) : (
             <CircleArrowLeft size={14} className="text-foreground" />
           )}

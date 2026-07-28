@@ -112,7 +112,7 @@ export const RagHintText = ({
 }) => {
   if (tone === 'error') {
     return (
-      <div className="rounded-md border border-error-border bg-error-bg px-2.5 py-1.5 text-error-text text-xs leading-4">
+      <div className="rounded-md border border-error-border bg-error-subtle px-2.5 py-1.5 text-error-subtle-foreground text-xs leading-4">
         {children}
       </div>
     )

@@ -51,7 +51,7 @@ const ActionIcons: FC<{
         {copyIconStatus === 'fail' && (
           <ClipboardX
             className={cn(
-              'btn-icon text-error-base',
+              'btn-icon text-error',
               COPY_ICON_CLASS_NAME,
               copyIconAnimation === 'enter' && 'scale-100 opacity-100',
               copyIconAnimation !== 'enter' && 'scale-0 opacity-0'

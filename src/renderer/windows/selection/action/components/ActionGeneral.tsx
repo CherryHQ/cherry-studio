@@ -213,7 +213,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           )}
         </div>
         {error && (
-          <div className="mt-3 mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+          <div className="mt-3 mb-3 break-all rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
             {error}
           </div>
         )}
