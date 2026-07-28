@@ -33,7 +33,7 @@ import React, { useMemo } from 'react'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
-import type { InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
+import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
 import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
@@ -1377,6 +1377,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       return (
         <AnimatePresence mode="sync">{activeTurnStatus ? activeTurnStatus(placeholder) : placeholder}</AnimatePresence>
       )
+    }
+    if (message.role === 'assistant' && message.status === 'paused') {
+      return <ChatMarkdown block={{ id: `${message.id}-paused`, content: '', status: 'paused' }} />
     }
     return null
   }
