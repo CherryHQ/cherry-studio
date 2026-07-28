@@ -675,6 +675,40 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
       ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     ])
   })
+
+  it('normalizes NewAPI embedding/video aliases and canonical media endpoints', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'embed-model', supported_endpoint_types: ['embeddings'] },
+          { id: 'video-model', supported_endpoint_types: ['openai-video'] },
+          { id: 'speech-model', supported_endpoint_types: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH] }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          apiModelId: 'embed-model',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+          capabilities: [MODEL_CAPABILITY.EMBEDDING]
+        }),
+        expect.objectContaining({
+          apiModelId: 'video-model',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION],
+          capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION]
+        }),
+        expect.objectContaining({
+          apiModelId: 'speech-model',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH],
+          capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION]
+        })
+      ])
+    )
+  })
 })
 
 describe('listModels — vertexFetcher (per-publisher pagination)', () => {
@@ -839,5 +873,27 @@ describe('listModels — jinaFetcher (strips jina-ai/ prefix)', () => {
     expect(models.map((m) => m.apiModelId)).toEqual(['jina-embeddings-v2-base-zh', 'jina-reranker-m0'])
     // Forward the upstream display name; fall back to the bare id when absent.
     expect(models.map((m) => m.name)).toEqual(['Jina AI: Embeddings v2 Base ZH', 'jina-reranker-m0'])
+  })
+})
+
+describe('listModels — openAICompatibleFetcher display names', () => {
+  it('forwards the upstream name and falls back to the model id when absent', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [{ id: 'named-model', name: 'Named Model' }, { id: 'unnamed-model' }]
+      }
+    })
+
+    const models = await listModels(
+      makeProvider({
+        id: 'custom-openai-compatible',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://example.com/v1' }
+        }
+      })
+    )
+
+    expect(models.map((model) => model.name)).toEqual(['Named Model', 'unnamed-model'])
   })
 })

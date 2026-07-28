@@ -378,6 +378,11 @@
         "label": "Instrumente pre-aprobate",
         "placeholder": "Selectează instrumente pre-aprobate"
       },
+      "api_retry": {
+        "reason": "Cerere eșuată ({{error}}, HTTP {{status}}) — se reîncearcă",
+        "retrying": "Se reîncearcă {{attempt}}/{{max}}…",
+        "retrying_in": "Reîncercare {{attempt}}/{{max}} în {{seconds}}s"
+      },
       "auto_rename": "Generați numele sarcinii",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Nu s-a reușit ștergerea sarcinii",
         "loadFailed": "Nu s-au putut încărca sarcinile",
         "runFailed": "Nu s-a reușit executarea sarcinii",
+        "triggerInvalid": "Programare invalidă: verificați expresia, fusul orar sau intervalul de timp",
         "updateFailed": "Nu s-a reușit actualizarea sarcinii"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "Rulează",
       "runTriggered": "Sarcină declanșată",
       "save": "Salvează",
+      "schedule": {
+        "custom": "Program personalizat",
+        "daily": "Zilnic",
+        "hour": "Oră",
+        "hourly": "Orară",
+        "interval": "Interval personalizat",
+        "intervalMinutes": "Interval",
+        "invalid": "Introduceți o frecvență de execuție validă.",
+        "minute": "Minut",
+        "once": "O dată",
+        "runAt": "Execută la",
+        "summary": {
+          "daily": "Zilnic la {{time}}",
+          "hourly": "La începutul fiecărei ore",
+          "interval": "La fiecare {{count}} minute",
+          "weekdays": "Zilele săptămânii la {{time}}",
+          "weekly": "În fiecare {{weekday}} la {{time}}"
+        },
+        "time": "Timp",
+        "weekday": "Ziua săptămânii",
+        "weekdays": {
+          "friday": "Vineri",
+          "monday": "Luni",
+          "saturday": "Sâmbătă",
+          "sunday": "Duminică",
+          "thursday": "Joi",
+          "tuesday": "Marți",
+          "wednesday": "Miercuri"
+        },
+        "weekdaysOnly": "Zilele săptămânii",
+        "weekly": "Săptămânal"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Interval",
@@ -869,7 +907,7 @@
       "expired": "Expirat",
       "inputPreview": "Previzualizare intrare instrument",
       "pending": "În așteptare ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "În așteptare",
       "permissionExpired": "Cererea de permisiune a expirat. Se așteaptă instrucțiuni noi...",
       "requiresElevatedPermissions": "Acest instrument necesită permisiuni elevate.",
       "suggestion": {
@@ -997,7 +1035,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copiază",
       "regenerate": "Regenerează",
       "restart": {
         "button": "Repornește",
@@ -1009,8 +1046,6 @@
     "authHeader": {
       "title": "Header de autorizare"
     },
-    "authHeaderText": "Utilizează în header-ul Authorization:",
-    "configuration": "Configurare",
     "description": "Expune capacitățile AI ale Cherry Studio prin API-uri HTTP compatibile cu OpenAI",
     "documentation": {
       "title": "Documentație API"
@@ -1018,13 +1053,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copiază cheia API",
-        "description": "Token de autentificare securizat pentru acces API",
         "label": "Cheie API",
         "placeholder": "Cheia API va fi generată automat"
       },
       "port": {
-        "description": "Numărul portului TCP pentru serverul HTTP (1000-65535)",
-        "helpText": "Oprește serverul pentru a schimba portul",
         "label": "Port"
       },
       "url": {
@@ -1033,7 +1065,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Cheia API a fost copiată în clipboard",
       "apiKeyRegenerated": "Cheia API a fost regenerată",
       "notEnabled": "Serverul API nu este activat.",
       "operationFailed": "Operațiunea serverului API a eșuat: ",
@@ -1043,8 +1074,7 @@
       "startError": "Nu s-a putut porni serverul API: ",
       "startSuccess": "Serverul API a pornit cu succes",
       "stopError": "Nu s-a putut opri serverul API: ",
-      "stopSuccess": "Serverul API s-a oprit cu succes",
-      "urlCopied": "URL-ul serverului a fost copiat în clipboard"
+      "stopSuccess": "Serverul API s-a oprit cu succes"
     },
     "status": {
       "running": "Rulează",
@@ -1427,21 +1457,21 @@
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",
       "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Nu s-a putut încărca conversația referențiată",
+        "no_room": "Nu mai este suficient spațiu în mesaj pentru a adăuga această conversație",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Nicio sesiune nu corespunde căutării tale",
+            "label": "Nu s-au găsit sesiuni"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Sesiuni"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Niciun subiect nu corespunde căutării tale",
+            "label": "Niciun subiect găsit"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Subiecte"
         }
       },
       "resize_height": "Redimensionează înălțimea intrării",
@@ -1603,8 +1633,17 @@
       "token_details": {
         "cache_read": "Citire din cache",
         "cache_write": "Scriere în cache",
+        "cost": "[to be translated]:Cost",
+        "cost_billed": "[to be translated]:Billed by provider",
+        "cost_estimated": "[to be translated]:Estimated",
+        "end_to_end_throughput": "[to be translated]:End-to-end throughput",
         "input": "Intrare",
         "input_breakdown": "Descompunere intrare",
+        "lane_approval": "[to be translated]:Approval",
+        "lane_model": "[to be translated]:Model",
+        "lane_other": "[to be translated]:Other",
+        "lane_tool": "[to be translated]:Tool",
+        "model_throughput": "[to be translated]:Model generation TPS",
         "output": "Ieșire",
         "reasoning": "Raționament",
         "reasoning_time": "Raționament",
@@ -1613,6 +1652,7 @@
         "text_output": "Ieșire text",
         "tokens": "{{value}} Jetoane",
         "tokens_per_second_value": "{{value}} Tokeni/s",
+        "total_duration": "[to be translated]:End-to-end duration",
         "uncached": "Necached/Necacheuit",
         "usage": "Utilizare token-uri",
         "waiting_first_token": "Așteptare"
@@ -2280,6 +2320,7 @@
     "open_in": "Deschide în {{name}}",
     "open_in_new_tab": "Deschide în filă nouă",
     "open_sidebar": "Deschide bara laterală",
+    "other": "[to be translated]:Other",
     "placeholders": {
       "select": {
         "model": "Selectează un model"
@@ -2293,7 +2334,7 @@
     "provider": "Furnizor",
     "reasoning_content": "Raționament profund",
     "refresh": "Reîmprospătează",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Nu s-a putut actualiza lista. Se afișează ultima versiune încărcată.",
     "regenerate": "Regenerează",
     "remove_image": "Elimină imaginea",
     "rename": "Redenumește",
@@ -2609,7 +2650,7 @@
     "empty": {
       "no_match_description": "Niciun fișier nu corespunde filtrelor curente",
       "no_match_title": "Nu au fost găsite fișiere potrivite",
-      "title": "[to be translated]:No files yet"
+      "title": "Niciun fișier încă"
     },
     "empty_trash": "Coș de gunoi gol",
     "error": {
@@ -3007,6 +3048,7 @@
     "embedding_model": "Model de încorporare",
     "embedding_model_required": "Este necesar un model de încorporare a bazei de cunoștințe",
     "empty": "Nicio bază de cunoștințe",
+    "empty_action": "Creați Bază de Cunoștințe",
     "empty_description": "Nu aveți încă nicio bază de cunoștințe. Creați una pentru a începe să vă organizați și să căutați documentele.",
     "error": {
       "directory_not_migrated": "Migrarea folderului a eșuat. Te rugăm să-l ștergi și să-l reîncarci.",
@@ -3781,6 +3823,8 @@
         "title": "Confirmare ștergere"
       },
       "failed": "Ștergere eșuată",
+      "first_turn_not_supported": "Primul mesaj al utilizatorului nu poate fi șters.",
+      "root_unavailable": "Mesajele se încarcă în continuare și nu pot fi șterse încă.",
       "success": "Ștergere reușită"
     },
     "dialog": {
@@ -4279,6 +4323,7 @@
     },
     "pinned": "Fixat",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Cost",
       "currency": "Monedă",
       "custom": "Personalizat",
@@ -6400,6 +6445,7 @@
       "viewErrorDetails": "Vizualizați detaliile"
     },
     "developer": {
+      "client_id": "ID client",
       "enable_developer_mode": "Activează modul dezvoltator",
       "help": "După activarea modului dezvoltator, poți folosi funcția de urmărire (trace) pentru a vizualiza fluxul de date în timpul invocării modelului.",
       "title": "Mod dezvoltator"
@@ -6582,7 +6628,9 @@
       "active": "Activ",
       "addError": "Nu s-a putut adăuga serverul",
       "addServer": {
+        "advanced": "Avansat",
         "create": "Creare rapidă",
+        "createDescription": "Completați detaliile de conectare pentru a crea serverul; tot restul poate fi ajustat ulterior.",
         "importFrom": {
           "connectionFailed": "Conexiune eșuată",
           "dxt": "Importă pachet DXT",
@@ -6662,7 +6710,11 @@
         "success": "Serverele MCP au fost preluate cu succes"
       },
       "filter": {
-        "label": "Filtru"
+        "allStatuses": "Toate statusurile",
+        "allTypes": "Toate tipurile",
+        "builtinOnly": "Doar încorporat",
+        "status": "Filtrare după stare",
+        "type": "Filtrare după tip"
       },
       "findMore": "Găsește mai multe MCP",
       "headers": "Headere",
@@ -6719,6 +6771,7 @@
         "usage": "Utilizare",
         "version": "Versiune"
       },
+      "pageDescription": "Gestionează serverele MCP. Odată activate, agenții pot apela instrumentele și resursele pe care acestea le oferă.",
       "prompts": {
         "arguments": "Argumente",
         "availablePrompts": "Prompturi disponibile",
@@ -7689,12 +7742,39 @@
       "titlePlaceholder": "Vă rugăm să introduceți titlul expresiei"
     },
     "scheduledTasks": {
+      "agentCreate": "Creează cu Agent",
+      "allAgents": "Toți agenții",
+      "allStatuses": "Toate statusurile",
+      "clearFilters": "Șterge filtrele",
+      "createDescription": "Setează ce trebuie să facă Agentul și când trebuie să ruleze.",
+      "createTitle": "Sarcină programată nouă",
       "description": "Gestionați sarcinile programate pentru toți agenții. Sarcinile rulează automat conform programului configurat.",
+      "editDescription": "Actualizați ce ar trebui să facă Agentul și când ar trebui să ruleze.",
+      "editTitle": "Editare sarcină programată",
+      "filterAgent": "Filtrare după Agent",
+      "filterStatus": "Filtrare după stare",
+      "manualCreate": "Crea manual",
+      "newTask": "Nou",
       "noAgents": "Niciun agent găsit. Creează mai întâi un agent pentru a adăuga sarcini programate.",
       "noAgentsTip": "Sfat: Îți poți ruga, de asemenea, agentul să creeze sarcini programate prin chat.",
+      "noAgentsTitle": "Fără agenți",
+      "noMatches": "Încercați o căutare sau un filtru diferit.",
+      "noMatchesTitle": "Nicio sarcină potrivită",
       "noTasks": "Nu există sarcini programate. Faceți clic pe „+ Adăugați” pentru a crea una pentru un agent.",
+      "noTasksTitle": "Nicio sarcină programată",
+      "notFoundDescription": "Această sarcină ar fi putut fi ștearsă, sau linkul este invalid.",
+      "notFoundTitle": "Sarcina nu a fost găsită",
+      "paginationLabel": "Paginarea sarcinilor programate",
+      "paginationStatus": "Pagina {{page}} din {{pageCount}} · {{total}} sarcini",
+      "search": "Căutare sarcini programate",
+      "searchPlaceholder": "Căutați sarcini sau agenți",
       "selectTask": "Selectați o sarcină pentru a vizualiza detaliile",
-      "title": "Sarcini programate"
+      "title": "Sarcini programate",
+      "validation": {
+        "agent": "Selectați un agent.",
+        "name": "Introduceți un nume de sarcină.",
+        "prompt": "Introduceți un prompt de sarcină."
+      }
     },
     "shortcuts": {
       "action": "Acțiune",
@@ -7783,6 +7863,7 @@
       "noInstalled": "Nicio competență instalată",
       "noResults": "Nicio competență găsită",
       "noSkillFile": "Nu s-a găsit SKILL.md",
+      "pageDescription": "Gestionați abilitățile instalate. Abilitățile extind ceea ce pot face agenții dvs. și sunt invocate la cerere.",
       "searchPlaceholder": "Descoperă mai multe competențe...",
       "searchRegistryTitle": "Caută registre de competențe online",
       "searchTitle": "Abilități de căutare",
@@ -8037,6 +8118,108 @@
       "onclose": "Minimizează în zona de notificare la închidere",
       "show": "Afișează pictograma în zona de notificare",
       "title": "Zonă de notificare"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "[to be translated]:Active days",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "dailyAverage": "[to be translated]:Daily average",
+        "explicitApiKey": "[to be translated]:Selected key",
+        "lastPeriod": "[to be translated]:vs last period",
+        "matchedApiKey": "[to be translated]:Matched override",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "currency": "[to be translated]:Currency",
+      "empty": {
+        "description": "[to be translated]:Usage appears after supported AI requests create usage records.",
+        "title": "[to be translated]:No usage yet"
+      },
+      "explore": {
+        "analysis": "[to be translated]:Analysis",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "[to be translated]:Clear date filter",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "[to be translated]:Requests",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "rollup": "[to be translated]:Rollup",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "[to be translated]:Explore",
+        "top": "[to be translated]:Top",
+        "totalEntries_one": "[to be translated]:{{count}} entry",
+        "totalEntries_other": "[to be translated]:{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "source": "[to be translated]:Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "title": "[to be translated]:Daily activity"
+      },
+      "metric": {
+        "cost": "[to be translated]:Cost",
+        "requests": "[to be translated]:Requests",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "rollup": {
+        "daily": "[to be translated]:Daily",
+        "monthly": "[to be translated]:Monthly",
+        "total": "[to be translated]:Total",
+        "weekly": "[to be translated]:Weekly"
+      },
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "model": "[to be translated]:Model",
+        "source": "[to be translated]:Source",
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
+      },
+      "title": "[to be translated]:Usage Analytics",
+      "tooltip": {
+        "cost": "[to be translated]:Cost {{value}}",
+        "requests_one": "[to be translated]:{{count}} request",
+        "requests_other": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
+      },
+      "window": {
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

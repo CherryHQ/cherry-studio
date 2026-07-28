@@ -45,7 +45,7 @@ export interface MigrationPaths {
 
   // ── Derived from userData (pre-computed, consumers use directly) ──
 
-  /** {userData}/cherrystudio.sqlite */
+  /** {userData}/Data/cherrystudio.sqlite */
   readonly databaseFile: string
   /** {userData}/Data/KnowledgeBase */
   readonly knowledgeBaseDir: string
@@ -55,8 +55,14 @@ export interface MigrationPaths {
   readonly versionLogFile: string
   /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
   readonly legacyAgentDbFile: string
-  /** {userData}/Data/Agents — default v2 Claude Code workspace root. */
-  readonly agentWorkspacesDir: string
+  /** {userData}/.claude — v1 Claude Agent SDK config source. */
+  readonly legacyClaudeConfigDir: string
+  /** {userData}/Data/Agents — v2 agent identity/memory data and system-workspace root. */
+  readonly agentsDataDir: string
+  /** {userData}/Data/Agents/.claude — v2 Claude Agent SDK config destination. */
+  readonly claudeConfigDir: string
+  /** {userData}/Data/Agents/system — app-owned per-session workspace root. */
+  readonly agentSystemWorkspacesDir: string
   /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom miniapp records (logos stripped from Redux). */
   readonly customMiniAppsFile: string
 
@@ -207,12 +213,15 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   const paths: MigrationPaths = Object.freeze({
     userData: currentUserData,
     cherryHome: CHERRY_HOME,
-    databaseFile: path.join(currentUserData, DB_NAME),
+    databaseFile: path.join(currentUserData, 'Data', DB_NAME),
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
     filesDataDir,
     versionLogFile: path.join(currentUserData, 'version.log'),
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
-    agentWorkspacesDir: path.join(currentUserData, 'Data', 'Agents'),
+    legacyClaudeConfigDir: path.join(currentUserData, '.claude'),
+    agentsDataDir: path.join(currentUserData, 'Data', 'Agents'),
+    claudeConfigDir: path.join(currentUserData, 'Data', 'Agents', '.claude'),
+    agentSystemWorkspacesDir: path.join(currentUserData, 'Data', 'Agents', 'system'),
     customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
@@ -458,7 +467,7 @@ function configHasKeys(configFile: string): boolean {
  */
 function hasValidSqlite(dir: string): boolean {
   try {
-    const stat = fs.statSync(path.join(dir, DB_NAME))
+    const stat = fs.statSync(path.join(dir, 'Data', DB_NAME))
     return stat.isFile() && stat.size > 0
   } catch {
     return false

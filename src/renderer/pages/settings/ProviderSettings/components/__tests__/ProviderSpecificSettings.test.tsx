@@ -16,7 +16,7 @@ vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
 
 vi.mock('@shared/utils/provider', () => ({
   isProviderSupportAuth: (...args: any[]) => isProviderSupportAuthMock(...args),
-  isAwsBedrockProvider: (provider: any) => provider?.authType === 'iam-aws',
+  isAwsBedrockProvider: (provider: any) => provider?.authType === 'iam-aws' || provider?.authType === 'api-key-aws',
   isVertexProvider: (provider: any) => provider?.authType === 'iam-gcp',
   matchesPreset: (provider: any, presetId: string) =>
     provider?.id === presetId || provider?.presetProviderId === presetId
@@ -133,6 +133,13 @@ describe('ProviderSpecificSettings', () => {
       meta: { isCherryIN: false, isDmxapi: false },
       expectedText: 'aws-bedrock-settings-aws-bedrock',
       authType: 'iam-aws'
+    },
+    {
+      providerId: 'aws-bedrock',
+      placement: 'afterAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'aws-bedrock-settings-aws-bedrock',
+      authType: 'api-key-aws'
     },
     {
       providerId: 'vertexai',

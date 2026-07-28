@@ -378,6 +378,11 @@
         "label": "Ferramentas pré-aprovadas",
         "placeholder": "Selecionar ferramentas pré-aprovadas"
       },
+      "api_retry": {
+        "reason": "Pedido falhou ({{error}}, HTTP {{status}}) — tentando novamente",
+        "retrying": "Tentando novamente {{attempt}}/{{max}}…",
+        "retrying_in": "Tentando novamente {{attempt}}/{{max}} em {{seconds}}s"
+      },
       "auto_rename": "Gerar nome da tarefa",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Falha ao excluir tarefa",
         "loadFailed": "Falha ao carregar tarefas",
         "runFailed": "Falha ao executar a tarefa",
+        "triggerInvalid": "Agendamento inválido: verifique a expressão, fuso horário ou intervalo de tempo",
         "updateFailed": "Falha ao atualizar a tarefa"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "Executar",
       "runTriggered": "Tarefa acionada",
       "save": "Guardar",
+      "schedule": {
+        "custom": "Agenda personalizada",
+        "daily": "Diário",
+        "hour": "Hora",
+        "hourly": "Por hora",
+        "interval": "Intervalo personalizado",
+        "intervalMinutes": "Intervalo",
+        "invalid": "Insira uma frequência de execução válida.",
+        "minute": "Minuto",
+        "once": "Uma vez",
+        "runAt": "Executar em",
+        "summary": {
+          "daily": "Diariamente às {{time}}",
+          "hourly": "No início de cada hora",
+          "interval": "A cada {{count}} minutos",
+          "weekdays": "Dias úteis às {{time}}",
+          "weekly": "Toda {{weekday}} às {{time}}"
+        },
+        "time": "Tempo",
+        "weekday": "Dia da semana",
+        "weekdays": {
+          "friday": "Sexta-feira",
+          "monday": "Segunda-feira",
+          "saturday": "Sábado",
+          "sunday": "Domingo",
+          "thursday": "quinta-feira",
+          "tuesday": "Terça-feira",
+          "wednesday": "Quarta-feira"
+        },
+        "weekdaysOnly": "Dias da semana",
+        "weekly": "Semanal"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Intervalo",
@@ -869,7 +907,7 @@
       "expired": "Expirado",
       "inputPreview": "Pré-visualização da entrada da ferramenta",
       "pending": "Pendente ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Pendente",
       "permissionExpired": "Solicitação de permissão expirou. Aguardando novas instruções...",
       "requiresElevatedPermissions": "Esta ferramenta requer permissões elevadas.",
       "suggestion": {
@@ -997,7 +1035,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copiar",
       "regenerate": "Regenerar",
       "restart": {
         "button": "Reiniciar",
@@ -1009,8 +1046,6 @@
     "authHeader": {
       "title": "Cabeçalho de autorização"
     },
-    "authHeaderText": "Usar no cabeçalho de autorização:",
-    "configuration": "Configuração",
     "description": "Expõe as capacidades de IA do Cherry Studio através de APIs HTTP compatíveis com OpenAI",
     "documentation": {
       "title": "Documentação API"
@@ -1018,13 +1053,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copiar Chave API",
-        "description": "Token de autenticação seguro para acesso à API",
         "label": "Chave API",
         "placeholder": "A chave API será gerada automaticamente"
       },
       "port": {
-        "description": "Número de porta TCP do servidor HTTP (1000-65535)",
-        "helpText": "Pare o servidor para alterar a porta",
         "label": "Porta"
       },
       "url": {
@@ -1033,7 +1065,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Chave API copiada para a área de transferência",
       "apiKeyRegenerated": "Chave API regenerada",
       "notEnabled": "O Servidor de API não está habilitado.",
       "operationFailed": "Operação do Servidor API falhou: ",
@@ -1043,8 +1074,7 @@
       "startError": "Falha ao iniciar o Servidor API: ",
       "startSuccess": "Servidor API iniciado com sucesso",
       "stopError": "Falha ao parar o Servidor API: ",
-      "stopSuccess": "Servidor API parado com sucesso",
-      "urlCopied": "URL do servidor copiada para a área de transferência"
+      "stopSuccess": "Servidor API parado com sucesso"
     },
     "status": {
       "running": "A executar",
@@ -1427,21 +1457,21 @@
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Falha ao carregar a conversa referenciada",
+        "no_room": "Não há espaço suficiente na mensagem para adicionar esta conversa",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Nenhuma sessão corresponde à sua pesquisa",
+            "label": "Nenhuma sessão encontrada"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Sessões"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Nenhum tópico corresponde à sua pesquisa",
+            "label": "Nenhum tópico encontrado"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Tópicos"
         }
       },
       "resize_height": "Redimensionar altura da entrada",
@@ -1603,8 +1633,17 @@
       "token_details": {
         "cache_read": "Leitura de cache",
         "cache_write": "Escrita em cache",
+        "cost": "[to be translated]:Cost",
+        "cost_billed": "[to be translated]:Billed by provider",
+        "cost_estimated": "[to be translated]:Estimated",
+        "end_to_end_throughput": "[to be translated]:End-to-end throughput",
         "input": "Entrada",
         "input_breakdown": "Quebra de entrada",
+        "lane_approval": "[to be translated]:Approval",
+        "lane_model": "[to be translated]:Model",
+        "lane_other": "[to be translated]:Other",
+        "lane_tool": "[to be translated]:Tool",
+        "model_throughput": "[to be translated]:Model generation TPS",
         "output": "Saída",
         "reasoning": "Raciocínio",
         "reasoning_time": "Raciocínio",
@@ -1613,6 +1652,7 @@
         "text_output": "Saída de texto",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Tokens/s",
+        "total_duration": "[to be translated]:End-to-end duration",
         "uncached": "Não em cache",
         "usage": "Uso de tokens",
         "waiting_first_token": "Aguardando"
@@ -2280,6 +2320,7 @@
     "open_in": "Abrir em {{name}}",
     "open_in_new_tab": "Abrir em nova aba",
     "open_sidebar": "Abrir barra lateral",
+    "other": "[to be translated]:Other",
     "placeholders": {
       "select": {
         "model": "Selecionar modelo"
@@ -2293,7 +2334,7 @@
     "provider": "Fornecedor",
     "reasoning_content": "Pensamento profundo concluído",
     "refresh": "Atualizar",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Não foi possível atualizar a lista. A mostrar a última versão carregada.",
     "regenerate": "Regenerar",
     "remove_image": "Remover imagem",
     "rename": "Renomear",
@@ -2609,7 +2650,7 @@
     "empty": {
       "no_match_description": "Nenhum arquivo corresponde aos filtros atuais",
       "no_match_title": "Nenhum arquivo correspondente encontrado",
-      "title": "[to be translated]:No files yet"
+      "title": "Nenhum arquivo ainda"
     },
     "empty_trash": "Esvaziar lixeira",
     "error": {
@@ -3007,6 +3048,7 @@
     "embedding_model": "Modelo de Incorporação",
     "embedding_model_required": "É necessário um modelo de incorporação da base de conhecimento",
     "empty": "Sem bases de conhecimento",
+    "empty_action": "Criar Base de Conhecimento",
     "empty_description": "Você ainda não tem nenhuma base de conhecimento. Crie uma para começar a organizar e pesquisar seus documentos.",
     "error": {
       "directory_not_migrated": "Falha na migração da pasta. Por favor, exclua-a e faça o upload novamente.",
@@ -3781,6 +3823,8 @@
         "title": "Confirmação de Exclusão"
       },
       "failed": "Falha ao excluir",
+      "first_turn_not_supported": "A primeira mensagem do usuário não pode ser excluída.",
+      "root_unavailable": "As mensagens ainda estão carregando e não podem ser excluídas ainda.",
       "success": "Excluído com sucesso"
     },
     "dialog": {
@@ -4279,6 +4323,7 @@
     },
     "pinned": "Fixado",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Custo",
       "currency": "Moeda",
       "custom": "Personalizado",
@@ -6400,6 +6445,7 @@
       "viewErrorDetails": "Ver detalhes"
     },
     "developer": {
+      "client_id": "ID do Cliente",
       "enable_developer_mode": "Ativar modo de desenvolvedor",
       "help": "Após ativar o modo de programador, será possível utilizar a função de rastreamento de chamadas para visualizar o fluxo de dados durante o processo de chamada do modelo.",
       "title": "Modo de Desenvolvedor"
@@ -6582,7 +6628,9 @@
       "active": "Ativar",
       "addError": "Falha ao adicionar servidor",
       "addServer": {
+        "advanced": "Avançado",
         "create": "Criação rápida",
+        "createDescription": "Preencha os detalhes de conexão para criar o servidor; tudo o resto pode ser ajustado posteriormente.",
         "importFrom": {
           "connectionFailed": "Falha na conexão",
           "dxt": "Importar pacote DXT",
@@ -6662,7 +6710,11 @@
         "success": "Servidores MCP obtidos com sucesso"
       },
       "filter": {
-        "label": "Filtro"
+        "allStatuses": "Todos os status",
+        "allTypes": "Todos os tipos",
+        "builtinOnly": "Apenas integrado",
+        "status": "Filtrar por status",
+        "type": "Filtrar por tipo"
       },
       "findMore": "Mais servidores MCP",
       "headers": "Cabeçalhos da Requisição",
@@ -6719,6 +6771,7 @@
         "usage": "Uso",
         "version": "Versão"
       },
+      "pageDescription": "Gerenciar servidores MCP. Uma vez habilitados, os agentes podem chamar as ferramentas e recursos que eles fornecem.",
       "prompts": {
         "arguments": "Argumentos",
         "availablePrompts": "Dicas disponíveis",
@@ -7689,12 +7742,39 @@
       "titlePlaceholder": "Por favor, insira o título da frase"
     },
     "scheduledTasks": {
+      "agentCreate": "Criar com Agente",
+      "allAgents": "Todos os Agentes",
+      "allStatuses": "Todos os status",
+      "clearFilters": "Limpar filtros",
+      "createDescription": "Defina o que o Agente deve fazer e quando deve ser executado.",
+      "createTitle": "Nova tarefa agendada",
       "description": "Gerencie tarefas agendadas em todos os agentes. As tarefas são executadas automaticamente conforme o agendamento configurado.",
+      "editDescription": "Atualize o que o Agente deve fazer e quando deve ser executado.",
+      "editTitle": "Editar tarefa agendada",
+      "filterAgent": "Filtrar por Agente",
+      "filterStatus": "Filtrar por status",
+      "manualCreate": "Criar manualmente",
+      "newTask": "Novo",
       "noAgents": "Nenhum agente encontrado. Crie um agente primeiro para adicionar tarefas agendadas.",
       "noAgentsTip": "Dica: Você também pode pedir ao seu agente para criar tarefas agendadas via chat.",
+      "noAgentsTitle": "Sem Agentes",
+      "noMatches": "Tente uma pesquisa ou filtro diferente.",
+      "noMatchesTitle": "Nenhuma tarefa correspondente",
       "noTasks": "Nenhuma tarefa agendada. Clique em \"+ Adicionar\" para criar uma para um agente.",
+      "noTasksTitle": "Tarefas agendadas",
+      "notFoundDescription": "Esta tarefa pode ter sido excluída ou o link é inválido.",
+      "notFoundTitle": "Tarefa não encontrada",
+      "paginationLabel": "Paginação de tarefas agendadas",
+      "paginationStatus": "Página {{page}} de {{pageCount}} · {{total}} tarefas",
+      "search": "Tarefas agendadas de pesquisa",
+      "searchPlaceholder": "Pesquisar tarefas ou Agentes",
       "selectTask": "Selecione uma tarefa para ver os detalhes",
-      "title": "Tarefas Agendadas"
+      "title": "Tarefas Agendadas",
+      "validation": {
+        "agent": "Selecione um Agente.",
+        "name": "Digite um nome de tarefa.",
+        "prompt": "Digite um prompt de tarefa."
+      }
     },
     "shortcuts": {
       "action": "Ação",
@@ -7783,6 +7863,7 @@
       "noInstalled": "Nenhuma habilidade instalada",
       "noResults": "Nenhuma habilidade encontrada",
       "noSkillFile": "Nenhum SKILL.md encontrado",
+      "pageDescription": "Gerencie as habilidades instaladas. As habilidades expandem o que seus agentes podem fazer e são invocadas sob demanda.",
       "searchPlaceholder": "Descobrir mais competências...",
       "searchRegistryTitle": "Procure registros de habilidades online",
       "searchTitle": "Habilidades de Pesquisa",
@@ -8037,6 +8118,108 @@
       "onclose": "Minimizar para bandeja ao fechar",
       "show": "Mostrar ícone de bandeja",
       "title": "Tray"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "[to be translated]:Active days",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "dailyAverage": "[to be translated]:Daily average",
+        "explicitApiKey": "[to be translated]:Selected key",
+        "lastPeriod": "[to be translated]:vs last period",
+        "matchedApiKey": "[to be translated]:Matched override",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "currency": "[to be translated]:Currency",
+      "empty": {
+        "description": "[to be translated]:Usage appears after supported AI requests create usage records.",
+        "title": "[to be translated]:No usage yet"
+      },
+      "explore": {
+        "analysis": "[to be translated]:Analysis",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "[to be translated]:Clear date filter",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "[to be translated]:Requests",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "rollup": "[to be translated]:Rollup",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "[to be translated]:Explore",
+        "top": "[to be translated]:Top",
+        "totalEntries_one": "[to be translated]:{{count}} entry",
+        "totalEntries_other": "[to be translated]:{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "source": "[to be translated]:Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "title": "[to be translated]:Daily activity"
+      },
+      "metric": {
+        "cost": "[to be translated]:Cost",
+        "requests": "[to be translated]:Requests",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "rollup": {
+        "daily": "[to be translated]:Daily",
+        "monthly": "[to be translated]:Monthly",
+        "total": "[to be translated]:Total",
+        "weekly": "[to be translated]:Weekly"
+      },
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "model": "[to be translated]:Model",
+        "source": "[to be translated]:Source",
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
+      },
+      "title": "[to be translated]:Usage Analytics",
+      "tooltip": {
+        "cost": "[to be translated]:Cost {{value}}",
+        "requests_one": "[to be translated]:{{count}} request",
+        "requests_other": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
+      },
+      "window": {
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

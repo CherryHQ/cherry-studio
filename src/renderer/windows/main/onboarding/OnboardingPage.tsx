@@ -35,7 +35,7 @@ import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog'
 
 type OnboardingStep = 'welcome' | 'provider' | 'select-model'
 type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
-type PrivacyProtectedAction = () => void | Promise<void>
+type PrivacyChoiceAction = () => void | Promise<void>
 
 const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
@@ -59,7 +59,7 @@ function OnboardingProviderSettings() {
 export default function OnboardingPage() {
   const { t } = useTranslation()
   const [language, setLanguage] = usePreference('app.language')
-  const [{ dataCollectionEnabled, policyVersion }, updateOnboardingPreferences] = useMultiplePreferences(
+  const [, updateOnboardingPreferences] = useMultiplePreferences(
     ONBOARDING_PREFERENCE_KEYS,
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
@@ -76,7 +76,6 @@ export default function OnboardingPage() {
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
   const loginAttemptRef = useRef(0)
   const loginLoadingTimeoutRef = useRef<number | null>(null)
-  const pendingPrivacyActionRef = useRef<PrivacyProtectedAction | null>(null)
   const canCompleteModelSetup = [defaultModel, quickModel, translateModel].every(
     (model) => model && isOnboardingModel(model)
   )
@@ -113,7 +112,8 @@ export default function OnboardingPage() {
       })
     const agentUpdate = dataApiService.get('/agents', { query: { limit: 2 } }).then(async ({ items, total }) => {
       const agent = total === 1 ? items[0] : undefined
-      if (agent?.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
+      const isSeededAgent = agent?.configuration?.builtin_role === 'assistant'
+      if (isSeededAgent && (agent.model === null || agent.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)) {
         await dataApiService.patch(`/agents/${agent.id}`, { body: { model: model.id } })
       }
     })
@@ -128,10 +128,14 @@ export default function OnboardingPage() {
     void setLanguage(value)
   }
 
-  const persistPrivacyAcceptance = useCallback(async (): Promise<boolean> => {
+  const persistPrivacyChoice = useCallback(async (): Promise<boolean> => {
     setIsUpdatingPrivacy(true)
     try {
-      await updateOnboardingPreferences({ policyVersion: LATEST_PRIVACY_POLICY_VERSION })
+      await updateOnboardingPreferences(
+        privacyAccepted
+          ? { policyVersion: LATEST_PRIVACY_POLICY_VERSION }
+          : { dataCollectionEnabled: false, policyVersion: '' }
+      )
       return true
     } catch {
       toast.error(t('onboarding.privacy.update_failed'))
@@ -139,18 +143,18 @@ export default function OnboardingPage() {
     } finally {
       setIsUpdatingPrivacy(false)
     }
-  }, [t, updateOnboardingPreferences])
+  }, [privacyAccepted, t, updateOnboardingPreferences])
 
   const updatePrivacyAcceptance = useCallback(
     async (accepted: boolean): Promise<boolean> => {
       setPrivacyAccepted(accepted)
-      if (accepted || policyVersion !== LATEST_PRIVACY_POLICY_VERSION) {
+      if (accepted) {
         return true
       }
 
       setIsUpdatingPrivacy(true)
       try {
-        await updateOnboardingPreferences({ policyVersion: '' })
+        await updateOnboardingPreferences({ dataCollectionEnabled: false, policyVersion: '' })
         return true
       } catch {
         setPrivacyAccepted(true)
@@ -160,66 +164,42 @@ export default function OnboardingPage() {
         setIsUpdatingPrivacy(false)
       }
     },
-    [policyVersion, t, updateOnboardingPreferences]
+    [t, updateOnboardingPreferences]
   )
 
   const handlePrivacyPolicyChoice = useCallback(
     async (accepted: boolean) => {
-      if (!accepted) {
-        pendingPrivacyActionRef.current = null
-        if (await updatePrivacyAcceptance(false)) {
-          setShowPrivacyPolicy(false)
-        }
-        return
-      }
-
-      setPrivacyAccepted(true)
-      const pendingAction = pendingPrivacyActionRef.current
-      if (!pendingAction) {
+      if (await updatePrivacyAcceptance(accepted)) {
         setShowPrivacyPolicy(false)
-        return
-      }
-
-      if (await persistPrivacyAcceptance()) {
-        pendingPrivacyActionRef.current = null
-        setShowPrivacyPolicy(false)
-        await pendingAction()
       }
     },
-    [persistPrivacyAcceptance, updatePrivacyAcceptance]
+    [updatePrivacyAcceptance]
   )
 
   const complete = useCallback(
     async (status: OnboardingCompletionStatus) => {
       setIsCompleting(true)
       try {
-        await updateOnboardingPreferences({
-          providerSetupStatus: status,
-          dataCollectionEnabled,
-          policyVersion: LATEST_PRIVACY_POLICY_VERSION
-        })
+        if (!(await persistPrivacyChoice())) {
+          return
+        }
+        await updateOnboardingPreferences({ providerSetupStatus: status })
       } catch {
         toast.error(t('onboarding.toast.complete_failed'))
       } finally {
         setIsCompleting(false)
       }
     },
-    [dataCollectionEnabled, t, updateOnboardingPreferences]
+    [persistPrivacyChoice, t, updateOnboardingPreferences]
   )
 
-  const runAfterPrivacyAcceptance = useCallback(
-    async (action: PrivacyProtectedAction) => {
-      if (!privacyAccepted) {
-        pendingPrivacyActionRef.current = action
-        setShowPrivacyPolicy(true)
-        return
-      }
-
-      if (await persistPrivacyAcceptance()) {
+  const runAfterPrivacyChoice = useCallback(
+    async (action: PrivacyChoiceAction) => {
+      if (await persistPrivacyChoice()) {
         await action()
       }
     },
-    [persistPrivacyAcceptance, privacyAccepted]
+    [persistPrivacyChoice]
   )
 
   useEffect(
@@ -317,7 +297,7 @@ export default function OnboardingPage() {
             variant="ghost"
             size="sm"
             className="nodrag text-foreground-secondary hover:text-foreground"
-            onClick={() => void runAfterPrivacyAcceptance(() => complete('skipped'))}
+            onClick={() => void complete('skipped')}
             disabled={isCompleting || isUpdatingPrivacy}>
             {t('onboarding.skip')}
           </Button>
@@ -343,7 +323,7 @@ export default function OnboardingPage() {
                       className="h-11 w-full rounded-xl"
                       loading={isLoggingIn}
                       disabled={isUpdatingPrivacy}
-                      onClick={() => void runAfterPrivacyAcceptance(handleCherryInLogin)}>
+                      onClick={() => void runAfterPrivacyChoice(handleCherryInLogin)}>
                       {!isLoggingIn && <LogIn size={16} />}
                       {t('onboarding.welcome.login_cherryin')}
                     </Button>
@@ -353,7 +333,7 @@ export default function OnboardingPage() {
                       size="lg"
                       className="h-11 w-full rounded-xl"
                       disabled={isUpdatingPrivacy}
-                      onClick={() => void runAfterPrivacyAcceptance(() => setStep('provider'))}>
+                      onClick={() => void runAfterPrivacyChoice(() => setStep('provider'))}>
                       <KeyRound size={16} />
                       {t('onboarding.welcome.other_provider')}
                     </Button>
@@ -426,7 +406,7 @@ export default function OnboardingPage() {
                           className="w-full"
                           loading={isCompleting}
                           disabled={!canCompleteModelSetup || isUpdatingPrivacy}
-                          onClick={() => void runAfterPrivacyAcceptance(() => complete('completed'))}>
+                          onClick={() => void complete('completed')}>
                           <Check size={16} />
                           {t('onboarding.select_model.start')}
                         </Button>
@@ -457,10 +437,7 @@ export default function OnboardingPage() {
                   <button
                     type="button"
                     className="ml-1 cursor-pointer border-0 bg-transparent p-0 text-primary text-xs hover:underline"
-                    onClick={() => {
-                      pendingPrivacyActionRef.current = null
-                      setShowPrivacyPolicy(true)
-                    }}>
+                    onClick={() => setShowPrivacyPolicy(true)}>
                     {t('onboarding.privacy.policy')}
                   </button>
                   <span>{t('onboarding.privacy.period')}</span>

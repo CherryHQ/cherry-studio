@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   listAgentsMock,
-  createAgentMock,
   getAgentMock,
   updateAgentMock,
   deleteAgentMock,
@@ -17,7 +16,6 @@ const {
   getSkillByIdMock
 } = vi.hoisted(() => ({
   listAgentsMock: vi.fn(),
-  createAgentMock: vi.fn(),
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
   deleteAgentMock: vi.fn(),
@@ -34,7 +32,6 @@ const {
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
     listAgents: listAgentsMock,
-    createAgent: createAgentMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
     deleteAgent: deleteAgentMock,
@@ -146,31 +143,8 @@ describe('agentHandlers', () => {
       expect(listAgentsMock).not.toHaveBeenCalled()
     })
 
-    it('delegates POST to agentService.createAgent', async () => {
-      createAgentMock.mockReturnValueOnce(mockAgent)
-
-      const result = await agentHandlers['/agents'].POST({
-        body: { type: 'claude-code', name: 'Test', model: 'anthropic::claude-3-5-sonnet' }
-      } as never)
-
-      expect(createAgentMock).toHaveBeenCalledOnce()
-      expect(result).toMatchObject({ id: AGENT_ID })
-    })
-
-    it('rejects POST when required fields are missing', async () => {
-      await expect(agentHandlers['/agents'].POST({ body: { name: 'Test' } } as never)).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR
-      })
-
-      expect(createAgentMock).not.toHaveBeenCalled()
-    })
-
-    it('rejects POST when model is missing', async () => {
-      await expect(
-        agentHandlers['/agents'].POST({ body: { type: 'claude-code', name: 'Test' } } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
-
-      expect(createAgentMock).not.toHaveBeenCalled()
+    it('keeps filesystem-backed creation off DataApi', () => {
+      expect(agentHandlers['/agents']).not.toHaveProperty('POST')
     })
   })
 

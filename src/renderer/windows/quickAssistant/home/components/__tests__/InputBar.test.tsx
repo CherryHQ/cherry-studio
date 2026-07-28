@@ -9,16 +9,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 
 describe('InputBar', () => {
   it('stays transparent in both light and dark themes', () => {
-    render(
-      <InputBar
-        text=""
-        referenceText=""
-        placeholder="Ask a model"
-        loading
-        handleKeyDown={vi.fn()}
-        handleChange={vi.fn()}
-      />
-    )
+    render(<InputBar text="" placeholder="Ask a model" loading handleKeyDown={vi.fn()} handleChange={vi.fn()} />)
 
     expect(screen.getByPlaceholderText('Ask a model')).toHaveClass(
       'rounded-none',
