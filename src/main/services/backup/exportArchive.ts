@@ -18,11 +18,6 @@
  * `feature.backup.temp` — and removes only that. It never deletes the
  * destination or anything it did not create; a prior good backup always
  * survives (`publishArchive` enforces no-clobber independently).
- *
- * Full inserts one step — resource staging — between the requirements and the
- * manifest, and everything else is identical: the same snapshot, the same
- * materialization, the same publication. That is the whole difference between
- * the presets (§2), so they share this function rather than forking it.
  */
 
 import { mkdtemp, rm, stat } from 'node:fs/promises'
@@ -37,7 +32,7 @@ import { app } from 'electron'
 import { publishArchive } from './archivePublish'
 import { assertDiskHeadroom } from './diskPreflight'
 import { BackupCancelledError } from './errors'
-import { BACKUP_FORMAT_VERSION, type BackupManifest, type BackupPreset, type ManagedRootIdentity } from './manifest'
+import { BACKUP_FORMAT_VERSION, type BackupManifest, type ManagedRootIdentity } from './manifest'
 import { currentBackupPlatform } from './platform'
 import { REBASABLE_MANAGED_ROOT_KEYS } from './portability/managedPathRebase'
 import type { MaterializationSummary } from './portability/materializeDatabase'
@@ -54,8 +49,6 @@ const RESOURCES_DIR_NAME = 'resources'
 export interface ExportArchiveInputs {
   /** Destination `.cherrybackup` path. Must not already exist. */
   readonly outPath: string
-  /** `lite` carries the database alone; `full` adds the managed resource overlay (§2). */
-  readonly preset: BackupPreset
   readonly signal?: AbortSignal
 }
 
@@ -92,7 +85,7 @@ function readSealedChain(dbPath: string): ReturnType<typeof readAppliedChain> {
 }
 
 export async function exportArchive(inputs: ExportArchiveInputs): Promise<ExportArchiveResult> {
-  const { outPath, preset, signal } = inputs
+  const { outPath, signal } = inputs
   throwIfAborted(signal)
 
   const stagingRoot = await mkdtemp(path.join(application.getPath('feature.backup.temp'), 'export-'))
@@ -108,59 +101,47 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     await assertDiskHeadroom({ target: stagingRoot, neededBytes: liveDbBytes })
 
     const userDataPath = application.getPath('app.userdata')
-    let snapshotRequirements: ReturnType<typeof collectResourceRequirements>['requirements'] = []
-    let resourceBaseline: ResourceStageBaseline | undefined
-    if (preset === 'full') {
-      // Snapshot SQLite, then capture the identity of every resource that
-      // snapshot names. The two steps are ordered but NOT atomic: concurrent
-      // writers can still touch the filesystem in between, so this is a known
-      // window rather than a consistency point.
-      //
-      // What covers the window: a unit deleted before the baseline reads it is
-      // detected as ENOENT and degraded out of the archive (`absent-at-snapshot`);
-      // anything that changes after the baseline is caught by the per-unit drift
-      // check in `stageResources`, which omits the whole unit. What remains is a
-      // byte-level DB↔FS tearing window — a resource written after the snapshot
-      // but before the baseline can be captured in a state the exported database
-      // does not describe. Closing that fully needs a cross-store barrier and is
-      // deliberately left to a follow-up PR.
-      dbService.createSnapshot(stagedDbPath)
-      const snapshotInventory = collectResourceRequirements({ dbPath: stagedDbPath })
-      snapshotRequirements = snapshotInventory.requirements
-      resourceBaseline = await captureResourceStageBaseline({
-        requirements: snapshotRequirements,
-        userDataPath,
-        signal
-      })
-    } else {
-      dbService.createSnapshot(stagedDbPath)
-    }
+    // Snapshot SQLite, then capture the identity of every resource that
+    // snapshot names. The two steps are ordered but NOT atomic: concurrent
+    // writers can still touch the filesystem in between, so this is a known
+    // window rather than a consistency point.
+    //
+    // What covers the window: a unit deleted before the baseline reads it is
+    // detected as ENOENT and degraded out of the archive (`absent-at-snapshot`);
+    // anything that changes after the baseline is caught by the per-unit drift
+    // check in `stageResources`, which omits the whole unit. What remains is a
+    // byte-level DB↔FS tearing window — a resource written after the snapshot
+    // but before the baseline can be captured in a state the exported database
+    // does not describe. Closing that fully needs a cross-store barrier and is
+    // deliberately left to a follow-up PR.
+    dbService.createSnapshot(stagedDbPath)
+    const snapshotRequirements = collectResourceRequirements({ dbPath: stagedDbPath }).requirements
+    const resourceBaseline: ResourceStageBaseline = await captureResourceStageBaseline({
+      requirements: snapshotRequirements,
+      userDataPath,
+      signal
+    })
     throwIfAborted(signal)
 
     const materialized = await materializePortableDatabase({ dbPath: stagedDbPath, mode: { kind: 'export' }, signal })
     throwIfAborted(signal)
 
     const inventory = collectResourceRequirements({ dbPath: stagedDbPath })
-    if (preset === 'full' && JSON.stringify(inventory.requirements) !== JSON.stringify(snapshotRequirements)) {
+    if (JSON.stringify(inventory.requirements) !== JSON.stringify(snapshotRequirements)) {
       throw new Error('portable database materialization changed the managed resource closure')
     }
 
-    // Full only. The baseline was captured right after the database snapshot;
-    // staging later proves every copied unit still has that identity.
+    // The baseline was captured right after the database snapshot; staging later
+    // proves every copied unit still has that identity.
     const resourcesDir = path.join(stagingRoot, RESOURCES_DIR_NAME)
-    if (resourceBaseline) {
-      await assertDiskHeadroom({ target: stagingRoot, neededBytes: resourceBaseline.totalBytes })
-    }
-    const resources =
-      preset === 'full'
-        ? await stageResources({
-            requirements: inventory.requirements,
-            userDataPath,
-            resourcesDir,
-            baseline: resourceBaseline,
-            signal
-          })
-        : null
+    await assertDiskHeadroom({ target: stagingRoot, neededBytes: resourceBaseline.totalBytes })
+    const resources = await stageResources({
+      requirements: inventory.requirements,
+      userDataPath,
+      resourcesDir,
+      baseline: resourceBaseline,
+      signal
+    })
     throwIfAborted(signal)
 
     const common = {
@@ -177,14 +158,12 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
       resourceRequirements: [...inventory.requirements],
       degradations: [
         ...summarizeMaterializationDegradations(materialized.summary.degradations, 'portable-db'),
-        ...(resources?.degradations ?? [])
+        ...resources.degradations
       ]
     }
-    const manifest: BackupManifest = resources
-      ? { ...common, preset: 'full', resourcePayloads: [...resources.payloads] }
-      : { ...common, preset: 'lite' }
+    const manifest: BackupManifest = { ...common, preset: 'full', resourcePayloads: [...resources.payloads] }
 
-    const resourceBytes = resources?.payloads.reduce((sum, payload) => sum + payload.sizeBytes, 0) ?? 0
+    const resourceBytes = resources.payloads.reduce((sum, payload) => sum + payload.sizeBytes, 0)
     // Preflight the DESTINATION volume separately — it is frequently a
     // different one (an external drive), and the archive is written there.
     await assertDiskHeadroom({ target: outPath, neededBytes: materialized.sizeBytes + resourceBytes })
@@ -193,15 +172,14 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
       outPath,
       manifest,
       dbCopyPath: stagedDbPath,
-      resourcesDir: resources?.staged ? resourcesDir : undefined,
+      resourcesDir: resources.staged ? resourcesDir : undefined,
       signal
     })
 
     logger.info('Archive exported', {
-      preset,
       requirements: inventory.requirements.length,
       unverifiable: inventory.unverifiableByKind,
-      payloads: resources?.payloads.length ?? 0,
+      payloads: resources.payloads.length,
       degradations: manifest.degradations.length,
       dbSizeBytes: materialized.sizeBytes,
       resourceBytes

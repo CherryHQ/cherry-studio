@@ -16,8 +16,6 @@ import { defineRoute } from '../define'
  * back out are for display only.
  */
 
-const PresetSchema = z.enum(['lite', 'full'])
-
 export const BACKUP_DEGRADATION_CODES = [
   'capability-malformed',
   'external-file-dropped',
@@ -49,9 +47,8 @@ const CoverageSchema = z.strictObject({
 
 const RestorePreviewSchema = z.strictObject({
   restoreId: z.string(),
-  preset: PresetSchema,
   coverage: CoverageSchema,
-  /** Full only: how many resource units would be created vs replaced on this device. */
+  /** How many resource units would be created vs replaced on this device. */
   resources: z.strictObject({
     install: z.number().int().nonnegative(),
     replace: z.number().int().nonnegative()
@@ -79,7 +76,6 @@ const RestoreStatusSchema = z.discriminatedUnion('kind', [
       'expired'
     ]),
     restoreId: z.string(),
-    preset: PresetSchema,
     step: z.string().optional(),
     /** A `failed` restore still holding the only copy of what it moved (§6.5). */
     recoveryIncomplete: z.literal(true).optional(),
@@ -103,8 +99,7 @@ const ExportOutcomeSchema = z.discriminatedUnion('status', [
   z.strictObject({
     status: z.literal('exported'),
     archivePath: z.string(),
-    preset: PresetSchema,
-    /** Resource units the archive carries; always 0 for Lite. */
+    /** Resource units the archive carries. */
     resourceCount: z.number().int().nonnegative(),
     degradations: z.array(DegradationSchema)
   })
@@ -125,7 +120,7 @@ const AcknowledgeResultSchema = z.strictObject({
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const backupRequestSchemas = {
   'backup.get_status': defineRoute({ input: z.void(), output: BackupStatusSchema }),
-  'backup.export': defineRoute({ input: z.strictObject({ preset: PresetSchema }), output: ExportOutcomeSchema }),
+  'backup.export': defineRoute({ input: z.void(), output: ExportOutcomeSchema }),
   'backup.prepare_restore': defineRoute({ input: z.void(), output: PrepareOutcomeSchema }),
   /**
    * Abort the long-running operation reported by `backup.get_status.operation`.

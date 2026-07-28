@@ -201,18 +201,18 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     }
   },
 
-  'backup.export': async ({ preset }, ctx) => {
+  'backup.export': async (_input, ctx) => {
     const parent = requireManagedWindow(ctx)
     const { canceled, filePath } = await dialog.showSaveDialog(parent, {
       // The export never overwrites, so a name that already exists fails the
       // operation rather than the dialog — say so where the user is choosing.
-      defaultPath: `cherry-studio-${preset}-${new Date().toISOString().slice(0, 10)}.${ARCHIVE_EXTENSION}`,
+      defaultPath: `cherry-studio-${new Date().toISOString().slice(0, 10)}.${ARCHIVE_EXTENSION}`,
       filters: [{ name: t('dialog.cherry_backup_files'), extensions: [ARCHIVE_EXTENSION] }]
     })
     if (canceled || !filePath) {
       return { status: 'canceled' as const }
     }
-    const result = await cancellable(() => application.get('BackupService').export(filePath, preset))
+    const result = await cancellable(() => application.get('BackupService').export(filePath))
     if (result === null) {
       return { status: 'canceled' as const }
     }
@@ -220,8 +220,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     return {
       status: 'exported' as const,
       archivePath: result.outPath,
-      preset: manifest.preset,
-      resourceCount: manifest.preset === 'full' ? manifest.resourcePayloads.length : 0,
+      resourceCount: manifest.resourcePayloads.length,
       degradations: presentDegradations(manifest.degradations)
     }
   },
@@ -244,7 +243,6 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
       status: 'prepared' as const,
       preview: {
         restoreId: preview.restoreId,
-        preset: preview.preset,
         coverage: { ...preview.coverage },
         resources: { ...preview.resources },
         degradations: presentDegradations(preview.degradations),

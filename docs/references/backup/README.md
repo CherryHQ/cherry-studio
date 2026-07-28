@@ -8,16 +8,20 @@
 > code comes from.
 
 Backup v2 replaces the selective-domain merge design (PR #17206) with a **whole-database
-replacement** model that mirrors v1 semantics. Two presets, one shared database payload,
-and — for Full only — a fixed resource overlay. Neither preset merges database rows.
+replacement** model that mirrors v1 semantics. One preset — **Full** — pairing one database
+payload with a fixed resource overlay. It never merges database rows.
 
 ```text
-Lite result = (backup DB, target files unchanged)
 Full result = (backup DB, target files overlaid with backup resources; target-only paths kept)
 ```
 
 This is deliberately **not** a whole-profile rollback: Full preserves target-only paths
 instead of deleting a managed root. See [§2 Product Contract](#2-product-contract).
+
+> **One preset, on purpose.** A database-only "Lite" preset was specified and built, then
+> cut before release: the product answer is that a backup carries everything it can. The
+> manifest and the restore journal still record `preset`, pinned to `'full'`, so
+> reintroducing a second preset is an additive change rather than a format break.
 
 ---
 
@@ -26,15 +30,15 @@ instead of deleting a managed root. See [§2 Product Contract](#2-product-contra
 These defaults are the contract. They are stated here without qualification; the rest of
 the document elaborates the mechanisms that enforce them.
 
-1. **Shared portable DB.** Lite and Full export the same complete portable SQLite
+1. **Complete portable DB.** Every export carries the same complete portable SQLite
    snapshot. There is no 10/14-domain distinction and no domain stripping.
 2. **Full installs only the authoritative closure.** After materializing the staged DB,
    restore recomputes its resource requirements and requires exact
    `(kind, resourceType, livePath)` agreement with the manifest. Full installs only
    payloads authorized by that closure. An existing target is moved aside first;
    target-only paths outside declared directory units remain untouched.
-3. **Lite never touches target files.** Missing resources on the target are *disclosed*,
-   not a restore blocker.
+3. **Missing resources never block a restore.** Resources the archive could not carry, or
+   that the target lacks, are *disclosed*, not a restore blocker.
 4. **Managed paths rebase; external paths never auto-activate.** Managed absolute paths
    rebase to target roots resolved through `application.getPath()`. Archive-supplied
    external paths are never automatically activated or copied: selecting preferences reset
@@ -62,28 +66,24 @@ the document elaborates the mechanisms that enforce them.
 
 ## 2. Product Contract
 
-### 2.1 Lite — database replacement, target filesystem preserved
+### 2.1 Database replacement
 
-Lite backs up and restores one complete portable database and carries **no resource
-bytes**. Restore replaces the database and leaves every target filesystem root untouched.
+An archive carries one complete portable database, and restore replaces the target
+database with it — never a row merge.
 
 Consequences that MUST be surfaced to the user and honored by code:
 
-- On the same profile, resource paths referenced by the restored DB often still exist and
-  remain usable.
-- On a new device, attachments, Knowledge sources, local/ZIP Skills, Notes bodies,
-  workspaces, and other resource-backed content may be unavailable.
 - Target authoritative resource files no longer referenced by the restored DB remain
-  physically present. Promotion never creates, replaces, or deletes authoritative resource
-  files.
+  physically present. Promotion touches only the resource units the archive declares.
+- Resources the archive could not carry (§4 degradations) may be unavailable on a device
+  that does not already hold them.
 - Two disclosed exceptions are **not** archive resource restoration: registered path APIs
   may auto-create empty managed root directories (`shouldAutoEnsure`, see
   [paths/README](../../../src/main/core/paths/README.md)); and after boot, feature owners
   may rebuild disposable derived files (e.g. Knowledge `{baseId}/.cherry/index.sqlite`) for
   existing resource directories.
-- Lite is a database backup/restore, **not** a cross-device migration.
 
-**Resource coverage inventory.** Lite reports *existence coverage* before relaunch —
+**Resource coverage inventory.** Restore reports *existence coverage* before relaunch —
 each requirement classified as `available`, `missing`, `external-unverifiable`, or
 `rebuildable`. It deliberately does not hash large target resources or claim content
 equality; it is diagnostic and never copies or mutates files to repair coverage.
@@ -118,7 +118,7 @@ holds extra paths — target-only files are kept, by product decision.
 
 ## 3. Portable Database Contract
 
-Both presets export the **same** complete portable SQLite snapshot. It is portable, not a
+Every export carries the **same** complete portable SQLite snapshot. It is portable, not a
 byte-for-byte live image.
 
 **Snapshot mechanism.** Produced via `DbService.createSnapshot()` →
@@ -145,7 +145,7 @@ rows and never combines two identities.
 
 **Invariant:** managed-path rebasing and runtime-key sanitation are deterministic archive
 materialization, never a row merge. A byte-equivalent business DB payload MUST result for
-the same source snapshot under both presets.
+the same source snapshot.
 
 ---
 
@@ -195,10 +195,11 @@ A published archive is a single ZIP named `<name>.cherrybackup`, mode `0600`
 <name>.cherrybackup            (zip, level 1, zip64)
 ├── manifest.json              (strict ManifestV2, at root)
 ├── backup.sqlite              (portable DB snapshot)
-└── resources/<payload…>       (Full only; each payload's manifest archivePath is under here)
+└── resources/<payload…>       (each payload's manifest archivePath is under here)
 ```
 
-Lite carries `manifest.json` + `backup.sqlite` only. Publication is **atomic** and
+An archive whose profile owns no resources carries `manifest.json` + `backup.sqlite`
+only — `resources/` is absent, not empty. Publication is **atomic** and
 strictly **no-clobber**: the producer writes into an operation-owned `mkdtemp`
 directory beside the destination (same filesystem) and commits with a single
 `link()`. It never overwrites or deletes a pre-existing sibling or destination,
@@ -208,7 +209,7 @@ and it only ever removes its own temp tree. When a volume cannot hard-link
 (Node documents `copyFile` as non-atomic), so the frozen atomic contract holds
 and no visible partial archive is ever produced. Before writing, the producer
 verifies the DB payload is a regular file whose size and SHA-256 match the
-manifest. For Full, it also proves exact staged-resource inventory agreement:
+manifest. It also proves exact staged-resource inventory agreement:
 every actual file/directory is covered by one non-overlapping manifest unit, each
 `archivePath` is derived from its `livePath`, and every unit's type, size, and
 SHA-256 match the staged bytes. The producer does NOT run the disk preflight — the export
@@ -221,12 +222,12 @@ producer's `DiskFullError` backstop for races after those checks.
 
 | Field group | Records |
 |---|---|
-| Preset | `preset: 'lite' \| 'full'` |
+| Preset | `preset: 'full'` — pinned to the only preset; any other value is refused |
 | Producer diagnostics | Format + producer version, producer **platform**, optional packaged/development build type, and **managed-root identities** needed for deterministic rebasing |
 | Migration identity | The **complete** source migration chain, not just its tip |
 | DB payload | Hash + size of the portable DB payload |
-| Resource requirements | Existence-oriented requirement inventory (both presets) |
-| Resource payloads (Full) | Included payload inventory + cryptographic hashes; file units authenticate one portable `executable` bit |
+| Resource requirements | Existence-oriented requirement inventory |
+| Resource payloads | Included payload inventory + cryptographic hashes; file units authenticate one portable `executable` bit |
 | Directory-unit hash spec | See §5.1.2 |
 | Exclusions/degradations | Explicit product-allowed exclusions and degraded sections |
 
@@ -600,12 +601,12 @@ restore survives relocation and promotes only under the relocated tree.
 
 ### 6.7 Post-promotion derived work
 
-Post-promotion filesystem-derived work is **not** a staged-DB adapter hook. After a Full
+Post-promotion filesystem-derived work is **not** a staged-DB adapter hook. After a
 promotion, lifecycle `onAllReady` asks the Knowledge owner to rebuild only base IDs recorded
 in the durable restore summary—i.e. material this archive actually transported. The
 restore-only path indexes managed material files directly; it never follows an item's
-original `data.source`, scans an external folder, or fetches a URL. Lite transported no
-Knowledge material and schedules none.
+original `data.source`, scans an external folder, or fetches a URL. An archive that
+transported no Knowledge material schedules nothing.
 
 Completion is owner-proven (every completed leaf has an index material row), then persisted
 per base in the restore journal; existence of `index.sqlite` alone is not completion. A
@@ -667,22 +668,15 @@ or clone/remap/transform hooks. Merge facts do not exist in v2.
 
 ## 8. User-Visible Scope
 
-**Export UI:**
-
-- **Lite:** "Database only. Restore does not replace your local files; resource-backed
-  content may be unavailable, and normal cleanup may later reclaim files no longer
-  referenced by the restored database."
-- **Full:** "Database plus portable managed files. Restore does not delete target-only
-  paths; normal cleanup may later reclaim unreferenced managed blobs."
-- **Both:** warn about plaintext credentials, and that restored executable/network
-  integrations are disabled until re-confirmed on the target device.
+**Export UI:** one action, no choice to make. It warns about plaintext credentials, and
+that restored executable/network integrations are disabled until re-confirmed on the
+target device.
 
 **Restore preview:**
 
-- Archive preset and database version.
-- Lite: resource coverage on this device — available / missing / external-unverifiable /
+- Resource coverage on this device — available / missing / external-unverifiable /
   rebuildable counts, with **no** content-equality claim.
-- Full: a current estimate of resources to install or replace, plus unsupported external
+- A current estimate of resources to install or replace, plus unsupported external
   resources; the preboot state machine owns the final result.
 - Any degradation is shown by grouped cause and bounded safe relative path samples during
   export, in restore preview, and again after a completed restore.
@@ -699,9 +693,9 @@ the UI.
 |---|---|
 | 0 (this doc) | The frozen contract and defaults ([§1](#1-approved-defaults-frozen)); no product code. |
 | 1 | Manifest v2, portable DB sanitizer/materializer + managed-root rebasing, journal-v2 states + `resource-install` transition table, secure archive assembly/admission, ceilings, source-drift protocol. Proved by focused tests before UI. |
-| 2 | Lite DB-only export/prepare/arm/preboot replacement; lifecycle-owned `BackupService`; live WAL checkpoint; GC protection + acknowledgement; existence inventory. |
+| 2 | DB-only export/prepare/arm/preboot replacement; lifecycle-owned `BackupService`; live WAL checkpoint; GC protection + acknowledgement; existence inventory. |
 | 3 | Full resource capture + unified file/directory installation with crash matrices; durable restore summary feeding the reindex scheduler. |
-| 4 | Narrow IpcApi routes/events over the Phase-2 service; Full/Lite export & restore UI; merge copy/types removed; i18n + breaking-change docs. |
+| 4 | Narrow IpcApi routes/events over the Phase-2 service; export & restore UI; merge copy/types removed; i18n + breaking-change docs. |
 | 5 | End-to-end proof, adversarial review, repository gates, replacement PR targeting `main`. |
 
 **Security boundaries:**
@@ -751,7 +745,7 @@ scheduling (`enqueueRestoredKnowledgeReindex`).
 **Genuinely new — proved by focused tests before UI:** manifest v2 with
 complete-chain/payload integrity; portable DB sanitizer/materializer and active-capability
 reset; journal-v2 `prepared`/`armed` states and unified file/directory resource-install;
-source-drift detection, Lite existence inventory, path-overlap/same-filesystem enforcement,
+source-drift detection, existence inventory, path-overlap/same-filesystem enforcement,
 completed-restore GC protection, and acknowledgement cleanup.
 
 **Explicitly excluded — do NOT port and do NOT reintroduce:**

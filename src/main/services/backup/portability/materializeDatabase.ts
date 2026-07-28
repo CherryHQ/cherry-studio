@@ -31,9 +31,9 @@ import { JOB_SCHEDULE_AUTOMATION_PATCH, resetKnowledgeItemStatus } from './table
  * the one place the Phase 1c-i policy is actually applied to a DETACHED SQLite
  * file.
  *
- * Both presets carry the SAME complete database: no domain is stripped and no
- * target row is ever consulted, so Lite and Full share a byte-equivalent business
- * payload produced from one source snapshot. Materialization only rewrites the
+ * Every archive carries the SAME complete database: no domain is stripped and no
+ * target row is ever consulted, so one source snapshot always yields a
+ * byte-equivalent business payload. Materialization only rewrites the
  * archive's own file, which is what keeps it archive processing rather than a row
  * merge (§3.1 invariant).
  *
@@ -174,8 +174,8 @@ function jsonTextOf(column: SQLiteColumn): SQL<string | null> {
  * processing, not a user edit: bumping `updated_at` would rewrite a
  * user-meaningful "last modified" on rows the user never touched. And the wall
  * clock would make the output a non-reproducible function of its input, breaking
- * both the deterministic-metadata seal and the proof that Lite and Full carry a
- * byte-equivalent database.
+ * both the deterministic-metadata seal and the proof that one source snapshot
+ * yields a byte-equivalent database.
  */
 function preserveUpdatedAt(column: SQLiteColumn): SQL<number> {
   return sql<number>`${column}`

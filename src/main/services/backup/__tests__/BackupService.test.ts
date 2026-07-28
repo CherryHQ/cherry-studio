@@ -65,7 +65,7 @@ function preparedJournal(): RestoreJournalV2 {
   return {
     version: 2,
     restoreId: RESTORE_ID,
-    preset: 'lite',
+    preset: 'full',
     createdAt: '2026-07-27T00:00:00.000Z',
     state: 'prepared',
     db: {
@@ -132,14 +132,13 @@ describe('BackupService', () => {
       expect(service.getStatus()).toEqual({ operation: null, restore: { kind: 'none' } })
     })
 
-    it('reports the durable journal state, id, and preset', () => {
+    it('reports the durable journal state and id', () => {
       writeRestoreJournalV2(preparedJournal())
 
       expect(service.getStatus().restore).toEqual({
         kind: 'journal',
         state: 'prepared',
-        restoreId: RESTORE_ID,
-        preset: 'lite'
+        restoreId: RESTORE_ID
       })
     })
 
@@ -390,7 +389,7 @@ describe('BackupService', () => {
 
       expect(loggerMock.info).toHaveBeenCalledWith(
         'Restore journal present at startup',
-        expect.objectContaining({ state: 'completed', restoreId: RESTORE_ID, preset: 'lite' })
+        expect.objectContaining({ state: 'completed', restoreId: RESTORE_ID })
       )
     })
 

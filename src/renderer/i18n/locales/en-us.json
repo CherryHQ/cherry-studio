@@ -5869,17 +5869,11 @@
           "unexpected": "The operation failed unexpectedly."
         },
         "export": {
-          "button": "Export…",
           "credentials_warning": "A backup contains your settings, including API keys and other credentials, in readable form. Keep the file somewhere safe.",
           "done": "Backup exported.",
           "done_degraded": "The backup was created with {{count}} exclusion(s) or portability change(s). Review the details below and make a fresh backup after addressing the listed causes.",
           "done_degraded_title": "Backup created with exclusions",
-          "full_help": "Database plus the app's managed folders and files (knowledge bases, notes, workspaces, skills, stored files). Restoring leaves anything the backup does not include untouched, but replaces each included folder as a whole — content inside one of them that the backup does not carry is gone once you confirm keeping the restore. Normal cleanup may later reclaim managed files the restored database no longer refers to.",
-          "full_title": "Full backup",
-          "integrations_warning": "Restored integrations that run programs or reach the network stay off until you confirm them on the device you restore to.",
-          "lite_help": "Database only. Restoring does not replace your local files, so content backed by files may be unavailable, and normal cleanup may later reclaim files the restored database no longer refers to.",
-          "lite_title": "Lite backup",
-          "title": "Backup"
+          "integrations_warning": "Restored integrations that run programs or reach the network stay off until you confirm them on the device you restore to."
         },
         "notice": {
           "completed_description": "The previous database and every file the restore replaced are still on this device, and routine file cleanup stays paused. Open Settings → Data → Backup & restore to roll back or keep the restored data.",
@@ -5931,17 +5925,12 @@
           "title": "Last restore",
           "unreadable": "The restore record on this device cannot be read. The next start will quarantine it."
         },
-        "preset": {
-          "full": "Full (database and files)",
-          "lite": "Lite (database only)"
-        },
         "preview": {
           "coverage": "Files this backup expects",
           "coverage_counts": "{{available}} available, {{missing}} missing, {{unverifiable}} outside this app",
           "degradations": "{{count}} item(s) were not included when this backup was made.",
           "destructive": "Restoring replaces the current database and restarts the app. This cannot be undone once you confirm keeping it.",
           "migrated_forward": "This backup was made by an older version and was upgraded during preparation.",
-          "preset": "Backup type",
           "resources": "Files to restore (estimate)",
           "resources_counts": "{{install}} to add, {{replaceCount}} to replace"
         },
@@ -5949,7 +5938,7 @@
           "arm_button": "Restore and restart",
           "choose_button": "Choose backup…",
           "choose_title": "Restore from a backup file",
-          "confirm_content": "The current database will be replaced by the backup and the app will restart. A Full backup also replaces each managed folder it carries as a whole; anything the backup does not carry is left alone.",
+          "confirm_content": "The current database will be replaced by the backup and the app will restart. The backup also replaces each managed folder it carries as a whole; anything the backup does not carry is left alone.",
           "confirm_ok": "Replace and restart",
           "confirm_title": "Replace all data with this backup?",
           "discard_button": "Discard preparation",

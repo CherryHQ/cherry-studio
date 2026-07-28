@@ -11,8 +11,7 @@ import type { ArchiveShape, NormalizedEntry } from './catalog'
  * manifest's declared payload inventory. Pure over paths + the manifest; no I/O.
  *
  * It proves the "nothing undeclared / nothing overlapping" direction:
- * - Lite carries no resource bytes at all;
- * - every Full `resourcePayload` sits under `resources/`, is unique and
+ * - every `resourcePayload` sits under `resources/`, is unique and
  *   non-overlapping, so at most one unit ever covers a given file;
  * - every regular resource FILE entry is covered by EXACTLY one declared unit
  *   (an undeclared file is rejected);
@@ -26,7 +25,7 @@ import type { ArchiveShape, NormalizedEntry } from './catalog'
  * re-derived from ZIP metadata here.
  */
 
-/** A declared Full payload as a coverage unit. */
+/** A declared payload as a coverage unit. */
 export interface CoverageUnit {
   readonly payload: ResourcePayload
   readonly isDirectory: boolean
@@ -49,18 +48,9 @@ export function buildCoverageIndex(units: readonly CoverageUnit[]): ResourceCove
 /**
  * Validate the resource layout against the manifest. Throws
  * {@link ArchiveAdmissionError} `layout` on any disagreement; returns the
- * coverage units (Full) or an empty list (Lite) for later verification.
+ * coverage units for later verification.
  */
 export function classifyPayloadLayout(shape: ArchiveShape, manifest: BackupManifest): readonly CoverageUnit[] {
-  if (manifest.preset === 'lite') {
-    // Lite ships manifest.json + backup.sqlite only. Any resource entry — file
-    // OR directory — contradicts the preset.
-    if (shape.resourceFiles.length > 0 || shape.resourceDirs.length > 0) {
-      throw new ArchiveAdmissionError('layout', 'lite archive carries resource entries')
-    }
-    return []
-  }
-
   const units = buildUnits(manifest.resourcePayloads)
   const index = buildCoverageIndex(units)
   assertFilesCovered(shape.resourceFiles, index)

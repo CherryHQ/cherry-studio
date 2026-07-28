@@ -41,7 +41,7 @@ function journal(overrides: Record<string, unknown> = {}): RestoreJournalV2 {
   return {
     version: 2,
     restoreId: RID,
-    preset: 'lite',
+    preset: 'full',
     createdAt: '2026-07-27T00:00:00.000Z',
     state: 'completed',
     step: 'integrity-ok',

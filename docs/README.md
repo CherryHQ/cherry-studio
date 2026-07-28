@@ -85,7 +85,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [Backup & Restore Architecture](./references/backup/README.md) | Backup v2 contract: shared portable DB, Lite/Full presets, resource overlay, manifest/journal v2, promotion & recovery |
+| [Backup & Restore Architecture](./references/backup/README.md) | Backup v2 contract: shared portable DB, resource overlay, manifest/journal v2, promotion & recovery |
 
 ### Components
 

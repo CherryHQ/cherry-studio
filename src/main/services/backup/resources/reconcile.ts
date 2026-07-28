@@ -46,8 +46,8 @@ function uniqueIdentities(
 
 /**
  * Require exact requirement-set agreement and return only payloads authorized
- * by that set. Full may omit a requirement only when the producer recorded the
- * corresponding resource degradation; Lite intentionally carries no payloads.
+ * by that set. An archive may omit a requirement only when the producer recorded
+ * the corresponding resource degradation.
  */
 export function reconcileRestoreResources(
   manifest: BackupManifest,
@@ -62,13 +62,6 @@ export function reconcileRestoreResources(
       'requirement-set',
       `manifest declares ${declared.size} requirements; materialized database requires ${expected.size}`
     )
-  }
-
-  if (manifest.preset === 'lite') {
-    if (admitted.length !== 0) {
-      throw new ResourceAuthorityError('lite-payload', 'Lite restore admitted resource payloads')
-    }
-    return admitted
   }
 
   const payloads = uniqueIdentities(admitted, 'admitted payloads')

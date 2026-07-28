@@ -17,12 +17,12 @@ import type { BackupManifest, ResourcePayload } from '../../manifest'
 import { admitArchive } from '../admitArchive'
 import { extractStreamHooks } from '../extract'
 import {
+  baseManifest,
   buildMigratedDb,
   buildTruncatedMigrations,
   dbMeta,
   fakeDbMeta,
   fullManifest,
-  liteManifest,
   snapshotDb,
   writeRawZip
 } from './helpers'
@@ -103,14 +103,14 @@ describe('admitArchive', () => {
     }
   }
 
-  it('round-trips a valid Lite archive (producer → admission)', async () => {
+  it('round-trips a valid database-only archive (producer → admission)', async () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)
-    const outPath = path.join(work, 'lite.cherrybackup')
-    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+    const outPath = path.join(work, 'db-only.cherrybackup')
+    await publishArchive({ outPath, manifest: baseManifest(meta), dbCopyPath: dbPath })
 
     const admitted = await admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
-    expect(admitted.manifest.preset).toBe('lite')
+    expect(admitted.manifest.preset).toBe('full')
     expect(admitted.resources).toEqual([])
     expect(admitted.migratedForward).toBe(false)
     expect(await sha256File(admitted.db.path)).toBe(admitted.db.hash)
@@ -170,7 +170,7 @@ describe('admitArchive', () => {
     buildMigratedDb(oldPath, truncated)
     const meta = await dbMeta(oldPath)
     const outPath = path.join(work, 'old.cherrybackup')
-    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: oldPath })
+    await publishArchive({ outPath, manifest: baseManifest(meta), dbCopyPath: oldPath })
 
     const admitted = await admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
     expect(admitted.migratedForward).toBe(true)
@@ -184,7 +184,7 @@ describe('admitArchive', () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)
     const outPath = path.join(work, 'ahead.cherrybackup')
-    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+    await publishArchive({ outPath, manifest: baseManifest(meta), dbCopyPath: dbPath })
     const truncated = path.join(work, 'm-target')
     buildTruncatedMigrations(realFolder, truncated, fullLen - 2)
 
@@ -205,7 +205,7 @@ describe('admitArchive', () => {
   it('rejects a DB payload hash tamper before any migration', async () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)
-    const tampered: BackupManifest = { ...liteManifest(meta), db: { hash: 'f'.repeat(64), sizeBytes: meta.sizeBytes } }
+    const tampered: BackupManifest = { ...baseManifest(meta), db: { hash: 'f'.repeat(64), sizeBytes: meta.sizeBytes } }
     const outPath = path.join(work, 'tamper.cherrybackup')
     await writeRawZip(outPath, [
       { name: 'manifest.json', data: Buffer.from(JSON.stringify(tampered)) },
@@ -318,7 +318,7 @@ describe('admitArchive', () => {
     }
     const meta = await dbMeta(dbPath)
     const outPath = path.join(work, 'trigger.cherrybackup')
-    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+    await publishArchive({ outPath, manifest: baseManifest(meta), dbCopyPath: dbPath })
 
     await expect(
       admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
@@ -336,7 +336,7 @@ describe('admitArchive', () => {
     }
     const outPath = path.join(work, 'corrupt.cherrybackup')
     await writeRawZip(outPath, [
-      { name: 'manifest.json', data: Buffer.from(JSON.stringify(liteManifest(meta))) },
+      { name: 'manifest.json', data: Buffer.from(JSON.stringify(baseManifest(meta))) },
       { name: 'backup.sqlite', data: garbage }
     ])
     await expect(
@@ -350,7 +350,7 @@ describe('admitArchive', () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)
     const outPath = path.join(work, 'cancel.cherrybackup')
-    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+    await publishArchive({ outPath, manifest: baseManifest(meta), dbCopyPath: dbPath })
     const ac = new AbortController()
     ac.abort()
     await expect(
@@ -369,7 +369,7 @@ describe('admitArchive', () => {
     }
     const outPath = path.join(work, 'fail.cherrybackup')
     await writeRawZip(outPath, [
-      { name: 'manifest.json', data: Buffer.from(JSON.stringify(liteManifest(meta))) },
+      { name: 'manifest.json', data: Buffer.from(JSON.stringify(baseManifest(meta))) },
       { name: 'backup.sqlite', data: garbage }
     ])
     await expect(admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })).rejects.toThrow()
@@ -396,7 +396,7 @@ describe('admitArchive', () => {
   it('rejects a DB whose actual bytes fall short of its declared central size (forged-small)', async () => {
     const outPath = path.join(work, 'forged-small.cherrybackup')
     await writeRawZip(outPath, [
-      { name: 'manifest.json', data: Buffer.from(JSON.stringify(liteManifest(fakeDbMeta()))) },
+      { name: 'manifest.json', data: Buffer.from(JSON.stringify(baseManifest(fakeDbMeta()))) },
       {
         name: 'backup.sqlite',
         data: Buffer.from('shortdb'),
@@ -413,7 +413,7 @@ describe('admitArchive', () => {
   it('rejects a DB whose actual bytes exceed its declared central size (forged-large)', async () => {
     const outPath = path.join(work, 'forged-large.cherrybackup')
     await writeRawZip(outPath, [
-      { name: 'manifest.json', data: Buffer.from(JSON.stringify(liteManifest(fakeDbMeta()))) },
+      { name: 'manifest.json', data: Buffer.from(JSON.stringify(baseManifest(fakeDbMeta()))) },
       {
         name: 'backup.sqlite',
         data: Buffer.from('this is longer than declared'),
@@ -427,7 +427,7 @@ describe('admitArchive', () => {
   })
 
   it('bounds a manifest that streams past its declared size before parsing', async () => {
-    const bigManifest = Buffer.from(JSON.stringify(liteManifest(fakeDbMeta())))
+    const bigManifest = Buffer.from(JSON.stringify(baseManifest(fakeDbMeta())))
     expect(bigManifest.length).toBeGreaterThan(10)
     const outPath = path.join(work, 'manifest-cap.cherrybackup')
     await writeRawZip(outPath, [
@@ -467,7 +467,7 @@ describe('admitArchive', () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)
     const outPath = path.join(work, 'midverify.cherrybackup')
-    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+    await publishArchive({ outPath, manifest: baseManifest(meta), dbCopyPath: dbPath })
     const ac = new AbortController()
     hashStreamHooks.onChunk = () => ac.abort() // fires inside verifyDbPayload's cancellable hash
     await expect(
@@ -480,7 +480,7 @@ describe('admitArchive', () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)
     const outPath = path.join(work, 'midextract.cherrybackup')
-    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+    await publishArchive({ outPath, manifest: baseManifest(meta), dbCopyPath: dbPath })
     const ac = new AbortController()
     // Abort on the first chunk of backup.sqlite — proves the extraction chunk /
     // abort-listener path, not merely preflight cancellation.
@@ -498,7 +498,7 @@ describe('admitArchive', () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)
     const outPath = path.join(work, 'nospace.cherrybackup')
-    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+    await publishArchive({ outPath, manifest: baseManifest(meta), dbCopyPath: dbPath })
     vi.spyOn(diskProbe, 'statfs').mockResolvedValue({ bavail: 0, bsize: 4096 } as unknown as Awaited<
       ReturnType<typeof diskProbe.statfs>
     >)
@@ -512,7 +512,7 @@ describe('admitArchive', () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)
     const outPath = path.join(work, 'ownership.cherrybackup')
-    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+    await publishArchive({ outPath, manifest: baseManifest(meta), dbCopyPath: dbPath })
     const admitted = await admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
 
     // Replace the owned root with a symlink to a foreign directory. Note the
@@ -536,7 +536,7 @@ describe('admitArchive', () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)
     const outPath = path.join(work, 'ownership-dir.cherrybackup')
-    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+    await publishArchive({ outPath, manifest: baseManifest(meta), dbCopyPath: dbPath })
     const admitted = await admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
 
     // A directory of the right TYPE but the wrong inode: the identity half of

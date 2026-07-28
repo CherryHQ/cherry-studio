@@ -93,7 +93,7 @@ describe('post-promotion work', () => {
     expect(reconcile).not.toHaveBeenCalled()
   })
 
-  it('does no Knowledge work for Lite or a Full restore that transported no bases', async () => {
+  it('does no Knowledge work for a restore that transported no bases', async () => {
     writeRestoreJournalV2(journal('completed', []))
 
     const outcome = await runPostPromotionWork(() => true)

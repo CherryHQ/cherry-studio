@@ -36,8 +36,7 @@ describe('useBackupRestoreNotice', () => {
     statusIs({
       kind: 'journal',
       state: 'completed',
-      restoreId: 'r1',
-      preset: 'full'
+      restoreId: 'r1'
     })
 
     renderHook(() => useBackupRestoreNotice())
@@ -55,8 +54,7 @@ describe('useBackupRestoreNotice', () => {
     statusIs({
       kind: 'journal',
       state: 'rolled-back',
-      restoreId: 'r1',
-      preset: 'full'
+      restoreId: 'r1'
     })
 
     renderHook(() => useBackupRestoreNotice())
@@ -74,7 +72,7 @@ describe('useBackupRestoreNotice', () => {
     ['failed', 'settings.data.backup_v2.notice.failed_title'],
     ['expired', 'settings.data.backup_v2.notice.expired_title']
   ])('reports that a %s restore did not happen', async (state, title) => {
-    statusIs({ kind: 'journal', state, restoreId: 'r1', preset: 'lite' })
+    statusIs({ kind: 'journal', state, restoreId: 'r1' })
 
     renderHook(() => useBackupRestoreNotice())
     await flush()
@@ -94,7 +92,7 @@ describe('useBackupRestoreNotice', () => {
   it.each(['prepared', 'armed', 'promoting', 'rollback-armed'])(
     'stays quiet during the in-flight state %s',
     async (state) => {
-      statusIs({ kind: 'journal', state, restoreId: 'r1', preset: 'lite' })
+      statusIs({ kind: 'journal', state, restoreId: 'r1' })
 
       renderHook(() => useBackupRestoreNotice())
       await flush()
@@ -107,8 +105,7 @@ describe('useBackupRestoreNotice', () => {
     statusIs({
       kind: 'journal',
       state: 'completed',
-      restoreId: 'r1',
-      preset: 'full'
+      restoreId: 'r1'
     })
 
     const { unmount } = renderHook(() => useBackupRestoreNotice())

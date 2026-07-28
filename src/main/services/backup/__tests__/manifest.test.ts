@@ -35,8 +35,9 @@ function common(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function liteManifest(overrides: Record<string, unknown> = {}) {
-  return { ...common(overrides), preset: 'lite' }
+/** A valid manifest carrying the database alone — no resource payloads. */
+function baseManifest(overrides: Record<string, unknown> = {}) {
+  return { ...common(overrides), preset: 'full', resourcePayloads: [] as Record<string, unknown>[] }
 }
 
 function fullManifest(overrides: Record<string, unknown> = {}) {
@@ -57,8 +58,8 @@ function fullManifest(overrides: Record<string, unknown> = {}) {
 }
 
 describe('BackupManifestSchema — valid manifests', () => {
-  it('accepts a valid lite manifest', () => {
-    expect(BackupManifestSchema.safeParse(liteManifest()).success).toBe(true)
+  it('accepts a valid manifest carrying no payloads', () => {
+    expect(BackupManifestSchema.safeParse(baseManifest()).success).toBe(true)
   })
 
   it('accepts a valid full manifest with payloads', () => {
@@ -66,8 +67,8 @@ describe('BackupManifestSchema — valid manifests', () => {
   })
 
   it('accepts legacy v2 producer metadata without buildType and validates new build types', () => {
-    expect(BackupManifestSchema.safeParse(liteManifest()).success).toBe(true)
-    const packaged = liteManifest()
+    expect(BackupManifestSchema.safeParse(baseManifest()).success).toBe(true)
+    const packaged = baseManifest()
     ;(packaged.producer as Record<string, unknown>).buildType = 'packaged'
     expect(BackupManifestSchema.safeParse(packaged).success).toBe(true)
     ;(packaged.producer as Record<string, unknown>).buildType = 'nightly'
@@ -82,14 +83,15 @@ describe('BackupManifestSchema — valid manifests', () => {
 })
 
 describe('BackupManifestSchema — preset payload shape', () => {
-  it('rejects a lite manifest that carries resource payloads (undeclared field)', () => {
-    const bad = { ...liteManifest(), resourcePayloads: [] }
+  it('rejects a manifest missing resourcePayloads', () => {
+    const bad = { ...common(), preset: 'full' }
     expect(BackupManifestSchema.safeParse(bad).success).toBe(false)
   })
 
-  it('rejects a full manifest missing resourcePayloads', () => {
-    const bad = liteManifest()
-    ;(bad as Record<string, unknown>).preset = 'full'
+  // Full is the only preset that exists. A `lite` archive is therefore not an
+  // archive this build can interpret, and must be refused rather than read as Full.
+  it("rejects an otherwise-valid manifest declaring preset 'lite'", () => {
+    const bad = { ...baseManifest(), preset: 'lite' }
     expect(BackupManifestSchema.safeParse(bad).success).toBe(false)
   })
 
@@ -101,60 +103,60 @@ describe('BackupManifestSchema — preset payload shape', () => {
 
 describe('BackupManifestSchema — integrity fields', () => {
   it('pins the archive format version', () => {
-    expect(BackupManifestSchema.safeParse(liteManifest({ backupFormatVersion: 1 })).success).toBe(false)
-    expect(BackupManifestSchema.safeParse(liteManifest({ backupFormatVersion: 3 })).success).toBe(false)
+    expect(BackupManifestSchema.safeParse(baseManifest({ backupFormatVersion: 1 })).success).toBe(false)
+    expect(BackupManifestSchema.safeParse(baseManifest({ backupFormatVersion: 3 })).success).toBe(false)
   })
 
   it('requires a complete (non-empty) migration chain', () => {
-    expect(BackupManifestSchema.safeParse(liteManifest({ migrationChain: [] })).success).toBe(false)
+    expect(BackupManifestSchema.safeParse(baseManifest({ migrationChain: [] })).success).toBe(false)
   })
 
   it('requires a positive db size', () => {
-    expect(BackupManifestSchema.safeParse(liteManifest({ db: { hash: 'h', sizeBytes: 0 } })).success).toBe(false)
-    expect(BackupManifestSchema.safeParse(liteManifest({ db: { hash: 'h', sizeBytes: -1 } })).success).toBe(false)
+    expect(BackupManifestSchema.safeParse(baseManifest({ db: { hash: 'h', sizeBytes: 0 } })).success).toBe(false)
+    expect(BackupManifestSchema.safeParse(baseManifest({ db: { hash: 'h', sizeBytes: -1 } })).success).toBe(false)
   })
 
   it('enforces the producer platform enum', () => {
-    const bad = liteManifest()
+    const bad = baseManifest()
     ;(bad.producer as Record<string, unknown>).platform = 'freebsd'
     expect(BackupManifestSchema.safeParse(bad).success).toBe(false)
   })
 
   it('bounds producer appVersion to printable diagnostic text', () => {
-    const control = liteManifest()
+    const control = baseManifest()
     ;(control.producer as Record<string, unknown>).appVersion = '2.0.0\nforged'
     expect(BackupManifestSchema.safeParse(control).success).toBe(false)
-    const oversized = liteManifest()
+    const oversized = baseManifest()
     ;(oversized.producer as Record<string, unknown>).appVersion = 'x'.repeat(65)
     expect(BackupManifestSchema.safeParse(oversized).success).toBe(false)
-    const pathLike = liteManifest()
+    const pathLike = baseManifest()
     ;(pathLike.producer as Record<string, unknown>).appVersion = '/Users/private'
     expect(BackupManifestSchema.safeParse(pathLike).success).toBe(false)
   })
 
   it('rejects unknown top-level fields (strict)', () => {
-    expect(BackupManifestSchema.safeParse(liteManifest({ surprise: 1 })).success).toBe(false)
+    expect(BackupManifestSchema.safeParse(baseManifest({ surprise: 1 })).success).toBe(false)
   })
 
   it('requires the db hash to be 64 lowercase hex (sha256, matches hashDbFile)', () => {
     expect(
-      BackupManifestSchema.safeParse(liteManifest({ db: { hash: 'sha256:deadbeef', sizeBytes: 4 } })).success
+      BackupManifestSchema.safeParse(baseManifest({ db: { hash: 'sha256:deadbeef', sizeBytes: 4 } })).success
     ).toBe(false)
-    expect(BackupManifestSchema.safeParse(liteManifest({ db: { hash: 'A'.repeat(64), sizeBytes: 4 } })).success).toBe(
+    expect(BackupManifestSchema.safeParse(baseManifest({ db: { hash: 'A'.repeat(64), sizeBytes: 4 } })).success).toBe(
       false
     ) // uppercase rejected
-    expect(BackupManifestSchema.safeParse(liteManifest({ db: { hash: 'a'.repeat(63), sizeBytes: 4 } })).success).toBe(
+    expect(BackupManifestSchema.safeParse(baseManifest({ db: { hash: 'a'.repeat(63), sizeBytes: 4 } })).success).toBe(
       false
     ) // wrong length
   })
 
   it('requires an ISO-8601 datetime createdAt', () => {
-    expect(BackupManifestSchema.safeParse(liteManifest({ createdAt: 'yesterday' })).success).toBe(false)
-    expect(BackupManifestSchema.safeParse(liteManifest({ createdAt: '2026-07-27' })).success).toBe(false)
+    expect(BackupManifestSchema.safeParse(baseManifest({ createdAt: 'yesterday' })).success).toBe(false)
+    expect(BackupManifestSchema.safeParse(baseManifest({ createdAt: '2026-07-27' })).success).toBe(false)
   })
 
   it('rejects duplicate managed-root keys', () => {
-    const bad = liteManifest()
+    const bad = baseManifest()
     ;(bad.producer as { managedRoots: unknown }).managedRoots = [
       { key: 'feature.notes.data', path: '/a' },
       { key: 'feature.notes.data', path: '/b' }
@@ -163,7 +165,7 @@ describe('BackupManifestSchema — integrity fields', () => {
   })
 
   it('accepts distinct managed-root keys', () => {
-    const ok = liteManifest()
+    const ok = baseManifest()
     ;(ok.producer as { managedRoots: unknown }).managedRoots = [
       { key: 'feature.notes.data', path: '/a' },
       { key: 'feature.agents.system_workspaces', path: '/b' }
@@ -176,12 +178,12 @@ describe('BackupManifestSchema — path safety', () => {
   it('rejects absolute / escaping requirement livePaths', () => {
     expect(
       BackupManifestSchema.safeParse(
-        liteManifest({ resourceRequirements: [{ kind: 'k', resourceType: 'file', livePath: '/etc/passwd' }] })
+        baseManifest({ resourceRequirements: [{ kind: 'k', resourceType: 'file', livePath: '/etc/passwd' }] })
       ).success
     ).toBe(false)
     expect(
       BackupManifestSchema.safeParse(
-        liteManifest({ resourceRequirements: [{ kind: 'k', resourceType: 'file', livePath: '../escape' }] })
+        baseManifest({ resourceRequirements: [{ kind: 'k', resourceType: 'file', livePath: '../escape' }] })
       ).success
     ).toBe(false)
   })
@@ -195,9 +197,9 @@ describe('BackupManifestSchema — path safety', () => {
 
 describe('parseBackupManifest', () => {
   it('returns ok/invalid discriminated results', () => {
-    const ok = parseBackupManifest(liteManifest())
+    const ok = parseBackupManifest(baseManifest())
     expect(ok.kind).toBe('ok')
-    expect(parseBackupManifest({ preset: 'lite' }).kind).toBe('invalid')
+    expect(parseBackupManifest({ preset: 'full' }).kind).toBe('invalid')
   })
 
   it('reads only bounded producer provenance from an unsupported-format envelope', () => {

@@ -13,11 +13,12 @@ const chain = [{ folderMillis: 1_700_000_000_000, hash: 'h1' }]
 const UUID = '11111111-2222-4333-8444-555555555555'
 const summary = { knowledgeBaseIds: [] as string[] }
 
-function liteJournal(overrides: Record<string, unknown> = {}) {
+/** A valid journal with no resource installs. */
+function baseJournal(overrides: Record<string, unknown> = {}) {
   return {
     version: RESTORE_JOURNAL_VERSION,
     restoreId: UUID,
-    preset: 'lite' as const,
+    preset: 'full' as const,
     createdAt: '2026-07-27T00:00:00.000Z',
     db: { promote: 'restore-staging/work.sqlite', aside: 'db.sqlite.aside', chain },
     resourceInstalls: [],
@@ -36,95 +37,95 @@ function fullInstall() {
 }
 
 function fullJournal(overrides: Record<string, unknown> = {}) {
-  return { ...liteJournal(), preset: 'full' as const, resourceInstalls: [fullInstall()], ...overrides }
+  return { ...baseJournal(), resourceInstalls: [fullInstall()], ...overrides }
 }
 
 describe('RestoreJournalV2Schema — versions & states', () => {
   it('accepts every lifecycle state', () => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'prepared' })).success).toBe(true)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'armed' })).success).toBe(true)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'promoting', step: 'db-promoted' })).success).toBe(
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'prepared' })).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'armed' })).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'promoting', step: 'db-promoted' })).success).toBe(
       true
     )
     expect(
       RestoreJournalV2Schema.safeParse(
-        liteJournal({ state: 'reverting', step: 'db-promoted', reason: 'integrity check failed' })
+        baseJournal({ state: 'reverting', step: 'db-promoted', reason: 'integrity check failed' })
       ).success
     ).toBe(true)
     expect(
-      RestoreJournalV2Schema.safeParse(liteJournal({ state: 'completed', step: 'integrity-ok', summary })).success
+      RestoreJournalV2Schema.safeParse(baseJournal({ state: 'completed', step: 'integrity-ok', summary })).success
     ).toBe(true)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'completed', summary })).success).toBe(true)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'rollback-armed', summary })).success).toBe(true)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'rolled-back', summary })).success).toBe(true)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'failed' })).success).toBe(true)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'expired' })).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'completed', summary })).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'rollback-armed', summary })).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'rolled-back', summary })).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'failed' })).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'expired' })).success).toBe(true)
   })
 
   it('requires a step for active directions and rejects unknown steps/states', () => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'promoting' })).success).toBe(false)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'promoting', step: 'not-a-step' })).success).toBe(
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'promoting' })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'promoting', step: 'not-a-step' })).success).toBe(
       false
     )
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'reverting', reason: 'failed' })).success).toBe(false)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'staged' })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'reverting', reason: 'failed' })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'staged' })).success).toBe(false)
   })
 
   it('pins the version literal to 2', () => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ version: 1 })).success).toBe(false)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ version: 3 })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ version: 1 })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ version: 3 })).success).toBe(false)
   })
 
   it('rejects unknown top-level fields (strict)', () => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ extra: true })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ extra: true })).success).toBe(false)
   })
 
   it('rejects a fingerprint field on db (v2 dropped it)', () => {
-    const j = liteJournal()
+    const j = baseJournal()
     ;(j.db as Record<string, unknown>).fingerprint = 'deadbeef'
     expect(RestoreJournalV2Schema.safeParse(j).success).toBe(false)
   })
 
   it('requires a complete (non-empty) migration chain', () => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ db: { promote: 'a', aside: 'b', chain: [] } })).success).toBe(
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ db: { promote: 'a', aside: 'b', chain: [] } })).success).toBe(
       false
     )
   })
 
   it('rejects absolute / escaping resource-install paths', () => {
     const bad = { ...fullInstall(), live: '/etc/passwd' }
-    const j = { ...liteJournal(), preset: 'full' as const, resourceInstalls: [bad] }
+    const j = { ...baseJournal(), preset: 'full' as const, resourceInstalls: [bad] }
     expect(RestoreJournalV2Schema.safeParse(j).success).toBe(false)
   })
 
   it('requires restoreId to be a UUID', () => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ restoreId: 'restore-1' })).success).toBe(false)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ restoreId: UUID })).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ restoreId: 'restore-1' })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ restoreId: UUID })).success).toBe(true)
   })
 
   it('requires an ISO-8601 datetime createdAt', () => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ createdAt: 'now' })).success).toBe(false)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ createdAt: '2026-07-27' })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ createdAt: 'now' })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ createdAt: '2026-07-27' })).success).toBe(false)
   })
 })
 
 describe('RestoreJournalV2Schema — terminal fields', () => {
   it.each(['completed', 'rollback-armed', 'rolled-back'] as const)('requires a durable summary on %s', (state) => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state })).success).toBe(false)
     expect(
-      RestoreJournalV2Schema.safeParse(liteJournal({ state, summary: { knowledgeBaseIds: ['kb-1'] } })).success
+      RestoreJournalV2Schema.safeParse(baseJournal({ state, summary: { knowledgeBaseIds: ['kb-1'] } })).success
     ).toBe(true)
   })
 
   it('rejects duplicate knowledge-base IDs in the durable summary', () => {
     const duplicateSummary = { knowledgeBaseIds: ['kb-1', 'kb-1'] }
     expect(
-      RestoreJournalV2Schema.safeParse(liteJournal({ state: 'completed', summary: duplicateSummary })).success
+      RestoreJournalV2Schema.safeParse(baseJournal({ state: 'completed', summary: duplicateSummary })).success
     ).toBe(false)
   })
 
   it('allows durable Knowledge completion only for bases in the restore summary', () => {
-    const valid = liteJournal({
+    const valid = baseJournal({
       state: 'completed',
       summary: { knowledgeBaseIds: ['kb-1', 'kb-2'] },
       knowledgeRebuild: { completedBaseIds: ['kb-2'] }
@@ -139,7 +140,7 @@ describe('RestoreJournalV2Schema — terminal fields', () => {
   })
 
   it('persists only an explicit true when the user abandons derived rebuilding', () => {
-    const base = liteJournal({
+    const base = baseJournal({
       state: 'completed',
       summary: { knowledgeBaseIds: ['kb-1'] },
       knowledgeRebuild: { completedBaseIds: [], abandoned: true }
@@ -154,19 +155,19 @@ describe('RestoreJournalV2Schema — terminal fields', () => {
   })
 
   it('rejects a summary on states that never crossed the commit (strict)', () => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'prepared', summary })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'prepared', summary })).success).toBe(false)
   })
 
   it('allows an optional terminal reason on failed/expired', () => {
     expect(
-      RestoreJournalV2Schema.safeParse(liteJournal({ state: 'failed', reason: 'integrity check failed' })).success
+      RestoreJournalV2Schema.safeParse(baseJournal({ state: 'failed', reason: 'integrity check failed' })).success
     ).toBe(true)
     expect(
-      RestoreJournalV2Schema.safeParse(liteJournal({ state: 'expired', reason: 'unarmed on unrelated restart' }))
+      RestoreJournalV2Schema.safeParse(baseJournal({ state: 'expired', reason: 'unarmed on unrelated restart' }))
         .success
     ).toBe(true)
     // reason is not a field on prepared (strict)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'prepared', reason: 'x' })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ state: 'prepared', reason: 'x' })).success).toBe(false)
   })
 })
 
@@ -198,7 +199,7 @@ describe('RestoreJournalV2Schema — path distinctness (structural)', () => {
   })
 
   it('rejects a db payload whose promote and aside alias', () => {
-    const j = liteJournal({
+    const j = baseJournal({
       db: { promote: 'restore-staging/work.sqlite', aside: 'restore-staging/work.sqlite', chain }
     })
     expect(RestoreJournalV2Schema.safeParse(j).success).toBe(false)
@@ -213,7 +214,7 @@ describe('RestoreJournalV2Schema — frozen restore-install cap', () => {
 
   it('rejects a completed summary with more knowledgeBaseIds than the cap', () => {
     const overCap = Array.from({ length: MAX_RESOURCE_INSTALL_ENTRIES + 1 }, (_, i) => `kb-${i}`)
-    const j = liteJournal({ state: 'completed', summary: { knowledgeBaseIds: overCap } })
+    const j = baseJournal({ state: 'completed', summary: { knowledgeBaseIds: overCap } })
     expect(RestoreJournalV2Schema.safeParse(j).success).toBe(false)
   })
 
@@ -222,27 +223,27 @@ describe('RestoreJournalV2Schema — frozen restore-install cap', () => {
       kind: `restore-db:t${i}`,
       reason: 'path-unportable (1 row)'
     }))
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ degradations: overCap })).success).toBe(false)
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ degradations: overCap.slice(0, -1) })).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ degradations: overCap })).success).toBe(false)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ degradations: overCap.slice(0, -1) })).success).toBe(true)
   })
 })
 
 describe('RestoreJournalV2Schema — degradation report', () => {
   it('accepts a journal with no degradations at all', () => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal()).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(baseJournal()).success).toBe(true)
   })
 
   it('accepts a reason string this version has never heard of', () => {
     // The journal is read by a LATER app version. Pinning the report to today's
     // reason list would let a new reason quarantine a perfectly good restore.
-    const j = liteJournal({ degradations: [{ kind: 'restore-db:future', reason: 'not-yet-invented (7 rows)' }] })
+    const j = baseJournal({ degradations: [{ kind: 'restore-db:future', reason: 'not-yet-invented (7 rows)' }] })
     expect(RestoreJournalV2Schema.safeParse(j).success).toBe(true)
   })
 
   it('accepts an older single path and a compact report made from the same fields', () => {
     expect(
       RestoreJournalV2Schema.safeParse(
-        liteJournal({
+        baseJournal({
           degradations: [
             { kind: 'resource:file-blob', reason: 'absent-at-snapshot', livePath: 'Data/Files/old.pdf' },
             { kind: 'report:resource-changed', reason: 'count:500' },
@@ -258,7 +259,7 @@ describe('RestoreJournalV2Schema — degradation report', () => {
   it('rejects an absolute report sample path', () => {
     expect(
       RestoreJournalV2Schema.safeParse(
-        liteJournal({
+        baseJournal({
           degradations: [
             { kind: 'report:resource-changed', reason: 'count:1' },
             { kind: 'report-sample:resource-changed', reason: 'sample', livePath: '/private/note' }
@@ -269,7 +270,7 @@ describe('RestoreJournalV2Schema — degradation report', () => {
   })
 
   it('rejects a degradation line carrying unknown fields (strict)', () => {
-    const j = liteJournal({
+    const j = baseJournal({
       degradations: [{ kind: 'restore-db:note', reason: 'path-unportable (1 row)', rowId: 'n' }]
     })
     expect(RestoreJournalV2Schema.safeParse(j).success).toBe(false)
@@ -277,24 +278,25 @@ describe('RestoreJournalV2Schema — degradation report', () => {
 })
 
 describe('RestoreJournalV2Schema — preset payload shape', () => {
-  it('rejects a lite journal that declares resource installs', () => {
-    const j = liteJournal({ resourceInstalls: [fullInstall()] })
-    expect(RestoreJournalV2Schema.safeParse(j).success).toBe(false)
-  })
-
-  it('accepts a full journal with resource installs', () => {
-    const j = { ...liteJournal(), preset: 'full' as const, resourceInstalls: [fullInstall()] }
+  it('accepts a journal with resource installs', () => {
+    const j = { ...baseJournal(), resourceInstalls: [fullInstall()] }
     expect(RestoreJournalV2Schema.safeParse(j).success).toBe(true)
   })
 
-  it('accepts a lite journal with an empty install list', () => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal()).success).toBe(true)
+  it('accepts a journal with an empty install list', () => {
+    expect(RestoreJournalV2Schema.safeParse(baseJournal()).success).toBe(true)
+  })
+
+  // Full is the only preset that exists; a journal naming another one is a
+  // journal this build cannot act on.
+  it("rejects a journal declaring preset 'lite'", () => {
+    expect(RestoreJournalV2Schema.safeParse(baseJournal({ preset: 'lite' })).success).toBe(false)
   })
 })
 
 describe('parseRestoreJournalV2', () => {
   it('returns ok/invalid discriminated results', () => {
-    expect(parseRestoreJournalV2(liteJournal()).kind).toBe('ok')
+    expect(parseRestoreJournalV2(baseJournal()).kind).toBe('ok')
     const invalid = parseRestoreJournalV2({ version: 2 })
     expect(invalid.kind).toBe('invalid')
   })

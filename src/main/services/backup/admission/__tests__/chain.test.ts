@@ -13,12 +13,12 @@ import { BackupCancelledError, BackupMigrationCompatibilityError } from '../../e
 import { hashStreamHooks } from '../../hashing'
 import { admitStagedDatabase, classifyChain } from '../chain'
 import {
+  baseManifest,
   buildForkedMigrations,
   buildMigratedDb,
   buildTruncatedMigrations,
   dbMeta,
   fakeDbMeta,
-  liteManifest,
   setJournalModeWal,
   snapshotDb
 } from './helpers'
@@ -69,7 +69,7 @@ describe('admitStagedDatabase', () => {
     const dbPath = path.join(dir, 'backup.sqlite')
     snapshotDb(dbh.sqlite, dbPath)
     const meta = await dbMeta(dbPath)
-    const res = await admitStagedDatabase(dbPath, liteManifest(meta), realFolder, undefined)
+    const res = await admitStagedDatabase(dbPath, baseManifest(meta), realFolder, undefined)
     expect(res.migratedForward).toBe(false)
     expect(res.finalChain.length).toBe(fullLen)
     expect(res.hash).toMatch(/^[0-9a-f]{64}$/)
@@ -84,7 +84,7 @@ describe('admitStagedDatabase', () => {
     const meta = await dbMeta(dbPath)
     expect(meta.chain.length).toBe(fullLen - 1)
 
-    const res = await admitStagedDatabase(dbPath, liteManifest(meta), realFolder, undefined)
+    const res = await admitStagedDatabase(dbPath, baseManifest(meta), realFolder, undefined)
     expect(res.migratedForward).toBe(true)
     expect(res.finalChain.length).toBe(fullLen)
     expect(res.hash).not.toBe(meta.hash) // migrate-forward rewrote the file
@@ -100,7 +100,7 @@ describe('admitStagedDatabase', () => {
     setJournalModeWal(dbPath) // persist WAL mode → migrate-forward writes through -wal
     const meta = await dbMeta(dbPath)
 
-    const res = await admitStagedDatabase(dbPath, liteManifest(meta), realFolder, undefined)
+    const res = await admitStagedDatabase(dbPath, baseManifest(meta), realFolder, undefined)
     expect(res.migratedForward).toBe(true)
     expect(noSidecars(dbPath)).toBe(true)
     // A fresh readonly reader (no -wal present) sees the full migrated chain, so
@@ -126,7 +126,7 @@ describe('admitStagedDatabase', () => {
     }
     const meta = await dbMeta(dbPath)
 
-    await expect(admitStagedDatabase(dbPath, liteManifest(meta), realFolder, undefined)).rejects.toMatchObject({
+    await expect(admitStagedDatabase(dbPath, baseManifest(meta), realFolder, undefined)).rejects.toMatchObject({
       reason: 'schema-mismatch'
     })
   })
@@ -137,7 +137,7 @@ describe('admitStagedDatabase', () => {
     const meta = await dbMeta(dbPath)
     const shortFolder = path.join(dir, 'm-short')
     buildTruncatedMigrations(realFolder, shortFolder, fullLen - 1)
-    await expect(admitStagedDatabase(dbPath, liteManifest(meta), shortFolder, undefined)).rejects.toMatchObject({
+    await expect(admitStagedDatabase(dbPath, baseManifest(meta), shortFolder, undefined)).rejects.toMatchObject({
       name: 'BackupMigrationCompatibilityError',
       diagnostic: {
         kind: 'source-ahead',
@@ -155,7 +155,7 @@ describe('admitStagedDatabase', () => {
     const dbPath = path.join(dir, 'fork.sqlite')
     buildMigratedDb(dbPath, forked)
     const meta = await dbMeta(dbPath)
-    const error = await admitStagedDatabase(dbPath, liteManifest(meta), realFolder, undefined).catch((cause) => cause)
+    const error = await admitStagedDatabase(dbPath, baseManifest(meta), realFolder, undefined).catch((cause) => cause)
     expect(error).toBeInstanceOf(BackupMigrationCompatibilityError)
     expect(error).toMatchObject({
       diagnostic: {
@@ -171,7 +171,7 @@ describe('admitStagedDatabase', () => {
     const dbPath = path.join(dir, 'backup.sqlite')
     snapshotDb(dbh.sqlite, dbPath)
     const meta = await dbMeta(dbPath)
-    const manifest = liteManifest(meta)
+    const manifest = baseManifest(meta)
     manifest.migrationChain = manifest.migrationChain.slice(0, -1) // drops the tip → differs from actual
     await expect(admitStagedDatabase(dbPath, manifest, realFolder, undefined)).rejects.toMatchObject({
       reason: 'chain-mismatch'
@@ -181,7 +181,7 @@ describe('admitStagedDatabase', () => {
   it('rejects a corrupt / non-database file', async () => {
     const dbPath = path.join(dir, 'corrupt.sqlite')
     await writeFile(dbPath, Buffer.from('this is definitely not a sqlite database'))
-    await expect(admitStagedDatabase(dbPath, liteManifest(fakeDbMeta()), realFolder, undefined)).rejects.toMatchObject({
+    await expect(admitStagedDatabase(dbPath, baseManifest(fakeDbMeta()), realFolder, undefined)).rejects.toMatchObject({
       reason: 'db-corrupt'
     })
   })
@@ -192,7 +192,7 @@ describe('admitStagedDatabase', () => {
     const meta = await dbMeta(dbPath)
     const ac = new AbortController()
     ac.abort()
-    await expect(admitStagedDatabase(dbPath, liteManifest(meta), realFolder, ac.signal)).rejects.toBeInstanceOf(
+    await expect(admitStagedDatabase(dbPath, baseManifest(meta), realFolder, ac.signal)).rejects.toBeInstanceOf(
       BackupCancelledError
     )
   })
@@ -208,7 +208,7 @@ describe('admitStagedDatabase', () => {
     // which runs after migrate-forward — aborting on its first chunk proves
     // post-migration cancellation.
     hashStreamHooks.onChunk = () => ac.abort()
-    await expect(admitStagedDatabase(dbPath, liteManifest(meta), realFolder, ac.signal)).rejects.toBeInstanceOf(
+    await expect(admitStagedDatabase(dbPath, baseManifest(meta), realFolder, ac.signal)).rejects.toBeInstanceOf(
       BackupCancelledError
     )
   })
