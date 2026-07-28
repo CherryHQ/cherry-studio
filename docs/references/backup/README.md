@@ -424,13 +424,14 @@ Only `armed` enters promotion; only `rollback-armed` enters explicit reverse pro
 Once either action is armed, later writes in the state being displaced are intentionally
 replaced rather than merged.
 
-Every state also carries the **degradation report** — what materializing this
-archive against this device reduced (§4), aggregated per `(table, reason)`. It
-lives in the journal rather than in memory because the report is shown after the
-relaunch, once the staging tree that produced it is gone; without it a degraded
-restore would present as a complete one. The producer **truncates** the list to
-its cap instead of failing the write: a report detail must never make an otherwise
-valid journal unparsable and block startup.
+Every state also carries the **degradation report** — what producing and
+materializing this archive reduced (§4). Before the journal write, raw rows and
+per-resource exclusions are compacted into one true total plus at most three safe
+relative path samples per presentation code. It lives in the journal rather than
+in memory because the report is shown after the relaunch, once the staging tree
+that produced it is gone; without it a degraded restore would present as a complete
+one. The bounded report stays far below the journal cap even when thousands of
+resources share one exclusion cause.
 
 > **Change from current `origin/main`.** Journal v1 (on main) uses states
 > `staged → promoting → completed|failed|expired` with no `prepared`/`armed` split and a
@@ -678,6 +679,8 @@ or clone/remap/transform hooks. Merge facts do not exist in v2.
   rebuildable counts, with **no** content-equality claim.
 - Full: a current estimate of resources to install or replace, plus unsupported external
   resources; the preboot state machine owns the final result.
+- Any degradation is shown by grouped cause and bounded safe relative path samples during
+  export, in restore preview, and again after a completed restore.
 - Destructive fact: the current database is replaced and the app restarts.
 
 No merge, skipped-record, field-conflict, or domain-conflict language appears anywhere in

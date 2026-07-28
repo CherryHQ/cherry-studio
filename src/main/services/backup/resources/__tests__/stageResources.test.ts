@@ -8,7 +8,12 @@ import { CeilingExceededError } from '../../errors'
 import { hashDirectoryUnit, sha256File } from '../../hashing'
 import type { ResourceRequirement } from '../../manifest'
 import { driftHooks } from '../../sourceDrift'
-import { captureResourceStageBaseline, measureResourceStageBytes, stageResources } from '../stageResources'
+import {
+  captureResourceStageBaseline,
+  measureResourceStageBytes,
+  stageResourceHooks,
+  stageResources
+} from '../stageResources'
 
 /**
  * What the Full producer promises about its payloads (§1.7, §5.4): every unit it
@@ -33,6 +38,8 @@ describe('stageResources', () => {
   afterEach(() => {
     rmSync(root, { recursive: true, force: true })
     driftHooks.afterStagePreVerify = async () => {}
+    driftHooks.beforeAncestorVerify = async () => {}
+    stageResourceHooks.afterBaselineInspect = async () => {}
   })
 
   function req(kind: string, resourceType: 'file' | 'directory', livePath: string): ResourceRequirement {
@@ -94,6 +101,20 @@ describe('stageResources', () => {
 
     expect(result.payloads).toMatchObject([{ resourceType: 'file', executable: true }])
     expect(statSync(join(resourcesDir, 'Data', 'Files', 'tool.sh')).mode & 0o777).toBe(0o700)
+  })
+
+  it('omits a directory that disappears between root inspection and baseline scan', async () => {
+    writeSource('Data/Notes/a.md', 'A')
+    stageResourceHooks.afterBaselineInspect = async (sourcePath) => {
+      rmSync(sourcePath, { recursive: true, force: true })
+    }
+
+    const result = await stage([req('note-root', 'directory', 'Data/Notes')])
+
+    expect(result.payloads).toEqual([])
+    expect(result.degradations).toEqual([
+      { kind: 'resource:note-root', livePath: 'Data/Notes', reason: 'changed-after-snapshot' }
+    ])
   })
 
   it('omits a source changed after the database snapshot baseline', async () => {
@@ -186,6 +207,22 @@ describe('stageResources', () => {
       payloads: [],
       degradations: [{ livePath: 'Data/Files/blob.pdf', reason: 'changed-after-snapshot' }]
     })
+  })
+
+  it('omits a directory whose next ancestor disappears during staging', async () => {
+    writeSource('Data/Notes/a/1.md', 'ONE')
+    writeSource('Data/Notes/b/2.md', 'TWO')
+    driftHooks.beforeAncestorVerify = async (_sourceDir, fileRel) => {
+      if (fileRel === 'b/2.md') rmSync(join(userData, 'Data', 'Notes'), { recursive: true })
+    }
+
+    const result = await stage([req('note-root', 'directory', 'Data/Notes')])
+
+    expect(result.payloads).toEqual([])
+    expect(result.degradations).toEqual([
+      { kind: 'resource:note-root', livePath: 'Data/Notes', reason: 'changed-after-snapshot' }
+    ])
+    expect(() => readFileSync(join(resourcesDir, 'Data', 'Notes', 'a', '1.md'))).toThrow()
   })
 
   it('omits a changed directory as one atomic unit while retaining a stable later unit', async () => {

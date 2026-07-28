@@ -33,10 +33,10 @@ import {
   readRestoreJournalV2,
   writeRestoreJournalV2
 } from '@data/db/restore/restoreJournalV2'
-import { MAX_JOURNAL_DEGRADATIONS } from '@data/db/restore/restoreLimits'
 import { loggerService } from '@logger'
 
 import { admitArchive } from './admission/admitArchive'
+import { compactDegradationsForJournal } from './degradationReport'
 import { RestoreStateError } from './errors'
 import type { BackupManifestDegradation, BackupPreset } from './manifest'
 import { currentBackupPlatform } from './platform'
@@ -224,18 +224,9 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
         chain: materialized.chain.map((entry) => ({ folderMillis: entry.folderMillis, hash: entry.hash }))
       },
       resourceInstalls: [...plan.entries],
-      // TRUNCATED, never rejected: the cap protects the one file the boot path
-      // must be able to parse, so an overlong report degrades to a shorter
-      // report — it can never cost the user the restore itself.
-      ...(degradations.length > 0
-        ? {
-            degradations: degradations.slice(0, MAX_JOURNAL_DEGRADATIONS).map((degradation) => {
-              const livePath =
-                'livePath' in degradation && typeof degradation.livePath === 'string' ? degradation.livePath : undefined
-              return { kind: degradation.kind, reason: degradation.reason, ...(livePath ? { livePath } : {}) }
-            })
-          }
-        : {})
+      // Persist the bounded presentation, not one line per omitted resource:
+      // post-relaunch totals stay exact even when thousands of units share one cause.
+      ...(degradations.length > 0 ? { degradations: compactDegradationsForJournal(degradations) } : {})
     })
     journalWritten = true
 
