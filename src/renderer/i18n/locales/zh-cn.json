@@ -4513,6 +4513,7 @@
     "search": {
       "found_results": "找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
       "more_matches": "个匹配",
+      "no_results": "未找到结果",
       "searching": "搜索中...",
       "show_less": "收起"
     },

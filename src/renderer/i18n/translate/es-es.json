@@ -4510,6 +4510,7 @@
     "search": {
       "found_results": "Se encontraron {{count}} resultados (nombre: {{nameCount}}, contenido: {{contentCount}})",
       "more_matches": "Una coincidencia",
+      "no_results": "[to be translated]:No results found",
       "searching": "Buscando...",
       "show_less": "Recoger"
     },

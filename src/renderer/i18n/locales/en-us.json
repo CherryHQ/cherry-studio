@@ -4513,6 +4513,7 @@
     "search": {
       "found_results": "Found {{count}} results (Name: {{nameCount}}, Content: {{contentCount}})",
       "more_matches": "more matches",
+      "no_results": "No results found",
       "searching": "Searching...",
       "show_less": "Show less"
     },

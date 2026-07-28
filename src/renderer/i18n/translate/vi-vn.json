@@ -4510,6 +4510,7 @@
     "search": {
       "found_results": "Tìm thấy {{count}} kết quả (Tên: {{nameCount}}, Nội dung: {{contentCount}})",
       "more_matches": "nhiều trận đấu hơn",
+      "no_results": "[to be translated]:No results found",
       "searching": "Đang tìm kiếm...",
       "show_less": "Hiển thị ít hơn"
     },

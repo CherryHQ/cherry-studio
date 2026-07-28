@@ -4510,6 +4510,7 @@
     "search": {
       "found_results": "{{count}} résultat(s) trouvé(s) (nom : {{nameCount}}, contenu : {{contentCount}})",
       "more_matches": "Correspondance",
+      "no_results": "[to be translated]:No results found",
       "searching": "Recherche en cours...",
       "show_less": "Replier"
     },

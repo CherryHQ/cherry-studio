@@ -4510,6 +4510,7 @@
     "search": {
       "found_results": "Βρέθηκαν {{count}} αποτελέσματα (όνομα: {{nameCount}}, περιεχόμενο: {{contentCount}})",
       "more_matches": "Ταιριάζει",
+      "no_results": "[to be translated]:No results found",
       "searching": "Αναζήτηση...",
       "show_less": "Κλείσιμο"
     },

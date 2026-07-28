@@ -4510,6 +4510,7 @@
     "search": {
       "found_results": "{{count}} 件の結果が見つかりました（名称: {{nameCount}}、内容: {{contentCount}}）",
       "more_matches": "一致",
+      "no_results": "[to be translated]:No results found",
       "searching": "検索中...",
       "show_less": "閉じる"
     },

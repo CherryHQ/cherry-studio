@@ -407,14 +407,19 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             </button>
           </div>
         )}
-        {isShowSearch && !isSearching && hasSearchKeyword && searchStats.total > 0 && (
+        {/* Rendered for every completed query — resultsKeyword is only set once a scan
+            finishes — so the refresh control stays reachable when a query has zero hits
+            and an external edit later adds the first one. */}
+        {isShowSearch && !isSearching && hasSearchKeyword && resultsKeyword !== '' && (
           <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
             <span>
-              {t('notes.search.found_results', {
-                count: searchStats.total,
-                nameCount: searchStats.nameMatches,
-                contentCount: searchStats.contentMatches
-              })}
+              {searchStats.total > 0
+                ? t('notes.search.found_results', {
+                    count: searchStats.total,
+                    nameCount: searchStats.nameMatches,
+                    contentCount: searchStats.contentMatches
+                  })
+                : t('notes.search.no_results')}
             </span>
             <button
               type="button"
