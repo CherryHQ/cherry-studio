@@ -155,6 +155,8 @@ type SteerContinuationReservation = {
   messageSnapshot?: MessageSnapshot
 }
 
+type RolledTurnTerminalOutcome = { status: 'success' } | { status: 'error'; error: unknown }
+
 type AgentSessionConnectionTarget = {
   modelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
@@ -222,8 +224,8 @@ type AgentSessionRuntimeEntry = {
   }
   /** The connected runtime currently owns a generation that the host did not admit. */
   autonomousGenerationActive?: boolean
-  /** A receive-only result arrived while its renderer stream was still opening. */
-  receiveOnlyTurnCompleted?: boolean
+  /** A rolled turn settled while its renderer stream was still opening. */
+  pendingRolledTurnTerminal?: RolledTurnTerminalOutcome
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
   /** Single-flight marker for context-usage reads on the current connection. */
@@ -620,6 +622,7 @@ export class AgentSessionRuntimeService extends BaseService {
           // Roll continuation: replay the post-steer chunks captured while A2's stream was opening, as
           // soon as the controller exists (before the connection round-trip). No-op for normal turns.
           this.flushRollBuffer(entry, turn)
+          if (turn.terminalStatus) return
           const connected = await this.ensureConnection(entry)
           if (!connected || !this.isCurrentEntry(entry) || turn.terminalStatus) return
           await this.admitTurn(entry, turn)
@@ -716,8 +719,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.steerContinuationReservation = undefined
+    entry.pendingRolledTurnTerminal = undefined
     if (completedTurn?.receiveOnly) {
-      entry.receiveOnlyTurnCompleted = false
       if (entry.deferredTurn && !entry.autonomousGenerationActive) {
         const deferredTurn = entry.deferredTurn
         entry.deferredTurn = undefined
@@ -1165,6 +1168,7 @@ export class AgentSessionRuntimeService extends BaseService {
         entry.rolling = true
         entry.rollBuffer = []
         entry.rollSteerInputs = event.inputs
+        entry.pendingRolledTurnTerminal = undefined
         // A responder exists if the pre-steer turn was interactive or any injected steer came from one.
         entry.rollHeadless =
           entry.currentTurn?.headless === true &&
@@ -1232,6 +1236,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.clearIdleTimer(entry)
         entry.rolling = true
         entry.rollBuffer = []
+        entry.pendingRolledTurnTerminal = undefined
         if (turnLive && turn) {
           this.deferUnadmittedTurnForReceiveOnly(entry, turn)
         } else {
@@ -1243,7 +1248,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.clearApiRetry(entry)
         if (!entry.rolling) entry.steerContinuationReservation = undefined
         if (entry.rolling && entry.rollSteerInputs === undefined) {
-          entry.receiveOnlyTurnCompleted = true
+          entry.pendingRolledTurnTerminal = { status: 'success' }
         } else {
           this.closeCurrentTurn(entry, 'success')
         }
@@ -1797,7 +1802,6 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.backgroundWorkActive = false
     entry.backgroundWorkHeadless = undefined
     entry.autonomousGenerationActive = false
-    entry.receiveOnlyTurnCompleted = false
     const cache = application.get('CacheService')
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
@@ -1811,12 +1815,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const turn = entry.currentTurn
+    if (entry.rolling && entry.rollSteerInputs === undefined && !turn?.controller) {
+      entry.pendingRolledTurnTerminal = { status: 'error', error }
+      return
+    }
     if (turn?.controller && !turn.terminalStatus) {
-      turn.controller.error(error)
-      // Mark terminal synchronously: the listener's markTurnTerminal arrives async (after the
-      // stream error propagates), so a trailing `chunk` event in the same connection loop would
-      // otherwise hit enqueueTurnChunk and throw on the now-errored controller.
-      turn.terminalStatus = 'error'
+      this.errorCurrentTurn(entry, error)
     } else if (isAbortError(error)) {
       // Expected when a turn was interrupted/closed — the connection ending is not a fault.
       logger.warn('Agent runtime connection ended without an active turn', { sessionId: entry.sessionId, error })
@@ -1836,8 +1840,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.status = 'active'
     // `Set.delete` returns whether it was queued as a steer — consume the flag as we admit the turn.
     const systemReminder = entry.steerMessageIds?.delete(turn.userMessage.id) ?? false
-    const traceContext = this.sessionTraceContext(entry, turn.modelId)
-    if (traceContext) await entry.connection?.refreshTraceContext?.(traceContext)
+    await this.refreshTurnTraceContext(entry, turn)
     await entry.connection?.send({ message: turn.userMessage, systemReminder })
   }
 
@@ -1868,6 +1871,28 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     turn.controller = undefined
     turn.activeToolIds.clear()
+  }
+
+  private errorCurrentTurn(entry: AgentSessionRuntimeEntry, error: unknown): void {
+    const turn = entry.currentTurn
+    if (!turn || turn.terminalStatus) return
+    // Mark terminal synchronously: the listener's markTurnTerminal arrives async (after the
+    // stream error propagates), so a trailing `chunk` event in the same connection loop would
+    // otherwise hit enqueueTurnChunk and throw on the now-errored controller.
+    turn.terminalStatus = 'error'
+    try {
+      turn.controller?.error(error)
+    } catch {
+      // Already closed by the stream reader.
+    }
+    turn.controller = undefined
+    turn.activeToolIds.clear()
+  }
+
+  private async refreshTurnTraceContext(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
+    if (!this.isCurrentEntry(entry) || entry.currentTurn !== turn || turn.terminalStatus) return
+    const traceContext = this.sessionTraceContext(entry, turn.modelId)
+    if (traceContext) await entry.connection?.refreshTraceContext?.(traceContext)
   }
 
   private scheduleNextTurn(entry: AgentSessionRuntimeEntry): void {
@@ -2139,7 +2164,7 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpan?.end()
       entry.rolling = false
       entry.rollBuffer = undefined
-      entry.receiveOnlyTurnCompleted = false
+      entry.pendingRolledTurnTerminal = undefined
       logger.error('Failed to save receive-only turn placeholder; dropping runtime-generated content', {
         sessionId: entry.sessionId,
         error
@@ -2177,6 +2202,11 @@ export class AgentSessionRuntimeService extends BaseService {
       receiveOnly: true
     }
     entry.currentTurn = receiveOnlyTurn
+    await this.refreshTurnTraceContext(entry, receiveOnlyTurn)
+    if (!this.isCurrentEntry(entry) || entry.currentTurn !== receiveOnlyTurn || receiveOnlyTurn.terminalStatus) {
+      rootSpan?.end()
+      return
+    }
 
     const messages = createRuntimeSeedMessages(syntheticMessage, assistantMessageId)
     if (rootSpan) {
@@ -2259,6 +2289,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.rolling = false
       entry.rollBuffer = undefined
       entry.rollHeadless = undefined
+      entry.pendingRolledTurnTerminal = undefined
       entry.steerContinuationReservation = undefined
       application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
@@ -2268,7 +2299,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const assistantMessageId = assistantMessage.id
     entry.steerContinuationReservation = undefined
     const turnId = crypto.randomUUID()
-    entry.currentTurn = {
+    const continuationTurn: AgentSessionTurn = {
       turnId,
       assistantMessageId,
       userMessage: steerMessage,
@@ -2281,6 +2312,12 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: new AbortController(),
       activeToolIds: new Set(),
       headless
+    }
+    entry.currentTurn = continuationTurn
+    await this.refreshTurnTraceContext(entry, continuationTurn)
+    if (!this.isCurrentEntry(entry) || entry.currentTurn !== continuationTurn || continuationTurn.terminalStatus) {
+      rootSpan?.end()
+      return
     }
 
     const messages = createRuntimeSeedMessages(steerMessage, assistantMessageId)
@@ -2305,7 +2342,7 @@ export class AgentSessionRuntimeService extends BaseService {
         reasoningEffort,
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
-      abortController: entry.currentTurn.abortController,
+      abortController: continuationTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, steerMessage),
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId),
@@ -2322,13 +2359,15 @@ export class AgentSessionRuntimeService extends BaseService {
   private flushRollBuffer(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
     if (!entry.rolling || entry.currentTurn !== turn) return
     const buffered = entry.rollBuffer ?? []
-    const receiveOnlyCompleted = turn.receiveOnly === true && entry.receiveOnlyTurnCompleted === true
+    const terminal = entry.pendingRolledTurnTerminal
     entry.rolling = false
     entry.rollBuffer = undefined
+    entry.pendingRolledTurnTerminal = undefined
     for (const chunk of buffered) this.enqueueTurnChunk(entry, turn, chunk)
-    if (receiveOnlyCompleted) {
-      entry.receiveOnlyTurnCompleted = false
+    if (terminal?.status === 'success') {
       this.closeCurrentTurn(entry, 'success')
+    } else if (terminal?.status === 'error') {
+      this.errorCurrentTurn(entry, terminal.error)
     }
   }
 
@@ -2489,7 +2528,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.releaseBackgroundWorkWaiter(entry)
     entry.backgroundWorkActive = false
     entry.autonomousGenerationActive = false
-    entry.receiveOnlyTurnCompleted = false
+    entry.pendingRolledTurnTerminal = undefined
     if (entry.compacting) {
       application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
         status: 'idle'

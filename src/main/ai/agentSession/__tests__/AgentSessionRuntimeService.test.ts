@@ -692,6 +692,41 @@ describe('AgentSessionRuntimeService', () => {
       service.closeSession('session-1')
     })
 
+    it('refreshes the trace context before starting a steer continuation stream', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const refreshTraceContext = vi.fn()
+      entry.connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        refreshTraceContext
+      }
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: userMessage('user-2'), systemReminder: true }]
+      })
+      mocks.startRuntimeTurn.mockClear()
+
+      await (service as any).startContinuationTurn(entry)
+
+      const continuationTurn = entry.currentTurn
+      expect(refreshTraceContext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          traceId: 'a'.repeat(32),
+          sessionId: 'session-1',
+          turnId: continuationTurn.turnId
+        })
+      )
+      expect(refreshTraceContext.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.startRuntimeTurn.mock.invocationCallOrder[0]
+      )
+
+      service.closeSession('session-1')
+    })
+
     it('requeues a steer-undelivered follow-up with its enqueue-time snapshot', async () => {
       const service = new AgentSessionRuntimeService()
       const priorSnapshot = {
@@ -2054,14 +2089,14 @@ describe('AgentSessionRuntimeService', () => {
       entry.connection = currentConnection
       entry.backgroundWorkActive = true
       entry.autonomousGenerationActive = true
-      entry.receiveOnlyTurnCompleted = true
+      entry.pendingRolledTurnTerminal = { status: 'success' }
       mocks.cacheSetShared.mockClear()
 
       ;(service as any).resetConnectionRuntimeState(entry, staleConnection)
 
       expect(entry.backgroundWorkActive).toBe(true)
       expect(entry.autonomousGenerationActive).toBe(true)
-      expect(entry.receiveOnlyTurnCompleted).toBe(true)
+      expect(entry.pendingRolledTurnTerminal).toEqual({ status: 'success' })
       expect(mocks.cacheSetShared).not.toHaveBeenCalled()
     })
   })
@@ -2075,7 +2110,14 @@ describe('AgentSessionRuntimeService', () => {
       service.markTurnTerminal('session-1', 'success')
       const entry = getEntry(service)
       const send = vi.fn()
-      entry.connection = { send, close: vi.fn(), events: [], reconcile: vi.fn().mockResolvedValue('current') }
+      const refreshTraceContext = vi.fn()
+      entry.connection = {
+        send,
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext
+      }
       mocks.startRuntimeTurn.mockClear()
 
       ;(service as any).handleRuntimeEvent(entry, { type: 'receive-only-turn' })
@@ -2091,6 +2133,16 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
       const wakeTurn = entry.currentTurn
       expect(wakeTurn).toMatchObject({ admitted: true, headless: true, knowledgeBaseIds: ['kb-1'] })
+      expect(refreshTraceContext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          traceId: 'a'.repeat(32),
+          sessionId: 'session-1',
+          turnId: wakeTurn.turnId
+        })
+      )
+      expect(refreshTraceContext.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.startRuntimeTurn.mock.invocationCallOrder[0]
+      )
 
       const reader = service
         .openTurnStream({ sessionId: 'session-1', turnId: wakeTurn.turnId, signal: new AbortController().signal })
@@ -2129,7 +2181,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-generation-state', active: false })
       ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
 
-      expect(entry.receiveOnlyTurnCompleted).toBe(true)
+      expect(entry.pendingRolledTurnTerminal).toEqual({ status: 'success' })
       expect(receiveOnlyTurn.terminalStatus).toBeUndefined()
 
       const reader = service
@@ -2142,7 +2194,72 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await expect(reader.read()).resolves.toMatchObject({ done: true })
       expect(receiveOnlyTurn.terminalStatus).toBe('success')
-      expect(entry.receiveOnlyTurnCompleted).toBe(false)
+      expect(entry.pendingRolledTurnTerminal).toBeUndefined()
+
+      service.closeSession('session-1')
+    })
+
+    it('surfaces an early receive-only error and restores the deferred turn after connection loss', async () => {
+      const service = new AgentSessionRuntimeService()
+      const deferredTurn = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const connection = {
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      }
+      entry.connection = connection
+      mocks.startRuntimeTurn.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'receive-only-turn' }, connection)
+      ;(service as any).handleRuntimeEvent(
+        entry,
+        { type: 'chunk', chunk: { type: 'text-delta', id: 'wake-1', delta: 'background finished' } },
+        connection
+      )
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      const receiveOnlyTurn = entry.currentTurn
+      expect(receiveOnlyTurn).toMatchObject({ admitted: true, receiveOnly: true })
+      expect(receiveOnlyTurn.controller).toBeUndefined()
+      expect(entry.rollBuffer).toHaveLength(1)
+
+      const runtimeError = new Error('background wake failed')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'error', error: runtimeError }, connection)
+
+      expect(entry.pendingRolledTurnTerminal).toEqual({ status: 'error', error: runtimeError })
+      expect(receiveOnlyTurn.terminalStatus).toBeUndefined()
+
+      // Model the connection-loop finalizer: connection-local ownership is released, but the pending
+      // stream outcome must survive until openTurnStream installs the receive-only controller.
+      ;(service as any).resetConnectionRuntimeState(entry, connection)
+      entry.connection = undefined
+      expect(entry.autonomousGenerationActive).toBe(false)
+      expect(entry.pendingRolledTurnTerminal).toEqual({ status: 'error', error: runtimeError })
+
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: receiveOnlyTurn.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await expect(reader.read()).rejects.toBe(runtimeError)
+      expect(receiveOnlyTurn.terminalStatus).toBe('error')
+      expect(entry.pendingRolledTurnTerminal).toBeUndefined()
+
+      const receiveOnlyRuntimeInput = mocks.startRuntimeTurn.mock.calls[0][0]
+      terminalListener(receiveOnlyRuntimeInput).onError({
+        status: 'error',
+        isTopicDone: true,
+        error: { name: 'Error', message: runtimeError.message }
+      })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
+
+      expect(entry.currentTurn.turnId).toBe(deferredTurn.turnId)
+      expect(entry.deferredTurn).toBeUndefined()
 
       service.closeSession('session-1')
     })
