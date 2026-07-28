@@ -399,6 +399,27 @@ const RestoreOutcome: FC<{
       {restore.recoveryIncomplete && (
         <Alert type="warning" showIcon message={t('settings.data.backup_v2.outcome.recovery_incomplete')} />
       )}
+      {/*
+        Completed only, and with the lines shown rather than just counted: this is
+        the one moment the user can still act on what came back reduced, and only
+        a completed restore actually put that data in front of them.
+      */}
+      {restore.state === 'completed' && restore.degradations && restore.degradations.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          message={t('settings.data.backup_v2.outcome.degradations', { count: restore.degradations.length })}
+          description={
+            <ul>
+              {restore.degradations.map((degradation) => (
+                <li key={`${degradation.kind}-${degradation.reason}`}>
+                  {degradation.kind}: {degradation.reason}
+                </li>
+              ))}
+            </ul>
+          }
+        />
+      )}
     </>
   )
 }

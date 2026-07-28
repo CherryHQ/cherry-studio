@@ -134,6 +134,19 @@ describe('BackupService', () => {
       expect(service.getStatus().restore).toMatchObject({ state: 'promoting', step: 'live-aside' })
     })
 
+    it('surfaces the degradation report the journal carries', () => {
+      const degradations = [{ kind: 'restore-db:note', reason: 'path-unportable (2 rows)' }]
+      writeRestoreJournalV2({ ...preparedJournal(), degradations })
+
+      expect(service.getStatus().restore).toMatchObject({ degradations })
+    })
+
+    it('omits the degradation report when the restore reduced nothing', () => {
+      writeRestoreJournalV2(preparedJournal())
+
+      expect(service.getStatus().restore).not.toHaveProperty('degradations')
+    })
+
     it('reports an unparseable journal as unreadable instead of as absent', () => {
       // "Absent" would tell a caller it is safe to start a fresh restore over
       // whatever the unreadable journal is still protecting.

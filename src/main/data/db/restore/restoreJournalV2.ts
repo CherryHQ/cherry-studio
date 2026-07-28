@@ -5,7 +5,7 @@ import { application } from '@application'
 import { portableCollisionKey, RelativeSubpathSchema } from '@main/utils/relativePath'
 import * as z from 'zod'
 
-import { MAX_RESOURCE_INSTALL_ENTRIES } from './restoreLimits'
+import { MAX_JOURNAL_DEGRADATIONS, MAX_RESOURCE_INSTALL_ENTRIES } from './restoreLimits'
 
 /**
  * Restore-promotion journal v2 — the crash-safe contract for the Backup v2
@@ -115,6 +115,19 @@ const RestoreSummarySchema = z.strictObject({
     .refine((ids) => new Set(ids).size === ids.length, { message: 'knowledge-base IDs must be unique' })
 })
 
+/**
+ * One aggregated line of "what this restore reduced", as produced by
+ * `summarizeMaterializationDegradations`. Kept structural (`kind` + `reason`)
+ * rather than typed to the materializer's enums: the journal is a durable
+ * on-disk contract read by a LATER app version, and pinning it to today's
+ * reason list would make tomorrow's new reason unparseable — i.e. quarantine a
+ * perfectly good restore over a report string.
+ */
+const JournalDegradationSchema = z.strictObject({
+  kind: z.string().min(1),
+  reason: z.string().min(1)
+})
+
 const commonFields = {
   version: z.literal(RESTORE_JOURNAL_VERSION),
   /** Producer-generated UUID (the chosen restore-id contract). */
@@ -123,7 +136,15 @@ const commonFields = {
   /** ISO-8601 timestamp, diagnostic only. */
   createdAt: z.iso.datetime(),
   db: DbPromotionSchema,
-  resourceInstalls: z.array(ResourceInstallEntrySchema).max(MAX_RESOURCE_INSTALL_ENTRIES)
+  resourceInstalls: z.array(ResourceInstallEntrySchema).max(MAX_RESOURCE_INSTALL_ENTRIES),
+  /**
+   * What materializing THIS archive against THIS device reduced (§4). Carried by
+   * the journal because the restore report is rendered after a relaunch, by
+   * which point the staging tree that produced it may already be gone — and a
+   * degraded restore must never look like a complete one. Optional, and omitted
+   * when empty, so there is exactly one way to say "nothing was reduced".
+   */
+  degradations: z.array(JournalDegradationSchema).max(MAX_JOURNAL_DEGRADATIONS).optional()
 }
 
 /**
@@ -183,6 +204,7 @@ export const RestoreJournalV2Schema = z
 export type RestoreJournalV2 = z.infer<typeof RestoreJournalV2Schema>
 export type RestoreJournalV2State = RestoreJournalV2['state']
 export type ResourceInstallEntry = z.infer<typeof ResourceInstallEntrySchema>
+export type JournalDegradation = z.infer<typeof JournalDegradationSchema>
 export type RestoreSummary = z.infer<typeof RestoreSummarySchema>
 
 /**

@@ -189,6 +189,52 @@ describe('restore preparation', () => {
 
       expect(readFileSync(join(userData, 'cherrystudio.sqlite'), 'utf8')).toBe('LIVE-DB')
     })
+
+    describe('degradations', () => {
+      /**
+       * A note whose root is not an absolute path cannot be rebased onto this
+       * device. Rebasing happens ONLY on the restore side (the archive stores
+       * producer-absolute paths), so this reduction exists nowhere in the
+       * manifest — it is exactly the half of the report the journal has to carry.
+       */
+      async function exportWithUnportableNote(): Promise<string> {
+        dbh.db.insert(noteTable).values({ id: 'n-bad', rootPath: 'not/absolute', path: 'b.md', isStarred: true }).run()
+        const out = join(workDir, 'out', 'degraded.cherrybackup')
+        await exportArchive({ outPath: out, preset: 'lite' })
+        return out
+      }
+
+      it('reports what THIS device reduced, not only what the archive declared', async () => {
+        const preview = await prepareRestore({ archivePath: await exportWithUnportableNote() })
+
+        expect(preview.degradations).toEqual(
+          expect.arrayContaining([{ kind: 'restore-db:note', reason: 'path-unportable (1 row)' }])
+        )
+      })
+
+      it('carries the report in the journal, which is all that survives the relaunch', async () => {
+        // The report is rendered after the restart, by which point the staging
+        // tree that produced it is gone — so a journal that dropped it would
+        // make a degraded restore look like a complete one (§4).
+        await prepareRestore({ archivePath: await exportWithUnportableNote() })
+
+        const read = readRestoreJournalV2()
+        expect(read.kind).toBe('ok')
+        if (read.kind !== 'ok') return
+        expect(read.journal.degradations).toEqual(
+          expect.arrayContaining([{ kind: 'restore-db:note', reason: 'path-unportable (1 row)' }])
+        )
+      })
+
+      it('omits the field entirely when nothing was reduced', async () => {
+        await prepareRestore({ archivePath })
+
+        const read = readRestoreJournalV2()
+        expect(read.kind).toBe('ok')
+        if (read.kind !== 'ok') return
+        expect(read.journal.degradations).toBeUndefined()
+      })
+    })
   })
 
   describe('prepare full', () => {

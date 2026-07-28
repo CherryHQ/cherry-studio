@@ -108,6 +108,39 @@ export interface MaterializationSummary {
   readonly degradations: readonly MaterializationDegradation[]
 }
 
+/**
+ * Fold degradations into a bounded per-`(table, reason)` report.
+ *
+ * AGGREGATED, never per row: a profile can produce tens of thousands of degraded
+ * rows, and both carriers of this list are size-capped (the manifest, the restore
+ * journal). The counts answer the question a report actually asks — "what was
+ * reduced, and how much of it" — while the database itself keeps the per-row
+ * truth.
+ *
+ * `origin` records WHERE the reduction happened, because the two are not
+ * interchangeable to a reader: `portable-db` ran on the producer when the archive
+ * was written, `restore-db` ran on THIS device while materializing it.
+ */
+export function summarizeMaterializationDegradations(
+  degradations: readonly MaterializationDegradation[],
+  origin: 'portable-db' | 'restore-db'
+): Array<{ kind: string; reason: string }> {
+  const counts = new Map<string, { table: string; reason: string; count: number }>()
+  for (const degradation of degradations) {
+    const key = `${degradation.table}\u0000${degradation.reason}`
+    const existing = counts.get(key)
+    if (existing) {
+      existing.count++
+      continue
+    }
+    counts.set(key, { table: degradation.table, reason: degradation.reason, count: 1 })
+  }
+  return [...counts.values()].map(({ table, reason, count }) => ({
+    kind: `${origin}:${table}`,
+    reason: `${reason} (${count} row${count === 1 ? '' : 's'})`
+  }))
+}
+
 export interface MaterializedDatabase {
   readonly summary: MaterializationSummary
   /** SHA-256 of the sealed file — the identity later recorded in the manifest or the restore journal. */
