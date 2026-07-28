@@ -67,6 +67,14 @@ const fsyncDirFailure = vi.hoisted(() => ({
   shouldFail: null as ((dir: string) => boolean) | null
 }))
 
+const inverseRenameFailure = vi.hoisted(() => ({
+  shouldFail: null as ((source: string, target: string) => boolean) | null
+}))
+
+const inverseRemoveFailure = vi.hoisted(() => ({
+  shouldFail: null as ((target: string) => boolean) | null
+}))
+
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFsModule>()
   const openSync = (...args: Parameters<typeof actual.openSync>) => {
@@ -76,7 +84,21 @@ vi.mock('node:fs', async (importOriginal) => {
     }
     return actual.openSync(...args)
   }
-  return { ...actual, default: { ...actual, openSync }, openSync }
+  const renameSync = (...args: Parameters<typeof actual.renameSync>) => {
+    const [source, target] = args
+    if (typeof source === 'string' && typeof target === 'string' && inverseRenameFailure.shouldFail?.(source, target)) {
+      throw Object.assign(new Error('EPERM: injected rename failure'), { code: 'EPERM' })
+    }
+    return actual.renameSync(...args)
+  }
+  const rmSync = (...args: Parameters<typeof actual.rmSync>) => {
+    const [target] = args
+    if (typeof target === 'string' && inverseRemoveFailure.shouldFail?.(target)) {
+      throw Object.assign(new Error('EPERM: injected remove failure'), { code: 'EPERM' })
+    }
+    return actual.rmSync(...args)
+  }
+  return { ...actual, default: { ...actual, openSync, renameSync, rmSync }, openSync, renameSync, rmSync }
 })
 
 vi.mock('@data/db/restore/restoreJournalV1Compat', async (importOriginal) => {
@@ -120,6 +142,7 @@ const workRel = `restore-staging/${RID}/work.sqlite`
 const workPath = () => join(userData, workRel)
 const stagingDir = () => join(userData, 'restore-staging', RID)
 const journalPath = () => join(dataDir(), 'restore-journal.json')
+const parkedPath = () => join(userData, `work-failed-${RID}.sqlite`)
 
 /** Create a migrated, sealed (cleanly closed ⇒ no -wal) DB with a marker row. */
 function makeDb(dbPath: string, which: 'old' | 'new'): void {
@@ -186,7 +209,9 @@ async function buildJournal(overrides: JournalOverrides = {}): Promise<RestoreJo
   }
   const state = overrides.state ?? 'staged'
   if (state === 'staged') return { ...base, state }
-  if (state === 'promoting') return { ...base, state, step: overrides.step ?? 'gate-passed' }
+  if (state === 'promoting' || state === 'reverting') {
+    return { ...base, state, step: overrides.step ?? 'gate-passed' }
+  }
   return { ...base, state, step: overrides.step }
 }
 
@@ -256,6 +281,8 @@ describe('runRestorePromotion', () => {
     userData = mkdtempSync(join(tmpdir(), 'cs-restore-promotion-'))
     markerFailure.shouldFail = null
     fsyncDirFailure.shouldFail = null
+    inverseRenameFailure.shouldFail = null
+    inverseRemoveFailure.shouldFail = null
   })
 
   afterEach(() => {
@@ -655,6 +682,152 @@ describe('runRestorePromotion', () => {
     expect(existsSync(stagingDir())).toBe(false)
   })
 
+  it('keeps pre-commit rollback active after an additive inverse EPERM, restores every other entry, then converges', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    seedManifestFixtures()
+    const journal = await buildJournal({ fileResources: standardManifest() })
+    arrangeAdditiveMoved()
+    renameSync(livePath(), asidePath())
+    inverseRenameFailure.shouldFail = (source, target) =>
+      source === liveBlob() && target === join(stagingDir(), 'files', 'blob-1')
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+
+    await expect(runRestorePromotion()).rejects.toThrow(/pre-commit rollback is incomplete/)
+
+    expect(readMarker(livePath())).toBe('old')
+    expect(existsSync(asidePath())).toBe(false)
+    expect(readFileSync(liveBlob(), 'utf8')).toBe('BLOB-NEW')
+    expect(existsSync(liveKbDir())).toBe(false)
+    expect(journalState()).toBe('promoting')
+    expect(existsSync(stagingDir())).toBe(true)
+
+    inverseRenameFailure.shouldFail = null
+    await runRestorePromotion()
+
+    expect(journalState()).toBe('failed')
+    expect(existsSync(stagingDir())).toBe(false)
+    expect(existsSync(liveBlob())).toBe(false)
+  })
+
+  it('keeps post-commit revert active after an overwrite inverse EPERM, restores every add, then converges', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    seedManifestFixtures()
+    const journal = await buildJournal({ fileResources: standardManifest() })
+    arrangeAdditiveMoved()
+    mkdirSync(dirname(noteAside()), { recursive: true })
+    renameSync(liveNote(), noteAside())
+    renameSync(join(stagingDir(), 'notes', 'note.md'), liveNote())
+    renameSync(join(stagingDir(), 'notes', 'added.md'), liveAddedNote())
+    renameSync(workPath(), parkedPath())
+    inverseRemoveFailure.shouldFail = (target) => target === liveNote()
+    writeRestoreJournal({ ...journal, state: 'reverting', step: 'entries-applied' } as RestoreJournal)
+
+    await expect(runRestorePromotion()).rejects.toThrow(/post-commit revert is incomplete/)
+
+    expect(readMarker(livePath())).toBe('old')
+    expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-NEW')
+    expect(existsSync(liveBlob())).toBe(false)
+    expect(existsSync(liveKbDir())).toBe(false)
+    expect(existsSync(liveAddedNote())).toBe(false)
+    expect(journalState()).toBe('reverting')
+    expect(existsSync(stagingDir())).toBe(true)
+
+    inverseRemoveFailure.shouldFail = null
+    await runRestorePromotion()
+
+    expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
+    expect(existsSync(noteAside())).toBe(false)
+    expect(journalState()).toBe('failed')
+    expect(existsSync(stagingDir())).toBe(false)
+  })
+
+  it.each(['before', 'between', 'after'] as const)(
+    'resumes a marked post-commit revert at every reverse rename boundary: %s',
+    async (boundary) => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      const journal = await buildJournal()
+      if (boundary === 'before') {
+        rmSync(livePath())
+        makeDb(livePath(), 'new')
+        makeDb(asidePath(), 'old')
+      } else if (boundary === 'between') {
+        rmSync(livePath())
+        makeDb(asidePath(), 'old')
+        renameSync(workPath(), parkedPath())
+      } else {
+        renameSync(workPath(), parkedPath())
+      }
+      writeRestoreJournal({ ...journal, state: 'reverting', step: 'integrity-ok' } as RestoreJournal)
+
+      await runRestorePromotion()
+
+      expect(readMarker(livePath())).toBe('old')
+      expect(readMarker(parkedPath())).toBe('new')
+      expect(journalState()).toBe('failed')
+      expect(existsSync(stagingDir())).toBe(false)
+
+      cleanupTerminalRestoreArtifacts()
+      expect(readRestoreJournal()).toEqual({ kind: 'none' })
+    }
+  )
+
+  it.each(['live-to-parked', 'aside-to-live'] as const)(
+    'keeps a marked post-commit revert active when %s reverse rename gets EPERM, then converges on the next boot',
+    async (boundary) => {
+      makeDb(livePath(), 'new')
+      makeDb(workPath(), 'new')
+      makeDb(asidePath(), 'old')
+      const journal = await buildJournal()
+      inverseRenameFailure.shouldFail = (source, target) =>
+        boundary === 'live-to-parked'
+          ? source === livePath() && target === parkedPath()
+          : source === asidePath() && target === livePath()
+      writeRestoreJournal({ ...journal, state: 'reverting', step: 'integrity-ok' } as RestoreJournal)
+
+      await expect(runRestorePromotion()).rejects.toThrow(/EPERM/)
+
+      expect(journalState()).toBe('reverting')
+      expect(existsSync(stagingDir())).toBe(true)
+      if (boundary === 'live-to-parked') {
+        expect(readMarker(livePath())).toBe('new')
+        expect(readMarker(asidePath())).toBe('old')
+        expect(existsSync(parkedPath())).toBe(false)
+      } else {
+        expect(existsSync(livePath())).toBe(false)
+        expect(readMarker(asidePath())).toBe('old')
+        expect(readMarker(parkedPath())).toBe('new')
+      }
+
+      inverseRenameFailure.shouldFail = null
+      await runRestorePromotion()
+
+      expect(readMarker(livePath())).toBe('old')
+      expect(readMarker(parkedPath())).toBe('new')
+      expect(journalState()).toBe('failed')
+      expect(existsSync(stagingDir())).toBe(false)
+    }
+  )
+
+  it('persists reverting before reverse mutations and preserves an existing parked DB on ambiguous reentry', async () => {
+    makeDb(livePath(), 'new')
+    makeDb(workPath(), 'new')
+    makeDb(asidePath(), 'old')
+    makeDb(parkedPath(), 'new')
+    const journal = await buildJournal({ state: 'promoting', step: 'entries-applied' })
+    writeRestoreJournal(journal)
+
+    await expect(runRestorePromotion()).rejects.toThrow(/cannot prove a complete old database/)
+
+    expect(journalState()).toBe('reverting')
+    expect(readMarker(parkedPath())).toBe('new')
+    expect(readMarker(livePath())).toBe('new')
+    expect(readMarker(asidePath())).toBe('old')
+    expect(existsSync(stagingDir())).toBe(true)
+  })
+
   it('refuses a corrupt journal without deleting recovery evidence', async () => {
     makeDb(livePath(), 'old')
     mkdirSync(stagingDir(), { recursive: true })
@@ -925,26 +1098,24 @@ describe('runRestorePromotion', () => {
       expect(readMarker(livePath())).toBe('old')
     })
 
-    it('restores the aside to the live slot before freezing to failed (no empty-DB boot)', async () => {
+    it('preserves a stranded active promotion for the gate instead of deleting its retry evidence', async () => {
       makeDb(livePath(), 'old')
       makeDb(workPath(), 'new')
       const journal = await buildJournal()
-      // Escaped-crash arrangement mid-revert: live was parked away, the aside
-      // still holds the old DB, and the promotion logic threw before putting
-      // it back. Freezing to failed without restoring it would strand the
-      // user on a fresh empty database next boot.
+      // Escaped-crash arrangement mid-revert: live was parked away and the
+      // aside still holds the old DB. Only the active journal + staging tree
+      // can safely drive a retry, so the crash net must not terminalize them.
       renameSync(livePath(), asidePath())
-      // The work slot must be empty too — mid-revert the candidate DB was
-      // already parked as work-failed-*, so nothing here reads as resumable.
       rmSync(workPath())
       writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
 
       markRestoreFailedAfterCrash()
 
-      expect(readMarker(livePath())).toBe('old')
-      expect(existsSync(asidePath())).toBe(false)
-      expect(journalState()).toBe('failed')
-      expect(existsSync(stagingDir())).toBe(false)
+      expect(existsSync(livePath())).toBe(false)
+      expect(readMarker(asidePath())).toBe('old')
+      expect(journalState()).toBe('promoting')
+      expect(existsSync(stagingDir())).toBe(true)
+      expect(isLiveDbStranded()).toBe(true)
     })
 
     it('leaves a resumable post-commit state untouched (new DB live, old DB aside)', async () => {

@@ -97,6 +97,16 @@ describe('runBackupRestoreGate', () => {
     expect(v1.cleanup).toHaveBeenCalledOnce()
   })
 
+  it('blocks boot and preserves active v1 reverse recovery evidence', async () => {
+    formatVersion.mockReturnValue(1)
+    v1.pending.mockReturnValue(true)
+
+    await expect(runBackupRestoreGate()).rejects.toThrow(/mixed restore state/)
+
+    expect(v1.run).toHaveBeenCalledOnce()
+    expect(v1.cleanup).not.toHaveBeenCalled()
+  })
+
   it('refuses an empty or mixed state after escaped recovery', async () => {
     v2.run.mockRejectedValueOnce(new Error('boom'))
     v2.stranded.mockReturnValueOnce(true)
