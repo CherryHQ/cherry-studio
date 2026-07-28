@@ -319,10 +319,8 @@ A button component with multiple variants and sizes.
 
 **Props:**
 
-- `variant`: `default` | `destructive` | `outline` | `secondary` | `emphasis` | `ghost` | `chip` | `link`
+- `variant`: `default` | `destructive` | `outline` | `secondary` | `emphasis` | `ghost` | `link`
 - `size`: `default` | `sm` | `lg` | `icon` | `icon-sm` | `icon-lg` | `icon-navbar`
-- `pressed`: applies the shared pressed treatment and exposes `aria-pressed`
-- `active`: applies the same visual treatment for transient states such as an open menu without exposing `aria-pressed`
 - `loading`, `loadingIcon`, `loadingIconClassName`: loading-state controls
 - `asChild`: render through Radix `Slot`
 - all standard React button props
