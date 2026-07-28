@@ -77,6 +77,22 @@ describe('post-promotion work', () => {
     expect(reconcile).not.toHaveBeenCalled()
   })
 
+  it('does not restart work the user explicitly abandoned', async () => {
+    const completed = journal('completed', [BASE_ID])
+    if (completed.state !== 'completed') throw new Error('expected completed journal fixture')
+    writeRestoreJournalV2({
+      ...completed,
+      knowledgeRebuild: { completedBaseIds: [], abandoned: true }
+    })
+
+    await expect(runPostPromotionWork(() => true)).resolves.toEqual({
+      ran: true,
+      enqueuedBaseIds: [],
+      pending: false
+    })
+    expect(reconcile).not.toHaveBeenCalled()
+  })
+
   it('does no Knowledge work for Lite or a Full restore that transported no bases', async () => {
     writeRestoreJournalV2(journal('completed', []))
 

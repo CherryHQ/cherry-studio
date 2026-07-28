@@ -273,13 +273,27 @@ const BackupV2Settings: FC = () => {
       await ipcApi.request('backup.rollback_restore')
     })
 
-  const handleAcknowledge = () =>
+  const acknowledge = (knowledgeRebuild: 'require-complete' | 'abandon') =>
     run({ kind: 'other' }, async () => {
-      const result = await ipcApi.request('backup.acknowledge_restore')
+      if (knowledgeRebuild === 'abandon') {
+        const confirmed = await popup.confirm({
+          title: t('settings.data.backup_v2.outcome.abandon_rebuild_confirm_title'),
+          content: t('settings.data.backup_v2.outcome.abandon_rebuild_confirm_content'),
+          okText: t('settings.data.backup_v2.outcome.abandon_rebuild_confirm_ok'),
+          cancelText: t('common.cancel'),
+          centered: true,
+          okButtonProps: { danger: true }
+        })
+        if (!confirmed) return
+      }
+      const result = await ipcApi.request('backup.acknowledge_restore', { knowledgeRebuild })
       if (!result.acknowledged) return
       toast.closeToast(BACKUP_RESTORE_NOTICE_KEY)
       toast.success(t('settings.data.backup_v2.outcome.acknowledged'))
     })
+
+  const handleAcknowledge = () => acknowledge('require-complete')
+  const handleAbandonKnowledgeRebuild = () => acknowledge('abandon')
 
   const restore = status?.restore
   const journal = restore?.kind === 'journal' ? restore : null
@@ -349,7 +363,13 @@ const BackupV2Settings: FC = () => {
         <>
           <SettingDivider />
           <SettingRowTitle>{t('settings.data.backup_v2.outcome.title')}</SettingRowTitle>
-          <RestoreOutcome restore={restore} busy={busy} onRollback={handleRollback} onAcknowledge={handleAcknowledge} />
+          <RestoreOutcome
+            restore={restore}
+            busy={busy}
+            onRollback={handleRollback}
+            onAcknowledge={handleAcknowledge}
+            onAbandonKnowledgeRebuild={handleAbandonKnowledgeRebuild}
+          />
         </>
       )}
     </SettingGroup>
@@ -479,7 +499,8 @@ const RestoreOutcome: FC<{
   busy: boolean
   onRollback: () => void
   onAcknowledge: () => void
-}> = ({ restore, busy, onRollback, onAcknowledge }) => {
+  onAbandonKnowledgeRebuild: () => void
+}> = ({ restore, busy, onRollback, onAcknowledge, onAbandonKnowledgeRebuild }) => {
   const { t } = useTranslation()
 
   if (restore.kind === 'unreadable') {
@@ -499,16 +520,23 @@ const RestoreOutcome: FC<{
     !restore.resourcesIncomplete &&
     !restore.knowledgeRebuildPending
   const rollbackable = restore.state === 'completed' && !restore.resourcesIncomplete
+  const knowledgeRebuildAbandonable =
+    restore.state === 'completed' && restore.knowledgeRebuildPending === true && !restore.resourcesIncomplete
 
   return (
     <>
       <SettingRow>
         <SettingRowTitle>{t(RESTORE_STATE_KEYS[restore.state])}</SettingRowTitle>
-        {(rollbackable || acknowledgeable) && (
+        {(rollbackable || acknowledgeable || knowledgeRebuildAbandonable) && (
           <RowFlex className="gap-2">
             {rollbackable && (
               <Button variant="destructive" disabled={busy} onClick={onRollback}>
                 {t('settings.data.backup_v2.rollback.button')}
+              </Button>
+            )}
+            {knowledgeRebuildAbandonable && (
+              <Button disabled={busy} onClick={onAbandonKnowledgeRebuild}>
+                {t('settings.data.backup_v2.outcome.abandon_rebuild_button')}
               </Button>
             )}
             {acknowledgeable && (

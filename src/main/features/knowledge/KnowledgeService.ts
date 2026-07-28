@@ -1,9 +1,11 @@
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type {
   CreateKnowledgeBaseDto,
@@ -37,7 +39,9 @@ import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
+import { narrowKnowledgeJobInput } from './tasks/utils/jobInput'
 import {
+  KNOWLEDGE_ACTIVE_JOB_STATUSES,
   knowledgeQueueName,
   knowledgeRestoreIndexIdempotencyKey,
   type KnowledgeBaseDiscoveryOptions,
@@ -51,6 +55,8 @@ class ProfileMutationKeyedMutex extends KeyedMutex {
     return super.runExclusive(key, () => profileMutationBarrier.runMutation(task))
   }
 }
+
+const logger = loggerService.withContext('KnowledgeService')
 
 /**
  * Facade of the knowledge feature: registers the job handlers, runs boot-time
@@ -145,7 +151,18 @@ export class KnowledgeService extends BaseService {
    * that `index.sqlite` exists.
    */
   async reconcileRestoredBaseFromMaterial(baseId: string, restoreId: string): Promise<'completed' | 'pending'> {
-    const base = knowledgeBaseService.getById(baseId)
+    let base: KnowledgeBase
+    try {
+      base = knowledgeBaseService.getById(baseId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        return 'completed'
+      }
+      throw error
+    }
+
+    if ((await this.listActiveRestoreIndexJobs(baseId, restoreId)).length > 0) return 'pending'
+
     const items = knowledgeItemService
       .getItemsByBaseId(baseId)
       .filter(isIndexableKnowledgeItem)
@@ -183,6 +200,40 @@ export class KnowledgeService extends BaseService {
       )
     }
     return 'pending'
+  }
+
+  /** Stop every still-active indexing job created by one restore-specific rebuild. */
+  async cancelRestoredMaterialRebuild(restoreId: string): Promise<void> {
+    const jobManager = application.get('JobManager')
+    const jobs = await jobManager.list({
+      type: 'knowledge.index-documents',
+      status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES]
+    })
+    const matching = jobs.filter((job) => {
+      const narrowed = narrowKnowledgeJobInput(job)
+      return narrowed?.type === 'knowledge.index-documents' && narrowed.input.restoreId === restoreId
+    })
+    const results = await Promise.all(
+      matching.map((job) => jobManager.cancel(job.id, 'backup-restore-rebuild-abandoned'))
+    )
+    const timedOut = results.filter((result) => result.outcome === 'timed-out').length
+    if (timedOut > 0) {
+      logger.warn('Some abandoned restore indexing jobs did not stop within the cancellation grace period', {
+        restoreId,
+        timedOut
+      })
+    }
+  }
+
+  private async listActiveRestoreIndexJobs(baseId: string, restoreId: string) {
+    const jobs = await application.get('JobManager').list({
+      queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
+      status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES]
+    })
+    return jobs.filter((job) => {
+      const narrowed = narrowKnowledgeJobInput(job)
+      return narrowed?.type === 'knowledge.index-documents' && narrowed.input.restoreId === restoreId
+    })
   }
 
   /**

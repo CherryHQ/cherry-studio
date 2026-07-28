@@ -7,7 +7,7 @@ import type { RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { acknowledgeRestore } from '../acknowledgeRestore'
+import { abandonKnowledgeRebuild, acknowledgeRestore } from '../acknowledgeRestore'
 
 /**
  * Acknowledgement is the only thing that lets go of a restore's rollback
@@ -258,6 +258,20 @@ describe('acknowledgeRestore', () => {
       })
     )
     expect(acknowledgeRestore().acknowledged).toBe(true)
+  })
+
+  it('durably records an explicit rebuild give-up and then releases rollback material', () => {
+    writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
+    writeRestoreJournalV2(journal({ summary: { knowledgeBaseIds: ['kb-1', 'kb-2'] } }))
+
+    expect(abandonKnowledgeRebuild()).toEqual({ restoreId: RID, pendingBaseIds: ['kb-1', 'kb-2'] })
+    const read = readRestoreJournalV2()
+    expect(read).toMatchObject({
+      kind: 'ok',
+      journal: { knowledgeRebuild: { completedBaseIds: [], abandoned: true } }
+    })
+    expect(acknowledgeRestore().acknowledged).toBe(true)
+    expect(existsSync(join(userData, asideRel))).toBe(false)
   })
 
   it('refuses to guess at an unreadable journal', () => {

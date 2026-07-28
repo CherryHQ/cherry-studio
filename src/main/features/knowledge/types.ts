@@ -67,6 +67,7 @@ export type KnowledgeProgressDetail =
       stage: 'failed'
     }
 
+export const KNOWLEDGE_ACTIVE_JOB_STATUSES = ['pending', 'delayed', 'running'] as const
 export const KNOWLEDGE_ACTIVE_JOB_LIMIT = 5000
 
 export function toKnowledgeBaseId(baseId: string): KnowledgeBaseId {
