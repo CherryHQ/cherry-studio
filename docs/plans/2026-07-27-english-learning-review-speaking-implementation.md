@@ -381,6 +381,11 @@ Batch within provider limits, but isolate each source result so one malformed it
 
 ## Phase 3 — FSRS review and daily queue
 
+**Implementation note (2026-07-28):** the review adapter pins `ts-fsrs@5.4.1`. Persisted state is
+owned by Cherry Studio and contains `dueAt`, `stability`, `difficulty`, `elapsedDays`,
+`scheduledDays`, `reps`, `lapses`, `learningSteps`, `phase`, `lastReviewAt`, `suspended`, and
+`schedulerVersion`. Library `Card` objects do not cross the adapter boundary.
+
 ### Task 3.1: Add the FSRS adapter
 
 **Add**

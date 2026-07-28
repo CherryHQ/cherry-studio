@@ -184,6 +184,23 @@ export class LearningSourceService {
     return this.setStatus(id, 'excluded')
   }
 
+  requeueInterrupted(): number {
+    const rows = this.db
+      .update(learningSourceTable)
+      .set({ status: 'pending', error: null, processedAt: null })
+      .where(eq(learningSourceTable.status, 'processing'))
+      .returning({ id: learningSourceTable.id })
+      .all()
+    if (rows.length > 0) {
+      notifyDataApiDataChange([
+        { endpoint: '/english-learning/sources', kind: 'membership', entityIds: rows.map((row) => row.id) },
+        { endpoint: '/english-learning/dashboard' }
+      ])
+      logger.info('Requeued interrupted learning sources', { count: rows.length })
+    }
+    return rows.length
+  }
+
   private getRowById(id: string): LearningSourceRow {
     const [row] = this.db.select().from(learningSourceTable).where(eq(learningSourceTable.id, id)).limit(1).all()
     if (!row) throw DataApiErrorFactory.notFound('LearningSource', id)

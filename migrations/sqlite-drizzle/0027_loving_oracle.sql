@@ -1,0 +1,1 @@
+ALTER TABLE `review_state` ADD `scheduler_version` text DEFAULT 'ts-fsrs@5.4.1' NOT NULL;

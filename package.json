@@ -124,6 +124,7 @@
     "sqlite-vec": "npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2",
     "tar": "^7.5.11",
     "tesseract.js": "6.0.1",
+    "ts-fsrs": "5.4.1",
     "turndown": "7.2.0",
     "ws": "^8.21.0",
     "xxhash-wasm": "^1.1.0"

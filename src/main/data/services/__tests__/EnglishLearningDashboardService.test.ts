@@ -61,6 +61,7 @@ describe('EnglishLearningDashboardService', () => {
       learningSteps: 0,
       phase: 'review',
       lastReviewAt: null,
+      schedulerVersion: 'ts-fsrs@5.4.1',
       suspended: false
     }
     dbh.db

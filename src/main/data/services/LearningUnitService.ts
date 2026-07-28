@@ -3,7 +3,12 @@ import { createHash } from 'node:crypto'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { learningSourceTable } from '@data/db/schemas/learningSource'
-import { type LearningUnitRow, learningUnitSourceTable, learningUnitTable } from '@data/db/schemas/learningUnit'
+import {
+  learningUnitDedupDecisionTable,
+  type LearningUnitRow,
+  learningUnitSourceTable,
+  learningUnitTable
+} from '@data/db/schemas/learningUnit'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -11,8 +16,8 @@ import type {
   LearningUnitListResponse,
   UpdateLearningUnitDto
 } from '@shared/data/api/schemas/englishLearning'
-import type { LearningUnit, LearningUnitKind } from '@shared/data/types/englishLearning'
-import { and, eq, ne, or, type SQL, sql } from 'drizzle-orm'
+import type { LearningDedupDecision, LearningUnit, LearningUnitKind } from '@shared/data/types/englishLearning'
+import { and, desc, eq, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
@@ -31,6 +36,18 @@ export interface UpsertLearningUnitCandidateInput {
   extractionConfidence?: number | null
 }
 
+export interface RecordLearningDedupDecisionInput {
+  sourceId: string
+  matchedUnitId: string | null
+  resultingUnitId: string
+  candidateEnglish: string
+  candidateMeaning: string
+  candidateHash: string
+  decision: LearningDedupDecision
+  confidence: number
+  modelId: string
+}
+
 export function normalizeLearningText(value: string): string {
   return value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US')
 }
@@ -43,6 +60,21 @@ export function computeLearningUnitExactHash(english: string, meaning: string): 
 
 function normalizeTags(tags: string[]): string[] {
   return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))]
+}
+
+function lexicalTokens(value: string): Set<string> {
+  return new Set(normalizeLearningText(value).match(/[\p{L}\p{N}']+/gu) ?? [])
+}
+
+function lexicalSimilarity(left: string, right: string): number {
+  const leftTokens = lexicalTokens(left)
+  const rightTokens = lexicalTokens(right)
+  if (leftTokens.size === 0 || rightTokens.size === 0) return 0
+  let intersection = 0
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) intersection += 1
+  }
+  return intersection / (leftTokens.size + rightTokens.size - intersection)
 }
 
 function rowToLearningUnit(row: LearningUnitRow): LearningUnit {
@@ -165,6 +197,84 @@ export class LearningUnitService {
       sourceId: input.sourceId
     })
     return rowToLearningUnit(row)
+  }
+
+  findSemanticCandidates(english: string, meaning: string, limit = 8): LearningUnit[] {
+    const candidateText = `${english} ${meaning}`
+    return this.db
+      .select()
+      .from(learningUnitTable)
+      .where(eq(learningUnitTable.suspended, false))
+      .orderBy(desc(learningUnitTable.updatedAt))
+      .limit(200)
+      .all()
+      .map((row) => ({
+        row,
+        score:
+          lexicalSimilarity(candidateText, `${row.english} ${row.meaning}`) +
+          (normalizeLearningText(english) === row.normalizedEnglish ? 1 : 0) +
+          (normalizeLearningText(meaning) === normalizeLearningText(row.meaning) ? 0.5 : 0)
+      }))
+      .filter(({ score }) => score >= 0.15)
+      .sort((left, right) => right.score - left.score)
+      .slice(0, limit)
+      .map(({ row }) => rowToLearningUnit(row))
+  }
+
+  linkSource(unitId: string, sourceId: string): LearningUnit {
+    const unit = application.get('DbService').withWriteTx((tx) => {
+      const existingUnit = tx.select().from(learningUnitTable).where(eq(learningUnitTable.id, unitId)).limit(1).get()
+      if (!existingUnit) throw DataApiErrorFactory.notFound('LearningUnit', unitId)
+      const source = tx.select().from(learningSourceTable).where(eq(learningSourceTable.id, sourceId)).limit(1).get()
+      if (!source) throw DataApiErrorFactory.notFound('LearningSource', sourceId)
+      tx.insert(learningUnitSourceTable)
+        .values({ learningUnitId: unitId, learningSourceId: sourceId })
+        .onConflictDoNothing()
+        .run()
+      return existingUnit
+    })
+    this.notifyChanged(unitId, 'projection')
+    return rowToLearningUnit(unit)
+  }
+
+  recordDedupDecision(input: RecordLearningDedupDecisionInput): void {
+    this.db
+      .insert(learningUnitDedupDecisionTable)
+      .values({
+        learningSourceId: input.sourceId,
+        matchedUnitId: input.matchedUnitId,
+        resultingUnitId: input.resultingUnitId,
+        candidateEnglish: input.candidateEnglish,
+        candidateMeaning: input.candidateMeaning,
+        candidateHash: input.candidateHash,
+        decision: input.decision,
+        confidence: input.confidence,
+        modelId: input.modelId
+      })
+      .onConflictDoNothing()
+      .run()
+  }
+
+  findDedupDecision(sourceId: string, candidateHash: string): LearningUnit | null {
+    const decision = this.db
+      .select({ resultingUnitId: learningUnitDedupDecisionTable.resultingUnitId })
+      .from(learningUnitDedupDecisionTable)
+      .where(
+        and(
+          eq(learningUnitDedupDecisionTable.learningSourceId, sourceId),
+          eq(learningUnitDedupDecisionTable.candidateHash, candidateHash)
+        )
+      )
+      .limit(1)
+      .get()
+    if (!decision?.resultingUnitId) return null
+    const unit = this.db
+      .select()
+      .from(learningUnitTable)
+      .where(eq(learningUnitTable.id, decision.resultingUnitId))
+      .limit(1)
+      .get()
+    return unit ? rowToLearningUnit(unit) : null
   }
 
   update(id: string, dto: UpdateLearningUnitDto): LearningUnit {

@@ -215,6 +215,111 @@
       "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
+      "targetKey": "feature.english_learning.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Enable automatic English learning history ingestion, review, and speaking"
+    },
+    {
+      "targetKey": "feature.english_learning.daily_time_budget_minutes",
+      "type": "number",
+      "defaultValue": 15,
+      "status": "classified",
+      "description": "Target duration of the daily English review queue"
+    },
+    {
+      "targetKey": "feature.english_learning.new_card_limit",
+      "type": "number",
+      "defaultValue": 20,
+      "status": "classified",
+      "description": "Maximum number of new English review cards introduced per day"
+    },
+    {
+      "targetKey": "feature.english_learning.review_time",
+      "type": "string",
+      "defaultValue": "19:00",
+      "status": "classified",
+      "description": "Preferred local time for the daily English review reminder"
+    },
+    {
+      "targetKey": "feature.english_learning.quiet_hours_start",
+      "type": "string",
+      "defaultValue": "22:00",
+      "status": "classified",
+      "description": "Start of local quiet hours for English learning notifications"
+    },
+    {
+      "targetKey": "feature.english_learning.quiet_hours_end",
+      "type": "string",
+      "defaultValue": "08:00",
+      "status": "classified",
+      "description": "End of local quiet hours for English learning notifications"
+    },
+    {
+      "targetKey": "feature.english_learning.snooze_minutes",
+      "type": "number",
+      "defaultValue": 30,
+      "status": "classified",
+      "description": "Default duration for postponing an English learning reminder"
+    },
+    {
+      "targetKey": "feature.english_learning.snoozed_until",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Persisted ISO timestamp for the active English learning notification snooze"
+    },
+    {
+      "targetKey": "feature.english_learning.model.chat_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Optional preferred configured chat model for learning extraction and speaking feedback"
+    },
+    {
+      "targetKey": "feature.english_learning.model.transcription_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Optional preferred configured transcription model for speaking practice"
+    },
+    {
+      "targetKey": "feature.english_learning.model.synthesis_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Optional preferred configured speech synthesis model for speaking practice"
+    },
+    {
+      "targetKey": "feature.english_learning.model.realtime_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Optional preferred configured realtime speech model for speaking practice"
+    },
+    {
+      "targetKey": "feature.english_learning.obsidian.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable the one-way English learning Markdown mirror into Obsidian"
+    },
+    {
+      "targetKey": "feature.english_learning.obsidian.vault_path",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "User-selected external Obsidian vault root for the learning mirror"
+    },
+    {
+      "targetKey": "feature.english_learning.obsidian.folder",
+      "type": "string",
+      "defaultValue": "Cherry English",
+      "status": "classified",
+      "description": "Relative folder inside the selected Obsidian vault for mirrored learning notes"
+    },
+    {
       "targetKey": "feature.paintings.default_model_id",
       "type": "string",
       "defaultValue": null,

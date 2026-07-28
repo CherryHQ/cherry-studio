@@ -1,12 +1,15 @@
 import * as z from 'zod'
 
 import {
+  type DailyReviewQueue,
   type LearningSource,
   LearningSourceKindSchema,
   LearningSourceStatusSchema,
   type LearningUnit,
   LearningUnitKindSchema,
-  LearningUnitSchema
+  LearningUnitSchema,
+  ReviewRatingSchema,
+  type ReviewSubmissionResult
 } from '../../types/englishLearning'
 import type { CursorPaginationParams, CursorPaginationResponse } from '../types'
 
@@ -57,6 +60,22 @@ export const UpdateLearningUnitSchema = LearningUnitSchema.pick({
   .partial()
   .refine((value) => Object.keys(value).length > 0, { message: 'At least one learning unit field is required' })
 export type UpdateLearningUnitDto = z.infer<typeof UpdateLearningUnitSchema>
+
+export const DailyReviewQueueQuerySchema = z.strictObject({
+  limit: z.coerce.number().int().positive().max(100).default(50)
+})
+export type DailyReviewQueueQuery = z.infer<typeof DailyReviewQueueQuerySchema>
+
+export const SubmitReviewSchema = z.strictObject({
+  cardId: z.uuidv7(),
+  rating: ReviewRatingSchema,
+  durationMs: z
+    .int()
+    .nonnegative()
+    .max(60 * 60 * 1_000),
+  clientMutationId: z.string().trim().min(1).max(200)
+})
+export type SubmitReviewDto = z.infer<typeof SubmitReviewSchema>
 
 export interface EnglishLearningDashboard {
   sources: Record<z.infer<typeof LearningSourceStatusSchema>, number>
@@ -112,6 +131,18 @@ export type EnglishLearningSchemas = {
       params: { id: string }
       body: UpdateLearningUnitDto
       response: LearningUnit
+    }
+  }
+  '/english-learning/reviews/today': {
+    GET: {
+      query?: DailyReviewQueueQuery
+      response: DailyReviewQueue
+    }
+  }
+  '/english-learning/reviews/submit': {
+    POST: {
+      body: SubmitReviewDto
+      response: ReviewSubmissionResult
     }
   }
 }

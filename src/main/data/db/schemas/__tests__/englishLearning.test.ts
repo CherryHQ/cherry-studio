@@ -105,6 +105,7 @@ describe('English learning schemas', () => {
       learningSteps: 0,
       phase: 'new' as const,
       lastReviewAt: null,
+      schedulerVersion: 'ts-fsrs@5.4.1',
       suspended: false
     }
     dbh.db

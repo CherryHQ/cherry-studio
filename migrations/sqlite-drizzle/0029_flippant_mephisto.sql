@@ -1,0 +1,2 @@
+ALTER TABLE `learning_unit_dedup_decision` ADD `candidate_hash` text NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `learning_unit_dedup_source_candidate_uq` ON `learning_unit_dedup_decision` (`learning_source_id`,`candidate_hash`);

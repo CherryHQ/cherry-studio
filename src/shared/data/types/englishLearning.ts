@@ -9,6 +9,9 @@ export type LearningSourceStatus = z.infer<typeof LearningSourceStatusSchema>
 export const LearningUnitKindSchema = z.enum(['expression', 'sentence', 'correction', 'pattern'])
 export type LearningUnitKind = z.infer<typeof LearningUnitKindSchema>
 
+export const LearningDedupDecisionSchema = z.enum(['same', 'related', 'distinct'])
+export type LearningDedupDecision = z.infer<typeof LearningDedupDecisionSchema>
+
 export const ReviewCardDirectionSchema = z.enum(['recognition', 'production', 'listening'])
 export type ReviewCardDirection = z.infer<typeof ReviewCardDirectionSchema>
 
@@ -77,11 +80,34 @@ export interface SerializedReviewState {
   learningSteps: number
   phase: ReviewStatePhase
   lastReviewAt: string | null
+  schedulerVersion: string
   suspended: boolean
 }
 
 export interface ReviewStateSnapshot {
   cardId: string
+  state: SerializedReviewState
+}
+
+export interface DailyReviewCard {
+  cardId: string
+  direction: ReviewCardDirection
+  unit: LearningUnit
+  state: SerializedReviewState
+}
+
+export interface DailyReviewQueue {
+  items: DailyReviewCard[]
+  dueTotal: number
+  newTotal: number
+  estimatedMinutes: number
+}
+
+export interface ReviewSubmissionResult {
+  eventId: string
+  cardId: string
+  rating: ReviewRating
+  reviewedAt: string
   state: SerializedReviewState
 }
 

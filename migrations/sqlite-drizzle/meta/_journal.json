@@ -189,6 +189,27 @@
       "when": 1785224872845,
       "tag": "0026_polite_ulik",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1785241854156,
+      "tag": "0027_loving_oracle",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1785242321443,
+      "tag": "0028_cultured_shinobi_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1785242556460,
+      "tag": "0029_flippant_mephisto",
+      "breakpoints": true
     }
   ],
   "version": "7"

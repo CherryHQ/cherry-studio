@@ -36,6 +36,7 @@ export const reviewStateTable = sqliteTable(
     learningSteps: integer().notNull(),
     phase: text().$type<ReviewStatePhase>().notNull(),
     lastReviewAt: integer(),
+    schedulerVersion: text().notNull().default('ts-fsrs@5.4.1'),
     suspended: integer({ mode: 'boolean' }).notNull().default(false),
     ...createUpdateTimestamps
   },
