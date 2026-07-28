@@ -310,6 +310,8 @@
   /* Cherry Studio Product Colors */
   /* ==================== */
   --color-background-subtle: var(--background-subtle);
+  --color-chat-canvas: var(--chat-canvas);
+  --color-chat-composer: var(--chat-composer);
   --color-border-subtle: var(--border-subtle);
   --color-border-strong: var(--border-strong);
   --color-success: var(--success);
