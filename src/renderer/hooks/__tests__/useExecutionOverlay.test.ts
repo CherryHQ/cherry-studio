@@ -52,6 +52,9 @@ const { fake } = vi.hoisted(() => {
       }
       return false
     },
+    isTopicOpen() {
+      return false
+    },
     unregister(executionId: string, anchorMessageId?: string) {
       const key = keyOf(executionId, anchorMessageId)
       const b = branches.get(key)
@@ -65,6 +68,9 @@ const { fake } = vi.hoisted(() => {
     onExecutionTerminal(cb: (id: string, t: ExecutionTerminal) => void) {
       terminalCbs.add(cb)
       return () => terminalCbs.delete(cb)
+    },
+    onTopicStateChange() {
+      return () => {}
     },
     // test helpers
     emit(executionId: string, chunk: CherryUIMessageChunk, anchorMessageId?: string) {
