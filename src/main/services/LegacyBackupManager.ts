@@ -132,8 +132,8 @@ class BackupManager {
   }
 
   /**
-   * Direct backup method - copies Data (excluding transient SQLite sidecars)
-   * plus cache.json, IndexedDB, and Local Storage.
+   * Direct backup method - copies Data (excluding transient SQLite sidecars
+   * and the internal restore journal) plus cache.json, IndexedDB, and Local Storage.
    * @param _ - Electron IPC event
    * @param fileName - Name of the backup file
    * @param destinationPath - Path to save the backup (defaults to this.backupDir)
@@ -188,13 +188,19 @@ class BackupManager {
         if (!databaseDataPath) {
           throw new Error('SQLite database is not inside the Data directory')
         }
+        const restoreJournalDataPath = this.toDataRelative(application.getPath('feature.backup.restore.file'))
 
         if (await fs.pathExists(sourcePath)) {
           const copyOptions: CopyDirOptions = {
             dereferenceSymlinks: true,
             excludeRelativePath: (relativePath) => {
               const normalizedPath = path.normalize(relativePath)
-              return normalizedPath === `${databaseDataPath}-wal` || normalizedPath === `${databaseDataPath}-shm`
+              return (
+                normalizedPath === `${databaseDataPath}-wal` ||
+                normalizedPath === `${databaseDataPath}-shm` ||
+                (restoreJournalDataPath !== null &&
+                  (normalizedPath === restoreJournalDataPath || normalizedPath === `${restoreJournalDataPath}.tmp`))
+              )
             },
             sourceRootPath: sourcePath
           }

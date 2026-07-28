@@ -10,7 +10,7 @@ import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
 import { hashDbFile } from './hashDbFile'
 import type { PromotionStep, RestoreJournal } from './restoreJournal'
-import { PROMOTION_STEP_ORDER, readRestoreJournal, writeRestoreJournal } from './restoreJournal'
+import { PROMOTION_STEP_ORDER, readRestoreJournal, removeRestoreJournal, writeRestoreJournal } from './restoreJournal'
 
 const logger = loggerService.withContext('RestorePromotion')
 
@@ -63,12 +63,44 @@ export async function runRestorePromotion(): Promise<void> {
     case 'completed':
     case 'failed':
     case 'expired':
-      // Reporting + deletion of terminal journals is owned by BackupService.
+      // The gate shell consumes terminal journals after its stranded-DB check.
       return
     case 'staged':
       return promoteStaged(journal)
     case 'promoting':
       return recoverPromoting(journal)
+  }
+}
+
+/**
+ * Consume terminal restore artifacts after the gate has proved that no live
+ * database is stranded. Active and corrupt journals remain untouched.
+ */
+export function cleanupTerminalRestoreArtifacts(): void {
+  const read = readRestoreJournal()
+  if (read.kind !== 'ok') {
+    return
+  }
+  const journal = read.journal
+  if (journal.state === 'staged' || journal.state === 'promoting') {
+    return
+  }
+
+  try {
+    const stagingRoot = application.getPath('feature.backup.restore.staging')
+    fs.rmSync(path.join(stagingRoot, journal.restoreId), { recursive: true, force: true })
+    removeRestoreJournal()
+    logger.info('Terminal restore journal consumed and removed', {
+      restoreId: journal.restoreId,
+      state: journal.state,
+      step: journal.step
+    })
+  } catch (error) {
+    logger.warn('Failed to remove terminal restore journal — will retry on the next launch', {
+      restoreId: journal.restoreId,
+      state: journal.state,
+      error
+    })
   }
 }
 
@@ -585,8 +617,8 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
 /**
  * Every terminal outcome writes the journal state and deletes the staging
  * tree (the staging tree's lifecycle is wholly owned by this state machine).
- * Terminal journals themselves are kept — BackupService reads them for the
- * post-boot report and owns their deletion.
+ * The gate shell removes the terminal journal only after its stranded-DB
+ * safety check, so the crash net can still locate the parked aside.
  */
 function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expired', step?: PromotionStep): void {
   writeRestoreJournal({ ...ctx.journal, state, step } as RestoreJournal)

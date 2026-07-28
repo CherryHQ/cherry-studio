@@ -19,7 +19,12 @@ import { hashDbFile } from '@data/db/restore/hashDbFile'
 import type * as RestoreJournalModule from '@data/db/restore/restoreJournal'
 import type { RestoreJournal } from '@data/db/restore/restoreJournal'
 import { readRestoreJournal, writeRestoreJournal } from '@data/db/restore/restoreJournal'
-import { isLiveDbStranded, markRestoreFailedAfterCrash, runRestorePromotion } from '@data/db/restore/restorePromotion'
+import {
+  cleanupTerminalRestoreArtifacts,
+  isLiveDbStranded,
+  markRestoreFailedAfterCrash,
+  runRestorePromotion
+} from '@data/db/restore/restorePromotion'
 import { appStateTable } from '@data/db/schemas/appState'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
@@ -263,7 +268,7 @@ describe('runRestorePromotion', () => {
     expect(readdirSync(userData)).toEqual([])
   })
 
-  it('returns without touching anything on a terminal journal', async () => {
+  it('leaves a terminal journal for the gate shell to consume', async () => {
     makeDb(livePath(), 'old')
     // Terminal journals are never gate-checked, so no work DB is needed.
     writeRestoreJournal(await buildJournal({ state: 'expired', chain: [{ folderMillis: 1, hash: 'x' }] }))
@@ -272,6 +277,36 @@ describe('runRestorePromotion', () => {
 
     expect(journalState()).toBe('expired')
     expect(readMarker(livePath())).toBe('old')
+  })
+
+  it('cleans a terminal journal and any remaining restore staging after the stranded-DB check', async () => {
+    makeDb(livePath(), 'old')
+    mkdirSync(stagingDir(), { recursive: true })
+    writeFileSync(join(stagingDir(), 'leftover'), 'stale')
+    writeRestoreJournal(
+      await buildJournal({
+        state: 'completed',
+        step: 'integrity-ok',
+        chain: [{ folderMillis: 1, hash: 'x' }]
+      })
+    )
+
+    cleanupTerminalRestoreArtifacts()
+
+    expect(readRestoreJournal()).toEqual({ kind: 'none' })
+    expect(existsSync(stagingDir())).toBe(false)
+    expect(readMarker(livePath())).toBe('old')
+  })
+
+  it('does not clean an active restore journal', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    writeRestoreJournal(await buildJournal())
+
+    cleanupTerminalRestoreArtifacts()
+
+    expect(journalState()).toBe('staged')
+    expect(existsSync(stagingDir())).toBe(true)
   })
 
   it('promotes a valid staged restore end to end (DB swap + manifest + terminal journal)', async () => {

@@ -394,7 +394,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
   })
 
-  it('copies Data while excluding only transient SQLite sidecars', async () => {
+  it('copies Data while excluding transient SQLite sidecars and the restore journal', async () => {
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
       return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
     })
@@ -412,7 +412,8 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(options.excludeRelativePath('cherrystudio.sqlite')).toBe(false)
     expect(options.excludeRelativePath('cherrystudio.sqlite-wal')).toBe(true)
     expect(options.excludeRelativePath('cherrystudio.sqlite-shm')).toBe(true)
-    expect(options.excludeRelativePath('restore-journal.json')).toBe(false)
+    expect(options.excludeRelativePath('restore-journal.json')).toBe(true)
+    expect(options.excludeRelativePath('restore-journal.json.tmp')).toBe(true)
     expect(options.excludeRelativePath('Agents/.claude/projects/session.jsonl')).toBe(false)
     expect(options.excludeRelativePath('Files/document.pdf')).toBe(false)
   })
