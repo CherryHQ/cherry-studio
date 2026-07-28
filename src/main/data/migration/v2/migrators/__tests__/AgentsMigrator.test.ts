@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -57,7 +61,9 @@ function createSchemaInfo() {
 function createMigrationContext(overrides: Record<string, unknown> = {}) {
   return {
     paths: {
-      legacyAgentDbFile: '/mock/Data/agents.db'
+      legacyAgentDbFile: '/mock/Data/agents.db',
+      legacyClaudeConfigDir: '/mock/.claude',
+      claudeConfigDir: '/mock/Data/Agents/.claude'
     },
     sharedData: new Map(),
     ...overrides
@@ -84,6 +90,32 @@ describe('AgentsMigrator', () => {
     expect(result.success).toBe(true)
     expect(result.itemCount).toBe(0)
     expect(result.warnings).toEqual(['agents.db not found - no agents data to migrate'])
+  })
+
+  it('copies the legacy Claude config even when no legacy agents db exists', async () => {
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue(null)
+    const tempRoot = await mkdtemp(join(tmpdir(), 'agents-migrator-claude-config-'))
+    const source = join(tempRoot, '.claude')
+    const destination = join(tempRoot, 'Data', 'Agents', '.claude')
+    await mkdir(source)
+    await writeFile(join(source, 'settings.json'), '{"migrated":true}')
+
+    try {
+      await migrator.execute(
+        createMigrationContext({
+          paths: {
+            legacyAgentDbFile: join(tempRoot, 'Data', 'agents.db'),
+            legacyClaudeConfigDir: source,
+            claudeConfigDir: destination
+          }
+        })
+      )
+
+      expect(await readFile(join(destination, 'settings.json'), 'utf8')).toBe('{"migrated":true}')
+      expect(await readFile(join(source, 'settings.json'), 'utf8')).toBe('{"migrated":true}')
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true })
+    }
   })
 
   it('prepare counts all legacy agents rows', async () => {
