@@ -155,6 +155,7 @@ describe('e2e-restore real data / backfill + degrade', () => {
       model_id: 'gpt-4o',
       name: 'GPT-4o',
       capabilities: '[]',
+      supports_streaming: 1,
       order_key: 'o-m1'
     })
     seedRow(db, 'tag', { id: 'tag-backup', name: 'work' })
@@ -301,6 +302,7 @@ describe('e2e-restore real data / backfill + degrade', () => {
           model_id: 'gpt-4o-backup',
           name: 'GPT-4o-backup',
           capabilities: '[]',
+          supports_streaming: 1,
           order_key: 'o-m1'
         })
       }
