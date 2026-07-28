@@ -101,7 +101,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
           </div>
         </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-subtle [&::-webkit-scrollbar]:w-1">
+        <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
           <Badge variant="secondary" className="gap-1.5 border-0 bg-success-bg px-2 py-0.5 text-success text-xs">
             <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
             {t('library.skill_detail.installed')}

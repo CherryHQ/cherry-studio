@@ -214,7 +214,11 @@ const MigrationToolsMenu: React.FC<MigrationToolsMenuProps> = ({ open, onOpenCha
           size="icon-sm"
           disabled={disabled}
           aria-label={t('migration.buttons.more_options')}
-          className="text-foreground-disabled hover:text-foreground-disabled">
+          className={
+            disabled
+              ? 'text-foreground-disabled hover:text-foreground-disabled'
+              : 'text-foreground-tertiary hover:text-muted-foreground'
+          }>
           <Wrench size={15} />
         </Button>
       </PopoverTrigger>

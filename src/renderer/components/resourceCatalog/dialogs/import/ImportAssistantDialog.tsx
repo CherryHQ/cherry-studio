@@ -378,7 +378,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   onValueChange={setClipboardText}
                   disabled={loading}
                   placeholder={t('library.import_dialog.clipboard.placeholder')}
-                  className="h-32 min-h-0 w-full resize-none rounded-md border border-input bg-background p-3 font-mono text-foreground text-xs shadow-none placeholder:text-muted-foreground disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-subtle [&::-webkit-scrollbar]:w-1"
+                  className="h-32 min-h-0 w-full resize-none rounded-md border border-input bg-background p-3 font-mono text-foreground text-xs shadow-none placeholder:text-muted-foreground disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1"
                 />
                 <Button
                   variant="emphasis"

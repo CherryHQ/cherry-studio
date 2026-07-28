@@ -24,20 +24,7 @@ describe('buildThemeContractCss', () => {
   })
 
   it('keeps compatibility color allowlists shrink-only', () => {
-    const frozenSemanticColors: readonly string[] = [
-      'primary-hover',
-      'destructive-hover',
-      'foreground-secondary',
-      'foreground-muted',
-      'menu-item-hover',
-      'border-muted',
-      'border-hover',
-      'border-active',
-      'secondary-hover',
-      'secondary-active',
-      'ghost-hover',
-      'ghost-active'
-    ]
+    const frozenSemanticColors: readonly string[] = ['destructive-hover']
     const frozenStatusColors: readonly string[] = [
       'error-base',
       'error-text',

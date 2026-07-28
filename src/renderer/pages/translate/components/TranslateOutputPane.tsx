@@ -39,7 +39,7 @@ const TranslateOutputPane = ({
         <div className="flex min-h-full flex-col">
           {translating && !translatedContent ? (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-subtle-foreground/30 border-t-muted-foreground" />
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
               <span>{t('translate.processing')}</span>
             </div>
           ) : translatedContent ? (

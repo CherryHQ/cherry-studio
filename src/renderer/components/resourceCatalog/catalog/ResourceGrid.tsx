@@ -542,7 +542,7 @@ export const ResourceGrid: FC<Props> = ({
       <div
         ref={scrollRef}
         className={cn(
-          'flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-subtle [&::-webkit-scrollbar]:w-1',
+          'flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1',
           isSettings ? 'py-3' : 'px-5 py-4'
         )}>
         {isLoading ? (

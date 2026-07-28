@@ -151,7 +151,7 @@ export const drawerClasses = {
     'h-8 min-h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm leading-5 text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/35',
   inputDisabled: 'bg-muted text-foreground-disabled',
   selectTrigger:
-    'h-auto w-full rounded-md border-input bg-background px-3 py-2 text-sm leading-5 text-foreground shadow-none data-[placeholder]:text-foreground-tertiary aria-expanded:border-ring aria-expanded:ring-[2px] aria-expanded:ring-ring/35',
+    'h-auto w-full rounded-md border-input bg-background px-3 py-2 text-sm leading-5 text-foreground shadow-none data-[placeholder]:text-muted-foreground aria-expanded:border-ring aria-expanded:ring-[2px] aria-expanded:ring-ring/35',
   selectContent: 'rounded-lg border-[0.5px] border-border bg-popover text-popover-foreground shadow-lg',
   helpText: 'text-xs leading-tight text-foreground-tertiary',
   errorText: 'text-xs leading-tight text-destructive',

@@ -145,7 +145,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               aria-label={t('settings.dependencies.uninstall')}
               title={t('settings.dependencies.uninstall')}>
               {removing ? (
-                <span className="size-3 animate-spin rounded-full border-2 border-subtle-foreground/30 border-t-foreground" />
+                <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
               ) : (
                 <Trash2 className="size-3.5" />
               )}
@@ -175,7 +175,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               className={running ? 'shrink-0 text-destructive hover:text-destructive' : 'shrink-0 text-foreground'}>
               {running && stopping ? (
                 <>
-                  <span className="size-3 animate-spin rounded-full border-2 border-subtle-foreground/30 border-t-foreground" />
+                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
                   {t('openclaw.gateway.stop')}
                 </>
               ) : running ? (
@@ -185,7 +185,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
                 </>
               ) : launching ? (
                 <>
-                  <span className="size-3 animate-spin rounded-full border-2 border-subtle-foreground/30 border-t-foreground" />
+                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
                   {t('code.launching')}
                 </>
               ) : (
@@ -207,7 +207,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
                 className="shrink-0 text-muted-foreground hover:border-border hover:text-foreground">
                 {installing ? (
                   <>
-                    <span className="size-3 animate-spin rounded-full border-2 border-subtle-foreground/30 border-t-foreground" />
+                    <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
                     {t('code.installing')}
                   </>
                 ) : (
