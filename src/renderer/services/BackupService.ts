@@ -8,8 +8,6 @@
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-// import db from '@renderer/databases/db'
-// import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
@@ -856,98 +854,8 @@ export async function getBackupData() {
     time: new Date().getTime(),
     version: 5,
     localStorage
-    // indexedDB: await backupDatabase()
   })
 }
-
-/************************************* Backup Utils ************************************** */
-export async function handleData(data: Record<string, any>) {
-  void data
-
-  /* Legacy Dexie restore is intentionally disabled in v2. Kept for reference.
-  if (data.version === 1) {
-    await clearDatabase()
-
-    for (const { key, value } of data.indexedDB) {
-      if (key.startsWith('topic:')) {
-        await db.table('topics').add({ id: value.id, messages: value.messages })
-      }
-      if (key === 'image://avatar') {
-        await db.table('settings').add({ id: key, value })
-      }
-    }
-
-    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
-    toast.success(i18n.t('message.restore.success'))
-    setTimeout(() => window.api.application.relaunch(), 1000)
-    return
-  }
-
-  if (data.version >= 2) {
-    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
-
-    // remove notes_tree from indexedDB
-    if (data.indexedDB['notes_tree']) {
-      delete data.indexedDB['notes_tree']
-    }
-
-    await restoreDatabase(data.indexedDB)
-
-    if (data.version === 3) {
-      await db.transaction('rw', db.tables, async (tx) => {
-        await db.table('message_blocks').clear()
-        await upgradeToV7(tx)
-      })
-    }
-
-    if (data.version === 4) {
-      await db.transaction('rw', db.tables, async (tx) => {
-        await upgradeToV8(tx)
-      })
-    }
-
-    toast.success(i18n.t('message.restore.success'))
-    setTimeout(() => window.api.application.relaunch(), 1000)
-    return
-  }
-
-  toast.error(i18n.t('error.backup.file_format'))
-  */
-
-  toast.error(i18n.t('error.backup.file_format'))
-}
-
-/* Legacy Dexie backup helpers are intentionally disabled in v2. Kept for reference.
-async function backupDatabase() {
-  const tables = db.tables
-  const backup = {}
-
-  for (const table of tables) {
-    backup[table.name] = await table.toArray()
-  }
-
-  return backup
-}
-
-async function restoreDatabase(backup: Record<string, any>) {
-  await db.transaction('rw', db.tables, async () => {
-    for (const tableName in backup) {
-      await db.table(tableName).clear()
-      await db.table(tableName).bulkAdd(backup[tableName])
-    }
-  })
-}
-
-async function clearDatabase() {
-  const storeNames = db.tables.map((table) => table.name)
-
-  await db.transaction('rw', db.tables, async () => {
-    for (const storeName of storeNames) {
-      await db[storeName].clear()
-    }
-  })
-}
-*/
 
 /**
  * Backup to local directory
