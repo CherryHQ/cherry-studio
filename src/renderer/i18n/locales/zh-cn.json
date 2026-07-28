@@ -5824,6 +5824,36 @@
         "v2_unavailable": "云端备份位置尚未可用。请使用「备份与恢复」导出备份文件并从中恢复。"
       },
       "backup_v2": {
+        "compatibility": {
+          "ahead_lineage": "该备份比当前构建多 {{count}} 项数据库升级。请使用创建该备份的构建，或同一迁移链上更新的构建，然后重新选择备份文件。",
+          "ahead_title": "该备份需要更新的数据库版本",
+          "ahead_update": "该备份比当前应用多 {{count}} 项数据库升级。请检查更新，更新后重新选择备份文件。",
+          "archive_app": "备份来源应用",
+          "archive_build": "备份来源构建",
+          "archive_tip": "备份迁移",
+          "build_type": {
+            "development": "开发构建",
+            "packaged": "正式构建",
+            "unknown": "未知"
+          },
+          "check_updates": "检查更新",
+          "copied": "备份诊断信息已复制。",
+          "copy": "复制诊断信息",
+          "copy_failed": "无法复制备份诊断信息。",
+          "current_app": "当前应用",
+          "current_tip": "当前迁移",
+          "fork_lineage": "该备份与当前应用来自不同的数据库历史。请使用创建该备份的构建，或该构建的后续版本，然后重试。",
+          "fork_title": "该备份来自不同的数据库迁移链",
+          "format": "备份格式",
+          "format_legacy": "该备份使用格式 {{archive}}，当前应用已不再支持恢复。请用兼容版本打开并重新创建备份。",
+          "format_newer_lineage": "该备份使用格式 {{archive}}，当前应用仅支持格式 {{current}}。请使用创建该备份的构建或更新的兼容构建。",
+          "format_newer_update": "该备份使用格式 {{archive}}，当前应用仅支持格式 {{current}}。请检查更新，更新后重新选择备份文件。",
+          "format_title": "当前应用不支持该备份格式",
+          "format_versions": "备份 {{archive}}，当前 {{current}}",
+          "migration_counts": "备份 {{archive}} 项，当前 {{current}} 项",
+          "migrations": "数据库迁移",
+          "nothing_changed": "本机尚未恢复或更改任何数据。"
+        },
         "error": {
           "archive_rejected": "该备份文件被拒绝：文件损坏、不完整，或由不兼容的版本创建。",
           "arm_failed": "无法启动执行恢复所需的重启，未做任何更改。",

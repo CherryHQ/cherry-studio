@@ -10,15 +10,13 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
-import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { useManualUpdateCheck } from '@renderer/hooks/useManualUpdateCheck'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import { debounce } from 'es-toolkit/compat'
 import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
@@ -36,33 +34,7 @@ const AboutSettings: FC = () => {
   const { theme } = useTheme()
   const { openSmartMiniApp } = useMiniAppPopup()
 
-  const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
-
-  const onCheckUpdate = debounce(
-    async () => {
-      if (appUpdateState.checking || appUpdateState.downloading) {
-        return
-      }
-
-      if (appUpdateState.downloaded) {
-        void UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
-        return
-      }
-
-      updateAppUpdateState({ checking: true, manualCheck: true })
-
-      try {
-        await ipcApi.request('app.updater.check_for_update')
-      } catch {
-        updateAppUpdateState({ manualCheck: false })
-        toast.error(t('settings.about.updateError'))
-      }
-
-      updateAppUpdateState({ checking: false })
-    },
-    2000,
-    { leading: true, trailing: false }
-  )
+  const { appUpdateState, updateAppUpdateState, checkForUpdates } = useManualUpdateCheck()
 
   const onOpenWebsite = (url: string) => {
     void ipcApi.request('system.shell.open_website', url)
@@ -228,7 +200,7 @@ const AboutSettings: FC = () => {
                 size="sm"
                 variant="outline"
                 loading={appUpdateState.checking}
-                onClick={onCheckUpdate}
+                onClick={checkForUpdates}
                 disabled={appUpdateState.downloading}
                 className="w-fit! min-w-0! shrink-0">
                 {appUpdateState.downloading

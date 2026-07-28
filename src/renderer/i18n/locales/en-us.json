@@ -5824,6 +5824,36 @@
         "v2_unavailable": "Cloud backup destinations are not available yet. Use Backup & restore to export a backup file and restore from it."
       },
       "backup_v2": {
+        "compatibility": {
+          "ahead_lineage": "This backup contains {{count}} database update(s) this build does not have. Use the build that created it, or a later build from the same migration line, then choose the backup again.",
+          "ahead_title": "This backup needs a newer database version",
+          "ahead_update": "This backup contains {{count}} database update(s) this app does not have. Check for updates, then choose the backup again.",
+          "archive_app": "Backup app",
+          "archive_build": "Backup build",
+          "archive_tip": "Backup migration",
+          "build_type": {
+            "development": "Development",
+            "packaged": "Packaged",
+            "unknown": "Unknown"
+          },
+          "check_updates": "Check for updates",
+          "copied": "Backup diagnostics copied.",
+          "copy": "Copy diagnostics",
+          "copy_failed": "Could not copy the backup diagnostics.",
+          "current_app": "Current app",
+          "current_tip": "Current migration",
+          "fork_lineage": "This backup and this app come from different database histories. Use the build that created the backup, or a descendant of that build, and try again.",
+          "fork_title": "This backup comes from a different database line",
+          "format": "Backup format",
+          "format_legacy": "This backup uses format {{archive}}, which this app no longer restores. Open it with a compatible version and create a new backup.",
+          "format_newer_lineage": "This backup uses format {{archive}}, while this app supports format {{current}}. Use the build that created it or a newer compatible build.",
+          "format_newer_update": "This backup uses format {{archive}}, while this app supports format {{current}}. Check for updates, then choose the backup again.",
+          "format_title": "This backup format is not supported",
+          "format_versions": "Backup {{archive}}, current {{current}}",
+          "migration_counts": "Backup {{archive}}, current {{current}}",
+          "migrations": "Database migrations",
+          "nothing_changed": "Nothing was restored or changed on this device."
+        },
         "error": {
           "archive_rejected": "This backup file was rejected: it is damaged, incomplete, or made by an incompatible version.",
           "arm_failed": "The restart that performs the restore could not be started. Nothing was changed.",

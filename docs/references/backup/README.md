@@ -310,6 +310,13 @@ development build; the field is optional so existing format-v2 archives remain r
 report `unknown`. The complete chain remains authoritative—there is no duplicated
 `minRestoreVersion` or migration-tip claim.
 
+The renderer presents these expected compatibility failures in an acknowledgement dialog,
+including a path-free diagnostic block the user can copy. A packaged current build offers the
+existing manual updater only for a newer packaged/unknown source chain or format; a
+development archive, a development target, or a fork instead directs the user to the producing
+lineage or one of its descendants. Updating never bypasses admission—the user selects the
+archive again and the new build re-proves the complete chain.
+
 Malformed, corrupt, tampered, manifest↔DB chain-mismatched, or failed-migration archives
 remain generic archive rejections: presenting any of those as “upgrade required” would turn
 an integrity failure into misleading compatibility advice. Every compatibility refusal still
