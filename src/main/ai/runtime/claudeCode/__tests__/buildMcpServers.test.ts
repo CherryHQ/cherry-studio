@@ -164,6 +164,9 @@ describe('adjustAllowedToolsForMcp', () => {
     // per-call approval via canUseTool. A bare wildcard would silently re-include it.
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
+    // read-only skill search is auto-approved; the mutating install_skill stays on per-call approval.
+    expect(allowed).toContain('mcp__skills__search_skills')
+    expect(allowed).not.toContain('mcp__skills__install_skill')
   })
 
   it('additionally lists only the navigate assistant tool for the Cherry Assistant', () => {
@@ -186,10 +189,9 @@ describe('buildMcpServers', () => {
     mockMemoryConstructor.mockClear()
   })
 
-  it('injects the agent-memory server for every agent (REGRESSION agents-jobs-3)', async () => {
+  it('injects the agent-memory and skills servers for every agent (REGRESSION agents-jobs-3)', async () => {
     const result = buildMcpServers(session, agent, false, undefined, undefined, '/data/Agents/agent-1')
-    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory']))
-    expect(Object.keys(result ?? {})).not.toContain('skills')
+    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
     expect(mockMemoryConstructor).toHaveBeenCalledWith('agent-1', '/data/Agents/agent-1')
   })
 

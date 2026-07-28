@@ -400,7 +400,7 @@ function createAgentResource(): ResourceItem {
   }
 }
 
-function createSkillResource(): ResourceItem {
+function createSkillResource(version: string | null = null): ResourceItem {
   return {
     id: 'skill-1',
     type: 'skill',
@@ -409,7 +409,7 @@ function createSkillResource(): ResourceItem {
     avatar: 'S',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: {} as Extract<ResourceItem, { type: 'skill' }>['raw']
+    raw: { version } as Extract<ResourceItem, { type: 'skill' }>['raw']
   }
 }
 
@@ -755,6 +755,16 @@ describe('ResourceGrid card actions', () => {
     expect(screen.getByRole('button', { name: 'Skill' })).toHaveStyle({
       backgroundColor: 'var(--settings-group-background, var(--card))'
     })
+  })
+
+  it('shows the Skill version tag only when a version is available', () => {
+    const { rerender } = render(<ResourceCard resource={createSkillResource('1.2.3')} {...getResourceCardProps()} />)
+
+    expect(screen.getByText('1.2.3')).toBeInTheDocument()
+
+    rerender(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
+
+    expect(screen.queryByText('1.2.3')).not.toBeInTheDocument()
   })
 
   it('shows the overflow menu only for assistant cards', () => {

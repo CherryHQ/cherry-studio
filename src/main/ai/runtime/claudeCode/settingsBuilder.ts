@@ -40,6 +40,7 @@ import { PromptBuilder } from '@main/ai/agents/prompt'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
+import SkillsServer from '@main/ai/mcp/servers/skills'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -587,6 +588,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     ENABLE_TOOL_SEARCH: 'auto',
     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
+    CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
   }
 
@@ -611,6 +613,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
       'CHERRY_STUDIO_NODE_PROXY_RULES',
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
       'CHERRY_STUDIO_BUN_PATH',
+      'CHERRY_STUDIO_SKILLS_DIR',
       'NODE_OPTIONS',
       '__PROTO__',
       'CONSTRUCTOR',
@@ -897,6 +900,27 @@ async function buildToolPermissions(
     }
   }
 
+  // Installing a skill requires the same permission handling as any other mutating tool. Interactive
+  // turns defer to the SDK: default / acceptEdits prompt through canUseTool, while bypassPermissions
+  // runs directly. A headless turn has no responder, so deny only when its live permission mode still
+  // requires approval. Resolve the mode from the session snapshot so a warm connection observes a
+  // live permission-mode update instead of the agent config captured when these hooks were built.
+  const headlessSkillInstallHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== 'mcp__skills__install_skill') return {}
+    if (getToolPolicySnapshot(session.id)?.getPermissionMode() === 'bypassPermissions') return {}
+    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          'This channel or scheduled turn cannot approve a skill installation. Use bypassPermissions for unattended installation, or install it from an interactive turn.'
+      }
+    }
+  }
+
   // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
   // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
   // PreToolUse hooks fire on every tool call regardless of permission mode. The snapshot's disabled
@@ -993,6 +1017,7 @@ async function buildToolPermissions(
           hooks: [
             interactiveToolPermissionHook,
             headlessConfigMutationHook,
+            headlessSkillInstallHook,
             disabledToolHook,
             workspacePathHook,
             dependencyIsolationHook,
@@ -1185,6 +1210,11 @@ export function buildMcpServers(
   const memoryServer = new AgentMemoryServer(agent.id, agentDataPath)
   mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
 
+  // skills — deterministic marketplace search + install (the find-skills skill drives these).
+  // install_skill clones and installs exactly one skill into the managed library via SkillService,
+  // so a model only needs one tool call instead of a correct multi-step shell sequence.
+  mcpList.skills = { type: 'sdk', name: 'skills', instance: new SkillsServer(agent.id).mcpServer }
+
   logger.debug('Injected cherry-tools + agent-memory MCP servers', {
     agentId: agent.id,
     totalMcpServers: Object.keys(mcpList).length
@@ -1319,6 +1349,9 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
 export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   result.push('mcp__agent-memory__*')
+  // search_skills is a read-only marketplace lookup — auto-approve it. install_skill mutates
+  // (clones + installs third-party code), so it deliberately stays on per-call approval.
+  result.push('mcp__skills__search_skills')
   if (assistantMcpEnabled) result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES)
   return result
 }
