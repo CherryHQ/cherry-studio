@@ -347,7 +347,7 @@ describe('useExecutionOverlay', () => {
       await drainStreamMicrotasks()
     })
 
-    expect(textOf(result.current.overlay['anchor-a'])).toBe('final')
+    await waitFor(() => expect(textOf(result.current.overlay['anchor-a'])).toBe('final'))
     expect(onFinish).toHaveBeenCalledTimes(1)
     expect(frames.callbacks.size).toBe(0)
     expect(frames.cancel).toHaveBeenCalledTimes(1)
