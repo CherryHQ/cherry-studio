@@ -4927,6 +4927,11 @@
     "seed_random": "Aleatoriu",
     "seed_tip": "Același seed și prompt pot produce imagini similare",
     "select_model": "Selectează modelul",
+    "showcase": {
+      "caption": "[to be translated]:Choose a template to start, then make the prompt your own below.",
+      "styles_label": "[to be translated]:Prompt templates",
+      "title": "[to be translated]:A place for your next masterpiece."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",

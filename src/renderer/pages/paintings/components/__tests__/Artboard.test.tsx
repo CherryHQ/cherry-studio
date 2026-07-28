@@ -83,6 +83,11 @@ const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
     ...overrides
   }) as PaintingData
 
+const stylePresets = [
+  { id: 'one', imageUrl: '/template-one.webp', label: 'Template one', prompt: 'Prompt one' },
+  { id: 'two', imageUrl: '/template-two.webp', label: 'Template two', prompt: 'Prompt two' }
+] as const
+
 const firePointer = (element: Element, type: string, init: Record<string, number>) => {
   const event = new Event(type, { bubbles: true, cancelable: true })
 
@@ -112,6 +117,7 @@ describe('Artboard', () => {
 
     expect(screen.getByTestId('painting-image-skeleton')).toBeInTheDocument()
     expect(document.querySelector('img')).toBeNull()
+    expect(screen.queryByRole('img', { name: 'paintings.image_placeholder' })).not.toBeInTheDocument()
   })
 
   it('renders the generated image and no skeleton when idle', () => {
@@ -119,6 +125,71 @@ describe('Artboard', () => {
 
     expect(screen.queryByTestId('painting-image-skeleton')).not.toBeInTheDocument()
     expect(document.querySelector('img')).not.toBeNull()
+    expect(screen.queryByRole('img', { name: 'paintings.image_placeholder' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the generated-image viewer when prompt templates are supplied', () => {
+    render(
+      <Artboard
+        painting={makePainting()}
+        isLoading={false}
+        styleGroupLabel="Prompt templates"
+        stylePresets={stylePresets}
+        onStyleSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('group', { name: 'Prompt templates' })).not.toBeInTheDocument()
+    expect(document.querySelector('img')).toHaveAttribute('src', 'file:///tmp/image-1.png')
+  })
+
+  it('shows prompt templates on an empty painting and fills the selected prompt', () => {
+    const onStyleSelect = vi.fn()
+    render(
+      <Artboard
+        painting={makePainting({ files: [] })}
+        isLoading={false}
+        styleGroupLabel="Prompt templates"
+        stylePresets={stylePresets}
+        onStyleSelect={onStyleSelect}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Template two' }))
+
+    expect(onStyleSelect).toHaveBeenCalledWith('Prompt two')
+    expect(screen.getByRole('button', { name: 'Template two' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Template two' })).toHaveClass('focus-visible:outline-muted-foreground')
+  })
+
+  it('shows the standard generation skeleton for a prompt that does not match a template', () => {
+    render(
+      <Artboard
+        painting={makePainting({ files: [], prompt: 'A custom prompt' })}
+        isLoading={true}
+        styleGroupLabel="Prompt templates"
+        stylePresets={stylePresets}
+        onStyleSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('painting-image-skeleton')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Prompt templates' })).not.toBeInTheDocument()
+  })
+
+  it('hides the selected template carousel as soon as generation starts', () => {
+    render(
+      <Artboard
+        painting={makePainting({ files: [], prompt: 'Prompt two' })}
+        isLoading={true}
+        styleGroupLabel="Prompt templates"
+        stylePresets={stylePresets}
+        onStyleSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('painting-image-skeleton')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Prompt templates' })).not.toBeInTheDocument()
   })
 
   it('enters reveal skeleton before showing a newly generated image', () => {
@@ -236,11 +307,28 @@ describe('Artboard', () => {
     expect(document.querySelector('img')).not.toBeNull()
   })
 
-  it('renders nothing when idle with no images and no cover', () => {
+  it('renders a blank artboard when idle with no images and no cover', () => {
     render(<Artboard painting={makePainting({ files: [] })} isLoading={false} />)
 
     expect(screen.queryByTestId('painting-image-skeleton')).not.toBeInTheDocument()
     expect(document.querySelector('img')).toBeNull()
+    const placeholder = screen.getByRole('img', { name: 'paintings.image_placeholder' })
+    expect(placeholder).toHaveClass('size-[min(72cqh,96cqw)]')
+    expect(placeholder.parentElement).toHaveClass('[container-type:size]')
+    expect(placeholder.firstElementChild).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('renders a supplied cover instead of the blank artboard', () => {
+    render(
+      <Artboard
+        painting={makePainting({ files: [] })}
+        isLoading={false}
+        imageCover={<div data-testid="painting-image-cover" />}
+      />
+    )
+
+    expect(screen.getByTestId('painting-image-cover')).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'paintings.image_placeholder' })).not.toBeInTheDocument()
   })
 
   describe('reveal state isolation across paintings', () => {

@@ -148,8 +148,15 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
     onGenerateRandomSeed: vi.fn(),
     ...props
   }
-  render(<PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} />)
-  return { onPromptChange, onGenerate }
+  const view = render(<PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} />)
+  return {
+    onPromptChange,
+    onGenerate,
+    rerenderPainting: (painting: PaintingData) =>
+      view.rerender(
+        <PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} painting={painting} />
+      )
+  }
 }
 
 describe('PaintingComposer', () => {
@@ -238,6 +245,14 @@ describe('PaintingComposer', () => {
     const { onPromptChange } = renderComposer()
     fireEvent.change(screen.getByLabelText('prompt'), { target: { value: 'a cat' } })
     expect(onPromptChange).toHaveBeenCalledWith('a cat')
+  })
+
+  it('syncs an externally selected prompt into the composer', () => {
+    const { rerenderPainting } = renderComposer()
+
+    rerenderPainting(makePainting({ prompt: 'a cinematic coastal house' }))
+
+    expect(screen.getByLabelText('prompt')).toHaveValue('a cinematic coastal house')
   })
 
   it('triggers generation on send', () => {

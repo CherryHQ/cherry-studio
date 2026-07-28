@@ -1,6 +1,7 @@
 import { useCache } from '@data/hooks/useCache'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import Artboard from './components/Artboard'
 import PaintingComposer from './components/PaintingComposer'
@@ -14,12 +15,15 @@ import { usePaintingModelCatalog } from './hooks/usePaintingModelCatalog'
 import { usePaintingModelSwitch } from './hooks/usePaintingModelSwitch'
 import { usePaintingProviderOptions } from './hooks/usePaintingProviderOptions'
 import { usePaintingResultSync } from './hooks/usePaintingResultSync'
+import { usePaintingTemplateCatalog } from './hooks/usePaintingTemplateCatalog'
 import { createDefaultPainting } from './model/paintingPipeline'
 import type { PaintingData } from './model/types/paintingData'
 import { cacheToPaintingGenerationState } from './model/utils/paintingGenerationParams'
 import { paintingClasses } from './paintingPrimitives'
 
 const PaintingPage: FC = () => {
+  const { t } = useTranslation()
+  const { templates: promptPresets } = usePaintingTemplateCatalog()
   const providerOptions = usePaintingProviderOptions()
   const { initialProviderId } = usePaintingInitialProvider(providerOptions)
 
@@ -75,6 +79,11 @@ const PaintingPage: FC = () => {
   // painting record is a frozen receipt with no status. The cache fills the
   // gap: if its `status === 'running'` for this painting, keep the spinner.
   const generating = liveGenerating || liveGenerationState.generationStatus === 'running'
+  const showTemplateShowcase =
+    currentPainting.files.length === 0 &&
+    !generating &&
+    !currentPainting.generationStatus &&
+    !liveGenerationState.generationStatus
 
   const switchModel = usePaintingModelSwitch({
     painting: currentPainting,
@@ -120,29 +129,55 @@ const PaintingPage: FC = () => {
 
               <div className={paintingClasses.centerPane}>
                 <div className={paintingClasses.centerStage}>
-                  <Artboard painting={composerPainting} isLoading={generating} />
+                  {showTemplateShowcase ? (
+                    <section className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 items-center justify-center overflow-hidden px-3 py-3 [container-type:size]">
+                      <div className="flex h-full max-h-80 min-h-0 w-full flex-col items-center">
+                        <h1 className="max-w-xl shrink-0 text-center font-bold tracking-tight [font-size:clamp(var(--font-size-heading-sm),4cqw,var(--font-size-heading-md))] [line-height:1.1]">
+                          {t('paintings.showcase.title')}
+                        </h1>
+
+                        <div className="mt-[clamp(8px,5cqh,30px)] flex min-h-0 w-full flex-1 flex-col items-center">
+                          <Artboard
+                            painting={composerPainting}
+                            isLoading={false}
+                            stylePresets={promptPresets}
+                            styleGroupLabel={t('paintings.showcase.styles_label')}
+                            onStyleSelect={(prompt) => patchPainting({ prompt })}
+                          />
+
+                          <p className="mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-muted-foreground text-xs leading-5">
+                            {t('paintings.showcase.caption')}
+                          </p>
+                        </div>
+                      </div>
+                    </section>
+                  ) : (
+                    <Artboard painting={composerPainting} isLoading={generating} />
+                  )}
                 </div>
                 <div className={paintingClasses.promptDock}>
-                  <QuickPanelProvider>
-                    <PaintingComposer
-                      painting={composerPainting}
-                      generating={generating}
-                      onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
-                      onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
-                      onGenerate={submit}
-                      onCancel={onCancel}
-                      onModelSelect={switchModel}
-                      onConfigChange={patchPainting}
-                      onGenerateRandomSeed={(key) =>
-                        patchPainting({
-                          params: {
-                            ...currentPainting.params,
-                            [key]: String(Math.floor(Math.random() * 1_000_000))
-                          }
-                        })
-                      }
-                    />
-                  </QuickPanelProvider>
+                  <div className="mx-auto w-full max-w-5xl">
+                    <QuickPanelProvider>
+                      <PaintingComposer
+                        painting={composerPainting}
+                        generating={generating}
+                        onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
+                        onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
+                        onGenerate={submit}
+                        onCancel={onCancel}
+                        onModelSelect={switchModel}
+                        onConfigChange={patchPainting}
+                        onGenerateRandomSeed={(key) =>
+                          patchPainting({
+                            params: {
+                              ...currentPainting.params,
+                              [key]: String(Math.floor(Math.random() * 1_000_000))
+                            }
+                          })
+                        }
+                      />
+                    </QuickPanelProvider>
+                  </div>
                 </div>
               </div>
             </div>

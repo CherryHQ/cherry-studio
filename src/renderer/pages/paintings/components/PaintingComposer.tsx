@@ -26,7 +26,7 @@ import type { Model } from '@shared/data/types/model'
 import { getFileTypeByExt, imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 import { Settings2 } from 'lucide-react'
-import { type FC, useCallback, useMemo, useState } from 'react'
+import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
@@ -190,6 +190,10 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
+
+  useEffect(() => {
+    setText(painting.prompt ?? '')
+  }, [painting.prompt])
 
   // `couldAddImageFile` is modality-based (isEditImageModel → inputModalities includes
   // image): whether the model takes an image at all. Whether an image is *required* —

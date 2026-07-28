@@ -4927,6 +4927,11 @@
     "seed_random": "Ngẫu nhiên",
     "seed_tip": "Cùng một hạt giống và lời nhắc có thể tạo ra những hình ảnh tương tự",
     "select_model": "Chọn Mô hình",
+    "showcase": {
+      "caption": "[to be translated]:Choose a template to start, then make the prompt your own below.",
+      "styles_label": "[to be translated]:Prompt templates",
+      "title": "[to be translated]:A place for your next masterpiece."
+    },
     "style_options": {
       "anime": "Phim hoạt hình Nhật Bản",
       "auto": "Tự động",

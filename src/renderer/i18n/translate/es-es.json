@@ -4927,6 +4927,11 @@
     "seed_random": "Aleatorio",
     "seed_tip": "La misma semilla y la misma sugerencia generarán imágenes similares",
     "select_model": "Seleccionar modelo",
+    "showcase": {
+      "caption": "[to be translated]:Choose a template to start, then make the prompt your own below.",
+      "styles_label": "[to be translated]:Prompt templates",
+      "title": "[to be translated]:A place for your next masterpiece."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",

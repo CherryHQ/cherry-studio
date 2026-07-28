@@ -1286,7 +1286,7 @@
       "regular_phrases": {
         "add": "添加短语",
         "contentLabel": "内容",
-        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
+        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${出发地} 到 ${目的地} 的路线，然后发送到 ${邮箱}",
         "delete": "删除短语",
         "deleteConfirm": "确定要删除这个短语吗？",
         "edit": "编辑短语",
@@ -4927,6 +4927,11 @@
     "seed_random": "随机",
     "seed_tip": "相同的种子和提示词可以生成相似的图片",
     "select_model": "选择模型",
+    "showcase": {
+      "caption": "选择一个模板作为起点，再在下方把提示词改成你的表达。",
+      "styles_label": "提示词模板",
+      "title": "给你的下一幅杰作，留一个位置。"
+    },
     "style_options": {
       "anime": "动漫",
       "auto": "自动",
@@ -7282,7 +7287,7 @@
     "prompts": {
       "add": "添加提示词",
       "contentLabel": "内容",
-      "contentPlaceholder": "请输入提示词内容，支持使用 ${变量}，按 Tab 可在变量间快速定位。例如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
+      "contentPlaceholder": "请输入提示词内容，支持使用 ${变量}，按 Tab 可在变量间快速定位。例如：\n帮我规划从 ${出发地} 到 ${目的地} 的路线，然后发送到 ${邮箱}",
       "delete": "删除提示词",
       "deleteConfirm": "删除提示词后将无法恢复，是否继续？",
       "edit": "编辑提示词",
@@ -7712,7 +7717,7 @@
       "add": "添加短语",
       "assistant": "助手短语",
       "contentLabel": "内容",
-      "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
+      "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${出发地} 到 ${目的地} 的路线，然后发送到 ${邮箱}",
       "delete": "删除短语",
       "deleteConfirm": "删除短语后将无法恢复，是否继续？",
       "edit": "编辑短语",

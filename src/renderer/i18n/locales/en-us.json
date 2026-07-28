@@ -4927,6 +4927,11 @@
     "seed_random": "Random",
     "seed_tip": "The same seed and prompt can produce similar images",
     "select_model": "Select Model",
+    "showcase": {
+      "caption": "Choose a template to start, then make the prompt your own below.",
+      "styles_label": "Prompt templates",
+      "title": "A place for your next masterpiece."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",
