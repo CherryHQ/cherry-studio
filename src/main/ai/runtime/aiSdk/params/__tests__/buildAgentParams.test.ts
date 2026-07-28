@@ -1,14 +1,27 @@
+import path from 'node:path'
+
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { makeAssistant, makeModel } from '../../../../__tests__/fixtures'
+import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { CallOverrides } from '../../../../types/requests'
 
+const { resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
+  resolveProviderAiSdkConfigMock: vi.fn()
+}))
+
+vi.mock('../../../../provider/config', () => ({
+  resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock
+}))
+
 vi.mock('@application', () => ({
   application: {
+    getPath: (_namespace: string, filename: string) =>
+      path.join(process.cwd(), 'packages/provider-registry/data', filename),
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
       if (name === 'PreferenceService') return { get: () => null }
@@ -17,9 +30,215 @@ vi.mock('@application', () => ({
   }
 }))
 
-const { applyCallOverrides, composeStopWhen, resolveKnowledgeBaseIds, resolveTools } = await import(
-  '../buildAgentParams'
-)
+const {
+  applyCallOverrides,
+  buildAgentParams,
+  composeStopWhen,
+  resolveReasoningMaxTokens,
+  resolveToolCallLimit,
+  resolveTools
+} = await import('../buildAgentParams')
+
+describe('buildAgentParams provider resolution', () => {
+  it('uses the resolved Vertex MaaS adapter, wire profile, and provider-options namespace', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'google-vertex-maas',
+        providerSettings: { project: 'my-project', location: 'global' }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'iam-gcp' }
+    })
+    const provider = makeProvider({
+      id: 'vertex',
+      authType: 'iam-gcp',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
+      }
+    })
+    const model = makeModel({
+      id: 'vertex::openai/gpt-oss-120b-maas',
+      providerId: 'vertex',
+      apiModelId: 'openai/gpt-oss-120b-maas',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        reasoning_effort: 'high',
+        customParameters: [
+          {
+            name: 'chat_template_kwargs',
+            type: 'json',
+            value: JSON.stringify({ enable_thinking: true })
+          }
+        ]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: {},
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
+    expect(result.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
+    expect(result.options.providerOptions).toMatchObject({
+      vertex: {
+        reasoningEffort: 'high',
+        chat_template_kwargs: { enable_thinking: true }
+      }
+    })
+    expect(result.options.providerOptions).not.toHaveProperty('google')
+  })
+})
+
+describe('buildAgentParams assistant-less reasoning', () => {
+  const makeOffCapableSetup = () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'anthropic',
+        providerSettings: {}
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'custom-claude',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+      }
+    })
+    const model = makeModel({
+      id: 'custom-claude::claude-x',
+      providerId: 'custom-claude',
+      apiModelId: 'claude-x',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+    return { provider, model }
+  }
+
+  it("encodes an explicit 'none' selection into the off wire mode without an assistant (translate)", async () => {
+    const { provider, model } = makeOffCapableSetup()
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'none' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions).toEqual({ anthropic: { thinking: { type: 'disabled' } } })
+  })
+
+  it("omits reasoning params when the model cannot be turned off ('none' degrades to omit)", async () => {
+    const { provider } = makeOffCapableSetup()
+    const model = makeModel({
+      id: 'custom-claude::claude-fixed',
+      providerId: 'custom-claude',
+      apiModelId: 'claude-fixed',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'none' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions).toBeUndefined()
+  })
+
+  it('carries the AiHubMix Gemini provider-options namespace from endpoint resolution into translation', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'aihubmix',
+        providerSettings: {}
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'aihubmix',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'aihubmix' },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'aihubmix' }
+      }
+    })
+    const model = makeModel({
+      id: 'aihubmix::gemini-2.5-flash',
+      providerId: 'aihubmix',
+      apiModelId: 'gemini-2.5-flash',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'none' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.sdkConfig.providerOptionsKey).toBe('google')
+    expect(result.options.providerOptions).toEqual({
+      google: { thinkingConfig: { includeThoughts: false, thinkingLevel: 'minimal' } }
+    })
+  })
+
+  it('leaves assistant-less requests without an explicit selection un-emitted (gateway regression guard)', async () => {
+    const { provider, model } = makeOffCapableSetup()
+
+    const result = await buildAgentParams({
+      request: {},
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions).toBeUndefined()
+  })
+})
+
+describe('resolveReasoningMaxTokens', () => {
+  const model = makeModel({ maxOutputTokens: 64_000 })
+
+  it('ignores a stale assistant limit when max tokens are disabled', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4_096 } })
+
+    expect(resolveReasoningMaxTokens(undefined, assistant, model)).toBe(64_000)
+  })
+
+  it('uses an enabled assistant limit before the model default', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
+
+    expect(resolveReasoningMaxTokens(undefined, assistant, model)).toBe(16_000)
+  })
+
+  it('gives the per-request override highest precedence', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
+
+    expect(resolveReasoningMaxTokens(32_000, assistant, model)).toBe(32_000)
+  })
+})
 
 /**
  * Covers the first-class per-request override merge that replaced the old
@@ -115,29 +334,98 @@ describe('composeStopWhen', () => {
   })
 })
 
-describe('resolveKnowledgeBaseIds', () => {
-  it('falls back to the assistant-bound bases when the request selects none', () => {
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), undefined)).toEqual(['kb-1'])
+describe('resolveToolCallLimit', () => {
+  it('uses the configured assistant limit', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 7 } }))).toBe(7)
   })
 
-  it('trusts the request-selected bases when the assistant has no static binding', () => {
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), ['kb-2'])).toEqual(['kb-2'])
-    expect(resolveKnowledgeBaseIds(undefined, ['kb-2'])).toEqual(['kb-2'])
+  it('retains the effective default cap for assistant-less and disabled-limit requests', () => {
+    expect(resolveToolCallLimit(undefined)).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(20)
   })
 
-  it('drops request-selected bases outside the assistant scope instead of expanding it', () => {
-    // An assistant statically bound to `kb-public` must not become searchable for `kb-private`
-    // just because the renderer/IPC request asked for it — the assistant's own binding is the
-    // trust boundary, not whatever the composer UI happened to let the user pick.
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-public'] }), ['kb-private'])).toEqual([
-      'kb-public'
-    ])
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), ['kb-1', 'kb-2'])).toEqual(['kb-1'])
+  it('falls back when the configured limit is outside the supported range', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 101 } }))).toBe(20)
+  })
+})
+
+/**
+ * The resolver's own semantics live in `utils/__tests__/knowledgeScope.test.ts`. These tests pin the
+ * *call site* instead: that `buildAgentParams` composes the assistant binding with the request
+ * selection in that order, and hands the result to `resolveTools`. Asserting the resolver directly
+ * here would leave a swapped-argument call site (`resolveKnowledgeBaseScope(request, assistant)`)
+ * green while the trust boundary inverts.
+ */
+describe('buildAgentParams knowledge-scope enforcement', () => {
+  const SCOPE_PROBE_TOOL_NAME = 'test-scope-probe-tool'
+  let observedScope: readonly string[] | undefined
+
+  const scopeProbeEntry: ToolEntry = {
+    name: SCOPE_PROBE_TOOL_NAME,
+    namespace: 'test',
+    description: 'test-only tool that records the effective knowledge scope it is resolved with',
+    defer: 'never',
+    tool: {} as Tool,
+    applies: (scope) => {
+      observedScope = scope.knowledgeBaseIds
+      return true
+    }
+  }
+
+  afterEach(() => {
+    registry.deregister(SCOPE_PROBE_TOOL_NAME)
   })
 
-  it('returns an empty array when neither source selects a base', () => {
-    expect(resolveKnowledgeBaseIds(undefined, undefined)).toEqual([])
-    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), undefined)).toEqual([])
+  /** Drive the real `buildAgentParams` and report the scope that actually reached the tool layer. */
+  const effectiveScopeFor = async (
+    assistantKnowledgeBaseIds: string[] | undefined,
+    requestKnowledgeBaseIds: string[] | undefined
+  ): Promise<readonly string[] | undefined> => {
+    observedScope = undefined
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    registry.register(scopeProbeEntry)
+
+    await buildAgentParams({
+      request: { knowledgeBaseIds: requestKnowledgeBaseIds },
+      signal: undefined,
+      provider: makeProvider({
+        id: 'custom-claude',
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+      }),
+      model: makeModel({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }),
+      assistant: makeAssistant({ knowledgeBaseIds: assistantKnowledgeBaseIds })
+    })
+
+    return observedScope
+  }
+
+  it('narrows the assistant binding to the request selection instead of ignoring it', async () => {
+    await expect(effectiveScopeFor(['kb-1', 'kb-2'], ['kb-1'])).resolves.toEqual(['kb-1'])
+  })
+
+  it('never widens the assistant binding, whichever bases the request asks for', async () => {
+    // An assistant statically bound to `kb-public` must not become searchable for `kb-private` just
+    // because the renderer/IPC request asked for it — the binding is the trust boundary, not whatever
+    // the composer UI happened to let the user pick. A wholly out-of-scope selection is no narrowing
+    // at all, so the full binding stands rather than the assistant losing its own bases.
+    await expect(effectiveScopeFor(['kb-public'], ['kb-private'])).resolves.toEqual(['kb-public'])
+    await expect(effectiveScopeFor(['kb-1'], ['kb-1', 'kb-2'])).resolves.toEqual(['kb-1'])
+  })
+
+  it('falls back to the assistant binding when the request selects none', async () => {
+    await expect(effectiveScopeFor(['kb-1'], undefined)).resolves.toEqual(['kb-1'])
+  })
+
+  it('lets the request selection define the scope when the assistant has no binding', async () => {
+    await expect(effectiveScopeFor(undefined, ['kb-2'])).resolves.toEqual(['kb-2'])
+  })
+
+  it('resolves to an empty scope when neither source selects a base', async () => {
+    await expect(effectiveScopeFor(undefined, undefined)).resolves.toEqual([])
   })
 })
 

@@ -15,12 +15,23 @@ import type {
   ApiFeatures,
   ApiKeyEntry,
   AuthConfig,
-  EndpointConfig,
+  EndpointConfigOverride,
   ProviderSettings
 } from '@shared/data/types/provider'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex } from './_columnHelpers'
+
+/**
+ * Main-only persisted provider endpoint delta.
+ *
+ * `adapterFamily` is legacy migration provenance for custom v1 relay
+ * providers. It is deliberately absent from the shared renderer write DTO so
+ * ordinary settings PATCHes cannot create, replace, or clear the routing hint.
+ */
+export type StoredEndpointConfigOverride = EndpointConfigOverride & {
+  adapterFamily?: string
+}
 
 export const userProviderTable = sqliteTable(
   'user_provider',
@@ -44,8 +55,15 @@ export const userProviderTable = sqliteTable(
      */
     logoKey: text('logo_key'),
 
-    /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
-    endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<Partial<Record<EndpointType, EndpointConfig>>>(),
+    /**
+     * Per-endpoint-type USER overrides only (baseUrl), plus a main-only legacy
+     * adapterFamily hint for migrated custom relay rows. Registry-owned connection facts (adapterFamily,
+     * modelsApiUrls, the endpoint key set) resolve from the registry at read
+     * time — persisting them freezes a snapshot that goes stale (#17096).
+     */
+    endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<
+      Partial<Record<EndpointType, StoredEndpointConfigOverride>>
+    >(),
 
     /** Default text generation endpoint (when supporting multiple) */
     defaultChatEndpoint: text().$type<EndpointType>(),

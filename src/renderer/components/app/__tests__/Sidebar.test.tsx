@@ -312,8 +312,9 @@ afterEach(() => {
 
 describe('app Sidebar', () => {
   it('uses the user avatar as the header logo and moves footer actions out of the tab bar', () => {
-    render(<Sidebar />)
+    const { container } = render(<Sidebar />)
 
+    expect(container.querySelector('#app-sidebar')).toHaveAttribute('data-ui', 'app.sidebar')
     expect(screen.getByTestId('sidebar-logo')).toContainElement(screen.getByTestId('sidebar-user-avatar'))
     expect(screen.getByTestId('sidebar-title')).toHaveTextContent('JD')
     expect(screen.getByTestId('sidebar-footer-user')).toHaveTextContent('none')
@@ -624,7 +625,7 @@ describe('app Sidebar', () => {
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
-  it('reuses the active tab even when another sidebar app tab exists', () => {
+  it('reuses the active tab without revealing its resource list', () => {
     mocks.sidebarFavorites = [appFavorite('agents')]
     mocks.activeTab = {
       id: 'chat',
@@ -643,7 +644,7 @@ describe('app Sidebar', () => {
       icon: undefined,
       metadata: undefined
     })
-    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'chat' })
+    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
@@ -693,7 +694,7 @@ describe('app Sidebar', () => {
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
-  it('opens a forced tab when the active tab is pinned', () => {
+  it('opens a forced tab without revealing its resource list when the active tab is pinned', () => {
     mocks.sidebarFavorites = [appFavorite('agents')]
     mocks.activeTab = {
       id: 'chat',
@@ -708,7 +709,7 @@ describe('app Sidebar', () => {
     fireEvent.click(screen.getByTestId('sidebar-item-agents'))
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', { forceNew: true, title: 'Work' })
-    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'agents-new' })
+    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
     expect(mocks.updateTab).not.toHaveBeenCalled()
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
   })

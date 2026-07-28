@@ -26,7 +26,7 @@ export const useSaveTool = ({ enabled, sourceViewRef, setTools }: UseSaveToolPro
     if (enabled) {
       registerTool({
         ...TOOL_SPECS.save,
-        icon: saved ? <Check className="tool-icon" color="var(--color-success)" /> : <SaveIcon className="tool-icon" />,
+        icon: saved ? <Check className="tool-icon" color="var(--success)" /> : <SaveIcon className="tool-icon" />,
         tooltip: t('code_block.edit.save.label'),
         onClick: handleSave
       })

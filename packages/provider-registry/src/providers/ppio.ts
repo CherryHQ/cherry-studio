@@ -1,4 +1,8 @@
+import type { ImageModeDef } from '../schemas/model'
 import { openaiCompatible } from './types'
+
+/** PPIO exposes the Seedream line with one identical definition for both edit and generate. */
+const editAndGenerate = (mode: ImageModeDef) => ({ edit: mode, generate: mode })
 
 export default openaiCompatible({
   id: 'ppio',
@@ -359,94 +363,52 @@ export default openaiCompatible({
     },
     {
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              size: {
-                default: '2048x2048',
-                options: ['1K', '2K', '4K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/seedream-4.0', isSync: true }
+        modes: editAndGenerate({
+          supports: {
+            addWatermark: { type: 'switch' },
+            size: {
+              default: '2048x2048',
+              options: ['1K', '2K', '4K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
+              render: 'chips',
+              type: 'enum'
+            }
           },
-          generate: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              size: {
-                default: '2048x2048',
-                options: ['1K', '2K', '4K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/seedream-4.0', isSync: true }
-          }
-        }
+          vendorTransport: { endpoint: '/v3/seedream-4.0', isSync: true }
+        })
       },
       modelId: 'seedream-4-0'
     },
     {
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              size: {
-                default: '2048x2048',
-                options: ['2K', '4K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/seedream-4.5', isSync: true }
+        modes: editAndGenerate({
+          supports: {
+            addWatermark: { type: 'switch' },
+            size: {
+              default: '2048x2048',
+              options: ['2K', '4K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
+              render: 'chips',
+              type: 'enum'
+            }
           },
-          generate: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              size: {
-                default: '2048x2048',
-                options: ['2K', '4K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/seedream-4.5', isSync: true }
-          }
-        }
+          vendorTransport: { endpoint: '/v3/seedream-4.5', isSync: true }
+        })
       },
       modelId: 'seedream-4-5'
     },
     {
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              size: {
-                default: '2048x2048',
-                options: ['2K', '3K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/seedream-5.0-lite', isSync: true }
+        modes: editAndGenerate({
+          supports: {
+            addWatermark: { type: 'switch' },
+            size: {
+              default: '2048x2048',
+              options: ['2K', '3K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
+              render: 'chips',
+              type: 'enum'
+            }
           },
-          generate: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              size: {
-                default: '2048x2048',
-                options: ['2K', '3K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/seedream-5.0-lite', isSync: true }
-          }
-        }
+          vendorTransport: { endpoint: '/v3/seedream-5.0-lite', isSync: true }
+        })
       },
       modelId: 'seedream-5-0-lite'
     },

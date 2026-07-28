@@ -17,6 +17,7 @@
  * - data-compact (compact/summary blocks)
  * - data-compaction-anchor (timeline anchor for completed runtime compaction)
  * - data-agent-task-event (Claude Agent SDK task lifecycle event)
+ * - data-knowledge-scope (knowledge bases available to this user turn)
  * - data-code (code blocks)
  */
 
@@ -87,6 +88,11 @@ export interface AgentTaskEventPartData {
   }
 }
 
+/** Knowledge scope captured on a user message. Hidden from both the transcript and the model. */
+export interface KnowledgeScopePartData {
+  baseIds: string[]
+}
+
 /** Code data — replaces CodeBlock */
 export interface CodePartData {
   content: string
@@ -108,6 +114,7 @@ export type CherryDataPartTypes = {
   compact: CompactPartData
   'compaction-anchor': CompactionAnchorPartData
   'agent-task-event': AgentTaskEventPartData
+  'knowledge-scope': KnowledgeScopePartData
   code: CodePartData
 }
 
@@ -145,6 +152,25 @@ export interface CherryToolMeta {
   }
 }
 
+/** A single actionable step in an AI error diagnosis. */
+export interface DiagnosisStep {
+  text: string
+}
+
+/** AI-generated diagnosis of a chat error. Persisted on a data-error part so it survives popup close / reload. */
+export interface DiagnosisResult {
+  summary: string
+  category: string
+  explanation: string
+  steps: DiagnosisStep[]
+}
+
+/** Cherry metadata on a data-error DataUIPart. */
+export interface CherryErrorMeta {
+  /** Persisted AI error diagnosis, rehydrated into the error-detail popup after close / reload. */
+  diagnosis?: DiagnosisResult
+}
+
 /** Cherry metadata on a FileUIPart. */
 export interface CherryFileMeta {
   /**
@@ -172,7 +198,9 @@ export type CherryMetaForPartType<T extends string> = T extends 'text'
       ? CherryToolMeta
       : T extends 'file'
         ? CherryFileMeta
-        : Record<string, never>
+        : T extends 'data-error'
+          ? CherryErrorMeta
+          : Record<string, never>
 
 /**
  * @deprecated Use `CherryTextMeta` / `CherryReasoningMeta` / `CherryToolMeta` / `CherryFileMeta`
@@ -239,12 +267,32 @@ export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
   composerFileKind: z.literal('pasted-text').optional()
 })
 
+const DiagnosisStepSchema: z.ZodType<DiagnosisStep> = z.object({
+  text: z.string()
+})
+
+const DiagnosisResultSchema: z.ZodType<DiagnosisResult> = z.object({
+  summary: z.string(),
+  category: z.string(),
+  explanation: z.string(),
+  steps: z.array(DiagnosisStepSchema)
+})
+
+export const CherryErrorMetaSchema: z.ZodType<CherryErrorMeta> = z.object({
+  diagnosis: DiagnosisResultSchema.optional()
+})
+
+export const KnowledgeScopePartDataSchema: z.ZodType<KnowledgeScopePartData> = z.strictObject({
+  baseIds: z.array(z.string().min(1))
+})
+
 // Table-driven dispatch — part `type` → schema. First match wins.
 const SCHEMA_BY_PART_TYPE: ReadonlyArray<readonly [(t: string) => boolean, z.ZodTypeAny]> = [
   [(t) => t === 'text', CherryTextMetaSchema],
   [(t) => t === 'reasoning', CherryReasoningMetaSchema],
   [(t) => t === 'dynamic-tool' || t.startsWith('tool-'), CherryToolMetaSchema],
-  [(t) => t === 'file', CherryFileMetaSchema]
+  [(t) => t === 'file', CherryFileMetaSchema],
+  [(t) => t === 'data-error', CherryErrorMetaSchema]
 ]
 
 function schemaForPartType(type: string): z.ZodTypeAny | null {
@@ -252,6 +300,35 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
     if (match(type)) return schema
   }
   return null
+}
+
+const KNOWLEDGE_SCOPE_PART_TYPE = 'data-knowledge-scope'
+
+/** Replace the aggregate knowledge scope part while preserving every content part. */
+export function withKnowledgeScopePart(parts: CherryMessagePart[], baseIds: readonly string[]): CherryMessagePart[] {
+  const contentParts = parts.filter((part) => part.type !== KNOWLEDGE_SCOPE_PART_TYPE)
+  const uniqueBaseIds = Array.from(new Set(baseIds.filter(Boolean)))
+  if (uniqueBaseIds.length === 0) return contentParts
+
+  return [
+    ...contentParts,
+    {
+      type: KNOWLEDGE_SCOPE_PART_TYPE,
+      data: { baseIds: uniqueBaseIds }
+    } as CherryMessagePart
+  ]
+}
+
+/** Read the last valid aggregate scope. Missing or malformed parts yield `undefined`. */
+export function getKnowledgeBaseIdsFromParts(parts: readonly CherryMessagePart[]): string[] | undefined {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const part = parts[index]
+    if (part.type !== KNOWLEDGE_SCOPE_PART_TYPE || !('data' in part)) continue
+
+    const result = KnowledgeScopePartDataSchema.safeParse(part.data)
+    if (result.success) return Array.from(new Set(result.data.baseIds))
+  }
+  return undefined
 }
 
 // ============================================================================

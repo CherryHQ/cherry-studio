@@ -14,7 +14,7 @@ export type StreamDispatchResult =
 type Listener = (result: StreamDispatchResult) => void
 
 /**
- * Dispatches `ai.stream_open` requests and fans the resolved ack (or error) out
+ * Dispatches `ai.stream.open` requests and fans the resolved ack (or error) out
  * to the per-topic listeners registered via {@link subscribe}. Owns the listener
  * registry, so it is a stateful singleton capability (naming-conventions §5.2).
  */
@@ -35,7 +35,7 @@ class StreamDispatchService {
 
   dispatch(topicId: string, request: AiStreamOpenRequest): void {
     ipcApi
-      .request('ai.stream_open', request)
+      .request('ai.stream.open', request)
       .then((ack) => {
         if (ack.mode === 'blocked') {
           toast.error(getStreamBlockedMessage(ack))

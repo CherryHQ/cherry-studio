@@ -2,6 +2,7 @@ import type { UIMessageChunk } from 'ai'
 
 import type { CherryMessagePart, CherryUIMessage } from '../../data/types/message'
 import type { UniqueModelId } from '../../data/types/model'
+import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
 
 export interface AiChatRequestBody {
@@ -15,6 +16,8 @@ export interface AiChatRequestBody {
   userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+  /** Canonical reasoning selection captured for this submit. */
+  reasoningEffort?: ReasoningEffortOption
 }
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -68,7 +71,8 @@ export interface ComposerQueuedMessagePayload {
   attachments?: Array<Record<string, unknown>>
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
-  knowledgeBaseIds?: string[]
+  /** Canonical reasoning selection captured with this queued draft. */
+  reasoningEffort?: ReasoningEffortOption
 }
 
 /**
@@ -134,13 +138,6 @@ export type AiStreamOpenRequest = {
   topicId: string
   /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
   mentionedModelIds?: UniqueModelId[]
-  /**
-   * Knowledge bases selected via the composer `/` picker for this turn. Scope is resolved by
-   * `resolveKnowledgeBaseIds`: the assistant's own bound bases take precedence when non-empty
-   * (these ids are then ignored); only when the assistant has none does this selection define
-   * the scope.
-   */
-  knowledgeBaseIds?: string[]
 } & (
   | {
       /** Brand-new user turn: create the user msg + N assistant placeholders. */
@@ -153,6 +150,8 @@ export type AiStreamOpenRequest = {
       parentAnchorId?: string
       /** Content of the new user msg. */
       userMessageParts: CherryMessagePart[]
+      /** Canonical reasoning selection captured when the composer submitted. */
+      reasoningEffort?: ReasoningEffortOption
     }
   | {
       /** Re-run the assistant under an existing user msg. */
@@ -160,6 +159,7 @@ export type AiStreamOpenRequest = {
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
+      reasoningEffort?: never
     }
 )
 
@@ -199,6 +199,15 @@ export interface AiStreamDetachRequest {
 export interface AiStreamAbortRequest {
   topicId: string
 }
+
+/** Resolve a tool output that was deferred at the boundary. See `transport/deferredToolResult`. */
+export interface AiToolResultRequest {
+  topicId: string
+  messageId: string
+  toolCallId: string
+}
+
+export type AiToolResultResponse = { found: true; output: unknown } | { found: false }
 
 /** Prewarm the next Claude Agent SDK query for an agent session. */
 export interface AiAgentSessionWarmRequest {

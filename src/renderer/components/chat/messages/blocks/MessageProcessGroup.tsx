@@ -1,9 +1,11 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import type { ToolRenderItem } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
-import React, { useMemo, useState } from 'react'
+import type { MessageRuntimeTiming } from '@shared/data/types/message'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import { formatPlaceholderElapsed, usePlaceholderElapsedMs } from './PlaceholderBlock'
 import { ToolBlockGroupHeaderContent } from './ToolBlockGroup'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -25,6 +27,37 @@ type Props = BaseProps &
 
 const PROCESS_CONTENT_CLASS_NAME =
   'flex w-full flex-col gap-3 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!'
+
+function getApprovalWaitDurationMs(runtimeTiming: MessageRuntimeTiming): number {
+  const completedAt = runtimeTiming.completedAt
+  if (completedAt === undefined) return 0
+  const intervals = runtimeTiming.spans
+    .filter((span) => span.kind === 'approval-wait')
+    .map((span) => ({
+      startedAt: Math.max(runtimeTiming.startedAt, span.startedAt),
+      completedAt: Math.min(completedAt, span.completedAt ?? completedAt)
+    }))
+    .filter((span) => span.completedAt > span.startedAt)
+    .sort((left, right) => left.startedAt - right.startedAt)
+
+  let durationMs = 0
+  let mergedStart: number | undefined
+  let mergedEnd: number | undefined
+  for (const interval of intervals) {
+    if (mergedStart === undefined || mergedEnd === undefined) {
+      mergedStart = interval.startedAt
+      mergedEnd = interval.completedAt
+    } else if (interval.startedAt <= mergedEnd) {
+      mergedEnd = Math.max(mergedEnd, interval.completedAt)
+    } else {
+      durationMs += mergedEnd - mergedStart
+      mergedStart = interval.startedAt
+      mergedEnd = interval.completedAt
+    }
+  }
+  if (mergedStart !== undefined && mergedEnd !== undefined) durationMs += mergedEnd - mergedStart
+  return durationMs
+}
 
 const LazyCompletedProcessContent = React.memo(function LazyCompletedProcessContent({
   render
@@ -53,10 +86,15 @@ const ActiveProcessHeader = React.memo(function ActiveProcessHeader({
 const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props) {
   const { children, message, toolItems } = props
   const { t } = useTranslation()
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useMessageDisclosureState('completed-process')
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
+  const runtimeTiming = message.stats?.runtimeTiming
   const completedElapsedMs = useMemo(() => {
     if (props.phase === 'active') return undefined
+    if (runtimeTiming?.completedAt !== undefined) {
+      const wallClockMs = Math.max(0, runtimeTiming.completedAt - runtimeTiming.startedAt)
+      return Math.max(0, wallClockMs - getApprovalWaitDurationMs(runtimeTiming))
+    }
     if (typeof message.stats?.timeCompletionMs === 'number') return message.stats.timeCompletionMs
     if (!message.updatedAt) return undefined
 
@@ -64,7 +102,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
     const finishedAt = Date.parse(message.updatedAt)
     if (!Number.isFinite(startedAt) || !Number.isFinite(finishedAt) || finishedAt < startedAt) return undefined
     return finishedAt - startedAt
-  }, [message.createdAt, message.stats?.timeCompletionMs, message.updatedAt, props.phase])
+  }, [message.createdAt, message.stats?.timeCompletionMs, message.updatedAt, props.phase, runtimeTiming])
 
   if (props.phase === 'active') {
     return (

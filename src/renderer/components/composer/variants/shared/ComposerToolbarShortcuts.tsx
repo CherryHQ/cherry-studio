@@ -4,11 +4,14 @@ import {
   useComposerToolLauncherVersion
 } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/quickPanel'
+import { getComposerToolbarManifestsForScope } from '@renderer/components/composer/tools/toolbarManifests'
+import type { ComposerToolScope } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { GripVertical, RotateCcw } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
-import { useId, useMemo, useState } from 'react'
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './ComposerControlScaffolding'
@@ -18,6 +21,11 @@ export interface ComposerToolbarCustomTool {
   id: string
   label: string
   icon: ReactNode
+  disabled?: boolean
+  /** Places the tool first in the default customize-menu order while keeping it reorderable. */
+  customizePlacement?: 'leading'
+  /** Defaults to true for category shortcuts that need the unified panel. */
+  requiresPanel?: boolean
   onSelect: (args: { inputAdapter?: QuickPanelInputAdapter; unifiedPanelControl?: ComposerUnifiedPanelControl }) => void
 }
 
@@ -25,6 +33,7 @@ interface ShortcutCandidate {
   id: string
   label: ReactNode | string
   icon: ReactNode
+  customizePlacement?: 'leading'
   active: boolean
   disabled: boolean
   disabledReason?: ReactNode | string
@@ -37,10 +46,13 @@ interface ShortcutCandidate {
   haspopup?: 'menu' | 'dialog'
   /** True only for genuine on/off toggles (command launchers); drives `aria-pressed`. */
   toggle: boolean
+  /** Runtime state and action have been registered for the current model/context. */
+  resolved: boolean
   select: () => void
 }
 
 interface ComposerToolbarShortcutsProps {
+  scope: ComposerToolScope
   pinnedIds: readonly string[]
   onPinnedIdsChange: (next: string[]) => void
   onResetPinnedIds: () => void
@@ -49,6 +61,8 @@ interface ComposerToolbarShortcutsProps {
   customTools?: readonly ComposerToolbarCustomTool[]
   customizeOpen: boolean
   onCustomizeOpenChange: (open: boolean) => void
+  /** True only after model resolution has completed without an available model. */
+  isModelUnavailable?: boolean
   inputAdapter?: QuickPanelInputAdapter
   unifiedPanelControl?: ComposerUnifiedPanelControl
 }
@@ -74,13 +88,14 @@ const haveSameOrder = (left: readonly string[], right: readonly string[]) =>
 const reconcileCustomizeOrder = (
   preferredOrder: readonly string[],
   pinnedIds: readonly string[],
-  candidateIds: readonly string[]
+  candidateIds: readonly string[],
+  leadingCandidateIds: readonly string[]
 ) => {
   const availableIds = new Set([...pinnedIds, ...candidateIds])
   const nextOrder: string[] = []
   const seenIds = new Set<string>()
 
-  for (const id of [...preferredOrder, ...pinnedIds, ...candidateIds]) {
+  for (const id of [...preferredOrder, ...leadingCandidateIds, ...pinnedIds, ...candidateIds]) {
     if (availableIds.has(id) && !seenIds.has(id)) {
       seenIds.add(id)
       nextOrder.push(id)
@@ -92,13 +107,14 @@ const reconcileCustomizeOrder = (
 
 /**
  * User-customizable persistent tool shortcut bar shared by the composer variants.
- * Renders the pinned tool ids that resolve to a live candidate (launcher registered
- * for the current scope/model, or a variant-provided custom tool); stale ids stay in
- * the preference untouched. The customize popover (opened from the "+" panel's
+ * Renders known pinned ids immediately from the scope manifest, then overlays live
+ * launcher state and actions when the model runtime registers. Unknown stale ids stay
+ * in the preference untouched. The customize popover (opened from the "+" panel's
  * bottom-fixed item) keeps all candidates in one draggable list, with a switch toggling
  * whether each tool is pinned.
  */
 export const ComposerToolbarShortcuts = ({
+  scope,
   pinnedIds,
   onPinnedIdsChange,
   onResetPinnedIds,
@@ -106,6 +122,7 @@ export const ComposerToolbarShortcuts = ({
   customTools,
   customizeOpen,
   onCustomizeOpenChange,
+  isModelUnavailable,
   inputAdapter,
   unifiedPanelControl
 }: ComposerToolbarShortcutsProps) => {
@@ -113,14 +130,49 @@ export const ComposerToolbarShortcuts = ({
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const panelUnavailable = !unifiedPanelControl?.available
+  const toolbarManifests = useMemo(() => getComposerToolbarManifestsForScope(scope, t), [scope, t])
+  const toolbarManifestById = useMemo(
+    () => new Map(toolbarManifests.map((manifest) => [manifest.id, manifest])),
+    [toolbarManifests]
+  )
+  const toolbarLaunchers = useMemo(() => {
+    void toolLaunchersVersion
+    return getLaunchers('popover')
+  }, [getLaunchers, toolLaunchersVersion])
+  // Thinking and permission-mode icons convey live state. Keep the last resolved
+  // icon through launcher handoffs instead of flashing the generic manifest icon.
+  const lastResolvedIconById = useRef<Map<string, ReactNode>>(new Map())
+
+  useLayoutEffect(() => {
+    for (const launcher of toolbarLaunchers) {
+      if (toolbarManifestById.has(launcher.id)) {
+        lastResolvedIconById.current.set(launcher.id, launcher.icon)
+      }
+    }
+  }, [toolbarLaunchers, toolbarManifestById])
 
   const candidates = useMemo<ShortcutCandidate[]>(() => {
-    void toolLaunchersVersion
-    const launcherCandidates = getLaunchers('popover').map((launcher): ShortcutCandidate => {
+    const manifestCandidates = toolbarManifests.map((manifest): ShortcutCandidate => {
+      const opensPanel = manifest.kind === 'group' || manifest.kind === 'panel'
+      return {
+        id: manifest.id,
+        label: manifest.label,
+        icon: lastResolvedIconById.current.get(manifest.id) ?? manifest.icon,
+        active: false,
+        disabled: true,
+        haspopup: opensPanel ? 'menu' : manifest.kind === 'dialog' ? 'dialog' : undefined,
+        toggle: manifest.kind === 'command',
+        resolved: false,
+        select: () => undefined
+      }
+    })
+    const launcherCandidates = toolbarLaunchers.map((launcher): ShortcutCandidate => {
+      const manifest = toolbarManifestById.get(launcher.id)
       // group/panel launchers open the unified panel; dialog launchers open a modal
       // (attachment picker); command launchers are plain on/off toggles.
-      const opensPanel = launcher.kind === 'group' || launcher.kind === 'panel'
-      const label = launcher.label
+      const kind = manifest?.kind ?? launcher.kind
+      const opensPanel = kind === 'group' || kind === 'panel'
+      const label = manifest?.label ?? launcher.label
       return {
         id: launcher.id,
         label,
@@ -129,8 +181,9 @@ export const ComposerToolbarShortcuts = ({
         disabled: Boolean(launcher.disabled) || (opensPanel && panelUnavailable),
         disabledReason: launcher.disabledReason,
         tooltip: launcher.tooltip,
-        haspopup: opensPanel ? 'menu' : launcher.kind === 'dialog' ? 'dialog' : undefined,
-        toggle: launcher.kind === 'command',
+        haspopup: opensPanel ? 'menu' : kind === 'dialog' ? 'dialog' : undefined,
+        toggle: kind === 'command',
+        resolved: true,
         select: opensPanel
           ? () =>
               unifiedPanelControl?.open({
@@ -140,33 +193,44 @@ export const ComposerToolbarShortcuts = ({
           : () => dispatchLauncher(launcher, { source: 'popover', inputAdapter })
       }
     })
-    const customCandidates = (customTools ?? []).map(
-      (tool): ShortcutCandidate => ({
+    const customCandidates = (customTools ?? []).map((tool): ShortcutCandidate => {
+      const requiresPanel = tool.requiresPanel ?? true
+      return {
         id: tool.id,
         label: tool.label,
         icon: tool.icon,
+        customizePlacement: tool.customizePlacement,
         active: false,
-        disabled: panelUnavailable,
-        haspopup: 'menu',
+        disabled: Boolean(tool.disabled) || (requiresPanel && panelUnavailable),
+        haspopup: requiresPanel ? 'menu' : undefined,
         toggle: false,
+        resolved: true,
         select: () => tool.onSelect({ inputAdapter, unifiedPanelControl })
-      })
-    )
-    return [...launcherCandidates, ...customCandidates]
+      }
+    })
+
+    const candidateById = new Map<string, ShortcutCandidate>()
+    const candidateOrder: string[] = []
+    for (const candidate of [...manifestCandidates, ...customCandidates, ...launcherCandidates]) {
+      if (!candidateById.has(candidate.id)) candidateOrder.push(candidate.id)
+      candidateById.set(candidate.id, candidate)
+    }
+    return candidateOrder.map((id) => candidateById.get(id)!)
   }, [
     customTools,
     dispatchLauncher,
-    getLaunchers,
     inputAdapter,
     panelUnavailable,
-    toolLaunchersVersion,
+    toolbarLaunchers,
+    toolbarManifestById,
+    toolbarManifests,
     unifiedPanelControl
   ])
 
   const candidateById = useMemo(() => new Map(candidates.map((candidate) => [candidate.id, candidate])), [candidates])
 
-  // Stale pinned ids (tool not registered for the current scope/model) keep their
-  // row so reordering preserves them in the preference; only resolved rows render.
+  // Unknown stale ids keep their row so reordering preserves them in the
+  // preference; manifest-backed rows remain visible before runtime registration.
   const pinnedRows = useMemo<CustomizeRow[]>(
     () => pinnedIds.map((id) => ({ id, candidate: candidateById.get(id) })),
     [candidateById, pinnedIds]
@@ -174,6 +238,10 @@ export const ComposerToolbarShortcuts = ({
   const visiblePinnedRows = useMemo(() => pinnedRows.filter((row) => row.candidate), [pinnedRows])
   const pinnedIdSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
   const candidateIds = useMemo(() => candidates.map((candidate) => candidate.id), [candidates])
+  const leadingCandidateIds = useMemo(
+    () => candidates.filter((candidate) => candidate.customizePlacement === 'leading').map((candidate) => candidate.id),
+    [candidates]
+  )
   const [customizeOrderState, setCustomizeOrderState] = useState<CustomizeOrderState>(() => ({
     preferredOrder: [],
     syncedPinnedIds: pinnedIds,
@@ -194,8 +262,8 @@ export const ComposerToolbarShortcuts = ({
   }
 
   const customizeOrderIds = useMemo(
-    () => reconcileCustomizeOrder(customizeOrderState.preferredOrder, pinnedIds, candidateIds),
-    [candidateIds, customizeOrderState.preferredOrder, pinnedIds]
+    () => reconcileCustomizeOrder(customizeOrderState.preferredOrder, pinnedIds, candidateIds, leadingCandidateIds),
+    [candidateIds, customizeOrderState.preferredOrder, leadingCandidateIds, pinnedIds]
   )
   const customizeRows = useMemo<CustomizeRow[]>(
     () => customizeOrderIds.map((id) => ({ id, candidate: candidateById.get(id) })),
@@ -235,6 +303,7 @@ export const ComposerToolbarShortcuts = ({
     setCustomizeOrderState({ preferredOrder: [], syncedPinnedIds: pinnedIds, pendingPinnedIds: null })
     onResetPinnedIds()
   }
+  const showModelRequiredToast = () => toast.error(t('code.model_required'))
 
   // Localized drag feedback so screen readers announce tool names, not internal ids (e.g. "web-search").
   const dragAccessibility = useMemo(() => {
@@ -257,7 +326,7 @@ export const ComposerToolbarShortcuts = ({
   return (
     <Popover open={customizeOpen} onOpenChange={onCustomizeOpenChange}>
       <PopoverAnchor asChild>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex min-h-8 shrink-0 items-center gap-1.5">
           {visiblePinnedRows.map(({ candidate }) => {
             const shortcut = candidate!
             const tooltip =
@@ -265,22 +334,25 @@ export const ComposerToolbarShortcuts = ({
                 ? shortcut.disabledReason
                 : (shortcut.tooltip ?? shortcut.label)
             return (
-              <Tooltip key={shortcut.id} content={tooltip} placement="top">
+              <Tooltip key={shortcut.id} content={tooltip} placement="top" isDisabled={isModelUnavailable}>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
                   className={cn(
                     COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-                    'disabled:pointer-events-none disabled:opacity-40',
+                    'disabled:pointer-events-none',
+                    !shortcut.resolved && 'disabled:opacity-100',
                     shortcut.active && 'bg-accent'
                   )}
                   aria-label={typeof shortcut.label === 'string' ? shortcut.label : undefined}
-                  aria-haspopup={shortcut.haspopup}
-                  aria-pressed={shortcut.toggle ? shortcut.active : undefined}
-                  disabled={shortcut.disabled}
+                  aria-haspopup={isModelUnavailable ? undefined : shortcut.haspopup}
+                  aria-pressed={
+                    !isModelUnavailable && shortcut.toggle && shortcut.resolved ? shortcut.active : undefined
+                  }
+                  disabled={!isModelUnavailable && shortcut.disabled}
                   data-active={shortcut.active || undefined}
-                  onClick={shortcut.select}>
+                  onClick={isModelUnavailable ? showModelRequiredToast : shortcut.select}>
                   {shortcut.icon}
                 </Button>
               </Tooltip>
@@ -292,6 +364,8 @@ export const ComposerToolbarShortcuts = ({
           focus-outside so that restore doesn't instantly dismiss. Pointer-down outside
           still closes the popover. */}
       <PopoverContent
+        side="top"
+        sideOffset={8}
         align="start"
         className="w-64 p-1.5"
         aria-labelledby={customizeTitleId}

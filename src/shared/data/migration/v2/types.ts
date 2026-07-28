@@ -134,6 +134,18 @@ export interface StartMigrationPayload {
   localStorageExportPath?: string
 }
 
+export type MigrationDiagnosticSaveResult =
+  | { status: 'saved'; logs: 'included' | 'not_included' }
+  | { status: 'canceled' }
+  | { status: 'failed' }
+
+export interface MigrationDiagnosticSavePayload {
+  dialogTitle: string
+  logDate: string
+}
+
+export type MigrationExportFileWriteMode = 'overwrite' | 'append'
+
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
   // Status queries
@@ -153,6 +165,12 @@ export const MigrationIpcChannels = {
 
   // File transfer (Renderer -> Main)
   WriteExportFile: 'migration:write-export-file',
+  SaveDiagnosticBundle: 'migration:save-diagnostic-bundle',
+  ShowDiagnosticBundleInFolder: 'migration:show-diagnostic-bundle-in-folder',
+
+  // Open the region-appropriate v1 download page in the system browser
+  // (the preboot window has no shell access; main picks the site by egress IP)
+  OpenDownloadPage: 'migration:open-download-page',
 
   // Skip migration (version incompatible — user chose to use defaults)
   SkipMigration: 'migration:skip-migration',

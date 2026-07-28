@@ -1,7 +1,16 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { Range, ScrollToOptions, VirtualItem, VirtualizerOptions } from '@tanstack/react-virtual'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
-import React, { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 2000
 const STICKY_ITEM_Z_INDEX = 1
@@ -258,6 +267,16 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       handleScrollbarHide(instance.isScrolling)
     }
   })
+  const previousListLengthRef = useRef(list.length)
+
+  useLayoutEffect(() => {
+    const wasEmpty = previousListLengthRef.current === 0
+    previousListLengthRef.current = list.length
+
+    if (wasEmpty && list.length > 0) {
+      virtualizer.measure()
+    }
+  }, [list.length, virtualizer])
 
   useEffect(() => {
     return () => {
@@ -295,11 +314,11 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       {...scrollerProps}
       ref={setScrollerRef}
       className={cn(
-        'dynamic-virtual-list [&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background]',
+        'dynamic-virtual-list [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background]',
         isSticky && 'isolate',
         autoHideScrollbar && !showScrollbar
           ? '[&::-webkit-scrollbar-thumb]:bg-transparent'
-          : '[&::-webkit-scrollbar-thumb]:bg-[var(--color-scrollbar-thumb)]',
+          : '[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]',
         className
       )}
       role={role}
@@ -307,7 +326,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       style={{
         overflow: 'auto',
         scrollbarColor:
-          autoHideScrollbar && !showScrollbar ? 'transparent transparent' : 'var(--color-scrollbar-thumb) transparent',
+          autoHideScrollbar && !showScrollbar ? 'transparent transparent' : 'var(--scrollbar-thumb) transparent',
         ...(horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
         ...scrollerStyle
       }}>
@@ -361,7 +380,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
             zIndex: isItemActiveSticky ? activeStickyZIndex : isItemSticky ? STICKY_ITEM_Z_INDEX : 0,
             pointerEvents: isCoveredBySticky ? 'none' : 'auto',
             ...(isItemActiveSticky && {
-              backgroundColor: 'var(--color-background)'
+              backgroundColor: 'var(--background)'
             }),
             ...(horizontal
               ? {

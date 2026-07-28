@@ -25,6 +25,8 @@ queue, and `resume` handling are driver internals.
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | `ClaudeCodeRuntimeDriver` | Converts Claude SDK messages into generic runtime events and maps opaque resume tokens to Claude SDK `resume`. |
+| Usage capture | Direct/external routes emit one record input per Claude SDK assistant request; gateway routes use AiService provider-call middleware and ignore SDK aggregate usage. |
+| Runtime timing | `AiStreamManager` owns the message clock. Claude SDK `PostToolUse`/`PostToolUseFailure` hooks contribute tool spans for direct/external and gateway-backed routes using `duration_ms`; approval waits are captured independently from approval request to decision/abort. |
 
 ## Fresh turn
 
@@ -161,8 +163,13 @@ MCP server — so a dead or slow server cannot block startup. See
 The driver converts Claude SDK messages into runtime events:
 
 - `stream_event` / assistant/user messages -> `chunk`;
+- direct/external `stream_event` messages establish one invocation per
+  message id and provide terminal usage plus per-request timing; complete
+  `assistant` messages are a whole-snapshot usage candidate when the terminal
+  delta omits usage. Gateway-owned connections do not emit this record input;
 - `system/init` -> `resume-token`;
-- `result` -> `resume-token`, a usage `chunk`, `context-usage`, and `turn-complete`;
+- `result` -> flush pending per-request usage, then `resume-token`, a cumulative
+  usage metadata `chunk` for live UI, `context-usage`, and `turn-complete`;
 - a `PreToolUse` steer injection (armed by `redirect()`) -> `steer-boundary`
   before the post-steer assistant message; a steer the turn never injected
   -> `steer-undelivered`;
@@ -172,6 +179,32 @@ The driver converts Claude SDK messages into runtime events:
   `compaction-complete` (no anchor, idempotent settle);
   `compact_result: 'failed'` / `compact_error` -> `compaction-error`;
 - thrown errors -> `error` (or a salvaged `turn-complete` for a truncated stream).
+
+The settings builder also installs `PostToolUse` and
+`PostToolUseFailure` hooks. Their SDK-reported `duration_ms` is forwarded to
+the active message's `AiStreamManager` timing collector. It is not inferred
+from assistant/user chunks and it excludes the permission prompt. A hook that
+fires with no active UI turn is not attached to the last message.
+
+The result's cumulative `modelUsage`, duration, and total cost are
+reconciliation-only and are never divided across requests. For direct/external
+calls, `SDKPartialAssistantMessage.ttft_ms` supplies per-request TTFT.
+Completion is TTFT plus the monotonic interval from `message_start` to the
+terminal delta/stop; reasoning duration is measured between reasoning and the
+first non-reasoning output. If a step omits `ttft_ms`, TTFT and completion stay
+null rather than treating stream-only duration as the whole provider call.
+Before a steer boundary the driver flushes pending usage, so the host binds
+that invocation to the pre-steer assistant row; the next invocation binds to
+the continuation row. Gateway-backed connections additionally reserve the
+continuation message id synchronously at injection time, before the SDK can
+issue that invocation through the local gateway; A2 later reuses the reserved
+id when the boundary arrives. See
+[AI Usage Records](./ai-usage-records.md#agent-runtime-ownership).
+
+Tool timing and provider usage have separate owners: the post-tool hooks never
+write `ai_usage_record`, and SDK assistant usage never manufactures a tool
+span. The message performance view joins both read models only in the
+renderer.
 
 `applyPolicyUpdate` carries live agent edits onto the warm connection: a
 `permission-mode` change awaits the SDK `setPermissionMode` before mutating

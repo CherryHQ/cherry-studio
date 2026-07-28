@@ -1,3 +1,4 @@
+import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -5,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getProviderByProviderId: vi.fn(),
   getModelByKey: vi.fn(),
-  getRotatedApiKey: vi.fn(),
+  resolveApiKey: vi.fn(),
   getApiKeys: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   resolveEffectiveEndpoint: vi.fn(),
@@ -17,7 +18,9 @@ const mocks = vi.hoisted(() => ({
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
   apiGatewayStart: vi.fn(),
-  apiGatewayGetCurrentConfig: vi.fn()
+  apiGatewayGetCurrentConfig: vi.fn(),
+  apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
+  resolveReasoningProfile: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -31,7 +34,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     getByProviderId: mocks.getProviderByProviderId,
-    getRotatedApiKey: mocks.getRotatedApiKey,
+    resolveApiKey: mocks.resolveApiKey,
     getApiKeys: mocks.getApiKeys
   }
 }))
@@ -42,6 +45,10 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken }
+}))
+
+vi.mock('@data/services/ProviderRegistryService', () => ({
+  providerRegistryService: { resolveReasoningProfile: mocks.resolveReasoningProfile }
 }))
 
 vi.mock('@data/services/McpServerService', () => ({
@@ -60,7 +67,8 @@ vi.mock('@application', () => ({
           ensureValidApiKey: mocks.apiGatewayEnsureKey,
           isRunning: mocks.apiGatewayIsRunning,
           start: mocks.apiGatewayStart,
-          getCurrentConfig: mocks.apiGatewayGetCurrentConfig
+          getCurrentConfig: mocks.apiGatewayGetCurrentConfig,
+          getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders
         }
       }
       if (name === 'PreferenceService') {
@@ -85,6 +93,10 @@ const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = a
 describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.wire
+    })
     mocks.getSessionById.mockReturnValue({
       id: 'session-1',
       agentId: 'agent-1',
@@ -97,7 +109,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet' })
     mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://api.example.com' })
-    mocks.getRotatedApiKey.mockReturnValue('api-key')
+    mocks.resolveApiKey.mockReturnValue({
+      value: 'api-key',
+      apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
+    })
     mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
     mocks.buildSkillWhitelist.mockResolvedValue([])
     mocks.findChannelBySessionId.mockReturnValue(null)
@@ -107,6 +122,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.apiGatewayIsRunning.mockReturnValue(true)
     mocks.apiGatewayStart.mockResolvedValue(undefined)
     mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 23333, apiKey: 'gateway-key' })
+    mocks.apiGatewayGetAgentSessionUsageHeaders.mockReturnValue({
+      'x-cherry-agent-session-id': 'session-1',
+      'x-cherry-internal-usage-token': 'internal-token'
+    })
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
     mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
@@ -140,6 +159,34 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     expect(request?.options.resume).toBeUndefined()
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
+  })
+
+  it('passes the per-turn knowledge selection into settings and the warm signature', async () => {
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', [
+      'kb-selected'
+    ])
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ knowledgeBaseIds: ['kb-selected'] }),
+      expect.anything()
+    )
+    expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
+  })
+
+  it('uses the Agent static binding instead of the per-turn selection', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      knowledgeBaseIds: ['kb-bound']
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', [
+      'kb-selected'
+    ])
+
+    expect(request?.knowledgeBaseIds).toEqual(['kb-bound'])
   })
 
   it('routes with the connection-scoped model override instead of the agent latest model', async () => {
@@ -321,7 +368,15 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       { key: 'key-a', isEnabled: true },
       { key: 'key-b', isEnabled: true }
     ])
-    mocks.getRotatedApiKey.mockReturnValueOnce('key-a').mockReturnValueOnce('key-b')
+    mocks.resolveApiKey
+      .mockReturnValueOnce({
+        value: 'key-a',
+        apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'key-****-a' }
+      })
+      .mockReturnValueOnce({
+        value: 'key-b',
+        apiKeySelection: { attribution: 'explicit', id: 'key-b', masked: 'key-****-b' }
+      })
 
     const first = await buildClaudeCodeQueryRequestForAgentSession('session-1')
     const second = await buildClaudeCodeQueryRequestForAgentSession('session-1')
@@ -352,7 +407,52 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet'
     })
+    expect(request?.usageCapture).toEqual({
+      owner: 'agent-sdk',
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' },
+      providerId: 'provider-1',
+      providerName: null,
+      source: { type: 'agent', id: 'agent-1', name: null, icon: null },
+      frozenModels: [
+        {
+          modelId: 'model-1',
+          modelName: 'model-1',
+          pricingSnapshot: null,
+          aliases: ['claude-sonnet', 'model-1']
+        }
+      ]
+    })
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+
+  it('captures distinct same-provider models for direct-route usage attribution', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-2',
+      smallModel: 'provider-1::model-3'
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'model-1-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-3-api'
+    })
+    expect(request?.usageCapture).toMatchObject({
+      owner: 'agent-sdk',
+      frozenModels: [
+        { modelId: 'model-1', aliases: ['model-1-api', 'model-1'] },
+        { modelId: 'model-2', aliases: ['model-2-api', 'model-2'] },
+        { modelId: 'model-3', aliases: ['model-3-api', 'model-3'] }
+      ]
+    })
   })
 
   it('appends [1m] for a >=1M model on an Anthropic-preset provider repointed at a custom proxy', async () => {
@@ -404,7 +504,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://localhost:11434' } }
     })
     mocks.getModelByKey.mockReturnValue({ id: 'qwen3:14b', apiModelId: 'qwen3:14b' })
-    mocks.getRotatedApiKey.mockReturnValue('')
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
@@ -470,6 +570,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api'
     })
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'x-cherry-agent-session-id: session-1\nx-cherry-internal-usage-token: internal-token'
+    )
+    expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
   it('pins cross-provider plan/small models onto the primary for an external-cli (claude-code) agent instead of routing through the gateway', async () => {
@@ -512,6 +616,21 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
+    expect(request?.usageCapture).toEqual({
+      owner: 'agent-sdk',
+      credentialReceipt: { attribution: 'auth', method: 'external-cli' },
+      providerId: 'claude-code',
+      providerName: null,
+      source: { type: 'agent', id: 'agent-1', name: null, icon: null },
+      frozenModels: [
+        {
+          modelId: 'sonnet',
+          modelName: 'sonnet',
+          pricingSnapshot: null,
+          aliases: ['sonnet-api', 'sonnet']
+        }
+      ]
+    })
   })
 
   it('routes Gemini provider models through the local API gateway', async () => {
@@ -590,7 +709,7 @@ describe('deriveConnectionConfig', () => {
     const result = await deriveConnectionConfig('session-1')
 
     expect(result.ok).toBe(true)
-    expect(mocks.getRotatedApiKey).not.toHaveBeenCalled()
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
     // mkdir / builtin-agent provisioning / shared snapshot update all live inside
@@ -709,6 +828,61 @@ describe('deriveConnectionConfig', () => {
     })
     const mcpDefinitionChanged = await deriveSignature()
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
+  })
+
+  it('fingerprints knowledge-base bindings as a set', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      knowledgeBaseIds: ['kb-b', 'kb-a'],
+      configuration: {}
+    })
+    const bound = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      knowledgeBaseIds: ['kb-a', 'kb-b'],
+      configuration: {}
+    })
+    const reordered = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      knowledgeBaseIds: ['kb-a'],
+      configuration: {}
+    })
+    const unbound = await deriveSignature()
+
+    expect(reordered.rebuildSignature).toBe(bound.rebuildSignature)
+    expect(unbound.rebuildSignature).not.toBe(bound.rebuildSignature)
+  })
+
+  it('fingerprints composer knowledge selection only when the Agent has no static binding', async () => {
+    const unselected = await deriveConnectionConfig('session-1', undefined, 'default', [])
+    const selected = await deriveConnectionConfig('session-1', undefined, 'default', ['kb-selected'])
+    if (!unselected.ok || !selected.ok) throw new Error('expected ok derive')
+    expect(selected.config.rebuildSignature).not.toBe(unselected.config.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      knowledgeBaseIds: ['kb-bound'],
+      configuration: {}
+    })
+    const firstSelection = await deriveConnectionConfig('session-1', undefined, 'default', ['kb-a'])
+    const secondSelection = await deriveConnectionConfig('session-1', undefined, 'default', ['kb-b'])
+    if (!firstSelection.ok || !secondSelection.ok) throw new Error('expected ok derive')
+    expect(secondSelection.config.rebuildSignature).toBe(firstSelection.config.rebuildSignature)
   })
 
   it('keeps permission mode live-only while disabled tools also require a rebuild', async () => {

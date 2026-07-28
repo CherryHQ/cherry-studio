@@ -1,6 +1,7 @@
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { act, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -117,7 +118,7 @@ describe('AttachmentToolRuntime', () => {
         files={[
           {
             fileTokenSourceId: 'existing',
-            path: '/tmp/existing.txt',
+            path: '/tmp/existing.txt' as AbsoluteFilePath,
             name: 'existing.txt',
             origin_name: 'existing.txt',
             ext: '.txt',

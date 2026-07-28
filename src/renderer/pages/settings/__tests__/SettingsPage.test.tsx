@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import SettingsPage from '../SettingsPage'
 
-const navigateMock = vi.hoisted(() => vi.fn())
+const { isMacTransparentWindowMock, navigateMock } = vi.hoisted(() => ({
+  isMacTransparentWindowMock: vi.fn(),
+  navigateMock: vi.fn()
+}))
 
 vi.mock('@cherrystudio/ui', () => ({
   MenuDivider: () => <hr data-testid="menu-divider" />,
@@ -25,7 +28,7 @@ vi.mock('@renderer/components/Scrollbar', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
-  default: () => false
+  default: () => isMacTransparentWindowMock()
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -39,6 +42,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
+        'agent.settings.toolsMcp.mcp.tab': 'MCP',
         'selection.name': '划词助手',
         'settings.channels.title': '频道',
         'settings.dependencies.title': '环境依赖',
@@ -51,6 +55,7 @@ vi.mock('react-i18next', () => ({
         'settings.quickAssistant.title': '快捷助手',
         'settings.scheduledTasks.title': '定时任务',
         'settings.shortcuts.title': '快捷键',
+        'settings.skills.title': '技能',
         'settings.system.title': '系统',
         'settings.tool.file_processing.features.image_to_text.title': 'OCR',
         'settings.tool.file_processing.features.document_to_markdown.title': '文档处理'
@@ -60,12 +65,30 @@ vi.mock('react-i18next', () => ({
 
 describe('SettingsPage', () => {
   beforeEach(() => {
+    isMacTransparentWindowMock.mockReturnValue(false)
     navigateMock.mockReset()
   })
 
-  it('places local models directly below the default model', () => {
-    render(<SettingsPage />)
+  it('keeps setting groups transparent in a macOS transparent window', () => {
+    isMacTransparentWindowMock.mockReturnValue(true)
 
+    const { container } = render(<SettingsPage />)
+
+    expect(container.firstElementChild).toHaveStyle({ '--settings-group-background': 'transparent' })
+  })
+
+  it('uses a subtle group background in dark mode', () => {
+    const { container } = render(<SettingsPage />)
+
+    expect(container.firstElementChild).toHaveClass('dark:[--settings-group-background:var(--background-subtle)]')
+  })
+
+  it('places local models directly below the default model', () => {
+    const { container } = render(<SettingsPage />)
+
+    expect(container.querySelector('[data-ui="settings.view"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-ui="settings.navigation"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-ui="settings.content"]')).toBeInTheDocument()
     expect(screen.getByText('title.settings').closest('header')).toHaveClass('mb-1')
     expect(screen.getByText('偏好')).toBeInTheDocument()
 
@@ -96,6 +119,20 @@ describe('SettingsPage', () => {
 
     fireEvent.click(dependenciesItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/dependencies' })
+  })
+
+  it('places Skills directly below MCP and opens the Skills settings page', () => {
+    render(<SettingsPage />)
+
+    const mcpItem = screen.getByText('MCP').closest('button')
+    const skillsItem = screen.getByRole('button', { name: '技能' })
+
+    expect(mcpItem).not.toBeNull()
+    expect(mcpItem?.nextElementSibling).toBe(skillsItem)
+    expect(skillsItem.querySelector('.lucide-tool-case')).toBeInTheDocument()
+
+    fireEvent.click(skillsItem)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/skills' })
   })
 
   it('merges quick access into efficiency and places both assistants last', () => {

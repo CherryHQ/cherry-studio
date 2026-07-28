@@ -8,6 +8,7 @@
  */
 
 import type OpenAI from '@cherrystudio/openai'
+import { objectValues, REASONING_EFFORT, type ReasoningEffort } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 type NotUndefined<T> = Exclude<T, undefined>
@@ -22,8 +23,15 @@ type NotUndefined<T> = Exclude<T, undefined>
 export type OpenAIVerbosity = OpenAI.Responses.ResponseTextConfig['verbosity']
 export type ValidOpenAIVerbosity = NotUndefined<OpenAIVerbosity>
 
-/** Reasoning effort level accepted by OpenAI reasoning-capable models. */
-export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto' | 'default'
+/**
+ * A selectable reasoning-effort value: any NATIVE effort a model may declare
+ * in its registry vocabulary (`REASONING_EFFORT` — includes both OpenAI's
+ * `xhigh` and Anthropic/DeepSeek's `max` top tiers), or the `'default'` UI
+ * sentinel meaning "send no reasoning params".
+ */
+export type ReasoningEffortOption = ReasoningEffort | 'default'
+
+export const ReasoningEffortOptionSchema = z.enum(['default', ...objectValues(REASONING_EFFORT)])
 
 /**
  * Summary configuration for OpenAI reasoning responses.

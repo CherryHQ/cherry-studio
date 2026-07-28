@@ -102,7 +102,8 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
         params: body,
         inputFormat: 'anthropic',
         outputFormat: 'anthropic',
-        signal: request.signal
+        signal: request.signal,
+        requestHeaders: request.headers
       }),
     {
       body: MessagesBodySchema,

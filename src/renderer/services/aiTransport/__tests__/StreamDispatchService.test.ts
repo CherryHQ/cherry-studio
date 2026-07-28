@@ -8,13 +8,13 @@ import { streamDispatchService } from '../StreamDispatchService'
 const TOPIC = 'topic-1'
 const req: AiStreamOpenRequest = { trigger: 'submit-message', topicId: TOPIC, userMessageParts: [] }
 
-// `streamOpen` backs the `ai.stream_open` route on the mocked ipcApi (hoisted so the
+// `streamOpen` backs the `ai.stream.open` route on the mocked ipcApi (hoisted so the
 // vi.mock factory can reference it).
 const { streamOpen } = vi.hoisted(() => ({ streamOpen: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.stream_open' ? streamOpen(input) : Promise.resolve(undefined),
+      route === 'ai.stream.open' ? streamOpen(input) : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))

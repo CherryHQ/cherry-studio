@@ -6,7 +6,7 @@
  */
 
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { MODEL_SELECTOR_TAGS } from '../filters'
@@ -42,6 +42,8 @@ describe('MODEL_SELECTOR_TAGS', () => {
   it('lists the tags the selector surfaces in the filter chip row', () => {
     expect(MODEL_SELECTOR_TAGS).toEqual([
       MODEL_CAPABILITY.IMAGE_RECOGNITION,
+      MODEL_CAPABILITY.AUDIO_RECOGNITION,
+      MODEL_CAPABILITY.VIDEO_RECOGNITION,
       MODEL_CAPABILITY.WEB_SEARCH,
       MODEL_CAPABILITY.REASONING,
       MODEL_CAPABILITY.FUNCTION_CALL,
@@ -71,6 +73,14 @@ describe('modelMatchesDisplayTag — capability tags', () => {
     expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.WEB_SEARCH)).toBe(true)
     expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.RERANK)).toBe(false)
     expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.EMBEDDING)).toBe(false)
+  })
+
+  it('matches input-modality tags from canonical input modalities', () => {
+    const model = makeModel({ inputModalities: [MODALITY.IMAGE, MODALITY.AUDIO] })
+
+    expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.IMAGE_RECOGNITION)).toBe(true)
+    expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.AUDIO_RECOGNITION)).toBe(true)
+    expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.VIDEO_RECOGNITION)).toBe(false)
   })
 })
 

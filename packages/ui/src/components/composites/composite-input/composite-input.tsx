@@ -70,10 +70,10 @@ const inputVariants = cva(['p-0', 'h-fit', 'min-w-0'], {
 const inputWrapperVariants = cva(['flex', 'flex-1', 'items-center', 'gap-2'], {
   variants: {
     size: {
-      sm: ['p-3xs'],
+      sm: ['p-3'],
       // Why only the md size is fixed height???
-      md: ['p-3xs', 'h-5.5', 'box-content'],
-      lg: ['px-2xs', 'py-3xs']
+      md: ['p-3', 'h-5.5', 'box-content'],
+      lg: ['px-4', 'py-3']
     },
     variant: {
       default: [],
@@ -122,13 +122,13 @@ const iconButtonVariants = cva(['text-foreground/60 cursor-pointer transition-co
 })
 
 const buttonVariants = cva(
-  ['py-3xs', 'flex flex-col', 'text-foreground/60 cursor-pointer transition-colors', 'hover:shadow-none'],
+  ['py-3', 'flex flex-col', 'text-foreground/60 cursor-pointer transition-colors', 'hover:shadow-none'],
   {
     variants: {
       size: {
-        sm: 'px-3xs',
-        md: 'px-3xs',
-        lg: 'px-2xs'
+        sm: 'px-3',
+        md: 'px-3',
+        lg: 'px-4'
       },
       disabled: {
         false: null,
@@ -165,9 +165,9 @@ const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60
   variants: {
     size: {
       // TODO: semantic letter-spacing
-      sm: ['text-sm leading-4', 'p-3xs'],
-      md: ['leading-4.5', 'p-3xs'],
-      lg: ['leading-5 tracking-normal', 'px-2xs py-3xs']
+      sm: ['text-sm leading-4', 'p-3'],
+      md: ['leading-4.5', 'p-3'],
+      lg: ['leading-5 tracking-normal', 'px-4 py-3']
     },
     disabled: {
       false: null,
@@ -208,9 +208,9 @@ const selectTriggerVariants = cva(
   {
     variants: {
       size: {
-        sm: ['h-5', 'pl-6 pr-3xs py-3', '*:data-[slot=select-value]:text-sm'],
-        md: ['h-5', 'pl-6 pr-3xs py-[13px]'],
-        lg: ['h-6', 'pl-7 pr-2xs py-3', '*:data-[slot=select-value]:text-lg']
+        sm: ['h-5', 'pl-6 pr-3 py-3', '*:data-[slot=select-value]:text-sm'],
+        md: ['h-5', 'pl-6 pr-3 py-[13px]'],
+        lg: ['h-6', 'pl-7 pr-4 py-3', '*:data-[slot=select-value]:text-lg']
       }
     }
   }

@@ -191,7 +191,7 @@ src/main/ai/streamManager/
 │   └── SseListener.ts                 UIMessageChunk → SSE response (API server)
 │
 └── persistence/
-    ├── PersistenceBackend.ts          strategy interface + statsFromTerminal projection
+    ├── PersistenceBackend.ts          strategy interface + runtime-only stats input
     └── backends/
         ├── MessageServiceBackend.ts   finalize a SQLite pending placeholder
         ├── TemporaryChatBackend.ts    append to in-memory topic
@@ -267,7 +267,7 @@ interface PersistenceBackend {
     finalMessage?: CherryUIMessage
     status: 'success' | 'paused' | 'error'
     modelId?: UniqueModelId
-    stats?: MessageStats
+    runtimeStats?: MessageRuntimeStatsInput
   }): Promise<void>
   afterPersist?(finalMessage: CherryUIMessage): Promise<void>
 }
@@ -328,8 +328,6 @@ interface StreamExecution {
   loopPromise: Promise<void>     // awaited by onStop for graceful shutdown
 
   // Transport-side timings owned by the execution loop — chunk-shape-agnostic.
-  // Semantic timings (firstTextAt / reasoning*) live on the listener
-  // that cares; see "Stats composition" below.
   timings: TransportTimings
 
   // OTel root span set as active context around runExecutionLoop so
@@ -342,11 +340,6 @@ interface TransportTimings {
   completedAt?: number         // execution loop exit (both try and catch paths)
 }
 
-interface SemanticTimings {
-  firstTextAt?: number           // first text-delta chunk (TTFT endpoint)
-  reasoningStartedAt?: number    // first reasoning-* chunk
-  reasoningEndedAt?: number      // first non-reasoning chunk after reasoning
-}
 ```
 
 Topic-level status is derived from executions, with `'pending'` as the
@@ -362,45 +355,45 @@ initial pre-first-chunk window:
 `pending → streaming` is a one-time transition (first chunk anywhere).
 The terminal status is derived once when the last execution terminates.
 
-### Stats composition — tokens + timings → MessageStats
+### Runtime timing persistence
 
-**Ownership** (key invariant: manager does not peek at chunk payloads):
+**Ownership** (key invariant: persistence cannot write record-owned fields):
 
 | Source field | Owner | Collected at |
 |---|---|---|
-| `TransportTimings.startedAt` | `AiStreamManager` | `createAndLaunchExecution` |
-| `TransportTimings.completedAt` | `AiStreamManager` | `pipeStreamLoop`'s `broadcastCompletedAt` |
-| `SemanticTimings.firstTextAt` | `PersistenceListener` | own `onChunk`, first `text-delta` |
-| `SemanticTimings.reasoning*` | `PersistenceListener` | own `onChunk`, observing `reasoning-*` boundaries |
-| Token metadata | `agentLoop` usage observer | `finish` chunk projects AI SDK `LanguageModelUsage` → `CherryUIMessageMetadata` |
+| `MessageRuntimeTiming.startedAt/completedAt` | execution timing collector | execution start and terminal event |
+| tool spans | AI SDK tool hooks / Agent SDK hooks | exact tool execute interval |
+| approval spans | execution timing collector | request to approve, deny, abort, or error |
+| usage, cost, request count, provider performance | AI usage record projector | successful provider invocation insertion |
 
-The manager is chunk-shape-agnostic — multicast, reconnect, abort,
-steer queue/continuation, persistence-triggering, never "what is text /
-what is reasoning". AI SDK chunk type changes (vNext renames) only touch
-`PersistenceListener`; the manager stays stable.
-
-**Final projection.** `statsFromTerminal(finalMessage, mergedTimings)`
-is one function; the listener merges its `SemanticTimings` with
-`result.timings` (transport) before calling it:
+`AiStreamManager` creates and owns the timing collector for an execution.
+The context provider supplies `runtimeTimingSeed` when a continuation must
+resume persisted timing; the manager consumes that seed without loading chat
+or agent tables itself. The listener is chunk-shape-agnostic and carries only
+the collector snapshot to persistence:
 
 ```typescript
-// inside PersistenceListener
-const mergedTimings = { ...result.timings, ...this.semanticTimings }
-const stats = statsFromTerminal(finalMessage, mergedTimings)
-await this.opts.backend.persistAssistant({ finalMessage, status, modelId, stats })
+const parts = finalizeInterruptedParts(finalMessage.parts, status)
+const finalMessageForPersistence = { ...finalMessage, parts }
+await this.opts.backend.persistAssistant({
+  finalMessage: finalMessageForPersistence,
+  status,
+  modelId,
+  runtimeStats: result.runtimeTiming
+    ? { runtimeTiming: result.runtimeTiming }
+    : undefined
+})
 ```
 
-Projected `MessageStats` fields:
-
-| Field | Source |
-|---|---|
-| `totalTokens / promptTokens / completionTokens / thoughtsTokens` | `finalMessage.metadata.*` |
-| `timeFirstTokenMs` | `round(firstTextAt - startedAt)` |
-| `timeCompletionMs` | `round(completedAt - startedAt)` |
-| `timeThinkingMs` | **not projected** — wall-clock `reasoningEndedAt - reasoningStartedAt` can include interleaved tool exec; see the `TODO(message-stats-redesign)` note in `PersistenceBackend.ts` |
-
-Backends never derive stats themselves; they just write `input.stats`.
-One projection path, four backends, no duplication.
+New messages write only `runtimeTiming`; the legacy scalar
+`timeFirstTokenMs` / `timeCompletionMs` / `timeThinkingMs` fields are read
+only for historical rows without a runtime timeline. Backends never derive
+message stats themselves. Data-layer merge helpers accept only
+`MessageRuntimeStatsInput`, preserve the record-owned projection, and remove
+legacy scalar timing once a runtime timeline exists. Temporary chat append
+reads the current projection internally, and promotion only rebuilds it; no
+persistence path creates or repairs a usage record. See
+[AI Usage Records](./ai-usage-records.md).
 
 ## Public API
 

@@ -11,7 +11,8 @@ export default defineProvider({
     },
     'ollama-chat': {
       adapterFamily: 'ollama',
-      baseUrl: 'http://localhost:11434'
+      baseUrl: 'http://localhost:11434',
+      reasoningFormat: { type: 'ollama' }
     }
   },
   metadata: {

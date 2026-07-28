@@ -1,9 +1,8 @@
 export {
+  createResourcePaneCapability,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
-  ResourcePaneLocateOpener,
-  ResourcePaneProvider,
-  useResourcePane
+  ResourcePaneLocateOpener
 } from './resourcePane'
 export { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from './ResourcePaneCountButton'
 export {
@@ -11,6 +10,8 @@ export {
   type RightPanelActions,
   type RightPanelCapability,
   type RightPanelComponentProps,
+  type RightPanelComposition,
+  RightPanelHeaderControls,
   type RightPanelInstance,
   RightPanelProvider,
   type RightPanelReadiness,

@@ -31,10 +31,11 @@ import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
 import { CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
+import { useActiveComposerOverride } from './ComposerContext'
+import { COMPOSER_INPUT_MAX_LENGTH, createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
@@ -42,7 +43,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
-import { ComposerToolMenu } from './ComposerToolRuntime'
+import { ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
@@ -84,7 +85,6 @@ import {
   useComposerEditorFrameSizing
 } from './useComposerEditorFrameSizing'
 
-const COMPOSER_INPUT_MAX_LENGTH = 40000
 const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
   { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
@@ -178,12 +178,17 @@ export interface ComposerSurfaceProps {
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
+  /** Custom content pinned above the editor, inside the input frame (e.g. a reference-image strip). */
+  topContent?: React.ReactNode
+  /** Custom content pinned to the left of the editor, on the same row (e.g. an add-image button). */
+  leadingContent?: React.ReactNode
   compactWhenSingleLine?: boolean
   renderCompactControls?: (
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
   sendAccessory?: React.ReactNode | ComposerSurfaceSendAccessoryRenderer
+  deferQuickPanel?: boolean
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -575,13 +580,23 @@ export default function ComposerSurface({
   onToolLauncherSelect,
   renderLeftControls,
   renderBelowControls,
+  topContent,
+  leadingContent,
   compactWhenSingleLine = false,
   renderCompactControls,
-  sendAccessory
+  sendAccessory,
+  deferQuickPanel = false
 }: ComposerSurfaceProps) {
+  const [editorReady, setEditorReady] = useState(!deferQuickPanel)
+  const quickPanelReady = !deferQuickPanel || editorReady
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
+  const composerOverridden = useActiveComposerOverride() !== null
+  const closeQuickPanel = quickPanel.close
+  const isQuickPanelVisible = quickPanel.isVisible
+  const pinnedLauncherIds = useComposerPinnedTools()
+  const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
   const quickPanelRef = useRef(quickPanel)
   const { setTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
@@ -632,6 +647,12 @@ export default function ComposerSurface({
     sendMessageShortcut,
     setFiles
   ])
+
+  useLayoutEffect(() => {
+    if (composerOverridden && isQuickPanelVisible) {
+      closeQuickPanel('composer_override')
+    }
+  }, [closeQuickPanel, composerOverridden, isQuickPanelVisible])
 
   useEffect(() => {
     textRef.current = text
@@ -954,6 +975,7 @@ export default function ComposerSurface({
     resourceProvider,
     rootPanelLeadingItems,
     rootPanelAdditionalItems,
+    pinnedLauncherIdSet,
     unifiedResourceItems
   })
 
@@ -966,12 +988,14 @@ export default function ComposerSurface({
       resourceProvider,
       rootPanelLeadingItems,
       rootPanelAdditionalItems,
+      pinnedLauncherIdSet,
       unifiedResourceItems
     }
   }, [
     getToolLaunchers,
     onRootPanelOpen,
     onToolLauncherSelect,
+    pinnedLauncherIdSet,
     quickPanel,
     resourceProvider,
     rootPanelAdditionalItems,
@@ -985,17 +1009,26 @@ export default function ComposerSurface({
       inputAdapter,
       queryAnchor,
       resourceItems,
-      triggerInfo
+      triggerInfo,
+      includePinnedLaunchers = false
     }: {
       initialSearchText?: string
       inputAdapter?: QuickPanelInputAdapter
       queryAnchor?: number
       resourceItems?: readonly QuickPanelListItem[]
       triggerInfo?: QuickPanelTriggerInfo
+      includePinnedLaunchers?: boolean
     }): QuickPanelOpenOptions => {
-      const { getToolLaunchers, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems, rootPanelLeadingItems } =
-        rootSuggestionStateRef.current
+      const {
+        getToolLaunchers,
+        onToolLauncherSelect,
+        pinnedLauncherIdSet,
+        quickPanel,
+        rootPanelAdditionalItems,
+        rootPanelLeadingItems
+      } = rootSuggestionStateRef.current
       const launchers = getToolLaunchers?.() ?? []
+      const isButtonRoot = (triggerInfo?.type ?? 'button') === 'button'
 
       return createUnifiedQuickPanelOpenOptions(launchers, {
         onToolLauncherSelect,
@@ -1007,7 +1040,8 @@ export default function ComposerSurface({
         resourceItems,
         queryAnchor,
         triggerInfo,
-        initialSearchText
+        initialSearchText,
+        excludedLauncherIds: isButtonRoot && !includePinnedLaunchers ? pinnedLauncherIdSet : undefined
       })
     },
     [t]
@@ -1134,12 +1168,15 @@ export default function ComposerSurface({
       triggerInfo?: QuickPanelTriggerInfo
     }) => {
       const { quickPanel } = rootSuggestionStateRef.current
+      // Opening a specific launcher is an explicit request, so it should not be filtered out by
+      // the pinned-launcher dedup that applies to the browsable root panel.
       const rootPanelOptions = createUnifiedPanelOptions({
         initialSearchText: searchText,
         inputAdapter,
         queryAnchor,
         resourceItems: [],
-        triggerInfo
+        triggerInfo,
+        includePinnedLaunchers: true
       })
       const launcherItem = rootPanelOptions.list.find((item) => item.id === launcherId)
       if (!launcherItem?.isMenu || launcherItem.disabled) return false
@@ -1420,7 +1457,7 @@ export default function ComposerSurface({
     () => ({
       attributes: {
         class: cn(
-          'composer-tiptap after:hidden! box-border flex w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
+          'composer-tiptap after:hidden! box-border block w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
           hasCustomHeight ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
           hasCustomHeight && 'h-full'
         ),
@@ -1729,6 +1766,7 @@ export default function ComposerSurface({
     extensions: editorExtensions,
     content: createComposerEditorContent(text, draftTokens),
     editable,
+    immediatelyRender: false,
     enableSpellCheck,
     editorProps: memoizedEditorProps,
     handlePaste: memoizedHandlePaste,
@@ -1757,6 +1795,9 @@ export default function ComposerSurface({
       }
     },
     onCreate: ({ editor: createdEditor }) => {
+      window.requestAnimationFrame(() => {
+        startTransition(() => setEditorReady(true))
+      })
       const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
       setTimeoutTimer(
         'composerSurfaceFocus',
@@ -1900,6 +1941,7 @@ export default function ComposerSurface({
     rootQuickPanelTriggerInfo,
     rootPanelAdditionalItems,
     rootPanelLeadingItems,
+    pinnedLauncherIdSet,
     toolLaunchersVersion,
     unifiedResourceItems
   ])
@@ -1978,13 +2020,20 @@ export default function ComposerSurface({
   const unifiedPanelAvailable = useMemo(() => {
     // Recompute when runtime launchers register or unregister.
     void toolLaunchersVersion
-    if (!quickPanelEnabled) return false
+    if (!quickPanelReady || !quickPanelEnabled) return false
 
     return hasUnifiedQuickPanelRootContent(getToolLaunchers?.() ?? [], {
       leadingItems: rootPanelLeadingItems,
       additionalItems: rootPanelAdditionalItems
     })
-  }, [getToolLaunchers, quickPanelEnabled, rootPanelAdditionalItems, rootPanelLeadingItems, toolLaunchersVersion])
+  }, [
+    getToolLaunchers,
+    quickPanelReady,
+    quickPanelEnabled,
+    rootPanelAdditionalItems,
+    rootPanelLeadingItems,
+    toolLaunchersVersion
+  ])
 
   const unifiedPanelControl = useMemo<ComposerUnifiedPanelControl>(
     () => ({
@@ -2048,8 +2097,9 @@ export default function ComposerSurface({
     ]
   )
 
-  const quickPanelElement = quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
+  const quickPanelElement = quickPanelReady && quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
+  const leftControls = renderLeftControls?.(inputAdapter, unifiedPanelControl)
   const belowControls = renderBelowControls?.(inputAdapter, unifiedPanelControl)
   const sendAccessoryElement =
     typeof sendAccessory === 'function' ? sendAccessory(inputAdapter, unifiedPanelControl) : sendAccessory
@@ -2058,6 +2108,7 @@ export default function ComposerSurface({
   const sendAction = showPauseButton ? (
     <Tooltip content={t('chat.input.pause')} placement="top">
       <button
+        data-ui="chat.composer.action.pause"
         type="button"
         className="flex size-7.5 items-center justify-center rounded-full text-error-base hover:bg-accent"
         aria-label={t('chat.input.pause')}
@@ -2110,10 +2161,11 @@ export default function ComposerSurface({
   const inputbarElement = (
     <div
       id="inputbar"
+      data-ui="chat.composer"
       data-composer-inputbar=""
       data-composer-presentation={isCompact ? 'compact' : 'regular'}
       className={cn(
-        'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-[0_1px_5px_rgba(15,23,42,0.05)] transition-all duration-200 ease-in-out dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]',
+        'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-sm transition-all duration-200 ease-in-out',
         isCompact || editingState ? 'pt-0' : 'pt-2',
         belowControls ? 'mb-0.5' : 'mb-3',
         isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
@@ -2160,14 +2212,23 @@ export default function ComposerSurface({
         </>
       ) : null}
       {editingModeHeader}
+      {topContent}
       <div
         data-composer-compact-row={isCompact ? '' : undefined}
-        className={isCompact ? 'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 px-2 py-1' : 'contents'}>
+        className={
+          isCompact
+            ? 'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 px-2 py-1'
+            : leadingContent
+              ? 'flex items-start'
+              : 'contents'
+        }>
         {isCompact ? <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} /> : null}
+        {leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{leadingContent}</div> : null}
         <div
           ref={frameRef}
+          data-ui="part:composer-input"
           data-composer-editor-frame=""
-          className={cn('min-w-0 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
+          className={cn('min-w-0 flex-1 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
           onTransitionEnd={handleTransitionEnd}
           style={isCompact ? compactFrameStyle : frameStyle}>
           <EditorContent
@@ -2180,7 +2241,7 @@ export default function ComposerSurface({
           />
         </div>
         {isCompact ? (
-          <div className="flex shrink-0 flex-row items-center gap-1.5">
+          <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
             {compactControls}
             {sendAccessoryElement}
             {sendAction}
@@ -2190,11 +2251,10 @@ export default function ComposerSurface({
 
       {!isCompact ? (
         <div
+          data-ui="part:composer-actions"
           data-composer-toolbar=""
           className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
-          <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-            {renderLeftControls?.(inputAdapter, unifiedPanelControl)}
-          </div>
+          <div className="flex min-w-0 flex-1 items-center overflow-hidden">{leftControls}</div>
           <div className="flex flex-row items-center gap-1.5">
             {sendAccessoryElement}
             {sendAction}

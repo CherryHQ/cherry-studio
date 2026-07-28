@@ -29,6 +29,8 @@ export interface AgentFormState {
   smallModel: UniqueModelId | ''
   instructions: string
   mcps: string[]
+  /** Knowledge bases bound to the agent (empty = kb_* tools not exposed). */
+  knowledgeBaseIds: string[]
   skillIds: string[]
   /** Opt-out list of disabled tool names (empty = all enabled). */
   disabledTools: string[]
@@ -100,6 +102,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
+    knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
     skillIds: [...skillIds],
     disabledTools: [...(agent?.disabledTools ?? [])],
     avatar: asString(cfg.avatar),
@@ -170,6 +173,10 @@ export function diffAgentUpdate(
     dto.mcps = next.mcps
     dirty = true
   }
+  if (!stringSetsEqual(baseline.knowledgeBaseIds, next.knowledgeBaseIds)) {
+    dto.knowledgeBaseIds = next.knowledgeBaseIds
+    dirty = true
+  }
   const skillUpdates = diffSkillUpdates(baseline.skillIds, next.skillIds)
   if (skillUpdates.length > 0) {
     dto.skillUpdates = skillUpdates
@@ -227,6 +234,12 @@ function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
   return true
+}
+
+function stringSetsEqual(a: readonly string[], b: readonly string[]): boolean {
+  const aSet = new Set(a)
+  const bSet = new Set(b)
+  return aSet.size === bSet.size && [...aSet].every((value) => bSet.has(value))
 }
 
 function diffSkillUpdates(baselineSkillIds: readonly string[], nextSkillIds: readonly string[]): AgentSkillUpdateDto[] {

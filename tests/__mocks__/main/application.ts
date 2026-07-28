@@ -49,6 +49,8 @@ const mockWindowManager = {
   getWindowIdByWebContents: vi.fn(() => undefined),
   open: vi.fn(() => 'mock-window-id'),
   close: vi.fn(() => true),
+  suspendPool: vi.fn(() => 0),
+  resumePool: vi.fn(),
   show: vi.fn(() => true),
   hide: vi.fn(() => true),
   focus: vi.fn(() => true),
@@ -104,6 +106,16 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }
+    // Mirror real ServiceContainer semantics: every default mock service is
+    // non-conditional, so getOptional() on it THROWS (catches code that
+    // wrongly "falls back" from get() to getOptional() for regular services);
+    // unknown names return undefined, like an excluded/unregistered service.
+    getOptional(name: string) {
+      if (name in serviceInstances) {
+        throw new Error(`[ServiceContainer] Service '${name}' is not conditional — use get('${name}').`)
+      }
+      return undefined
+    }
     has(name: string) {
       return name in serviceInstances
     }
@@ -114,6 +126,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
 
   return {
     get: vi.fn((name: string) => container.get(name)),
+    getOptional: vi.fn((name: string) => container.getOptional(name)),
     getContainer: vi.fn(() => container),
     // Deterministic stub for path lookups — returns "/mock/<key>" (or
     // "/mock/<key>/<filename>") so tests that instantiate services with
@@ -125,6 +138,9 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
     isReady: vi.fn(() => true),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+    relaunch: vi.fn(),
+    forceExit: vi.fn(),
     // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
     quit: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.

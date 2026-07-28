@@ -161,6 +161,41 @@
       "when": 1784187722341,
       "tag": "0022_cold_lady_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1784270529294,
+      "tag": "0023_last_mac_gargan",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1784860499109,
+      "tag": "0024_shallow_chimera",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1785156162040,
+      "tag": "0025_cold_whistler",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1785221482684,
+      "tag": "0026_military_wolverine",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1785245023623,
+      "tag": "0027_fast_lady_vermin",
+      "breakpoints": true
     }
   ],
   "version": "7"

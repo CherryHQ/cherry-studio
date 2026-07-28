@@ -13,6 +13,7 @@ import {
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
+  Activity,
   Bell,
   CalendarClock,
   Cloud,
@@ -29,9 +30,10 @@ import {
   Search,
   Settings2,
   Terminal,
-  TextCursorInput
+  TextCursorInput,
+  ToolCase
 } from 'lucide-react'
-import type { FC } from 'react'
+import type { CSSProperties, FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const SettingsPage: FC = () => {
@@ -46,12 +48,16 @@ const SettingsPage: FC = () => {
 
   return (
     <div
+      style={isMacTransparentWindow ? ({ '--settings-group-background': 'transparent' } as CSSProperties) : undefined}
+      data-ui="settings.view"
       className={cn(
-        'flex min-h-0 flex-1 flex-col',
+        'flex min-h-0 flex-1 flex-col dark:[--settings-group-background:var(--background-subtle)]',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
       )}>
       <div className="flex min-h-0 flex-1 flex-row">
-        <div className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
+        <div
+          data-ui="settings.navigation"
+          className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
           <PageHeader title={t('title.settings')} className="mb-1" />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
@@ -96,6 +102,14 @@ const SettingsPage: FC = () => {
                 label={t('agent.settings.toolsMcp.mcp.tab')}
                 active={isActive('/settings/mcp')}
                 onClick={() => go('/settings/mcp')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<ToolCase />}
+                label={t('settings.skills.title')}
+                active={isActive('/settings/skills')}
+                onClick={() => go('/settings/skills')}
               />
               <MenuItem
                 className={settingsSubmenuItemClassName}
@@ -146,6 +160,14 @@ const SettingsPage: FC = () => {
                 label={t('settings.data.title')}
                 active={isActive('/settings/data')}
                 onClick={() => go('/settings/data')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Activity />}
+                label={t('settings.usage.title')}
+                active={isActive('/settings/usage')}
+                onClick={() => go('/settings/usage')}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.automation')}</div>
@@ -219,7 +241,7 @@ const SettingsPage: FC = () => {
           </Scrollbar>
         </div>
         <div className="flex h-full min-h-0 min-w-0 flex-1">
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden text-foreground">
+          <div data-ui="settings.content" className="flex min-h-0 min-w-0 flex-1 overflow-hidden text-foreground">
             <Outlet />
           </div>
         </div>

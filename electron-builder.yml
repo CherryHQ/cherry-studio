@@ -1,4 +1,4 @@
-appId: com.cherryai.cherrystudio
+appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
 electronLanguages:
   - zh-CN
@@ -30,7 +30,6 @@ files:
   - "!src"
   - "!config"
   - "!patches"
-  - "!app-upgrade-config.json"
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
@@ -86,8 +85,11 @@ extraResources:
   - from: "packages/provider-registry/data"
     to: "provider-registry"
 win:
-  executableName: CherryStudio
+  executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  extraResources:
+    - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+      to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
@@ -152,40 +154,54 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.7 - Model Support & Bug Fixes
+    Cherry Studio 2.0.0-beta.3 - Migration Safety, API Gateway & Agent Improvements
 
     ✨ New Features
-    - [Models] Added support for grok-build-0.1 capabilities (reasoning, tool use, vision)
-    - [Providers] StepFun now supports Claude Code / Anthropic-compatible mode with auto-filled endpoint
-    - [Agents] DeepSeek V4 Flash and MiMo V2.5+ now properly support 1M context window in Claude Code
+    - [Agent] Agents can now discover and install reusable CLIs through Cherry Studio
+    - [Settings] Show the client ID in System Settings when Developer Mode is enabled
 
     🐛 Bug Fixes
-    - [Web Search] Fixed ExaMCP web search not returning result content correctly
-    - [Code Viewer] Fixed code syntax highlighting issues where tokens could disappear in light theme
-    - [OpenCode] Fixed launch failures after CLI updates by using package-local executable
-    - [Agents] Fixed Agent mode not forwarding custom provider headers to Claude Code
-    - [Models] Fixed Grok 4.3 reasoning effort support in xAI responses
-    - [OpenClaw] Improved migration message clarity when external PATH installation is detected
-    - [Models] Fixed Gemini 3.x models using wrong UI and sending deprecated sampling parameters
-    - [Models] Fixed Qwen max series models incorrectly showing vision capability
-    - [Providers] Fixed AIHubMix reasoning effort configuration not working properly
+    - [Privacy] The app can now be used without accepting the privacy policy; anonymous error and usage reporting stays disabled until the latest policy is accepted
+    - [Chat] Chat topic titles are no longer overwritten by auto-naming after an app restart or idle time; once a title has been AI-generated or manually edited, it stays fixed
+    - [Agent] Agent conversations now prompt you to pick a model when sending without one
+    - [Agent] Agent question cards no longer flash or duplicate while streaming, and answered questions keep their order
+    - [Agent] Agent AskUserQuestion prompts now appear and wait for a response even when bypass permissions are enabled
+    - [Agent] WeChat and Feishu agent channels can now use interactive QR authentication, and the QR code stays visible outside collapsed tool history
+    - [API Gateway] API Key and Authorization Header are now masked by default with a reveal toggle
+    - [Claude Code] Fixed Claude Code configuration for versioned Anthropic endpoints, with clearer route, authentication, and model-mapping errors
+    - [Ollama] Ollama models now use the configured context window size instead of being capped at the 2048-token default
+    - [Composer] Composer text, attachments, and focus are now preserved while tool approval prompts are shown
+    - [Channels] Fixed Telegram, QQ, Discord and Slack channels failing to create with "Validation failed"; new channels are created inactive and activate with the switch after credentials are filled
+    - [UI] Non-searchable dropdowns now highlight the currently selected option when opened instead of always the first item
+    - [UI] Fixed unwanted resource-list expansion during navigation, refined global-search reveal, and balanced the new-task icon size
+
+    💄 Improvements
+    - [Code Mate] Renamed "Code Switch" to "Code Mate" across supported languages
+    - [Translate] Translation now turns off model "thinking" when supported, reducing latency and token usage
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.7 - 模型支持与错误修复
+    Cherry Studio 2.0.0-beta.3 - 迁移安全、API 网关与智能体改进
 
     ✨ 新功能
-    - [模型] 支持 grok-build-0.1 模型能力（推理、工具调用、视觉）
-    - [提供商] StepFun 现在支持 Claude Code / Anthropic 兼容模式，并自动填充端点
-    - [智能体] DeepSeek V4 Flash 和 MiMo V2.5+ 现在在 Claude Code 中正确支持 1M 上下文窗口
+    - [智能体] 智能体现可在 Cherry Studio 中发现并安装可复用的 CLI
+    - [设置] 开启开发者模式后，在系统设置中显示客户端 ID
 
     🐛 问题修复
-    - [网络搜索] 修复 ExaMCP 网络搜索无法正确返回结果内容的问题
-    - [代码查看器] 修复浅色主题下代码语法高亮标记可能消失的问题
-    - [OpenCode] 修复 CLI 更新后启动失败的问题，现在使用包本地可执行文件
-    - [智能体] 修复智能体模式未将自定义提供商标头转发给 Claude Code 的问题
-    - [模型] 修复 xAI 响应中 Grok 4.3 推理强度支持问题
-    - [OpenClaw] 改进检测到外部 PATH 安装时的迁移消息清晰度
-    - [模型] 修复 Gemini 3.x 模型使用错误 UI 并发送已弃用采样参数的问题
-    - [模型] 修复 Qwen max 系列模型错误显示视觉能力的问题
-    - [提供商] 修复 AIHubMix 推理强度配置无法正常工作的问题
+    - [隐私] 现在可以在不接受隐私政策的情况下继续使用应用；在接受最新政策之前，匿名错误与用量上报保持关闭
+    - [聊天] 重启应用或长时间空闲后，聊天话题标题不再被自动命名覆盖；标题经 AI 生成或手动编辑后即固定不变
+    - [智能体] 智能体对话在未选择模型时发送，会提示先选择模型
+    - [智能体] 智能体问题卡片在流式输出时不再闪烁或重复，已回答的问题保持原顺序
+    - [智能体] 启用绕过权限时，智能体的 AskUserQuestion 提示也能正常出现并等待回应
+    - [智能体] 微信与飞书智能体渠道支持交互式二维码认证，且二维码在折叠的工具历史之外仍可见
+    - [API 网关] API Key 与 Authorization Header 默认掩码显示，并提供切换显示的开关
+    - [Claude Code] 修复了带版本号的 Anthropic 端点的 Claude Code 配置，并分别报告路由、鉴权与模型映射错误
+    - [Ollama] Ollama 模型现在使用配置的上下文窗口大小，而不再被默认 2048 token 上限限制
+    - [输入框] 显示工具批准提示时，输入框文本、附件与焦点得以保留
+    - [渠道] 修复 Telegram、QQ、Discord、Slack 渠道创建时报“校验失败”的问题；新渠道以停用状态创建，填写凭据后用开关激活
+    - [界面] 不可搜索的下拉菜单打开时现在高亮当前选中项，而不是总是高亮第一项
+    - [界面] 修复了导航时资源列表意外展开的问题，优化全局搜索的显示与输入框工具栏行为，并调整了新建任务图标尺寸
+
+    💄 改进
+    - [Code Mate] 在支持的各语言中将“Code Switch”更名为“Code Mate”
+    - [翻译] 翻译现在会在模型支持时关闭“思考”，降低延迟与 token 用量
     <!--LANG:END-->

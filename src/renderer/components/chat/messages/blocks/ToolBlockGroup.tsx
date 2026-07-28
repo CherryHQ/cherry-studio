@@ -21,6 +21,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
 
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import MessageTools from '../tools/MessageTools'
 import { AgentToolsType } from '../tools/shared/agentToolTypes'
 import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTools'
@@ -57,6 +58,7 @@ function getItemEffectiveStatus(
 // ============ Sub-Components ============
 
 const LIVE_HEADER_MIN_DURATION_MS = 1200
+const TOOL_GROUP_PROGRESS_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
 
 type ToolHeaderCandidate =
   | { key: string; kind: 'summary'; label: React.ReactNode }
@@ -218,9 +220,14 @@ function getMcpToolGroupPresentation(
   return { action, icon, target: target ?? (action ? 'relatedContent' : undefined) }
 }
 
-function ToolGroupContentIcon({ tool, toolArguments }: { tool?: ToolGroupTool; toolArguments?: unknown }) {
-  const Icon =
+export function getToolGroupIcon(tool: ToolGroupTool | undefined, toolArguments?: unknown): LucideIcon {
+  return (
     (tool && TOOL_GROUP_ICON_BY_NAME[tool.name]) || getMcpToolGroupPresentation(tool, toolArguments)?.icon || Wrench
+  )
+}
+
+function ToolGroupContentIcon({ tool, toolArguments }: { tool?: ToolGroupTool; toolArguments?: unknown }) {
+  const Icon = getToolGroupIcon(tool, toolArguments)
   return <Icon aria-hidden="true" className={TOOL_GROUP_ICON_CLASS_NAME} />
 }
 
@@ -340,14 +347,14 @@ function getMcpToolGroupActivity(
   }
 }
 
-function getSemanticToolTitle(
-  candidate: Extract<ToolHeaderCandidate, { kind: 'tool' }>,
+export function getToolGroupSemanticTitle(
+  toolResponse: ToolResponseLike,
+  status: ToolStatus,
   t: ReturnType<typeof useTranslation>['t']
 ) {
-  const { toolResponse } = candidate.item
-  const isActive = candidate.status === 'invoking' || candidate.status === 'streaming' || candidate.status === 'waiting'
+  const isActive = status === 'invoking' || status === 'streaming' || status === 'waiting'
   const mcpPresentation = getMcpToolGroupPresentation(toolResponse.tool, toolResponse.arguments)
-  if (mcpPresentation && candidate.status === 'error') return t('message.tools.activity.extensionFailed')
+  if (mcpPresentation && status === 'error') return t('message.tools.activity.extensionFailed')
 
   const activity =
     getReadableToolActivity(toolResponse.tool.name, toolResponse.arguments, isActive, t) ??
@@ -358,6 +365,13 @@ function getSemanticToolTitle(
   return activity.description.toLocaleLowerCase().includes(activity.label.toLocaleLowerCase())
     ? activity.description
     : `${activity.label} ${activity.description}`
+}
+
+function getSemanticToolTitle(
+  candidate: Extract<ToolHeaderCandidate, { kind: 'tool' }>,
+  t: ReturnType<typeof useTranslation>['t']
+) {
+  return getToolGroupSemanticTitle(candidate.item.toolResponse, candidate.status, t)
 }
 
 const DynamicToolBlockGroupHeaderContent = React.memo(
@@ -459,7 +473,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
           </span>
           {isLiveProgress && (
             <span aria-hidden="true" className="flex shrink-0 items-center">
-              <BeatLoader color="var(--color-foreground-muted)" size={4} speedMultiplier={0.8} />
+              <BeatLoader color={TOOL_GROUP_PROGRESS_COLOR} size={4} speedMultiplier={0.8} />
             </span>
           )}
         </div>,
@@ -615,7 +629,9 @@ ToolGroupPartsBoundary.displayName = 'ToolGroupPartsBoundary'
 export const ToolBlockGroup = React.memo(
   ({ children, isLiveProgress: isLiveProgressProp, isThinking = false, items }: ToolBlockGroupProps) => {
     const { t } = useTranslation()
-    const [isExpanded, setIsExpanded] = React.useState(false)
+    const [isExpanded, setIsExpanded] = useMessageDisclosureState(
+      items[0] ? `tool-group:${items[0].toolResponse.toolCallId ?? items[0].id}` : undefined
+    )
     const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
     const requestFollowRecovery = useRequestScrollFollowRecovery(anchorRef)
     const allItemsCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))

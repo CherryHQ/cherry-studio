@@ -37,15 +37,14 @@ interface ResourceItemBase<TType extends ResourceType, TRaw> {
 }
 
 export type ResourceItem =
-  | (ResourceItemBase<'assistant', Assistant> & { tag?: string })
-  | (ResourceItemBase<'agent', AgentDetail> & { tag?: never })
-  | (ResourceItemBase<'skill', InstalledSkill> & { tag?: never })
-  | (ResourceItemBase<'prompt', Prompt> & { tag?: never })
+  | (ResourceItemBase<'assistant', Assistant> & { groupId?: string; groupName?: string })
+  | (ResourceItemBase<'agent', AgentDetail> & { groupId?: never; groupName?: never })
+  | (ResourceItemBase<'skill', InstalledSkill> & { groupId?: never; groupName?: never })
+  | (ResourceItemBase<'prompt', Prompt> & { groupId?: never; groupName?: never })
 
-export interface TagItem {
+export interface GroupItem {
   id: string
   name: string
-  color: string
   count: number
 }
 

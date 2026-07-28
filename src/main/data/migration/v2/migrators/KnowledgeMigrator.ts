@@ -18,8 +18,8 @@ import {
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
 } from '@shared/data/types/knowledge'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
-import { UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
-import type { FilePath } from '@shared/types/file'
+import { MODEL_CAPABILITY, UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import Database from 'better-sqlite3'
 import { eq, sql } from 'drizzle-orm'
 
@@ -791,7 +791,7 @@ export class KnowledgeMigrator extends BaseMigrator {
    * `providerId`/`modelId` are split from the UniqueModelId (`providerId::modelId`) rather than
    * the legacy `{ provider, id }` fields so a pre-composed legacy id resolves to the same
    * provider prefix the rest of the migration validated against. The row is intentionally minimal
-   * (capabilities default to `[]`, timestamps/orderKey are filled at insert time); the runtime
+   * but complete (timestamps/orderKey are filled at insert time); the runtime
    * embedding call only needs the provider + modelId, and the base's vector dimensions live on
    * the base row, not here. Dedup is by UniqueModelId so several bases sharing one orphan model
    * resurrect it once; the id is also added to `validModelIds` so later bases see it as resolved.
@@ -817,7 +817,15 @@ export class KnowledgeMigrator extends BaseMigrator {
         typeof legacyModel?.name === 'string' && legacyModel.name.trim() !== '' ? legacyModel.name.trim() : modelId
       const group =
         typeof legacyModel?.group === 'string' && legacyModel.group.trim() !== '' ? legacyModel.group.trim() : null
-      this.resurrectedEmbeddingModels.set(uniqueModelId, { id: uniqueModelId, providerId, modelId, name, group })
+      this.resurrectedEmbeddingModels.set(uniqueModelId, {
+        id: uniqueModelId,
+        providerId,
+        modelId,
+        name,
+        group,
+        capabilities: [MODEL_CAPABILITY.EMBEDDING],
+        supportsStreaming: true
+      })
       this.recordWarning(
         `Knowledge base embedding model ${uniqueModelId} was missing from user_model but its provider survived; re-created it so the base keeps its vectors instead of requiring a re-index`
       )
@@ -1053,8 +1061,8 @@ export class KnowledgeMigrator extends BaseMigrator {
 
       const destPath = path.join(ctx.paths.knowledgeBaseDir, baseId, 'raw', relativePath)
       try {
-        await ensureDir(path.dirname(destPath) as FilePath)
-        await copy(sourcePath as FilePath, destPath as FilePath)
+        await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
+        await copy(AbsoluteFilePathSchema.parse(sourcePath), AbsoluteFilePathSchema.parse(destPath))
       } catch (error) {
         this.recordWarning(
           `Failed to copy knowledge file for item ${item.id} (${sourcePath} → ${destPath}): ${

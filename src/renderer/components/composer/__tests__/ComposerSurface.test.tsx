@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { flushSync } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ComposerContextProvider } from '../ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurface'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
@@ -59,6 +60,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelSymbol: '',
   quickPanelTriggerInfo: undefined as any,
   quickPanelUpdateList: vi.fn(),
+  pinnedLauncherIds: [] as string[],
   selection: { from: 1 } as any,
   translate: (key: string) => key,
   transaction: undefined as any
@@ -108,6 +110,9 @@ vi.mock('@cherrystudio/ui', () => ({
   PopoverContent: ({ children }: { children: ReactNode }) => <span data-testid="popover-content">{children}</span>,
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   NormalTooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+  Skeleton: ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => (
+    <div {...props} data-slot="skeleton" className={className} />
+  ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -144,7 +149,7 @@ vi.mock('@renderer/components/chat/layout/NarrowLayout', () => ({
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
-  QuickPanelView: () => null,
+  QuickPanelView: () => <div data-testid="quick-panel-view" />,
   useQuickPanel: () => ({
     close: mocks.quickPanelClose,
     dispatchKeyDown: mocks.quickPanelDispatchKeyDown,
@@ -270,12 +275,9 @@ vi.mock('@tiptap/react', () => ({
   )
 }))
 
-vi.mock('@renderer/components/SendMessageButton', () => ({
-  default: () => <button type="button">send</button>
-}))
-
 vi.mock('../ComposerToolRuntime', () => ({
-  ComposerToolMenu: () => <button type="button">add tool</button>
+  ComposerToolMenu: () => <button type="button">add tool</button>,
+  useComposerPinnedTools: () => mocks.pinnedLauncherIds
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -476,6 +478,7 @@ describe('ComposerSurface', () => {
     mocks.quickPanelSymbol = ''
     mocks.quickPanelTriggerInfo = undefined
     mocks.quickPanelUpdateList.mockReset()
+    mocks.pinnedLauncherIds = []
     mocks.selection = { from: 1, to: 1, $to: {} }
     mocks.transaction = {
       doc: {},
@@ -499,6 +502,56 @@ describe('ComposerSurface', () => {
     })
   })
 
+  it('defers the editor engine so the composer frame can render first', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(mocks.editorOptions?.immediatelyRender).toBe(false)
+  })
+
+  it('renders controls immediately while mounting the quick panel after the editor is ready', () => {
+    mocks.stabilizeEditor = true
+    const animationFrames: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrames.push(callback)
+      return animationFrames.length
+    })
+    const flushAnimationFrame = () => {
+      act(() => {
+        const callbacks = animationFrames.splice(0)
+        callbacks.forEach((callback) => callback(0))
+      })
+    }
+
+    try {
+      render(
+        <ComposerSurface
+          {...baseProps}
+          quickPanelEnabled
+          deferQuickPanel
+          renderLeftControls={() => <button type="button">dynamic control</button>}
+        />
+      )
+
+      expect(screen.getByTestId('editor-content')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
+      expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
+
+      act(() => {
+        mocks.editorOptions.onCreate({ editor: mocks.editorInstance })
+      })
+
+      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
+      expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
+
+      flushAnimationFrame()
+      expect(screen.getByTestId('quick-panel-view')).toBeInTheDocument()
+    } finally {
+      requestAnimationFrameSpy.mockRestore()
+    }
+  })
+
   afterEach(() => {
     clearMockTimers()
     document.body.style.cursor = ''
@@ -510,6 +563,50 @@ describe('ComposerSurface', () => {
 
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-narrow-mode', 'true')
     expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-with-side-padding', 'true')
+  })
+
+  it('closes an open QuickPanel before an override is shown', () => {
+    mocks.quickPanelIsVisible = true
+
+    render(
+      <ComposerContextProvider
+        value={{
+          overrides: [
+            {
+              id: 'tool-permission:approval-1',
+              render: () => null
+            }
+          ]
+        }}>
+        <ComposerSurface {...baseProps} quickPanelEnabled />
+      </ComposerContextProvider>
+    )
+
+    expect(mocks.quickPanelClose).toHaveBeenCalledWith('composer_override')
+  })
+
+  it('exposes stable UI contract anchors', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    const composer = document.querySelector('[data-ui~="chat.composer"]')
+
+    expect(composer).toHaveAttribute('id', 'inputbar')
+    expect(composer?.querySelector('[data-ui~="part:composer-input"]')).not.toBeNull()
+    expect(composer?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute(
+      'data-ui',
+      'chat.composer.action.send'
+    )
+  })
+
+  it('exposes the pause anchor while a response is streaming', () => {
+    render(<ComposerSurface {...baseProps} isLoading sendDisabled />)
+
+    expect(screen.getByRole('button', { name: 'chat.input.pause' })).toHaveAttribute(
+      'data-ui',
+      'chat.composer.action.pause'
+    )
+    expect(screen.queryByRole('button', { name: 'chat.input.send' })).not.toBeInTheDocument()
   })
 
   it('uses the compact single-row presentation when eligible content fits', async () => {
@@ -527,6 +624,7 @@ describe('ComposerSurface', () => {
 
     expect(inputbar?.querySelector('[data-composer-compact-row]')).not.toBeNull()
     expect(inputbar?.querySelector('[data-composer-toolbar]')).toBeNull()
+    expect(inputbar?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'pinned tool' })).toBeInTheDocument()
     expect(screen.getByTestId('editor-content').parentElement).toHaveStyle({ minHeight: '26px' })
     const editorContent = screen.getByTestId('editor-content')
@@ -540,7 +638,7 @@ describe('ComposerSurface', () => {
     const addToolButton = screen.getByRole('button', { name: 'add tool' })
     const pinnedToolButton = screen.getByRole('button', { name: 'pinned tool' })
     const contextUsage = screen.getByLabelText('context usage')
-    const sendButton = screen.getByRole('button', { name: 'send' })
+    const sendButton = screen.getByRole('button', { name: 'chat.input.send' })
     expect(addToolButton.compareDocumentPosition(pinnedToolButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(pinnedToolButton.compareDocumentPosition(contextUsage)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(contextUsage.compareDocumentPosition(sendButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
@@ -751,6 +849,15 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
   })
 
+  it('uses block layout so trailing hard breaks contribute to the editor scroll height', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    const editor = screen.getByTestId('composer-editor')
+
+    expect(editor).toHaveClass('block', 'overflow-auto')
+    expect(editor).not.toHaveClass('flex')
+  })
+
   it('uses state-specific viewport-relative max heights and only fixes height when expanded', async () => {
     render(<Harness />)
 
@@ -807,7 +914,7 @@ describe('ComposerSurface', () => {
     const cornerLine = inputbar?.querySelector('[data-composer-expand-corner-line]') as HTMLElement | null
 
     expect(screen.queryByRole('button', { name: 'translate' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'send' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toBeInTheDocument()
     expect(inputbar).not.toBeNull()
     expect(corner).not.toBeNull()
     expect(resizeHandle.closest('#inputbar')).toBe(inputbar)
@@ -1043,7 +1150,7 @@ describe('ComposerSurface', () => {
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
     expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
     expect(cancelButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
-    expect(cancelButton).not.toHaveClass('text-info', 'hover:bg-[var(--color-info-bg-hover)]')
+    expect(cancelButton).not.toHaveClass('text-info')
 
     fireEvent.click(cancelButton)
 
@@ -1554,6 +1661,105 @@ describe('ComposerSurface', () => {
         ]
       })
     )
+  })
+
+  it('removes persistent actions from the button root and restores an unpinned launcher', async () => {
+    mocks.pinnedLauncherIds = ['thinking', 'new-topic']
+    const getToolLaunchers = () => [
+      {
+        id: 'thinking',
+        kind: 'group' as const,
+        label: 'Thinking',
+        icon: 'thinking',
+        sources: ['popover'] as const,
+        submenu: [
+          {
+            id: 'thinking-low',
+            kind: 'command' as const,
+            label: 'Low',
+            icon: 'low',
+            sources: ['popover'] as const
+          }
+        ]
+      },
+      {
+        id: 'attachment',
+        kind: 'command' as const,
+        label: 'Attachment',
+        icon: 'paperclip',
+        sources: ['popover'] as const
+      }
+    ]
+    const renderSurface = () => (
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={getToolLaunchers}
+        rootPanelLeadingItems={[{ id: 'new-topic', label: 'New conversation', icon: 'plus' }]}
+        rootPanelAdditionalItems={[
+          {
+            id: 'composer:customize-toolbar',
+            label: 'Customize toolbar',
+            icon: 'settings',
+            fixedToBottom: true
+          }
+        ]}
+        renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
+          <>
+            <button type="button" aria-label="open plus panel" onClick={() => unifiedPanelControl?.open()}>
+              plus
+            </button>
+            <button
+              type="button"
+              aria-label="open thinking panel"
+              onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: 'Thinking' })}>
+              thinking
+            </button>
+          </>
+        )}
+      />
+    )
+    const { rerender } = render(renderSurface())
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
+    expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
+      'attachment',
+      'composer:customize-toolbar'
+    ])
+
+    mocks.quickPanelOpen.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'open thinking panel' }))
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: 'thinking',
+        list: [expect.objectContaining({ id: 'thinking-low' })],
+        // Opening a launcher directly is an explicit request, so its parentPanel is the
+        // undeduped root (includes pinned launchers), not the browsable "+" panel's list.
+        // The fixedToBottom customize-toolbar footer is also dropped here since this is a
+        // category view (seeded with the "Thinking" search text).
+        parentPanel: expect.objectContaining({
+          list: [
+            expect.objectContaining({ id: 'new-topic' }),
+            expect.objectContaining({ id: 'thinking' }),
+            expect.objectContaining({ id: 'attachment' })
+          ]
+        })
+      })
+    )
+
+    mocks.pinnedLauncherIds = []
+    rerender(renderSurface())
+    mocks.quickPanelOpen.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
+
+    expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
+      'new-topic',
+      'thinking',
+      'attachment',
+      'composer:customize-toolbar'
+    ])
   })
 
   it('opens the unified QuickPanel with an initial search or a launcher submenu', async () => {
@@ -2280,6 +2486,7 @@ describe('ComposerSurface', () => {
 
   it('places leading items before tool launchers and keeps additional items at the end of the QuickPanel root list', async () => {
     const onRootPanelOpen = vi.fn()
+    mocks.pinnedLauncherIds = ['generate-image']
     render(
       <ComposerSurface
         {...baseProps}
@@ -4710,7 +4917,8 @@ describe('ComposerSurface', () => {
                 label: 'Low',
                 description: 'Use low reasoning',
                 icon: 'low',
-                sources: ['root-panel']
+                sources: ['root-panel'],
+                action: vi.fn()
               }
             ]
           },
@@ -4758,7 +4966,11 @@ describe('ComposerSurface', () => {
       expect.objectContaining({
         label: 'Thinking',
         isMenu: true,
-        filterText: expect.stringContaining('Low')
+        filterText: expect.not.stringContaining('Low')
+      }),
+      expect.objectContaining({
+        label: 'Low',
+        isMenu: false
       }),
       expect.objectContaining({
         label: 'Knowledge Base'

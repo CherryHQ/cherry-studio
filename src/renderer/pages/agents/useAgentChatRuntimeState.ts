@@ -2,7 +2,12 @@ import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
-import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListRuntime,
+  MessageStreamingLayers,
+  MessageToolApprovalInput
+} from '@renderer/components/chat/messages/types'
+import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
@@ -19,8 +24,9 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -102,6 +108,9 @@ export interface AgentChatRuntimeState {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  localSendGeneration: number
+  bindMessageListRuntime: (runtime: MessageListRuntime) => void | (() => void)
+  captureLocalSendScrollEligibility: () => void
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
@@ -124,6 +133,18 @@ export function useAgentChatRuntimeState({
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
+  const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
+  const bindMessageListRuntime = useCallback((runtime: MessageListRuntime) => {
+    messageListRuntimeRef.current = runtime
+    return () => {
+      if (messageListRuntimeRef.current === runtime) {
+        messageListRuntimeRef.current = null
+      }
+    }
+  }, [])
+  const captureLocalSendScrollEligibility = useCallback(() => {
+    messageListRuntimeRef.current?.captureLocalSendScrollEligibility()
+  }, [])
   const {
     messages: uiMessages,
     isLoading,
@@ -156,11 +177,12 @@ export function useAgentChatRuntimeState({
     (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => ({
       trigger: 'submit-message',
       topicId: conversation.topicId,
-      userMessageParts: getAgentTurnParts(input)
+      userMessageParts: getAgentTurnParts(input),
+      reasoningEffort: input.options?.body?.reasoningEffort as ReasoningEffortOption | undefined
     }),
     []
   )
-  const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
+  const { localSendGeneration, send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
     scopeKey: sessionTopicId,
     historyAdapter,
     ensureConversation,
@@ -175,6 +197,7 @@ export function useAgentChatRuntimeState({
   const deleteMessage = useCallback(
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
+      invalidateCachedMessageUiStates([messageId])
       setMessages((current) => current.filter((message) => message.id !== messageId))
     },
     [deleteSessionMessage, setMessages]
@@ -280,7 +303,7 @@ export function useAgentChatRuntimeState({
 
       let result: AiToolApprovalRespondResponse
       try {
-        result = await ipcApi.request('ai.respond_tool_approval', {
+        result = await ipcApi.request('ai.tool.respond_approval', {
           approvalId,
           approved,
           reason,
@@ -324,6 +347,9 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
+    localSendGeneration,
+    bindMessageListRuntime,
+    captureLocalSendScrollEligibility,
     isPending,
     stop,
     sendMessage,

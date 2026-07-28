@@ -14,11 +14,12 @@
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
+import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
@@ -58,6 +59,9 @@ interface Params {
   refresh: () => Promise<CherryUIMessage[]>
   cache: ReturnType<typeof useTopicMessagesCache>
   seedReservedMessages: (messages: CherryUIMessage[]) => Promise<void>
+  captureLocalSendScrollEligibility: () => void
+  onLocalSendStarted: () => void
+  assistant?: Assistant
 }
 
 interface Result {
@@ -68,8 +72,20 @@ interface Result {
 }
 
 export function useChatWriteActions(params: Params): Result {
-  const { topic, uiMessages, rootId, regenerate, setMessages, stop, refresh, cache, seedReservedMessages } = params
-  const { assistant } = useAssistant(topic.assistantId)
+  const {
+    topic,
+    uiMessages,
+    rootId,
+    regenerate,
+    setMessages,
+    stop,
+    refresh,
+    cache,
+    seedReservedMessages,
+    captureLocalSendScrollEligibility,
+    onLocalSendStarted,
+    assistant
+  } = params
   const {
     branchWithoutIds,
     seedOptimisticBranch,
@@ -82,15 +98,15 @@ export function useChatWriteActions(params: Params): Result {
     clearTopicMessagesTrigger
   } = cache
 
-  // A message is a "first turn" iff its parent IS the topic's virtual root — compared against
-  // the authoritative rootId (pagination-independent; the "parent not loaded" proxy
-  // misclassified the topmost-paged message). Unknown rootId ⇒ nothing is a first turn.
+  // A message is a "first turn" iff its parent IS the topic's virtual root. The authoritative
+  // rootId keeps this pagination-independent; deletion stays unavailable until that id is known.
   const isFirstTurnId = useCallback((parentId?: string | null) => rootId != null && parentId === rootId, [rootId])
 
   const handleClearTopicMessages = useCallback(async () => {
     await clearBranchCache()
     try {
       const result = await clearTopicMessagesTrigger({ params: { topicId: topic.id } })
+      invalidateCachedMessageUiStates(result.deletedIds)
       logger.info('Cleared all messages', { topicId: topic.id, count: result.deletedIds.length })
     } catch (err) {
       await rollbackBranch()
@@ -98,28 +114,42 @@ export function useChatWriteActions(params: Params): Result {
     }
   }, [clearBranchCache, clearTopicMessagesTrigger, rollbackBranch, topic.id])
 
+  const getMessageDeleteAvailability = useCallback<ChatWriteActions['getMessageDeleteAvailability']>(
+    (id: string) => {
+      if (rootId === null) return { enabled: false, reason: 'root-unavailable' }
+      const message = uiMessages.find((item) => item.id === id)
+      if (!message) return { enabled: false, reason: 'message-unavailable' }
+      return message.role === 'user' && isFirstTurnId(message.metadata?.parentId)
+        ? { enabled: false, reason: 'first-turn' }
+        : { enabled: true }
+    },
+    [isFirstTurnId, rootId, uiMessages]
+  )
+
   const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
-    async (id) => {
-      // Deleting a first-turn message cascades (remove the turn): a non-cascade splice would
-      // reparent its replies onto the virtual root, stranding them as parent-less assistants.
-      const target = uiMessages.find((m) => m.id === id)
+    async (id, options) => {
+      // A first-turn user message anchors the conversation branch. Reject both direct deletion
+      // and any multi-select plan containing it before the first optimistic or persistent write.
+      const selectionContainsUnavailableMessage = options?.selectedMessageIds?.some((messageId) => {
+        return !getMessageDeleteAvailability(messageId).enabled
+      })
+      if (!getMessageDeleteAvailability(id).enabled || selectionContainsUnavailableMessage) {
+        throw new Error('Message deletion is unavailable')
+      }
+
       const optimisticIds = new Set([id])
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
 
       try {
-        if (target && isFirstTurnId(target.metadata?.parentId)) {
-          const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
-          await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
-        } else {
-          await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
-        }
+        await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
+        invalidateCachedMessageUiStates([id])
       } catch (err: unknown) {
         await rollbackBranch()
         throw err
       }
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, isFirstTurnId, uiMessages, rollbackBranch, seedOptimisticBranch]
+    [branchWithoutIds, deleteMessageTrigger, getMessageDeleteAvailability, rollbackBranch, seedOptimisticBranch]
   )
 
   const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(
@@ -130,9 +160,13 @@ export function useChatWriteActions(params: Params): Result {
         await handleClearTopicMessages()
         return
       }
+      if (!getMessageDeleteAvailability(id).enabled) {
+        throw new Error('Message group deletion is unavailable')
+      }
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set([id])))
       try {
         const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
+        invalidateCachedMessageUiStates(result.deletedIds)
         const deletedSet = new Set(result.deletedIds)
         await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
         logger.info('Deleted message group', { id, count: result.deletedIds.length })
@@ -144,6 +178,7 @@ export function useChatWriteActions(params: Params): Result {
     [
       branchWithoutIds,
       deleteMessageTrigger,
+      getMessageDeleteAvailability,
       handleClearTopicMessages,
       isFirstTurnId,
       rollbackBranch,
@@ -175,15 +210,16 @@ export function useChatWriteActions(params: Params): Result {
 
   const capabilityBody = useMemo<Record<string, unknown>>(
     () => ({
-      knowledgeBaseIds: assistant?.knowledgeBaseIds,
       enableWebSearch: assistant?.settings.enableWebSearch
     }),
-    [assistant?.knowledgeBaseIds, assistant?.settings.enableWebSearch]
+    [assistant?.settings.enableWebSearch]
   )
 
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
     async (messageId?: string, options?: { modelId?: UniqueModelId }) => {
+      captureLocalSendScrollEligibility()
+
       // Anchor semantics depend on the target role:
       //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
       //   - user:      keep the user itself, spawn assistant child — anchor = target.id
@@ -209,7 +245,7 @@ export function useChatWriteActions(params: Params): Result {
       // lives at the call site.
       setMessages(uiMessages)
 
-      await regenerate({
+      const regeneratePromise = regenerate({
         messageId,
         body: {
           ...capabilityBody,
@@ -217,12 +253,15 @@ export function useChatWriteActions(params: Params): Result {
           ...(regenModelId && { mentionedModels: [regenModelId] })
         }
       })
+      onLocalSendStarted()
+      await regeneratePromise
     },
-    [regenerate, capabilityBody, uiMessages, setMessages]
+    [regenerate, capabilityBody, uiMessages, setMessages, captureLocalSendScrollEligibility, onLocalSendStarted]
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
     async (messageId, editedParts) => {
+      captureLocalSendScrollEligibility()
       const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
@@ -254,7 +293,7 @@ export function useChatWriteActions(params: Params): Result {
       // outer ChatContent hasn't re-rendered with the refreshed SWR
       // data yet), so the anchor lookup would miss the new user. We
       // already know the anchor is the new user's own id.
-      const ack = await ipcApi.request('ai.stream_open', {
+      const ack = await ipcApi.request('ai.stream.open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId: newMessage.id,
@@ -265,9 +304,20 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error(getStreamBlockedMessage(ack))
       }
 
+      onLocalSendStarted()
       await seedReservedMessages(ack.reservedMessages ?? [])
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
+    [
+      createSiblingTrigger,
+      captureLocalSendScrollEligibility,
+      seedReservedMessages,
+      refresh,
+      setMessages,
+      topic.id,
+      topic.assistantId,
+      uiMessages,
+      onLocalSendStarted
+    ]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(
@@ -285,7 +335,7 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       const modelId = target?.role === 'assistant' ? (target.metadata?.modelId as UniqueModelId | undefined) : undefined
-      const ack = await ipcApi.request('ai.stream_open', {
+      const ack = await ipcApi.request('ai.stream.open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId,
@@ -355,6 +405,7 @@ export function useChatWriteActions(params: Params): Result {
     () => ({
       regenerate: async (messageId, options) => regenerateWithCapabilities(messageId, options),
       resend: handleResend,
+      getMessageDeleteAvailability,
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
       pause: stop,
@@ -368,6 +419,7 @@ export function useChatWriteActions(params: Params): Result {
     [
       regenerateWithCapabilities,
       handleResend,
+      getMessageDeleteAvailability,
       handleDeleteMessage,
       handleDeleteMessageGroup,
       stop,

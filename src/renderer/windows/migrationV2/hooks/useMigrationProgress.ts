@@ -4,6 +4,8 @@
 
 import { loggerService } from '@logger'
 import {
+  type MigrationDiagnosticSavePayload,
+  type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationStage,
@@ -129,11 +131,34 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SkipMigration)
   }, [])
 
+  const saveDiagnostics = useCallback(
+    (dialogTitle: string, logDate: string): Promise<MigrationDiagnosticSaveResult> => {
+      const payload: MigrationDiagnosticSavePayload = {
+        dialogTitle,
+        logDate
+      }
+      return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle, payload)
+    },
+    []
+  )
+
+  const showDiagnosticBundleInFolder = useCallback((): Promise<boolean> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+  }, [])
+
+  // Main maps the language to a regional site; the renderer never names a URL.
+  const openDownloadPage = useCallback((language: string): Promise<boolean> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenDownloadPage, language)
+  }, [])
+
   return {
     startMigration,
     retry,
     cancel,
     restart,
-    skipMigration
+    skipMigration,
+    saveDiagnostics,
+    showDiagnosticBundleInFolder,
+    openDownloadPage
   }
 }

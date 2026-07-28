@@ -175,7 +175,7 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
       // The gate ran BEFORE `pendingTurns.shift()`: the follow-up is still queued and no
       // autonomous DB write (assistant placeholder) landed.
       expect(entry.pendingTurns).toHaveLength(1)
-      expect(entry.pendingTurns[0].id).toBe('user-2')
+      expect(entry.pendingTurns[0].message.id).toBe('user-2')
       expect(mocks.saveMessage).not.toHaveBeenCalled()
       expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
       expect(internals(service).suppressedTurnStarts.get('session-1')).toBe('next')

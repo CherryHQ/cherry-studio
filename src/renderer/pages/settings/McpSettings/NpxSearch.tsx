@@ -4,7 +4,7 @@ import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { toast } from '@renderer/services/toast'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils/mcp'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { Check, Plus } from 'lucide-react'
+import { Check, ExternalLink, Plus } from 'lucide-react'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -97,7 +97,7 @@ const NpxSearch: FC = () => {
   }, [])
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-2 pt-5">
+    <div className="flex min-w-0 flex-1 flex-col gap-2">
       <Center>
         <div className="mb-6.25 flex w-full max-w-125 flex-col px-4">
           <Center className="mb-3.75">
@@ -146,7 +146,7 @@ const NpxSearch: FC = () => {
                 key={record.name}
                 className="rounded-lg border border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-accent">
                 <div className="mb-1.5 flex items-start justify-between gap-3">
-                  <h3 className="selectable m-0 min-w-0 truncate font-semibold text-sm leading-6">{record.name}</h3>
+                  <h3 className="selectable m-0 min-w-0 truncate text-sm leading-6">{record.name}</h3>
                   <Flex className="shrink-0 items-center gap-1">
                     <Badge className="border-success/30 bg-success/10 text-success">v{record.version}</Badge>
                     <Button
@@ -189,8 +189,9 @@ const NpxSearch: FC = () => {
                     href={record.npmLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="selectable text-link text-sm hover:text-link-hover">
+                    className="selectable inline-flex items-center gap-1 text-link text-sm hover:text-link-hover">
                     {record.npmLink}
+                    <ExternalLink size={13} />
                   </a>
                 </div>
               </div>
