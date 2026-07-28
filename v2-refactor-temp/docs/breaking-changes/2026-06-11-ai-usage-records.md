@@ -47,19 +47,28 @@ Credential attribution shows its confidence:
 - Normal language, embedding, image, and rerank request construction freezes a
   non-secret credential receipt together with provider/model/source/pricing
   snapshots before the provider call.
+- Provider-reported amount-only cost is retained only when the provider
+  registry declares its currency (currently OpenRouter/USD); there is no
+  default-currency fallback or completion-time lookup.
 - Agent sessions choose one capture owner per runtime route. Direct and
   external-CLI routes record each Claude SDK provider step from its stream
   lifecycle using the serving connection's receipt; gateway routes retain
   provider-call records and ignore cumulative SDK usage. Direct/external
   requests emitted without an active turn are retained as stateless records
   with the frozen connection source. Consumed warm processes retain the
-  receipt selected when that process actually started.
+  receipt selected when that process actually started. Aborting a multi-step
+  turn keeps completed step records but does not create a successful record for
+  the current in-flight step.
 - Missing request-owned identity remains null/`unknown`; persistence and
   migration never infer provider, model, source, key, or pricing from current
   state.
 - Nested AI tool-input repair is a separate `generateText` invocation.
 - Image output count is captured after provider success and before local file
-  persistence.
+  persistence. Restarted polling resolves the exact enabled submit key by its
+  persisted non-secret id instead of rotating to another account.
+- Image calls without trusted provider cost remain unpriced unless their
+  runtime model carries explicit per-image pricing; the current preset/settings
+  paths normally do not produce that pricing.
 - Migrated v1 assistant-message usage is projected once by
   `AiUsageRecordMigrator`. Source identity comes only from the message snapshot,
   request count is estimated from raw blocks, per-call metrics remain null, and
@@ -83,10 +92,16 @@ Credential attribution shows its confidence:
   timing.
 - Message details fetch invocation rows lazily through the existing
   `/ai-usage-records` list with paired `messageKind`/`messageId` filters.
+- Topic duplication copies message content and message-owned timing, but not
+  usage/cost/provider-performance facts. The copy therefore does not claim a
+  second set of provider invocations.
 - Old messages have no `runtimeTiming`; one renderer view model adapts their
   legacy scalar timings and preserves the existing display.
 - A crash can still lose a best-effort stateless record between provider
   completion and the SQLite write.
+- Legacy model pricing in currencies other than absent/`$` (USD) or `¥`/`￥`
+  (CNY) is dropped during migration rather than assigned an unreliable
+  currency.
 
 ## What the user should do
 

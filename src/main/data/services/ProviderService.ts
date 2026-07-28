@@ -15,7 +15,6 @@ import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { buildApiFeaturesBaseline, diffApiFeatures } from '@data/services/ProviderRegistryService'
-import { maskApiKeyForSnapshot } from '@data/services/utils/apiKeySnapshot'
 import {
   clearSingleFileRefTx,
   getLogoFileId,
@@ -41,6 +40,7 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { maskApiKey } from '@shared/utils/api'
 import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -77,6 +77,15 @@ export type ProviderApiKeySelection =
 export interface ResolvedProviderApiKey {
   value: string
   apiKeySelection: ProviderApiKeySelection
+}
+
+/**
+ * Persisted credential receipts must never retain a raw short key, even
+ * though the transient display helper intentionally leaves it recognizable.
+ */
+function maskApiKeyForSnapshot(key: string): string {
+  const masked = maskApiKey(key)
+  return masked === key ? '****' : masked
 }
 
 function assertManagedCherryAiProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
@@ -246,6 +255,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,
     authOptional: presetMetadata.authOptional,
+    ...(presetMetadata.reportedCostCurrency ? { reportedCostCurrency: presetMetadata.reportedCostCurrency } : {}),
     apiKeys,
     authType,
     apiFeatures,

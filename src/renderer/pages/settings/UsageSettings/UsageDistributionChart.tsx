@@ -7,7 +7,7 @@ import type {
   AiUsageRecordStatsBucket,
   AiUsageRecordStatsMetrics,
   AiUsageRecordTimelineBucket
-} from '@shared/data/api/schemas/aiUsageRecord'
+} from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
 import { type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -70,10 +70,7 @@ export function UsageDistributionChart({
 }: UsageDistributionChartProps) {
   const { t, i18n } = useTranslation()
   const totalExploreMetric = getMetricValue(exploreTotals, chartMetric)
-  const firstDayOfWeek = useMemo(
-    () => getLocaleFirstDayOfWeek(i18n.resolvedLanguage),
-    [i18n.resolvedLanguage]
-  )
+  const firstDayOfWeek = useMemo(() => getLocaleFirstDayOfWeek(i18n.resolvedLanguage), [i18n.resolvedLanguage])
   const periodKeys = useMemo(() => {
     const keys: string[] = []
 

@@ -49,6 +49,10 @@ export function normalizeGatewayUsage(flat: FlatGatewayUsage): LanguageModelV3Us
 
 const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
   specificationVersion: 'v3',
+  wrapGenerate: async ({ doGenerate }) => {
+    const result = await doGenerate()
+    return isFlatUsage(result.usage) ? { ...result, usage: normalizeGatewayUsage(result.usage) } : result
+  },
   wrapStream: async ({ doStream }) => {
     const { stream, ...rest } = await doStream()
     const normalized = stream.pipeThrough(
@@ -69,7 +73,10 @@ const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
 function createGatewayUsageNormalizePlugin() {
   return definePlugin({
     name: 'gateway-usage-normalize',
-    enforce: 'pre',
+    // Shape adapters belong directly against the provider. `post` makes this
+    // middleware innermost, so usage capture and the application both observe
+    // the normalized AI SDK v6 shape.
+    enforce: 'post',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
       context.middlewares.push(gatewayUsageNormalizeMiddleware)

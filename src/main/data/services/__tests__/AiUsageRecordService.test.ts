@@ -1,3 +1,4 @@
+import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
@@ -9,9 +10,12 @@ import {
   type RecordAiInvocationInput
 } from '@data/services/aiUsageRecord'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { createLanguageUsageMiddleware } from '@main/ai/hooks/billingHook'
+import { gatewayUsageNormalizeFeature } from '@main/ai/runtime/aiSdk/params/features/gatewayUsageNormalize'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
+import type { LanguageModelMiddleware } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
@@ -60,6 +64,16 @@ function invocation(overrides: Partial<RecordAiInvocationInput> = {}): RecordAiI
     completedAt: 1_000,
     ...overrides
   }
+}
+
+function getGatewayUsageNormalizeMiddleware(): LanguageModelMiddleware {
+  const [plugin] = gatewayUsageNormalizeFeature.contributeModelAdapters!({} as never)
+  if (!plugin) throw new Error('gateway usage plugin was not contributed')
+  const requestContext = { middlewares: [] as LanguageModelMiddleware[] }
+  plugin.configureContext!(requestContext as never)
+  const middleware = requestContext.middlewares[0]
+  if (!middleware) throw new Error('gateway usage middleware was not registered')
+  return middleware
 }
 
 describe('AiUsageRecordService', () => {
@@ -159,6 +173,45 @@ describe('AiUsageRecordService', () => {
       timeThinkingMs: 200
     })
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists normalized gateway tokens and computed cost from a flat finish chunk', async () => {
+    const capture = createLanguageUsageMiddleware(context())
+    const gateway = getGatewayUsageNormalizeMiddleware()
+    const flatFinish = {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage: {
+        inputTokens: 1_000_000,
+        outputTokens: 500_000,
+        totalTokens: 1_500_000,
+        cachedInputTokens: 0
+      }
+    } as unknown as LanguageModelV3StreamPart
+    const stream = new ReadableStream<LanguageModelV3StreamPart>({
+      start(controller) {
+        controller.enqueue(flatFinish)
+        controller.close()
+      }
+    })
+    const wrapped = await capture.wrapStream!({
+      doStream: () => gateway.wrapStream!({ doStream: async () => ({ stream }) } as never)
+    } as never)
+
+    const parts: LanguageModelV3StreamPart[] = []
+    for await (const part of wrapped.stream) parts.push(part)
+
+    expect(parts).toHaveLength(1)
+    expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+      totalTokens: 1_500_000,
+      noCacheTokens: 1_000_000,
+      cacheReadTokens: 0,
+      cost: 2,
+      costCurrency: 'USD',
+      costSource: 'computed'
+    })
   })
 
   it('keeps the first payload when a duplicate request id is delivered with different usage', () => {

@@ -15,10 +15,11 @@ describe('ApiFeaturesSchema.reportsActualCost', () => {
     expect(ApiFeaturesSchema.parse({}).reportsActualCost).toBe(false)
   })
 
-  it('is true for OpenRouter in providers.json', () => {
+  it('declares OpenRouter actual-cost ownership and currency in providers.json', () => {
     const raw = fs.readFileSync(new URL('../../data/providers.json', import.meta.url), 'utf-8')
     const { providers } = ProviderListSchema.parse(JSON.parse(raw))
     const openrouter = providers.find((p) => p.id === 'openrouter')
     expect(openrouter?.apiFeatures?.reportsActualCost).toBe(true)
+    expect(openrouter?.reportedCostCurrency).toBe('USD')
   })
 })

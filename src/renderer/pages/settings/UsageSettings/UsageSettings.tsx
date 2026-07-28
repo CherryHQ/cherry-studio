@@ -7,7 +7,7 @@ import type {
   AiUsageRecordListSortBy,
   AiUsageRecordSortOrder,
   AiUsageRecordStatsBucket
-} from '@shared/data/api/schemas/aiUsageRecord'
+} from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'

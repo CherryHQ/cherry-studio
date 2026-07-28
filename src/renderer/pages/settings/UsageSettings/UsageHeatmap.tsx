@@ -2,7 +2,7 @@ import { NormalTooltip, SegmentedControl, Skeleton } from '@cherrystudio/ui'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
-import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecord'
+import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecords'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -162,14 +162,8 @@ export default function UsageHeatmap({
   const { t, i18n } = useTranslation()
   const { ref: heatmapRef, width: heatmapWidth } = useElementWidth()
 
-  const firstDayOfWeek = useMemo(
-    () => getLocaleFirstDayOfWeek(i18n.resolvedLanguage),
-    [i18n.resolvedLanguage]
-  )
-  const days = useMemo(
-    () => buildHeatmapDays(buckets, range, firstDayOfWeek),
-    [buckets, firstDayOfWeek, range]
-  )
+  const firstDayOfWeek = useMemo(() => getLocaleFirstDayOfWeek(i18n.resolvedLanguage), [i18n.resolvedLanguage])
+  const days = useMemo(() => buildHeatmapDays(buckets, range, firstDayOfWeek), [buckets, firstDayOfWeek, range])
   const weeks = useMemo(
     () => Array.from({ length: Math.ceil(days.length / 7) }, (_, index) => days.slice(index * 7, index * 7 + 7)),
     [days]

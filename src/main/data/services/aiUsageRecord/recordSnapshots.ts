@@ -1,5 +1,5 @@
 import { type AiUsagePricingSnapshot, AiUsagePricingSnapshotSchema } from '@shared/data/types/aiUsageRecord'
-import type { RuntimeModelPricing } from '@shared/data/types/model'
+import type { Currency, RuntimeModelPricing } from '@shared/data/types/model'
 
 import type { AiUsageCaptureContext, AiUsageCredentialReceipt, MessageRef, SourceSnapshot } from './types'
 
@@ -11,6 +11,7 @@ export interface CreateAiUsageCaptureContextInput {
   pricing?: RuntimeModelPricing | null
   pricingSnapshot?: AiUsagePricingSnapshot | null
   trustProviderReportedCost?: boolean
+  reportedCostCurrency?: Currency | null
   credentialReceipt?: AiUsageCredentialReceipt
   source?: SourceSnapshot | null
   messageRef?: MessageRef | null
@@ -94,6 +95,7 @@ export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextIn
               return parsed.success ? cloneAndFreeze(parsed.data) : null
             })(),
     trustProviderReportedCost: input.trustProviderReportedCost === true,
+    reportedCostCurrency: input.reportedCostCurrency ?? null,
     credentialReceipt: cloneAndFreeze(input.credentialReceipt ?? { attribution: 'unknown' }),
     source: input.source === undefined ? null : input.source === null ? null : cloneAndFreeze(input.source),
     messageRef:

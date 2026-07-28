@@ -94,6 +94,12 @@ local download/FileManager persistence. Submit plus polling is one generation
 invocation, not one invocation per poll. The stable job id makes restart
 delivery idempotent, and a successful response with zero images is retained
 with `imageCount = 0` even though the job is then failed as unusable.
+When a new-format persisted `taskId` is resumed, the transport re-reads the
+exact enabled submit key by the non-secret key id in the frozen capture
+context. It never rotates to another account while polling the existing remote
+task. Older queued jobs without a capture context remain unattributed and can
+only use current configuration. If no `taskId` exists, recovery performs a new
+selection, capture, timer, and submit.
 
 ## Immutable capture context
 
@@ -108,6 +114,7 @@ interface AiUsageCaptureContext {
   modelName: string | null
   pricingSnapshot: AiUsagePricingSnapshot | null
   trustProviderReportedCost: boolean
+  reportedCostCurrency: Currency | null
   credentialReceipt: AiUsageCredentialReceipt
   source: SourceSnapshot | null
   messageRef: {
@@ -219,13 +226,20 @@ interface AiUsagePricingSnapshot {
 ```
 
 Provider-reported cost is accepted only when the provider declares
-`reportsActualCost` and the cost includes a known currency. Otherwise the
-frozen snapshot is used.
+`reportsActualCost` and the request-time context has a known currency. A wire
+payload currency is authoritative; an amount-only payload is accepted only
+when the provider registry explicitly declares `reportedCostCurrency`, which
+is frozen into the context before the call. There is no default-currency
+fallback or completion-time provider lookup. Otherwise the frozen pricing
+snapshot is used.
 
 Computed language cost is emitted only when every non-zero usage bucket can be
 priced. Cache read/write use their own rates or the input rate, and uncached
 input is derived by subtracting cache buckets when necessary so input is not
-charged twice. Pixel pricing stays unpriced without a reliable pixel count.
+charged twice. Per-image pricing is used only when a runtime model actually
+supplies `pricing.perImage`; current preset/settings producers normally do not,
+so image calls without provider-reported cost remain unpriced. Pixel pricing
+also stays unpriced without a reliable pixel count.
 Provider cost breakdown is saved only when complete and equal to the reported
 total.
 
@@ -326,9 +340,10 @@ Each Claude SDK assistant message supplies provider request id, actual nested
 model, and usage:
 
 - consecutive updates with the same id merge by maximum field value;
-- a new id, steer boundary, result/error, query close, or connection close
-  flushes the pending invocation;
-- a flushed id is immutable; a late repeat logs an anomaly and is ignored;
+- a new id, steer boundary, or successful result commits pending invocations;
+- abort, error, query close, or connection close commits only steps with
+  provider completion evidence and discards the current in-flight step;
+- a committed id is immutable; a late repeat logs an anomaly and is ignored;
 - the driver freezes message association when the SDK assistant event arrives:
   an active adapter means the current turn, while no adapter means stateless;
 - the host resolves current-turn events to the active assistant message.
@@ -338,7 +353,7 @@ model, and usage:
 - result-level `modelUsage`, duration, and total cost are reconciliation data,
   not record inputs.
 
-The driver flushes pending usage before emitting a steer boundary, so the old
+The driver commits pending usage before emitting a steer boundary, so the old
 provider call attaches to the pre-steer message and the next call attaches to
 the continuation.
 
@@ -368,6 +383,9 @@ stateless and no association is guessed.
   `messageSnapshot`. Credential attribution is always `unknown`.
 - Existing v1 cost is retained according to its stored semantics. Missing cost
   is never recomputed from current pricing.
+- Legacy model pricing recognizes only absent/`$` as USD and `¥`/`￥` as CNY.
+  Other currency symbols are dropped instead of being assigned an invented
+  currency.
 - Legacy invocation metrics remain null; historical message timings are
   preserved while usage/cost are rebuilt from the inserted record.
 - Stable request ids, keyset batches, progress reporting, rollback, and
@@ -409,6 +427,10 @@ global SWR focus/reconnect revalidation is disabled.
 - Individual provider steps with missing duration are shown as unavailable and
   excluded from model TPS rather than estimated from tool/message events.
 - Rerank is counted but may have null usage and cost.
+- Topic duplication copies content and message-owned timing only. It does not
+  duplicate usage/cost/provider-performance facts under new message ids.
+- Image calls remain unpriced unless the provider reports a trusted cost or
+  the runtime model has explicit per-image pricing.
 - Historical serving keys cannot be reconstructed and remain `unknown`.
 - Estimated local cost is not an invoice, and currencies are not converted.
 
@@ -417,7 +439,7 @@ global SWR focus/reconnect revalidation is disabled.
 | File | Role |
 | --- | --- |
 | `src/shared/data/types/aiUsageRecord.ts` | Entity and snapshot schemas |
-| `src/shared/data/api/schemas/aiUsageRecord.ts` | Bounded read contracts |
+| `src/shared/data/api/schemas/aiUsageRecords.ts` | Bounded read contracts |
 | `src/main/data/db/schemas/aiUsageRecord.ts` | SQLite table and constraints |
 | `src/main/data/services/aiUsageRecord/` | Insert owner, projection, queries, cursors, snapshots |
 | `src/main/ai/hooks/billingHook.ts` | Language middleware and operation coverage |

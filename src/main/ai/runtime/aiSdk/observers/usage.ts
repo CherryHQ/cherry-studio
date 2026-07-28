@@ -78,7 +78,7 @@ function compact<T extends Record<string, number | undefined>>(obj: T): { [K in 
 }
 
 /** Project cumulative AI SDK usage into the live `MessageStats` UI shape. */
-export function usageToStats(total: LanguageModelUsage): MessageStats {
+function usageToStats(total: LanguageModelUsage): MessageStats {
   const inputTokenDetails = compact({
     noCacheTokens: total.inputTokenDetails?.noCacheTokens,
     cacheReadTokens: total.inputTokenDetails?.cacheReadTokens,

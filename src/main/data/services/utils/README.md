@@ -21,56 +21,6 @@ message-owned runtime timing.
   historical messages remain readable without becoming a second source for
   new messages.
 
-### `apiKeySnapshot.ts` — Durable credential snapshot masking
-
-Provides `maskApiKeyForSnapshot(key)` for the provider-selection and AI usage
-record paths. It delegates the recognizable transient display shape to
-`maskApiKey`, but replaces short keys that would otherwise remain unchanged
-with `****`, ensuring persisted snapshots never contain a raw credential.
-
-**Boundaries:**
-
-- Main data-layer persistence policy only; renderer display continues to use
-  `maskApiKey`.
-- Does not choose a credential or assign attribution confidence.
-- Used by `ProviderService` and the AI usage record snapshot resolver.
-
-**Example:**
-
-```ts
-maskApiKeyForSnapshot('short') // '****'
-maskApiKeyForSnapshot('sk-very-long-secret-value') // recognizable masked form
-```
-
-### `costComputation.ts` — Cache-aware language cost calculation
-
-Provides `computeLanguageCost(usage, pricingSnapshot)`, the pure pricing
-calculation used by AI usage record capture. The function treats top-level
-input tokens as an all-in count and subtracts known cache-read/write buckets
-when `noCacheTokens` is absent.
-
-**Boundaries:**
-
-- Language token pricing only; provider-reported and image costs stay at the
-  record service boundary.
-- Accepts the immutable request-time pricing snapshot; it never resolves
-  current model/provider state or mutates persisted stats.
-- Returns `undefined` unless every non-zero usage bucket can be priced.
-
-**Example:**
-
-```ts
-computeLanguageCost(
-  { inputTokens: 1000, inputTokenDetails: { cacheReadTokens: 800 } },
-  {
-    currency: 'USD',
-    inputPerMillionTokens: 10,
-    cacheReadPerMillionTokens: 1,
-    capturedAt: '2026-01-01T00:00:00.000Z'
-  }
-)
-```
-
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
 Serves each Service's `rowToEntity` function, performing the boundary translation from a SQLite row to a domain entity.

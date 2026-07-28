@@ -1,4 +1,6 @@
 import type { LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
+import { gatewayUsageNormalizeFeature } from '@main/ai/runtime/aiSdk/params/features/gatewayUsageNormalize'
+import type { LanguageModelMiddleware } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const recordInvocation = vi.fn()
@@ -18,6 +20,7 @@ const context = {
   modelName: 'Model',
   pricingSnapshot: null,
   trustProviderReportedCost: false,
+  reportedCostCurrency: null,
   credentialReceipt: { attribution: 'unknown' as const },
   source: null,
   messageRef: { kind: 'chat' as const, id: 'message-1' }
@@ -42,6 +45,16 @@ function streamOf(parts: readonly LanguageModelV3StreamPart[]): ReadableStream<L
       controller.close()
     }
   })
+}
+
+function getGatewayUsageNormalizeMiddleware(): LanguageModelMiddleware {
+  const [plugin] = gatewayUsageNormalizeFeature.contributeModelAdapters!({} as never)
+  if (!plugin) throw new Error('gateway usage plugin was not contributed')
+  const requestContext = { middlewares: [] as LanguageModelMiddleware[] }
+  plugin.configureContext!(requestContext as never)
+  const middleware = requestContext.middlewares[0]
+  if (!middleware) throw new Error('gateway usage middleware was not registered')
+  return middleware
 }
 
 describe('AI usage capture coverage', () => {
@@ -80,6 +93,29 @@ describe('createLanguageUsageMiddleware', () => {
     )
     expect(recordInvocation.mock.calls[0][0].metrics.timeFirstTokenMs).toBeUndefined()
     now.mockRestore()
+  })
+
+  it('attaches amount-only provider cost with the frozen registry currency', async () => {
+    const middleware = createLanguageUsageMiddleware({
+      ...context,
+      trustProviderReportedCost: true,
+      reportedCostCurrency: 'USD'
+    })
+
+    await middleware.wrapGenerate!({
+      doGenerate: async () => ({
+        usage: { ...usage, raw: { cost: 0.0123 } },
+        content: [],
+        finishReason: { unified: 'stop', raw: 'stop' },
+        warnings: []
+      })
+    } as never)
+
+    expect(recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerCost: { amount: 0.0123, currency: 'USD' }
+      })
+    )
   })
 
   it('forwards stream chunks unchanged and records per-call TTFT, completion, and thinking', async () => {
@@ -163,5 +199,40 @@ describe('createLanguageUsageMiddleware', () => {
 
     await expect(readAll(wrapped.stream)).rejects.toThrow('network')
     expect(recordInvocation).not.toHaveBeenCalled()
+  })
+
+  it('records normalized gateway usage instead of the provider flat shape', async () => {
+    const capture = createLanguageUsageMiddleware(context)
+    const gatewayUsageNormalizeMiddleware = getGatewayUsageNormalizeMiddleware()
+    const rawFinish = {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage: {
+        inputTokens: 100,
+        outputTokens: 20,
+        totalTokens: 120,
+        cachedInputTokens: 40
+      }
+    } as unknown as LanguageModelV3StreamPart
+
+    const wrapped = await capture.wrapStream!({
+      doStream: () =>
+        gatewayUsageNormalizeMiddleware.wrapStream!({
+          doStream: async () => ({ stream: streamOf([rawFinish]) })
+        } as never)
+    } as never)
+    await readAll(wrapped.stream)
+
+    expect(recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usage: {
+          inputTokens: 100,
+          outputTokens: 20,
+          totalTokens: 120,
+          noCacheTokens: 60,
+          cacheReadTokens: 40
+        }
+      })
+    )
   })
 })

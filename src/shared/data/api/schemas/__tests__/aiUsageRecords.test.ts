@@ -6,7 +6,7 @@ import {
   AiUsageRecordListQuerySchema,
   AiUsageRecordStatsQuerySchema,
   AiUsageRecordTimelineQuerySchema
-} from '../aiUsageRecord'
+} from '../aiUsageRecords'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const to = Date.UTC(2026, 6, 1)

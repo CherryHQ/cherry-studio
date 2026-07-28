@@ -912,7 +912,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         }
       }
     })
-    // Once a different request flushes an id, a late duplicate cannot mutate
+    // Once a different request commits an id, a late duplicate cannot mutate
     // or create another immutable invocation.
     queryQueue.push({
       type: 'assistant',
@@ -996,6 +996,81 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     ])
     void connection.close()
+  })
+
+  it('keeps completed steps but discards the in-flight step when the connection is aborted', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100,
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet-sdk'] }]
+      }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      message: {
+        id: 'completed-step',
+        model: 'sonnet-sdk',
+        stop_reason: 'tool_use',
+        usage: {
+          input_tokens: 10,
+          output_tokens: 5,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0
+        }
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: { id: 'in-flight-step', model: 'sonnet-sdk', usage: {} }
+      }
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'usage',
+        invocation: {
+          requestId: 'completed-step',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        }
+      }
+    })
+
+    connection.close()
+    const remaining: any[] = []
+    for (;;) {
+      const event = await events.next()
+      if (event.done) break
+      remaining.push(event.value)
+    }
+    expect(remaining.filter((event) => event?.type === 'usage')).toEqual([])
   })
 
   it('uses terminal stream usage when assistant snapshots omit usage', async () => {

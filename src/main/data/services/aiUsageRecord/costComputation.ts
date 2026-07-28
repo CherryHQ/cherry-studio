@@ -2,7 +2,7 @@ import type { AiUsageCostBreakdown, AiUsagePricingSnapshot } from '@shared/data/
 
 const PER_MILLION = 1_000_000
 
-export interface LanguageCostUsage {
+interface LanguageCostUsage {
   inputTokens?: number
   outputTokens?: number
   inputTokenDetails?: {
@@ -12,16 +12,17 @@ export interface LanguageCostUsage {
   }
 }
 
-export interface LanguageCostResult {
+interface LanguageCostResult {
   cost: number
   breakdown: AiUsageCostBreakdown
 }
 
 /**
- * Compute cache-aware language cost from the all-in input count and any
- * provider breakdown. Partial cache details are subtracted from the total so
- * no token can be priced as both regular input and cached input. A cost is
- * returned only when every non-zero usage bucket has a known rate.
+ * Compute the usage-record domain's cache-aware language cost from the all-in
+ * input count and any provider breakdown. Partial cache details are subtracted
+ * from the total so no token can be priced as both regular input and cached
+ * input. A cost is returned only when every non-zero usage bucket has a known
+ * rate.
  */
 export function computeLanguageCost(
   usage: LanguageCostUsage,

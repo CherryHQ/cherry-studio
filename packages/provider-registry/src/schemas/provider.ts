@@ -5,7 +5,7 @@
 
 import * as z from 'zod'
 
-import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
+import { MetadataSchema, ProviderIdSchema, VersionSchema, ZodCurrencySchema } from './common'
 import { ENDPOINT_TYPE, type EndpointType, objectValues } from './enums'
 import { ReasoningWireProfileSchema } from './reasoningWire'
 
@@ -165,6 +165,12 @@ export const ProviderConfigSchema = z
     authOptional: z.boolean().default(false),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
+    /**
+     * Registry-owned currency for provider-reported costs whose wire payload
+     * carries an amount but no currency. Absent means the amount stays
+     * unpriced; consumers must not infer a default currency.
+     */
+    reportedCostCurrency: ZodCurrencySchema,
     /** Additional metadata including website URLs */
     metadata: MetadataSchema.and(ProviderWebsiteSchema)
   })

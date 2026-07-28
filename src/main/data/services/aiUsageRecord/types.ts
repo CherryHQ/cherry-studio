@@ -43,6 +43,7 @@ export interface AiUsageCaptureContext {
   modelName: string | null
   pricingSnapshot: AiUsagePricingSnapshot | null
   trustProviderReportedCost: boolean
+  reportedCostCurrency: Currency | null
   credentialReceipt: AiUsageCredentialReceipt
   source: SourceSnapshot | null
   messageRef: MessageRef | null

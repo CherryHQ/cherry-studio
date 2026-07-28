@@ -3,7 +3,7 @@ import type {
   AiUsageRecordListSortBy,
   AiUsageRecordSortOrder,
   AiUsageRecordStatsBucket
-} from '@shared/data/api/schemas/aiUsageRecord'
+} from '@shared/data/api/schemas/aiUsageRecords'
 import { CURRENCY, type Currency } from '@shared/data/types/model'
 import { debounce } from 'es-toolkit/compat'
 import { useEffect, useMemo, useRef } from 'react'

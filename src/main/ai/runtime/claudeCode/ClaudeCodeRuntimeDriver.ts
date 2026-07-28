@@ -99,6 +99,7 @@ type PendingInvocationUsage = {
   terminalUsage?: InvocationUsageSnapshot
   timing?: InvocationTiming
   metrics?: InvocationMetricSnapshot
+  completionObserved: boolean
   isStreamStopped: boolean
 }
 
@@ -145,6 +146,7 @@ function pendingInvocationFromAssistant(
     model: message.message.model,
     messageAssociation,
     ...(assistantUsage ? { assistantUsage } : {}),
+    completionObserved: isComplete,
     isStreamStopped: false
   }
 }
@@ -197,6 +199,7 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
     ...(terminalUsage ? { terminalUsage } : {}),
     ...(timing ? { timing } : {}),
     ...(metrics ? { metrics } : {}),
+    completionObserved: current.completionObserved || next.completionObserved,
     isStreamStopped: current.isStreamStopped || next.isStreamStopped
   }
 }
@@ -296,7 +299,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private _usageCapture?: AgentSessionUsageCapture
   private readonly pendingInvocations = new Map<string, PendingInvocationUsage>()
   private readonly streamInvocationIdsByLane = new Map<string, string>()
-  private readonly flushedInvocationIds = new Set<string>()
+  private readonly committedInvocationIds = new Set<string>()
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
@@ -486,7 +489,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   close(): void {
-    this.flushPendingInvocations()
+    this.settlePendingInvocations()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
@@ -538,7 +541,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             this.captureAssistantInvocation(message, 'stateless')
           } else if (message.type === 'result') {
             this.updateResumeToken(message.session_id)
-            this.flushPendingInvocations()
+            if (message.subtype === 'success') {
+              this.commitPendingInvocations()
+            } else {
+              this.settlePendingInvocations()
+            }
             logger.warn('Received a result message with no active turn; dropping turn-complete', {
               sessionId: this.input.sessionId
             })
@@ -588,7 +595,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           message.event.type === 'message_start' &&
           message.parent_tool_use_id == null
         ) {
-          this.flushPendingInvocations()
+          this.commitPendingInvocations()
           this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
           this.steerBoundaryPending = undefined
         }
@@ -600,11 +607,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         try {
           result = this.adapter.handleMessage(message)
         } catch (error) {
-          this.flushPendingInvocations()
+          this.settlePendingInvocations()
           throw error
         }
         if (result.type === 'result') {
-          this.flushPendingInvocations()
+          this.commitPendingInvocations()
           this.updateResumeToken(result.sessionId)
           // The steer was injected but no post-steer top-level assistant message followed (rare; the
           // turn ended right after the gated tool). Drop the arm — no boundary, no empty A2.
@@ -627,7 +634,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
       }
     } catch (error) {
-      this.flushPendingInvocations()
+      this.settlePendingInvocations()
       // The Claude Code SDK sometimes ends the stream abruptly mid-output. When
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
@@ -647,7 +654,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.teardownSession()
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
     } finally {
-      this.flushPendingInvocations()
+      this.settlePendingInvocations()
       this.query = undefined
       this.eventQueue.close()
     }
@@ -716,12 +723,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const capture = this._usageCapture
     if (capture?.owner !== 'agent-sdk') return
 
-    if (this.flushedInvocationIds.has(message.message.id)) return
+    if (this.committedInvocationIds.has(message.message.id)) return
 
     const next = pendingInvocationFromAssistant(message, messageAssociation)
     this.captureInvocationForLane(this.invocationLane(message.parent_tool_use_id), next)
     if (this.pendingInvocations.get(next.requestId)?.isStreamStopped) {
-      this.flushInvocationUsage(next.requestId)
+      this.commitInvocationUsage(next.requestId)
     }
   }
 
@@ -743,6 +750,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           streamStartedAt: performance.now(),
           ...(ttftMs !== undefined ? { ttftMs } : {})
         },
+        completionObserved: false,
         isStreamStopped: false
       })
       return
@@ -767,17 +775,22 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.pendingInvocations.set(requestId, {
         ...finalized,
         ...(terminalUsage ? { terminalUsage } : {}),
+        completionObserved: finalized.completionObserved || isStreamStopped,
         isStreamStopped: finalized.isStreamStopped || isStreamStopped
       })
-      if (isStreamStopped && (terminalUsage || current.terminalUsage)) this.flushInvocationUsage(requestId)
+      if (isStreamStopped && (terminalUsage || current.terminalUsage)) this.commitInvocationUsage(requestId)
       return
     }
 
     if (message.event.type === 'message_stop') {
       const current = this.pendingInvocations.get(requestId)
       if (!current) return
-      this.pendingInvocations.set(requestId, { ...this.finalizeInvocationTiming(current), isStreamStopped: true })
-      if (current.terminalUsage || current.assistantUsage) this.flushInvocationUsage(requestId)
+      this.pendingInvocations.set(requestId, {
+        ...this.finalizeInvocationTiming(current),
+        completionObserved: true,
+        isStreamStopped: true
+      })
+      if (current.terminalUsage || current.assistantUsage) this.commitInvocationUsage(requestId)
     }
   }
 
@@ -835,8 +848,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private captureInvocationForLane(lane: string, next: PendingInvocationUsage): void {
-    if (this.flushedInvocationIds.has(next.requestId)) {
-      logger.warn('Claude SDK emitted an invocation after it was already flushed', {
+    if (this.committedInvocationIds.has(next.requestId)) {
+      logger.warn('Claude SDK emitted an invocation after it was already committed', {
         sessionId: this.input.sessionId,
         requestId: next.requestId,
         model: next.model
@@ -846,7 +859,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     const previousRequestId = this.streamInvocationIdsByLane.get(lane)
     if (previousRequestId && previousRequestId !== next.requestId) {
-      this.flushInvocationUsage(previousRequestId)
+      this.commitInvocationUsage(previousRequestId)
     }
     this.streamInvocationIdsByLane.set(lane, next.requestId)
 
@@ -854,20 +867,37 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.pendingInvocations.set(next.requestId, current ? mergePendingInvocation(current, next) : next)
   }
 
-  private flushPendingInvocations(): void {
+  private commitPendingInvocations(): void {
     for (const requestId of [...this.pendingInvocations.keys()]) {
-      this.flushInvocationUsage(requestId)
+      this.commitInvocationUsage(requestId)
     }
   }
 
-  private flushInvocationUsage(requestId: string): void {
+  private settlePendingInvocations(): void {
+    for (const [requestId, pending] of [...this.pendingInvocations.entries()]) {
+      if (pending.completionObserved) {
+        this.commitInvocationUsage(requestId)
+      } else {
+        this.discardInvocationUsage(requestId)
+      }
+    }
+  }
+
+  private discardInvocationUsage(requestId: string): void {
+    if (!this.pendingInvocations.delete(requestId)) return
+    for (const [lane, laneRequestId] of this.streamInvocationIdsByLane) {
+      if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
+    }
+  }
+
+  private commitInvocationUsage(requestId: string): void {
     const pending = this.pendingInvocations.get(requestId)
     if (!pending) return
     this.pendingInvocations.delete(requestId)
     for (const [lane, laneRequestId] of this.streamInvocationIdsByLane) {
       if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
     }
-    this.flushedInvocationIds.add(pending.requestId)
+    this.committedInvocationIds.add(pending.requestId)
     const usage = pending.terminalUsage ?? pending.assistantUsage
     this.eventQueue.push({
       type: 'usage',

@@ -1,3 +1,4 @@
+import { CURRENCY } from '../schemas/enums'
 import { defineProvider } from './types'
 
 export default defineProvider({
@@ -8,6 +9,7 @@ export default defineProvider({
   apiFeatures: {
     reportsActualCost: true
   },
+  reportedCostCurrency: CURRENCY.USD,
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

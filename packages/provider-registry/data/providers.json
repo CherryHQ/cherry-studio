@@ -546,7 +546,8 @@
           "official": "https://openrouter.ai/"
         }
       },
-      "name": "OpenRouter"
+      "name": "OpenRouter",
+      "reportedCostCurrency": "USD"
     },
     {
       "authOptional": true,
@@ -1864,5 +1865,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "716e3d74ef6dac75"
+  "version": "cc183eedfe6e6c80"
 }

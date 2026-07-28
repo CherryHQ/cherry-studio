@@ -1,6 +1,6 @@
 import { type AiUsageRecordRow, aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { loggerService } from '@logger'
-import type { AiUsageRecordListQuery } from '@shared/data/api/schemas/aiUsageRecord'
+import type { AiUsageRecordListQuery } from '@shared/data/api/schemas/aiUsageRecords'
 import { getAiUsageRecordTotalTokens } from '@shared/data/types/aiUsageRecord'
 import { and, eq, gt, isNotNull, isNull, lt, or, type SQL, type SQLWrapper } from 'drizzle-orm'
 

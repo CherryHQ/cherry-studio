@@ -4,7 +4,7 @@ import type {
   AiUsageRecordGroupIdentity,
   AiUsageRecordStatsMetrics,
   AiUsageRecordTimelineBucket
-} from '@shared/data/api/schemas/aiUsageRecord'
+} from '@shared/data/api/schemas/aiUsageRecords'
 import type { AiUsageRecordModality } from '@shared/data/types/aiUsageRecord'
 import type { Currency } from '@shared/data/types/model'
 import { CURRENCY } from '@shared/data/types/model'

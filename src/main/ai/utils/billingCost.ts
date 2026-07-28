@@ -16,11 +16,37 @@ const ProviderCostWithCurrencySchema = z.union([
   })
 ])
 
+const ProviderCostSchema = z.union([
+  z.object({
+    cost: finiteNonnegativeCost
+  }),
+  z.object({
+    usage: z.object({
+      cost: finiteNonnegativeCost
+    })
+  })
+])
+
+function carriesCurrency(raw: Record<string, unknown> | undefined): boolean {
+  if (!raw) return false
+  if ('currency' in raw) return true
+  const usage = raw.usage
+  return typeof usage === 'object' && usage !== null && 'currency' in usage
+}
+
 export function extractProviderCostWithCurrency(
-  raw: Record<string, unknown> | undefined
+  raw: Record<string, unknown> | undefined,
+  reportedCostCurrency?: Currency | null
 ): { amount: number; currency: Currency } | undefined {
-  const parsed = ProviderCostWithCurrencySchema.safeParse(raw)
-  if (!parsed.success) return undefined
-  const value = 'cost' in parsed.data ? parsed.data : parsed.data.usage
-  return { amount: value.cost, currency: value.currency }
+  const withCurrency = ProviderCostWithCurrencySchema.safeParse(raw)
+  if (withCurrency.success) {
+    const value = 'cost' in withCurrency.data ? withCurrency.data : withCurrency.data.usage
+    return { amount: value.cost, currency: value.currency }
+  }
+
+  if (!reportedCostCurrency || carriesCurrency(raw)) return undefined
+  const amountOnly = ProviderCostSchema.safeParse(raw)
+  if (!amountOnly.success) return undefined
+  const value = 'cost' in amountOnly.data ? amountOnly.data : amountOnly.data.usage
+  return { amount: value.cost, currency: reportedCostCurrency }
 }

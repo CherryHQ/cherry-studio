@@ -24,6 +24,7 @@ const {
   cancelMock,
   downloadMock,
   getByProviderIdMock,
+  getApiKeysMock,
   getByKeyMock,
   resolveProviderAiSdkConfigMock,
   recordRequestMock
@@ -38,6 +39,7 @@ const {
   cancelMock: vi.fn(),
   downloadMock: vi.fn(),
   getByProviderIdMock: vi.fn(),
+  getApiKeysMock: vi.fn(),
   getByKeyMock: vi.fn(),
   resolveProviderAiSdkConfigMock: vi.fn(),
   recordRequestMock: vi.fn()
@@ -46,7 +48,9 @@ const {
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('../../imageTransportRegistry', () => ({ resolveImageTransport: resolveImageTransportMock }))
 vi.mock('../../../config', () => ({ resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock }))
-vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: getByProviderIdMock } }))
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: { getByProviderId: getByProviderIdMock, getApiKeys: getApiKeysMock }
+}))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: getByKeyMock } }))
 vi.mock('@main/data/services/aiUsageRecord', () => ({
   aiUsageRecordService: { recordInvocation: recordRequestMock },
@@ -102,6 +106,7 @@ beforeEach(() => {
     name: 'PPIO',
     apiFeatures: { reportsActualCost: false }
   })
+  getApiKeysMock.mockReturnValue([{ id: 'key-a', key: 'submit-key', label: 'Primary', isEnabled: true }])
   getByKeyMock.mockReturnValue({
     id: 'ppio::qwen-image',
     apiModelId: 'qwen-image',
@@ -186,7 +191,7 @@ describe('imageGenerationJobHandler.execute', () => {
     })
   })
 
-  it('resume: keeps the submit key identity even if config rotation selects another key', async () => {
+  it('resume: uses the exact submit key without advancing current rotation', async () => {
     const submitCredentialReceipt = {
       attribution: 'explicit',
       id: 'key-a',
@@ -194,13 +199,8 @@ describe('imageGenerationJobHandler.execute', () => {
       masked: 'sk-a****aaaa'
     } as const
     resolveProviderAiSdkConfigMock.mockResolvedValue({
-      config: { providerId: 'ppio', providerSettings: { apiKey: 'new-key' } },
-      credentialReceipt: {
-        attribution: 'explicit',
-        id: 'key-b',
-        label: 'Secondary',
-        masked: 'sk-b****bbbb'
-      }
+      config: { providerId: 'ppio', providerSettings: { apiKey: 'submit-key' } },
+      credentialReceipt: submitCredentialReceipt
     })
     pollMock.mockResolvedValue(['https://cdn.example.com/b.png'])
 
@@ -211,6 +211,7 @@ describe('imageGenerationJobHandler.execute', () => {
       modelName: 'Qwen Image',
       pricingSnapshot: null,
       trustProviderReportedCost: false,
+      reportedCostCurrency: null,
       credentialReceipt: submitCredentialReceipt,
       source: null,
       messageRef: null
@@ -232,6 +233,12 @@ describe('imageGenerationJobHandler.execute', () => {
 
     expect(submitMock).not.toHaveBeenCalled()
     expect(ctx.patchMetadata).not.toHaveBeenCalled()
+    expect(getApiKeysMock).toHaveBeenCalledWith('ppio', { enabled: true })
+    expect(resolveProviderAiSdkConfigMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'ppio' }),
+      expect.objectContaining({ id: 'ppio::qwen-image' }),
+      { apiKeyOverride: 'submit-key' }
+    )
     // Resume must re-supply the persisted descriptor so a stateful transport
     // (DashScope) can rebuild its response-family routing.
     expect(pollMock).toHaveBeenCalledWith(
@@ -245,6 +252,37 @@ describe('imageGenerationJobHandler.execute', () => {
         completedAt: 260
       })
     )
+  })
+
+  it('resume: fails explicitly when the submit key is unavailable', async () => {
+    getApiKeysMock.mockReturnValue([])
+    const ctx = createCtx({
+      metadata: {
+        taskId: 'resumed-task',
+        usageCaptureContext: {
+          providerId: 'ppio',
+          providerName: 'PPIO',
+          modelId: 'qwen-image',
+          modelName: 'Qwen Image',
+          pricingSnapshot: null,
+          trustProviderReportedCost: false,
+          reportedCostCurrency: null,
+          credentialReceipt: {
+            attribution: 'explicit',
+            id: 'deleted-key',
+            label: 'Deleted',
+            masked: 'sk-****'
+          },
+          source: null,
+          messageRef: null
+        }
+      }
+    })
+
+    await expect(imageGenerationJobHandler.execute(ctx)).rejects.toThrow(/unavailable or disabled/)
+    expect(resolveProviderAiSdkConfigMock).not.toHaveBeenCalled()
+    expect(pollMock).not.toHaveBeenCalled()
+    expect(recordRequestMock).not.toHaveBeenCalled()
   })
 
   it('rebinds capture context and timing when recovery must submit a new provider call', async () => {

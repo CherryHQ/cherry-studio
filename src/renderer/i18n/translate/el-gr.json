@@ -8196,7 +8196,8 @@
       "modality": {
         "embedding": "[to be translated]:Embedding",
         "image": "[to be translated]:Image",
-        "language": "[to be translated]:Language"
+        "language": "[to be translated]:Language",
+        "rerank": "[to be translated]:Rerank"
       },
       "overview": {
         "title": "[to be translated]:Overview"

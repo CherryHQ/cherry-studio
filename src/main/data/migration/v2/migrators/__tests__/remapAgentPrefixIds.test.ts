@@ -67,6 +67,25 @@ describe('remapAgentPrefixIds', () => {
     expect(sessions[0].agentId).toBe(agents[0].id)
   })
 
+  it('rewrites the immutable session-message author snapshot with the remapped agent id', async () => {
+    const agentId = 'agent_snapshot_abc'
+    const sessionId = 'session_snapshot_abc'
+    await insertAgent(dbh.db, agentId)
+    await insertSession(dbh.db, sessionId, agentId)
+    await dbh.db.insert(agentSessionMessageTable).values({
+      sessionId,
+      status: 'success',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'hello' }] } as never,
+      messageSnapshot: { id: agentId, name: 'Test Agent' }
+    })
+
+    const remap = remapAgentPrefixIds(dbh.db)
+
+    const [message] = await dbh.db.select().from(agentSessionMessageTable)
+    expect(message.messageSnapshot).toMatchObject({ id: remap.agentIds.get(agentId), name: 'Test Agent' })
+  })
+
   it('rewrites agent_mcp_server.agentId when the agent id is remapped', async () => {
     const agentId = 'agent_mcp01_abc'
     await insertAgent(dbh.db, agentId)

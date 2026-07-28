@@ -28,6 +28,8 @@ presented as a single invocation.
   adds nothing.
 - Preserves only explicitly stored v1 cost semantics. Missing historical cost
   is not recomputed from current pricing.
+- Migrated model pricing maps only absent/`$` to USD and `¥`/`￥` to CNY.
+  Unsupported legacy currency symbols are dropped rather than guessed.
 - Copies source identity only from the immutable `messageSnapshot`.
 - Retains provider/model identity when the migrated row already carries it;
   either may remain null when history cannot identify it.

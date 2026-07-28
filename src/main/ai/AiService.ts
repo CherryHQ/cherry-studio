@@ -113,6 +113,7 @@ function createCaptureContext(input: {
     modelName: input.model.name,
     pricing: input.model.pricing,
     trustProviderReportedCost: input.provider.apiFeatures.reportsActualCost,
+    reportedCostCurrency: input.provider.reportedCostCurrency,
     credentialReceipt: input.credentialReceipt,
     source: input.source,
     messageRef: input.messageRef

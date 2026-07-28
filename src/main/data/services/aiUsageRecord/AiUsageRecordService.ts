@@ -11,12 +11,12 @@ import type {
   AiUsageRecordStatsResponse,
   AiUsageRecordTimelineQuery,
   AiUsageRecordTimelineResponse
-} from '@shared/data/api/schemas/aiUsageRecord'
+} from '@shared/data/api/schemas/aiUsageRecords'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { AiUsageCostBreakdown, AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import { eq } from 'drizzle-orm'
 
-import { computeLanguageCost } from '../utils/costComputation'
+import { computeLanguageCost } from './costComputation'
 import { getMessageUsageProjectionTx, rebuildMessageUsageProjectionTx } from './messageProjection'
 import type { AiUsageRecordListServiceQuery } from './recordCursor'
 import { getAiUsageRecordStats, getAiUsageRecordTimeline, listAiUsageRecords } from './recordQueries'

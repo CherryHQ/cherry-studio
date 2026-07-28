@@ -1,5 +1,5 @@
 /**
- * Read-only DataApi contracts for best-effort AI usage records.
+ * Read-only DataApi collection contracts for best-effort AI usage records.
  */
 
 import * as z from 'zod'

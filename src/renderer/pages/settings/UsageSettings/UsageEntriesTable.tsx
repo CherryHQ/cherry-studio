@@ -12,7 +12,7 @@ import {
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import { createDurationFormatter } from '@renderer/utils/time'
-import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecord'
+import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import { type AiUsageRecordEntry, getAiUsageRecordTotalTokens } from '@shared/data/types/aiUsageRecord'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { useMemo } from 'react'

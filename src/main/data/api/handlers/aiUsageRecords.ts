@@ -1,12 +1,12 @@
 /** Read-only DataApi handlers for internally captured AI usage records. */
 
 import { aiUsageRecordService } from '@data/services/aiUsageRecord'
-import type { AiUsageRecordSchemas } from '@shared/data/api/schemas/aiUsageRecord'
+import type { AiUsageRecordSchemas } from '@shared/data/api/schemas/aiUsageRecords'
 import {
   AiUsageRecordListQuerySchema,
   AiUsageRecordStatsQuerySchema,
   AiUsageRecordTimelineQuerySchema
-} from '@shared/data/api/schemas/aiUsageRecord'
+} from '@shared/data/api/schemas/aiUsageRecords'
 import type { HandlersFor } from '@shared/data/api/types'
 
 export const aiUsageRecordHandlers: HandlersFor<AiUsageRecordSchemas> = {

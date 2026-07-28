@@ -58,7 +58,7 @@ function recordLanguageInvocation(
   metrics: RecordAiInvocationInput['metrics'],
   completedAt: number
 ): void {
-  const providerCost = extractProviderCostWithCurrency(usage.raw)
+  const providerCost = extractProviderCostWithCurrency(usage.raw, context.reportedCostCurrency)
   aiUsageRecordService.recordInvocation({
     requestId,
     context,

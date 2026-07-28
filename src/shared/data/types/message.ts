@@ -149,12 +149,12 @@ export interface MessageData {
  * persistent fact source: SQLite `MessageStats` usage/cost is rebuilt from
  * per-invocation records, while message persistence owns only message timing.
  *
- * Shallow-merge invariant: the AI SDK merges each `message-metadata` chunk
- * into the accumulating message as `{ ...prev, ...next }` (shallow). The usage
- * writers emit a FULL cumulative snapshot of `stats` every step, so the nested
- * breakdown survives. A writer MUST never emit a partial `stats` patch — a
- * snapshot missing `inputTokenDetails` would replace the whole object and drop
- * earlier steps' breakdown.
+ * Deep-merge invariant: the AI SDK recursively merges each
+ * `message-metadata` chunk into the accumulating message. Usage writers still
+ * emit a FULL cumulative `stats` snapshot every step because the object
+ * represents message totals, not a per-step patch. A partial step snapshot
+ * would overwrite present counters with the latest step while retaining
+ * omitted buckets from earlier steps, producing a mixed and invalid total.
  */
 export interface CherryUIMessageMetadata {
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch

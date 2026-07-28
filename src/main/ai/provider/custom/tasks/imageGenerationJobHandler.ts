@@ -33,10 +33,10 @@ const logger = loggerService.withContext('ImageGenerationJobHandler')
  * recovery (`'retry'`) re-dispatches the job, which then resumes polling the
  * same task instead of re-submitting.
  *
- * Secrets are never persisted — the apiKey is re-read from provider config on
- * every attempt via `resolveProviderAiSdkConfig`. Input images / mask are referenced
- * by FileEntry id and read back from FileManager (keeps the payload under the
- * 1MB job cap and restart-safe).
+ * Secrets are never persisted. A resumed remote task resolves the submit key
+ * by its persisted non-secret id; a new submit uses normal key selection.
+ * Input images / mask are referenced by FileEntry id and read back from
+ * FileManager (keeps the payload under the 1MB job cap and restart-safe).
  */
 export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = {
   recovery: 'retry',
@@ -56,10 +56,17 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       const model = modelService.getByKey(providerId, modelId)
       if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-      const { config, credentialReceipt: selectedCredentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
-      const sdkConfig = { ...config, modelId: model.apiModelId ?? model.id }
       const persistedTaskId = typeof ctx.metadata.taskId === 'string' ? ctx.metadata.taskId : undefined
       const persistedCaptureContext = readCaptureContext(ctx.metadata.usageCaptureContext)
+      const resumedApiKey = persistedTaskId
+        ? resolvePersistedApiKey(providerId, persistedCaptureContext?.credentialReceipt)
+        : undefined
+      const { config, credentialReceipt: selectedCredentialReceipt } = await resolveProviderAiSdkConfig(
+        provider,
+        model,
+        resumedApiKey ? { apiKeyOverride: resumedApiKey } : undefined
+      )
+      const sdkConfig = { ...config, modelId: model.apiModelId ?? model.id }
       const captureContext = persistedTaskId
         ? persistedCaptureContext
         : createAiUsageCaptureContext({
@@ -69,6 +76,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
             modelName: model.name,
             pricing: model.pricing,
             trustProviderReportedCost: provider.apiFeatures.reportsActualCost,
+            reportedCostCurrency: provider.reportedCostCurrency,
             credentialReceipt: selectedCredentialReceipt,
             source: input.source ?? null,
             messageRef: null
@@ -158,6 +166,20 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
   }
 }
 
+function resolvePersistedApiKey(
+  providerId: string,
+  receipt: AiUsageCaptureContext['credentialReceipt'] | undefined
+): string | undefined {
+  if (receipt?.attribution !== 'explicit' && receipt?.attribution !== 'matched') return undefined
+  const key = providerService.getApiKeys(providerId, { enabled: true }).find((entry) => entry.id === receipt.id)
+  if (!key) {
+    throw new Error(
+      `Image generation job: API key '${receipt.id}' used to submit the remote task is unavailable or disabled`
+    )
+  }
+  return key.key
+}
+
 function readCaptureContext(value: unknown): AiUsageCaptureContext | undefined {
   if (!value || typeof value !== 'object') return undefined
   const context = value as Partial<AiUsageCaptureContext>
@@ -169,7 +191,10 @@ function readCaptureContext(value: unknown): AiUsageCaptureContext | undefined {
   ) {
     return undefined
   }
-  const cloned = structuredClone(context) as AiUsageCaptureContext
+  const cloned = {
+    ...structuredClone(context),
+    reportedCostCurrency: context.reportedCostCurrency ?? null
+  } as AiUsageCaptureContext
   const freeze = (candidate: unknown): void => {
     if (!candidate || typeof candidate !== 'object' || Object.isFrozen(candidate)) return
     for (const nested of Object.values(candidate)) freeze(nested)

@@ -4,7 +4,7 @@
  * Records contain per-request usage and cost attributed to a provider/model
  * and, when captured, a credential identity. They are immutable analytical
  * snapshots, not financially reconcilable billing events. DTO/query/API
- * schemas live in `@shared/data/api/schemas/aiUsageRecord`.
+ * schemas live in `@shared/data/api/schemas/aiUsageRecords`.
  */
 
 import * as z from 'zod'

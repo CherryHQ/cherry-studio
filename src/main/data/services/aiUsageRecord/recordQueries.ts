@@ -11,7 +11,7 @@ import type {
   AiUsageRecordTimelineBucket,
   AiUsageRecordTimelineQuery,
   AiUsageRecordTimelineResponse
-} from '@shared/data/api/schemas/aiUsageRecord'
+} from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
 import { and, asc, desc, eq, gte, isNotNull, isNull, lte, or, type SQL, sql } from 'drizzle-orm'
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'

@@ -1,5 +1,5 @@
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
-import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecord'
+import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecords'
 import { describe, expect, it } from 'vitest'
 
 import { buildChartSeries, getTimelinePoints, selectCostTotal, toPeriodKey } from '../usageAnalytics'
@@ -68,9 +68,7 @@ describe('selectCostTotal', () => {
 
 describe('toPeriodKey', () => {
   it('keeps the day itself for the daily rollup', () => {
-    expect(toPeriodKey('2026-03-04', 'daily', getLocaleFirstDayOfWeek('en-US'))).toBe(
-      '2026-03-04'
-    )
+    expect(toPeriodKey('2026-03-04', 'daily', getLocaleFirstDayOfWeek('en-US'))).toBe('2026-03-04')
   })
 
   it('maps a whole week onto its locale-specific first day', () => {
@@ -87,9 +85,7 @@ describe('toPeriodKey', () => {
   })
 
   it('maps a month onto its first day', () => {
-    expect(toPeriodKey('2026-03-31', 'monthly', getLocaleFirstDayOfWeek('en-US'))).toBe(
-      '2026-03-01'
-    )
+    expect(toPeriodKey('2026-03-31', 'monthly', getLocaleFirstDayOfWeek('en-US'))).toBe('2026-03-01')
   })
 })
 

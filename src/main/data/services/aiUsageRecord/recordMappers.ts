@@ -3,7 +3,7 @@ import type {
   AiUsageRecordGroupBy,
   AiUsageRecordGroupIdentity,
   AiUsageRecordStatsGroupIdentity
-} from '@shared/data/api/schemas/aiUsageRecord'
+} from '@shared/data/api/schemas/aiUsageRecords'
 import type {
   AiUsageRecordAttribution,
   AiUsageRecordEntry,

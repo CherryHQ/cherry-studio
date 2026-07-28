@@ -8196,7 +8196,8 @@
       "modality": {
         "embedding": "嵌入",
         "image": "图像",
-        "language": "语言"
+        "language": "语言",
+        "rerank": "重排"
       },
       "overview": {
         "title": "概览"

@@ -12,7 +12,7 @@
  */
 
 import type { EndpointType } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
+import { CURRENCY, ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 // ─── Schemas formerly from provider-registry/schemas ─────────────────────────
@@ -305,6 +305,11 @@ export const ProviderSchema = z.object({
    * from the registry; absent ⇒ false.
    */
   authOptional: z.boolean().optional(),
+  /**
+   * Registry-owned currency for provider-reported costs that omit currency
+   * from the wire payload. Never inferred for custom providers.
+   */
+  reportedCostCurrency: z.enum(objectValues(CURRENCY)).optional(),
   /** API Keys (without actual key values) */
   apiKeys: z.array(RuntimeApiKeySchema),
   /** Authentication type (no sensitive data) */
