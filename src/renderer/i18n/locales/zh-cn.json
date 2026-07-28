@@ -1639,8 +1639,17 @@
       "token_details": {
         "cache_read": "缓存读取",
         "cache_write": "缓存写入",
+        "cost": "费用",
+        "cost_billed": "供应商计费",
+        "cost_estimated": "本地估算",
+        "end_to_end_throughput": "端到端吞吐",
         "input": "输入",
         "input_breakdown": "输入构成",
+        "lane_approval": "审批",
+        "lane_model": "模型",
+        "lane_other": "其他",
+        "lane_tool": "工具",
+        "model_throughput": "模型生成 TPS",
         "output": "输出",
         "reasoning": "推理",
         "reasoning_time": "推理",
@@ -1649,6 +1658,7 @@
         "text_output": "文本输出",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Token/秒",
+        "total_duration": "端到端耗时",
         "uncached": "未缓存",
         "usage": "Token 使用",
         "waiting_first_token": "等待"
@@ -2316,6 +2326,7 @@
     "open_in": "在 {{name}} 中打开",
     "open_in_new_tab": "在新标签页打开",
     "open_sidebar": "打开侧边栏",
+    "other": "其他",
     "placeholders": {
       "select": {
         "model": "选择模型"
@@ -4318,6 +4329,7 @@
     },
     "pinned": "已固定",
     "price": {
+      "cache_read": "缓存读取价格",
       "cost": "花费",
       "currency": "币种",
       "custom": "自定义",
@@ -8110,6 +8122,108 @@
       "onclose": "关闭时最小化到托盘",
       "show": "显示托盘图标",
       "title": "托盘"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "活跃天数",
+        "cacheHitRate": "缓存命中率",
+        "cacheObservedTokens": "可观测输入：{{tokens}}",
+        "cacheStartsWithNewRequests": "发送新请求后开始统计",
+        "dailyAverage": "日均",
+        "explicitApiKey": "已选密钥",
+        "lastPeriod": "较上期",
+        "matchedApiKey": "覆盖匹配",
+        "none": "N/A",
+        "peakDay": "高峰日",
+        "providerAuth": "供应商认证",
+        "streak": "最长连续天数：{{days}} 天",
+        "topModel": "用量最高模型",
+        "totalCost": "总成本",
+        "totalRequests": "请求数",
+        "totalTokens": "总 Token 数",
+        "unattributedApiKey": "未归因请求",
+        "unattributedSource": "未归因来源"
+      },
+      "chart": {
+        "bar": "柱状图",
+        "line": "折线图",
+        "pie": "饼图",
+        "stack": "分段"
+      },
+      "currency": "货币",
+      "empty": {
+        "description": "支持的 AI 请求产生用量记录后，这里会显示数据。",
+        "title": "暂无用量"
+      },
+      "explore": {
+        "analysis": "分析",
+        "chart": "图表",
+        "clearDate": "清除日期筛选",
+        "drilldownTitle": "{{date}} 明细",
+        "entries": "请求",
+        "groupBy": "分组",
+        "loadMore": "加载更多",
+        "loading": "加载中...",
+        "metric": "指标",
+        "noBreakdown": "暂无用量分布",
+        "noBreakdownDescription": "尝试扩大时间范围或更换供应商。",
+        "noEntries": "暂无记录",
+        "noEntriesDescription": "尝试扩大时间范围或更换供应商。",
+        "rollup": "汇总",
+        "selectedDate": "选定日期：{{date}}",
+        "shareLabel": "占比",
+        "title": "探索",
+        "top": "Top",
+        "totalEntries_one": "{{count}} 条记录",
+        "totalEntries_other": "{{count}} 条记录"
+      },
+      "groupBy": {
+        "apiKey": "API 密钥",
+        "model": "模型",
+        "provider": "供应商",
+        "source": "助手 / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "{{date}} 的用量",
+        "title": "每日活动"
+      },
+      "metric": {
+        "cost": "成本",
+        "requests": "请求数",
+        "tokens": "Token"
+      },
+      "overview": {
+        "title": "概览"
+      },
+      "rollup": {
+        "daily": "按天",
+        "monthly": "按月",
+        "total": "总计",
+        "weekly": "按周"
+      },
+      "summary": "{{window}} / {{tokens}} Token / {{requests}} 个请求",
+      "table": {
+        "cost": "成本",
+        "date": "日期",
+        "model": "模型",
+        "source": "来源",
+        "tokens": "Token",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "用量统计",
+      "tooltip": {
+        "cost": "成本 {{value}}",
+        "requests_one": "{{count}} 个请求",
+        "requests_other": "{{count}} 个请求",
+        "tokens": "{{value}} Token"
+      },
+      "window": {
+        "30d": "最近 30 天",
+        "365d": "最近一年",
+        "90d": "最近 90 天"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

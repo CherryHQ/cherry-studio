@@ -138,7 +138,7 @@ describe('Artboard', () => {
     expect(document.querySelector('img')).toBeNull()
     expect(mockComputeImageNaturalSize).toHaveBeenCalledWith('file:///tmp/image-1.png')
     // Pending: the natural size is still decoding, so the image url (and the whole
-    // reveal choreography it drives) is withheld from the skeleton until `ready`.
+    // reveal transition it drives) is withheld from the skeleton until `ready`.
     expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute('data-image-url', '')
   })
 

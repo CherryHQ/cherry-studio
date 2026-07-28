@@ -246,6 +246,7 @@ describe('buildCapabilityProviderOptions', () => {
         developerRole: false,
         serviceTier: false,
         verbosity: false,
+        reportsActualCost: false,
         enableThinking: true
       },
       apiKeys: [],
