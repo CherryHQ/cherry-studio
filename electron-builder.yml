@@ -87,6 +87,9 @@ extraResources:
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  extraResources:
+    - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+      to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable

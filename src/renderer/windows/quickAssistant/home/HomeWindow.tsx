@@ -148,11 +148,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // streams in `completedAssistants` so the multi-turn conversation
   // renders properly. Cleared on `clear()` together with `setMessages([])`.
   const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const { liveAssistants, reset: resetExecutionMessages } = useExecutionOverlay(
-    temporaryTopicId ?? 'pending-temp',
-    activeExecutions,
-    EMPTY_UI_MESSAGES
-  )
+  const {
+    liveAssistants,
+    reset: resetExecutionMessages,
+    clear: clearExecutionMessages
+  } = useExecutionOverlay(temporaryTopicId ?? 'pending-temp', activeExecutions, EMPTY_UI_MESSAGES)
   const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
 
   const prevActiveCountRef = useRef(activeExecutions.length)
@@ -238,10 +238,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     void stopChat()
     setMessages([])
     setCompletedAssistants([])
-    resetExecutionMessages()
+    clearExecutionMessages()
     setFlowError(null)
     setIsPreparing(false)
-  }, [stopChat, setMessages, resetExecutionMessages])
+  }, [stopChat, setMessages, clearExecutionMessages])
 
   const isLoading = isPreparing || isStreaming
   const isOutputted = messageItems.some((message) => message.role === 'assistant')

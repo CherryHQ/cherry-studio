@@ -151,7 +151,11 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   }
 
   return (
-    <AgentToolDisclosure className="w-full max-w-full rounded-none border-0 bg-transparent" item={toolContentItem} />
+    <AgentToolDisclosure
+      className="w-full max-w-full rounded-none border-0 bg-transparent"
+      item={toolContentItem}
+      stateId={toolResponse.toolCallId}
+    />
   )
 }
 
