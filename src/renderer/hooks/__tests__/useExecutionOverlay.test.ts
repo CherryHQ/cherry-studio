@@ -1,9 +1,14 @@
-import type { ExecutionTerminal } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+interface ExecutionTerminal {
+  anchorMessageId?: string
+  isAbort: boolean
+  isError: boolean
+}
 
 // ── Controllable fake TopicStreamSubscription ───────────────────────────
 const { fake } = vi.hoisted(() => {
@@ -65,6 +70,8 @@ const { fake } = vi.hoisted(() => {
       for (const cb of terminalCbs) cb(executionId, { ...t, anchorMessageId })
       api.close(executionId, anchorMessageId)
     },
+    listen() {},
+    dispose() {},
     reset() {
       branches.clear()
       terminalCbs.clear()
@@ -73,13 +80,21 @@ const { fake } = vi.hoisted(() => {
   return { fake: api }
 })
 
-vi.mock('../useTopicStreamSubscription', () => ({
-  useTopicStreamSubscription: () => fake
+// The service constructs its own TopicStreamSubscription per topic; hand every
+// instance the shared controllable fake. Isolation across tests comes from the
+// unique per-test topicId (the service singleton retains entries by design).
+vi.mock('@renderer/services/aiTransport/TopicStreamSubscription', () => ({
+  TopicStreamSubscription: class {
+    constructor() {
+      return fake
+    }
+  }
 }))
 
 import { useExecutionOverlay } from '../useExecutionOverlay'
 
-const TOPIC = 'topic-1'
+let topicSeq = 0
+let TOPIC = 'topic-0'
 const A = 'openai::gpt-4o' as UniqueModelId
 const B = 'anthropic::claude' as UniqueModelId
 
@@ -143,7 +158,10 @@ async function drainStreamMicrotasks(): Promise<void> {
   }
 }
 
-beforeEach(() => fake.reset())
+beforeEach(() => {
+  TOPIC = `topic-${++topicSeq}`
+  fake.reset()
+})
 afterEach(() => {
   fake.reset()
   vi.restoreAllMocks()

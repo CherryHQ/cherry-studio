@@ -2,4 +2,4 @@
 // this barrel; the directory's other files are internal. See
 // docs/references/renderer-architecture.md §5.
 export { ipcChatTransport } from './IpcChatTransport'
-export { type ExecutionTerminal, TopicStreamSubscription } from './TopicStreamSubscription'
+export { type ExecutionFinishEvent, topicStreamOverlayService } from './TopicStreamOverlayService'

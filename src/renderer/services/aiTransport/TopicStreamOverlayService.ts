@@ -1,0 +1,539 @@
+/**
+ * Window-level owner of per-topic streaming overlay state (execution readers,
+ * live snapshots, rAF-batched flushes). Extracted from `useExecutionOverlay`
+ * so the overlay's lifetime is keyed by `topicId` instead of a component
+ * instance: route/tab/topic switches release their view (refcount) without
+ * tearing down readers or detaching the Main listener, and re-acquire the
+ * retained view synchronously on remount.
+ *
+ * Lifecycle rules:
+ * - Readers start ONLY from a mounted consumer (`syncExecutions`), so the
+ *   continue-safe seed rule (see reader notes below) keeps its exact current
+ *   semantics. While no consumer is mounted, running readers keep assembling;
+ *   executions that appear meanwhile get no reader — their chunks queue in
+ *   `TopicStreamSubscription`'s auto-created branches (attached) or replay
+ *   from Main on the next attach (entry dropped), both lossless.
+ * - Terminal handoff is dual-mode. With a consumer mounted, the existing
+ *   status-edge handoff (`useTopicOverlayHandoffOnTerminal` → refresh →
+ *   `resetTopic`) owns disposal, unchanged. With `refCount === 0`, the edge
+ *   would be unobservable (it is tracked per component instance), so the
+ *   entry is dropped as soon as its last reader ends — the next mount
+ *   rebuilds from DB + shared cache exactly like today's remount path.
+ * - `MAX_ENTRIES` LRU eviction of refCount-0 entries is a leak backstop only
+ *   (lost terminal events, deleted topics); steady state is O(live streams).
+ *
+ * Reader semantics (moved verbatim from the hook): each execution gets a
+ * one-shot `readUIMessageStream` reader with zero cross-turn state. The
+ * reader is seeded with the message whose id is `anchorMessageId` taken from
+ * the *current* DB truth supplied by the consumer; for a tool-approval /
+ * continue the row already carries the prior assistant parts so a streamed
+ * `tool-output` chunk can merge onto the matching `tool-input`. The seed is
+ * re-derived on every reader start and never carried across turns — that,
+ * plus a fresh reader per turn, is the structural anti-pollution guarantee.
+ */
+import { loggerService } from '@logger'
+import type { ActiveExecution } from '@shared/ai/transport'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
+import { isToolUIPart, readUIMessageStream } from 'ai'
+
+import { TopicStreamSubscription } from './TopicStreamSubscription'
+
+const logger = loggerService.withContext('TopicStreamOverlayService')
+
+export interface ExecutionFinishEvent {
+  message: CherryUIMessage
+  isAbort: boolean
+  isError: boolean
+}
+
+interface ExecutionOverlayView {
+  /** messageId -> latest streamed parts. messageId = anchorMessageId, or the
+   *  start-chunk id when the execution has no pre-allocated row (temp topic). */
+  overlay: Record<string, CherryMessagePart[]>
+  /** Latest assistant snapshot per execution, in insertion order. */
+  liveAssistants: CherryUIMessage[]
+}
+
+type FinishListener = (executionId: string, event: ExecutionFinishEvent) => void
+
+interface ReaderHandle {
+  executionId: UniqueModelId
+  anchorMessageId?: string
+  cancel: () => void
+  unregister: () => void
+}
+
+interface PendingSnapshot {
+  epoch: number
+  readerVersion: number
+  snapshot: CherryUIMessage
+}
+
+interface ConsumerContribution {
+  executions: readonly ActiveExecution[]
+  getSeedMessages: () => CherryUIMessage[]
+}
+
+interface Entry {
+  topicId: string
+  sub: TopicStreamSubscription
+  dropped: boolean
+  refCount: number
+  desired: Map<object, ConsumerContribution>
+  /** executionId -> latest message snapshot. Retained after a reader tears
+   *  down (final frame / Phase 2 last-good) until the same execution
+   *  restarts, an explicit dispose, or the entry is dropped. */
+  snapshots: Record<string, CherryUIMessage>
+  view: ExecutionOverlayView
+  pendingSnapshots: Map<string, PendingSnapshot>
+  readerVersions: Map<string, number>
+  readers: Map<string, ReaderHandle>
+  /** In-flight reader loops. Kept separately from `readers` so cancellation
+   *  can retire a handle before its async loop reaches `finally`. */
+  liveReaderCount: number
+  epoch: number
+  frameId: number | null
+  listeners: Set<() => void>
+  finishListeners: Set<FinishListener>
+  lastActiveAt: number
+  /** Set when refCount hits 0. The next syncExecutions reconciles: snapshots
+   *  whose execution is no longer active are dropped, because the terminal
+   *  status edge that normally hands them off to the DB row is tracked per
+   *  component instance and was unobservable while unmounted. Executions
+   *  still streaming keep their snapshots — that continuity is the point. */
+  needsRemountReconcile: boolean
+}
+
+const MAX_ENTRIES = 32
+const EMPTY_VIEW: ExecutionOverlayView = { overlay: {}, liveAssistants: [] }
+
+function executionKey(executionId: UniqueModelId, anchorMessageId?: string): string {
+  return JSON.stringify([executionId, anchorMessageId ?? null])
+}
+
+function pickSeed(uiMessages: CherryUIMessage[], anchorMessageId?: string): CherryUIMessage | undefined {
+  if (!anchorMessageId) return undefined
+  const found = uiMessages.find((m) => m.id === anchorMessageId)
+  if (!found) {
+    return { id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage
+  }
+  // readUIMessageStream mutates `message.parts` in place. `found` is the live, render-stable
+  // SWR-derived row whose `parts` array aliases the SWR cache, so seeding the reader with it
+  // would corrupt cached history and race the DB-authoritative refresh(). Clone the parts so
+  // the reader only ever writes to a throwaway. (DB parts are JSON-serializable.)
+  return { ...found, parts: structuredClone(found.parts ?? []) }
+}
+
+function canReuseSettledPart(previous: CherryMessagePart, next: CherryMessagePart): boolean {
+  if (previous.type !== next.type) return false
+
+  if (previous.type === 'text' && next.type === 'text') {
+    return previous.state !== 'streaming' && next.state !== 'streaming' && previous.text === next.text
+  }
+
+  if (previous.type === 'reasoning' && next.type === 'reasoning') {
+    return previous.state !== 'streaming' && next.state !== 'streaming' && previous.text === next.text
+  }
+
+  if (isToolUIPart(previous) && isToolUIPart(next)) {
+    const previousTool = previous as unknown as { preliminary?: boolean; state?: string; toolCallId?: string }
+    const nextTool = next as unknown as { preliminary?: boolean; state?: string; toolCallId?: string }
+    if (previousTool.toolCallId !== nextTool.toolCallId || previousTool.state !== nextTool.state) return false
+    if (previousTool.state === 'output-available') {
+      return previousTool.preliminary !== true && nextTool.preliminary !== true
+    }
+    return (
+      previousTool.state === 'output-error' ||
+      previousTool.state === 'output-denied' ||
+      previousTool.state === 'cancelled'
+    )
+  }
+
+  // These transport parts are append-only in processUIMessageStream. Data
+  // parts are deliberately excluded because an id-bearing data part can be
+  // updated in place by a later chunk.
+  return (
+    previous.type === 'file' ||
+    previous.type === 'source-url' ||
+    previous.type === 'source-document' ||
+    previous.type === 'step-start'
+  )
+}
+
+/**
+ * `readUIMessageStream` clones the complete message for every chunk. Restore
+ * references for protocol-settled parts so rendering work stays proportional
+ * to the live frontier instead of the full accumulated transcript.
+ */
+function shareSettledPartReferences(
+  previous: CherryMessagePart[] | undefined,
+  next: CherryMessagePart[]
+): CherryMessagePart[] {
+  if (!previous || previous.length === 0 || next.length === 0) return next
+
+  let reusedAny = false
+  let reusedAll = previous.length === next.length
+  const shared = next.map((part, index) => {
+    const previousPart = previous[index]
+    if (previousPart === part || (previousPart && canReuseSettledPart(previousPart, part))) {
+      reusedAny = true
+      return previousPart
+    }
+    reusedAll = false
+    return part
+  })
+
+  if (reusedAll) return previous
+  return reusedAny ? shared : next
+}
+
+function computeView(snapshots: Record<string, CherryUIMessage>): ExecutionOverlayView {
+  const overlay: Record<string, CherryMessagePart[]> = {}
+  for (const snapshot of Object.values(snapshots)) {
+    if (snapshot?.parts?.length) overlay[snapshot.id] = snapshot.parts as CherryMessagePart[]
+  }
+  const liveAssistants = Object.values(snapshots).filter((s): s is CherryUIMessage => s?.role === 'assistant')
+  return { overlay, liveAssistants }
+}
+
+export class TopicStreamOverlayService {
+  readonly #entries = new Map<string, Entry>()
+
+  acquire(topicId: string): void {
+    const entry = this.#getOrCreate(topicId)
+    entry.refCount += 1
+    entry.lastActiveAt = Date.now()
+    // A hidden window's rAF may have stalled with frames pending; materialize
+    // them so the re-acquiring consumer's first read sees the latest state.
+    this.#flushPending(entry, entry.epoch)
+  }
+
+  release(topicId: string, consumer: object): void {
+    const entry = this.#entries.get(topicId)
+    if (!entry) return
+    // Remove the contribution WITHOUT converging readers: departure must not
+    // cancel them — surviving unmount is the point of this service.
+    entry.desired.delete(consumer)
+    entry.refCount = Math.max(0, entry.refCount - 1)
+    if (entry.refCount === 0) entry.needsRemountReconcile = true
+    this.#maybeDrop(entry)
+  }
+
+  /** Converge readers to the union of mounted consumers' active executions.
+   *  Same convergence the hook's effect ran: leaving executions get their
+   *  reader cancelled (suppressing onFinish — the status-driven handoff owns
+   *  that path), new ones start a fresh seeded reader. */
+  syncExecutions(
+    topicId: string,
+    consumer: object,
+    executions: readonly ActiveExecution[],
+    getSeedMessages: () => CherryUIMessage[]
+  ): void {
+    const entry = this.#entries.get(topicId)
+    if (!entry) return
+    entry.desired.set(consumer, { executions, getSeedMessages })
+
+    const union = new Map<
+      string,
+      { executionId: UniqueModelId; anchorMessageId?: string; seed: ConsumerContribution }
+    >()
+    for (const contribution of entry.desired.values()) {
+      for (const { executionId, anchorMessageId } of contribution.executions) {
+        const key = executionKey(executionId, anchorMessageId)
+        if (!union.has(key)) union.set(key, { executionId, anchorMessageId, seed: contribution })
+      }
+    }
+
+    if (entry.needsRemountReconcile) {
+      entry.needsRemountReconcile = false
+      const liveExecutionIds = new Set([...union.values()].map((item) => item.executionId as string))
+      let next = entry.snapshots
+      for (const executionId of Object.keys(entry.snapshots)) {
+        if (liveExecutionIds.has(executionId)) continue
+        entry.pendingSnapshots.delete(executionId)
+        entry.readerVersions.set(executionId, (entry.readerVersions.get(executionId) ?? 0) + 1)
+        if (next === entry.snapshots) next = { ...entry.snapshots }
+        delete next[executionId]
+      }
+      this.#commitSnapshots(entry, next)
+    }
+
+    for (const [key, handle] of [...entry.readers]) {
+      if (union.has(key)) continue
+      handle.cancel()
+      handle.unregister()
+      entry.readers.delete(key)
+    }
+
+    for (const [key, item] of union) {
+      if (entry.readers.has(key)) continue
+      this.#startReader(entry, key, item.executionId, item.anchorMessageId, item.seed.getSeedMessages)
+    }
+  }
+
+  subscribe(topicId: string, listener: () => void): () => void {
+    const entry = this.#entries.get(topicId)
+    if (!entry) return () => {}
+    entry.listeners.add(listener)
+    return () => entry.listeners.delete(listener)
+  }
+
+  getView(topicId: string): ExecutionOverlayView {
+    return this.#entries.get(topicId)?.view ?? EMPTY_VIEW
+  }
+
+  onFinish(topicId: string, listener: FinishListener): () => void {
+    const entry = this.#entries.get(topicId)
+    if (!entry) return () => {}
+    entry.finishListeners.add(listener)
+    return () => entry.finishListeners.delete(listener)
+  }
+
+  /** Drop one overlay/snapshot entry by its message id (post-persist handoff). */
+  disposeOverlay(topicId: string, messageId: string): void {
+    const entry = this.#entries.get(topicId)
+    if (!entry) return
+    const snapshotEntry = Object.entries(entry.snapshots).find(([, snapshot]) => snapshot.id === messageId)
+    const pendingEntry = [...entry.pendingSnapshots].find(([, item]) => item.snapshot.id === messageId)
+    const executionId = snapshotEntry?.[0] ?? pendingEntry?.[0]
+    if (executionId) {
+      entry.pendingSnapshots.delete(executionId)
+      entry.readerVersions.set(executionId, (entry.readerVersions.get(executionId) ?? 0) + 1)
+      if (entry.pendingSnapshots.size === 0) this.#cancelFrame(entry)
+    }
+    if (snapshotEntry) {
+      const next = { ...entry.snapshots }
+      delete next[snapshotEntry[0]]
+      this.#commitSnapshots(entry, next)
+    }
+  }
+
+  /** Drop every overlay/snapshot entry for a topic (terminal handoff, quick-assistant clear()). */
+  resetTopic(topicId: string): void {
+    const entry = this.#entries.get(topicId)
+    if (!entry) return
+    this.#invalidatePending(entry)
+    entry.readerVersions.clear()
+    if (Object.keys(entry.snapshots).length > 0) this.#commitSnapshots(entry, {})
+  }
+
+  // ── internals ──────────────────────────────────────────────────────
+
+  #getOrCreate(topicId: string): Entry {
+    let entry = this.#entries.get(topicId)
+    if (entry) return entry
+    this.#evictIfNeeded()
+    const sub = new TopicStreamSubscription(topicId)
+    if (topicId) sub.listen()
+    entry = {
+      topicId,
+      sub,
+      dropped: false,
+      refCount: 0,
+      desired: new Map(),
+      snapshots: {},
+      view: EMPTY_VIEW,
+      pendingSnapshots: new Map(),
+      readerVersions: new Map(),
+      readers: new Map(),
+      liveReaderCount: 0,
+      epoch: 0,
+      frameId: null,
+      listeners: new Set(),
+      finishListeners: new Set(),
+      lastActiveAt: Date.now(),
+      needsRemountReconcile: false
+    }
+    this.#entries.set(topicId, entry)
+    return entry
+  }
+
+  #evictIfNeeded(): void {
+    while (this.#entries.size >= MAX_ENTRIES) {
+      let oldest: Entry | undefined
+      for (const entry of this.#entries.values()) {
+        if (entry.refCount > 0) continue
+        if (!oldest || entry.lastActiveAt < oldest.lastActiveAt) oldest = entry
+      }
+      if (!oldest) return
+      logger.warn('evicting stale overlay entry', { topicId: oldest.topicId })
+      this.#dropEntry(oldest)
+    }
+  }
+
+  #maybeDrop(entry: Entry): void {
+    if (entry.refCount > 0 || entry.liveReaderCount > 0) return
+    this.#dropEntry(entry)
+  }
+
+  #dropEntry(entry: Entry): void {
+    if (entry.dropped) return
+    entry.dropped = true
+    if (this.#entries.get(entry.topicId) === entry) this.#entries.delete(entry.topicId)
+    this.#cancelFrame(entry)
+    entry.sub.dispose()
+  }
+
+  #startReader(
+    entry: Entry,
+    key: string,
+    executionId: UniqueModelId,
+    anchorMessageId: string | undefined,
+    getSeedMessages: () => CherryUIMessage[]
+  ): void {
+    const branch = entry.sub.register(executionId, anchorMessageId)
+    const readerEpoch = entry.epoch
+    const readerVersion = (entry.readerVersions.get(executionId) ?? 0) + 1
+    entry.readerVersions.set(executionId, readerVersion)
+    entry.pendingSnapshots.delete(executionId)
+    // Readers use execution+anchor keys; snapshots stay executionId-keyed because only one anchor is live per execution.
+    // New turn for this execution: clear any retained prior snapshot.
+    if (executionId in entry.snapshots) {
+      const next = { ...entry.snapshots }
+      delete next[executionId]
+      this.#commitSnapshots(entry, next)
+    }
+
+    let cancelled = false
+    let terminal: { isAbort: boolean; isError: boolean } | undefined
+    const offTerminal = entry.sub.onExecutionTerminal((id, t) => {
+      if (id !== executionId) return
+      if (t.anchorMessageId !== undefined && t.anchorMessageId !== anchorMessageId) return
+      terminal = t
+    })
+    const seed = pickSeed(getSeedMessages(), anchorMessageId)
+    const topicId = entry.topicId
+
+    const handle: ReaderHandle = {
+      executionId,
+      anchorMessageId,
+      cancel: () => {
+        cancelled = true
+      },
+      unregister: () => {
+        offTerminal()
+        entry.sub.unregister(executionId, anchorMessageId)
+      }
+    }
+    entry.readers.set(key, handle)
+
+    entry.liveReaderCount += 1
+    void (async () => {
+      let last: CherryUIMessage | undefined
+      try {
+        for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+          stream: branch,
+          message: seed,
+          terminateOnError: false,
+          onError: (err) => logger.warn('readUIMessageStream error', { topicId, executionId, err })
+        })) {
+          if (cancelled) break
+          const sharedParts = shareSettledPartReferences(
+            last?.parts as CherryMessagePart[] | undefined,
+            snapshot.parts as CherryMessagePart[]
+          )
+          const nextSnapshot = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
+          last = nextSnapshot
+          this.#queueSnapshot(entry, executionId, nextSnapshot, readerEpoch, readerVersion)
+        }
+      } catch (err) {
+        logger.warn('execution reader threw', { topicId, executionId, err })
+      } finally {
+        offTerminal()
+        if (entry.readers.get(key) === handle) {
+          entry.sub.unregister(executionId, anchorMessageId)
+          entry.readers.delete(key)
+        }
+        if (!cancelled) {
+          // Terminal frames must be visible before the overlay handoff. This
+          // is the sole intentional commit outside the animation-frame cadence.
+          this.#flushPending(entry, readerEpoch)
+          const t = terminal ?? { isAbort: false, isError: false }
+          const message = last ?? seed
+          if (message || t.isError) {
+            const event: ExecutionFinishEvent = {
+              message: message ?? { id: '', role: 'assistant', parts: [] },
+              isAbort: t.isAbort,
+              isError: t.isError
+            }
+            for (const listener of [...entry.finishListeners]) {
+              try {
+                listener(executionId, event)
+              } catch (err) {
+                logger.warn('finish listener threw', { topicId, executionId, err })
+              }
+            }
+          }
+        }
+        entry.liveReaderCount -= 1
+        this.#maybeDrop(entry)
+      }
+    })()
+  }
+
+  #queueSnapshot(
+    entry: Entry,
+    executionId: string,
+    snapshot: CherryUIMessage,
+    epoch: number,
+    readerVersion: number
+  ): void {
+    if (epoch !== entry.epoch || entry.readerVersions.get(executionId) !== readerVersion) return
+
+    entry.pendingSnapshots.set(executionId, { epoch, readerVersion, snapshot })
+    if (entry.frameId !== null) return
+
+    entry.frameId = window.requestAnimationFrame(() => {
+      entry.frameId = null
+      this.#flushPending(entry, epoch)
+    })
+  }
+
+  #flushPending(entry: Entry, expectedEpoch: number): void {
+    if (expectedEpoch !== entry.epoch) return
+
+    this.#cancelFrame(entry)
+    const pending = entry.pendingSnapshots
+    if (pending.size === 0) return
+    entry.pendingSnapshots = new Map()
+
+    let next = entry.snapshots
+    for (const [executionId, item] of pending) {
+      if (item.epoch !== entry.epoch) continue
+      if (entry.readerVersions.get(executionId) !== item.readerVersion) continue
+      if (entry.snapshots[executionId] === item.snapshot) continue
+      if (next === entry.snapshots) next = { ...entry.snapshots }
+      next[executionId] = item.snapshot
+    }
+    this.#commitSnapshots(entry, next)
+  }
+
+  #commitSnapshots(entry: Entry, next: Record<string, CherryUIMessage>): void {
+    if (next === entry.snapshots) return
+    entry.snapshots = next
+    entry.view = computeView(next)
+    entry.lastActiveAt = Date.now()
+    for (const listener of [...entry.listeners]) {
+      try {
+        listener()
+      } catch (err) {
+        logger.warn('overlay listener threw', { topicId: entry.topicId, err })
+      }
+    }
+  }
+
+  #invalidatePending(entry: Entry): void {
+    entry.epoch += 1
+    entry.pendingSnapshots.clear()
+    this.#cancelFrame(entry)
+  }
+
+  #cancelFrame(entry: Entry): void {
+    if (entry.frameId === null) return
+    window.cancelAnimationFrame(entry.frameId)
+    entry.frameId = null
+  }
+}
+
+export const topicStreamOverlayService = new TopicStreamOverlayService()
