@@ -201,7 +201,8 @@ export function buildForkedMigrations(sourceFolder: string, destFolder: string, 
 
 const ISO = '2026-07-27T00:00:00.000Z'
 
-export function liteManifest(db: DbMeta): BackupManifest {
+/** A valid manifest carrying the database alone — no resource payloads. */
+export function baseManifest(db: DbMeta): BackupManifest {
   return {
     backupFormatVersion: 2,
     createdAt: ISO,
@@ -210,14 +211,14 @@ export function liteManifest(db: DbMeta): BackupManifest {
     db: { hash: db.hash, sizeBytes: db.sizeBytes },
     resourceRequirements: [],
     degradations: [],
-    preset: 'lite'
+    preset: 'full',
+    resourcePayloads: []
   }
 }
 
 export function fullManifest(db: DbMeta, resourcePayloads: readonly ResourcePayload[]): BackupManifest {
   return {
-    ...liteManifest(db),
-    preset: 'full',
+    ...baseManifest(db),
     resourcePayloads: [...resourcePayloads]
   }
 }

@@ -1,10 +1,5 @@
 import { application } from '@application'
-import type {
-  JournalDegradation,
-  PromotionStepV2,
-  RestoreJournalV2,
-  RestoreJournalV2State
-} from '@data/db/restore/restoreJournalV2'
+import type { JournalDegradation, PromotionStepV2, RestoreJournalV2State } from '@data/db/restore/restoreJournalV2'
 import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -12,7 +7,6 @@ import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@
 import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
 import { BackupBusyError, BackupCancelledError } from './errors'
 import { exportArchive, type ExportArchiveResult } from './exportArchive'
-import type { BackupPreset } from './manifest'
 import { runPostPromotionWork } from './postPromotion'
 import { armPreparedRestore, cancelPreparedRestore, prepareRestore, type RestorePreview } from './prepareRestore'
 import { armRestoreRollback } from './rollbackRestore'
@@ -45,7 +39,6 @@ export type RestoreStatus =
       readonly kind: 'journal'
       readonly state: RestoreJournalV2State
       readonly restoreId: string
-      readonly preset: RestoreJournalV2['preset']
       /** Present only while `state === 'promoting'`: the last completed promotion step. */
       readonly step?: PromotionStepV2
       /**
@@ -126,7 +119,6 @@ export class BackupService extends BaseService {
         logger.info('Restore journal present at startup', {
           state: status.state,
           restoreId: status.restoreId,
-          preset: status.preset,
           step: status.step
         })
         return
@@ -189,8 +181,8 @@ export class BackupService extends BaseService {
    * Export an archive to `outPath`. The destination must not exist — this never
    * overwrites a prior backup.
    */
-  public export(outPath: string, preset: BackupPreset): Promise<ExportArchiveResult> {
-    return this.runExclusive('export', (signal) => exportArchive({ outPath, preset, signal }))
+  public export(outPath: string): Promise<ExportArchiveResult> {
+    return this.runExclusive('export', (signal) => exportArchive({ outPath, signal }))
   }
 
   /**
@@ -328,7 +320,6 @@ export class BackupService extends BaseService {
       kind: 'journal',
       state: journal.state,
       restoreId: journal.restoreId,
-      preset: journal.preset,
       ...(journal.state === 'promoting' ? { step: journal.step } : {}),
       ...(journal.state === 'failed' && journal.recoveryIncomplete ? { recoveryIncomplete: true as const } : {}),
       ...(journal.state === 'completed' && journal.resourcesIncomplete ? { resourcesIncomplete: true as const } : {}),

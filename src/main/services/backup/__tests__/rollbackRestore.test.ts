@@ -49,7 +49,7 @@ function completedJournal(
   return {
     version: 2,
     restoreId: RESTORE_ID,
-    preset: 'lite',
+    preset: 'full',
     createdAt: '2026-07-27T00:00:00.000Z',
     state: 'completed',
     db: {

@@ -194,7 +194,7 @@ function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
   const base = {
     version: 2 as const,
     restoreId: RID,
-    preset: resourceInstalls.length > 0 ? ('full' as const) : ('lite' as const),
+    preset: 'full' as const,
     createdAt: '2026-07-27T00:00:00.000Z',
     db: {
       promote: stagedRel,
@@ -711,7 +711,7 @@ describe('restore promotion v2', () => {
     })
   })
 
-  describe('full preset resource installation', () => {
+  describe('resource installation', () => {
     const BASE_REL = 'Data/KnowledgeBase/base-1'
 
     /** One Knowledge base unit, exactly as preparation seals it into the journal. */

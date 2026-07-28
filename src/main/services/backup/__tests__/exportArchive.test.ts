@@ -120,32 +120,6 @@ describe('exportArchive', () => {
       .run()
   }
 
-  it('publishes a Lite archive that admission accepts unchanged', async () => {
-    seedResources()
-
-    const result = await exportArchive({ outPath, preset: 'lite' })
-
-    expect(existsSync(outPath)).toBe(true)
-    expect(result.manifest.preset).toBe('lite')
-    expect(result.manifest.producer.buildType).toBe('development')
-    expect(result.manifest).not.toHaveProperty('resourcePayloads')
-
-    const stagingParent = await mkdtemp(join(tmpdir(), 'cs-admit-'))
-    const admitted = await admitArchive({
-      archivePath: outPath,
-      stagingParent,
-      migrationsFolder: resolveMigrationsPath()
-    })
-    try {
-      expect(admitted.manifest.db.hash).toBe(result.manifest.db.hash)
-      expect(admitted.resources).toEqual([])
-      expect(admitted.migratedForward).toBe(false)
-    } finally {
-      await admitted.cleanup()
-      rmSync(stagingParent, { recursive: true, force: true })
-    }
-  })
-
   it('publishes a Full archive whose payloads admission re-verifies byte for byte', async () => {
     seedResources()
     writeFileSync(mkFile(join(userData, 'Data', 'Files', '11111111-1111-4111-8111-111111111111.pdf')), 'BLOB')
@@ -157,10 +131,11 @@ describe('exportArchive', () => {
     // Declared by a row but not present here: a degraded archive, not a failure.
     expect(existsSync(join(userData, 'Data', 'Agents', 'system', 's-1'))).toBe(false)
 
-    const result = await exportArchive({ outPath, preset: 'full' })
+    const result = await exportArchive({ outPath })
 
     expect(result.manifest.preset).toBe('full')
-    const payloads = result.manifest.preset === 'full' ? result.manifest.resourcePayloads : []
+    expect(result.manifest.producer.buildType).toBe('development')
+    const payloads = result.manifest.resourcePayloads
     expect(payloads.map((p) => p.livePath).sort()).toEqual([
       'Data/Files/11111111-1111-4111-8111-111111111111.pdf',
       'Data/KnowledgeBase/kb-1',
@@ -194,12 +169,12 @@ describe('exportArchive', () => {
     }
   })
 
-  it('publishes a Full archive with no payloads when this device holds none', async () => {
+  it('publishes an archive with no payloads when this device holds none', async () => {
     seedResources()
 
-    const { manifest } = await exportArchive({ outPath, preset: 'full' })
+    const { manifest } = await exportArchive({ outPath })
 
-    expect(manifest.preset === 'full' && manifest.resourcePayloads).toEqual([])
+    expect(manifest.resourcePayloads).toEqual([])
     // Every requirement is still declared, so the restoring device can report
     // exactly what this archive could not carry.
     expect(manifest.resourceRequirements).toHaveLength(4)
@@ -209,7 +184,7 @@ describe('exportArchive', () => {
   it('carries the producer roots and requirement inventory a cross-device restore needs', async () => {
     seedResources()
 
-    const { manifest } = await exportArchive({ outPath, preset: 'lite' })
+    const { manifest } = await exportArchive({ outPath })
 
     // Without these two roots the materializer cannot rebase note.rootPath or
     // agent_workspace.path on another machine.
@@ -233,22 +208,22 @@ describe('exportArchive', () => {
     // empty inventory here.
     expect(existsSync(join(userData, 'Data'))).toBe(false)
 
-    const { manifest } = await exportArchive({ outPath, preset: 'lite' })
+    const { manifest } = await exportArchive({ outPath })
 
     expect(manifest.resourceRequirements).toHaveLength(4)
   })
 
   it('leaves no staging tree behind on success', async () => {
-    await exportArchive({ outPath, preset: 'lite' })
+    await exportArchive({ outPath })
 
     expect(readdirSync(join(userData, 'backup-temp'))).toEqual([])
   })
 
   it('removes its staging tree and writes nothing when publication fails', async () => {
-    await exportArchive({ outPath, preset: 'lite' })
+    await exportArchive({ outPath })
     const before = readFileSync(outPath)
 
-    await expect(exportArchive({ outPath, preset: 'lite' })).rejects.toBeInstanceOf(OutputPathExistsError)
+    await expect(exportArchive({ outPath })).rejects.toBeInstanceOf(OutputPathExistsError)
 
     // The prior good backup survives byte-for-byte, and nothing is left staged.
     expect(readFileSync(outPath)).toEqual(before)
@@ -257,14 +232,14 @@ describe('exportArchive', () => {
 
   it('fails before snapshotting when the staging volume has no headroom', async () => {
     vi.spyOn(diskProbe, 'statfs').mockResolvedValue({ bavail: 0n, bsize: 4096n } as never)
-    await expect(exportArchive({ outPath, preset: 'lite' })).rejects.toBeInstanceOf(InsufficientDiskSpaceError)
+    await expect(exportArchive({ outPath })).rejects.toBeInstanceOf(InsufficientDiskSpaceError)
 
     expect(snapshotMock()).not.toHaveBeenCalled()
     expect(existsSync(outPath)).toBe(false)
     expect(readdirSync(join(userData, 'backup-temp'))).toEqual([])
   })
 
-  it('preflights all Full resource bytes before copying the first resource', async () => {
+  it('preflights all resource bytes before copying the first resource', async () => {
     dbh.db
       .insert(fileEntryTable)
       .values({ id: '22222222-2222-4222-8222-222222222222', origin: 'internal', name: 'b', ext: 'bin', size: 4 })
@@ -279,7 +254,7 @@ describe('exportArchive', () => {
       copied = true
     }
 
-    await expect(exportArchive({ outPath, preset: 'full' })).rejects.toBeInstanceOf(InsufficientDiskSpaceError)
+    await expect(exportArchive({ outPath })).rejects.toBeInstanceOf(InsufficientDiskSpaceError)
 
     expect(snapshotMock()).toHaveBeenCalledOnce()
     expect(copied).toBe(false)
@@ -291,7 +266,7 @@ describe('exportArchive', () => {
     const controller = new AbortController()
     controller.abort()
 
-    await expect(exportArchive({ outPath, preset: 'lite', signal: controller.signal })).rejects.toThrow(/cancel/i)
+    await expect(exportArchive({ outPath, signal: controller.signal })).rejects.toThrow(/cancel/i)
 
     expect(existsSync(outPath)).toBe(false)
   })

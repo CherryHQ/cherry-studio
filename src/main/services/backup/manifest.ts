@@ -16,7 +16,12 @@ import * as z from 'zod'
  */
 export const BACKUP_FORMAT_VERSION = 2 as const
 
-export const BACKUP_PRESETS = ['lite', 'full'] as const
+/**
+ * The archive presets. There is exactly one — Full — and the field is kept in the
+ * manifest so a future second preset is an additive format change rather than a
+ * breaking one.
+ */
+export const BACKUP_PRESETS = ['full'] as const
 export type BackupPreset = (typeof BACKUP_PRESETS)[number]
 
 /** Stable producer-side reasons for omitting one managed resource unit. */
@@ -102,9 +107,9 @@ const DbPayloadSchema = z.strictObject({
 })
 
 /**
- * Existence-oriented requirement inventory (both presets). Declares WHICH
- * resources the restored DB references so restore can report coverage; carries
- * no bytes and no hash. `livePath` is the userData-relative target.
+ * Existence-oriented requirement inventory. Declares WHICH resources the
+ * restored DB references so restore can report coverage; carries no bytes and no
+ * hash. `livePath` is the userData-relative target.
  */
 const ResourceRequirementSchema = z.strictObject({
   kind: z.string().min(1),
@@ -113,9 +118,8 @@ const ResourceRequirementSchema = z.strictObject({
 })
 
 /**
- * Included payload inventory + cryptographic hash (Full only). `archivePath` is
- * where the payload sits inside the archive; `livePath` its userData-relative
- * destination.
+ * Included payload inventory + cryptographic hash. `archivePath` is where the
+ * payload sits inside the archive; `livePath` its userData-relative destination.
  */
 const commonResourcePayloadFields = {
   kind: z.string().min(1),
@@ -148,19 +152,16 @@ const commonManifestFields = {
 }
 
 /**
- * Discriminated on `preset`. Lite has NO `resourcePayloads` key at all — the
- * `strictObject` therefore rejects any Lite manifest that carries payload
- * bytes, enforcing "Lite ships no resource entries" at the schema. Full carries
- * the payload inventory (possibly empty when the profile owns no resources).
+ * `preset` is pinned to the one preset that exists, so an archive declaring any
+ * other preset is rejected here rather than reinterpreted as Full. Every archive
+ * carries the payload inventory (possibly empty when the profile owns no
+ * resources).
  */
-export const BackupManifestSchema = z.discriminatedUnion('preset', [
-  z.strictObject({ ...commonManifestFields, preset: z.literal('lite') }),
-  z.strictObject({
-    ...commonManifestFields,
-    preset: z.literal('full'),
-    resourcePayloads: z.array(ResourcePayloadSchema)
-  })
-])
+export const BackupManifestSchema = z.strictObject({
+  ...commonManifestFields,
+  preset: z.enum(BACKUP_PRESETS),
+  resourcePayloads: z.array(ResourcePayloadSchema)
+})
 
 export type BackupManifest = z.infer<typeof BackupManifestSchema>
 export type ManagedRootIdentity = z.infer<typeof ManagedRootIdentitySchema>

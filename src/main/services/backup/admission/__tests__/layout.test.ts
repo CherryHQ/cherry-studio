@@ -34,9 +34,6 @@ const COMMON = {
   degradations: []
 }
 
-function liteM(): BackupManifest {
-  return { ...COMMON, preset: 'lite' }
-}
 function fullM(payloads: ResourcePayload[]): BackupManifest {
   return { ...COMMON, preset: 'full', resourcePayloads: payloads }
 }
@@ -50,19 +47,19 @@ function reason(fn: () => unknown): AdmissionRejectReason | 'OK' {
   }
 }
 
-describe('classifyPayloadLayout — lite', () => {
-  it('accepts a lite archive with no resource entries', () => {
-    expect(reason(() => classifyPayloadLayout(shape([]), liteM()))).toBe('OK')
+describe('classifyPayloadLayout — no declared payloads', () => {
+  it('accepts an archive with no resource entries', () => {
+    expect(reason(() => classifyPayloadLayout(shape([]), fullM([])))).toBe('OK')
   })
-  it('rejects a lite archive carrying a resource file', () => {
-    expect(reason(() => classifyPayloadLayout(shape(['resources/x']), liteM()))).toBe('layout')
+  it('rejects a resource file no payload declares', () => {
+    expect(reason(() => classifyPayloadLayout(shape(['resources/x']), fullM([])))).toBe('layout')
   })
-  it('rejects a lite archive carrying a resource directory', () => {
-    expect(reason(() => classifyPayloadLayout(shape([], ['resources/kb']), liteM()))).toBe('layout')
+  it('rejects a resource directory no payload declares', () => {
+    expect(reason(() => classifyPayloadLayout(shape([], ['resources/kb']), fullM([])))).toBe('layout')
   })
 })
 
-describe('classifyPayloadLayout — full', () => {
+describe('classifyPayloadLayout — declared payloads', () => {
   it('accepts a file unit + a directory unit covering its files', () => {
     const m = fullM([payload('resources/blob.bin', 'file'), payload('resources/kb', 'directory')])
     const s = shape(

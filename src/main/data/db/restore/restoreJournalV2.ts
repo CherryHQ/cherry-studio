@@ -145,7 +145,8 @@ const commonFields = {
   version: z.literal(RESTORE_JOURNAL_VERSION),
   /** Producer-generated UUID (the chosen restore-id contract). */
   restoreId: z.uuid(),
-  preset: z.enum(['lite', 'full']),
+  /** The archive's preset. Only Full exists; kept so a second preset stays additive. */
+  preset: z.literal('full'),
   /** ISO-8601 timestamp, diagnostic only. */
   createdAt: z.iso.datetime(),
   db: DbPromotionSchema,
@@ -237,17 +238,8 @@ const journalVariants = [
   })
 ] as const
 
-/**
- * Lite carries no resource payload, so a Lite journal MUST have an empty
- * `resourceInstalls` (§2.1). Enforced as a post-union refinement because the
- * union already discriminates on `state`.
- */
 export const RestoreJournalV2Schema = z
   .discriminatedUnion('state', journalVariants)
-  .refine((journal) => journal.preset !== 'lite' || journal.resourceInstalls.length === 0, {
-    message: 'a lite restore journal must declare no resource-install entries',
-    path: ['resourceInstalls']
-  })
   .refine(
     (journal) =>
       !('knowledgeRebuild' in journal) ||

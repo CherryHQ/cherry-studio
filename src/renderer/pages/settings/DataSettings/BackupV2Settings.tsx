@@ -1,4 +1,4 @@
-import { Alert, Button, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
+import { Alert, Button, RowFlex } from '@cherrystudio/ui'
 import {
   SettingDivider,
   SettingGroup,
@@ -31,7 +31,7 @@ import { useTranslation } from 'react-i18next'
  * Backup v2 — export and restore (docs/references/backup/README.md).
  *
  * The screen is built around the one fact a user must not miss: a restore
- * REPLACES the database, whole. Both presets say so, the confirmation says so
+ * REPLACES the database, whole. The help text says so, the confirmation says so
  * again, and nothing here offers a merge, because none exists.
  *
  * State lives in main. This component holds only what the current visit
@@ -42,7 +42,6 @@ import { useTranslation } from 'react-i18next'
 
 type BackupStatus = OutputFor<'backup.get_status'>
 type RestorePreview = Extract<OutputFor<'backup.prepare_restore'>, { status: 'prepared' }>['preview']
-type Preset = 'lite' | 'full'
 type JournalRestore = Extract<NonNullable<BackupStatus['restore']>, { kind: 'journal' }>
 type PresentedDegradation = NonNullable<JournalRestore['degradations']>[number]
 type CompatibilityDiagnostic = BackupMigrationCompatibilityDiagnostic | BackupFormatCompatibilityDiagnostic
@@ -53,27 +52,9 @@ type CompatibilityDiagnostic = BackupMigrationCompatibilityDiagnostic | BackupFo
  * `other` covers the instant actions (discard, arm, acknowledge), which only
  * need to hold the busy lock.
  */
-type Running =
-  | { readonly kind: 'export'; readonly preset: Preset }
-  | { readonly kind: 'prepare' }
-  | { readonly kind: 'other' }
+type Running = { readonly kind: 'export' } | { readonly kind: 'prepare' } | { readonly kind: 'other' }
 
 /** Written out rather than interpolated, so the keys stay greppable. */
-const PRESET_LABEL_KEYS: Record<Preset, string> = {
-  lite: 'settings.data.backup_v2.preset.lite',
-  full: 'settings.data.backup_v2.preset.full'
-}
-
-const PRESET_EXPORT_TITLE_KEYS: Record<Preset, string> = {
-  lite: 'settings.data.backup_v2.export.lite_title',
-  full: 'settings.data.backup_v2.export.full_title'
-}
-
-const PRESET_EXPORT_HELP_KEYS: Record<Preset, string> = {
-  lite: 'settings.data.backup_v2.export.lite_help',
-  full: 'settings.data.backup_v2.export.full_help'
-}
-
 const DEGRADATION_KEYS: Record<PresentedDegradation['code'], string> = {
   'capability-malformed': 'settings.data.backup_v2.outcome.degradation.capability_malformed',
   'external-file-dropped': 'settings.data.backup_v2.outcome.degradation.external_file_dropped',
@@ -411,9 +392,9 @@ const BackupV2Settings: FC = () => {
     }
   }, [refresh, reportFailure])
 
-  const handleExport = (preset: Preset) =>
-    run({ kind: 'export', preset }, async () => {
-      const result = await ipcApi.request('backup.export', { preset })
+  const handleExport = () =>
+    run({ kind: 'export' }, async () => {
+      const result = await ipcApi.request('backup.export')
       if (result.status === 'canceled') return
       if (result.degradations.length > 0) {
         await popup.info({
@@ -431,26 +412,6 @@ const BackupV2Settings: FC = () => {
         toast.success(t('settings.data.backup_v2.export.done'))
       }
     })
-
-  const handleChooseExport = async () => {
-    let selectedPreset: Preset = 'lite'
-    const confirmed = await popup.confirm({
-      title: t('settings.data.backup_v2.export.title'),
-      content: (
-        <BackupPresetPicker
-          defaultValue={selectedPreset}
-          onValueChange={(preset) => {
-            selectedPreset = preset
-          }}
-        />
-      ),
-      okText: t('settings.data.backup_v2.export.button'),
-      cancelText: t('common.cancel'),
-      centered: true
-    })
-    if (!confirmed) return
-    await handleExport(selectedPreset)
-  }
 
   const handlePrepare = () =>
     run({ kind: 'prepare' }, async () => {
@@ -542,7 +503,7 @@ const BackupV2Settings: FC = () => {
             }
             active={activeOperation === 'export'}
             busy={busy}
-            onStart={() => void handleChooseExport()}
+            onStart={handleExport}
             onCancel={handleCancelOperation}
           />
           <AbortableAction
@@ -601,32 +562,6 @@ const BackupV2Settings: FC = () => {
   )
 }
 
-const BackupPresetPicker: FC<{
-  defaultValue: Preset
-  onValueChange: (preset: Preset) => void
-}> = ({ defaultValue, onValueChange }) => {
-  const { t } = useTranslation()
-
-  return (
-    <RadioGroup
-      defaultValue={defaultValue}
-      onValueChange={(value) => onValueChange(value as Preset)}
-      aria-label={t('settings.data.backup_v2.export.title')}>
-      {(['lite', 'full'] as const).map((preset) => (
-        <label
-          key={preset}
-          className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 hover:bg-accent">
-          <RadioGroupItem value={preset} className="mt-0.5" />
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="text-foreground text-sm">{t(PRESET_EXPORT_TITLE_KEYS[preset])}</span>
-            <span className="text-muted-foreground text-xs leading-5">{t(PRESET_EXPORT_HELP_KEYS[preset])}</span>
-          </span>
-        </label>
-      ))}
-    </RadioGroup>
-  )
-}
-
 /**
  * A row's action button, which becomes that row's cancel button while its own
  * work is running.
@@ -674,10 +609,6 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3">
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.backup_v2.preview.preset')}</SettingRowTitle>
-        <span>{t(PRESET_LABEL_KEYS[preview.preset])}</span>
-      </SettingRow>
-      <SettingRow>
         <SettingRowTitle>{t('settings.data.backup_v2.preview.coverage')}</SettingRowTitle>
         <span>
           {t('settings.data.backup_v2.preview.coverage_counts', {
@@ -687,17 +618,15 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
           })}
         </span>
       </SettingRow>
-      {preview.preset === 'full' && (
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.backup_v2.preview.resources')}</SettingRowTitle>
-          <span>
-            {t('settings.data.backup_v2.preview.resources_counts', {
-              install: preview.resources.install,
-              replaceCount: preview.resources.replace
-            })}
-          </span>
-        </SettingRow>
-      )}
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.backup_v2.preview.resources')}</SettingRowTitle>
+        <span>
+          {t('settings.data.backup_v2.preview.resources_counts', {
+            install: preview.resources.install,
+            replaceCount: preview.resources.replace
+          })}
+        </span>
+      </SettingRow>
       {preview.migratedForward && (
         <SettingHelpText>{t('settings.data.backup_v2.preview.migrated_forward')}</SettingHelpText>
       )}

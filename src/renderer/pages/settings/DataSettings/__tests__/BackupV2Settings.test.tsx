@@ -49,7 +49,6 @@ import BackupV2Settings from '../BackupV2Settings'
 
 const preview = {
   restoreId: 'r1',
-  preset: 'full' as const,
   coverage: { available: 2, missing: 1, unverifiable: 0 },
   resources: { install: 3, replace: 1 },
   degradations: [],
@@ -90,7 +89,7 @@ beforeEach(() => {
 })
 
 describe('BackupV2Settings', () => {
-  it('keeps the original compact surface and asks for the v2 preset only when backing up', async () => {
+  it('keeps the original compact surface', async () => {
     await renderSettings()
 
     const backupButton = screen.getByRole('button', { name: 'settings.general.backup.button' })
@@ -100,43 +99,26 @@ describe('BackupV2Settings', () => {
     expect(screen.getByText('settings.data.backup_v2.export.integrations_warning')).toBeInTheDocument()
     expect(screen.getByText('settings.data.backup_v2.restore.help')).toBeInTheDocument()
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
-
-    click('settings.general.backup.button')
-    await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
-    const picker = render(vi.mocked(popup.confirm).mock.calls[0][0].content as React.ReactElement)
-    expect(picker.getByText('settings.data.backup_v2.export.lite_help')).toBeInTheDocument()
-    expect(picker.getByText('settings.data.backup_v2.export.full_help')).toBeInTheDocument()
   })
 
-  it('exports the preset selected in the backup dialog and re-reads the status', async () => {
+  it('exports without asking anything and re-reads the status', async () => {
     requestMock.mockImplementation(async (route: string) =>
       route === 'backup.export'
         ? {
             status: 'exported',
             archivePath: '/tmp/a.cherrybackup',
-            preset: 'lite',
             resourceCount: 0,
             degradations: []
           }
         : { operation: null, restore: { kind: 'none' } }
     )
-    let resolveConfirm: (confirmed: boolean) => void = () => {}
-    vi.mocked(popup.confirm).mockImplementationOnce(
-      async () => new Promise<boolean>((resolve) => (resolveConfirm = resolve))
-    )
     await renderSettings()
 
     click('settings.general.backup.button')
-    await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
-    const picker = render(vi.mocked(popup.confirm).mock.calls[0][0].content as React.ReactElement)
-    fireEvent.click(picker.getByText('settings.data.backup_v2.export.full_title'))
-    await act(async () => resolveConfirm(true))
 
-    await waitFor(() =>
-      expect(requestMock).toHaveBeenCalledWith('backup.export', {
-        preset: 'full'
-      })
-    )
+    // The only dialog is main's own save dialog — the renderer asks nothing first.
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.export'))
+    expect(popup.confirm).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('settings.data.backup_v2.export.done')
     expect(requestMock).toHaveBeenCalledWith('backup.get_status')
   })
@@ -147,7 +129,6 @@ describe('BackupV2Settings', () => {
         ? {
             status: 'exported',
             archivePath: '/tmp/a.cherrybackup',
-            preset: 'full',
             resourceCount: 1,
             degradations: [{ code: 'resource-changed', count: 2, paths: ['Data/Notes/a', 'Data/Notes/b'] }]
           }
@@ -174,11 +155,7 @@ describe('BackupV2Settings', () => {
 
     click('settings.general.backup.button')
 
-    await waitFor(() =>
-      expect(requestMock).toHaveBeenCalledWith('backup.export', {
-        preset: 'lite'
-      })
-    )
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.export'))
     expect(toast.success).not.toHaveBeenCalled()
   })
 

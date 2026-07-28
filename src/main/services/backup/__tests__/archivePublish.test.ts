@@ -41,7 +41,8 @@ let dbCopyPath: string
 let resourcesDir: string
 let outPath: string
 
-function liteManifest(): BackupManifest {
+/** A valid manifest carrying the database alone — no resource payloads. */
+function baseManifest(): BackupManifest {
   return {
     backupFormatVersion: 2,
     createdAt: '2026-07-27T00:00:00.000Z',
@@ -50,15 +51,14 @@ function liteManifest(): BackupManifest {
     db: { hash: DB_HASH, sizeBytes: DB_SIZE },
     resourceRequirements: [],
     degradations: [],
-    preset: 'lite'
+    preset: 'full',
+    resourcePayloads: []
   }
 }
 
 function fullManifest(withPayload: boolean): BackupManifest {
-  const base = liteManifest()
   return {
-    ...base,
-    preset: 'full',
+    ...baseManifest(),
     resourcePayloads: withPayload
       ? [
           {
@@ -77,7 +77,6 @@ function fullManifest(withPayload: boolean): BackupManifest {
 
 function fullManifestWithPayload(patch: Partial<ResourcePayload>): BackupManifest {
   const manifest = fullManifest(true)
-  if (manifest.preset !== 'full') throw new Error('expected Full fixture')
   const payload = manifest.resourcePayloads[0]
   if (!payload) throw new Error('expected fixture payload')
   const next = { ...payload, ...patch } as Record<string, unknown>
@@ -131,8 +130,8 @@ describe('publishArchive — valid publication', () => {
     expect(await ownedTempRemains()).toBe(false)
   })
 
-  it('publishes a lite archive with no resources dir', async () => {
-    await publishArchive({ outPath, manifest: liteManifest(), dbCopyPath })
+  it('publishes an archive with no resources dir', async () => {
+    await publishArchive({ outPath, manifest: baseManifest(), dbCopyPath })
     const zip = new StreamZip.async({ file: outPath })
     try {
       expect(Object.keys(await zip.entries()).sort()).toEqual(['backup.sqlite', 'manifest.json'])
@@ -144,7 +143,7 @@ describe('publishArchive — valid publication', () => {
   it('leaves foreign files in the destination directory untouched', async () => {
     await writeFile(path.join(dir, 'unrelated.txt'), 'KEEP')
     await writeFile(path.join(dir, '.out.cherrybackup.deadbeef.tmp'), 'FOREIGN-LOOKS-LIKE-TEMP')
-    await publishArchive({ outPath, manifest: liteManifest(), dbCopyPath })
+    await publishArchive({ outPath, manifest: baseManifest(), dbCopyPath })
     expect(await readFile(path.join(dir, 'unrelated.txt'), 'utf8')).toBe('KEEP')
     expect(await readFile(path.join(dir, '.out.cherrybackup.deadbeef.tmp'), 'utf8')).toBe('FOREIGN-LOOKS-LIKE-TEMP')
   })
@@ -152,7 +151,7 @@ describe('publishArchive — valid publication', () => {
 
 describe('publishArchive — DB payload verification', () => {
   it('rejects when the DB size does not match the manifest', async () => {
-    const m = liteManifest()
+    const m = baseManifest()
     m.db.sizeBytes = 999
     await expect(publishArchive({ outPath, manifest: m, dbCopyPath })).rejects.toBeInstanceOf(
       ManifestPayloadMismatchError
@@ -161,7 +160,7 @@ describe('publishArchive — DB payload verification', () => {
   })
 
   it('rejects when the DB SHA-256 does not match the manifest', async () => {
-    const m = liteManifest()
+    const m = baseManifest()
     m.db.hash = 'a'.repeat(64)
     await expect(publishArchive({ outPath, manifest: m, dbCopyPath })).rejects.toBeInstanceOf(
       ManifestPayloadMismatchError
@@ -172,33 +171,26 @@ describe('publishArchive — DB payload verification', () => {
   it('rejects when dbCopyPath is not a regular file', async () => {
     const asDir = path.join(dir, 'notafile')
     await mkdir(asDir)
-    await expect(publishArchive({ outPath, manifest: liteManifest(), dbCopyPath: asDir })).rejects.toBeInstanceOf(
+    await expect(publishArchive({ outPath, manifest: baseManifest(), dbCopyPath: asDir })).rejects.toBeInstanceOf(
       ManifestPayloadMismatchError
     )
   })
 })
 
 describe('publishArchive — resource-presence shape', () => {
-  it('rejects a Lite manifest paired with a resources dir', async () => {
-    await expect(publishArchive({ outPath, manifest: liteManifest(), dbCopyPath, resourcesDir })).rejects.toThrow(
-      /Lite archive/
-    )
-    expect(existsSync(outPath)).toBe(false)
-  })
-
-  it('rejects Full with declared payloads but no resources dir', async () => {
+  it('rejects declared payloads with no resources dir', async () => {
     await expect(publishArchive({ outPath, manifest: fullManifest(true), dbCopyPath })).rejects.toThrow(
       /resource-presence mismatch/
     )
   })
 
-  it('rejects Full with a resources dir but an empty payload inventory', async () => {
+  it('rejects a resources dir paired with an empty payload inventory', async () => {
     await expect(publishArchive({ outPath, manifest: fullManifest(false), dbCopyPath, resourcesDir })).rejects.toThrow(
       /resource-presence mismatch/
     )
   })
 
-  it('accepts Full with an empty inventory and no resources dir', async () => {
+  it('accepts an empty inventory with no resources dir', async () => {
     await publishArchive({ outPath, manifest: fullManifest(false), dbCopyPath })
     expect(existsSync(outPath)).toBe(true)
   })
@@ -206,13 +198,13 @@ describe('publishArchive — resource-presence shape', () => {
 
 describe('publishArchive — manifest contract', () => {
   it('rejects a structurally invalid manifest before touching the filesystem', async () => {
-    const bad = { ...liteManifest(), backupFormatVersion: 1 } as unknown as BackupManifest
+    const bad = { ...baseManifest(), backupFormatVersion: 1 } as unknown as BackupManifest
     await expect(publishArchive({ outPath, manifest: bad, dbCopyPath })).rejects.toThrow(/strict validation/)
     expect(existsSync(outPath)).toBe(false)
   })
 
   it('enforces the maxManifestBytes pre-parse cap (serialized once)', async () => {
-    const huge = liteManifest()
+    const huge = baseManifest()
     huge.degradations = [{ kind: 'k', reason: 'x'.repeat(1_200_000) }]
     // Narrowed cap rather than a >32 MiB fixture string: the real ceiling now
     // has to fit a profile-sized inventory (see `manifestBudget.test.ts`), and
@@ -227,7 +219,7 @@ describe('publishArchive — manifest contract', () => {
 describe('publishArchive — no-clobber', () => {
   it('never overwrites a pre-existing destination and leaves it byte-for-byte intact', async () => {
     await writeFile(outPath, 'PRIOR-GOOD-BACKUP')
-    await expect(publishArchive({ outPath, manifest: liteManifest(), dbCopyPath })).rejects.toBeInstanceOf(
+    await expect(publishArchive({ outPath, manifest: baseManifest(), dbCopyPath })).rejects.toBeInstanceOf(
       OutputPathExistsError
     )
     expect(await readFile(outPath, 'utf8')).toBe('PRIOR-GOOD-BACKUP')
@@ -236,7 +228,7 @@ describe('publishArchive — no-clobber', () => {
 
   it('maps a publish-time EEXIST (link) to OutputPathExistsError', async () => {
     vi.spyOn(publishSeams, 'hardLink').mockRejectedValue(Object.assign(new Error('exists'), { code: 'EEXIST' }))
-    await expect(publishArchive({ outPath, manifest: liteManifest(), dbCopyPath })).rejects.toBeInstanceOf(
+    await expect(publishArchive({ outPath, manifest: baseManifest(), dbCopyPath })).rejects.toBeInstanceOf(
       OutputPathExistsError
     )
     expect(existsSync(outPath)).toBe(false)
@@ -248,7 +240,7 @@ describe('publishArchive — atomic contract (no copy fallback)', () => {
   it('fails closed with HardLinkUnsupportedError when the volume cannot hard-link (no partial output)', async () => {
     for (const code of ['ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'EXDEV']) {
       vi.spyOn(publishSeams, 'hardLink').mockRejectedValue(Object.assign(new Error('nope'), { code }))
-      await expect(publishArchive({ outPath, manifest: liteManifest(), dbCopyPath })).rejects.toBeInstanceOf(
+      await expect(publishArchive({ outPath, manifest: baseManifest(), dbCopyPath })).rejects.toBeInstanceOf(
         HardLinkUnsupportedError
       )
       expect(existsSync(outPath)).toBe(false)
@@ -263,7 +255,7 @@ describe('publishArchive — cancellation & failure cleanup', () => {
     const ac = new AbortController()
     ac.abort()
     await expect(
-      publishArchive({ outPath, manifest: liteManifest(), dbCopyPath, signal: ac.signal })
+      publishArchive({ outPath, manifest: baseManifest(), dbCopyPath, signal: ac.signal })
     ).rejects.toBeInstanceOf(BackupCancelledError)
     expect(existsSync(outPath)).toBe(false)
     expect(await ownedTempRemains()).toBe(false)
@@ -275,7 +267,7 @@ describe('publishArchive — cancellation & failure cleanup', () => {
       ac.abort()
     })
     await expect(
-      publishArchive({ outPath, manifest: liteManifest(), dbCopyPath, signal: ac.signal })
+      publishArchive({ outPath, manifest: baseManifest(), dbCopyPath, signal: ac.signal })
     ).rejects.toBeInstanceOf(BackupCancelledError)
     expect(existsSync(outPath)).toBe(false)
     expect(await ownedTempRemains()).toBe(false)
@@ -283,7 +275,7 @@ describe('publishArchive — cancellation & failure cleanup', () => {
 
   it('maps a mid-publish ENOSPC to DiskFullError and cleans temp', async () => {
     vi.spyOn(publishSeams, 'hardLink').mockRejectedValue(Object.assign(new Error('no space'), { code: 'ENOSPC' }))
-    await expect(publishArchive({ outPath, manifest: liteManifest(), dbCopyPath })).rejects.toBeInstanceOf(
+    await expect(publishArchive({ outPath, manifest: baseManifest(), dbCopyPath })).rejects.toBeInstanceOf(
       DiskFullError
     )
     expect(existsSync(outPath)).toBe(false)
@@ -350,7 +342,7 @@ describe('publishArchive — archive-wide ceilings', () => {
   it('rejects the DB against the per-entry byte ceiling', async () => {
     const ceilings = { ...BASE_CEILINGS, maxEntryUncompressedBytes: DB_SIZE - 1 }
     await expect(
-      publishArchiveWithCeilings({ outPath, manifest: liteManifest(), dbCopyPath }, ceilings)
+      publishArchiveWithCeilings({ outPath, manifest: baseManifest(), dbCopyPath }, ceilings)
     ).rejects.toBeInstanceOf(CeilingExceededError)
     expect(existsSync(outPath)).toBe(false)
     expect(await ownedTempRemains()).toBe(false)
@@ -391,7 +383,7 @@ describe('publishArchive — cancellable DB verification', () => {
   it('aborts mid-hash of a large DB before any temp/output (per-chunk check)', async () => {
     const big = 'q'.repeat(512 * 1024) // multiple 64 KiB chunks
     await writeFile(dbCopyPath, big)
-    const m = liteManifest()
+    const m = baseManifest()
     m.db.sizeBytes = big.length // size check passes; the hash is cancelled before it is compared
     const ac = new AbortController()
     let chunks = 0

@@ -34,7 +34,7 @@ export const BACKUP_CEILINGS = Object.freeze({
    * {@link maxResourceInstallEntries}: a manifest at that ceiling measures
    * ~14 MiB of payload entries plus ~5 MiB of requirement entries. The original
    * 1 MiB was therefore self-contradictory — it made an archive at the frozen
-   * install ceiling unproducible, and broke Lite export for any profile past
+   * install ceiling unproducible, and broke export for any profile past
    * ~8,000 attachments, which is an ordinary library rather than an attack.
    * 32 MiB clears the measured worst case with headroom while staying a bounded
    * pre-parse read of an entry whose declared size admission already verified.

@@ -658,19 +658,19 @@ describe('materializePortableDatabase', () => {
       insertWorkspace('w-1', `${PRODUCER_WORKSPACES}/s1`, 'system')
       const before = dbh.db.select({ id: agentTable.id, updatedAt: agentTable.updatedAt }).from(agentTable).all()
 
-      const litePath = snapshot()
-      const fullPath = join(workDir, 'full.sqlite')
-      copyFileSync(litePath, fullPath)
+      const firstPath = snapshot()
+      const secondPath = join(workDir, 'second.sqlite')
+      copyFileSync(firstPath, secondPath)
 
-      const lite = await materializePortableDatabase({ dbPath: litePath, mode: restoreMode() })
-      const full = await materializePortableDatabase({ dbPath: fullPath, mode: restoreMode() })
+      const first = await materializePortableDatabase({ dbPath: firstPath, mode: restoreMode() })
+      const second = await materializePortableDatabase({ dbPath: secondPath, mode: restoreMode() })
 
-      // Lite and Full differ only in resource payloads, so the same source
-      // snapshot must yield a byte-identical database for both.
-      expect(lite.hash).toBe(full.hash)
-      expect(lite.sizeBytes).toBe(full.sizeBytes)
-      expect(readFileSync(litePath).equals(readFileSync(fullPath))).toBe(true)
-      const after = inspect(litePath, (db) =>
+      // Materialization is a pure function of its input, so one source snapshot
+      // must yield a byte-identical database every time.
+      expect(first.hash).toBe(second.hash)
+      expect(first.sizeBytes).toBe(second.sizeBytes)
+      expect(readFileSync(firstPath).equals(readFileSync(secondPath))).toBe(true)
+      const after = inspect(firstPath, (db) =>
         db.select({ id: agentTable.id, updatedAt: agentTable.updatedAt }).from(agentTable).all()
       )
       expect(after).toEqual(before)
