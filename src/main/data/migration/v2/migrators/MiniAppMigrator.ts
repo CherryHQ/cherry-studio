@@ -171,8 +171,9 @@ export class MiniAppMigrator extends BaseMigrator {
 
           // v1 writes custom-minapps.json before updating Redux. If the app
           // crashes after a deletion reaches the file but before Redux
-          // persists, Redux can still contain a stale custom record. Once the
-          // sidecar parses successfully, its membership is authoritative.
+          // persists, Redux can still contain a stale custom record. Only a
+          // complete sidecar has authoritative membership; malformed entries
+          // may hide custom records that Redux can still recover.
           if (isAuthoritativeSnapshot && app.type === 'Custom' && !customApp) {
             this.skippedCount++
             warnings.push(`Skipped stale Redux custom app absent from custom-minapps.json: ${originalId}`)
@@ -461,5 +462,5 @@ async function loadCustomMiniApps(file: string | undefined): Promise<LoadCustomM
     apps.push({ ...record, id: record.id, logo, type: 'Custom' })
   }
 
-  return { apps, isAuthoritativeSnapshot: true, invalidCount, warnings }
+  return { apps, isAuthoritativeSnapshot: invalidCount === 0, invalidCount, warnings }
 }

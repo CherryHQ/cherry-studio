@@ -504,6 +504,50 @@ describe('MiniAppMigrator', () => {
       }
     })
 
+    it('should preserve a recoverable Redux custom app when the sidecar contains a malformed entry', async () => {
+      const { ctx, tmpUserData } = await createCustomMiniAppsFixture(
+        {
+          minapps: {
+            enabled: [
+              {
+                id: 'recoverable-custom',
+                name: 'Recoverable Custom App',
+                url: 'https://recoverable.example',
+                type: 'Custom'
+              }
+            ]
+          }
+        },
+        [null],
+        dbh.db
+      )
+
+      try {
+        const prepareResult = await migrator.prepare(ctx)
+        expect(prepareResult).toMatchObject({ success: true, itemCount: 1 })
+        expect(prepareResult.warnings).toContain('Skipped custom app at index 0: expected an object')
+
+        await migrator.execute(ctx)
+
+        const rows = await dbh.db.select().from(miniAppTable)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({
+          appId: 'recoverable-custom',
+          name: 'Recoverable Custom App',
+          url: 'https://recoverable.example',
+          status: 'enabled'
+        })
+
+        const validateResult = await migrator.validate(ctx)
+        expect(validateResult).toMatchObject({
+          success: true,
+          stats: { sourceCount: 2, targetCount: 1, skippedCount: 1 }
+        })
+      } finally {
+        await fs.rm(tmpUserData, { recursive: true, force: true })
+      }
+    })
+
     it('should quarantine malformed custom-minapps.json without blocking valid Redux apps', async () => {
       const tmpUserData = await fs.mkdtemp(path.join(os.tmpdir(), 'miniapp-mig-'))
       const filesDir = path.join(tmpUserData, 'Data', 'Files')
