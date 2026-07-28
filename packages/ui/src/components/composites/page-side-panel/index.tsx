@@ -87,7 +87,25 @@ function PageSidePanel({
         panelRef.current.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
         )
-      ).filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true')
+      ).filter((element) => {
+        if (
+          element.tabIndex < 0 ||
+          (element instanceof HTMLInputElement && element.type === 'hidden') ||
+          element.closest('[hidden], [aria-hidden="true"], [inert]')
+        ) {
+          return false
+        }
+
+        for (let current: HTMLElement | null = element; current && current !== panelRef.current; ) {
+          const style = window.getComputedStyle(current)
+          if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
+            return false
+          }
+          current = current.parentElement
+        }
+
+        return true
+      })
       if (focusable.length === 0) {
         event.preventDefault()
         panelRef.current.focus()

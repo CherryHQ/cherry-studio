@@ -190,6 +190,23 @@ describe('PageSidePanel', () => {
       expect(last).toHaveFocus()
     })
 
+    it('ignores hidden inputs when wrapping focus', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <button type="button">Last</button>
+          <input type="hidden" name="selection" value="hidden-value" readOnly />
+        </PageSidePanel>
+      )
+      const first = screen.getByRole('button', { name: 'First' })
+      const last = screen.getByRole('button', { name: 'Last' })
+
+      last.focus()
+      fireEvent.keyDown(last, { key: 'Tab' })
+
+      expect(first).toHaveFocus()
+    })
+
     it('wraps Shift+Tab from the initially focused panel to the last control', () => {
       render(
         <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>

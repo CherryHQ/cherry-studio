@@ -8,7 +8,7 @@ export type CheckedState = CheckboxPrimitive.CheckedState
 
 const checkboxVariants = cva(
   cn(
-    'aspect-square shrink-0 rounded-[4px] border transition-all duration-200 ease-out outline-none',
+    'aspect-square shrink-0 rounded-sm border transition-all duration-200 ease-out outline-none',
     'border-border bg-transparent',
     'hover:bg-accent/50',
     'hover:scale-[1.03] active:scale-[0.97]',

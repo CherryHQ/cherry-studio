@@ -41,8 +41,9 @@ const selectTriggerVariants = cva(
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
-        sm: 'px-2.5 gap-2 h-7',
-        default: 'px-2.5 gap-2 h-8'
+        sm: 'h-8 gap-2 px-2.5 text-xs',
+        default: 'h-9 gap-2 px-3',
+        lg: 'h-10 gap-2 px-4'
       }
     },
     defaultVariants: {
@@ -100,7 +101,7 @@ function SelectTrigger({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> &
   Omit<VariantProps<typeof selectTriggerVariants>, 'state'> & {
-    size?: 'sm' | 'default'
+    size?: 'sm' | 'default' | 'lg'
   }) {
   const selectContext = React.use(SelectContext)
   const state = props.disabled ? 'disabled' : props['aria-invalid'] ? 'error' : 'default'
@@ -204,7 +205,7 @@ function SelectContent({
         className={cn(
           // no-drag punches the popup's area out of any titlebar drag region it overlaps,
           // so hover/click reach the items instead of the window-drag hit test (Electron).
-          'bg-popover/70 text-popover-foreground backdrop-blur-xl supports-[backdrop-filter]:bg-popover/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-[80] max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg border border-border-muted shadow-md [-webkit-app-region:no-drag]',
+          'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-[80] max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg border border-border-muted shadow-md [-webkit-app-region:no-drag]',
           position === 'popper' &&
             'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
           className

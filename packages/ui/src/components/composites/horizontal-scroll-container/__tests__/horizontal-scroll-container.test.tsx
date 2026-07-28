@@ -65,15 +65,30 @@ describe('HorizontalScrollContainer', () => {
 
     triggerResizeObserver()
 
-    expect(screen.queryByRole('button', { name: '←' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '→' }))
+    expect(screen.queryByRole('button', { name: 'Scroll left' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Scroll right' }))
     expect(scrollBy).toHaveBeenCalledWith({ behavior: 'smooth', left: 120 })
 
     content.scrollLeft = 200
     fireEvent.scroll(content)
 
-    expect(screen.queryByRole('button', { name: '→' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '←' }))
+    expect(screen.queryByRole('button', { name: 'Scroll right' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Scroll left' }))
     expect(scrollBy).toHaveBeenCalledWith({ behavior: 'smooth', left: -120 })
+  })
+
+  it('supports localized control labels', () => {
+    render(
+      <HorizontalScrollContainer scrollLeftLabel="向左滚动" scrollRightLabel="向右滚动">
+        <span>One</span>
+        <span>Two</span>
+      </HorizontalScrollContainer>
+    )
+    const content = screen.getByText('Two').closest('[data-scrolling]') as HTMLElement
+    setElementSize(content, { clientWidth: 100, scrollLeft: 0, scrollWidth: 300 })
+
+    triggerResizeObserver()
+
+    expect(screen.getByRole('button', { name: '向右滚动' })).toBeInTheDocument()
   })
 })

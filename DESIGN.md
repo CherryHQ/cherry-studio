@@ -512,6 +512,21 @@ These patterns reflect the current v2 pages and should be treated as valid desig
 - Font: `var(--font-family-body)` between `var(--font-size-body-sm)` and `var(--font-size-body-md)`, `var(--font-weight-regular)`
 - Placeholder: `var(--muted-foreground)`
 
+**Shared control density**
+
+Input, Select, Combobox, TreeSelect, and default-style Tabs use the same explicit height matrix. Consumers select a
+size instead of overriding height, padding, or type scale through `className`.
+
+| Size | Height | Type | Use |
+|------|--------|------|-----|
+| `sm` | 32px (`h-8`) | `text-xs` for compact controls | Dense rows and constrained panels |
+| `default` | 36px (`h-9`) | `text-sm` | Standard forms and settings |
+| `lg` | 40px (`h-10`) | `text-sm` to `text-base` | Prominent or spacious forms |
+
+Textarea follows the same semantic sizes with content-appropriate minimum heights: `sm` 56px, `default` 64px, and
+`lg` 80px. Tabs applies the matrix to the default tab list and uses the same size to control trigger padding and type
+across every visual variant.
+
 **Search field with trailing action:**
 When a search field needs an inline trailing button (e.g. add provider in `ProviderList`), embed a 24×24 icon button inside the search wrap, after the input:
 
@@ -612,7 +627,7 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 
 | State | Light | Dark |
 |---|---|---|
-| Track — off | 15% `--color-foreground` | 15% `--color-foreground` |
+| Track — off | 15% `--foreground` | 15% `--foreground` |
 | Track — on | `bg-primary` | `bg-primary` |
 | Loading | `bg-primary/60!` | `bg-primary/60!` |
 | Thumb | `bg-background` | `bg-background` |

@@ -36,9 +36,9 @@ const comboboxTriggerVariants = cva(
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
-        sm: 'px-2 text-xs gap-1',
-        default: 'px-2.5 gap-2',
-        lg: 'px-4 gap-2'
+        sm: 'h-8 px-2 text-xs gap-1',
+        default: 'h-9 px-3 gap-2',
+        lg: 'h-10 px-4 gap-2'
       }
     },
     defaultVariants: {
@@ -65,9 +65,9 @@ const comboboxItemVariants = cva(
 )
 
 const comboboxInputSizeClasses = {
-  sm: 'h-7 px-2 text-xs',
-  default: 'h-7 px-2.5 text-sm',
-  lg: 'h-9 px-4 text-sm'
+  sm: 'h-8 px-2 text-xs',
+  default: 'h-9 px-3 text-sm',
+  lg: 'h-10 px-4 text-sm'
 }
 
 // ==================== Types ====================
@@ -542,7 +542,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
       )}
       <PopoverContent
         className={cn(
-          'w-(--radix-popover-trigger-width) rounded-lg border border-border-muted bg-popover/70 p-0 backdrop-blur-xl supports-[backdrop-filter]:bg-popover/60',
+          'w-(--radix-popover-trigger-width) rounded-lg border border-border-muted bg-popover p-0',
           popoverClassName
         )}
         align={popoverAlign}
@@ -564,7 +564,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
             <CommandInput
               placeholder={searchPlaceholder}
               className="h-9 rounded-none"
-              wrapperClassName="m-1 rounded-lg border border-[color:var(--color-input)] px-2.5"
+              wrapperClassName="m-1 rounded-lg border border-input px-2.5"
               onValueChange={handleContentSearchChange}
             />
           )}

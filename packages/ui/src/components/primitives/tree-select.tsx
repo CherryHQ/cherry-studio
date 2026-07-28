@@ -18,14 +18,13 @@ const treeSelectTriggerVariants = cva(
   {
     variants: {
       state: {
-        default:
-          'border-[color:var(--color-input)] aria-expanded:border-ring aria-expanded:ring-[1px] aria-expanded:ring-ring/35',
+        default: 'border-input aria-expanded:border-ring aria-expanded:ring-[1px] aria-expanded:ring-ring/35',
         error: 'border border-destructive aria-expanded:ring-[1px] aria-expanded:ring-destructive/20',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
         sm: 'h-8 px-2 text-xs gap-1',
-        default: 'h-8 px-2.5 gap-2',
+        default: 'h-9 px-3 gap-2',
         lg: 'h-10 px-4 gap-2'
       }
     },

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { ColorPicker, ColorPickerAlpha, ColorPickerHue, ColorPickerSelection } from '../index'
+import { ColorPicker, ColorPickerAlpha, ColorPickerHue, ColorPickerSelection } from '../color-picker'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {

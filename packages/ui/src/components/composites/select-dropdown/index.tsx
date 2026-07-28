@@ -276,7 +276,7 @@ export function SelectDropdown<T extends { id: string }>({
         aria-labelledby={triggerId}
         align="start"
         sideOffset={4}
-        className="w-[var(--radix-popover-trigger-width)] rounded-lg border border-border-muted bg-popover/70 p-1 shadow-lg backdrop-blur-xl supports-[backdrop-filter]:bg-popover/60">
+        className="w-[var(--radix-popover-trigger-width)] rounded-lg border border-border-muted bg-popover p-1 shadow-lg">
         {items.length === 0 && emptyText ? (
           <div className="px-2.5 py-3 text-muted-foreground/45 text-sm">{emptyText}</div>
         ) : virtualize ? (

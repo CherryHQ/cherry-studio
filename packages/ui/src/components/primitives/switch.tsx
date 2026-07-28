@@ -9,7 +9,7 @@ const switchRootVariants = cva(
   [
     'cs-switch cs-switch-root',
     'group relative cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
-    'data-[state=unchecked]:bg-[color:color-mix(in_srgb,var(--color-foreground)_15%,transparent)] data-[state=checked]:bg-primary',
+    'data-[state=unchecked]:bg-foreground/15 data-[state=checked]:bg-primary',
     'disabled:cursor-not-allowed disabled:opacity-40',
     'focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35'
   ],

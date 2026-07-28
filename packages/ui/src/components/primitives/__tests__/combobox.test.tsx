@@ -108,7 +108,7 @@ describe('Combobox', () => {
     fireEvent.scroll(list!)
 
     expect(list).toHaveAttribute('data-scrolling', 'true')
-    expect(list).toHaveStyle('scrollbar-color: var(--color-scrollbar-thumb) transparent')
+    expect(list).toHaveStyle('scrollbar-color: var(--scrollbar-thumb) transparent')
 
     await act(() => vi.advanceTimersByTimeAsync(1600))
 

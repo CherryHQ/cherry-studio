@@ -6,23 +6,28 @@ import * as React from 'react'
 const TabsContext = React.createContext<{
   variant?: 'default' | 'line' | 'underline' | 'workflow'
   orientation?: 'horizontal' | 'vertical'
+  size?: 'sm' | 'default' | 'lg'
 }>({
   variant: 'default',
-  orientation: 'horizontal'
+  orientation: 'horizontal',
+  size: 'default'
 })
 
 function Tabs({
   className,
   variant = 'default',
   orientation = 'horizontal',
+  size = 'default',
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Root> & {
   variant?: 'default' | 'line' | 'underline' | 'workflow'
+  size?: 'sm' | 'default' | 'lg'
 }) {
   return (
-    <TabsContext value={{ variant, orientation }}>
+    <TabsContext value={{ variant, orientation, size }}>
       <TabsPrimitive.Root
         data-slot="tabs"
+        data-size={size}
         orientation={orientation}
         className={cn('flex flex-col gap-2', orientation === 'vertical' && 'flex-row', className)}
         {...props}
@@ -34,7 +39,7 @@ function Tabs({
 const tabsListVariants = cva('inline-flex items-center justify-center', {
   variants: {
     variant: {
-      default: 'bg-muted text-muted-foreground h-7 w-fit rounded-lg p-[2px]',
+      default: 'w-fit rounded-lg bg-muted text-muted-foreground',
       line: 'bg-transparent gap-4 justify-start border-b-0 p-0',
       underline: 'bg-transparent gap-0 justify-start border-b-0 p-0',
       workflow: 'bg-transparent gap-3 justify-start border-b-0 p-0'
@@ -42,9 +47,32 @@ const tabsListVariants = cva('inline-flex items-center justify-center', {
     orientation: {
       horizontal: 'flex-row',
       vertical: 'flex-col h-fit'
+    },
+    size: {
+      sm: '',
+      default: '',
+      lg: ''
     }
   },
   compoundVariants: [
+    {
+      variant: 'default',
+      orientation: 'horizontal',
+      size: 'sm',
+      class: 'h-8 p-0.5'
+    },
+    {
+      variant: 'default',
+      orientation: 'horizontal',
+      size: 'default',
+      class: 'h-9 p-[3px]'
+    },
+    {
+      variant: 'default',
+      orientation: 'horizontal',
+      size: 'lg',
+      class: 'h-10 p-1'
+    },
     {
       variant: 'default',
       orientation: 'vertical',
@@ -58,16 +86,18 @@ const tabsListVariants = cva('inline-flex items-center justify-center', {
   ],
   defaultVariants: {
     variant: 'default',
-    orientation: 'horizontal'
+    orientation: 'horizontal',
+    size: 'default'
   }
 })
 
 function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
-  const { variant, orientation } = React.use(TabsContext)
+  const { variant, orientation, size } = React.use(TabsContext)
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
-      className={cn(tabsListVariants({ variant, orientation }), className)}
+      data-size={size}
+      className={cn(tabsListVariants({ variant, orientation, size }), className)}
       {...props}
     />
   )
@@ -75,7 +105,7 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
 
 const tabsTriggerVariants = cva(
   [
-    'inline-flex items-center justify-center whitespace-nowrap text-xs font-normal',
+    'inline-flex items-center justify-center whitespace-nowrap font-normal',
     'disabled:pointer-events-none disabled:opacity-50',
     'transition-all',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*="size-"])]:size-4'
@@ -122,6 +152,11 @@ const tabsTriggerVariants = cva(
       orientation: {
         horizontal: '',
         vertical: 'rounded-full'
+      },
+      size: {
+        sm: 'gap-1 px-2 py-0.5 text-xs',
+        default: 'gap-1.5 px-2 py-1 text-sm',
+        lg: 'gap-2 px-3 py-1.5 text-sm'
       }
     },
     compoundVariants: [
@@ -146,17 +181,19 @@ const tabsTriggerVariants = cva(
     ],
     defaultVariants: {
       variant: 'default',
-      orientation: 'horizontal'
+      orientation: 'horizontal',
+      size: 'default'
     }
   }
 )
 
 function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
-  const { variant, orientation } = React.use(TabsContext)
+  const { variant, orientation, size } = React.use(TabsContext)
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
-      className={cn(tabsTriggerVariants({ variant, orientation }), className)}
+      data-size={size}
+      className={cn(tabsTriggerVariants({ variant, orientation, size }), className)}
       {...props}
     />
   )

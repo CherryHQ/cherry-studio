@@ -1,4 +1,5 @@
 // Original: src/renderer/components/horizontal-scroll-container/index.tsx
+import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import * as React from 'react'
@@ -12,6 +13,8 @@ export interface HorizontalScrollContainerProps {
   className?: string
   gap?: string
   expandable?: boolean
+  scrollLeftLabel?: string
+  scrollRightLabel?: string
 }
 
 const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
@@ -20,7 +23,9 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
   scrollDistance = 200,
   className,
   gap = '8px',
-  expandable = false
+  expandable = false,
+  scrollLeftLabel = 'Scroll left',
+  scrollRightLabel = 'Scroll right'
 }) => {
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = React.useState(false)
@@ -109,38 +114,34 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
         {children}
       </Scrollbar>
       {canScrollLeft && !isExpanded && (
-        <button
+        <Button
           type="button"
-          aria-label="←"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={scrollLeftLabel}
           data-no-expand
           className={cn(
-            'scroll-left-button absolute top-1/2 left-2 z-[1] flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-background opacity-0 shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] transition-opacity',
+            'scroll-left-button absolute top-1/2 left-2 z-[1] -translate-y-1/2 rounded-full bg-background text-muted-foreground opacity-0 shadow-md transition-opacity hover:text-foreground',
             'group-hover/container:opacity-100 focus-visible:opacity-100'
           )}
           onClick={handleScrollLeft}>
-          <ChevronLeft
-            size={14}
-            strokeWidth={1.6}
-            className="text-muted-foreground hover:text-foreground"
-          />
-        </button>
+          <ChevronLeft size={14} strokeWidth={1.6} />
+        </Button>
       )}
       {canScrollRight && !isExpanded && (
-        <button
+        <Button
           type="button"
-          aria-label="→"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={scrollRightLabel}
           data-no-expand
           className={cn(
-            'scroll-right-button absolute top-1/2 right-2 z-[1] flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-background opacity-0 shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] transition-opacity',
+            'scroll-right-button absolute top-1/2 right-2 z-[1] -translate-y-1/2 rounded-full bg-background text-muted-foreground opacity-0 shadow-md transition-opacity hover:text-foreground',
             'group-hover/container:opacity-100 focus-visible:opacity-100'
           )}
           onClick={handleScrollRight}>
-          <ChevronRight
-            size={14}
-            strokeWidth={1.6}
-            className="text-muted-foreground hover:text-foreground"
-          />
-        </button>
+          <ChevronRight size={14} strokeWidth={1.6} />
+        </Button>
       )}
     </div>
   )

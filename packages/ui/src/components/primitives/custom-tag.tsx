@@ -36,7 +36,7 @@ const CustomTag: FC<CustomTagProps> = ({
   inactive,
   className = ''
 }) => {
-  const actualColor = inactive ? 'var(--color-foreground-muted)' : color
+  const actualColor = inactive ? 'var(--muted-foreground)' : color
 
   const tagContent = useMemo(
     () => (
@@ -64,7 +64,7 @@ const CustomTag: FC<CustomTagProps> = ({
         {children}
         {closable && (
           <div
-            className="absolute flex items-center justify-center cursor-pointer rounded-full transition-all duration-200 hover:bg-destructive-hover hover:text-destructive-foreground"
+            className="absolute flex items-center justify-center cursor-pointer rounded-full transition-all duration-200 hover:bg-destructive hover:text-destructive-foreground"
             style={{
               right: `${size * 0.2}px`,
               top: `${size * 0.2}px`,

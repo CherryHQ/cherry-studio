@@ -15,8 +15,8 @@ describe('IndicatorLight', () => {
     const { container } = render(<IndicatorLight color="green" />)
 
     expect(container.firstChild).toHaveStyle({
-      backgroundColor: 'var(--color-success)',
-      boxShadow: '0 0 6px var(--color-success)'
+      backgroundColor: 'var(--success)',
+      boxShadow: '0 0 6px var(--success)'
     })
   })
 })
