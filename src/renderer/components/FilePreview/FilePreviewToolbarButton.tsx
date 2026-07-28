@@ -1,5 +1,4 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
 
 interface FilePreviewToolbarButtonProps {
@@ -27,7 +26,7 @@ export function FilePreviewToolbarButton({
         pressed={pressed}
         disabled={disabled}
         onClick={onClick}
-        className={cn('text-muted-foreground hover:text-foreground')}>
+        className={pressed ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}>
         {children}
       </Button>
     </Tooltip>

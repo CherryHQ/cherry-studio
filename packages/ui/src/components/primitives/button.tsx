@@ -48,17 +48,18 @@ const buttonVariants = cva(
       {
         variant: 'secondary',
         pressed: true,
-        className: 'bg-black/15 text-foreground dark:bg-white/25'
+        className: 'bg-black/15 text-foreground hover:bg-black/15 dark:bg-white/25 dark:hover:bg-white/25'
       },
       {
         variant: 'ghost',
         pressed: true,
-        className: 'bg-black/10 text-foreground dark:bg-white/15'
+        className: 'bg-black/10 text-foreground hover:bg-black/10 dark:bg-white/15 dark:hover:bg-white/15'
       },
       {
         variant: 'chip',
         pressed: true,
-        className: 'bg-black/15 text-foreground ring-1 ring-foreground/30 dark:bg-white/25'
+        className:
+          'bg-black/15 text-foreground ring-1 ring-foreground/30 hover:bg-black/15 dark:bg-white/25 dark:hover:bg-white/25'
       }
     ],
     defaultVariants: {
@@ -77,6 +78,7 @@ function Button({
   loading = false,
   loadingIcon,
   loadingIconClassName,
+  active = false,
   pressed,
   disabled,
   children,
@@ -84,12 +86,14 @@ function Button({
   ...props
 }: React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
+    active?: boolean
     asChild?: boolean
     loading?: boolean
     loadingIcon?: React.ReactNode
     loadingIconClassName?: string
   }) {
   const Comp = asChild ? Slot : 'button'
+  const visuallyActive = active || pressed
 
   // Determine spinner size based on button size
   const getSpinnerSize = () => {
@@ -110,8 +114,9 @@ function Button({
     <Comp
       data-slot="button"
       data-variant={variant ?? 'default'}
+      data-active={active || undefined}
       data-pressed={pressed || undefined}
-      className={cn(buttonVariants({ variant, pressed, size, className }))}
+      className={cn(buttonVariants({ variant, pressed: visuallyActive, size, className }))}
       disabled={disabled || loading}
       aria-pressed={pressed ?? ariaPressed}
       aria-busy={loading || undefined}

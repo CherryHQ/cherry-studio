@@ -42,8 +42,13 @@ describe('Selector', () => {
 
     const trigger = screen.getByRole('combobox', { name: /one/i })
     expect(trigger).toBeInTheDocument()
+    expect(trigger).not.toHaveAttribute('aria-pressed')
 
     await userEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(trigger).toHaveAttribute('data-active', 'true')
+    expect(trigger).not.toHaveAttribute('aria-pressed')
+
     await userEvent.click(screen.getByRole('option', { name: /two/i }))
 
     expect(onChange).toHaveBeenCalledWith(2)
