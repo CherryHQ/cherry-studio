@@ -378,6 +378,11 @@
         "label": "Vorab autorisierte Tools",
         "placeholder": "Vorab autorisierte Tools auswählen"
       },
+      "api_retry": {
+        "reason": "Anfrage fehlgeschlagen ({{error}}, HTTP {{status}}) — wird wiederholt",
+        "retrying": "Wiederholung {{attempt}}/{{max}}…",
+        "retrying_in": "Wiederholung {{attempt}}/{{max}} in {{seconds}}s"
+      },
       "auto_rename": "Aufgabenname generieren",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Fehler beim Löschen der Aufgabe",
         "loadFailed": "Aufgaben konnten nicht geladen werden",
         "runFailed": "Aufgabe konnte nicht ausgeführt werden",
+        "triggerInvalid": "Ungültiger Zeitplan: Überprüfen Sie den Ausdruck, die Zeitzone oder den Intervallbereich",
         "updateFailed": "Aktualisierung der Aufgabe fehlgeschlagen"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "Ausführen",
       "runTriggered": "Aufgabe ausgelöst",
       "save": "Speichern",
+      "schedule": {
+        "custom": "Benutzerdefinierter Zeitplan",
+        "daily": "Täglich",
+        "hour": "Stunde",
+        "hourly": "Stündlich",
+        "interval": "Benutzerdefiniertes Intervall",
+        "intervalMinutes": "Intervall",
+        "invalid": "Geben Sie eine gültige Ausführungshäufigkeit ein.",
+        "minute": "Minute",
+        "once": "Einmal",
+        "runAt": "Ausführen bei",
+        "summary": {
+          "daily": "Täglich um {{time}}",
+          "hourly": "Zu Beginn jeder Stunde",
+          "interval": "Alle {{count}} Minuten",
+          "weekdays": "Wochentags um {{time}}",
+          "weekly": "Jeden {{weekday}} um {{time}}"
+        },
+        "time": "Zeit",
+        "weekday": "Wochentag",
+        "weekdays": {
+          "friday": "Freitag",
+          "monday": "Montag",
+          "saturday": "Samstag",
+          "sunday": "Sonntag",
+          "thursday": "Donnerstag",
+          "tuesday": "Dienstag",
+          "wednesday": "Mittwoch"
+        },
+        "weekdaysOnly": "Wochentage",
+        "weekly": "Wöchentlich"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Intervall",
@@ -869,7 +907,7 @@
       "expired": "Abgelaufen",
       "inputPreview": "Vorschau der Werkzeugeingabe",
       "pending": "Ausstehend ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Ausstehend",
       "permissionExpired": "Berechtigungsanfrage abgelaufen. Warte auf neue Anweisungen...",
       "requiresElevatedPermissions": "Dieses Tool erfordert erhöhte Berechtigungen.",
       "suggestion": {
@@ -997,7 +1035,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Kopieren",
       "regenerate": "Neu generieren",
       "restart": {
         "button": "Neustarten",
@@ -1009,8 +1046,6 @@
     "authHeader": {
       "title": "Autorisierungs-Header"
     },
-    "authHeaderText": "Im Autorisierungs-Header verwenden:",
-    "configuration": "Konfiguration",
     "description": "Stellen Sie die KI-Funktionen von Cherry Studio über eine OpenAI-kompatible HTTP-API bereit",
     "documentation": {
       "title": "API-Dokumentation"
@@ -1018,13 +1053,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "API-Schlüssel kopieren",
-        "description": "Sicherheits-Token für API-Zugriff",
         "label": "API-Schlüssel",
         "placeholder": "API-Schlüssel wird automatisch generiert"
       },
       "port": {
-        "description": "TCP-Portnummer des HTTP-Servers (1000-65535)",
-        "helpText": "Server stoppen, um Port zu ändern",
         "label": "Port"
       },
       "url": {
@@ -1033,7 +1065,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "API-Schlüssel in die Zwischenablage kopiert",
       "apiKeyRegenerated": "API-Schlüssel wurde neu generiert",
       "notEnabled": "API server is not enabled.",
       "operationFailed": "API-Server-Operation fehlgeschlagen:",
@@ -1043,8 +1074,7 @@
       "startError": "API-Server starten fehlgeschlagen:",
       "startSuccess": "API-Server erfolgreich gestartet",
       "stopError": "API-Server stoppen fehlgeschlagen:",
-      "stopSuccess": "API-Server erfolgreich gestoppt",
-      "urlCopied": "Server-URL in die Zwischenablage kopiert"
+      "stopSuccess": "API-Server erfolgreich gestoppt"
     },
     "status": {
       "running": "Läuft",
@@ -1427,21 +1457,21 @@
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Fehler beim Laden der referenzierten Konversation",
+        "no_room": "Nicht genug Platz in der Nachricht, um diese Konversation hinzuzufügen",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Keine Sitzungen entsprechen Ihrer Suche",
+            "label": "Keine Sitzungen gefunden"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Sessions"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Keine Themen entsprechen Ihrer Suche",
+            "label": "Keine Themen gefunden"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Themen"
         }
       },
       "resize_height": "Eingabehöhe ändern",
@@ -2293,7 +2323,7 @@
     "provider": "Anbieter",
     "reasoning_content": "Tiefgehend nachgedacht",
     "refresh": "Aktualisieren",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Die Liste konnte nicht aktualisiert werden. Es wird die zuletzt geladene Version angezeigt.",
     "regenerate": "Neu generieren",
     "remove_image": "Bild entfernen",
     "rename": "Umbenennen",
@@ -2609,7 +2639,7 @@
     "empty": {
       "no_match_description": "Keine Dateien entsprechen den aktuellen Filtern",
       "no_match_title": "Keine passenden Dateien gefunden",
-      "title": "[to be translated]:No files yet"
+      "title": "Noch keine Dateien"
     },
     "empty_trash": "Papierkorb leeren",
     "error": {
@@ -3011,6 +3041,7 @@
     "embedding_model": "Einbettungsmodell",
     "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
     "empty": "Keine Wissensdatenbanken",
+    "empty_action": "Wissensbasis erstellen",
     "empty_description": "Sie haben noch keine Wissensdatenbanken. Erstellen Sie eine, um Ihre Dokumente zu organisieren und durchzusuchen.",
     "error": {
       "directory_not_migrated": "Ordnermigration fehlgeschlagen. Bitte löschen Sie ihn und laden Sie ihn erneut hoch.",
@@ -3785,6 +3816,8 @@
         "title": "Löschen bestätigen"
       },
       "failed": "Löschen fehlgeschlagen",
+      "first_turn_not_supported": "Die erste Benutzernachricht kann nicht gelöscht werden.",
+      "root_unavailable": "Nachrichten werden noch geladen und können noch nicht gelöscht werden.",
       "success": "Erfolgreich gelöscht"
     },
     "dialog": {
@@ -6404,6 +6437,7 @@
       "viewErrorDetails": "Details anzeigen"
     },
     "developer": {
+      "client_id": "Client-ID",
       "enable_developer_mode": "Entwicklermodus aktivieren",
       "help": "Nach Aktivierung des Entwicklermodus kann die Aufrufkette zur Ansicht des Datenflusses verwendet werden.",
       "title": "Entwicklermodus"
@@ -6586,7 +6620,9 @@
       "active": "Aktivieren",
       "addError": "Server hinzufügen fehlgeschlagen",
       "addServer": {
+        "advanced": "Erweitert",
         "create": "Schnell erstellen",
+        "createDescription": "Geben Sie die Verbindungsdetails ein, um den Server zu erstellen; alles andere kann später angepasst werden.",
         "importFrom": {
           "connectionFailed": "Verbindung fehlgeschlagen",
           "dxt": "DXT-Paket importieren",
@@ -6666,7 +6702,11 @@
         "success": "MCP-Server erfolgreich abgerufen"
       },
       "filter": {
-        "label": "Filter"
+        "allStatuses": "Alle Status",
+        "allTypes": "Alle Typen",
+        "builtinOnly": "Nur integriert",
+        "status": "Nach Status filtern",
+        "type": "Nach Typ filtern"
       },
       "findMore": "Mehr MCP",
       "headers": "Request-Header",
@@ -6723,6 +6763,7 @@
         "usage": "Verwendung",
         "version": "Version"
       },
+      "pageDescription": "MCP-Server verwalten. Nach der Aktivierung können Agenten die bereitgestellten Tools und Ressourcen aufrufen.",
       "prompts": {
         "arguments": "Parameter",
         "availablePrompts": "Verfügbare Prompts",
@@ -7686,12 +7727,39 @@
       "titlePlaceholder": "Bitte geben Sie den Titel der Phrase ein"
     },
     "scheduledTasks": {
+      "agentCreate": "Erstellen mit Agent",
+      "allAgents": "Alle Agenten",
+      "allStatuses": "Alle Status",
+      "clearFilters": "Filter löschen",
+      "createDescription": "Legen Sie fest, was der Agent tun soll und wann er ausgeführt werden soll.",
+      "createTitle": "Neue geplante Aufgabe",
       "description": "Verwalten Sie geplante Aufgaben über alle Agents hinweg. Aufgaben werden automatisch nach dem konfigurierten Zeitplan ausgeführt.",
+      "editDescription": "Aktualisieren Sie, was der Agent tun soll und wann er ausgeführt werden soll.",
+      "editTitle": "Geplante Aufgabe bearbeiten",
+      "filterAgent": "Nach Agent filtern",
+      "filterStatus": "Nach Status filtern",
+      "manualCreate": "Manuell erstellen",
+      "newTask": "Neu",
       "noAgents": "Keine Agenten gefunden. Erstellen Sie zuerst einen Agenten, um geplante Aufgaben hinzuzufügen.",
       "noAgentsTip": "Tipp: Sie können Ihren Agenten auch bitten, per Chat geplante Aufgaben zu erstellen.",
+      "noAgentsTitle": "Keine Agenten",
+      "noMatches": "Versuchen Sie eine andere Suche oder einen anderen Filter.",
+      "noMatchesTitle": "Keine passenden Aufgaben gefunden",
       "noTasks": "Keine geplanten Aufgaben. Klicken Sie auf „+ Hinzufügen“, um eine für einen Agenten zu erstellen.",
+      "noTasksTitle": "Keine geplanten Aufgaben",
+      "notFoundDescription": "Diese Aufgabe wurde möglicherweise gelöscht oder der Link ist ungültig.",
+      "notFoundTitle": "Aufgabe nicht gefunden",
+      "paginationLabel": "Geplante Aufgaben-Paginierung",
+      "paginationStatus": "Seite {{page}} von {{pageCount}} · {{total}} Aufgaben",
+      "search": "Geplante Aufgaben suchen",
+      "searchPlaceholder": "Aufgaben oder Agenten suchen",
       "selectTask": "Wählen Sie eine Aufgabe aus, um Details anzuzeigen",
-      "title": "Geplante Aufgaben"
+      "title": "Geplante Aufgaben",
+      "validation": {
+        "agent": "Wählen Sie einen Agenten aus.",
+        "name": "Geben Sie einen Aufgabennamen ein.",
+        "prompt": "Geben Sie eine Aufgabenaufforderung ein."
+      }
     },
     "shortcuts": {
       "action": "Aktionen",
@@ -7780,6 +7848,7 @@
       "noInstalled": "Keine Fähigkeiten installiert",
       "noResults": "Keine Fähigkeiten gefunden",
       "noSkillFile": "Keine SKILL.md gefunden",
+      "pageDescription": "Verwalten Sie installierte Skills. Skills erweitern die Fähigkeiten Ihrer Agenten und werden bei Bedarf aufgerufen.",
       "searchPlaceholder": "Weitere Fähigkeiten entdecken...",
       "searchRegistryTitle": "Durchsuche Fähigkeitsregister online",
       "searchTitle": "Suchfähigkeiten",

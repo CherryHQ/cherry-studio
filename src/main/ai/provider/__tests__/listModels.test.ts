@@ -675,6 +675,40 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
       ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     ])
   })
+
+  it('normalizes NewAPI embedding/video aliases and canonical media endpoints', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'embed-model', supported_endpoint_types: ['embeddings'] },
+          { id: 'video-model', supported_endpoint_types: ['openai-video'] },
+          { id: 'speech-model', supported_endpoint_types: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH] }
+        ]
+      }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          apiModelId: 'embed-model',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+          capabilities: [MODEL_CAPABILITY.EMBEDDING]
+        }),
+        expect.objectContaining({
+          apiModelId: 'video-model',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION],
+          capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION]
+        }),
+        expect.objectContaining({
+          apiModelId: 'speech-model',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH],
+          capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION]
+        })
+      ])
+    )
+  })
 })
 
 describe('listModels — vertexFetcher (per-publisher pagination)', () => {

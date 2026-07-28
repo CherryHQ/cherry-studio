@@ -15,13 +15,39 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
-  ButtonGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
   IndicatorLight: () => <span />,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
   InputGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
   InputGroupAddon: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  InputGroupButton: ({
+    asChild,
+    children,
+    type = 'button',
+    ...props
+  }: ComponentProps<'button'> & { asChild?: boolean }) =>
+    asChild ? (
+      children
+    ) : (
+      <button type={type} {...props}>
+        {children}
+      </button>
+    ),
   InputGroupInput: (props: ComponentProps<'input'>) => <input {...props} />,
   Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+}))
+
+vi.mock('@renderer/components/CopyButton', () => ({
+  default: ({
+    textToCopy,
+    successFeedback,
+    ...props
+  }: ComponentProps<'button'> & {
+    textToCopy: string
+    successFeedback?: 'toast' | 'icon'
+  }) => {
+    void successFeedback
+    return <button type="button" data-copy-text={textToCopy} {...props} />
+  }
 }))
 
 vi.mock('@renderer/components/icons/GatewayIcon', () => ({
@@ -29,8 +55,7 @@ vi.mock('@renderer/components/icons/GatewayIcon', () => ({
 }))
 
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
-  SettingDivider: () => <hr />,
-  SettingRow: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  SettingGroup: ({ children }: PropsWithChildren) => <section>{children}</section>,
   SettingRowTitle: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SettingsContentColumn: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SettingTitle: ({ children }: PropsWithChildren) => <div>{children}</div>
@@ -70,7 +95,9 @@ describe('ApiGatewaySettings', () => {
     render(<ApiGatewaySettings />)
 
     expect(screen.getByDisplayValue('cs-sk-test-key')).toHaveAttribute('type', 'password')
-    expect(screen.getByDisplayValue('Authorization: Bearer cs-sk-test-key')).toHaveAttribute('type', 'password')
+    // Authorization header keeps the readable "Authorization: Bearer" prefix and masks only the key
+    expect(screen.queryByDisplayValue('Authorization: Bearer cs-sk-test-key')).not.toBeInTheDocument()
+    expect(screen.getByDisplayValue(/Authorization: Bearer •/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.provider.api_key.show_key' })).toBeInTheDocument()
   })
 
@@ -80,11 +107,44 @@ describe('ApiGatewaySettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_key.show_key' }))
 
     expect(screen.getByDisplayValue('cs-sk-test-key')).toHaveAttribute('type', 'text')
-    expect(screen.getByDisplayValue('Authorization: Bearer cs-sk-test-key')).toHaveAttribute('type', 'text')
+    expect(screen.getByDisplayValue('Authorization: Bearer cs-sk-test-key')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_key.hide_key' }))
 
     expect(screen.getByDisplayValue('cs-sk-test-key')).toHaveAttribute('type', 'password')
-    expect(screen.getByDisplayValue('Authorization: Bearer cs-sk-test-key')).toHaveAttribute('type', 'password')
+    expect(screen.queryByDisplayValue('Authorization: Bearer cs-sk-test-key')).not.toBeInTheDocument()
+  })
+
+  it('shows connection fields only while the gateway is stopped', () => {
+    const stoppedState = useApiGatewayMock()
+    const { rerender } = render(<ApiGatewaySettings />)
+
+    expect(screen.getByRole('textbox', { name: 'apiGateway.fields.url.label' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'apiGateway.actions.regenerate' })).toBeInTheDocument()
+
+    useApiGatewayMock.mockReturnValue({
+      ...stoppedState,
+      apiGatewayConfig: { ...stoppedState.apiGatewayConfig, enabled: true },
+      apiGatewayRunning: true
+    })
+    rerender(<ApiGatewaySettings />)
+
+    expect(screen.queryByRole('textbox', { name: 'apiGateway.fields.url.label' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'apiGateway.actions.regenerate' })).not.toBeInTheDocument()
+  })
+
+  it('hides action icons while gateway actions are loading', () => {
+    const stoppedState = useApiGatewayMock()
+    useApiGatewayMock.mockReturnValue({
+      ...stoppedState,
+      apiGatewayConfig: { ...stoppedState.apiGatewayConfig, enabled: true },
+      apiGatewayRunning: true,
+      apiGatewayLoading: true
+    })
+
+    render(<ApiGatewaySettings />)
+
+    expect(screen.getByRole('button', { name: 'apiGateway.actions.restart.button' }).querySelector('svg')).toBeNull()
+    expect(screen.getByRole('button', { name: 'apiGateway.actions.stop' }).querySelector('svg')).toBeNull()
   })
 })
