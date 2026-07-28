@@ -179,6 +179,29 @@ describe('admitArchive', () => {
     await admitted.cleanup()
   })
 
+  it('diagnoses an ahead chain and removes its owned staging tree', async () => {
+    const assertSibling = await siblingSurvives()
+    const dbPath = await snapshotDbAt()
+    const meta = await dbMeta(dbPath)
+    const outPath = path.join(work, 'ahead.cherrybackup')
+    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+    const truncated = path.join(work, 'm-target')
+    buildTruncatedMigrations(realFolder, truncated, fullLen - 2)
+
+    await expect(
+      admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: truncated })
+    ).rejects.toMatchObject({
+      name: 'BackupMigrationCompatibilityError',
+      diagnostic: {
+        kind: 'source-ahead',
+        missingMigrationCount: 2,
+        sourceMigrationCount: fullLen,
+        targetMigrationCount: fullLen - 2
+      }
+    })
+    await assertSibling()
+  })
+
   it('rejects a DB payload hash tamper before any migration', async () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)
@@ -235,11 +258,41 @@ describe('admitArchive', () => {
     })
   })
 
+  it('diagnoses an unsupported format from only its bounded envelope and cleans staging', async () => {
+    const assertSibling = await siblingSurvives()
+    const dbPath = await snapshotDbAt()
+    const manifest = {
+      ...(await dbMeta(dbPath)),
+      backupFormatVersion: 3,
+      producer: {
+        appVersion: '2.1.0',
+        buildType: 'packaged',
+        path: '/private/archive-controlled'
+      },
+      payload: { path: '/private/archive-controlled' }
+    }
+    const outPath = path.join(work, 'future.cherrybackup')
+    await writeRawZip(outPath, [
+      { name: 'manifest.json', data: Buffer.from(JSON.stringify(manifest)) },
+      { name: 'backup.sqlite', data: await readFile(dbPath) }
+    ])
+
+    await expect(
+      admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
+    ).rejects.toMatchObject({
+      name: 'BackupFormatCompatibilityError',
+      archiveFormatVersion: 3,
+      archiveAppVersion: '2.1.0',
+      archiveBuildType: 'packaged'
+    })
+    await assertSibling()
+  })
+
   it('rejects a schema-invalid manifest', async () => {
     const dbPath = await snapshotDbAt()
     const outPath = path.join(work, 'badschema.cherrybackup')
     await writeRawZip(outPath, [
-      { name: 'manifest.json', data: Buffer.from(JSON.stringify({ backupFormatVersion: 1 })) },
+      { name: 'manifest.json', data: Buffer.from(JSON.stringify({ backupFormatVersion: 2 })) },
       { name: 'backup.sqlite', data: await readFile(dbPath) }
     ])
     await expect(

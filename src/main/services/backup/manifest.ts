@@ -39,7 +39,7 @@ const Sha256HexSchema = z.string().regex(/^[0-9a-f]{64}$/, 'must be 64 lowercase
  * deliberately not tightened to the sha256-hex form.
  */
 const MigrationChainEntrySchema = z.strictObject({
-  folderMillis: z.number().int().nonnegative(),
+  folderMillis: z.number().int().safe().nonnegative(),
   hash: z.string().min(1)
 })
 
@@ -54,9 +54,23 @@ const ManagedRootIdentitySchema = z.strictObject({
   path: z.string().min(1)
 })
 
+export const BACKUP_PRODUCER_BUILD_TYPES = ['packaged', 'development'] as const
+export type BackupProducerBuildType = (typeof BACKUP_PRODUCER_BUILD_TYPES)[number]
+
+// Presentation-safe producer provenance. It is rendered in compatibility
+// diagnostics, so keep it bounded printable ASCII rather than forwarding an
+// arbitrary manifest string across IPC.
+const ProducerAppVersionSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[\x20-\x7e]+$/)
+
 const ProducerSchema = z.strictObject({
-  appVersion: z.string().min(1),
+  appVersion: ProducerAppVersionSchema,
   platform: z.enum(['darwin', 'win32', 'linux']),
+  /** Optional so already-created format-v2 archives remain admissible. */
+  buildType: z.enum(BACKUP_PRODUCER_BUILD_TYPES).optional(),
   // Managed-root PathKeys must be unique — two identities for one key would make
   // path rebasing (Phase 1c) ambiguous. Duplicate absolute paths are left to
   // Phase 1c (they can legitimately differ per key); only key uniqueness is
@@ -146,6 +160,28 @@ export type BackupManifestDegradation = z.infer<typeof DegradationSchema>
 export type ReadManifestResult =
   | { readonly kind: 'ok'; readonly manifest: BackupManifest }
   | { readonly kind: 'invalid'; readonly error: string }
+
+/**
+ * Bounded envelope read before the strict format-specific schema. It exists only
+ * to distinguish an intact archive made by another backup format from malformed
+ * input; no payload/path field is accepted through this projection.
+ */
+const ManifestDiagnosticEnvelopeSchema = z.object({
+  backupFormatVersion: z.number().int().safe().nonnegative(),
+  producer: z
+    .object({
+      appVersion: ProducerAppVersionSchema,
+      buildType: z.enum(BACKUP_PRODUCER_BUILD_TYPES).optional()
+    })
+    .optional()
+})
+
+export type ManifestDiagnosticEnvelope = z.infer<typeof ManifestDiagnosticEnvelopeSchema>
+
+export function parseManifestDiagnosticEnvelope(value: unknown): ManifestDiagnosticEnvelope | undefined {
+  const result = ManifestDiagnosticEnvelopeSchema.safeParse(value)
+  return result.success ? result.data : undefined
+}
 
 /** Pure structural parse — no I/O. Phase 1b feeds already-read bytes here. */
 export function parseBackupManifest(value: unknown): ReadManifestResult {

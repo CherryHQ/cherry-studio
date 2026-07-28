@@ -163,6 +163,7 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
       producer: {
         appVersion: app.getVersion(),
         platform: currentBackupPlatform(),
+        buildType: app.isPackaged ? ('packaged' as const) : ('development' as const),
         managedRoots: producerManagedRoots()
       },
       migrationChain: readSealedChain(stagedDbPath),

@@ -5,8 +5,13 @@ import type { AppliedMigration } from '@data/db/restore/appliedChain'
 import { BACKUP_CEILINGS } from '../ceilings'
 import type { DirScanLimits } from '../dirScan'
 import { assertDiskHeadroom } from '../diskPreflight'
-import { ArchiveAdmissionError, BackupCancelledError } from '../errors'
-import { type BackupManifest, parseBackupManifest } from '../manifest'
+import { ArchiveAdmissionError, BackupCancelledError, BackupFormatCompatibilityError } from '../errors'
+import {
+  BACKUP_FORMAT_VERSION,
+  type BackupManifest,
+  parseBackupManifest,
+  parseManifestDiagnosticEnvelope
+} from '../manifest'
 import { type CatalogCeilings, openArchive, validateArchiveShape } from './catalog'
 import { admitStagedDatabase } from './chain'
 import {
@@ -165,6 +170,15 @@ async function readAndParseManifest(stagingDir: string): Promise<BackupManifest>
   } catch {
     throw new ArchiveAdmissionError('manifest-invalid', 'manifest.json is not valid JSON')
   }
+  const envelope = parseManifestDiagnosticEnvelope(json)
+  if (envelope && envelope.backupFormatVersion !== BACKUP_FORMAT_VERSION) {
+    throw new BackupFormatCompatibilityError({
+      archiveFormatVersion: envelope.backupFormatVersion,
+      archiveAppVersion: envelope.producer?.appVersion,
+      archiveBuildType: envelope.producer?.buildType ?? 'unknown'
+    })
+  }
+
   const parsed = parseBackupManifest(json)
   if (parsed.kind !== 'ok') {
     // Constant detail: the Zod error can echo attacker-controlled manifest values.

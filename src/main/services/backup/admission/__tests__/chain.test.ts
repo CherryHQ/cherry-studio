@@ -9,7 +9,7 @@ import Database from 'better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { BackupCancelledError } from '../../errors'
+import { BackupCancelledError, BackupMigrationCompatibilityError } from '../../errors'
 import { hashStreamHooks } from '../../hashing'
 import { admitStagedDatabase, classifyChain } from '../chain'
 import {
@@ -32,14 +32,18 @@ describe('classifyChain', () => {
   it('reports exact when the chains are identical', () => {
     expect(classifyChain([A, B], [A, B])).toEqual({ kind: 'exact' })
   })
-  it('reports prefix when the source is a strict prefix', () => {
-    expect(classifyChain([A], [A, B])).toEqual({ kind: 'prefix' })
+  it('reports prefix and the exact migrate-forward distance', () => {
+    expect(classifyChain([A], [A, B])).toEqual({ kind: 'prefix', missingOnSource: 1 })
   })
-  it('reports incompatible when the source is ahead', () => {
-    expect(classifyChain([A, B, C], [A, B]).kind).toBe('incompatible')
+  it('reports an ahead source and its first extra migration', () => {
+    expect(classifyChain([A, B, C], [A, B])).toEqual({
+      kind: 'ahead',
+      extraOnSource: 1,
+      firstExtraIndex: 3
+    })
   })
-  it('reports incompatible when the source has forked', () => {
-    expect(classifyChain([A, Bprime], [A, B]).kind).toBe('incompatible')
+  it('reports a fork at a one-based migration index', () => {
+    expect(classifyChain([A, Bprime], [A, B])).toEqual({ kind: 'fork', firstDivergentIndex: 2 })
   })
 })
 
@@ -134,7 +138,14 @@ describe('admitStagedDatabase', () => {
     const shortFolder = path.join(dir, 'm-short')
     buildTruncatedMigrations(realFolder, shortFolder, fullLen - 1)
     await expect(admitStagedDatabase(dbPath, liteManifest(meta), shortFolder, undefined)).rejects.toMatchObject({
-      reason: 'chain-incompatible'
+      name: 'BackupMigrationCompatibilityError',
+      diagnostic: {
+        kind: 'source-ahead',
+        missingMigrationCount: 1,
+        firstExtraIndex: fullLen,
+        sourceMigrationCount: fullLen,
+        targetMigrationCount: fullLen - 1
+      }
     })
   })
 
@@ -144,8 +155,15 @@ describe('admitStagedDatabase', () => {
     const dbPath = path.join(dir, 'fork.sqlite')
     buildMigratedDb(dbPath, forked)
     const meta = await dbMeta(dbPath)
-    await expect(admitStagedDatabase(dbPath, liteManifest(meta), realFolder, undefined)).rejects.toMatchObject({
-      reason: 'chain-incompatible'
+    const error = await admitStagedDatabase(dbPath, liteManifest(meta), realFolder, undefined).catch((cause) => cause)
+    expect(error).toBeInstanceOf(BackupMigrationCompatibilityError)
+    expect(error).toMatchObject({
+      diagnostic: {
+        kind: 'lineage-fork',
+        firstDivergentIndex: 2,
+        sourceMigrationCount: fullLen,
+        targetMigrationCount: fullLen
+      }
     })
   })
 

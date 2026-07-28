@@ -25,12 +25,17 @@ const showOpenDialog = vi.hoisted(() => vi.fn())
 
 vi.mock('@application', () => ({ application: { get: applicationGet } }))
 vi.mock('@main/i18n', () => ({ t: () => 'Cherry Studio Backup' }))
-vi.mock('electron', () => ({ dialog: { showSaveDialog, showOpenDialog } }))
+vi.mock('electron', () => ({
+  app: { getVersion: () => '2.0.0-beta.3', isPackaged: true },
+  dialog: { showSaveDialog, showOpenDialog }
+}))
 
 import {
   ArchiveAdmissionError,
   BackupBusyError,
   BackupCancelledError,
+  BackupFormatCompatibilityError,
+  BackupMigrationCompatibilityError,
   InsufficientDiskSpaceError,
   ResourceInstallPlanError,
   RestoreStateError,
@@ -218,13 +223,81 @@ describe('backupHandlers', () => {
       expect(service.prepareRestore).not.toHaveBeenCalled()
     })
 
-    it('maps a rejected archive to a code carrying the admission reason', async () => {
+    it('maps a hostile rejected archive to a generic code without forwarding its detail', async () => {
       showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/in.cherrybackup'] })
-      service.prepareRestore.mockRejectedValue(new ArchiveAdmissionError('chain-incompatible', 'ahead of this build'))
+      service.prepareRestore.mockRejectedValue(
+        new ArchiveAdmissionError('manifest-invalid', 'attacker text /Users/private/archive')
+      )
+
+      const error = await backupHandlers['backup.prepare_restore'](undefined, ctx).catch((cause) => cause)
+      expect(error).toMatchObject({
+        code: backupErrorCodes.ARCHIVE_REJECTED,
+        data: { reason: 'manifest-invalid' }
+      })
+      expect(JSON.stringify((error as IpcError).data)).not.toContain('/Users/private')
+    })
+
+    it.each([
+      ['source-ahead' as const, backupErrorCodes.RESTORE_REQUIRES_NEWER_APP],
+      ['lineage-fork' as const, backupErrorCodes.RESTORE_LINEAGE_INCOMPATIBLE]
+    ])('maps %s to a bounded compatibility diagnostic', async (kind, code) => {
+      showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/in.cherrybackup'] })
+      const common = {
+        archiveAppVersion: '2.0.0-beta.3',
+        archiveBuildType: 'development' as const,
+        sourceMigrationCount: 28,
+        targetMigrationCount: 26,
+        sourceTip: {
+          folderMillis: 1785221482684,
+          hash: 'ab77963210cae53b84c77a0e750986e4ed2a369b83f342826d6713fd75e40a30'
+        },
+        targetTip: { folderMillis: 1785000000000, hash: 'not-safe-to-render /Users/private' }
+      }
+      service.prepareRestore.mockRejectedValue(
+        new BackupMigrationCompatibilityError(
+          kind === 'source-ahead'
+            ? { ...common, kind, missingMigrationCount: 2, firstExtraIndex: 27 }
+            : { ...common, kind, firstDivergentIndex: 20 }
+        )
+      )
 
       await expect(backupHandlers['backup.prepare_restore'](undefined, ctx)).rejects.toMatchObject({
-        code: backupErrorCodes.ARCHIVE_REJECTED,
-        data: { reason: 'chain-incompatible' }
+        code,
+        data: {
+          kind,
+          archiveAppVersion: '2.0.0-beta.3',
+          archiveBuildType: 'development',
+          currentAppVersion: '2.0.0-beta.3',
+          currentBuildType: 'packaged',
+          sourceMigrationCount: 28,
+          targetMigrationCount: 26,
+          sourceTip: { folderMillis: 1785221482684, hashPrefix: 'ab77963210ca' },
+          targetTip: { folderMillis: 1785000000000, hashPrefix: 'unavailable' }
+        }
+      })
+    })
+
+    it('maps a newer backup format without forwarding manifest payload fields', async () => {
+      showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/in.cherrybackup'] })
+      service.prepareRestore.mockRejectedValue(
+        new BackupFormatCompatibilityError({
+          archiveFormatVersion: 3,
+          archiveAppVersion: '2.1.0',
+          archiveBuildType: 'packaged'
+        })
+      )
+
+      await expect(backupHandlers['backup.prepare_restore'](undefined, ctx)).rejects.toMatchObject({
+        code: backupErrorCodes.FORMAT_UNSUPPORTED,
+        data: {
+          kind: 'archive-newer',
+          archiveFormatVersion: 3,
+          currentFormatVersion: 2,
+          archiveAppVersion: '2.1.0',
+          archiveBuildType: 'packaged',
+          currentAppVersion: '2.0.0-beta.3',
+          currentBuildType: 'packaged'
+        }
       })
     })
 
