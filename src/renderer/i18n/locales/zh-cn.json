@@ -3726,7 +3726,7 @@
   "settings.data.backup_v2.preview.migrated_forward": "该备份由较旧版本创建，已在准备阶段升级。",
   "settings.data.backup_v2.preview.preset": "备份类型",
   "settings.data.backup_v2.preview.resources": "待恢复的文件（预估）",
-  "settings.data.backup_v2.preview.resources_counts": "新增 {{install}} 项，替换 {{replace}} 项",
+  "settings.data.backup_v2.preview.resources_counts": "新增 {{install}} 项，替换 {{replaceCount}} 项",
   "settings.data.backup_v2.restore.arm_button": "恢复并重启",
   "settings.data.backup_v2.restore.choose_button": "选择备份文件…",
   "settings.data.backup_v2.restore.choose_title": "从备份文件恢复",

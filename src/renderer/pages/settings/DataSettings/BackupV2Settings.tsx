@@ -409,7 +409,7 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
           <span>
             {t('settings.data.backup_v2.preview.resources_counts', {
               install: preview.resources.install,
-              replace: preview.resources.replace
+              replaceCount: preview.resources.replace
             })}
           </span>
         </SettingRow>

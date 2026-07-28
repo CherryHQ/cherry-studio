@@ -3726,7 +3726,7 @@
   "settings.data.backup_v2.preview.migrated_forward": "This backup was made by an older version and was upgraded during preparation.",
   "settings.data.backup_v2.preview.preset": "Backup type",
   "settings.data.backup_v2.preview.resources": "Files to restore (estimate)",
-  "settings.data.backup_v2.preview.resources_counts": "{{install}} to add, {{replace}} to replace",
+  "settings.data.backup_v2.preview.resources_counts": "{{install}} to add, {{replaceCount}} to replace",
   "settings.data.backup_v2.restore.arm_button": "Restore and restart",
   "settings.data.backup_v2.restore.choose_button": "Choose backup…",
   "settings.data.backup_v2.restore.choose_title": "Restore from a backup file",
