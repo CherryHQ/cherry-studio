@@ -16,31 +16,65 @@ import {
 import os from 'node:os'
 import path from 'node:path'
 
+import type * as Platform from '@main/core/platform'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   type AgentFileSessionPlan,
+  copyLegacyClaudeConfig,
   isManagedLegacyAgentWorkspace,
   legacyAgentWorkspacePath,
   stageLegacyAgentFiles
 } from '../agentsFilesystemMigration'
 
-const copyMutation = vi.hoisted(() => ({
-  afterCopy: undefined as undefined | ((sourcePath: string) => Promise<void>),
-  beforeRealpath: undefined as undefined | ((sourcePath: string) => Promise<void>)
+const { copyMutation, platformState } = vi.hoisted(() => ({
+  copyMutation: {
+    afterCopy: undefined as undefined | ((sourcePath: string) => Promise<void>),
+    beforeRealpath: undefined as undefined | ((sourcePath: string) => Promise<void>),
+    beforeSymlink: undefined as undefined | ((target: string, path: string, type?: string | null) => Promise<void>),
+    symlinkCalls: [] as Array<[target: string, path: string, type?: string | null]>
+  },
+  platformState: { isWin: false }
 }))
+
+vi.mock('@main/core/platform', async (importOriginal) => {
+  const original = await importOriginal<typeof Platform>()
+  return {
+    ...original,
+    get isWin() {
+      return platformState.isWin
+    }
+  }
+})
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const original = await importOriginal<typeof FsPromises>()
   return {
     ...original,
     cp: async (...args: Parameters<typeof original.cp>) => {
-      await original.cp(...args)
+      const [source, destination, options] = args
+      await original.cp(source, destination, {
+        ...options,
+        filter: async (sourcePath, destinationPath) => {
+          const included = (await options?.filter?.(sourcePath, destinationPath)) ?? true
+          if (included && platformState.isWin && (await original.lstat(sourcePath)).isSymbolicLink()) {
+            const error = new Error(`operation not permitted, symlink '${sourcePath}' -> '${destinationPath}'`)
+            Object.assign(error, { code: 'EPERM', syscall: 'symlink' })
+            throw error
+          }
+          return included
+        }
+      })
       await copyMutation.afterCopy?.(String(args[0]))
     },
     realpath: async (...args: Parameters<typeof original.realpath>) => {
       await copyMutation.beforeRealpath?.(String(args[0]))
       return original.realpath(...args)
+    },
+    symlink: async (...args: Parameters<typeof original.symlink>) => {
+      copyMutation.symlinkCalls.push([String(args[0]), String(args[1]), args[2]])
+      await copyMutation.beforeSymlink?.(String(args[0]), String(args[1]), args[2])
+      return original.symlink(...args)
     }
   }
 })
@@ -99,8 +133,167 @@ describe('agentsFilesystemMigration', () => {
   afterEach(async () => {
     copyMutation.afterCopy = undefined
     copyMutation.beforeRealpath = undefined
+    copyMutation.beforeSymlink = undefined
+    copyMutation.symlinkCalls.length = 0
+    platformState.isWin = false
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
   })
+
+  it('copies the legacy Claude config recursively and preserves the source', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    await mkdir(path.join(source, 'plugins'), { recursive: true })
+    await writeFile(path.join(source, 'settings.json'), '{"theme":"dark"}')
+    await writeFile(path.join(source, 'plugins', 'installed.json'), '{"version":1}')
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+
+    expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"theme":"dark"}')
+    expect(await readFile(path.join(destination, 'plugins', 'installed.json'), 'utf8')).toBe('{"version":1}')
+    expect(await readFile(path.join(source, 'settings.json'), 'utf8')).toBe('{"theme":"dark"}')
+    expect(await readFile(path.join(source, 'plugins', 'installed.json'), 'utf8')).toBe('{"version":1}')
+  })
+
+  it('skips symlinks while copying the legacy Claude config', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    await mkdir(path.join(source, 'plugins'), { recursive: true })
+    await writeFile(path.join(source, 'settings.json'), '{"theme":"dark"}')
+    await writeFile(path.join(source, 'plugins', 'installed.json'), '{"version":1}')
+    await symlink(
+      process.platform === 'win32' ? path.join(source, 'plugins') : 'plugins',
+      path.join(source, 'plugins-link'),
+      process.platform === 'win32' ? 'junction' : undefined
+    )
+    if (process.platform !== 'win32') {
+      await symlink('settings.json', path.join(source, 'settings-link.json'))
+      await symlink('missing.json', path.join(source, 'dangling-link.json'))
+    }
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+
+    expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"theme":"dark"}')
+    expect(await readFile(path.join(destination, 'plugins', 'installed.json'), 'utf8')).toBe('{"version":1}')
+    await expect(lstat(path.join(destination, 'plugins-link'))).rejects.toThrow()
+    if (process.platform !== 'win32') {
+      await expect(lstat(path.join(destination, 'settings-link.json'))).rejects.toThrow()
+      await expect(lstat(path.join(destination, 'dangling-link.json'))).rejects.toThrow()
+    }
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+  })
+
+  it('reuses an identical Claude config destination on retry', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    await mkdir(source)
+    await writeFile(path.join(source, 'settings.json'), '{"theme":"dark"}')
+
+    await copyLegacyClaudeConfig(source, destination)
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(true)
+    expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"theme":"dark"}')
+  })
+
+  it('rejects a conflicting Claude config destination without overwriting either side', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    await mkdir(source)
+    await mkdir(destination)
+    await writeFile(path.join(source, 'settings.json'), '{"source":true}')
+    await writeFile(path.join(destination, 'settings.json'), '{"destination":true}')
+
+    await expect(copyLegacyClaudeConfig(source, destination)).rejects.toThrow('destination conflict')
+
+    expect(await readFile(path.join(source, 'settings.json'), 'utf8')).toBe('{"source":true}')
+    expect(await readFile(path.join(destination, 'settings.json'), 'utf8')).toBe('{"destination":true}')
+  })
+
+  it.runIf(process.platform !== 'win32')(
+    'recreates copied directory links as Windows junctions without asking fs.cp to copy the link',
+    async () => {
+      const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
+      const skillSource = path.join(tempRoot, 'Data', 'Skills', 'find-skills')
+      const sourceLink = path.join(legacyWorkspace, 'skills', 'find-skills')
+      await mkdir(skillSource, { recursive: true })
+      await writeFile(path.join(skillSource, 'SKILL.md'), '# Find Skills')
+      await mkdir(path.dirname(sourceLink), { recursive: true })
+      await symlink(skillSource, sourceLink, 'dir')
+      copyMutation.symlinkCalls.length = 0
+      platformState.isWin = true
+
+      const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+        sourceSessionId: 'session_latest',
+        finalSessionId: FINAL_LATEST_SESSION_ID,
+        createdAt: Date.parse('2026-07-22T00:00:00Z'),
+        updatedAt: Date.parse('2026-07-23T00:00:00Z')
+      })
+
+      await stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [latestSession]
+      })
+
+      const destinationLink = path.join(latestSession.systemWorkspacePath!, 'skills', 'find-skills')
+      expect(await readlink(destinationLink)).toBe(skillSource)
+      expect(copyMutation.symlinkCalls).toContainEqual([
+        skillSource,
+        expect.stringMatching(/[\\/]\.01257168-34a7-5ff9-994d-bf78596c777c\.migration-[^\\/]+[\\/]find-skills$/),
+        'junction'
+      ])
+    }
+  )
+
+  it.runIf(process.platform !== 'win32')(
+    'falls back to a directory symlink when publishing a top-level Windows junction fails',
+    async () => {
+      const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
+      const sharedDirectory = path.join(tempRoot, 'shared-directory')
+      const sourceLink = path.join(legacyWorkspace, 'shared-directory')
+      await mkdir(sharedDirectory, { recursive: true })
+      await writeFile(path.join(sharedDirectory, 'shared.txt'), 'shared content')
+      await mkdir(legacyWorkspace, { recursive: true })
+      await symlink(sharedDirectory, sourceLink, 'dir')
+      copyMutation.symlinkCalls.length = 0
+      copyMutation.beforeSymlink = async (_target, _linkPath, type) => {
+        if (type !== 'junction') return
+        const error = new Error('junction target is not supported')
+        Object.assign(error, { code: 'EPERM', syscall: 'symlink' })
+        throw error
+      }
+      platformState.isWin = true
+
+      const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+        sourceSessionId: 'session_latest',
+        finalSessionId: FINAL_LATEST_SESSION_ID,
+        createdAt: Date.parse('2026-07-22T00:00:00Z'),
+        updatedAt: Date.parse('2026-07-23T00:00:00Z')
+      })
+
+      await stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [latestSession]
+      })
+
+      const destinationLink = path.join(latestSession.systemWorkspacePath!, 'shared-directory')
+      const stagingLinkPattern = /[\\/]\.01257168-34a7-5ff9-994d-bf78596c777c\.migration-[^\\/]+$/
+      expect(await readlink(destinationLink)).toBe(sharedDirectory)
+      expect(copyMutation.symlinkCalls).toEqual(
+        expect.arrayContaining([
+          [sharedDirectory, expect.stringMatching(stagingLinkPattern), 'junction'],
+          [sharedDirectory, expect.stringMatching(stagingLinkPattern), 'dir'],
+          [sharedDirectory, destinationLink, 'junction'],
+          [sharedDirectory, destinationLink, 'dir']
+        ])
+      )
+    }
+  )
 
   it.runIf(process.platform !== 'win32')(
     'splits identity from workspace content, materializes internal identity links, and preserves ordinary links',

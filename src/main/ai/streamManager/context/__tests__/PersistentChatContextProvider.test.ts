@@ -450,6 +450,13 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
             emoji: '🤖',
             model: { id: 'gpt-4o-mini', name: 'GPT-4o mini', provider: 'openai' }
           },
+          stats: {
+            runtimeTiming: {
+              startedAt: 1_000,
+              completedAt: 2_000,
+              spans: []
+            }
+          },
           createdAt: 200,
           updatedAt: 200
         }
@@ -536,6 +543,11 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     expect(prepared.models[0].modelId).toBe(ANCHOR_MODEL_ID)
     expect(prepared.models[0].request.messageId).toBe('a1')
     expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-selected-for-approved-tool'])
+    expect(prepared.models[0].runtimeTimingSeed).toEqual({
+      startedAt: 1_000,
+      completedAt: 2_000,
+      spans: []
+    })
 
     // No placeholder row was created — the path to the anchor is unchanged.
     const afterCount = messageService.getPathToNode('a1').length

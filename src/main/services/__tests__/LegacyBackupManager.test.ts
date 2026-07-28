@@ -228,11 +228,11 @@ vi.mock('@application', () => ({
       const paths: Record<string, string> = {
         'app.userdata': '/mock/userData',
         'app.userdata.data': '/mock/userData/Data',
-        'app.database.file': '/mock/userData/cherrystudio.sqlite',
+        'app.database.file': '/mock/userData/Data/cherrystudio.sqlite',
         'feature.backup.temp': '/mock/temp/backup',
-        'feature.backup.restore.file': '/mock/userData/restore-journal.json',
+        'feature.backup.restore.file': '/mock/userData/Data/restore-journal.json',
         'feature.backup.restore.staging': '/mock/userData/restore-staging',
-        'feature.agents.claude.root': '/mock/userData/.claude',
+        'feature.agents.claude.root': '/mock/userData/Data/Agents/.claude',
         'feature.lan_transfer.temp': '/tmp/cherry-studio/lan-transfer'
       }
       const base = paths[key] ?? '/mock/unknown'
@@ -374,6 +374,34 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
   })
 
+  it('excludes separately managed SQLite, restore journal, and .claude state from Data', async () => {
+    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
+      return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
+    })
+    vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
+    vi.spyOn(backupManager as any, 'copyAppClaudeState').mockResolvedValue(undefined)
+    const getDirSize = vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(42)
+    const copyDirectory = vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+    mockArchiveClose()
+
+    await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', false)
+
+    const dataCopyCall = copyDirectory.mock.calls.find(([source]) => source === '/mock/userData/Data')
+    expect(dataCopyCall).toBeDefined()
+    const options = dataCopyCall?.[3] as {
+      excludeRelativePath: (relativePath: string) => boolean
+    }
+    expect(getDirSize).toHaveBeenCalledWith('/mock/userData/Data', dataCopyCall?.[3])
+    expect(options.excludeRelativePath('cherrystudio.sqlite')).toBe(true)
+    expect(options.excludeRelativePath('cherrystudio.sqlite-wal')).toBe(true)
+    expect(options.excludeRelativePath('restore-journal.json')).toBe(true)
+    expect(options.excludeRelativePath('restore-journal.json.corrupt-1')).toBe(true)
+    expect(options.excludeRelativePath('Agents/.claude')).toBe(true)
+    expect(options.excludeRelativePath('Agents/.claude/projects/session.jsonl')).toBe(true)
+    expect(options.excludeRelativePath('Agents/profile.json')).toBe(false)
+    expect(options.excludeRelativePath('Files/document.pdf')).toBe(false)
+  })
+
   it('fails instead of archiving a stale cache.json when the strict flush fails', async () => {
     vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
     vi.spyOn(backupManager as any, 'copyAppClaudeState').mockResolvedValue(undefined)
@@ -451,7 +479,11 @@ describe('BackupManager direct v2 data compatibility', () => {
           }),
           expect.objectContaining({ kind: 'overwrite', livePath: 'IndexedDB' }),
           expect.objectContaining({ kind: 'overwrite', livePath: 'Local Storage' }),
-          expect.objectContaining({ kind: 'overwrite', livePath: '.claude' })
+          expect.objectContaining({
+            kind: 'overwrite',
+            livePath: 'Data/Agents/.claude',
+            asidePath: 'restore-staging/operation-id/aside/Data/Agents/.claude'
+          })
         ])
       })
     )
@@ -461,22 +493,50 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(fs.remove).not.toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
   })
 
-  it('journals an included Data directory even when it is empty', async () => {
+  it('journals Data children without overlapping SQLite, the restore journal, or .claude', async () => {
     arrangeDirectRestore({
       ...metadata,
       resources: { ...metadata.resources, data: true }
     })
-    vi.mocked(fs.lstat).mockImplementation(async (entryPath) =>
-      String(entryPath).endsWith('/Data') ? (createStats('directory') as never) : (createStats('file') as never)
-    )
+    vi.mocked(fs.readdir).mockImplementation(async (entryPath) => {
+      const directory = String(entryPath)
+      if (directory === '/mock/userData/restore-staging/operation-id/resources/Data') {
+        return ['Files', 'Agents'] as never
+      }
+      if (directory === '/mock/userData/Data') {
+        return ['Files', 'Agents', 'KnowledgeBase', 'cherrystudio.sqlite', 'restore-journal.json'] as never
+      }
+      return [] as never
+    })
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      const entry = String(entryPath)
+      if (
+        entry === '/extract/Data' ||
+        entry.startsWith('/mock/userData/restore-staging/operation-id/resources/Data/') ||
+        ['/mock/userData/Data/Files', '/mock/userData/Data/Agents', '/mock/userData/Data/KnowledgeBase'].includes(entry)
+      ) {
+        return createStats('directory') as never
+      }
+      return createStats('file') as never
+    })
     vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(0)
 
     await (backupManager as any).restoreDirect('/extract')
 
-    expect(mockWriteRestoreJournal).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileResources: expect.arrayContaining([expect.objectContaining({ livePath: 'Data' })])
-      })
+    const journal = mockWriteRestoreJournal.mock.calls[0][0]
+    const dataResourcePaths = journal.fileResources
+      .map((resource: { livePath: string }) => resource.livePath)
+      .filter((livePath: string) => livePath.startsWith('Data/'))
+    expect(dataResourcePaths).toEqual(['Data/Agents', 'Data/Files', 'Data/KnowledgeBase'])
+    expect(dataResourcePaths).not.toContain('Data/cherrystudio.sqlite')
+    expect(dataResourcePaths).not.toContain('Data/restore-journal.json')
+    expect(dataResourcePaths).not.toContain('Data/Agents/.claude')
+    expect((backupManager as any).copyClaudeState).toHaveBeenCalledWith(
+      '/extract/.claude',
+      '/mock/userData/restore-staging/operation-id/resources/Data/Agents/.claude'
+    )
+    expect(fs.ensureDir).toHaveBeenCalledWith(
+      '/mock/userData/restore-staging/operation-id/resources/Data/KnowledgeBase'
     )
   })
 
@@ -581,15 +641,18 @@ describe('BackupManager direct v2 data compatibility', () => {
     ] as never)
     const copyDirectory = vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
 
-    await (backupManager as any).copyClaudeState('/mock/userData/.claude', '/archive/.claude')
+    await (backupManager as any).copyClaudeState('/mock/userData/Data/Agents/.claude', '/archive/.claude')
 
     expect(copyDirectory).toHaveBeenCalledWith(
-      '/mock/userData/.claude/projects',
+      '/mock/userData/Data/Agents/.claude/projects',
       '/archive/.claude/projects',
       expect.any(Function),
       { dereferenceSymlinks: false }
     )
-    expect(fs.copy).toHaveBeenCalledWith('/mock/userData/.claude/settings.json', '/archive/.claude/settings.json')
+    expect(fs.copy).toHaveBeenCalledWith(
+      '/mock/userData/Data/Agents/.claude/settings.json',
+      '/archive/.claude/settings.json'
+    )
     expect(copyDirectory).not.toHaveBeenCalledWith(
       expect.stringContaining('/skills'),
       expect.anything(),

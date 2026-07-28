@@ -44,6 +44,7 @@ import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
 import type {
+  Currency,
   ImageGenerationSupport,
   Model,
   RuntimeModelPricing,
@@ -74,6 +75,8 @@ export interface ProviderDisplayMetadata {
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
   authOptional?: boolean
+  /** Registry-owned currency for provider-reported cost amounts. */
+  reportedCostCurrency?: Currency
   /** Registry default API feature flags — the delta baseline under row overrides. */
   apiFeatures?: ApiFeatures
   /** Registry default chat endpoint, used when the row stores no override. */
@@ -658,6 +661,7 @@ class ProviderRegistryService {
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
+        reportedCostCurrency: provider?.reportedCostCurrency,
         apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
         defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }

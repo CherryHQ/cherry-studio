@@ -92,9 +92,9 @@ vi.mock('@application', () => ({
     getPath: vi.fn((key: string, filename?: string) => {
       const bases: Record<string, string> = {
         'app.userdata': userData,
-        'app.database.file': join(userData, 'cherrystudio.sqlite'),
+        'app.database.file': join(userData, 'Data', 'cherrystudio.sqlite'),
         'app.database.migrations': resolveMigrationsPath(),
-        'feature.backup.restore.file': join(userData, 'restore-journal.json'),
+        'feature.backup.restore.file': join(userData, 'Data', 'restore-journal.json'),
         'feature.backup.restore.staging': join(userData, 'restore-staging')
       }
       const base = bases[key]
@@ -107,13 +107,14 @@ vi.mock('@application', () => ({
 const RID = 'restore-t1'
 const MARKER_KEY = 'restore-test-marker'
 
-const livePath = () => join(userData, 'cherrystudio.sqlite')
-const asideRel = `cherrystudio.sqlite.pre-restore-${RID}`
+const dataDir = () => join(userData, 'Data')
+const livePath = () => join(dataDir(), 'cherrystudio.sqlite')
+const asideRel = `Data/cherrystudio.sqlite.pre-restore-${RID}`
 const asidePath = () => join(userData, asideRel)
 const workRel = `restore-staging/${RID}/work.sqlite`
 const workPath = () => join(userData, workRel)
 const stagingDir = () => join(userData, 'restore-staging', RID)
-const journalPath = () => join(userData, 'restore-journal.json')
+const journalPath = () => join(dataDir(), 'restore-journal.json')
 
 /** Create a migrated, sealed (cleanly closed ⇒ no -wal) DB with a marker row. */
 function makeDb(dbPath: string, which: 'old' | 'new'): void {
@@ -296,6 +297,37 @@ describe('runRestorePromotion', () => {
     expect(existsSync(stagingDir())).toBe(false)
   })
 
+  it('overwrites a Data child without replacing the Data root that owns the live database', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    const stagedAgents = join(stagingDir(), 'resources', 'Data', 'Agents')
+    const liveAgents = join(dataDir(), 'Agents')
+    mkdirSync(stagedAgents, { recursive: true })
+    writeFileSync(join(stagedAgents, 'new-agent.json'), 'NEW')
+    mkdirSync(liveAgents, { recursive: true })
+    writeFileSync(join(liveAgents, 'old-agent.json'), 'OLD')
+    writeRestoreJournal(
+      await buildJournal({
+        fileResources: [
+          {
+            kind: 'overwrite',
+            stagingPath: `restore-staging/${RID}/resources/Data/Agents`,
+            livePath: 'Data/Agents',
+            asidePath: `restore-staging/${RID}/aside/Data/Agents`
+          }
+        ]
+      })
+    )
+
+    await runRestorePromotion()
+
+    expect(readMarker(livePath())).toBe('new')
+    expect(readMarker(asidePath())).toBe('old')
+    expect(readFileSync(join(liveAgents, 'new-agent.json'), 'utf8')).toBe('NEW')
+    expect(existsSync(join(liveAgents, 'old-agent.json'))).toBe(false)
+    expect(journalState()).toBe('completed')
+  })
+
   it('expires when the live fingerprint drifted (write-gate leak simulation)', async () => {
     makeDb(livePath(), 'old')
     makeDb(workPath(), 'new')
@@ -334,8 +366,14 @@ describe('runRestorePromotion', () => {
     // (fewer applied migrations); here work carries the full chain and only
     // the journal's CLAIMED chain is truncated. The gate compares only the
     // claimed chain against the bundled one, so the pinned contract is the same.
-    const prefix = chainOf(workPath()).slice(0, -1)
-    expect(prefix.length).toBeGreaterThan(0)
+    const chain = chainOf(workPath())
+    // A freshly reinitialized migration history has only its initial entry,
+    // so a non-empty strict prefix cannot exist until the next migration lands.
+    if (chain.length < 2) {
+      expect(chain).toHaveLength(1)
+      return
+    }
+    const prefix = chain.slice(0, -1)
     writeRestoreJournal(await buildJournal({ chain: prefix }))
 
     await runRestorePromotion()
@@ -591,7 +629,7 @@ describe('runRestorePromotion', () => {
     await runRestorePromotion()
 
     expect(existsSync(journalPath())).toBe(false)
-    const quarantined = readdirSync(userData).filter((name) => name.startsWith('restore-journal.json.corrupt-'))
+    const quarantined = readdirSync(dataDir()).filter((name) => name.startsWith('restore-journal.json.corrupt-'))
     expect(quarantined).toHaveLength(1)
     expect(existsSync(join(userData, 'restore-staging'))).toBe(false)
     expect(readMarker(livePath())).toBe('old')
@@ -721,7 +759,7 @@ describe('runRestorePromotion', () => {
         // while live is absent (the live-aside rename). One-shot so the
         // continuation's later journal fsyncs of the same dir go through.
         fsyncDirFailure.shouldFail = (dir) => {
-          if (dir === userData && existsSync(livePath()) && !existsSync(workPath())) {
+          if (dir === dataDir() && existsSync(livePath()) && !existsSync(workPath())) {
             fsyncDirFailure.shouldFail = null
             return true
           }
@@ -943,6 +981,7 @@ describe('runRestorePromotion', () => {
     })
 
     it('is false on a corrupt journal (no aside path to check)', () => {
+      mkdirSync(dataDir(), { recursive: true })
       writeFileSync(journalPath(), '{ definitely not a journal')
 
       expect(isLiveDbStranded()).toBe(false)

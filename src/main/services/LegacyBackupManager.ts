@@ -61,6 +61,8 @@ interface DirectBackupMetadata {
 
 interface CopyDirOptions {
   dereferenceSymlinks: boolean
+  excludeRelativePath?: (relativePath: string) => boolean
+  sourceRootPath?: string
   sourceRootRealPath?: string
 }
 
@@ -197,12 +199,13 @@ class BackupManager {
           const tempDataDir = path.join(workDir, 'Data')
 
           if (await fs.pathExists(sourcePath)) {
-            const totalSize = await this.getDirSize(sourcePath, { dereferenceSymlinks: true })
+            const copyOptions = this.createDataCopyOptions(sourcePath, true)
+            const totalSize = await this.getDirSize(sourcePath, copyOptions)
             await this.copyDirWithProgress(
               sourcePath,
               tempDataDir,
               this.createCopyProgressHandler(totalSize, 52, 80, 'copying_files', onProgress),
-              { dereferenceSymlinks: true }
+              copyOptions
             )
           } else {
             await fs.ensureDir(tempDataDir)
@@ -606,8 +609,12 @@ class BackupManager {
       const stagedCache = path.join(restoreDir, 'resources', 'cache.json')
       const stagedIndexedDB = path.join(restoreDir, 'resources', 'IndexedDB')
       const stagedLocalStorage = path.join(restoreDir, 'resources', 'Local Storage')
-      const stagedClaude = path.join(restoreDir, 'resources', '.claude')
       const stagedData = path.join(restoreDir, 'resources', 'Data')
+      const appClaudeDataPath = this.toDataRelative(application.getPath('feature.agents.claude.root'))
+      const bundleClaudeWithData = metadata.resources.data && appClaudeDataPath !== null
+      const stagedClaude = bundleClaudeWithData
+        ? path.join(stagedData, appClaudeDataPath)
+        : path.join(restoreDir, 'resources', '.claude')
 
       await this.assertArchiveFile(path.join(extractionDir, 'cherrystudio.sqlite'), 'SQLite database')
       await this.assertArchiveFile(path.join(extractionDir, 'cache.json'), 'cache.json')
@@ -616,23 +623,25 @@ class BackupManager {
 
       await this.stageArchiveDirectory(path.join(extractionDir, 'IndexedDB'), stagedIndexedDB)
       await this.stageArchiveDirectory(path.join(extractionDir, 'Local Storage'), stagedLocalStorage)
-      await this.copyClaudeState(path.join(extractionDir, '.claude'), stagedClaude)
 
       if (metadata.resources.data) {
         const dataSource = path.join(extractionDir, 'Data')
         await this.assertArchiveDirectory(dataSource, 'Data')
+        const copyOptions = this.createDataCopyOptions(dataSource, false)
         await this.stageArchiveDirectory(
           dataSource,
           stagedData,
           this.createCopyProgressHandler(
-            await this.getDirSize(dataSource, { dereferenceSymlinks: false }),
+            await this.getDirSize(dataSource, copyOptions),
             65,
             95,
             'restoring_data',
             onProgress
-          )
+          ),
+          copyOptions
         )
       }
+      await this.copyClaudeState(path.join(extractionDir, '.claude'), stagedClaude)
 
       const chain = this.validateStagedDatabase(workDatabase)
       onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
@@ -656,20 +665,17 @@ class BackupManager {
           stagingPath: stagedLocalStorage,
           livePath: path.join(userDataPath, 'Local Storage'),
           directory: true
-        }),
-        await this.createJournalResource({
-          restoreDir,
-          stagingPath: stagedClaude,
-          livePath: application.getPath('feature.agents.claude.root'),
-          directory: true
         })
       )
       if (metadata.resources.data) {
+        fileResources.push(...(await this.createDataJournalResources(restoreDir, stagedData)))
+      }
+      if (!bundleClaudeWithData) {
         fileResources.push(
           await this.createJournalResource({
             restoreDir,
-            stagingPath: stagedData,
-            livePath: application.getPath('app.userdata.data'),
+            stagingPath: stagedClaude,
+            livePath: application.getPath('feature.agents.claude.root'),
             directory: true
           })
         )
@@ -777,10 +783,11 @@ class BackupManager {
   private async stageArchiveDirectory(
     source: string,
     destination: string,
-    onProgress: (size: number) => void = () => {}
+    onProgress: (size: number) => void = () => {},
+    options: CopyDirOptions = { dereferenceSymlinks: false }
   ): Promise<void> {
     await this.assertArchiveDirectory(source, path.basename(source))
-    await this.copyDirWithProgress(source, destination, onProgress, { dereferenceSymlinks: false })
+    await this.copyDirWithProgress(source, destination, onProgress, options)
   }
 
   private validateStagedDatabase(databasePath: string): RestoreJournal['db']['chain'] {
@@ -827,8 +834,53 @@ class BackupManager {
       kind: 'overwrite',
       stagingPath,
       livePath,
-      asidePath: this.toUserDataRelative(path.join(input.restoreDir, 'aside', path.basename(input.livePath)))
+      asidePath: this.toUserDataRelative(path.join(input.restoreDir, 'aside', livePath))
     }
+  }
+
+  private async createDataJournalResources(
+    restoreDir: string,
+    stagedDataPath: string
+  ): Promise<RestoreJournal['fileResources']> {
+    const liveDataPath = application.getPath('app.userdata.data')
+    const stagedNames = new Set(await fs.readdir(stagedDataPath))
+
+    if (await fs.pathExists(liveDataPath)) {
+      for (const name of await fs.readdir(liveDataPath)) {
+        if (stagedNames.has(name) || this.isReservedDataRelativePath(name)) {
+          continue
+        }
+
+        const livePath = path.join(liveDataPath, name)
+        const stats = await fs.lstat(livePath)
+        if (!stats.isSymbolicLink() && stats.isDirectory()) {
+          await fs.ensureDir(path.join(stagedDataPath, name))
+          stagedNames.add(name)
+        }
+      }
+    }
+
+    const resources: RestoreJournal['fileResources'] = []
+    for (const name of [...stagedNames].sort()) {
+      if (this.isReservedDataRelativePath(name)) {
+        continue
+      }
+
+      const stagingPath = path.join(stagedDataPath, name)
+      const stats = await fs.lstat(stagingPath)
+      if (stats.isSymbolicLink() || (!stats.isDirectory() && !stats.isFile())) {
+        throw new Error(`Backup Data entry is not a regular file or directory: ${name}`)
+      }
+      resources.push(
+        await this.createJournalResource({
+          restoreDir,
+          stagingPath,
+          livePath: path.join(liveDataPath, name),
+          directory: stats.isDirectory()
+        })
+      )
+    }
+    return resources
   }
 
   private toUserDataRelative(absolutePath: string): string {
@@ -843,6 +895,55 @@ class BackupManager {
       throw new Error(`Restore path is outside userData: ${absolutePath}`)
     }
     return relativePath
+  }
+
+  private toDataRelative(absolutePath: string): string | null {
+    const dataPath = application.getPath('app.userdata.data')
+    const relativePath = path.relative(dataPath, absolutePath)
+    if (
+      !relativePath ||
+      relativePath === '..' ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativePath)
+    ) {
+      return null
+    }
+    return relativePath
+  }
+
+  private createDataCopyOptions(sourceRootPath: string, dereferenceSymlinks: boolean): CopyDirOptions {
+    return {
+      dereferenceSymlinks,
+      excludeRelativePath: (relativePath) => this.isReservedDataRelativePath(relativePath),
+      sourceRootPath
+    }
+  }
+
+  private isReservedDataRelativePath(relativePath: string): boolean {
+    const databasePath = this.toDataRelative(application.getPath('app.database.file'))
+    const restoreJournalPath = this.toDataRelative(application.getPath('feature.backup.restore.file'))
+    const appClaudePath = this.toDataRelative(application.getPath('feature.agents.claude.root'))
+    const normalizedPath = path.normalize(relativePath)
+
+    if (
+      databasePath &&
+      (normalizedPath === databasePath ||
+        normalizedPath === `${databasePath}-wal` ||
+        normalizedPath === `${databasePath}-shm`)
+    ) {
+      return true
+    }
+    if (
+      restoreJournalPath &&
+      (normalizedPath === restoreJournalPath ||
+        normalizedPath === `${restoreJournalPath}.tmp` ||
+        normalizedPath.startsWith(`${restoreJournalPath}.corrupt-`))
+    ) {
+      return true
+    }
+    return Boolean(
+      appClaudePath && (normalizedPath === appClaudePath || normalizedPath.startsWith(`${appClaudePath}${path.sep}`))
+    )
   }
 
   private fsyncTree(entryPath: string): void {
@@ -1100,6 +1201,7 @@ class BackupManager {
   ): Promise<number> {
     const copyOptions = {
       ...options,
+      sourceRootPath: options.sourceRootPath ?? dirPath,
       sourceRootRealPath: options.sourceRootRealPath ?? (await fs.realpath(dirPath))
     }
     const directoryRealPath = await this.enterDirectory(dirPath, activeDirectoryRealPaths)
@@ -1115,6 +1217,10 @@ class BackupManager {
 
       for (const item of items) {
         const fullPath = path.join(dirPath, item.name)
+        const relativePath = path.relative(copyOptions.sourceRootPath, fullPath)
+        if (copyOptions.excludeRelativePath?.(relativePath)) {
+          continue
+        }
         const entry = await this.getEffectiveEntryStats(fullPath, copyOptions)
 
         if (!entry) {
@@ -1231,6 +1337,7 @@ class BackupManager {
   ): Promise<void> {
     const copyOptions = {
       ...options,
+      sourceRootPath: options.sourceRootPath ?? source,
       sourceRootRealPath: options.sourceRootRealPath ?? (await fs.realpath(source))
     }
     const activeDirectoryRealPaths = new Set<string>()
@@ -1250,6 +1357,10 @@ class BackupManager {
         for (const item of items) {
           const sourcePath = path.join(src, item.name)
           const destPath = path.join(dest, item.name)
+          const relativePath = path.relative(copyOptions.sourceRootPath, sourcePath)
+          if (copyOptions.excludeRelativePath?.(relativePath)) {
+            continue
+          }
           const entry = await this.getEffectiveEntryStats(sourcePath, copyOptions)
 
           if (!entry) {

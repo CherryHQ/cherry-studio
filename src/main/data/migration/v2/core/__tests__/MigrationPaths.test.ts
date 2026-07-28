@@ -359,6 +359,16 @@ beforeEach(() => {
 })
 
 describe('resolveMigrationPaths — legacy custom userData recovery', () => {
+  it('places v2-managed data under Data while retaining explicit v1 source paths', () => {
+    applyFs({ dirs: [DEFAULT_USER_DATA] })
+
+    const result = resolveMigrationPaths()
+
+    expect(result.paths.databaseFile).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'cherrystudio.sqlite'))
+    expect(result.paths.legacyClaudeConfigDir).toBe(path.join(DEFAULT_USER_DATA, '.claude'))
+    expect(result.paths.claudeConfigDir).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'Agents', '.claude'))
+  })
+
   it('redirects to the matching entry when the current exe matches exactly (regression guard)', () => {
     h.normalizedExe.mockReturnValue('D:\\Cherry Studio\\Cherry Studio.exe')
     applyFs({
@@ -513,7 +523,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     h.normalizedExe.mockReturnValue('/new/exe')
     applyFs({
       dirs: [DEFAULT_USER_DATA, '/stale/custom'],
-      sqlite: { [`${DEFAULT_USER_DATA}/cherrystudio.sqlite`]: 4096 },
+      sqlite: { [path.join(DEFAULT_USER_DATA, 'Data', 'cherrystudio.sqlite')]: 4096 },
       contents: {
         [CONFIG_FILE]: JSON.stringify({
           appDataPath: [{ executablePath: '/old/exe', dataPath: '/stale/custom' }]
@@ -532,7 +542,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     h.normalizedExe.mockReturnValue('/new/exe')
     applyFs({
       dirs: [DEFAULT_USER_DATA, '/custom/real'],
-      sqlite: { [`${DEFAULT_USER_DATA}/cherrystudio.sqlite`]: 0 }, // 0 bytes → invalid
+      sqlite: { [path.join(DEFAULT_USER_DATA, 'Data', 'cherrystudio.sqlite')]: 0 }, // 0 bytes → invalid
       contents: {
         [CONFIG_FILE]: JSON.stringify({
           appDataPath: [{ executablePath: '/old/exe', dataPath: '/custom/real' }]

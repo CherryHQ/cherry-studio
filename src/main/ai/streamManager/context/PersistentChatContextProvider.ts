@@ -389,6 +389,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         models: [
           {
             modelId: model.id,
+            runtimeTimingSeed: anchor.stats?.runtimeTiming,
             request: this.buildStreamRequest(
               req.topicId,
               assistantId,

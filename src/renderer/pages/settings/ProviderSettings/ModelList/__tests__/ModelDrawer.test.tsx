@@ -9,6 +9,8 @@ const useProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const createModelMock = vi.fn()
 const updateModelMock = vi.fn()
+const toastSuccessMock = vi.fn()
+const toastErrorMock = vi.fn()
 
 const { ipcRequest } = vi.hoisted(() => ({ ipcRequest: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest }, useIpcOn: vi.fn() }))
@@ -62,6 +64,13 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     WarnTooltip: () => <span>warn</span>
   }
 })
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    success: (...args: any[]) => toastSuccessMock(...args),
+    error: (...args: any[]) => toastErrorMock(...args)
+  }
+}))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)

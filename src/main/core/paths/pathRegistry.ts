@@ -54,9 +54,6 @@ export function buildPathRegistry() {
     'sys.downloads': app.getPath('downloads'),
     'sys.documents': app.getPath('documents'),
     'sys.desktop': app.getPath('desktop'),
-    'sys.music': app.getPath('music'),
-    'sys.pictures': app.getPath('pictures'),
-    'sys.videos': app.getPath('videos'),
     'sys.appdata': app.getPath('appData'), // OS root; use app.userdata for Cherry-owned
     'sys.appdata.autostart': path.join(app.getPath('appData'), 'autostart'), // Linux only
 
@@ -76,7 +73,7 @@ export function buildPathRegistry() {
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
     'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
     'app.userdata.data': appUserDataData,
-    'app.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
+    'app.database.file': path.join(appUserDataData, 'cherrystudio.sqlite'),
     // Dev: relative to __dirname; packaged: shipped via extraResources
     'app.database.migrations': app.isPackaged
       ? path.join(appExtraResources, 'migrations/sqlite-drizzle')
@@ -127,8 +124,8 @@ export function buildPathRegistry() {
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
-    'feature.agents.claude.root': path.join(appUserData, '.claude'), // Claude Code config (relocated from ~/.claude for Windows compat)
-    'feature.agents.claude.skills': path.join(appUserData, '.claude', 'skills'), // symlinks → feature.agents.skills
+    'feature.agents.claude.root': path.join(appUserDataData, 'Agents', '.claude'), // v1 userData/.claude is copied here during v2 migration
+    'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
@@ -154,7 +151,7 @@ export function buildPathRegistry() {
     // 'app.database.file' — every journal write fsyncs their shared parent,
     // which is what makes a commit-step marker imply the DB rename is
     // durable (see restoreJournal.ts). Never relocate the two independently.
-    'feature.backup.restore.file': path.join(appUserData, 'restore-journal.json'),
+    'feature.backup.restore.file': path.join(appUserDataData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
 
     // Stored in the profile it authorizes for reset.
