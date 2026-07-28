@@ -334,11 +334,6 @@
   --color-error-border: var(--error-border);
 
   /* ==================== */
-  /* Compatibility: Existing Semantic Colors */
-  /* ==================== */
-  --color-destructive-hover: var(--cs-destructive-hover);
-
-  /* ==================== */
   /* Compatibility: Existing Status Colors */
   /* ==================== */
   --color-error-base: var(--cs-error-base);

@@ -14,7 +14,6 @@
   /* Brand Colors */
   --cs-primary: var(--cs-brand-500);
   --cs-destructive: var(--cs-red-500);
-  --cs-destructive-hover: var(--cs-red-400);
   --cs-success: var(--cs-green-500);
   --cs-warning: var(--cs-amber-500);
   --cs-info: var(--cs-blue-500);

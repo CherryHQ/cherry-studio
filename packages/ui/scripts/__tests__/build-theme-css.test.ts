@@ -24,7 +24,7 @@ describe('buildThemeContractCss', () => {
   })
 
   it('keeps compatibility color allowlists shrink-only', () => {
-    const frozenSemanticColors: readonly string[] = ['destructive-hover']
+    const frozenSemanticColors: readonly string[] = []
     const frozenStatusColors: readonly string[] = [
       'error-base',
       'error-text',
@@ -89,6 +89,8 @@ describe('buildThemeContractCss', () => {
     expect(css).not.toContain('--color-primary: var(--cs-theme-primary);')
     expect(css).not.toContain('--color-ring: var(--cs-ring);')
     expect(css).toContain('--color-destructive: var(--destructive);')
+    expect(css).not.toContain('--color-destructive-hover:')
+    expect(css).not.toContain('/* Compatibility: Existing Semantic Colors */')
     expect(css).not.toContain('--color-primary-hover:')
     expect(css).toContain('--color-error-base: var(--cs-error-base);')
     expect(css).toContain('--radius-sm: calc(var(--radius) * 0.6);')

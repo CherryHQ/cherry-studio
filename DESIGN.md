@@ -106,7 +106,7 @@ and do not weaken foreground semantics with Tailwind color-opacity modifiers.
 
 ### Semantic Status — Single-token aliases
 - **Destructive**: `var(--destructive)` — dangerous user actions; use the `--error*` family for error feedback
-- **Destructive Hover**: use the shared component variant's `hover:bg-destructive-hover` state; do not consume its compatibility adapter variable in authored CSS
+- **Destructive Hover**: use the shared component variant's `hover:bg-destructive/90` state
 - **Destructive Foreground**: `var(--destructive-foreground)`
 - **Success**: `var(--success)` — positive states, confirmations
 - **Warning**: `var(--warning)` — caution states, pending actions
@@ -267,7 +267,7 @@ Source: `Button` from `@cherrystudio/ui` (`packages/ui/src/components/primitives
 - Background: `var(--destructive)`
 - Text: white
 - Shadow: `shadow-xs`
-- Hover: shared `hover:bg-destructive-hover` state
+- Hover: shared `hover:bg-destructive/90` state
 - Use: Dangerous actions ("Delete", "Remove", "Reset")
 
 **Link**
@@ -338,7 +338,7 @@ Button hover behavior is variant-specific:
 | Emphasis | neutral hover fill | — | none | — |
 | Ghost | `var(--accent)` | — | none | `var(--accent-foreground)` |
 | Chip | component-owned neutral tint | pressed ring | none | `var(--foreground)` when pressed |
-| Destructive | shared `hover:bg-destructive-hover` state | — | keeps `shadow-xs` | — |
+| Destructive | shared `hover:bg-destructive/90` state | — | keeps `shadow-xs` | — |
 | Link | — | — | none | muted text + underline |
 
 **Hover rules:**

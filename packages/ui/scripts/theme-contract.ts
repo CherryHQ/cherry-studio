@@ -134,7 +134,7 @@ export const CHERRY_PRODUCT_COLOR_TOKENS = [
  * These lists are shrink-only: adding a foundation token must not expose a
  * new utility unless an existing compatibility consumer requires it.
  */
-export const COMPATIBILITY_SEMANTIC_COLOR_TOKENS = ['destructive-hover'] as const
+export const COMPATIBILITY_SEMANTIC_COLOR_TOKENS = [] as const
 
 export const COMPATIBILITY_STATUS_COLOR_TOKENS = [
   'error-base',
