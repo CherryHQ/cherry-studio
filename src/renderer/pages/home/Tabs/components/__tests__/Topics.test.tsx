@@ -2802,7 +2802,9 @@ describe('Topics', () => {
     expect(screen.queryByText('Default topic')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).toHaveTextContent('🧪')
     expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).toHaveTextContent('✍️')
-    expect(screen.getByRole('button', { name: 'Default Assistant' }).closest('div')).toHaveTextContent('😀')
+    const defaultAssistantHeader = screen.getByRole('button', { name: 'Default Assistant' }).closest('div')
+    expect(defaultAssistantHeader).toHaveTextContent('😀')
+    expect(defaultAssistantHeader?.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
 

@@ -1074,6 +1074,11 @@ export function Topics({
       isAssistantDisplayMode
     ]
   )
+  const getGroupHeaderTooltip = useCallback(
+    (group: { id: string }) =>
+      group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ? t('chat.topics.group.unknown_assistant_tip') : undefined,
+    [t]
+  )
   const isGroupHeaderIconVisible = useCallback(
     (group: { id: string; label: string }) => {
       if (!isAssistantDisplayMode || assistantIconType === 'none' || group.id === TOPIC_PINNED_GROUP_ID) return false
@@ -1280,6 +1285,7 @@ export function Topics({
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}
+        getGroupHeaderTooltip={getGroupHeaderTooltip}
         isGroupHeaderIconVisible={isGroupHeaderIconVisible}
         groupHeaderClickBehavior={getGroupHeaderClickBehavior}
         dragCapabilities={{

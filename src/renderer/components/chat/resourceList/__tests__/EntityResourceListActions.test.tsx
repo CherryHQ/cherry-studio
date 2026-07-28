@@ -164,7 +164,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
           const renderedActions = flattenActions(actions)
 
           return (
-            <section key={item.id} aria-label={item.name}>
+            <section key={item.id} aria-label={item.name} title={item.tooltip}>
               {item.icon}
               <div data-testid={`${item.id}-context-menu`}>
                 {renderedActions.map((action) => (
@@ -502,6 +502,7 @@ describe('classic layout entity resource list actions', () => {
     const assistantRegion = screen.getByRole('region', { name: 'Assistant 1' })
 
     expect(defaultAssistantRegion).toBeInTheDocument()
+    expect(defaultAssistantRegion).toHaveAttribute('title', 'chat.topics.group.unknown_assistant_tip')
     expect(assistantRegion).toBeInTheDocument()
     expect(
       assistantRegion.compareDocumentPosition(defaultAssistantRegion) & Node.DOCUMENT_POSITION_FOLLOWING

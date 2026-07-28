@@ -1,4 +1,4 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
@@ -25,6 +25,7 @@ export type ResourceEntityRailItem = {
   id: string
   name: string
   icon?: ReactNode
+  tooltip?: string
   orderKey?: string
   reorderable?: boolean
   /**
@@ -227,7 +228,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           )}
           <ResourceList.ItemTitle
             className={cn(ENTITY_RAIL_TITLE_CLASS, 'transition-[padding]', trailingActionPaddingClassName)}
-            title={item.name}>
+            title={item.tooltip ? undefined : item.name}>
             {item.name}
           </ResourceList.ItemTitle>
           {(hasTrailingAction || hasVisibleMenuActions) && (
@@ -252,7 +253,14 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           )}
         </ResourceList.Item>
       )
-      if (!actions.length || !onContextMenuAction) return row
+      const rowWithTooltip = item.tooltip ? (
+        <NormalTooltip content={item.tooltip} side="right" sideOffset={4} delayDuration={500}>
+          {row}
+        </NormalTooltip>
+      ) : (
+        row
+      )
+      if (!actions.length || !onContextMenuAction) return rowWithTooltip
 
       return (
         <ResourceListActionContextMenu
@@ -260,7 +268,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           item={item}
           actions={actions}
           onAction={(action) => onContextMenuAction(item, action)}>
-          {row}
+          {rowWithTooltip}
         </ResourceListActionContextMenu>
       )
     },

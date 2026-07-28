@@ -1,3 +1,4 @@
+import { NormalTooltip } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
@@ -170,7 +171,6 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       onContextMenu={handleContextMenu}
       {...props}>
       <div
-        title={groupHeaderTooltip}
         className={cn(
           'flex w-full items-center gap-1.5 transition-colors duration-150',
           hasLeadingSlot ? 'px-1.5' : 'px-2.5',
@@ -237,11 +237,19 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     </div>
   )
 
-  if (!headerContextMenuItems) return header
+  const headerWithTooltip = groupHeaderTooltip ? (
+    <NormalTooltip content={groupHeaderTooltip} side="right" sideOffset={4} delayDuration={500}>
+      {header}
+    </NormalTooltip>
+  ) : (
+    header
+  )
+
+  if (!headerContextMenuItems) return headerWithTooltip
 
   return (
     <CommandContextMenu location="webcontents.context" getExtraItems={resolveHeaderContextMenuItems}>
-      {header}
+      {headerWithTooltip}
     </CommandContextMenu>
   )
 }

@@ -234,7 +234,7 @@ vi.mock('react-i18next', () => {
       const labels: Record<string, string> = {
         'agent.session.display.workdir': 'Work directory',
         'agent.session.group.no_workdir': 'No work directory',
-        'agent.session.group.unknown_agent': 'Unknown agent',
+        'agent.session.group.unknown_agent': 'Cherry Agent',
         'agent.session.delete.content': 'Delete this task?',
         'agent.session.delete.title': 'Delete task',
         'agent.session.edit.title': 'Edit task name',
@@ -630,7 +630,7 @@ describe('HistoryRecordsView agent mode', () => {
       ]
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /Unknown agent/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Cherry Agent/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Missing agent session')).toBeInTheDocument()

@@ -1583,7 +1583,9 @@ const Sessions = ({
       }
 
       if (displayMode !== 'agent') return undefined
-      if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return null
+      if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) {
+        return renderAgentEntityIcon(assistantIconType, undefined, defaultModelId)
+      }
 
       const agentId = getAgentIdFromSessionGroupId(group.id)
       const agent = agentId ? agentById.get(agentId) : undefined
@@ -1599,7 +1601,7 @@ const Sessions = ({
         return group.id !== SESSION_NO_WORKDIR_GROUP_ID && group.id !== SESSION_NO_PROJECT_GROUP_ID
       }
 
-      return displayMode === 'agent' && group.id !== SESSION_UNKNOWN_AGENT_GROUP_ID && assistantIconType !== 'none'
+      return displayMode === 'agent' && assistantIconType !== 'none'
     },
     [assistantIconType, displayMode]
   )
@@ -1619,6 +1621,7 @@ const Sessions = ({
   const getGroupHeaderTooltip = useCallback(
     (group: ResourceListGroup) => {
       if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return undefined
+      if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return t('agent.session.group.unknown_agent_tip')
 
       const agentId = getAgentIdFromSessionGroupId(group.id)
       if (!agentId || !agentById.has(agentId)) return undefined

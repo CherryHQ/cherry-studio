@@ -149,6 +149,7 @@ export function AssistantResourceList({
           {
             id: DEFAULT_ASSISTANT_ENTITY_ID,
             name: t('chat.default.name'),
+            tooltip: t('chat.topics.group.unknown_assistant_tip'),
             icon: renderAssistantEntityIcon(
               assistantIconType,
               {
