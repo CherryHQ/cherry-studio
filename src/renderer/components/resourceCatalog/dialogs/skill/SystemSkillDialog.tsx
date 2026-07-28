@@ -58,7 +58,7 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
         <div className="shrink-0 border-border-subtle border-b px-6 pt-5 pb-4">
           <DialogHeader className="min-w-0 text-left">
             <DialogTitle>{t('library.system_skill.title')}</DialogTitle>
-            <p className="mt-1 text-foreground-tertiary text-xs">{t('library.system_skill.description')}</p>
+            <p className="mt-1 text-muted-foreground text-xs">{t('library.system_skill.description')}</p>
           </DialogHeader>
           <ResourceCatalogSearchInput
             value={query}
@@ -150,7 +150,7 @@ function SystemSkillRow({
           <span className="shrink-0 text-foreground-tertiary text-xs">{placementNames}</span>
         </div>
         {skill.description ? (
-          <p className="mt-0.5 truncate text-foreground-tertiary text-xs">{skill.description}</p>
+          <p className="mt-0.5 truncate text-muted-foreground text-xs">{skill.description}</p>
         ) : null}
         <p className="mt-1 truncate font-mono text-[11px] text-foreground-tertiary">{skill.directoryPath}</p>
       </div>

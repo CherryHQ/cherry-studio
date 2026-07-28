@@ -102,10 +102,10 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
         {headings.map((heading, index) => (
           <div
             key={index}
-            className="flex h-6 shrink-0 cursor-pointer items-center gap-2 [&:hover_.outline-dot]:bg-foreground-tertiary [&:hover_.outline-text]:text-muted-foreground"
+            className="flex h-6 shrink-0 cursor-pointer items-center gap-2 [&:hover_.outline-dot]:bg-secondary [&:hover_.outline-text]:text-muted-foreground"
             onClick={() => scrollToHeading(heading.id)}>
             <div
-              className="mr-1 h-1 shrink-0 rounded-[2px] bg-border outline-dot transition-colors duration-200 ease-out"
+              className="mr-1 h-1 shrink-0 rounded-[2px] bg-muted outline-dot transition-colors duration-200 ease-out"
               style={{
                 width: `${16 - heading.level * 2}px`
               }}

@@ -111,7 +111,7 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      <p className="text-foreground-tertiary text-xs leading-4">
+      <p className="text-muted-foreground text-xs leading-4">
         {t('knowledge.data_source.add_dialog.note.description')}
       </p>
       {renderBody()}

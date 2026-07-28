@@ -47,7 +47,7 @@ export const actionClasses = {
   icon: 'size-3 shrink-0',
   btnBase: 'h-auto min-h-0 gap-2 rounded-lg px-3 py-1.5 text-[13px] leading-tight shadow-none',
   /** Neutral outline (design: action row — no brand fill on check / API-key-list actions). */
-  btnNeutral: 'border-border-subtle bg-transparent text-foreground/70 hover:bg-accent hover:text-foreground'
+  btnNeutral: 'border-border-subtle bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
 } as const
 
 const providerListItemFrame =
@@ -113,7 +113,7 @@ export const providerListClasses = {
   itemEnabledDot:
     'pointer-events-none absolute top-1/2 right-1.5 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
-    'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-border-subtle bg-transparent px-2 py-[6px] text-xs leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-border hover:bg-accent/40 hover:text-foreground',
+    'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-border-subtle bg-transparent px-2 py-[6px] text-xs leading-[1.35] text-muted-foreground shadow-none transition-colors hover:border-border hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:
     'flex w-full items-center gap-1.5 rounded-md bg-transparent px-1 py-1 text-left text-xs leading-none text-muted-foreground/80 shadow-none outline-none transition-colors hover:text-foreground focus-visible:ring-0',
   disclosureChevron: 'size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150',
@@ -128,7 +128,7 @@ export const customHeaderDrawerClasses = {
   bodyScroll: 'flex flex-col gap-4',
   /** JSON mode — matches structured monospace block for custom headers. */
   headersJsonEditor:
-    'min-h-[120px] w-full resize-y rounded-xl border border-border-subtle bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35 placeholder:text-muted-foreground/45',
+    'min-h-[120px] w-full resize-y rounded-xl border border-border-subtle bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35 placeholder:text-muted-foreground',
   /** Header rows stack; each row is `[name] [value] [delete]` on a single line. */
   headerList: 'flex flex-col gap-2',
   headerRow: 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] items-center gap-2',
@@ -143,7 +143,7 @@ export const drawerClasses = {
   form: 'flex min-h-0 flex-col gap-4 py-0',
   section: 'space-y-3',
   sectionCard: 'space-y-3.5 rounded-lg border border-border bg-background px-3 py-3 text-foreground shadow-none',
-  sectionDescription: 'text-xs leading-tight text-foreground-tertiary',
+  sectionDescription: 'text-xs leading-tight text-muted-foreground',
   fieldList: 'space-y-3.5',
   field: 'space-y-1.5',
   fieldTitle: 'text-sm leading-5 text-muted-foreground',
@@ -153,10 +153,10 @@ export const drawerClasses = {
   selectTrigger:
     'h-auto w-full rounded-md border-input bg-background px-3 py-2 text-sm leading-5 text-foreground shadow-none data-[placeholder]:text-muted-foreground aria-expanded:border-ring aria-expanded:ring-[2px] aria-expanded:ring-ring/35',
   selectContent: 'rounded-lg border-[0.5px] border-border bg-popover text-popover-foreground shadow-lg',
-  helpText: 'text-xs leading-tight text-foreground-tertiary',
+  helpText: 'text-xs leading-tight text-muted-foreground',
   errorText: 'text-xs leading-tight text-destructive',
   emptyInline:
-    'rounded-md border border-dashed border-border-subtle px-3 py-2 text-[13px] leading-tight text-muted-foreground/70',
+    'rounded-md border border-dashed border-border-subtle px-3 py-2 text-[13px] leading-tight text-muted-foreground',
   toggleButton:
     'h-auto justify-start gap-1.5 px-0 py-0 text-sm leading-5 text-foreground-tertiary shadow-none hover:bg-transparent hover:text-foreground',
   inlineRow: 'flex flex-wrap items-center gap-2',
@@ -171,7 +171,7 @@ export const drawerClasses = {
   footerTextButton:
     'h-auto min-h-0 rounded-md px-0 py-0 text-xs leading-tight text-foreground-tertiary shadow-none hover:bg-transparent hover:text-foreground-tertiary',
   healthCostWarning:
-    'shrink-0 rounded-lg border-warning bg-warning-subtle px-3 py-2.5 text-xs leading-tight text-warning shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-medium',
+    'shrink-0 rounded-lg border-warning-border bg-warning-subtle px-3 py-2.5 text-xs leading-tight text-warning-subtle-foreground shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-medium',
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
   healthProgressTrack:
     'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--muted-foreground)_12%,transparent)]',
@@ -192,8 +192,7 @@ export const modelListClasses = {
   titleWrap: 'flex w-full min-w-0 items-center gap-3',
   titleActions: 'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2',
   toolbarDesignIcon: 'size-4 shrink-0',
-  subsectionIconButton:
-    'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+  subsectionIconButton: 'size-8 rounded-lg text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   subsectionIcon: 'size-4',
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
   toolbarButtonGroup: 'max-w-full shrink-0',
@@ -202,10 +201,9 @@ export const modelListClasses = {
   sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-semibold'),
   titleHelpRow: 'ml-1 flex min-w-0 flex-wrap items-center gap-x-1.5 self-center text-foreground-tertiary',
   titleHelpText: 'shrink-0 opacity-60',
-  titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center leading-[1.3] !text-foreground-tertiary transition-colors hover:!text-link hover:no-underline',
+  titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-[1.3] !text-link transition-colors hover:underline',
   titleHelpIconLink:
-    'inline-flex h-[1.3em] w-[1.3em] shrink-0 items-center justify-center rounded-md align-middle text-foreground-tertiary transition-colors hover:text-link',
+    'inline-flex h-[1.3em] w-[1.3em] shrink-0 items-center justify-center rounded-md align-middle text-link transition-colors hover:underline',
   titleHelpIcon: 'relative -top-px size-3.5 shrink-0',
   titleHelpSeparator: 'inline-flex shrink-0 items-center leading-[1.3] text-foreground-tertiary',
   countMeta: 'text-xs leading-tight text-foreground-tertiary tabular-nums',
@@ -242,7 +240,7 @@ export const modelListClasses = {
   addModelIconButton:
     'size-8 min-h-0 rounded-md border-border-subtle bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
-    'size-8 rounded-lg border-border-subtle bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+    'size-8 rounded-lg border-border-subtle bg-transparent text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-tertiary',
   listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pt-1',
@@ -305,7 +303,7 @@ export const modelListClasses = {
   /** Model name opens the edit drawer; the settings icon is the explicit secondary action. */
   rowNameCopyable: 'cursor-pointer',
   modelIdBadge:
-    'min-w-0 max-w-[50%] shrink truncate rounded-md bg-foreground/[0.05] px-1.5 py-[1px] font-mono text-xs text-foreground-tertiary leading-tight',
+    'min-w-0 max-w-[50%] shrink truncate rounded-md bg-background-subtle px-1.5 py-[1px] font-mono text-xs text-foreground-tertiary leading-tight',
   rowBadges: 'mt-1 flex min-h-[18px] min-w-0 max-w-full flex-wrap items-center gap-1.5',
   /** Capability / trial tags to the left of the enable switch; design: single line with the toggle. */
   rowCapabilityStrip:
@@ -321,7 +319,7 @@ export const modelListClasses = {
     'inline-flex size-[30px] shrink-0 items-center justify-center rounded-lg p-0 !text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:!text-foreground',
   rowDangerActionButton: 'hover:!text-foreground',
   rowIconButton:
-    'size-7 rounded-lg border border-border-subtle bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground'
+    'size-7 rounded-lg border border-border-subtle bg-transparent text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground'
 } as const
 
 export const modelSyncClasses = {
@@ -341,7 +339,7 @@ export const modelSyncClasses = {
   toggleButton: cn(
     actionClasses.btnBase,
     actionClasses.btnNeutral,
-    'rounded-lg border-border-subtle px-3 py-1.25 text-foreground/70 hover:bg-accent/40 hover:text-foreground'
+    'rounded-lg border-border-subtle px-3 py-1.25 text-muted-foreground hover:bg-accent/40 hover:text-foreground'
   ),
   list: 'mt-4 space-y-2',
   row: 'flex items-start gap-3 rounded-xl border border-border-subtle bg-muted/30 px-3 py-3',
@@ -350,12 +348,12 @@ export const modelSyncClasses = {
   rowMeta: 'mt-1 text-[13px] leading-tight text-muted-foreground/75',
   rowBadgeRow: 'mt-2 flex flex-wrap items-center gap-1.5',
   rowBadge:
-    'rounded-full border border-border-subtle bg-background px-2 py-0.5 text-xs leading-tight text-foreground/65',
+    'rounded-full border border-border-subtle bg-background px-2 py-0.5 text-xs leading-tight text-muted-foreground',
   impactList: 'mt-3 space-y-2',
   impactItem:
     'rounded-xl border border-border-subtle bg-background/80 px-3 py-2 text-[13px] leading-5 text-foreground/78',
   emptyState:
-    'rounded-2xl border border-dashed border-border-subtle bg-muted/30 px-4 py-8 text-center text-sm leading-5 text-muted-foreground/75',
+    'rounded-2xl border border-dashed border-border-subtle bg-muted/30 px-4 py-8 text-center text-sm leading-5 text-foreground-tertiary',
   footer: 'flex items-center justify-end gap-2',
   /** pull preview panel — pull result side panel */
   fetchEmpty: 'flex flex-col items-center justify-center px-4 py-12 text-center',
@@ -439,7 +437,7 @@ export const modelSyncClasses = {
 
 export const apiKeyListClasses = {
   summaryMeta: 'text-xs leading-tight text-foreground-tertiary tabular-nums',
-  helperText: 'text-[13px] leading-tight text-foreground-tertiary',
+  helperText: 'text-[13px] leading-tight text-muted-foreground',
   listWrap: 'overflow-hidden rounded-lg border border-border-subtle',
   listScroller: 'max-h-[60vh] overflow-x-hidden',
   keyRow: 'flex flex-col gap-2 border-b border-border-subtle px-4 py-3 last:border-b-0',
@@ -502,7 +500,7 @@ export const oauthCardClasses = {
 
 /** Shared visual for provider-settings icon buttons; size is composed per usage. */
 const fieldIconButtonBase =
-  'flex shrink-0 items-center justify-center rounded-lg border border-border-subtle bg-background text-muted-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground disabled:pointer-events-none disabled:opacity-40'
+  'flex shrink-0 items-center justify-center rounded-lg border border-border-subtle bg-background text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground disabled:pointer-events-none disabled:opacity-40'
 
 export const fieldClasses = {
   inputRow: 'flex min-w-0 items-center gap-1.5',
@@ -537,5 +535,5 @@ export const fieldClasses = {
     'flex size-5 shrink-0 items-center justify-center text-muted-foreground/70 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
   titleWithHelp: 'flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1',
   titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center font-normal text-xs leading-5 text-foreground-tertiary transition-colors hover:text-link hover:no-underline'
+    'mx-0 inline-flex shrink-0 items-center font-normal text-xs leading-5 text-link transition-colors hover:underline'
 } as const

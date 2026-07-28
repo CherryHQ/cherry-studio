@@ -264,7 +264,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                   <span className={stepDotClass(step.status)} />
                   <div className="min-w-0">
                     <div className="text-foreground text-sm leading-tight">{step.title}</div>
-                    <div className="mt-1 text-foreground-tertiary text-xs leading-snug">{step.description}</div>
+                    <div className="mt-1 text-muted-foreground text-xs leading-snug">{step.description}</div>
                   </div>
                 </div>
               ))}

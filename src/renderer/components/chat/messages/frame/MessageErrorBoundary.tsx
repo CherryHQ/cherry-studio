@@ -21,9 +21,11 @@ const ErrorFallback = ({ fallback, error }: { fallback?: React.ReactNode; error?
 
   return (
     fallback || (
-      <div role="alert" className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-sm">
-        <div className="font-medium text-error-subtle-foreground">{t('error.render.title')}</div>
-        <div className="mt-1 text-muted-foreground">{errorDescription}</div>
+      <div
+        role="alert"
+        className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-sm">
+        <div className="font-medium">{t('error.render.title')}</div>
+        <div className="mt-1">{errorDescription}</div>
       </div>
     )
   )

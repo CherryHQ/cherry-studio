@@ -401,7 +401,7 @@ function FileTokenPreviewCard({
             <span className="shrink-0 font-medium uppercase">{presentation.typeLabel}</span>
             {sizeLabel && (
               <>
-                <span className="text-border-subtle">·</span>
+                <span className="text-foreground-tertiary">·</span>
                 <span className="shrink-0">{sizeLabel}</span>
               </>
             )}

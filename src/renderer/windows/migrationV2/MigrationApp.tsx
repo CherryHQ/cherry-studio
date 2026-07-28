@@ -61,9 +61,9 @@ const logger = loggerService.withContext('MigrationApp')
 type BadgeTone = 'primary' | 'success' | 'warning' | 'destructive' | 'neutral'
 
 const badgeToneClass: Record<BadgeTone, string> = {
-  primary: 'border-primary-mute bg-primary/10 text-primary',
-  success: 'border-success bg-success-subtle text-success',
-  warning: 'border-warning bg-warning-subtle text-warning',
+  primary: 'border-primary/20 bg-primary/10 text-primary',
+  success: 'border-success-border bg-success-subtle text-success-subtle-foreground',
+  warning: 'border-warning-border bg-warning-subtle text-warning-subtle-foreground',
   destructive: 'border-error-border bg-error-subtle text-error-subtle-foreground',
   neutral: 'border-border bg-muted/40 text-muted-foreground'
 }
@@ -151,12 +151,12 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
               <div
                 className={cn(
                   'relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-medium text-sm',
-                  isError && 'bg-destructive text-destructive-foreground',
+                  isError && 'border border-error-border bg-error-subtle text-error-subtle-foreground',
                   !isError && (active || done) && 'bg-primary text-white',
                   !isError && !active && !done && 'border border-border bg-background text-foreground-disabled'
                 )}>
                 {isError ? (
-                  <X size={13} strokeWidth={2.5} className="lucide-custom text-white" />
+                  <X size={13} strokeWidth={2.5} className="lucide-custom" />
                 ) : done ? (
                   <Check size={12} strokeWidth={3} className="lucide-custom text-white" />
                 ) : (
@@ -418,7 +418,7 @@ const MigrationApp: React.FC = () => {
               <h1 className="font-semibold text-2xl text-foreground tracking-tight">
                 {t('migration.introduction.title')}
               </h1>
-              <p className="mt-2 text-foreground-tertiary text-sm">{t('migration.introduction.subtitle')}</p>
+              <p className="mt-2 text-muted-foreground text-sm">{t('migration.introduction.subtitle')}</p>
             </TopContent>
 
             <div className="space-y-2.5">
@@ -447,7 +447,7 @@ const MigrationApp: React.FC = () => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-foreground text-sm">{feature.title}</p>
-                    <p className="mt-0.5 text-foreground-tertiary text-xs leading-relaxed">{feature.description}</p>
+                    <p className="mt-0.5 text-muted-foreground text-xs leading-relaxed">{feature.description}</p>
                   </div>
                 </div>
               ))}
@@ -483,7 +483,7 @@ const MigrationApp: React.FC = () => {
                 <Loader2 size={26} strokeWidth={1.5} className="animate-spin" />
               </StageBadge>
               <h2 className="font-semibold text-foreground text-lg tracking-tight">{t('migration.migration.title')}</h2>
-              <p className="mt-1.5 text-foreground-tertiary text-sm">{progressMessage}</p>
+              <p className="mt-1.5 text-muted-foreground text-sm">{progressMessage}</p>
             </TopContent>
             <div>
               <div className="mb-2 flex items-center justify-between text-foreground-tertiary text-xs">
@@ -492,9 +492,7 @@ const MigrationApp: React.FC = () => {
               <ProgressBar value={progress.overallProgress} />
             </div>
             <MigratorProgressList migrators={progress.migrators} />
-            <p className="pt-0.5 text-center text-foreground-tertiary text-xs">
-              {t('migration.migration.do_not_close')}
-            </p>
+            <p className="pt-0.5 text-center text-muted-foreground text-xs">{t('migration.migration.do_not_close')}</p>
           </div>
         )
 
@@ -511,7 +509,7 @@ const MigrationApp: React.FC = () => {
               <h2 className="font-semibold text-2xl text-foreground tracking-tight">
                 {t('migration.completed.title')}
               </h2>
-              <p className="mt-2.5 text-foreground-tertiary text-sm leading-relaxed">
+              <p className="mt-2.5 text-muted-foreground text-sm leading-relaxed">
                 {t('migration.completed.description')}
               </p>
             </TopContent>
@@ -543,12 +541,15 @@ const MigrationApp: React.FC = () => {
             </Button>
 
             {warnings.length > 0 && (
-              <Accordion type="single" collapsible className="rounded-xl border border-warning bg-warning-subtle px-4">
+              <Accordion
+                type="single"
+                collapsible
+                className="rounded-xl border border-warning-border bg-warning-subtle px-4 text-warning-subtle-foreground">
                 <AccordionItem value="migration-warnings" className="border-0 first:border-t-0">
-                  <AccordionTrigger className="py-3 font-medium text-sm text-warning hover:no-underline">
+                  <AccordionTrigger className="py-3 font-medium text-sm text-warning-subtle-foreground hover:no-underline">
                     {t('migration.completed.warning_heading', { count: warnings.length })}
                   </AccordionTrigger>
-                  <AccordionContent className="pt-0 pb-3" contentClassName="text-muted-foreground">
+                  <AccordionContent className="pt-0 pb-3" contentClassName="text-warning-subtle-foreground">
                     <p className="text-xs leading-relaxed">{t('migration.completed.warning_description')}</p>
                     <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-xs leading-relaxed">
                       {warnings.map((warning, index) => (
@@ -573,9 +574,7 @@ const MigrationApp: React.FC = () => {
                 <AlertTriangle size={26} strokeWidth={1.5} />
               </StageBadge>
               <h2 className="font-semibold text-foreground text-lg tracking-tight">{t('migration.error.title')}</h2>
-              <p className="mt-1.5 text-foreground-tertiary text-sm leading-relaxed">
-                {t('migration.error.description')}
-              </p>
+              <p className="mt-1.5 text-muted-foreground text-sm leading-relaxed">{t('migration.error.description')}</p>
             </TopContent>
             <div className="rounded-xl border border-error-border bg-error-subtle px-4 py-3">
               <p className="wrap-break-words text-error-subtle-foreground text-xs leading-relaxed">

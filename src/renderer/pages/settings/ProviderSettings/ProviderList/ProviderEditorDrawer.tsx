@@ -1115,7 +1115,7 @@ function BaseUrlField({
         onBlur={onBlur}
       />
       {description && (
-        <p id={descriptionId} aria-live="polite" className="break-all text-foreground-tertiary text-xs">
+        <p id={descriptionId} aria-live="polite" className="break-all text-muted-foreground text-xs">
           {description}
         </p>
       )}

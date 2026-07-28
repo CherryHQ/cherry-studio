@@ -121,7 +121,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
             <button
               type="button"
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex cursor-pointer items-center rounded px-0.5 text-primary opacity-60 hover:bg-black/10 hover:opacity-100"
+              className="inline-flex cursor-pointer items-center rounded px-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
               aria-label={t('common.more')}>
               <Tooltip
                 content={t('common.more')}

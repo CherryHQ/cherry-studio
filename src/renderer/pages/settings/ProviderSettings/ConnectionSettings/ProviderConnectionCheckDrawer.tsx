@@ -173,8 +173,8 @@ export default function ProviderConnectionCheckDrawer({
               </div>
             ) : (
               <div className="space-y-1.5">
-                <div className="text-[13px] text-foreground/85">{t('settings.provider.api_key.label')}</div>
-                <div className="rounded-md border border-border-subtle bg-muted/20 px-3 py-2 font-mono text-[12px] text-foreground/70">
+                <div className="text-[13px] text-muted-foreground">{t('settings.provider.api_key.label')}</div>
+                <div className="rounded-md border border-border-subtle bg-muted/20 px-3 py-2 font-mono text-[12px] text-foreground">
                   {selectedApiKey ? maskApiKey(selectedApiKey) : '—'}
                 </div>
               </div>
@@ -185,7 +185,7 @@ export default function ProviderConnectionCheckDrawer({
           <button
             type="button"
             aria-label={`${t('message.api.connection.failed')}: ${connectionErrorText}. ${t('common.detail')}`}
-            className="group w-full cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-left text-[13px] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border"
+            className="group w-full cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-left text-[13px] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={handleShowConnectionErrorDetail}>
             <div className="mb-1.5 flex items-center gap-2">
               <div className="flex shrink-0 items-center justify-center text-error">

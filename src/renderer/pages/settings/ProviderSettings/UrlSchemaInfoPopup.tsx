@@ -120,10 +120,10 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
       }}>
       <DialogContent className="gap-5 rounded-2xl border-border-subtle bg-popover p-5 sm:max-w-md">
         <DialogHeader className="gap-1.5 pr-6">
-          <DialogTitle className="text-foreground/90 text-sm leading-5">
+          <DialogTitle className="text-foreground text-sm leading-5">
             {t('settings.models.provider_key_confirm_title', { provider: displayName })}
           </DialogTitle>
-          <DialogDescription className="text-muted-foreground/80 text-sm leading-5">{confirmMessage}</DialogDescription>
+          <DialogDescription className="text-muted-foreground text-sm leading-5">{confirmMessage}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="overflow-hidden rounded-xl border border-border-subtle bg-transparent">
@@ -131,14 +131,14 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
               <div
                 key={row.label}
                 className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 border-border-subtle border-b px-3 py-2.5 last:border-b-0">
-                <div className="text-foreground-tertiary text-xs">{row.label}</div>
-                <div className="min-w-0 truncate text-foreground/85 text-sm">{row.value}</div>
+                <div className="text-muted-foreground text-xs">{row.label}</div>
+                <div className="min-w-0 truncate text-foreground text-sm">{row.value}</div>
               </div>
             ))}
             <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 px-3 py-2.5">
-              <div className="text-foreground-tertiary text-xs">{t('settings.models.api_key')}</div>
+              <div className="text-muted-foreground text-xs">{t('settings.models.api_key')}</div>
               <div className="flex min-w-0 items-center justify-between gap-2">
-                <span className="min-w-0 truncate font-mono text-foreground/85 text-sm">
+                <span className="min-w-0 truncate font-mono text-foreground text-sm">
                   {showFullKey ? newApiKey : maskApiKey(newApiKey)}
                 </span>
                 <Button variant="ghost" size="icon-sm" onClick={() => setShowFullKey((prev) => !prev)}>

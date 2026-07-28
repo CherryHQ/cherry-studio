@@ -118,7 +118,7 @@ export const RagHintText = ({
     )
   }
 
-  return <p className="text-foreground-tertiary text-xs leading-4">{children}</p>
+  return <p className="text-muted-foreground text-xs leading-4">{children}</p>
 }
 
 export const RagSliderField = ({

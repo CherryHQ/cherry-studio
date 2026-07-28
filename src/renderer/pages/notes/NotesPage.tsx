@@ -1105,7 +1105,7 @@ const NotesPage: FC = () => {
           {shouldRetainMissingDraft && (
             <div
               role="alert"
-              className="shrink-0 border-warning border-b bg-warning-subtle px-3 py-2 text-warning text-xs">
+              className="shrink-0 border-warning-border border-b bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs">
               {t('notes.file_removed_draft')}
             </div>
           )}

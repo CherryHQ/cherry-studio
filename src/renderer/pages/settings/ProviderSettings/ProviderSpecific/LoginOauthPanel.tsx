@@ -125,7 +125,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
             <CircleAlert className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
             <div className="min-w-0 flex-1">
               <div className="text-foreground text-sm">{t(`${ns}.description`)}</div>
-              <div className="mt-1 text-foreground-tertiary text-xs">{t(`${ns}.description_detail`)}</div>
+              <div className="mt-1 text-muted-foreground text-xs">{t(`${ns}.description_detail`)}</div>
             </div>
           </div>
           <div>

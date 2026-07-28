@@ -268,7 +268,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
             <DropzoneEmptyState>
               <Import size={26} strokeWidth={1.2} className="mb-3 text-foreground-tertiary" />
               <p className="mb-1 text-muted-foreground text-xs">{t('library.import_skill_dialog.local.drop_hint')}</p>
-              <p className="text-foreground-tertiary text-xs">{t('library.import_skill_dialog.local.formats')}</p>
+              <p className="text-muted-foreground text-xs">{t('library.import_skill_dialog.local.formats')}</p>
             </DropzoneEmptyState>
           </Dropzone>
 
@@ -341,9 +341,9 @@ function ImportItemStatusIcon({ status }: { status: ImportItemStatus }) {
     return <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-success" />
   }
   if (status === 'error') {
-    return <CircleAlert size={14} className="mt-0.5 shrink-0 text-destructive" />
+    return <CircleAlert size={14} className="mt-0.5 shrink-0 text-error" />
   }
-  return <span className="mt-1.5 size-2 shrink-0 rounded-full bg-foreground-tertiary" />
+  return <span className="mt-1.5 size-2 shrink-0 rounded-full border border-border-strong bg-muted" />
 }
 
 function StatusBanner({ status }: { status: ImportStatus }) {

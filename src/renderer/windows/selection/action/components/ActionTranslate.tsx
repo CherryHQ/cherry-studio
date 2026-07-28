@@ -379,7 +379,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             <button
               type="button"
               onClick={() => setShowOriginal(!showOriginal)}
-              className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-muted-foreground text-xs transition-colors hover:text-primary">
+              className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-muted-foreground text-xs transition-colors hover:text-foreground">
               <span>
                 {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
               </span>

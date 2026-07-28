@@ -180,7 +180,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           <button
             type="button"
             onClick={() => setShowOriginal(!showOriginal)}
-            className="flex cursor-pointer items-center justify-between text-muted-foreground text-xs transition-colors hover:text-primary">
+            className="flex cursor-pointer items-center justify-between text-muted-foreground text-xs transition-colors hover:text-foreground">
             <span>
               {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
             </span>

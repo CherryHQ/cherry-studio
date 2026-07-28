@@ -19,13 +19,13 @@ const StatusIcon: React.FC<{ status: MigratorStatus }> = ({ status }) => {
   switch (status) {
     case 'completed':
       return (
-        <span className={cn(ICON_WRAP, 'bg-success-subtle text-success')}>
-          <Check size={12} strokeWidth={3} className="lucide-custom text-success" />
+        <span className={cn(ICON_WRAP, 'bg-success-subtle text-success-subtle-foreground')}>
+          <Check size={12} strokeWidth={3} className="lucide-custom" />
         </span>
       )
     case 'running':
       return (
-        <span className={cn(ICON_WRAP, 'bg-primary-mute text-primary')}>
+        <span className={cn(ICON_WRAP, 'bg-primary/10 text-primary')}>
           <Loader2 size={12} className="animate-spin" />
         </span>
       )

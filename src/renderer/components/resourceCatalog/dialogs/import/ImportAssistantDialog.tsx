@@ -362,7 +362,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   <DropzoneEmptyState>
                     <Import size={24} strokeWidth={1.2} className="mb-3 text-foreground-tertiary" />
                     <p className="mb-1 text-muted-foreground text-xs">{t('library.import_dialog.file.drop_hint')}</p>
-                    <p className="text-foreground-tertiary text-xs">{t('library.import_dialog.file.formats')}</p>
+                    <p className="text-muted-foreground text-xs">{t('library.import_dialog.file.formats')}</p>
                   </DropzoneEmptyState>
                 </Dropzone>
               </motion.div>
@@ -414,7 +414,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                     <Link size={12} className="lucide-custom" />
                     <span>{t('library.import_dialog.url.button')}</span>
                   </Button>
-                  <p className="text-foreground-tertiary text-xs">{t('library.import_dialog.url.supports')}</p>
+                  <p className="text-muted-foreground text-xs">{t('library.import_dialog.url.supports')}</p>
                 </div>
               </motion.div>
             )}

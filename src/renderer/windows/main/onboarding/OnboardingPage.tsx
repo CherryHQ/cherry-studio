@@ -336,7 +336,7 @@ export default function OnboardingPage() {
                       {t('onboarding.welcome.other_provider')}
                     </Button>
                   </div>
-                  <p className="mt-4 mb-0 text-center text-foreground-tertiary text-xs">
+                  <p className="mt-4 mb-0 text-center text-muted-foreground text-xs">
                     {t('onboarding.welcome.setup_hint')}
                   </p>
                 </div>
@@ -408,7 +408,7 @@ export default function OnboardingPage() {
                           <Check size={16} />
                           {t('onboarding.select_model.start')}
                         </Button>
-                        <p className="m-0 text-center text-foreground-tertiary text-xs">
+                        <p className="m-0 text-center text-muted-foreground text-xs">
                           {t('onboarding.select_model.change_later')}
                         </p>
                       </div>
@@ -421,7 +421,7 @@ export default function OnboardingPage() {
 
           {step === 'welcome' && (
             <div className="nodrag flex shrink-0 justify-center px-6 py-3">
-              <div className="flex max-w-full items-center gap-2 text-center text-foreground-tertiary text-xs leading-relaxed">
+              <div className="flex max-w-full items-center gap-2 text-center text-muted-foreground text-xs leading-relaxed">
                 <Checkbox
                   id="onboarding-privacy-policy"
                   size="sm"

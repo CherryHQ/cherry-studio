@@ -65,7 +65,7 @@ export function ModelPurposeFields({
       <FieldLegend variant="label" className="mb-0 text-[13px] text-foreground">
         {t('settings.models.add.purpose.label')}
       </FieldLegend>
-      <p id={descriptionId} className="text-foreground-tertiary text-xs">
+      <p id={descriptionId} className="text-muted-foreground text-xs">
         {t('settings.models.add.purpose.description')}
       </p>
       <RadioGroup

@@ -48,7 +48,7 @@ const Translate: FC<Props> = ({ text }) => {
   return (
     <div className="flex flex-1 flex-col overflow-hidden p-3 [-webkit-app-region:no-drag]">
       <div className="mb-4 flex w-full flex-row items-center justify-center gap-5">
-        <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-foreground-tertiary text-sm opacity-70">
+        <div className="flex h-9 min-w-25 flex-1 items-center rounded-md border border-input bg-muted px-3 text-foreground-disabled text-sm">
           <span className="truncate">{t('translate.any.language')}</span>
         </div>
         <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" />

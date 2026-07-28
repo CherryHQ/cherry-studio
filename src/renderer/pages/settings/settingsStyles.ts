@@ -21,4 +21,4 @@ export const settingsContentHeaderClassName = 'mb-5'
 
 export const settingsContentHeaderTitleClassName = 'font-semibold text-foreground text-[15px]'
 
-export const settingsContentHeaderDescriptionClassName = 'mt-1 text-foreground-tertiary text-sm'
+export const settingsContentHeaderDescriptionClassName = 'mt-1 text-muted-foreground text-sm'

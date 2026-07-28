@@ -86,7 +86,9 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
             <div className="min-w-0 pt-0.5">
               <DialogTitle className="truncate">{skill.name}</DialogTitle>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="border-0 bg-warning-subtle px-2 py-0.5 text-warning text-xs">
+                <Badge
+                  variant="secondary"
+                  className="border-0 bg-warning-subtle px-2 py-0.5 text-warning-subtle-foreground text-xs">
                   {t('library.type.skill')}
                 </Badge>
                 <span className="text-foreground-tertiary text-xs">{skill.source}</span>
@@ -102,7 +104,9 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
         </DialogHeader>
 
         <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
-          <Badge variant="secondary" className="gap-1.5 border-0 bg-success-subtle px-2 py-0.5 text-success text-xs">
+          <Badge
+            variant="secondary"
+            className="gap-1.5 border-0 bg-success-subtle px-2 py-0.5 text-success-subtle-foreground text-xs">
             <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
             {t('library.skill_detail.installed')}
           </Badge>
