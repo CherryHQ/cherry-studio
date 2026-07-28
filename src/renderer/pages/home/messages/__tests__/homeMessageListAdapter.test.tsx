@@ -495,6 +495,8 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(eventMocks.on).not.toHaveBeenCalledWith('NEW_CONTEXT', expect.any(Function))
     expect(eventMocks.on).not.toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).not.toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+    expect(value?.actions.getMessageDeleteAvailability).toBeUndefined()
+    expect(value?.actions.deleteMessage).toBeUndefined()
     expect(consumePendingTopicImageActions('topic-a')).toEqual([])
   })
 

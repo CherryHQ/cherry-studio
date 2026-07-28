@@ -1,3 +1,4 @@
+import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -31,6 +32,8 @@ export interface ImageGenerationJobPayload {
    *  here so the handler reaches the right endpoint / response family without
    *  re-resolving the registry. */
   modelDescriptor?: ImageTransportDescriptor
+  /** Non-secret request source captured when the job is enqueued. */
+  source?: SourceSnapshot
   providerParams: Record<string, unknown>
   /** Stamped on the persisted output FileEntries — decided by the requesting business feature. */
   cleanupPolicy: CleanupPolicy

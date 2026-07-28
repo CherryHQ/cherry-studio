@@ -1,6 +1,8 @@
 import type { ImageModelV3File } from '@ai-sdk/provider'
 import { application } from '@application'
+import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -8,7 +10,7 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
-import { providerToAiSdkConfig } from '../../config'
+import { resolveProviderAiSdkConfig } from '../../config'
 import type {
   ImageGenerationSubmitInput,
   ImageGenerationTransport,
@@ -26,9 +28,9 @@ const logger = loggerService.withContext('ImageGenerationJobHandler')
  * `imageGenerationModel.doGenerate` but owns the submit/poll loop.
  *
  * Secrets are never persisted — the apiKey is re-read from provider config on
- * every attempt via `providerToAiSdkConfig`. Input images / mask are referenced
- * by FileEntry id and read back from FileManager, keeping the payload under the
- * 1MB job cap.
+ * every attempt via `resolveProviderAiSdkConfig`. Input images / mask are
+ * referenced by FileEntry id and read back from FileManager, keeping the payload
+ * under the 1MB job cap.
  *
  * **Deliberately not restart-durable.** The job's only consumer is the in-process
  * awaiter in `AiService.generateImageViaJob` (`await handle.finished`) — the sole
@@ -65,7 +67,26 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     const model = modelService.getByKey(providerId, modelId)
     if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-    const sdkConfig = { ...(await providerToAiSdkConfig(provider, model)), modelId: model.apiModelId ?? model.id }
+    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
+    const sdkConfig = { ...config, modelId: model.apiModelId ?? model.id }
+    // Built fresh every execution and held in memory only. Upstream persists this
+    // to job metadata so a resumed run can still attribute its cost; with
+    // `recovery: 'abandon'` no run outlives the process, so persisting it would be
+    // a write nobody reads — and would imply a durability this handler does not have.
+    const captureContext = createAiUsageCaptureContext({
+      providerId: provider.id,
+      providerName: provider.name,
+      modelId: sdkConfig.modelId,
+      modelName: model.name,
+      pricing: model.pricing,
+      trustProviderReportedCost: provider.apiFeatures.reportsActualCost,
+      reportedCostCurrency: provider.reportedCostCurrency,
+      credentialReceipt,
+      source: input.source ?? null,
+      messageRef: null
+    })
+    const usageStartedAt = Date.now()
+
     const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
     if (!transport) {
       throw new Error(
@@ -87,10 +108,26 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       throw new Error(`Image generation submit for '${sdkConfig.modelId}' returned neither imageUrls nor a taskId`)
     }
 
+    // Record before local download: the provider invocation completed even if file
+    // persistence fails. Polling is part of this invocation, not another billable
+    // call; a successful zero-image response is still an observable invocation.
+    if (captureContext) {
+      const completedAt = Date.now()
+      aiUsageRecordService.recordInvocation({
+        requestId: `custom-image:${ctx.jobId}`,
+        context: captureContext,
+        modality: 'image',
+        imageCount: urls.length,
+        metrics: { timeCompletionMs: Math.max(0, completedAt - usageStartedAt) },
+        completedAt
+      })
+    }
+
     // An empty URL list from a *successful* submit/poll (e.g. content moderation
     // or a degraded vendor response that still charged) must fail rather than
     // complete as a silent zero-image "success". Covers both submit.imageUrls === []
     // and poll() === []; the malformed-submit (neither field) case threw above.
+    // Recorded above with imageCount=0 because the provider invocation did complete.
     if (urls.length === 0) {
       throw new Error(`Image generation for '${sdkConfig.modelId}' completed but returned no image URLs`)
     }

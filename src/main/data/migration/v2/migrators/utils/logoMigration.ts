@@ -25,8 +25,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
+import { type SingleFileRefSourceType, singleFileRefTablesBySourceType } from '@data/db/schemas/fileRelations'
 import type { DbType } from '@data/db/types'
-import { insertSingleFileRefTx, type SingleFileRefSourceType } from '@data/services/utils/logoRef'
+import { insertSingleFileRefTx } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
 import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
@@ -153,7 +154,7 @@ export function insertPreparedImageRefTx(
   tx: Pick<DbType, 'insert'>,
   image: PreparedEntityImageFile<EntityImageRef>
 ): void {
-  insertSingleFileRefTx(tx, { sourceType: image.ref.sourceType, sourceId: image.ref.sourceId }, image.id)
+  insertSingleFileRefTx(tx, singleFileRefTablesBySourceType[image.ref.sourceType], image.ref.sourceId, image.id)
 }
 
 /**

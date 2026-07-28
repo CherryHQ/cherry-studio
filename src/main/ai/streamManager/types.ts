@@ -1,11 +1,12 @@
 import type { Span } from '@opentelemetry/api'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
+import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 
 // ── Re-export shared types for consumers ────────────────────────────
 
@@ -27,20 +28,11 @@ export type { CherryUIMessageChunk } from '@shared/data/types/message'
 // ── Timings ─────────────────────────────────────────────────────────
 //
 // `TransportTimings` is owned by the manager's execution loop (loop
-// entry/exit). `SemanticTimings` is owned by the listener that cares
-// (today `PersistenceListener`) — keeps the manager chunk-shape-agnostic.
-// All fields are `performance.now()` values.
+// entry/exit). All fields are `performance.now()` values.
 
 export interface TransportTimings {
   readonly startedAt: number
   completedAt?: number
-}
-
-export interface SemanticTimings {
-  firstTextAt?: number
-  reasoningStartedAt?: number
-  /** End of reasoning; falls back to `completedAt` if the stream ends mid-reasoning. */
-  reasoningEndedAt?: number
 }
 
 // ── Stream terminal results ─────────────────────────────────────────
@@ -53,6 +45,7 @@ export interface StreamDoneResult {
   /** True when all executions in the topic are done. */
   isTopicDone?: boolean
   timings?: TransportTimings
+  runtimeTiming?: MessageRuntimeTiming
 }
 
 export interface StreamPausedResult {
@@ -62,6 +55,7 @@ export interface StreamPausedResult {
   anchorMessageId?: string
   isTopicDone?: boolean
   timings?: TransportTimings
+  runtimeTiming?: MessageRuntimeTiming
 }
 
 export interface StreamErrorResult {
@@ -73,6 +67,7 @@ export interface StreamErrorResult {
   anchorMessageId?: string
   isTopicDone?: boolean
   timings?: TransportTimings
+  runtimeTiming?: MessageRuntimeTiming
 }
 
 // ── StreamListener ──────────────────────────────────────────────────
@@ -119,6 +114,7 @@ export interface StreamExecution {
   /** Resolves when the execution loop terminates. Awaited by `onStop` for graceful shutdown. */
   loopPromise: Promise<void>
   timings: TransportTimings
+  runtimeTiming: MessageRuntimeTimingCollector
   /** OTel root span set as active context around `runExecutionLoop`. */
   rootSpan?: Span
 }
