@@ -567,7 +567,7 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
     expect(
       screen.getByRole('checkbox', { name: 'agent.session.model_switch_confirm.skip_for_app_run' })
-    ).toHaveAttribute('data-state', 'unchecked')
+    ).not.toBeChecked()
     fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
 
     await waitFor(() =>
