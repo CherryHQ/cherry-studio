@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   stopChat: vi.fn(),
   setMessages: vi.fn(),
   resetExecutionMessages: vi.fn(),
+  clearExecutionMessages: vi.fn(),
   resetTemporaryTopic: vi.fn()
 }))
 
@@ -76,7 +77,11 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({ liveAssistants: state.liveAssistants, reset: state.resetExecutionMessages })
+  useExecutionOverlay: () => ({
+    liveAssistants: state.liveAssistants,
+    reset: state.resetExecutionMessages,
+    clear: state.clearExecutionMessages
+  })
 }))
 
 vi.mock('@renderer/i18n/resolver', () => ({
@@ -143,6 +148,7 @@ describe('HomeWindow', () => {
     state.stopChat.mockClear()
     state.setMessages.mockClear()
     state.resetExecutionMessages.mockClear()
+    state.clearExecutionMessages.mockClear()
     state.resetTemporaryTopic.mockClear()
   })
 
