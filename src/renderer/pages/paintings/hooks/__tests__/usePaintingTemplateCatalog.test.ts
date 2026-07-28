@@ -28,7 +28,7 @@ describe('painting template catalog', () => {
     paintingTemplateCatalogMocks.read.mockReset()
     paintingTemplateCatalogMocks.read.mockImplementation((path: string) => {
       if (path.endsWith('catalog.json')) {
-        return Promise.resolve(JSON.stringify([{ id: 'birthday-poster', preview: 'images/birthday-poster.webp' }]))
+        return Promise.resolve(JSON.stringify(['birthday-poster', '../invalid-template']))
       }
 
       return Promise.resolve(

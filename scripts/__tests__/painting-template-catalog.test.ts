@@ -3,11 +3,6 @@ import * as path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-type CatalogEntry = {
-  id: string
-  preview: string
-}
-
 type LocalizedTemplate = {
   label: string
   prompt: string
@@ -18,7 +13,7 @@ type PaintingShowcaseTranslation = Record<'caption' | 'styles_label' | 'title', 
 const root = path.resolve(__dirname, '..', '..')
 const catalogRoot = path.join(root, 'resources', 'data', 'painting-templates')
 const rendererI18nRoot = path.join(root, 'src', 'renderer', 'i18n')
-const catalog = JSON.parse(fs.readFileSync(path.join(catalogRoot, 'catalog.json'), 'utf8')) as CatalogEntry[]
+const catalog = JSON.parse(fs.readFileSync(path.join(catalogRoot, 'catalog.json'), 'utf8')) as string[]
 const englishTemplates = JSON.parse(fs.readFileSync(path.join(catalogRoot, 'locales', 'en-us.json'), 'utf8')) as Record<
   string,
   LocalizedTemplate
@@ -126,8 +121,8 @@ const readPaintingShowcaseTranslation = (relativeFilePath: string) => {
 
 describe('painting template catalog contract', () => {
   it('keeps catalog IDs, localized templates, and WebP previews aligned', () => {
-    const catalogIds = catalog.map((entry) => entry.id)
-    const previews = catalog.map((entry) => entry.preview)
+    const catalogIds = catalog
+    const previews = catalogIds.map((id) => `images/${id}.webp`)
 
     expect(catalog.length).toBeGreaterThan(5)
     expect(new Set(catalogIds).size).toBe(catalogIds.length)
@@ -135,10 +130,10 @@ describe('painting template catalog contract', () => {
     expect(Object.keys(chineseTemplates).sort()).toEqual([...catalogIds].sort())
     expect(Object.keys(expectedVariableCounts).sort()).toEqual([...catalogIds].sort())
 
-    for (const { id, preview } of catalog) {
+    for (const id of catalogIds) {
       expect(id).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-      expect(preview).toBe(`images/${id}.webp`)
 
+      const preview = `images/${id}.webp`
       const image = fs.readFileSync(path.join(catalogRoot, preview))
       expect(image.subarray(0, 4).toString()).toBe('RIFF')
       expect(image.subarray(8, 12).toString()).toBe('WEBP')
@@ -160,7 +155,7 @@ describe('painting template catalog contract', () => {
     let englishVariableCount = 0
     let chineseVariableCount = 0
 
-    for (const { id } of catalog) {
+    for (const id of catalog) {
       const english = englishTemplates[id]
       const chinese = chineseTemplates[id]
       const englishVariables = variableValues(english.prompt)

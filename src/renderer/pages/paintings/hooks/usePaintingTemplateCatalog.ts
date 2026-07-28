@@ -1,18 +1,10 @@
-import { useCache } from '@data/hooks/useCache'
-import { loggerService } from '@logger'
+import { useBundledCatalog } from '@renderer/hooks/useBundledCatalog'
 import { joinPath } from '@renderer/utils/path'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const PAINTING_TEMPLATE_RESOURCE_DIRECTORY = 'data/painting-templates'
-const logger = loggerService.withContext('usePaintingTemplateCatalog')
-
-interface PaintingTemplateManifestItem {
-  id: string
-  preview: string
-}
+const PAINTING_TEMPLATE_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 interface PaintingTemplateTranslation {
   label: string
@@ -24,17 +16,10 @@ export interface PaintingTemplatePreset extends PaintingTemplateTranslation {
   imageUrl: string
 }
 
-function normalizeManifest(value: unknown): PaintingTemplateManifestItem[] {
+function normalizeManifest(value: unknown): string[] {
   if (!Array.isArray(value)) return []
 
-  return value.filter((item): item is PaintingTemplateManifestItem => {
-    return Boolean(
-      item &&
-        typeof item === 'object' &&
-        typeof (item as PaintingTemplateManifestItem).id === 'string' &&
-        typeof (item as PaintingTemplateManifestItem).preview === 'string'
-    )
-  })
+  return value.filter((item): item is string => typeof item === 'string' && PAINTING_TEMPLATE_ID_PATTERN.test(item))
 }
 
 function normalizeTranslations(value: unknown): Record<string, PaintingTemplateTranslation> {
@@ -57,7 +42,7 @@ function getLocaleFileName(language: string) {
   return language.toLowerCase() === 'zh-cn' ? 'zh-cn.json' : 'en-us.json'
 }
 
-async function readCatalog(resourcesPath: string, language: string): Promise<PaintingTemplatePreset[]> {
+async function loadPaintingTemplateCatalog(resourcesPath: string, language: string): Promise<PaintingTemplatePreset[]> {
   const resourceRoot = joinPath(resourcesPath, PAINTING_TEMPLATE_RESOURCE_DIRECTORY)
   const [manifestContent, translationContent] = await Promise.all([
     window.api.fs.read(joinPath(resourceRoot, 'catalog.json'), 'utf-8'),
@@ -66,56 +51,26 @@ async function readCatalog(resourcesPath: string, language: string): Promise<Pai
   const manifest = normalizeManifest(JSON.parse(manifestContent))
   const translations = normalizeTranslations(JSON.parse(translationContent))
 
-  return manifest.map((item) => {
-    const translation = translations[item.id]
+  return manifest.map((id) => {
+    const translation = translations[id]
     if (!translation) {
-      throw new Error(`Missing painting template translation: ${item.id}`)
+      throw new Error(`Missing painting template translation: ${id}`)
     }
 
-    const previewPath = AbsoluteFilePathSchema.parse(joinPath(resourceRoot, item.preview))
+    const previewPath = AbsoluteFilePathSchema.parse(joinPath(resourceRoot, `images/${id}.webp`))
     return {
-      id: item.id,
+      id,
       imageUrl: toFileUrl(previewPath),
       ...translation
     }
   })
 }
 
-async function loadCatalog(resourcesPath: string, language: string) {
-  if (!resourcesPath) {
-    logger.warn('resourcesPath not ready yet, returning an empty painting template catalog')
-    return []
-  }
-
-  try {
-    return await readCatalog(resourcesPath, language)
-  } catch (error) {
-    logger.error('Failed to load the bundled painting template catalog', error as Error)
-    return []
-  }
-}
-
 export function usePaintingTemplateCatalog() {
-  const { i18n } = useTranslation()
-  const language = i18n?.resolvedLanguage ?? i18n?.language ?? 'en-US'
-  const [resourcesPath] = useCache('app.path.resources')
-  const [templates, setTemplates] = useState<PaintingTemplatePreset[]>([])
-
-  useEffect(() => {
-    let cancelled = false
-
-    void loadCatalog(resourcesPath, language)
-      .then((loadedTemplates) => {
-        if (!cancelled) setTemplates(loadedTemplates)
-      })
-      .catch((error) => {
-        logger.error('Unexpected failure while loading the painting template catalog', error as Error)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [language, resourcesPath])
+  const { items: templates } = useBundledCatalog({
+    catalog: 'painting templates',
+    load: loadPaintingTemplateCatalog
+  })
 
   return {
     templates

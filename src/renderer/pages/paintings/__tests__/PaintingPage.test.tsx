@@ -6,7 +6,8 @@ const mocks = vi.hoisted(() => ({
   files: [] as { id: string }[],
   generate: vi.fn(),
   generating: false,
-  saveCurrent: vi.fn()
+  saveCurrent: vi.fn(),
+  templates: [] as { id: string; imageUrl: string; label: string; prompt: string }[]
 }))
 
 vi.mock('react-i18next', () => ({
@@ -23,35 +24,32 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 
 vi.mock('../hooks/usePaintingTemplateCatalog', () => ({
   usePaintingTemplateCatalog: () => ({
-    templates: Array.from({ length: 25 }, (_, index) => ({
-      id: index === 0 ? 'human-fragments-motion' : `template-${index}`,
-      imageUrl: `/template-${index}.webp`,
-      label: index === 0 ? 'Motion Step' : `painting template ${index}`,
-      prompt: index === 0 ? 'Create a poster for ${CITY RHYTHM}' : `painting prompt ${index}`
-    }))
+    templates: mocks.templates
   })
 }))
 
 vi.mock('../components/Artboard', () => ({
+  default: () => <div data-testid="painting-artboard" />
+}))
+
+vi.mock('../components/PaintingTemplateShowcase', () => ({
   default: ({
-    painting,
-    styleGroupLabel,
-    stylePresets,
-    onStyleSelect
+    prompt,
+    templates,
+    onSelect
   }: {
-    painting: { prompt?: string }
-    styleGroupLabel?: string
-    stylePresets?: readonly { id: string; imageUrl: string; label: string; prompt: string }[]
-    onStyleSelect?: (prompt: string) => void
+    prompt: string
+    templates: readonly { id: string; imageUrl: string; label: string; prompt: string }[]
+    onSelect: (prompt: string) => void
   }) => (
-    <div data-testid="painting-artboard" role="group" aria-label={styleGroupLabel}>
-      {stylePresets?.map((preset) => (
+    <div data-testid="painting-template-showcase" role="group" aria-label="paintings.showcase.styles_label">
+      {templates.map((template) => (
         <button
-          key={preset.id}
+          key={template.id}
           type="button"
-          aria-label={preset.label}
-          aria-pressed={painting.prompt === preset.prompt}
-          onClick={() => onStyleSelect?.(preset.prompt)}
+          aria-label={template.label}
+          aria-pressed={prompt === template.prompt}
+          onClick={() => onSelect(template.prompt)}
         />
       ))}
     </div>
@@ -150,13 +148,20 @@ describe('PaintingPage showcase', () => {
     mocks.generate.mockReset()
     mocks.generating = false
     mocks.saveCurrent.mockReset()
+    mocks.templates = Array.from({ length: 25 }, (_, index) => ({
+      id: index === 0 ? 'human-fragments-motion' : `template-${index}`,
+      imageUrl: `/template-${index}.webp`,
+      label: index === 0 ? 'Motion Step' : `painting template ${index}`,
+      prompt: index === 0 ? 'Create a poster for ${CITY RHYTHM}' : `painting prompt ${index}`
+    }))
   })
 
   it('shows the template showcase only on the untouched blank page', () => {
     render(<PaintingPage />)
 
     expect(screen.getByRole('heading', { name: 'paintings.showcase.title' })).toBeInTheDocument()
-    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+    expect(screen.getByTestId('painting-template-showcase')).toBeInTheDocument()
+    expect(screen.queryByTestId('painting-artboard')).not.toBeInTheDocument()
     expect(
       within(screen.getByRole('group', { name: 'paintings.showcase.styles_label' })).getAllByRole('button')
     ).toHaveLength(25)
@@ -172,7 +177,19 @@ describe('PaintingPage showcase', () => {
     expect(screen.queryByRole('heading', { name: 'paintings.showcase.title' })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'paintings.showcase.styles_label' })).not.toBeInTheDocument()
     expect(screen.queryByText('paintings.showcase.caption')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
     expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+  })
+
+  it('keeps the normal artboard placeholder while the template catalog is unavailable', () => {
+    mocks.templates = []
+
+    render(<PaintingPage />)
+
+    expect(screen.getByRole('heading', { name: 'paintings.showcase.title' })).toBeInTheDocument()
+    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
+    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+    expect(screen.getByText('paintings.showcase.caption')).toBeInTheDocument()
   })
 
   it('keeps the generated-image stage free of template showcase chrome', () => {
@@ -183,6 +200,7 @@ describe('PaintingPage showcase', () => {
     expect(screen.queryByRole('heading', { name: 'paintings.showcase.title' })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'paintings.showcase.styles_label' })).not.toBeInTheDocument()
     expect(screen.queryByText('paintings.showcase.caption')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
     expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
   })
 

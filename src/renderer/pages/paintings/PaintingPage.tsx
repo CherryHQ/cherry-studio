@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import Artboard from './components/Artboard'
 import PaintingComposer from './components/PaintingComposer'
 import PaintingStrip from './components/PaintingStrip'
+import PaintingTemplateShowcase from './components/PaintingTemplateShowcase'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
 import { usePaintingHistory } from './hooks/usePaintingHistory'
 import { usePaintingInitialProvider } from './hooks/usePaintingInitialProvider'
@@ -137,13 +138,16 @@ const PaintingPage: FC = () => {
                         </h1>
 
                         <div className="mt-[clamp(8px,5cqh,30px)] flex min-h-0 w-full flex-1 flex-col items-center">
-                          <Artboard
-                            painting={composerPainting}
-                            isLoading={false}
-                            stylePresets={promptPresets}
-                            styleGroupLabel={t('paintings.showcase.styles_label')}
-                            onStyleSelect={(prompt) => patchPainting({ prompt })}
-                          />
+                          {promptPresets.length > 0 ? (
+                            <PaintingTemplateShowcase
+                              paintingId={composerPainting.id}
+                              prompt={composerPainting.prompt}
+                              templates={promptPresets}
+                              onSelect={(prompt) => patchPainting({ prompt })}
+                            />
+                          ) : (
+                            <Artboard painting={composerPainting} isLoading={false} />
+                          )}
 
                           <p className="mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-muted-foreground text-xs leading-5">
                             {t('paintings.showcase.caption')}
