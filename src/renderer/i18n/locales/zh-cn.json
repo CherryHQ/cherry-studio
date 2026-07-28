@@ -1695,6 +1695,9 @@
       }
     },
     "navigation": {
+      "anchor": {
+        "jump_to_turn": "跳转到第 {{number}} 轮对话"
+      },
       "bottom": "回到底部",
       "close": "关闭",
       "first": "已经是第一条消息",

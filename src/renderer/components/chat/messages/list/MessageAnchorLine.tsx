@@ -1,6 +1,7 @@
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { classNames } from '@renderer/utils/style'
 import { type FC, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks/MessagePartsContext'
 import type { MessageListItem } from '../types'
@@ -60,6 +61,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   hasOlder = false,
   scrollToMessageId
 }) => {
+  const { t } = useTranslation()
   const partsMap = usePartsMap()
 
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -73,25 +75,44 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   const [mouseY, setMouseY] = useState<number | null>(null)
   /** Once the composer inset leaves too little height, the rail is cramped — hide it. */
   const tooShort = railHeight > 0 && railHeight < RAIL_MIN_HEIGHT_PX
-  const active = railOpacity > 0.02 && !tooShort
+  const visible = railOpacity > 0.02 && !tooShort
+  // The content has only fully yielded the rail's space at railOpacity = 1
+  // (gutter at max). Mid-fade the invisible hit layer would overlap message
+  // content and steal its clicks/selection, so interactivity waits for a full
+  // yield. railOpacity comes from a rounded integer gutter / 24, so it reaches
+  // exactly 1 — the epsilon only guards float noise.
+  const interactive = railOpacity >= 0.999 && !tooShort
 
   const turns = useMemo<AnchorTurn[]>(() => {
     const result: AnchorTurn[] = []
     let current: AnchorTurn | null = null
+    /** Whether the current turn's preview assistant sits on the active branch. */
+    let assistantOnActiveBranch = false
     for (const message of messages) {
       if (message.type === 'clear') continue
       if (message.role === 'user') {
         current = { anchorId: message.id, userMessageId: message.id, memberIds: [message.id] }
+        assistantOnActiveBranch = false
         result.push(current)
         continue
       }
       if (!current) {
         current = { anchorId: message.id, memberIds: [] }
+        assistantOnActiveBranch = false
         result.push(current)
       }
       current.memberIds.push(message.id)
-      if (!current.assistantMessageId && message.role === 'assistant') {
-        current.assistantMessageId = message.id
+      // Preview the reply the body actually renders: regenerated/multi-model
+      // turns carry off-path siblings (isActiveBranch false), so prefer the
+      // first active-branch assistant and fall back to the first one only when
+      // no member carries the flag.
+      if (message.role === 'assistant' && !assistantOnActiveBranch) {
+        if (message.isActiveBranch) {
+          current.assistantMessageId = message.id
+          assistantOnActiveBranch = true
+        } else if (!current.assistantMessageId) {
+          current.assistantMessageId = message.id
+        }
       }
     }
     return result
@@ -151,10 +172,11 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   // the rail itself. Mirror that offset into state so the card and wave track it.
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop)
 
-  // Fading out mid-hover would otherwise freeze the wave and card behind the fade.
+  // Losing interactivity mid-hover would otherwise freeze the wave and card
+  // behind the fade.
   useEffect(() => {
-    if (!active) setMouseY(null)
-  }, [active])
+    if (!interactive) setMouseY(null)
+  }, [interactive])
 
   // Few messages don't need anchoring. Only the rail is gated — the content's
   // gutter (MessageList) follows width alone, so when the turn count crosses
@@ -254,11 +276,17 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
         // top-2.5 sits just below the header; bottom-8 keeps the last tick clear
         // of the very bottom edge. The composer is inset to the left of this
         // gutter, so the ticks clear it. Opacity is driven by railOpacity, which
-        // already tracks width continuously, so no transition is needed.
+        // already tracks width continuously, so no transition is needed. Pointer
+        // events stay off through the whole fade ramp — mid-fade this layer
+        // still overlaps message content — and only turn on once the gutter has
+        // fully yielded the rail's space (railOpacity = 1).
         'group absolute top-2.5 right-4 bottom-8 z-20 w-8 select-none',
-        !active && 'pointer-events-none'
+        !interactive && 'pointer-events-none'
       )}
-      style={{ opacity: active ? railOpacity : 0 }}
+      // inert keeps the mid-fade (or hidden) rail out of the Tab order and the
+      // accessibility tree — an invisible layer must not take keyboard focus.
+      inert={!interactive}
+      style={{ opacity: visible ? railOpacity : 0 }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}>
       <div
@@ -293,11 +321,16 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
               : TICK_BASE_WIDTH
             const emphasized = focusedIndex !== null ? isFocused : isActive
             return (
-              <div
+              <button
                 key={turn.anchorId}
+                type="button"
                 data-message-anchor-tick
                 data-active={isActive}
-                className="flex w-full shrink-0 cursor-pointer items-center justify-end"
+                aria-label={t('chat.navigation.anchor.jump_to_turn', { number: index + 1 })}
+                aria-current={isActive ? 'true' : undefined}
+                // Preflight already zeroes button padding/background/border, so
+                // the layout classes alone keep the visuals unchanged.
+                className="flex w-full shrink-0 cursor-pointer items-center justify-end rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 style={{ height: RAIL_TICK_PITCH_PX }}
                 onClick={() => scrollToMessageId?.(turn.anchorId)}>
                 <div
@@ -309,14 +342,14 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
                   )}
                   style={{ width }}
                 />
-              </div>
+              </button>
             )
           })}
         </div>
       </div>
       {focusedIndex !== null && (focusedQuestion || focusedAnswer) && (
         <div
-          className="-translate-y-1/2 pointer-events-none absolute right-full z-30 w-max max-w-80 rounded-xl border-[0.5px] border-border bg-popover p-3 text-popover-foreground shadow-lg transition-[top] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] dark:bg-neutral-800"
+          className="-translate-y-1/2 pointer-events-none absolute right-full z-30 w-max max-w-80 rounded-xl border-[0.5px] border-border bg-popover p-3 text-popover-foreground shadow-lg transition-[top] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)]"
           style={{ top: cardTop }}>
           {focusedQuestion && (
             <div className="line-clamp-1 break-all font-medium text-foreground text-sm">{focusedQuestion}</div>

@@ -3,7 +3,8 @@ import '@testing-library/jest-dom/vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { MessageListItem } from '../../types'
 import MessageAnchorLine from '../MessageAnchorLine'
@@ -12,6 +13,13 @@ const partsMap: Record<string, CherryMessagePart[]> = {}
 
 vi.mock('../../blocks/MessagePartsContext', () => ({
   usePartsMap: () => partsMap
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) =>
+      options && 'number' in options ? `${key} ${options.number}` : key
+  })
 }))
 
 function makeMessage(overrides: Partial<MessageListItem> & Pick<MessageListItem, 'id' | 'role'>): MessageListItem {
@@ -37,6 +45,92 @@ const messages: MessageListItem[] = [
   makeMessage({ id: 'user-5', role: 'user' }),
   makeMessage({ id: 'assistant-5', role: 'assistant', parentId: 'user-5' })
 ]
+
+function makeTurnMessages(count: number, startIndex = 0): MessageListItem[] {
+  const result: MessageListItem[] = []
+  for (let i = 0; i < count; i++) {
+    const n = startIndex + i
+    result.push(makeMessage({ id: `turn-user-${n}`, role: 'user' }))
+    result.push(makeMessage({ id: `turn-assistant-${n}`, role: 'assistant', parentId: `turn-user-${n}` }))
+  }
+  return result
+}
+
+const textPart = (text: string): CherryMessagePart => ({ type: 'text', text })
+
+/** Wrapper height the geometry helpers report; comfortably above the rail's
+ * minimum usable height. Rail viewport = 400 − 2 · 24 (edge margins) = 352. */
+const RAIL_HEIGHT_PX = 400
+const RAIL_VIEWPORT_PX = 352
+
+interface StripMetrics {
+  scrollHeight: number
+  clientHeight: number
+}
+
+/** JSDOM reports zero for every layout metric, so the component's geometry
+ * paths never run by default. Give the rail real dimensions: wrapper height
+ * via getBoundingClientRect (plus a ResizeObserver stub so the measure effect
+ * runs at all) and strip scrollHeight/clientHeight via prototype getters. */
+function installRailGeometry(metrics: StripMetrics): () => void {
+  const originalResizeObserver = globalThis.ResizeObserver
+
+  class ResizeObserverMock {
+    disconnect = vi.fn()
+    observe = vi.fn()
+    unobserve = vi.fn()
+  }
+
+  globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver
+
+  const isStrip = (element: HTMLElement) => element.classList.contains('overflow-y-auto')
+  HTMLElement.prototype.getBoundingClientRect = function () {
+    return {
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 32,
+      bottom: RAIL_HEIGHT_PX,
+      width: 32,
+      height: RAIL_HEIGHT_PX,
+      toJSON: () => ({})
+    } as DOMRect
+  }
+  Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return isStrip(this) ? metrics.scrollHeight : 0
+    }
+  })
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return isStrip(this) ? metrics.clientHeight : 0
+    }
+  })
+
+  return () => {
+    globalThis.ResizeObserver = originalResizeObserver
+    // The overrides shadow Element.prototype's originals — deleting restores them.
+    // (Reflect.deleteProperty: `delete` on the readonly-typed properties is a TS2704.)
+    Reflect.deleteProperty(HTMLElement.prototype, 'getBoundingClientRect')
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight')
+    Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight')
+  }
+}
+
+let restoreGeometry: (() => void) | null = null
+
+/** Center Y of tick `index` with 5 turns, full geometry, and no strip scroll:
+ * 24 (edge margin) + 151 (centring pad) + index · 10 + 5. */
+const tickCenterOf5 = (index: number) => 180 + index * 10
+
+afterEach(() => {
+  restoreGeometry?.()
+  restoreGeometry = null
+  for (const key of Object.keys(partsMap)) delete partsMap[key]
+})
 
 describe('MessageAnchorLine', () => {
   it('keeps the anchor rail scoped inside the message list layer', () => {
@@ -121,5 +215,148 @@ describe('MessageAnchorLine', () => {
     const { container } = render(<MessageAnchorLine messages={[]} />)
 
     expect(container.firstElementChild).toBeNull()
+  })
+
+  describe('interactivity gating', () => {
+    it('keeps pointer events off while the rail is still fading in', () => {
+      const { container } = render(<MessageAnchorLine messages={messages} railOpacity={0.5} />)
+
+      const rail = container.firstElementChild as HTMLElement
+      // Mid-fade the invisible hit layer still overlaps message content…
+      expect(rail).toHaveClass('pointer-events-none')
+      // …while the visual fade keeps tracking railOpacity through the ramp.
+      expect(rail.style.opacity).toBe('0.5')
+    })
+
+    it('enables pointer events once the gutter has fully yielded', () => {
+      const { container } = render(<MessageAnchorLine messages={messages} railOpacity={1} />)
+
+      expect(container.firstElementChild).not.toHaveClass('pointer-events-none')
+    })
+
+    it('clears the hover preview when interactivity drops mid-hover', () => {
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      partsMap['user-2'] = [textPart('Question two')]
+      const { container, rerender, queryByText } = render(<MessageAnchorLine messages={messages} railOpacity={1} />)
+
+      fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
+      expect(queryByText('Question two')).toBeInTheDocument()
+
+      rerender(<MessageAnchorLine messages={messages} railOpacity={0.5} />)
+      expect(queryByText('Question two')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('hover preview branch selection', () => {
+    it('previews the active-branch assistant rather than an off-path sibling', () => {
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      partsMap['user-2'] = [textPart('Question two')]
+      partsMap['assistant-2'] = [textPart('Off-path sibling reply')]
+      partsMap['assistant-2b'] = [textPart('Active branch reply')]
+      const branched = messages.map((message) =>
+        message.id === 'assistant-2'
+          ? { ...message, isActiveBranch: false }
+          : message.id === 'assistant-2b'
+            ? { ...message, isActiveBranch: true }
+            : message
+      )
+      const { container, getByText, queryByText } = render(<MessageAnchorLine messages={branched} />)
+
+      fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
+
+      expect(getByText('Active branch reply')).toBeInTheDocument()
+      expect(queryByText('Off-path sibling reply')).not.toBeInTheDocument()
+    })
+
+    it('falls back to the first assistant when no member carries the branch flag', () => {
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      partsMap['assistant-2'] = [textPart('First reply')]
+      partsMap['assistant-2b'] = [textPart('Second reply')]
+      const { container, getByText } = render(<MessageAnchorLine messages={messages} />)
+
+      fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
+
+      expect(getByText('First reply')).toBeInTheDocument()
+    })
+
+    it('styles the preview card with the semantic popover surface only', () => {
+      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
+      partsMap['user-2'] = [textPart('Question two')]
+      const { container } = render(<MessageAnchorLine messages={messages} />)
+
+      fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
+
+      const card = container.querySelector<HTMLElement>('.bg-popover')
+      expect(card).not.toBeNull()
+      expect(card?.className).not.toContain('dark:bg-neutral-800')
+    })
+  })
+
+  describe('accessibility', () => {
+    it('renders ticks as labelled buttons with the active turn marked as current', () => {
+      const { container } = render(<MessageAnchorLine messages={messages} activeMessageId="assistant-1" />)
+
+      const ticks = Array.from(container.querySelectorAll<HTMLElement>('[data-message-anchor-tick]'))
+      ticks.forEach((tick, index) => {
+        expect(tick.tagName).toBe('BUTTON')
+        expect(tick).toHaveAttribute('type', 'button')
+        expect(tick).toHaveAttribute('aria-label', `chat.navigation.anchor.jump_to_turn ${index + 1}`)
+      })
+      expect(ticks[0]).toHaveAttribute('aria-current', 'true')
+      expect(ticks[1]).not.toHaveAttribute('aria-current')
+    })
+
+    it('reaches a tick with Tab and activates it with Enter', async () => {
+      const user = userEvent.setup()
+      const scrollToMessageId = vi.fn()
+      const { container } = render(<MessageAnchorLine messages={messages} scrollToMessageId={scrollToMessageId} />)
+
+      await user.tab()
+      const ticks = container.querySelectorAll('[data-message-anchor-tick]')
+      expect(ticks[0]).toHaveFocus()
+
+      await user.keyboard('{Enter}')
+      expect(scrollToMessageId).toHaveBeenCalledWith('user-1')
+    })
+  })
+
+  describe('strip geometry', () => {
+    it('anchors the strip to the bottom on first entry so the newest turns are visible', () => {
+      // 40 turns × 10px = 400px of ticks inside a 352px viewport.
+      restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX })
+      const { container } = render(<MessageAnchorLine messages={makeTurnMessages(40)} hasOlder />)
+
+      const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
+      expect(strip.scrollTop).toBe(400 - RAIL_VIEWPORT_PX)
+    })
+
+    it('compensates the scroll when older turns prepend so visible ticks stay put', () => {
+      const metrics = { scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }
+      restoreGeometry = installRailGeometry(metrics)
+      const initial = makeTurnMessages(40, 100)
+      const { container, rerender } = render(<MessageAnchorLine messages={initial} hasOlder />)
+
+      const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
+      const entryScrollTop = 400 - RAIL_VIEWPORT_PX
+      expect(strip.scrollTop).toBe(entryScrollTop)
+
+      metrics.scrollHeight = 460
+      rerender(<MessageAnchorLine messages={[...makeTurnMessages(6), ...initial]} hasOlder />)
+
+      // 6 prepended turns × 10px pitch.
+      expect(strip.scrollTop).toBe(entryScrollTop + 60)
+    })
+
+    it('fades both ends while the strip is scrolled into the middle', () => {
+      restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX })
+      const { container } = render(<MessageAnchorLine messages={makeTurnMessages(40)} />)
+
+      const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
+      strip.scrollTop = 20
+      fireEvent.scroll(strip)
+
+      expect(strip.style.maskImage).toContain('transparent 0%')
+      expect(strip.style.maskImage).toContain('transparent 100%')
+    })
   })
 })
