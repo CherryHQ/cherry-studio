@@ -93,6 +93,9 @@ export type ReadJournalFileResult =
   | { readonly kind: 'corrupt'; readonly error: string }
   | { readonly kind: 'ok'; readonly journal: RestoreJournal }
 
+/** Preboot dispatch only: never reinterpret a journal whose version is not known. */
+export type RestoreJournalFormatVersion = 1 | 2 | 'none' | 'unknown'
+
 /** This restore's staged main database, stored userData-relative for relocation. */
 export function stagedDbRelPath(restoreId: string): string {
   const userData = application.getPath('app.userdata')
@@ -133,6 +136,27 @@ export function parseRestoreJournal(value: unknown): ReadJournalResult {
 
 function journalFilePath(): string {
   return application.getPath('feature.backup.restore.file')
+}
+
+/**
+ * Reads only enough untrusted JSON to select a restore executor. Full schema
+ * validation remains owned by that executor; unknown evidence must block boot.
+ */
+export function readRestoreJournalFormatVersion(): RestoreJournalFormatVersion {
+  let raw: string
+  try {
+    raw = fs.readFileSync(journalFilePath(), 'utf8')
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'none' : 'unknown'
+  }
+  try {
+    const value: unknown = JSON.parse(raw)
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return 'unknown'
+    const version = (value as { version?: unknown }).version
+    return version === 1 || version === RESTORE_JOURNAL_VERSION ? version : 'unknown'
+  } catch {
+    return 'unknown'
+  }
 }
 
 function ownsExpectedPaths(journal: RestoreJournal): boolean {

@@ -23,6 +23,7 @@ vi.mock('@application', () => ({
 import {
   dbAsideRelPath,
   readRestoreJournal,
+  readRestoreJournalFormatVersion,
   restoreJournalIo,
   stagedDbRelPath,
   writeRestoreJournal
@@ -68,5 +69,18 @@ describe('restore journal file I/O', () => {
     vi.spyOn(restoreJournalIo, 'writeSync').mockReturnValue(0)
     expect(() => writeRestoreJournal({ ...prepared(), state: 'armed' })).toThrow(/made no progress/)
     expect(JSON.parse(readFileSync(join(userData, 'Data', 'restore-journal.json'), 'utf8')).state).toBe('prepared')
+  })
+
+  it('probes only known journal versions before preboot dispatch', () => {
+    const journalPath = join(userData, 'Data', 'restore-journal.json')
+    expect(readRestoreJournalFormatVersion()).toBe('none')
+    writeFileSync(journalPath, JSON.stringify({ version: 1 }))
+    expect(readRestoreJournalFormatVersion()).toBe(1)
+    writeFileSync(journalPath, JSON.stringify(prepared()))
+    expect(readRestoreJournalFormatVersion()).toBe(2)
+    writeFileSync(journalPath, JSON.stringify({ version: 3 }))
+    expect(readRestoreJournalFormatVersion()).toBe('unknown')
+    writeFileSync(journalPath, '{')
+    expect(readRestoreJournalFormatVersion()).toBe('unknown')
   })
 })

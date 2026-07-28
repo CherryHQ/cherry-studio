@@ -441,6 +441,12 @@
       "list": {
         "title": "Sarcini"
       },
+      "model_switch_confirm": {
+        "confirm": "[to be translated]:Switch model",
+        "description": "[to be translated]:Different models may understand and process context differently. Switching may affect the continuity or quality of subsequent responses. Do you want to continue?",
+        "skip_for_app_run": "[to be translated]:Don't ask again until I quit the app",
+        "title": "[to be translated]:Switch to \"{{model}}\"?"
+      },
       "new": "Sarcină nouă",
       "pin": {
         "title": "Fixează sarcina"
@@ -4939,6 +4945,11 @@
     "seed_random": "Aleatoriu",
     "seed_tip": "Același seed și prompt pot produce imagini similare",
     "select_model": "Selectează modelul",
+    "showcase": {
+      "caption": "Alege un șablon pentru început, apoi personalizează promptul de mai jos.",
+      "styles_label": "Șabloane de prompturi",
+      "title": "Un spațiu pentru următoarea ta capodoperă."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",
@@ -5215,6 +5226,7 @@
       "label": "Ești sigur că vrei să restaurezi datele?"
     },
     "content": "Operațiunea de restaurare va suprascrie toate datele actuale ale aplicației cu datele din backup. Te rugăm să reții că procesul de restaurare poate dura ceva timp, îți mulțumim pentru răbdare.",
+    "messages_paused": "[to be translated]:A backup restore is in progress; new messages are paused until it completes.",
     "progress": {
       "completed": "Restaurare finalizată",
       "copying_files": "Se copiază fișierele... {{progress}}%",
@@ -5801,7 +5813,99 @@
       "backup": {
         "skip_file_data_help": "Omite salvarea fișierelor de date precum imagini și baze de cunoștințe în timpul backup-ului și salvează doar înregistrările de chat și setările. Reduce ocuparea spațiului și accelerează viteza de backup.",
         "skip_file_data_title": "Backup simplificat",
-        "v2_unavailable": "Backup & restore V2 nu este încă disponibil. În curând."
+        "v2_unavailable": "[to be translated]:Cloud backup destinations are not available yet. Use Backup & restore to export a backup file and restore from it."
+      },
+      "backup_v2": {
+        "error": {
+          "archive_rejected": "[to be translated]:This backup file was rejected: it is damaged, incomplete, or made by an incompatible version.",
+          "arm_failed": "[to be translated]:The restart that performs the restore could not be started. Nothing was changed.",
+          "busy": "[to be translated]:Another backup operation is still running. Wait for it to finish.",
+          "export_destination": "[to be translated]:The backup cannot be published at that location. Pick a new filename or another drive.",
+          "export_source": "[to be translated]:Some source files changed or cannot be stored portably. Check the managed files and try the backup again.",
+          "incompatible": "[to be translated]:This backup is not compatible with this version of Cherry Studio. Nothing was changed.",
+          "journal_unreadable": "[to be translated]:The restore record on this device cannot be read. Startup stays blocked to preserve recovery evidence.",
+          "recovery_incomplete": "[to be translated]:The last restore could not put every file back. Restart the app to finish it before releasing anything.",
+          "restore_resources": "[to be translated]:The backup files cannot be installed safely at their target paths. Remove conflicting files or links, then prepare the restore again.",
+          "restore_state": "[to be translated]:That does not match the current state of the restore. Finish or discard the pending restore first.",
+          "rollback_unavailable": "[to be translated]:The data from before this restore has already been released, so it can no longer be rolled back. Keep the restored data to finish cleanup.",
+          "storage_unavailable": "[to be translated]:There is not enough usable disk space to finish this operation. Free space on the app-data and backup drives, then try again.",
+          "unexpected": "[to be translated]:The operation failed unexpectedly."
+        },
+        "export": {
+          "button": "[to be translated]:Export…",
+          "credentials_warning": "[to be translated]:A backup contains your settings, including API keys and other credentials, in readable form. Keep the file somewhere safe.",
+          "done": "[to be translated]:Backup exported.",
+          "integrations_warning": "[to be translated]:Restored integrations that run programs or reach the network stay off until you confirm them on the device you restore to.",
+          "lite_help": "[to be translated]:Database only. Restoring does not replace your local files, so content backed by files may be unavailable, and normal cleanup may later reclaim files the restored database no longer refers to.",
+          "lite_title": "[to be translated]:Lite backup",
+          "title": "[to be translated]:Backup"
+        },
+        "notice": {
+          "completed_description": "[to be translated]:The previous database is still on this device. Open Settings → Data → Backup & restore to roll back or keep the restored data.",
+          "completed_title": "[to be translated]:Restore complete — review the result",
+          "expired_description": "[to be translated]:A prepared restore expired before it could run, so nothing was replaced. Prepare it again from Settings → Data → Backup & restore.",
+          "expired_title": "[to be translated]:The restore did not run",
+          "failed_description": "[to be translated]:Your previous data was kept and nothing was replaced. See Settings → Data → Backup & restore for what happened.",
+          "failed_title": "[to be translated]:The restore did not complete",
+          "rolled_back_description": "[to be translated]:Your previous database is active again. Open Settings → Data → Backup & restore and confirm to release the displaced restored copy.",
+          "rolled_back_title": "[to be translated]:Restore rolled back"
+        },
+        "outcome": {
+          "acknowledge_button": "[to be translated]:Keep restored data",
+          "acknowledged": "[to be translated]:Restore outcome confirmed. Data no longer in use has been released.",
+          "completed_help": "[to be translated]:Until you confirm, the previous database remains on this device as rollback material.",
+          "degradation": {
+            "capability_malformed": "[to be translated]:{{count}} integration configuration entries were malformed and kept disabled.",
+            "external_file_dropped": "[to be translated]:{{count}} external file references were removed because source-device paths cannot be opened safely here.",
+            "path_collision": "[to be translated]:{{count}} managed paths collided on this device and were kept as inactive metadata.",
+            "path_unportable": "[to be translated]:{{count}} managed paths could not be moved portably and were kept as inactive metadata.",
+            "unknown": "[to be translated]:{{count}} entries were reduced for a reason this app version cannot describe."
+          },
+          "degradations": "[to be translated]:{{count}} item(s) were restored in a reduced form.",
+          "keep_previous_button": "[to be translated]:Keep previous data",
+          "rolled_back_help": "[to be translated]:Your previous database is active again. Confirm to release the displaced restored copy.",
+          "state": {
+            "armed": "[to be translated]:A restore is armed and will run at the next start.",
+            "completed": "[to be translated]:A restore completed.",
+            "expired": "[to be translated]:A prepared restore expired without running.",
+            "failed": "[to be translated]:The last restore did not complete. Your previous data was kept.",
+            "prepared": "[to be translated]:A restore is prepared.",
+            "promoting": "[to be translated]:A restore is in progress.",
+            "reverting": "[to be translated]:The failed restore is being reversed.",
+            "rollback_armed": "[to be translated]:The restore will be rolled back at the next start.",
+            "rolled_back": "[to be translated]:The restore was rolled back. Your previous data is active again."
+          },
+          "title": "[to be translated]:Last restore",
+          "unreadable": "[to be translated]:The restore record on this device cannot be read. Startup stays blocked to preserve recovery evidence."
+        },
+        "preset": {
+          "lite": "[to be translated]:Lite (database only)"
+        },
+        "preview": {
+          "degradations": "[to be translated]:{{count}} item(s) were not included when this backup was made.",
+          "destructive": "[to be translated]:Restoring replaces the current database and restarts the app. This cannot be undone once you confirm keeping it.",
+          "migrated_forward": "[to be translated]:This backup was made by an older version and was upgraded during preparation."
+        },
+        "restore": {
+          "arm_button": "[to be translated]:Restore and restart",
+          "choose_button": "[to be translated]:Choose backup…",
+          "choose_title": "[to be translated]:Restore from a backup file",
+          "confirm_content": "[to be translated]:The current database will be replaced by the backup and the app will restart. Local files are not changed.",
+          "confirm_ok": "[to be translated]:Replace and restart",
+          "confirm_title": "[to be translated]:Replace all data with this backup?",
+          "discard_button": "[to be translated]:Discard preparation",
+          "discarded": "[to be translated]:Prepared restore discarded.",
+          "help": "[to be translated]:A restore replaces the whole database with the one in the backup file. There is no merge.",
+          "pending_elsewhere": "[to be translated]:A restore prepared earlier is still waiting. Choose the backup again to see its details.",
+          "title": "[to be translated]:Restore"
+        },
+        "rollback": {
+          "button": "[to be translated]:Roll back restore",
+          "confirm_content": "[to be translated]:Cherry Studio will restart with the database from immediately before this restore. Changes made after the restore will not be merged and will be released after you confirm the rollback result.",
+          "confirm_ok": "[to be translated]:Roll back and restart",
+          "confirm_title": "[to be translated]:Return to the data from before this restore?"
+        },
+        "title": "[to be translated]:Backup & restore"
       },
       "clear_cache": {
         "button": "Golește memoria cache",

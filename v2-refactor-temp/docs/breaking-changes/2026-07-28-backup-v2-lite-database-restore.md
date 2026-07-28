@@ -8,7 +8,7 @@ date: 2026-07-28
 
 ## What changed
 
-Backup v2 Lite exports and restores the complete Cherry Studio database. Restoring it replaces the current database rather than merging selected records.
+Backup v2 Lite exports and restores the complete Cherry Studio database. Restoring it replaces the current database rather than merging selected records. An active RC1 version-7 restore is completed automatically during upgrade, but version-7 archives are not accepted by the Lite `.cherrybackup` UI.
 
 ## Why this matters to the user
 
@@ -16,7 +16,7 @@ The restore confirmation restarts the app and replaces current database content.
 
 ## What the user should do
 
-Keep a Lite archive somewhere safe, review the destructive restore confirmation, and use a full migration feature only when it is released separately.
+Keep a Lite archive somewhere safe, review the destructive restore confirmation, and export a new Lite archive after upgrading; use a full migration feature only when it is released separately.
 
 ## Notes for release manager
 

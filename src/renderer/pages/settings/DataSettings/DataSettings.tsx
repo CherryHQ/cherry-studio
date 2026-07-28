@@ -1,5 +1,4 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
-import { NutstoreIcon } from '@renderer/components/icons/NutstoreIcons'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons/SvgIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
@@ -13,7 +12,7 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
-import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
+import { BookOpen, FileText, FolderCog, FolderInput, Import } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,14 +20,10 @@ import { useTranslation } from 'react-i18next'
 import BasicDataSettings from './BasicDataSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
-import LocalBackupSettings from './LocalBackupSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
 import NotionSettings from './NotionSettings'
-import NutstoreSettings from './NutstoreSettings'
 import ObsidianSettings from './ObsidianSettings'
-import S3Settings from './S3Settings'
 import SiyuanSettings from './SiyuanSettings'
-import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
 
 const DataSettings: FC = () => {
@@ -38,18 +33,13 @@ const DataSettings: FC = () => {
 
   const menuItems = [
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
-    { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
-    { key: 'local_backup', title: t('settings.data.local.title'), icon: <FolderCog size={16} /> },
-    { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudUpload size={16} /> },
-    { key: 'nutstore', title: t('settings.data.nutstore.title'), icon: <NutstoreIcon /> },
-    { key: 's3', title: t('settings.data.s3.title.label'), icon: <Server size={16} /> },
-    { key: 'divider_2', isDivider: true, text: t('settings.data.divider.import_settings') },
+    { key: 'divider_1', isDivider: true, text: t('settings.data.divider.import_settings') },
     {
       key: 'import_settings',
       title: t('settings.data.import_settings.title'),
       icon: <Import size={16} />
     },
-    { key: 'divider_3', isDivider: true, text: t('settings.data.divider.export_settings') },
+    { key: 'divider_2', isDivider: true, text: t('settings.data.divider.export_settings') },
     {
       key: 'export_menu',
       title: t('settings.data.export_menu.title'),
@@ -98,13 +88,9 @@ const DataSettings: FC = () => {
       </div>
       <SettingsContentColumn theme={theme}>
         {menu === 'data' && <BasicDataSettings />}
-        {menu === 'webdav' && <WebDavSettings />}
-        {menu === 'nutstore' && <NutstoreSettings />}
-        {menu === 's3' && <S3Settings />}
         {menu === 'import_settings' && <ImportMenuOptions />}
         {menu === 'export_menu' && <ExportMenuOptions />}
         {menu === 'markdown_export' && <MarkdownExportSettings />}
-        {menu === 'local_backup' && <LocalBackupSettings />}
         {menu === 'notion' && <NotionSettings />}
         {menu === 'yuque' && <YuqueSettings />}
         {menu === 'joplin' && <JoplinSettings />}
