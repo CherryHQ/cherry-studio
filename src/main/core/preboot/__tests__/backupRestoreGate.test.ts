@@ -18,7 +18,7 @@ vi.mock('@data/db/restore/restorePromotionV2', () => ({
   runRestorePromotionV2: () => runRestorePromotionMock(),
   markRestoreFailedAfterCrashV2: () => markRestoreFailedAfterCrashMock(),
   isLiveDbStrandedV2: () => isLiveDbStrandedMock(),
-  isRestoreRollbackPendingV2: () => isRestoreRollbackPendingMock()
+  isRestoreRecoveryPendingV2: () => isRestoreRollbackPendingMock()
 }))
 
 import { runBackupRestoreGate } from '../backupRestoreGate'
@@ -70,7 +70,7 @@ describe('runBackupRestoreGate', () => {
     await expect(runBackupRestoreGate()).rejects.toThrow(/empty database/)
   })
 
-  it('refuses to boot while a user-approved rollback is incomplete', async () => {
+  it('refuses to boot while any durable recovery direction is incomplete', async () => {
     runRestorePromotionMock.mockRejectedValue(new Error('resource rename failed'))
     isRestoreRollbackPendingMock.mockReturnValue(true)
 

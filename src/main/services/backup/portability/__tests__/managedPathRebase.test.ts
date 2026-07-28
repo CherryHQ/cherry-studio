@@ -11,7 +11,7 @@ import {
 } from '../managedPathRebase'
 
 const NOTES = 'feature.notes.data'
-const WORKSPACES = 'feature.agents.workspaces'
+const WORKSPACES = 'feature.agents.system_workspaces'
 
 const PRODUCER_NOTES = '/Users/alice/Library/Application Support/CherryStudio/Data/Notes'
 const TARGET_NOTES = '/Users/bob/Library/Application Support/CherryStudio/Data/Notes'

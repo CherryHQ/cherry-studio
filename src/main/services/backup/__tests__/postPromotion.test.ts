@@ -83,8 +83,10 @@ describe('post-promotion work', () => {
         return join(userData, 'Data', 'KnowledgeBase')
       case 'feature.notes.data':
         return join(userData, 'Data', 'Notes')
-      case 'feature.agents.workspaces':
+      case 'feature.agents.data':
         return join(userData, 'Data', 'Agents')
+      case 'feature.agents.system_workspaces':
+        return join(userData, 'Data', 'Agents', 'system')
       case 'feature.agents.skills':
         return join(userData, 'Data', 'Skills')
       default:

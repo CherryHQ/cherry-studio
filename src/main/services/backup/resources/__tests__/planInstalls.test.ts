@@ -30,14 +30,19 @@ function roots(): ResourceRoots {
     files: join(userData, 'Data', 'Files'),
     knowledge: join(userData, 'Data', 'KnowledgeBase'),
     notes: join(userData, 'Data', 'Notes'),
-    workspaces: join(userData, 'Data', 'Agents'),
+    agentData: join(userData, 'Data', 'Agents'),
+    systemWorkspaces: join(userData, 'Data', 'Agents', 'system'),
     skills: join(userData, 'Data', 'Skills')
   }
 }
 
-function resource(livePath: string, resourceType: 'file' | 'directory' = 'directory'): AdmittedResource {
+function resource(
+  livePath: string,
+  resourceType: 'file' | 'directory' = 'directory',
+  kind = 'knowledge-base'
+): AdmittedResource {
   return {
-    kind: 'knowledge-base',
+    kind,
     resourceType,
     stagedPath: join(userData, 'admission', livePath),
     livePath,
@@ -95,7 +100,7 @@ describe('planResourceInstalls', () => {
   })
 
   it('gives units that share a basename distinct aside slots', () => {
-    const result = plan([resource('Data/KnowledgeBase/dup/x'), resource('Data/Skills/dup/x')])
+    const result = plan([resource('Data/KnowledgeBase/dup/x'), resource('Data/Skills/dup/x', 'directory', 'skill')])
 
     expect(new Set(result.entries.map((entry) => entry.aside)).size).toBe(2)
   })
@@ -113,8 +118,12 @@ describe('planResourceInstalls', () => {
     )
   })
 
-  it('refuses a unit outside every registered root', () => {
-    expect(() => plan([resource('Data/Unregistered/thing')])).toThrow(/root/)
+  it('refuses a unit outside its kind-owned root even when another registered root contains it', () => {
+    expect(() => plan([resource('Data/Skills/thing')])).toThrow(/root/)
+  })
+
+  it('refuses an unknown resource kind', () => {
+    expect(() => plan([resource('Data/KnowledgeBase/base-1', 'directory', 'future-kind')])).toThrow(/root/)
   })
 
   it('refuses a symlink standing where the target belongs', () => {

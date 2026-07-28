@@ -57,6 +57,7 @@ const RESTORE_STATE_KEYS: Record<JournalRestore['state'], string> = {
   prepared: 'settings.data.backup_v2.outcome.state.prepared',
   armed: 'settings.data.backup_v2.outcome.state.armed',
   promoting: 'settings.data.backup_v2.outcome.state.promoting',
+  reverting: 'settings.data.backup_v2.outcome.state.reverting',
   completed: 'settings.data.backup_v2.outcome.state.completed',
   'rollback-armed': 'settings.data.backup_v2.outcome.state.rollback_armed',
   'rolled-back': 'settings.data.backup_v2.outcome.state.rolled_back',

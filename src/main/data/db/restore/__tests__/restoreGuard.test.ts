@@ -47,6 +47,8 @@ function v2Journal(state: RestoreJournalV2State): RestoreJournalV2 {
   switch (state) {
     case 'promoting':
       return { ...base, state, step: 'live-aside' }
+    case 'reverting':
+      return { ...base, state, step: 'db-promoted', reason: 'integrity check failed' }
     case 'completed':
       return { ...base, state, step: 'integrity-ok', summary: { knowledgeBaseIds: [] } }
     case 'rollback-armed':
@@ -75,6 +77,7 @@ describe('hasPendingRestore', () => {
       ['prepared', true],
       ['armed', true],
       ['promoting', true],
+      ['reverting', true],
       ['rollback-armed', true]
     ] as const)('protects storage in the non-terminal state %s', (state, expected) => {
       writeRestoreJournalV2(v2Journal(state))

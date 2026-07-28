@@ -47,12 +47,12 @@ function restoreMode(overrides?: { readonly notes?: string; readonly workspaces?
     producerPlatform: 'linux',
     producerRoots: [
       { key: 'feature.notes.data', path: PRODUCER_NOTES },
-      { key: 'feature.agents.workspaces', path: PRODUCER_WORKSPACES }
+      { key: 'feature.agents.system_workspaces', path: PRODUCER_WORKSPACES }
     ],
     targetPlatform: 'linux',
     targetRoots: {
       'feature.notes.data': overrides?.notes ?? TARGET_NOTES,
-      'feature.agents.workspaces': overrides?.workspaces ?? TARGET_WORKSPACES
+      'feature.agents.system_workspaces': overrides?.workspaces ?? TARGET_WORKSPACES
     }
   })
   if (!prepared.ok) throw new Error(`fixture rebase table invalid: ${prepared.error.code}`)

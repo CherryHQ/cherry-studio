@@ -73,6 +73,7 @@ const RestoreStatusSchema = z.discriminatedUnion('kind', [
       'prepared',
       'armed',
       'promoting',
+      'reverting',
       'completed',
       'rollback-armed',
       'rolled-back',

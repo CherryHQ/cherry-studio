@@ -45,6 +45,8 @@ import { materializePortableDatabase, summarizeMaterializationDegradations } fro
 import { collectResourceRequirements, resolveResourceRoots } from './resources/collectRequirements'
 import { measureResourceCoverage, type ResourceCoverage } from './resources/coverage'
 import { planResourceInstalls } from './resources/planInstalls'
+import { reconcileRestoreResources } from './resources/reconcile'
+import { durabilizeRestoreStaging } from './stagingDurability'
 
 const logger = loggerService.withContext('backupPrepareRestore')
 
@@ -100,7 +102,7 @@ function buildRebaseTable(producer: {
     targetPlatform: currentBackupPlatform(),
     targetRoots: {
       'feature.notes.data': application.getPath('feature.notes.data'),
-      'feature.agents.workspaces': application.getPath('feature.agents.workspaces')
+      'feature.agents.system_workspaces': application.getPath('feature.agents.system_workspaces')
     }
   })
   if (!prepared.ok) {
@@ -164,17 +166,17 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
     })
 
     const userDataPath = application.getPath('app.userdata')
-    const { coverage } = measureResourceCoverage({
-      inventory: collectResourceRequirements({ dbPath: admitted.db.path }),
-      userDataPath
-    })
+    const roots = resolveResourceRoots()
+    const inventory = collectResourceRequirements({ dbPath: admitted.db.path, roots, userDataPath })
+    const resources = reconcileRestoreResources(admitted.manifest, inventory.requirements, admitted.resources)
+    const { coverage } = measureResourceCoverage({ inventory, userDataPath })
 
     // Decide the whole install plan BEFORE moving anything: a unit that cannot
     // be installed refuses the restore here, where nothing has been touched.
     const plan = planResourceInstalls({
-      resources: admitted.resources,
+      resources,
       userDataPath,
-      roots: resolveResourceRoots(),
+      roots,
       restoreId,
       stagingRelDir: stagedResourcesRelDir(restoreId),
       platform: currentBackupPlatform()
@@ -194,6 +196,12 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
         path.resolve(userDataPath, stagedResourcesRelDir(restoreId))
       )
     }
+
+    // The journal may name this tree only after every staged inode and directory
+    // entry is durable. Otherwise a power loss can preserve `prepared` while
+    // losing a payload, and preboot could mistake the old live target for an
+    // already-installed archive resource.
+    durabilizeRestoreStaging(path.dirname(promotePath))
 
     // The producer's own reductions PLUS what materializing the archive here
     // reduced (§4). The second half exists only in this process — the staging

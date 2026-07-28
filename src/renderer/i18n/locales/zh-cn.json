@@ -3712,6 +3712,7 @@
   "settings.data.backup_v2.outcome.state.failed": "上次恢复未完成，先前的数据已保留。",
   "settings.data.backup_v2.outcome.state.prepared": "已准备一个恢复。",
   "settings.data.backup_v2.outcome.state.promoting": "恢复正在进行。",
+  "settings.data.backup_v2.outcome.state.reverting": "正在撤销失败的恢复。",
   "settings.data.backup_v2.outcome.state.rollback_armed": "已确认回退，将在下次启动时执行。",
   "settings.data.backup_v2.outcome.state.rolled_back": "恢复已回退，先前的数据已重新启用。",
   "settings.data.backup_v2.outcome.title": "上次恢复",

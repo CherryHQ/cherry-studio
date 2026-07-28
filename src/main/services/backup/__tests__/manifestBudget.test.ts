@@ -34,7 +34,7 @@ describe('manifest byte budget vs the resource-install ceiling', () => {
         managedRoots: [
           { key: 'feature.notes.data', path: '/Users/someone/Library/Application Support/CherryStudio/Data/Notes' },
           {
-            key: 'feature.agents.workspaces',
+            key: 'feature.agents.system_workspaces',
             path: '/Users/someone/Library/Application Support/CherryStudio/Data/Agents'
           }
         ]

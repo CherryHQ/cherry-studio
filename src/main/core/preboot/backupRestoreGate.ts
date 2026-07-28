@@ -1,6 +1,6 @@
 import {
   isLiveDbStrandedV2,
-  isRestoreRollbackPendingV2,
+  isRestoreRecoveryPendingV2,
   markRestoreFailedAfterCrashV2,
   runRestorePromotionV2
 } from '@data/db/restore/restorePromotionV2'
@@ -47,8 +47,8 @@ export async function runBackupRestoreGate(): Promise<void> {
         'Restore recovery failed: the live database is missing while the previous database is still parked aside — refusing to boot into an empty database'
       )
     }
-    if (isRestoreRollbackPendingV2()) {
-      throw new Error('Restore rollback is incomplete — refusing to boot into a mixed restore state')
+    if (isRestoreRecoveryPendingV2()) {
+      throw new Error('Restore recovery is incomplete — refusing to boot into a mixed restore state')
     }
   }
 }

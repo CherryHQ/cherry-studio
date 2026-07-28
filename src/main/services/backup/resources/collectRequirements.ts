@@ -49,7 +49,8 @@ export function resolveResourceRoots(): ResourceRoots {
     files: application.getPath('feature.files.data'),
     knowledge: application.getPath('feature.knowledgebase.data'),
     notes: application.getPath('feature.notes.data'),
-    workspaces: application.getPath('feature.agents.workspaces'),
+    agentData: application.getPath('feature.agents.data'),
+    systemWorkspaces: application.getPath('feature.agents.system_workspaces'),
     skills: application.getPath('feature.agents.skills')
   }
 }

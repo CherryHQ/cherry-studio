@@ -140,7 +140,7 @@ describe('BackupManifestSchema — integrity fields', () => {
     const ok = liteManifest()
     ;(ok.producer as { managedRoots: unknown }).managedRoots = [
       { key: 'feature.notes.data', path: '/a' },
-      { key: 'feature.agents.workspaces', path: '/b' }
+      { key: 'feature.agents.system_workspaces', path: '/b' }
     ]
     expect(BackupManifestSchema.safeParse(ok).success).toBe(true)
   })

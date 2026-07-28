@@ -3712,6 +3712,7 @@
   "settings.data.backup_v2.outcome.state.failed": "The last restore did not complete. Your previous data was kept.",
   "settings.data.backup_v2.outcome.state.prepared": "A restore is prepared.",
   "settings.data.backup_v2.outcome.state.promoting": "A restore is in progress.",
+  "settings.data.backup_v2.outcome.state.reverting": "The failed restore is being reversed.",
   "settings.data.backup_v2.outcome.state.rollback_armed": "The restore will be rolled back at the next start.",
   "settings.data.backup_v2.outcome.state.rolled_back": "The restore was rolled back. Your previous data is active again.",
   "settings.data.backup_v2.outcome.title": "Last restore",

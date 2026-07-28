@@ -76,8 +76,10 @@ describe('exportArchive', () => {
         return join(userData, 'Data', 'KnowledgeBase')
       case 'feature.notes.data':
         return join(userData, 'Data', 'Notes')
-      case 'feature.agents.workspaces':
+      case 'feature.agents.data':
         return join(userData, 'Data', 'Agents')
+      case 'feature.agents.system_workspaces':
+        return join(userData, 'Data', 'Agents', 'system')
       case 'feature.agents.skills':
         return join(userData, 'Data', 'Skills')
       default:
@@ -106,7 +108,13 @@ describe('exportArchive', () => {
       .run()
     dbh.db
       .insert(agentWorkspaceTable)
-      .values({ id: 'w-1', name: 'ws', path: join(userData, 'Data', 'Agents', 's-1'), type: 'system', orderKey: 'a' })
+      .values({
+        id: 'w-1',
+        name: 'ws',
+        path: join(userData, 'Data', 'Agents', 'system', 's-1'),
+        type: 'system',
+        orderKey: 'a'
+      })
       .run()
   }
 
@@ -143,7 +151,7 @@ describe('exportArchive', () => {
     writeFileSync(mkFile(join(userData, 'Data', 'KnowledgeBase', 'kb-1', '.cherry', 'index.sqlite')), 'INDEX')
     writeFileSync(mkFile(join(userData, 'Data', 'Notes', 'a.md')), '# note')
     // Declared by a row but not present here: a degraded archive, not a failure.
-    expect(existsSync(join(userData, 'Data', 'Agents', 's-1'))).toBe(false)
+    expect(existsSync(join(userData, 'Data', 'Agents', 'system', 's-1'))).toBe(false)
 
     const result = await exportArchive({ outPath, preset: 'full' })
 
@@ -156,7 +164,7 @@ describe('exportArchive', () => {
     ])
     expect(result.manifest.degradations).toContainEqual({
       kind: 'resource:agent-workspace',
-      livePath: 'Data/Agents/s-1',
+      livePath: 'Data/Agents/system/s-1',
       reason: 'absent at snapshot time'
     })
 
@@ -200,7 +208,7 @@ describe('exportArchive', () => {
     // Without these two roots the materializer cannot rebase note.rootPath or
     // agent_workspace.path on another machine.
     expect(manifest.producer.managedRoots.map((r) => r.key).sort()).toEqual([
-      'feature.agents.workspaces',
+      'feature.agents.system_workspaces',
       'feature.notes.data'
     ])
     expect(manifest.migrationChain.length).toBeGreaterThan(0)
@@ -209,7 +217,7 @@ describe('exportArchive', () => {
     expect(byKind('file-blob')).toEqual(['Data/Files/11111111-1111-4111-8111-111111111111.pdf'])
     expect(byKind('knowledge-base')).toEqual(['Data/KnowledgeBase/kb-1'])
     expect(byKind('note-root')).toEqual(['Data/Notes'])
-    expect(byKind('agent-workspace')).toEqual(['Data/Agents/s-1'])
+    expect(byKind('agent-workspace')).toEqual(['Data/Agents/system/s-1'])
   })
 
   it('derives requirements without reading a single target resource byte', async () => {
