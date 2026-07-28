@@ -186,7 +186,8 @@ export const aiRequestSchemas = {
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
-          reasoningEffort: ReasoningEffortOptionSchema.optional()
+          reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          fastMode: z.boolean().optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),

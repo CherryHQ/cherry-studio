@@ -56,7 +56,7 @@ const mocks = vi.hoisted(() => ({
   dispatchLauncher: vi.fn(),
   unifiedPanelOpen: vi.fn(),
   unifiedPanelAvailable: true,
-  pinnedToolIds: ['composer:new-conversation', 'thinking', 'web-search'] as string[],
+  pinnedToolIds: ['composer:new-conversation', 'web-search'] as string[],
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   chatWrite: undefined as any,
@@ -65,12 +65,12 @@ const mocks = vi.hoisted(() => ({
   inputAdapterFocus: vi.fn(),
   assistantHookArgs: [] as unknown[][],
   providerHookArgs: [] as unknown[][],
-  runtimeHostProps: undefined as
+  speedControlProps: undefined as
     | {
-        reasoning?: {
-          effort: string
-          onEffortChange: (effort: string) => void
-        }
+        reasoningEffort: string
+        fastMode: boolean
+        onReasoningEffortChange: (effort: string) => void
+        onFastModeChange: (enabled: boolean) => void
       }
     | undefined
 }))
@@ -225,10 +225,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     mocks.derivedToolState = { couldAddImageFile, extensions }
     return <>{children}</>
   },
-  ComposerToolRuntimeHost: (props: { reasoning?: { effort: string; onEffortChange: (effort: string) => void } }) => {
-    mocks.runtimeHostProps = props
-    return null
-  },
+  ComposerToolRuntimeHost: () => null,
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
   ComposerPinnedToolsProvider: ({ children }: { children: ReactNode }) => children,
@@ -265,6 +262,18 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     dispatchLauncher: mocks.dispatchLauncher
   }),
   useComposerToolLauncherVersion: () => mocks.toolLaunchersVersion
+}))
+
+vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', () => ({
+  ComposerSpeedControl: (props: {
+    reasoningEffort: string
+    fastMode: boolean
+    onReasoningEffortChange: (effort: string) => void
+    onFastModeChange: (enabled: boolean) => void
+  }) => {
+    mocks.speedControlProps = props
+    return <div data-testid="chat-speed-control" />
+  }
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
@@ -402,6 +411,8 @@ vi.mock('@renderer/utils/model', () => ({
   // The first two predicates are stubbed to false here, so it reduces to the function-call check.
   canModelUseAssistantWebSearch: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
+  isGPT5SeriesReasoningModel: (currentModel?: Model) => currentModel?.id.includes('gpt-5') ?? false,
+  isOpenAIWebSearchModel: (currentModel?: Model) => currentModel?.providerId === 'openai',
   resolveReasoningEffortForModel: (currentModel: Model, currentEffort?: string) => {
     const supported = ['default', ...(currentModel.reasoning?.selectableEfforts ?? [])]
     if (supported.length === 1) return undefined
@@ -711,14 +722,14 @@ describe('ChatComposer', () => {
     mocks.dispatchLauncher.mockReset()
     mocks.unifiedPanelOpen.mockReset()
     mocks.unifiedPanelAvailable = true
-    mocks.pinnedToolIds = ['composer:new-conversation', 'thinking', 'web-search']
+    mocks.pinnedToolIds = ['composer:new-conversation', 'web-search']
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
     mocks.topicLayout = undefined
     mocks.assistantHookArgs = []
     mocks.providerHookArgs = []
-    mocks.runtimeHostProps = undefined
+    mocks.speedControlProps = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
@@ -847,7 +858,7 @@ describe('ChatComposer', () => {
 
     render(<ChatComposer topic={topic} onSend={onSend} />)
 
-    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
     })
@@ -856,6 +867,42 @@ describe('ChatComposer', () => {
     expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ reasoningEffort: 'high' }))
 
     await act(async () => finishPatch?.())
+  })
+
+  it('submits Fast for an eligible Codex model', async () => {
+    mocks.model = { ...model, providerId: 'openai-codex', supportsFastMode: true }
+    const onSend = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect(mocks.speedControlProps?.onFastModeChange).toBeTypeOf('function')
+    act(() => mocks.speedControlProps?.onFastModeChange(true))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'fast please', tokens: [] })
+    })
+
+    expect(onSend).toHaveBeenCalledWith('fast please', expect.objectContaining({ fastMode: true }))
+  })
+
+  it('rejects minimal reasoning while OpenAI web search is enabled', () => {
+    mocks.model = {
+      ...model,
+      id: 'openai::gpt-5',
+      providerId: 'openai',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['minimal' as const, 'high' as const] }],
+        selectableEfforts: ['minimal' as const, 'high' as const]
+      }
+    }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('minimal'))
+
+    expect(toast.warning).toHaveBeenCalledWith('chat.web_search.warning.openai')
+    expect(mocks.updateAssistantSettings).not.toHaveBeenCalled()
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('default')
   })
 
   it('rolls back a local reasoning selection when its assistant PATCH fails', async () => {
@@ -871,19 +918,11 @@ describe('ChatComposer', () => {
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
-    await waitFor(() => expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('default'))
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('default'))
   })
 
-  it('keeps reasoning and web search shortcuts in the assistant composer toolbar', () => {
-    const thinkingLauncher = {
-      id: 'thinking',
-      kind: 'group',
-      label: 'assistants.settings.reasoning_effort.label',
-      icon: <span data-testid="thinking-icon" />,
-      sources: ['popover'],
-      active: true
-    }
+  it('keeps the web search shortcut in the assistant composer toolbar', () => {
     const webSearchLauncher = {
       id: 'web-search',
       kind: 'command',
@@ -892,29 +931,18 @@ describe('ChatComposer', () => {
       sources: ['popover'],
       active: false
     }
-    mocks.toolLaunchers = [thinkingLauncher, webSearchLauncher]
+    mocks.toolLaunchers = [webSearchLauncher]
     mocks.toolLaunchersVersion = 1
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const reasoningButton = within(leftControls).getByRole('button', {
-      name: 'assistants.settings.reasoning_effort.label'
-    })
     const webSearchButton = within(leftControls).getByRole('button', { name: 'chat.input.web_search.label' })
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
-    expect(reasoningButton).toHaveAttribute('data-active', 'true')
-    expect(reasoningButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(webSearchButton).toHaveAttribute('aria-pressed', 'false')
     expect(webSearchButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(webSearchButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-
-    fireEvent.click(reasoningButton)
-    expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({
-      launcherId: 'thinking',
-      searchText: 'assistants.settings.reasoning_effort.label'
-    })
 
     fireEvent.click(webSearchButton)
     expect(mocks.dispatchLauncher).toHaveBeenCalledWith(
@@ -1482,7 +1510,7 @@ describe('ChatComposer', () => {
   })
 
   it('returns the new conversation action to the plus panel when it is unpinned', () => {
-    mocks.pinnedToolIds = ['thinking', 'web-search']
+    mocks.pinnedToolIds = ['web-search']
     const onCreateEmptyTopic = vi.fn()
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)

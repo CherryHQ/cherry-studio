@@ -187,6 +187,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         userMessageId: userMessage.id,
         pendingSteerUserMessageId: userMessage.id,
         pendingSteerReasoningEffort: req.reasoningEffort,
+        pendingSteerFastMode: req.fastMode === true,
         reservedMessages: [toReservedUIMessage(userMessage)],
         isMultiModel: false
       }
@@ -300,7 +301,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           history,
           placeholder.id,
           knowledgeBaseIds,
-          req.trigger === 'submit-message' ? req.reasoningEffort : undefined
+          req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
+          req.trigger === 'submit-message' && req.fastMode === true
         ),
         rootSpan
       }))
@@ -397,7 +399,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               history,
               anchor.id,
               knowledgeBaseIds,
-              undefined
+              undefined,
+              false
             ),
             rootSpan
           }
@@ -472,7 +475,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               history,
               placeholder.id,
               getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
-              req.reasoningEffort
+              req.reasoningEffort,
+              req.fastMode
             ),
             rootSpan
           }
@@ -509,7 +513,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     history: CherryUIMessage[],
     messageId: string,
     knowledgeBaseIds: string[] | undefined,
-    reasoningEffort: AiStreamRequest['reasoningEffort']
+    reasoningEffort: AiStreamRequest['reasoningEffort'],
+    fastMode: boolean
   ): AiStreamRequest {
     return {
       chatId: topicId,
@@ -519,7 +524,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       messages: history,
       messageId,
       knowledgeBaseIds,
-      reasoningEffort
+      reasoningEffort,
+      fastMode
     }
   }
 }

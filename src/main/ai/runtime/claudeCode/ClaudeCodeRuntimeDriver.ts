@@ -348,6 +348,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.resumeToken,
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
+      this.input.fastMode === true,
       this.input.knowledgeBaseIds
     )
     if (!request) {
@@ -451,6 +452,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
+    fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
@@ -467,12 +469,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     knowledgeBaseIds?: readonly string[]
+    fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
       input.modelId,
       input.reasoningEffort ?? 'default',
+      input.fastMode === true,
       input.knowledgeBaseIds
     )
     if (!derived.ok) return 'invalid'
@@ -520,7 +524,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.query) return null
     try {
-      return await this.query.supportedCommands()
+      return (await this.query.supportedCommands()).filter((command) => command.name !== 'effort')
     } catch (error) {
       logger.warn('getSupportedCommands failed', { sessionId: this.input.sessionId, error })
       return null
@@ -559,7 +563,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         // Mid-session command catalog push (skills discovered in a subdirectory, etc.). Handle it
         // ahead of the no-adapter drop so a primed (turn-less) connection still refreshes its cache.
         if (message.type === 'system' && message.subtype === 'commands_changed') {
-          this.eventQueue.push({ type: 'supported-commands', commands: message.commands })
+          this.eventQueue.push({
+            type: 'supported-commands',
+            commands: message.commands.filter((command) => command.name !== 'effort')
+          })
           continue
         }
 

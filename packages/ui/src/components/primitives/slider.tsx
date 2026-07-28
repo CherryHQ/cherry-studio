@@ -91,6 +91,8 @@ function Slider({
   orientation = 'horizontal',
   showValueLabel,
   formatValueLabel,
+  thumbAriaLabel,
+  getThumbAriaValueText,
   onValueChange,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root> &
@@ -98,6 +100,8 @@ function Slider({
     marks?: SliderMark[]
     showValueLabel?: boolean
     formatValueLabel?: (value: number) => React.ReactNode
+    thumbAriaLabel?: string | ((index: number) => string)
+    getThumbAriaValueText?: (value: number, index: number) => string
   }) {
   const [localValues, setLocalValues] = React.useState(() =>
     Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min]
@@ -139,6 +143,8 @@ function Slider({
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
+          aria-label={typeof thumbAriaLabel === 'function' ? thumbAriaLabel(index) : thumbAriaLabel}
+          aria-valuetext={getThumbAriaValueText?.(val, index)}
           className={cn(sliderThumbVariants({ size }), showValueLabel && 'group')}>
           {showValueLabel && (
             <span data-slot="slider-value-label" className={sliderValueLabelVariants({ size })}>

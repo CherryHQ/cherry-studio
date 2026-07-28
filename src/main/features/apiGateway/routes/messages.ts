@@ -1,4 +1,5 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import { CHERRY_FAST_MODE_HEADER } from '@main/ai/constants'
 import { Elysia } from 'elysia'
 import { approximateTokenSize } from 'tokenx'
 
@@ -97,11 +98,12 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
   .post(
     '/',
     // `model` is "providerId:apiModelId"; ProxyStreamService resolves it.
-    ({ body, request }) =>
+    ({ body, request, headers }) =>
       processMessage({
         params: body,
         inputFormat: 'anthropic',
         outputFormat: 'anthropic',
+        fastMode: headers[CHERRY_FAST_MODE_HEADER.toLowerCase()] === 'true',
         signal: request.signal,
         requestHeaders: request.headers
       }),

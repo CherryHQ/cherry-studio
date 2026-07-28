@@ -123,7 +123,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
       application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage, {
         headless: req.headless === true,
         messageSnapshot,
-        reasoningEffort: req.reasoningEffort
+        reasoningEffort: req.reasoningEffort,
+        fastMode: req.fastMode
       })
 
       return {
@@ -196,6 +197,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentType: agent.type,
       modelId: uniqueModelId,
       reasoningEffort: req.reasoningEffort,
+      fastMode: req.fastMode,
       assistantMessageId,
       userMessage,
       headless: req.headless === true,
@@ -219,6 +221,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
             ],
             messageId: assistantMessageId,
             reasoningEffort: req.reasoningEffort,
+            fastMode: req.fastMode,
             runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
           },
           rootSpan: turnTrace.rootSpan,

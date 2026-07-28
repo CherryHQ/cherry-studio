@@ -50,7 +50,7 @@ const mocks = vi.hoisted(() => ({
   setSelectedKnowledgeBases: vi.fn(),
   inputAdapterFocus: vi.fn(),
   quickPanelOpen: vi.fn(),
-  pinnedToolIds: ['composer:new-session', 'thinking', 'skills'] as string[],
+  pinnedToolIds: ['composer:new-session', 'skills'] as string[],
   pinnedLauncherIds: [] as readonly string[],
   toolLaunchers: [] as ComposerToolLauncher[],
   toolLaunchersVersion: 0,
@@ -79,7 +79,14 @@ const mocks = vi.hoisted(() => ({
         assistant?: { modelId?: string | null }
         model?: Model
         session?: { agentId?: string }
-        reasoning?: { effort: string; onEffortChange: (effort: string) => void }
+      }
+    | undefined,
+  speedControlProps: undefined as
+    | {
+        reasoningEffort: string
+        fastMode: boolean
+        onReasoningEffortChange: (effort: string) => void
+        onFastModeChange: (enabled: boolean) => void
       }
     | undefined,
   sessionWorkspaceId: 'workspace-1',
@@ -163,18 +170,6 @@ const pdfSkillToken = {
   promptText: 'Use the pdf skill.',
   payload: pdfSkill
 } as const
-
-function createThinkingLauncher(overrides: Partial<ComposerToolLauncher> = {}): ComposerToolLauncher {
-  return {
-    id: 'thinking',
-    kind: 'group',
-    label: 'assistants.settings.reasoning_effort.label',
-    icon: <span data-testid="thinking-icon" />,
-    sources: ['popover'],
-    submenu: [{ id: 'thinking-high', kind: 'command', label: 'high', icon: 'high', sources: ['popover'] }],
-    ...overrides
-  }
-}
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
@@ -326,7 +321,6 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     assistant?: { modelId?: string | null }
     model?: Model
     session?: { agentId?: string }
-    reasoning?: { effort: string; onEffortChange: (effort: string) => void }
   }) => {
     mocks.runtimeHostProps = props
     return null
@@ -372,6 +366,18 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   }),
   useComposerToolLauncherVersion: () => mocks.toolLaunchersVersion,
   useComposerTokenReconcile: () => mocks.reconcileTokens
+}))
+
+vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', () => ({
+  ComposerSpeedControl: (props: {
+    reasoningEffort: string
+    fastMode: boolean
+    onReasoningEffortChange: (effort: string) => void
+    onFastModeChange: (enabled: boolean) => void
+  }) => {
+    mocks.speedControlProps = props
+    return <div data-testid="agent-speed-control" />
+  }
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -760,7 +766,7 @@ describe('AgentComposer', () => {
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
     mocks.quickPanelOpen.mockReset()
-    mocks.pinnedToolIds = ['composer:new-session', 'thinking', 'skills']
+    mocks.pinnedToolIds = ['composer:new-session', 'skills']
     mocks.pinnedLauncherIds = []
     mocks.toolLaunchers = []
     mocks.toolLaunchersVersion = 0
@@ -778,6 +784,7 @@ describe('AgentComposer', () => {
     mocks.availableSkillsRefresh.mockResolvedValue(undefined)
     mocks.contextUsagePercentage = null
     mocks.surfaceProps = undefined
+    mocks.speedControlProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
     mocks.sessionWorkspaceId = 'workspace-1'
@@ -834,7 +841,6 @@ describe('AgentComposer', () => {
   it('limits Session knowledge choices to the Agent static binding', () => {
     mocks.knowledgeBases = [knowledgeBaseOne, knowledgeBaseTwo]
     mocks.agentKnowledgeBaseIds = [knowledgeBaseOne.id]
-
     render(
       <AgentComposer
         agentId="agent-1"
@@ -971,6 +977,64 @@ describe('AgentComposer', () => {
     expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
   })
 
+  it('captures Fast in the submitted Work Agent turn', async () => {
+    mocks.modelResult = { ...model, supportsFastMode: true }
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onFastModeChange(true))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'Use Fast', tokens: [] })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'Use Fast' },
+      {
+        body: expect.objectContaining({
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          fastMode: true
+        })
+      }
+    )
+  })
+
+  it('clears Fast when the current provider-model pair loses support', async () => {
+    mocks.modelResult = { ...model, supportsFastMode: true }
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onFastModeChange(true))
+    expect(mocks.speedControlProps?.fastMode).toBe(true)
+
+    mocks.modelResult = { ...model, supportsFastMode: false }
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => expect(mocks.speedControlProps?.fastMode).toBe(false))
+  })
+
   it('blocks the send button with a model-required prompt when the agent has no configured model', async () => {
     mocks.modelResult = undefined
 
@@ -1092,12 +1156,12 @@ describe('AgentComposer', () => {
       />
     )
 
-    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
-    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    await waitFor(() => expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('default'))
+    await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('default'))
   })
 
   it('keeps the session reasoning selection when the model update fails', async () => {
@@ -1114,14 +1178,14 @@ describe('AgentComposer', () => {
       />
     )
 
-    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
 
     await act(async () => {
       fireEvent.click(screen.getByText('select model 2'))
       await Promise.resolve()
     })
 
-    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
   })
 
   it('reconciles from the latest reasoning selection when it changes while the model update is pending', async () => {
@@ -1144,13 +1208,13 @@ describe('AgentComposer', () => {
       />
     )
 
-    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
     fireEvent.click(screen.getByText('select reasoning model'))
-    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('low'))
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('low'))
 
     await act(async () => finishModelUpdate({}))
 
-    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('low')
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
   })
 
   it('keeps the inline model selector read-only when model changes are locked', () => {
@@ -1272,7 +1336,7 @@ describe('AgentComposer', () => {
   })
 
   it('returns the new session action to the plus panel when it is unpinned', () => {
-    mocks.pinnedToolIds = ['thinking', 'skills']
+    mocks.pinnedToolIds = ['skills']
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -1342,9 +1406,7 @@ describe('AgentComposer', () => {
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps reasoning and skill shortcuts in the input toolbar and opens the unified panel', () => {
-    mocks.toolLaunchers = [createThinkingLauncher()]
-
+  it('keeps the skill shortcut in the input toolbar and opens the unified panel', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1356,31 +1418,18 @@ describe('AgentComposer', () => {
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const reasoningButton = within(leftControls).getByRole('button', {
-      name: 'assistants.settings.reasoning_effort.label'
-    })
     const skillButton = within(leftControls).getByRole('button', { name: 'plugins.skills' })
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
 
-    expect(reasoningButton.compareDocumentPosition(skillButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(reasoningButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(skillButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(skillButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(skillButton.querySelector('.lucide-tool-case')).toBeInTheDocument()
 
-    fireEvent.click(reasoningButton)
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({
-      launcherId: 'thinking',
-      searchText: 'assistants.settings.reasoning_effort.label'
-    })
-
     fireEvent.click(skillButton)
-    expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ launcherId: 'agent-skills', searchText: 'plugins.skills' })
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({ launcherId: 'agent-skills', searchText: 'plugins.skills' })
   })
 
   it('keeps only pinned shortcuts in compact controls', () => {
-    mocks.toolLaunchers = [createThinkingLauncher()]
-
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1394,9 +1443,6 @@ describe('AgentComposer', () => {
 
     const compactControls = screen.getByTestId('composer-compact-controls')
     expect(mocks.surfaceProps?.compactWhenSingleLine).toBe(true)
-    expect(
-      within(compactControls).getByRole('button', { name: 'assistants.settings.reasoning_effort.label' })
-    ).toBeInTheDocument()
     expect(within(compactControls).getByRole('button', { name: 'plugins.skills' })).toBeInTheDocument()
     expect(within(compactControls).queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
     expect(within(compactControls).queryByRole('button', { name: /Claude Sonnet 4.5/ })).not.toBeInTheDocument()
@@ -1431,62 +1477,6 @@ describe('AgentComposer', () => {
 
     fireEvent.click(mcpButton)
     expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
-  })
-
-  it('disables the reasoning shortcut when the model cannot configure reasoning', () => {
-    mocks.toolLaunchers = [
-      createThinkingLauncher({
-        disabled: true,
-        disabledReason: 'chat.input.thinking.unsupported_model'
-      })
-    ]
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    const reasoningButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
-      name: 'assistants.settings.reasoning_effort.label'
-    })
-    expect(reasoningButton).toBeDisabled()
-    expect(screen.getByText('chat.input.thinking.unsupported_model')).toBeInTheDocument()
-
-    fireEvent.click(reasoningButton)
-
-    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
-  })
-
-  it('uses the active reasoning launcher icon and style after reasoning is selected', () => {
-    mocks.toolLaunchers = [
-      createThinkingLauncher({
-        active: true,
-        icon: <span data-testid="thinking-active-icon" />,
-        suffix: 'assistants.settings.reasoning_effort.high'
-      })
-    ]
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    const reasoningButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
-      name: 'assistants.settings.reasoning_effort.label'
-    })
-    expect(reasoningButton).toHaveAttribute('data-active', 'true')
-    expect(reasoningButton).toHaveClass('bg-accent', 'data-[active=true]:text-primary!')
-    expect(within(reasoningButton).getByTestId('thinking-active-icon')).toBeInTheDocument()
   })
 
   it('hides the empty session action without a handler', () => {
@@ -2392,7 +2382,7 @@ describe('AgentComposer', () => {
     expect(skillsLauncher?.rootPanelPlacement).toBeUndefined()
     expect(skillsLauncher?.order).toBe(40)
     expect(skillsLauncher?.rootSearchItems).toEqual([expect.objectContaining({ id: 'skill:pdf' })])
-    expect(mocks.pinnedLauncherIds).toEqual(['composer:new-session', 'thinking', 'agent-skills'])
+    expect(mocks.pinnedLauncherIds).toEqual(['composer:new-session', 'agent-skills'])
 
     const items = getAgentSkillsPanelItems()
     expect(items).not.toContainEqual(expect.objectContaining({ id: 'composer:customize-toolbar' }))

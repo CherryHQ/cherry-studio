@@ -39,7 +39,12 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
-import { canModelUseAssistantWebSearch, resolveReasoningEffortForModel } from '@renderer/utils/model'
+import {
+  canModelUseAssistantWebSearch,
+  isGPT5SeriesReasoningModel,
+  isOpenAIWebSearchModel,
+  resolveReasoningEffortForModel
+} from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -80,6 +85,7 @@ import {
   hasUnsyncedComposerAttachments
 } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { ComposerSpeedControl } from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -136,6 +142,7 @@ export interface ChatComposerProps {
       mentionedModels?: UniqueModelId[]
       userMessageParts?: CherryMessagePart[]
       reasoningEffort?: ReasoningEffortOption
+      fastMode?: boolean
     }
   ) => void | Promise<void>
   captureLocalSendScrollEligibility?: () => void
@@ -549,6 +556,11 @@ const ChatComposerInner = ({
   const reasoningMutationVersionRef = useRef(0)
   const reasoningEffort =
     reasoningOverride?.assistantId === selectedAssistantId ? reasoningOverride.value : canonicalReasoningEffort
+  const [fastMode, setFastMode] = useState(false)
+
+  useEffect(() => {
+    if (runtimeModel?.supportsFastMode !== true) setFastMode(false)
+  }, [runtimeModel?.supportsFastMode])
 
   // A local override only bridges the latest PATCH/revalidation window. Do
   // not retire it on an intermediate refresh from an older mutation.
@@ -563,6 +575,16 @@ const ChatComposerInner = ({
   const handleReasoningEffortChange = useCallback(
     (option: ReasoningEffortOption) => {
       if (!selectedAssistantId) return
+      if (
+        option === 'minimal' &&
+        runtimeModel &&
+        isOpenAIWebSearchModel(runtimeModel) &&
+        isGPT5SeriesReasoningModel(runtimeModel) &&
+        assistant?.settings.enableWebSearch
+      ) {
+        toast.warning(t('chat.web_search.warning.openai'))
+        return
+      }
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
         assistantId: selectedAssistantId,
@@ -578,7 +600,7 @@ const ChatComposerInner = ({
           logger.warn('Failed to persist reasoning effort', { error })
         })
     },
-    [selectedAssistantId, updateAssistantSettings]
+    [assistant?.settings.enableWebSearch, runtimeModel, selectedAssistantId, t, updateAssistantSettings]
   )
 
   const handleModelSelect = useCallback(
@@ -612,11 +634,6 @@ const ChatComposerInner = ({
         })
     },
     [assistant, reasoningEffort, reasoningOverride, setModel]
-  )
-
-  const reasoningContext = useMemo(
-    () => ({ effort: reasoningEffort, onEffortChange: handleReasoningEffortChange }),
-    [handleReasoningEffortChange, reasoningEffort]
   )
 
   const {
@@ -1046,7 +1063,8 @@ const ChatComposerInner = ({
         requireText: false,
         extra: () => ({
           mentionedModels: mentionedModels.length ? mentionedModels.map((currentModel) => currentModel.id) : undefined,
-          reasoningEffort: assistantId ? reasoningEffort : 'default'
+          reasoningEffort: assistantId ? reasoningEffort : 'default',
+          ...(fastMode ? { fastMode: true } : {})
         })
       })
       if (!payload) return null
@@ -1060,7 +1078,7 @@ const ChatComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [assistantId, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope]
+    [assistantId, fastMode, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1074,7 +1092,8 @@ const ChatComposerInner = ({
         await onSend(payload.text, {
           mentionedModels: payload.mentionedModels,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
-          reasoningEffort: payload.reasoningEffort
+          reasoningEffort: payload.reasoningEffort,
+          ...(payload.fastMode ? { fastMode: true } : {})
         })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
         return true
@@ -1371,18 +1390,24 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] =
+    displayAssistant && runtimeModel ? (
+      <ComposerSpeedControl
+        model={runtimeModel}
+        reasoningEffort={reasoningEffort}
+        fastMode={fastMode}
+        onReasoningEffortChange={handleReasoningEffortChange}
+        onFastModeChange={setFastMode}
+      />
+    ) : null
+
   return (
     <ComposerToolDerivedStateProvider
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       {displayAssistant && runtimeModel && (
-        <ComposerToolRuntimeHost
-          scope={scope}
-          assistant={displayAssistant}
-          model={runtimeModel}
-          reasoning={reasoningContext}
-        />
+        <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
       )}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
@@ -1473,6 +1498,7 @@ const ChatComposerInner = ({
           rootPanelAdditionalItems={rootPanelAdditionalItems}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           deferQuickPanel={deferQuickPanel}
+          sendAccessory={sendAccessory}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>

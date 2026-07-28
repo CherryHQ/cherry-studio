@@ -293,7 +293,12 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     vi.mocked(resolveAssistantModelId).mockClear()
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
-      { trigger: 'steer-continuation', topicId: 'topic-1', userMessageId: 'u2' } as MainSteerContinuationRequest,
+      {
+        trigger: 'steer-continuation',
+        topicId: 'topic-1',
+        userMessageId: 'u2',
+        fastMode: false
+      } satisfies MainSteerContinuationRequest,
       { hasLiveStream: false }
     )
 

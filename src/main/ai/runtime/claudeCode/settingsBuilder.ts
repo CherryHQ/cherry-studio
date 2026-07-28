@@ -249,6 +249,8 @@ export interface ClaudeCodeSessionOptions {
     effort?: Options['effort']
     thinking?: Options['thinking']
   }
+  /** Claude Code SDK-native Fast mode. */
+  fastMode?: boolean
 }
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServer | undefined>
@@ -402,6 +404,7 @@ export async function buildClaudeCodeSessionSettings(
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
     ...(options?.thinkingOptions?.thinking ? { thinking: options.thinkingOptions.thinking } : {}),
+    ...(options?.fastMode ? { fastMode: true } : {}),
     ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
   }
 

@@ -627,6 +627,49 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
+  it('carries Codex Fast through the internal gateway header', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai-codex',
+      fastMode: { transport: 'openai-priority' },
+      endpointConfigs: { 'openai-responses': { baseUrl: 'https://chatgpt.com/backend-api/codex' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'gpt-5-4',
+      apiModelId: 'gpt-5.4',
+      supportsFastMode: true
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', true)
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_CUSTOM_HEADERS: 'X-Cherry-Fast-Mode: true'
+    })
+  })
+
+  it('preserves existing Anthropic custom headers when enabling Codex Fast', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai-codex',
+      fastMode: { transport: 'openai-priority' },
+      endpointConfigs: { 'openai-responses': { baseUrl: 'https://chatgpt.com/backend-api/codex' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'gpt-5-4',
+      apiModelId: 'gpt-5.4',
+      supportsFastMode: true
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.buildSessionSettings.mockResolvedValueOnce({
+      env: { ANTHROPIC_CUSTOM_HEADERS: 'X-Custom-Header: retained' }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', true)
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('X-Custom-Header: retained\nX-Cherry-Fast-Mode: true')
+  })
+
   it('pins cross-provider plan/small models onto the primary for an external-cli (claude-code) agent instead of routing through the gateway', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -682,6 +725,31 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
         }
       ]
     })
+  })
+
+  it('passes Claude Code Fast to the SDK settings builder', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::claude-opus-4-8' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'claude-code',
+      authMethods: ['external-cli'],
+      fastMode: { transport: 'claude-code' },
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'claude-opus-4-8',
+      apiModelId: 'claude-opus-4-8',
+      supportsFastMode: true
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', true)
+
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ fastMode: true }),
+      expect.anything()
+    )
   })
 
   it('routes Gemini provider models through the local API gateway', async () => {

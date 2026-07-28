@@ -105,6 +105,7 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { ComposerSpeedControl } from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -249,6 +250,16 @@ type AgentComposerSessionSnapshot = {
   workspaceId?: string | null
 }
 
+export interface AgentComposerSendBody {
+  agentId: string
+  sessionId: string
+  userMessageParts: ComposerQueuedMessagePayload['userMessageParts']
+  reasoningEffort?: ThinkingOption
+  fastMode?: boolean
+}
+
+export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
+
 type Props = {
   agentId: string
   sessionId: string
@@ -257,7 +268,7 @@ type Props = {
   resolvedModel?: Model
   resolvedWorkspaceWarning?: string | null
   externalContextControls?: boolean
-  sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
+  sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<void>
   captureLocalSendScrollEligibility?: () => void
   stop: () => Promise<void>
   onCreateEmptySession?: () => void | Promise<unknown>
@@ -694,6 +705,7 @@ const AgentComposerInner = ({
   }
 
   const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
+  const [fastMode, setFastMode] = useState(false)
   const previousModelIdRef = useRef(model?.id)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraftRef.current?.tokens ?? []).map(getSkillFromCachedToken)
@@ -720,6 +732,10 @@ const AgentComposerInner = ({
     previousModelIdRef.current = model?.id
     setReasoningEffort((current) => (model ? (resolveReasoningEffortForModel(model, current) ?? 'default') : 'default'))
   }, [model])
+
+  useEffect(() => {
+    if (model?.supportsFastMode !== true) setFastMode(false)
+  }, [model?.supportsFastMode])
 
   const setText = useCallback(
     (nextText: string, options: { persist?: boolean } = {}) => {
@@ -990,10 +1006,6 @@ const AgentComposerInner = ({
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const toolsSession = sessionData
-  const reasoningContext = useMemo(
-    () => ({ effort: reasoningEffort, onEffortChange: setReasoningEffort }),
-    [reasoningEffort]
-  )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
@@ -1044,7 +1056,7 @@ const AgentComposerInner = ({
       const payload = buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: agentComposerTokenId.file,
-        extra: () => ({ reasoningEffort })
+        extra: () => ({ reasoningEffort, ...(fastMode ? { fastMode: true } : {}) })
       })
       if (!payload) return null
 
@@ -1057,7 +1069,7 @@ const AgentComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [files, reasoningEffort, selectedKnowledgeBasesInScope]
+    [fastMode, files, reasoningEffort, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1073,7 +1085,8 @@ const AgentComposerInner = ({
               agentId,
               sessionId,
               userMessageParts: [...payload.userMessageParts, ...fileParts],
-              reasoningEffort: payload.reasoningEffort
+              reasoningEffort: payload.reasoningEffort,
+              ...(payload.fastMode ? { fastMode: true } : {})
             }
           }
         )
@@ -1318,7 +1331,18 @@ const AgentComposerInner = ({
   })
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
-    <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    <>
+      {model ? (
+        <ComposerSpeedControl
+          model={model}
+          reasoningEffort={reasoningEffort}
+          fastMode={fastMode}
+          onReasoningEffortChange={setReasoningEffort}
+          onFastModeChange={setFastMode}
+        />
+      ) : null}
+      <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    </>
   )
 
   return (
@@ -1326,9 +1350,7 @@ const AgentComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      {model && (
-        <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} reasoning={reasoningContext} />
-      )}
+      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface

@@ -8,7 +8,11 @@ export default defineCreator({
   modelsDevProviders: ['deepseek'],
   idPrefixes: ['deepseek'],
   reasoningFamilies: [
-    { pattern: '^deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?', effort: ['none', 'high', 'max'] },
+    {
+      pattern: '^deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?',
+      effort: ['high', 'max'],
+      toggle: true
+    },
     // v3.x hybrid inference (thinking / non-thinking at one endpoint).
     { pattern: 'deepseek-(?:chat|v3(?:\\.\\d|-\\d))', toggle: true, template: true },
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
@@ -16,5 +20,19 @@ export default defineCreator({
     { pattern: 'deepseek-chat' },
     { pattern: 'deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?(?:-[\\w]+)*(?=$|[:/])' },
     { pattern: 'deepseek-v3\\.2-speciale' }
+  ],
+  models: [
+    {
+      id: 'deepseek-v4-flash',
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['high', 'max'], default: 'high' }, { kind: 'toggle' }]
+      }
+    },
+    {
+      id: 'deepseek-v4-pro',
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['high', 'max'], default: 'high' }, { kind: 'toggle' }]
+      }
+    }
   ]
 })

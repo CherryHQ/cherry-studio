@@ -256,6 +256,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'resume-1',
       'claude-code::sonnet',
       'default',
+      false,
       undefined
     )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
@@ -1555,7 +1556,17 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
   it('maps an SDK commands_changed message to a supported-commands event without an active turn', async () => {
     const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const commands = [
+      { name: 'deploy', description: 'Deploy the app', argumentHint: '' },
+      { name: 'effort', description: 'Set reasoning effort', argumentHint: '' }
+    ]
+    const visibleCommands = [commands[0]]
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      supportedCommands: vi.fn().mockResolvedValue(commands)
+    }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -1566,12 +1577,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     // No `send()` → no adapter (the primed, turn-less case). The mid-session push must still surface so
     // the catalog refreshes; `supportedCommands()` alone would miss it (captured once at init).
-    const commands = [{ name: 'deploy', description: 'Deploy the app', argumentHint: '' }]
     queryQueue.push({ type: 'system', subtype: 'commands_changed', commands, session_id: 'resume-1' })
 
     await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'supported-commands', commands }
+      value: { type: 'supported-commands', commands: visibleCommands }
     })
+    await expect(connection.getSupportedCommands?.()).resolves.toEqual(visibleCommands)
 
     void connection.close()
   })

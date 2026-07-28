@@ -18,6 +18,8 @@ export interface AiChatRequestBody {
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
   /** Canonical reasoning selection captured for this submit. */
   reasoningEffort?: ReasoningEffortOption
+  /** Whether to request the provider-model pair's Fast transport for this submit. */
+  fastMode?: boolean
 }
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -73,6 +75,8 @@ export interface ComposerQueuedMessagePayload {
   mentionedModels?: UniqueModelId[]
   /** Canonical reasoning selection captured with this queued draft. */
   reasoningEffort?: ReasoningEffortOption
+  /** Whether this queued draft requests Fast processing. */
+  fastMode?: boolean
 }
 
 /**
@@ -152,6 +156,8 @@ export type AiStreamOpenRequest = {
       userMessageParts: CherryMessagePart[]
       /** Canonical reasoning selection captured when the composer submitted. */
       reasoningEffort?: ReasoningEffortOption
+      /** Whether to request Fast processing for this turn. */
+      fastMode?: boolean
     }
   | {
       /** Re-run the assistant under an existing user msg. */
@@ -160,6 +166,7 @@ export type AiStreamOpenRequest = {
       parentAnchorId: string
       userMessageParts?: never
       reasoningEffort?: never
+      fastMode?: never
     }
 )
 
