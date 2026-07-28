@@ -138,7 +138,10 @@ export const kbSearchInputSchema = z.object({
 })
 
 export const kbSearchOutputItemSchema = z.object({
-  id: z.number().int().positive(),
+  // Citation id the model echoes back as `[cite:id]`. New results use a per-call
+  // random-prefixed string ("k3f-2") so ids stay unique across multiple lookup
+  // calls in one message; number is kept so older persisted results still parse.
+  id: z.union([z.string(), z.number().int().positive()]),
   // Concept ID (the source document's relative path, OKF §2), display title, and
   // item type, so the model can follow a hit with kb_read. Optional:
   // older persisted tool results predate these fields and must still parse.
@@ -448,7 +451,10 @@ export const webSearchInputSchema = z.object({
 })
 
 export const webSearchOutputItemSchema = z.object({
-  id: z.number().int().positive(),
+  // Citation id the model echoes back as `[cite:id]`. New results use a per-call
+  // random-prefixed string ("k3f-2") so ids stay unique across multiple lookup
+  // calls in one message; number is kept so older persisted results still parse.
+  id: z.union([z.string(), z.number().int().positive()]),
   title: z.string(),
   url: z.string(),
   content: z.string()

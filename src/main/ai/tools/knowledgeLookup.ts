@@ -45,6 +45,8 @@ import { KnowledgeAddItemInputSchema } from '@shared/data/types/knowledge'
 import PQueue from 'p-queue'
 import * as z from 'zod'
 
+import { citeId, newCitePrefix } from './citationIds'
+
 const logger = loggerService.withContext('KnowledgeLookup')
 
 const SAMPLE_LIMIT = 8
@@ -77,7 +79,7 @@ Use this when:
 - The question references topics likely covered in stored documents
 - Specific factual lookup that isn't general knowledge
 
-Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`
+Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
 
 export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
 
@@ -189,8 +191,9 @@ export async function searchKnowledge(
   }
   const sorted = [...dedupedByContent.values()].sort((a, b) => b.score - a.score)
 
+  const prefix = newCitePrefix()
   return sorted.map((result, index) => ({
-    id: index + 1,
+    id: citeId(prefix, index),
     // Provenance so the model can follow a hit with kb_read. conceptId
     // is absent only for a not-yet-indexed snapshot (no relativePath); title is
     // always set. type is the item kind (file / url / note); `?.` keeps the map

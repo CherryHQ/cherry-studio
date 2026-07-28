@@ -108,7 +108,7 @@ describe('kb_search', () => {
     expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'how does X work')
   })
 
-  it('aggregates, dedupes by content, sorts by score desc, assigns 1-based ids', async () => {
+  it('aggregates, dedupes by content, sorts by score desc, assigns prefixed cite ids', async () => {
     knowledgeServiceSearch.mockImplementation(async (baseId: string) => {
       if (baseId === 'kb-1') {
         return [
@@ -126,13 +126,15 @@ describe('kb_search', () => {
     const result = (await callExecute(
       { query: 'q', baseIds: ['kb-1', 'kb-2'] },
       { knowledgeBaseIds: ['kb-1', 'kb-2'] }
-    )) as Array<{ id: number; content: string; score: number }>
+    )) as Array<{ id: string; content: string; score: number }>
 
     expect(result).toEqual([
-      { id: 1, content: 'A', score: 0.95 },
-      { id: 2, content: 'C', score: 0.6 },
-      { id: 3, content: 'B', score: 0.5 }
+      { id: expect.stringMatching(/^[a-z0-9]{3}-1$/), content: 'A', score: 0.95 },
+      { id: expect.stringMatching(/^[a-z0-9]{3}-2$/), content: 'C', score: 0.6 },
+      { id: expect.stringMatching(/^[a-z0-9]{3}-3$/), content: 'B', score: 0.5 }
     ])
+    // All ids within one call share the same random prefix
+    expect(new Set(result.map((r) => r.id.split('-')[0])).size).toBe(1)
   })
 
   it('logs and yields [] for one base when its search throws, but other bases continue', async () => {
@@ -143,8 +145,8 @@ describe('kb_search', () => {
     const result = (await callExecute(
       { query: 'q', baseIds: ['broken', 'good'] },
       { knowledgeBaseIds: ['broken', 'good'] }
-    )) as Array<{ id: number; content: string }>
-    expect(result).toEqual([{ id: 1, content: 'ok', score: 0.7 }])
+    )) as Array<{ id: string; content: string }>
+    expect(result).toEqual([{ id: expect.stringMatching(/^[a-z0-9]{3}-1$/), content: 'ok', score: 0.7 }])
   })
 
   describe('toModelOutput', () => {

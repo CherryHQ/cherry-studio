@@ -174,7 +174,9 @@ describe('cherryBuiltinTools', () => {
 
     expect(searchKeywords).toHaveBeenCalledWith({ keywords: ['hello'] }, { signal })
     expect(result.isError).toBeFalsy()
-    expect(JSON.parse(textOf(result))).toEqual([{ id: 1, title: 'A', url: 'https://a.com', content: 'about A' }])
+    expect(JSON.parse(textOf(result))).toEqual([
+      { id: expect.stringMatching(/^[a-z0-9]{3}-1$/), title: 'A', url: 'https://a.com', content: 'about A' }
+    ])
   })
 
   it('routes web_fetch through WebSearchService', async () => {
@@ -263,7 +265,10 @@ describe('cherryBuiltinTools', () => {
 
     expect(kbSearch).toHaveBeenCalledWith('b1', 'topic')
     expect(kbSearch).toHaveBeenCalledWith('b2', 'topic')
-    expect(JSON.parse(textOf(result))[0]).toMatchObject({ id: 1, content: 'doc' })
+    expect(JSON.parse(textOf(result))[0]).toMatchObject({
+      id: expect.stringMatching(/^[a-z0-9]{3}-1$/),
+      content: 'doc'
+    })
   })
 
   it('scopes kb_search to the bound bases, dropping model-provided baseIds outside the binding', async () => {
