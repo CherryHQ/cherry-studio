@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { ipcApi } from '@renderer/ipc'
+import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
@@ -261,7 +262,7 @@ export function useChatWriteActions(params: Params): Result {
       })
 
       if (ack.mode === 'blocked') {
-        throw new Error(ack.message)
+        throw new Error(getStreamBlockedMessage(ack))
       }
 
       await seedReservedMessages(ack.reservedMessages ?? [])
@@ -292,7 +293,7 @@ export function useChatWriteActions(params: Params): Result {
       })
 
       if (ack.mode === 'blocked') {
-        throw new Error(ack.message)
+        throw new Error(getStreamBlockedMessage(ack))
       }
 
       await seedReservedMessages(ack.reservedMessages ?? [])

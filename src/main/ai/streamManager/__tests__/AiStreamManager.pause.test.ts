@@ -6,13 +6,14 @@
  * lock), `startAgentSessionRun` throws before `prepareDispatch` writes rows, and
  * queued steer continuations are suppressed (not consumed). `steer-continuation`
  * dispatches are exempt (grandfathered launches are drain-visible instead).
- * `drainInFlight({timeoutMs})` awaits persistence-bearing loop promises,
- * in-flight steer-continuation launches, and the detached naming writes as a
- * fixed point over promise identities; it never rejects and never aborts
- * stragglers. There is no resume(): holds are refcounted, dispose is
- * idempotent, and only the LAST disposal runs the release compensation that
- * re-kicks suppressed continuations — a newer hold inherits the debt, and a
- * dropped hold fails closed.
+ * `drainInFlight({timeoutMs})` awaits gate-admitted dispatches through stream
+ * handoff, persistence-bearing loop promises, in-flight steer-continuation
+ * launches, and the detached naming writes as a fixed point over promise
+ * identities; it never rejects and never aborts stragglers. There is no
+ * resume(): holds are refcounted, dispose is idempotent, and only the LAST
+ * disposal runs the release compensation that re-kicks suppressed
+ * continuations — a newer hold inherits the debt, and a dropped hold fails
+ * closed.
  */
 
 import { application } from '@application'
@@ -80,6 +81,7 @@ type ManagerInstance = InstanceType<typeof AiStreamManager>
 /** White-box view of the private quiesce/steer state (house idiom, see JobManager.pause.test.ts). */
 interface ManagerInternals {
   pauseHolds: Set<symbol>
+  inFlightDispatches: Map<Promise<unknown>, string>
   suppressedChatContinuationTopicIds: Set<string>
   inFlightChatContinuations: Map<string, Promise<void>>
   pendingSteers: Map<string, string[]>
@@ -205,7 +207,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
       mgr.pause('test: restore')
 
       const res = await mgr.dispatch(fakeSubscriber, openReq('t'))
-      expect(res).toMatchObject({ mode: 'blocked', reason: 'paused', message: expect.any(String) })
+      expect(res).toEqual({ mode: 'blocked', reason: 'paused' })
       expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
     })
 
@@ -289,6 +291,46 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
 
       loop.resolve()
       await expect(drain.promise).resolves.toEqual({ stragglerIds: [] })
+
+      hold.dispose()
+    })
+
+    it('waits for an admitted agent dispatch parked in validateSession through stream-registry handoff', async () => {
+      const validateSession = makeDeferred()
+      const streamLoop = makeDeferred()
+      const validateSessionMock = vi.fn(() => validateSession.promise)
+      mockDispatchStreamRequest.mockImplementationOnce(async (manager) => {
+        // Model AgentChatContextProvider.prepareDispatch(): the gate has admitted this dispatch,
+        // but validateSession has not yet allowed it to persist rows or call manager.send().
+        await validateSessionMock()
+        seedFakeStream(manager as ManagerInstance, 'agent-session:s1', {
+          listenerKey: 'persistence:agents-db',
+          loopPromise: streamLoop.promise
+        })
+        return { mode: 'started' }
+      })
+
+      const dispatch = trackSettled(mgr.dispatch(fakeSubscriber, openReq('agent-session:s1')))
+      await flush()
+      expect(validateSessionMock).toHaveBeenCalledOnce()
+      expect(internals(mgr).inFlightDispatches.size).toBe(1)
+
+      const hold = mgr.pause('test: validateSession race')
+      const drain = trackSettled(mgr.drainInFlight({ timeoutMs: 5000 }))
+      await flush()
+      expect(drain.isSettled()).toBe(false)
+
+      validateSession.resolve()
+      await flush()
+      expect(dispatch.isSettled()).toBe(true)
+      expect(internals(mgr).activeStreams.has('agent-session:s1')).toBe(true)
+      // The admission settled only after handing off to the stream registry; fixed-point
+      // collection must now wait on that persistence-bearing stream rather than return clean.
+      expect(drain.isSettled()).toBe(false)
+
+      streamLoop.resolve()
+      await expect(drain.promise).resolves.toEqual({ stragglerIds: [] })
+      await expect(dispatch.promise).resolves.toEqual({ mode: 'started' })
 
       hold.dispose()
     })

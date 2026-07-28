@@ -204,6 +204,9 @@ export class AiStreamManager extends BaseService {
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
+  /** Gate-admitted dispatches still inside `prepareDispatch → send`. Registered before the
+   *  first async admission gap can yield to pause/drain, then removed after stream handoff. */
+  private readonly inFlightDispatches = new Map<Promise<AiStreamOpenResponse>, string>()
   /** Steer continuations suppressed by the write-quiesce gate; the last hold's disposal re-kicks
    *  them (mirrors JobManager's suppressed-fires sets). */
   private readonly suppressedChatContinuationTopicIds = new Set<string>()
@@ -266,11 +269,16 @@ export class AiStreamManager extends BaseService {
       if (this.isWriteQuiesced && req.trigger !== 'steer-continuation') {
         return {
           mode: 'blocked' as const,
-          reason: 'paused' as const,
-          message: 'A backup restore is in progress; new messages are paused until it completes.'
+          reason: 'paused' as const
         }
       }
-      return dispatchStreamRequest(this, subscriber, req)
+      const admission = dispatchStreamRequest(this, subscriber, req)
+      this.inFlightDispatches.set(admission, req.topicId)
+      try {
+        return await admission
+      } finally {
+        this.inFlightDispatches.delete(admission)
+      }
     })
   }
 
@@ -327,12 +335,14 @@ export class AiStreamManager extends BaseService {
   /**
    * Await in-flight persistence-bearing work, bounded by timeoutMs. Never rejects; stragglers
    * are NOT aborted (the restore orchestrator decides — aborting would settle terminal rows
-   * into the snapshot). Wait-set: live executions of streams that carry a `persistence:*`
-   * listener, in-flight steer-continuation launches, and the detached topic/session naming
-   * writes (`TopicNamingService.inFlightWrites()` — spawned `void` from PersistenceListener,
-   * so a stream's loopPromise settles before they land). The set can GROW one step while
-   * draining (a settling loop spawns a naming write; a grandfathered continuation opens a
-   * stream), so the drain is a fixed point over promise identities rather than one snapshot.
+   * into the snapshot). Wait-set: gate-admitted dispatches until they hand off to the stream
+   * registry, live executions of streams that carry a `persistence:*` listener, in-flight
+   * steer-continuation launches, and the detached topic/session naming writes
+   * (`TopicNamingService.inFlightWrites()` — spawned `void` from PersistenceListener, so a
+   * stream's loopPromise settles before they land). The set can GROW one step while draining
+   * (an admitted dispatch opens a stream, a settling loop spawns a naming write, or a
+   * grandfathered continuation opens a stream), so the drain is a fixed point over promise
+   * identities rather than one snapshot.
    *
    * PRECONDITION: hold a live pause() hold — without one the verdict is a point-in-time
    * snapshot (warned, not thrown).
@@ -386,6 +396,9 @@ export class AiStreamManager extends BaseService {
       if (!isLiveStatus(stream.status)) continue
       work.push({ id: topicId, summary: `stream:${stream.status} execs=${stream.executions.size}` })
     }
+    for (const topicId of new Set(this.inFlightDispatches.values())) {
+      work.push({ id: `dispatch:${topicId}`, summary: 'stream dispatch admitting' })
+    }
     for (const topicId of this.inFlightChatContinuations.keys()) {
       work.push({ id: `chat-continuation:${topicId}`, summary: 'steer continuation launching' })
     }
@@ -401,6 +414,9 @@ export class AiStreamManager extends BaseService {
       const persistent = [...stream.listeners.keys()].some((id) => id.startsWith('persistence:'))
       if (!persistent) continue
       for (const exec of stream.executions.values()) entries.push([exec.loopPromise, topicId])
+    }
+    for (const [admission, topicId] of this.inFlightDispatches) {
+      entries.push([admission, `dispatch:${topicId}`])
     }
     for (const [topicId, launch] of this.inFlightChatContinuations) {
       entries.push([launch, `chat-continuation:${topicId}`])

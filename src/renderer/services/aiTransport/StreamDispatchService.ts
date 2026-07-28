@@ -3,6 +3,8 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 
+import { getStreamBlockedMessage } from './getStreamBlockedMessage'
+
 const logger = loggerService.withContext('StreamDispatchService')
 
 export type StreamDispatchResult =
@@ -36,7 +38,7 @@ class StreamDispatchService {
       .request('ai.stream_open', request)
       .then((ack) => {
         if (ack.mode === 'blocked') {
-          toast.error(ack.message)
+          toast.error(getStreamBlockedMessage(ack))
         }
         this.notify({ ok: true, topicId, ack })
       })
