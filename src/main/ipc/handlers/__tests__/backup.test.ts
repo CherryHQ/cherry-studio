@@ -73,6 +73,18 @@ describe('backupHandlers', () => {
         restore: { kind: 'none' }
       })
     })
+
+    it('passes the journal degradation report to the renderer', async () => {
+      const degradations = [{ kind: 'restore-db:note', reason: 'path-unportable (2 rows)' }]
+      service.getStatus.mockReturnValue({
+        operation: null,
+        restore: { kind: 'journal', state: 'completed', restoreId: 'r1', preset: 'lite', degradations }
+      })
+
+      await expect(backupHandlers['backup.get_status'](undefined, detachedCtx)).resolves.toMatchObject({
+        restore: { degradations }
+      })
+    })
   })
 
   describe('export', () => {

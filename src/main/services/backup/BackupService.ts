@@ -1,4 +1,9 @@
-import type { PromotionStepV2, RestoreJournalV2, RestoreJournalV2State } from '@data/db/restore/restoreJournalV2'
+import type {
+  JournalDegradation,
+  PromotionStepV2,
+  RestoreJournalV2,
+  RestoreJournalV2State
+} from '@data/db/restore/restoreJournalV2'
 import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -39,6 +44,11 @@ export type RestoreStatus =
        * restart retries the rollback — the UI must not offer acknowledgement.
        */
       readonly recoveryIncomplete?: true
+      /**
+       * What this restore reduced (§4), carried by the journal so the report
+       * survives the relaunch. Absent when nothing was reduced.
+       */
+      readonly degradations?: readonly JournalDegradation[]
     }
 
 export interface BackupStatus {
@@ -222,7 +232,8 @@ export class BackupService extends BaseService {
       restoreId: journal.restoreId,
       preset: journal.preset,
       ...(journal.state === 'promoting' ? { step: journal.step } : {}),
-      ...(journal.state === 'failed' && journal.recoveryIncomplete ? { recoveryIncomplete: true as const } : {})
+      ...(journal.state === 'failed' && journal.recoveryIncomplete ? { recoveryIncomplete: true as const } : {}),
+      ...(journal.degradations && journal.degradations.length > 0 ? { degradations: journal.degradations } : {})
     }
   }
 }

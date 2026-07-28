@@ -3697,6 +3697,7 @@
   "settings.data.backup_v2.outcome.acknowledge_button": "Keep restored data",
   "settings.data.backup_v2.outcome.acknowledged": "Restore acknowledged. The previous data has been released.",
   "settings.data.backup_v2.outcome.completed_help": "Until you confirm, the previous database and every replaced file are still on this device as rollback material.",
+  "settings.data.backup_v2.outcome.degradations": "{{count}} item(s) were restored in a reduced form.",
   "settings.data.backup_v2.outcome.reconfirm_integrations": "Restored integrations that run programs or reach the network stay off until you confirm them on this device.",
   "settings.data.backup_v2.outcome.recovery_incomplete": "This restore could not put every file back, so the app is still holding the originals. Restart Cherry Studio to finish it — nothing can be released until then.",
   "settings.data.backup_v2.outcome.state.armed": "A restore is armed and will run at the next start.",

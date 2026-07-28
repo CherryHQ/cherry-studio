@@ -168,6 +168,19 @@ describe('BackupV2Settings', () => {
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore'))
   })
 
+  it('names what a completed restore brought back in a reduced form', async () => {
+    statusIs({
+      kind: 'journal',
+      state: 'completed',
+      restoreId: 'r1',
+      degradations: [{ kind: 'restore-db:note', reason: 'path-unportable (2 rows)' }]
+    })
+    await renderSettings()
+
+    await waitFor(() => expect(screen.getByText('settings.data.backup_v2.outcome.degradations')).toBeInTheDocument())
+    expect(screen.getByText(/restore-db:note/)).toBeInTheDocument()
+  })
+
   it('does not offer to acknowledge a restore that is still running', async () => {
     statusIs({ kind: 'journal', state: 'promoting', restoreId: 'r1' })
     await renderSettings()
