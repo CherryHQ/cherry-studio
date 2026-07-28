@@ -5,7 +5,19 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let userData = ''
-const { relaunch } = vi.hoisted(() => ({ relaunch: vi.fn() }))
+const { relaunch, admitArchiveMock } = vi.hoisted(() => ({ relaunch: vi.fn(), admitArchiveMock: vi.fn() }))
+vi.mock('../admission/admitArchive', () => ({ admitArchive: admitArchiveMock }))
+vi.mock('../portability/managedPathRebase', () => ({ prepareManagedRootRebase: () => ({ ok: true, table: {} }) }))
+vi.mock('../portability/materializeDatabase', () => ({
+  materializePortableDatabase: async () => ({
+    summary: { degradations: [] },
+    chain: [{ folderMillis: 1, hash: 'one' }]
+  }),
+  summarizeMaterializationDegradations: () => []
+}))
+vi.mock('../platform', () => ({ currentBackupPlatform: () => 'darwin' }))
+vi.mock('../stagingDurability', () => ({ durabilizeRestoreStaging: () => {} }))
+
 vi.mock('@application', () => ({
   application: {
     getPath: (key: string) => {
@@ -32,7 +44,8 @@ import {
   writeRestoreJournal
 } from '@data/db/restore/restoreJournal'
 
-import { armPreparedRestore, cancelPreparedRestore } from '../prepareRestore'
+import { acknowledgeRestore } from '../acknowledgeRestore'
+import { armPreparedRestore, cancelPreparedRestore, prepareRestore } from '../prepareRestore'
 
 const restoreId = '11111111-2222-4333-8444-555555555555'
 function prepared() {
@@ -54,6 +67,7 @@ describe('restore preparation lifecycle', () => {
     userData = mkdtempSync(join(tmpdir(), 'prepare-restore-'))
     mkdirSync(join(userData, 'Data'), { recursive: true })
     relaunch.mockReset()
+    admitArchiveMock.mockReset()
   })
   afterEach(() => rmSync(userData, { recursive: true, force: true }))
 
@@ -72,5 +86,22 @@ describe('restore preparation lifecycle', () => {
     armPreparedRestore(restoreId)
     expect(readRestoreJournal()).toMatchObject({ kind: 'ok', journal: { state: 'armed' } })
     expect(relaunch).toHaveBeenCalledOnce()
+  })
+
+  it('permits a new preparation after terminal acknowledgement clears the journal', async () => {
+    writeRestoreJournal({ ...prepared(), state: 'expired', reason: 'unarmed' })
+    acknowledgeRestore()
+    const admittedDb = join(userData, 'admitted.sqlite')
+    writeFileSync(admittedDb, 'sealed')
+    admitArchiveMock.mockResolvedValue({
+      db: { path: admittedDb },
+      manifest: { producer: { platform: 'darwin', managedRoots: [] } },
+      migratedForward: false,
+      cleanup: async () => {}
+    })
+
+    const preview = await prepareRestore({ archivePath: join(userData, 'backup.cherrybackup') })
+    expect(preview.restoreId).not.toBe(restoreId)
+    expect(readRestoreJournal()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
   })
 })

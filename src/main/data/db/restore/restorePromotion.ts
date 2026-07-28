@@ -42,6 +42,12 @@ interface DbFacts {
   readonly aside: boolean
 }
 
+interface RollbackFacts {
+  readonly live: boolean
+  readonly aside: boolean
+  readonly rejected: boolean
+}
+
 /** The only preboot writer of the live database; it runs before DbService exists. */
 export async function runRestorePromotion(): Promise<void> {
   const read = readRestoreJournal()
@@ -273,17 +279,25 @@ function beginPostCommitRevert(journal: PromotingJournal, reason: string): void 
 function finishPostCommitRevert(journal: RevertingJournal): void {
   const ctx = buildContext(journal)
   const rejectedPath = rejectedDbPath(journal.restoreId)
-  if (fs.existsSync(ctx.asidePath)) {
-    if (!fs.existsSync(ctx.livePath)) throw new Error('post-commit revert cannot prove the promoted database')
+  const facts = probeRollbackFacts(ctx, rejectedPath)
+
+  if (facts.live && facts.aside && !facts.rejected) {
     assertRegularFile(ctx.livePath, 'promoted database')
     assertRegularFile(ctx.asidePath, 'previous database')
-    if (fs.existsSync(rejectedPath)) throw new Error('post-commit revert destination already exists')
     renameDurable(ctx.livePath, rejectedPath)
     renameDurable(ctx.asidePath, ctx.livePath)
-  }
-  if (!fs.existsSync(ctx.livePath) || !fs.existsSync(rejectedPath) || fs.existsSync(ctx.asidePath)) {
+  } else if (!facts.live && facts.aside && facts.rejected) {
+    // Crash after live→rejected but before aside→live: both remaining files are
+    // operation-owned and sufficient to finish the durable reverse direction.
+    assertRegularFile(ctx.asidePath, 'previous database')
+    assertRegularFile(rejectedPath, 'rejected database')
+    renameDurable(ctx.asidePath, ctx.livePath)
+  } else if (!(facts.live && !facts.aside && facts.rejected)) {
     throw new Error('post-commit revert cannot prove a complete old database')
   }
+
+  assertRegularFile(ctx.livePath, 'reverted database')
+  assertRegularFile(rejectedPath, 'rejected database')
   if (integrityCheck(ctx.livePath) !== 'ok') throw new Error('integrity_check on reverted DB failed')
   writeRestoreJournal({ ...journal, state: 'failed' })
 }
@@ -291,19 +305,27 @@ function finishPostCommitRevert(journal: RevertingJournal): void {
 function rollbackCompletedRestore(journal: RollbackArmedJournal): void {
   const ctx = buildContext(journal)
   const rejectedPath = rejectedDbPath(journal.restoreId)
-  const facts = probeFacts(ctx)
-  if (facts.aside && facts.live) {
+  const facts = probeRollbackFacts(ctx, rejectedPath)
+
+  if (facts.live && facts.aside && !facts.rejected) {
     assertRegularFile(ctx.livePath, 'live database')
     assertRegularFile(ctx.asidePath, 'previous database')
-    if (fs.existsSync(rejectedPath)) throw new Error('rollback destination already exists')
     checkpointLiveDb(ctx.livePath)
     fs.rmSync(`${ctx.livePath}-wal`, { force: true })
     fs.rmSync(`${ctx.livePath}-shm`, { force: true })
     renameDurable(ctx.livePath, rejectedPath)
     renameDurable(ctx.asidePath, ctx.livePath)
-  } else if (!facts.live || !fs.existsSync(rejectedPath) || facts.aside) {
+  } else if (!facts.live && facts.aside && facts.rejected) {
+    // Same interrupted-reverse shape as post-commit failure recovery.
+    assertRegularFile(ctx.asidePath, 'previous database')
+    assertRegularFile(rejectedPath, 'displaced restored database')
+    renameDurable(ctx.asidePath, ctx.livePath)
+  } else if (!(facts.live && !facts.aside && facts.rejected)) {
     throw new Error('rollback cannot prove all required database artifacts')
   }
+
+  assertRegularFile(ctx.livePath, 'rolled-back database')
+  assertRegularFile(rejectedPath, 'displaced restored database')
   if (integrityCheck(ctx.livePath) !== 'ok') throw new Error('integrity_check on rolled-back DB failed')
   writeRestoreJournal({ ...journal, state: 'rolled-back' })
 }
@@ -338,6 +360,14 @@ function probeFacts(ctx: PromotionContext): DbFacts {
     staged: fs.existsSync(ctx.stagedPath),
     live: fs.existsSync(ctx.livePath),
     aside: fs.existsSync(ctx.asidePath)
+  }
+}
+
+function probeRollbackFacts(ctx: PromotionContext, rejectedPath: string): RollbackFacts {
+  return {
+    live: fs.existsSync(ctx.livePath),
+    aside: fs.existsSync(ctx.asidePath),
+    rejected: fs.existsSync(rejectedPath)
   }
 }
 
