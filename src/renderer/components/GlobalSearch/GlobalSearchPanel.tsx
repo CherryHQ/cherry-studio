@@ -998,6 +998,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                 setQuery('')
                 setPanelMode('search')
                 setMessagePreviewTarget(null)
+                inputRef.current?.focus({ preventScroll: true })
               }}
               className="-translate-y-1/2 absolute top-1/2 right-3 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <X className="size-4" />
