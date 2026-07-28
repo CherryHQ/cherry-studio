@@ -47,6 +47,7 @@ import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { aiUsageRecordService } from './aiUsageRecord'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
+import { mergeMessageRuntimeStats, type MessageRuntimeStatsInput } from './utils/messageStats'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
@@ -135,6 +136,29 @@ function rowToMessage(row: MessageRow): Message {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+function completeApprovalWait(
+  existing: MessageStats | null | undefined,
+  approvalId: string,
+  completedAt: number
+): MessageStats | undefined {
+  const runtimeTiming = existing?.runtimeTiming
+  if (!runtimeTiming) return existing ?? undefined
+
+  const spans = runtimeTiming.spans.map((span) =>
+    span.kind === 'approval-wait' && span.approvalId === approvalId && span.completedAt === undefined
+      ? { ...span, completedAt: Math.max(span.startedAt, completedAt) }
+      : span
+  )
+  if (spans.every((span, index) => span === runtimeTiming.spans[index])) return existing ?? undefined
+
+  return mergeMessageRuntimeStats(existing, {
+    runtimeTiming: {
+      ...runtimeTiming,
+      spans
+    }
+  })
 }
 
 /**
@@ -1016,8 +1040,7 @@ export class MessageService {
           status: dto.status ?? 'pending',
           siblingsGroupId: dto.siblingsGroupId,
           modelId: dto.modelId ?? null,
-          messageSnapshot: dto.messageSnapshot,
-          stats: dto.stats
+          messageSnapshot: dto.messageSnapshot
         })
         .returning()
         .all()
@@ -1097,8 +1120,7 @@ export class MessageService {
             status: dto.status ?? 'pending',
             ...(dto.siblingsGroupId !== undefined ? { siblingsGroupId: dto.siblingsGroupId } : {}),
             modelId: dto.modelId,
-            messageSnapshot: dto.messageSnapshot,
-            stats: dto.stats
+            messageSnapshot: dto.messageSnapshot
           })
           .returning()
           .all()
@@ -1140,8 +1162,7 @@ export class MessageService {
             status: p.status ?? 'pending',
             ...(input.siblingsGroupId !== undefined ? { siblingsGroupId: input.siblingsGroupId } : {}),
             modelId: p.modelId,
-            messageSnapshot: p.messageSnapshot,
-            stats: p.stats
+            messageSnapshot: p.messageSnapshot
           })
           .returning()
           .all()
@@ -1250,7 +1271,7 @@ export class MessageService {
     input: {
       data: MessageData
       status: Extract<Message['status'], 'success' | 'paused' | 'error'>
-      timingStats?: Pick<MessageStats, 'timeFirstTokenMs' | 'timeCompletionMs' | 'timeThinkingMs'>
+      runtimeStats?: MessageRuntimeStatsInput
     }
   ): Message {
     application.get('DbService').withWriteTx((tx) => {
@@ -1260,36 +1281,12 @@ export class MessageService {
         throw DataApiErrorFactory.invalidOperation('finalize message', 'only assistant messages can be finalized')
       }
 
-      const stats: MessageStats = {
-        ...(row.stats?.inputTokens !== undefined ? { inputTokens: row.stats.inputTokens } : {}),
-        ...(row.stats?.outputTokens !== undefined ? { outputTokens: row.stats.outputTokens } : {}),
-        ...(row.stats?.totalTokens !== undefined ? { totalTokens: row.stats.totalTokens } : {}),
-        ...(row.stats?.inputTokenDetails ? { inputTokenDetails: row.stats.inputTokenDetails } : {}),
-        ...(row.stats?.outputTokenDetails ? { outputTokenDetails: row.stats.outputTokenDetails } : {}),
-        ...(row.stats?.requestCount !== undefined ? { requestCount: row.stats.requestCount } : {}),
-        ...(row.stats?.estimatedRequestCount !== undefined
-          ? { estimatedRequestCount: row.stats.estimatedRequestCount }
-          : {}),
-        ...(row.stats?.unpricedRequestCount !== undefined
-          ? { unpricedRequestCount: row.stats.unpricedRequestCount }
-          : {}),
-        ...(row.stats?.costs ? { costs: row.stats.costs } : {}),
-        ...(row.stats?.timeFirstTokenMs !== undefined ? { timeFirstTokenMs: row.stats.timeFirstTokenMs } : {}),
-        ...(row.stats?.timeCompletionMs !== undefined ? { timeCompletionMs: row.stats.timeCompletionMs } : {}),
-        ...(row.stats?.timeThinkingMs !== undefined ? { timeThinkingMs: row.stats.timeThinkingMs } : {}),
-        ...(input.timingStats?.timeFirstTokenMs !== undefined
-          ? { timeFirstTokenMs: input.timingStats.timeFirstTokenMs }
-          : {}),
-        ...(input.timingStats?.timeCompletionMs !== undefined
-          ? { timeCompletionMs: input.timingStats.timeCompletionMs }
-          : {}),
-        ...(input.timingStats?.timeThinkingMs !== undefined ? { timeThinkingMs: input.timingStats.timeThinkingMs } : {})
-      }
+      const stats = mergeMessageRuntimeStats(row.stats, input.runtimeStats)
       tx.update(messageTable)
         .set({
           data: input.data,
           status: input.status,
-          stats: Object.keys(stats).length > 0 ? stats : null
+          stats: stats ?? null
         })
         .where(eq(messageTable.id, id))
         .run()
@@ -1325,6 +1322,7 @@ export class MessageService {
     appliedApprovalIds: string[]
     alreadySettledApprovalIds: string[]
   } | null {
+    const completedAt = Date.now()
     return application.get('DbService').withWriteTx((tx) => {
       const [row] = tx.select().from(messageTable).where(eq(messageTable.id, anchorId)).limit(1).all()
       if (!row) return null
@@ -1348,8 +1346,12 @@ export class MessageService {
       const alreadySettledApprovalIds = decisions.map((d) => d.approvalId).filter((id) => settledIds.has(id))
       const targetPresent = appliedApprovalIds.length > 0
       if (targetPresent) {
+        const stats = appliedApprovalIds.reduce(
+          (current, approvalId) => completeApprovalWait(current, approvalId, completedAt),
+          existing.stats ?? undefined
+        )
         tx.update(messageTable)
-          .set({ data: { ...existing.data, parts: after } })
+          .set({ data: { ...existing.data, parts: after }, stats: stats ?? null })
           .where(eq(messageTable.id, anchorId))
           .run()
       }
@@ -1683,7 +1685,8 @@ export class MessageService {
           : {}),
         ...(sourceMessage.stats?.timeThinkingMs !== undefined
           ? { timeThinkingMs: sourceMessage.stats.timeThinkingMs }
-          : {})
+          : {}),
+        ...(sourceMessage.stats?.runtimeTiming ? { runtimeTiming: sourceMessage.stats.runtimeTiming } : {})
       }
       let copiedParentId: string
       if (sourceMessage.parentId && copiedMessageIds.has(sourceMessage.parentId)) {

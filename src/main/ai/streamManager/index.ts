@@ -1,4 +1,5 @@
 export { AiStreamManager } from './AiStreamManager'
+export type { MessageRuntimeTimingSink } from './MessageRuntimeTimingCollector'
 export { startAgentSessionRun } from './api/startAgentSessionRun'
 export { ChannelAdapterListener } from './listeners/ChannelAdapterListener'
 export { PersistenceListener } from './listeners/PersistenceListener'

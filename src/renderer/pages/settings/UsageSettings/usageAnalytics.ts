@@ -270,11 +270,11 @@ export function getTimelinePoints(
   return points
 }
 
-export function toPeriodKey(dateKey: string, rollup: UsageRollupKey): string {
+export function toPeriodKey(dateKey: string, rollup: UsageRollupKey, firstDayOfWeek: number): string {
   if (rollup === 'monthly') return `${dateKey.slice(0, 7)}-01`
   if (rollup === 'weekly') {
     const date = startOfLocalDay(parseDateKey(dateKey))
-    date.setDate(date.getDate() - ((date.getDay() + 6) % 7))
+    date.setDate(date.getDate() - ((date.getDay() - firstDayOfWeek + 7) % 7))
     return toDateKey(date)
   }
   return dateKey
@@ -294,13 +294,19 @@ function getScopedCost(bucket: { costCurrency: Currency | null; totalCost: numbe
 export function buildChartSeries(
   buckets: AiUsageRecordTimelineBucket[],
   periodKeys: string[],
-  options: { rollup: UsageRollupKey; metric: UsageMetricKey; currency?: Currency; topCount: number }
+  options: {
+    rollup: UsageRollupKey
+    metric: UsageMetricKey
+    currency?: Currency
+    topCount: number
+    firstDayOfWeek: number
+  }
 ): UsageChartSeries[] {
   const positions = new Map(periodKeys.map((key, index) => [key, index]))
   const groups = new Map<string, UsageChartSeries>()
 
   for (const bucket of buckets) {
-    const position = positions.get(toPeriodKey(bucket.date, options.rollup))
+    const position = positions.get(toPeriodKey(bucket.date, options.rollup, options.firstDayOfWeek))
     if (position === undefined) continue
     const value = getMetricValue(
       {

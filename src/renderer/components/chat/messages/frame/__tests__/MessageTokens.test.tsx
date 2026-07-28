@@ -9,8 +9,24 @@ import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
 import MessageTokens from '../MessageTokens'
 
+const dataApiMocks = vi.hoisted(() => ({
+  useInfiniteQuery: vi.fn(() => ({
+    pages: [],
+    isLoading: false,
+    hasNext: false,
+    loadNext: vi.fn()
+  })),
+  useInfiniteFlatItems: vi.fn(() => [])
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', () => dataApiMocks)
+
 vi.mock('@cherrystudio/ui', () => ({
-  HoverCard: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  HoverCard: ({ children, onOpenChange }: { children: ReactNode; onOpenChange?: (open: boolean) => void }) => (
+    <div data-testid="message-token-hover-root" onMouseEnter={() => onOpenChange?.(true)}>
+      {children}
+    </div>
+  ),
   HoverCardContent: ({ children, className, id }: { children: ReactNode; className?: string; id?: string }) => (
     <div id={id} className={className} data-testid="message-token-hover-card">
       {children}
@@ -120,6 +136,33 @@ function renderWithProvider(message: MessageListItem) {
 }
 
 describe('MessageTokens', () => {
+  it('does not query invocation details until a new-format details card opens', () => {
+    renderWithProvider(
+      createMessage('assistant', {
+        outputTokens: 10,
+        runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
+      })
+    )
+
+    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
+      '/ai-usage-records',
+      expect.objectContaining({ enabled: false })
+    )
+
+    fireEvent.mouseEnter(screen.getByTestId('message-token-hover-root'))
+
+    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
+      '/ai-usage-records',
+      expect.objectContaining({
+        enabled: true,
+        query: expect.objectContaining({
+          messageKind: 'chat',
+          messageId: 'assistant-message-1'
+        })
+      })
+    )
+  })
+
   it('keeps user messages compact without rendering the assistant detail card', () => {
     const { container } = renderWithProvider(createMessage('user', { totalTokens: 42 }))
     const tokenStats = container.querySelector('.message-tokens')

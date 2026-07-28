@@ -709,6 +709,26 @@ export class AgentSessionRuntimeService extends BaseService {
     return true
   }
 
+  recordToolExecutionTiming(
+    sessionId: string,
+    input: { toolCallId: string; toolName: string; durationMs: number }
+  ): boolean {
+    const entry = this.entries.get(sessionId)
+    const turn = entry?.currentTurn
+    if (!entry || !turn || turn.terminalStatus || !Number.isFinite(input.durationMs) || input.durationMs < 0) {
+      return false
+    }
+    const completedAt = Date.now()
+    return application.get('AiStreamManager').addCompletedRuntimeSpan(entry.topicId, turn.assistantMessageId, {
+      id: `tool:${input.toolCallId}`,
+      kind: 'tool-execution',
+      toolCallId: input.toolCallId,
+      toolName: input.toolName,
+      startedAt: completedAt - input.durationMs,
+      completedAt
+    })
+  }
+
   abortPendingTurn(sessionId: string, reason: string): boolean {
     const turn = this.entries.get(sessionId)?.currentTurn
     if (!turn || turn.terminalStatus || turn.abortController.signal.aborted) return false
@@ -1002,6 +1022,7 @@ export class AgentSessionRuntimeService extends BaseService {
       }),
       modality: 'language',
       usage: invocation.usage,
+      metrics: invocation.metrics,
       completedAt: Date.now()
     })
   }

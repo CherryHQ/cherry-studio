@@ -11,9 +11,11 @@ import {
 } from '@cherrystudio/ui'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
+import { createDurationFormatter } from '@renderer/utils/time'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecord'
 import { type AiUsageRecordEntry, getAiUsageRecordTotalTokens } from '@shared/data/types/aiUsageRecord'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { displayModelId, getGenerationTokensPerSecond, MODALITY_LABEL_KEYS } from './usageAnalytics'
@@ -51,7 +53,10 @@ export function UsageEntriesTable({
   dateFormatter,
   timeFormatter
 }: UsageEntriesTableProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage
+  const durationFormatter = useMemo(() => createDurationFormatter(locale), [locale])
+  const integerFormatter = useMemo(() => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }), [locale])
   const getAriaSort = (column: AiUsageRecordListSortBy) =>
     sortBy === column ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'
   const renderSortHeader = (column: AiUsageRecordListSortBy, label: string, align: 'left' | 'right' = 'left') => {
@@ -77,12 +82,12 @@ export function UsageEntriesTable({
       return t('settings.usage.cards.none')
     }
 
-    return value < 1000 ? `${Math.round(value)}ms` : `${(value / 1000).toFixed(1)}s`
+    return durationFormatter(value)
   }
   const formatTps = (value: number | undefined) =>
     value === undefined
       ? t('settings.usage.cards.none')
-      : t('settings.usage.table.tpsValue', { value: value.toFixed(0) })
+      : t('settings.usage.table.tpsValue', { value: integerFormatter.format(value) })
 
   return (
     <div className="flex min-w-0 flex-col rounded-lg border border-border bg-background">

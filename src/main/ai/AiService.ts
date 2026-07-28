@@ -56,7 +56,7 @@ import { listModels as listModelsFromProvider } from './provider/listModels'
 import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
 import { Agent, buildAgentParams } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
-import { WebContentsListener } from './streamManager'
+import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type {
   AiBaseRequest,
@@ -168,6 +168,7 @@ export interface AiRequestOptions extends AiTransportOptions {
 export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
   usageContext?: InProcessUsageContext
+  runtimeTimingSink?: MessageRuntimeTimingSink
 }
 
 /** Non-streaming text generation request — pure transport data. */
@@ -387,7 +388,6 @@ export class AiService extends BaseService {
       })
       return { ok: true }
     }
-
     // Only resume once every approval on this turn is decided — a turn can request several tools
     // at once; the not-yet-decided ones keep their cards. Reading the committed post-write parts
     // means concurrent responders agree on who fires the continuation.
@@ -506,7 +506,18 @@ export class AiService extends BaseService {
       tools,
       system,
       options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts],
+      hookParts: [
+        this.analyticsHookPart(model),
+        ...(request.runtimeTimingSink
+          ? [
+              {
+                onToolExecutionStart: (event) => request.runtimeTimingSink?.onToolExecutionStart(event),
+                onToolExecutionEnd: (event) => request.runtimeTimingSink?.onToolExecutionEnd(event)
+              } satisfies Partial<AgentLoopHooks>
+            ]
+          : []),
+        ...hookParts
+      ],
       mediaCapabilities: resolveMediaCapabilities(model)
     })
 

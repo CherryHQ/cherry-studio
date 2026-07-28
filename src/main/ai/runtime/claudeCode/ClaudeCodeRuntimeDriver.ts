@@ -7,6 +7,7 @@ import {
   type SDKAssistantMessage,
   type SDKCompactBoundaryMessage,
   type SDKMessage,
+  type SDKPartialAssistantMessage,
   type SDKResultMessage,
   type SDKStatusMessage,
   type SDKSystemMessage,
@@ -68,10 +69,7 @@ import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } f
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
-type PendingInvocationUsage = {
-  requestId: string
-  model: string
-  messageAssociation: 'current-turn' | 'stateless'
+type InvocationUsageSnapshot = {
   inputTokens: number
   outputTokens: number
   totalTokens: number
@@ -80,20 +78,53 @@ type PendingInvocationUsage = {
   cacheWriteTokens: number
 }
 
-function invocationUsageFromAssistant(
-  message: SDKAssistantMessage,
-  messageAssociation: PendingInvocationUsage['messageAssociation']
-): PendingInvocationUsage {
-  const usage = message.message.usage
+type InvocationMetricSnapshot = {
+  timeFirstTokenMs?: number
+  timeCompletionMs?: number
+  timeThinkingMs?: number
+}
+
+type InvocationTiming = {
+  streamStartedAt: number
+  ttftMs?: number
+  thinkingStartedAt?: number
+  thinkingDurationMs?: number
+}
+
+type PendingInvocationUsage = {
+  requestId: string
+  model: string
+  messageAssociation: 'current-turn' | 'stateless'
+  assistantUsage?: InvocationUsageSnapshot
+  terminalUsage?: InvocationUsageSnapshot
+  timing?: InvocationTiming
+  metrics?: InvocationMetricSnapshot
+  isStreamStopped: boolean
+}
+
+type InvocationUsageInput = {
+  input_tokens?: number | null
+  output_tokens?: number | null
+  cache_read_input_tokens?: number | null
+  cache_creation_input_tokens?: number | null
+}
+
+function invocationUsageSnapshot(usage: InvocationUsageInput): InvocationUsageSnapshot | undefined {
+  const reportedValues = [
+    usage.input_tokens,
+    usage.output_tokens,
+    usage.cache_read_input_tokens,
+    usage.cache_creation_input_tokens
+  ].filter((value): value is number => value != null)
+  if (reportedValues.length === 0 || reportedValues.some((value) => !Number.isFinite(value) || value < 0))
+    return undefined
+
   const noCacheTokens = usage.input_tokens ?? 0
   const cacheReadTokens = usage.cache_read_input_tokens ?? 0
   const cacheWriteTokens = usage.cache_creation_input_tokens ?? 0
   const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
   const outputTokens = usage.output_tokens ?? 0
   return {
-    requestId: message.message.id,
-    model: message.message.model,
-    messageAssociation,
     inputTokens,
     outputTokens,
     totalTokens: inputTokens + outputTokens,
@@ -103,17 +134,70 @@ function invocationUsageFromAssistant(
   }
 }
 
-function mergeInvocationUsage(current: PendingInvocationUsage, next: PendingInvocationUsage): PendingInvocationUsage {
+function pendingInvocationFromAssistant(
+  message: SDKAssistantMessage,
+  messageAssociation: PendingInvocationUsage['messageAssociation']
+): PendingInvocationUsage {
+  const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
+  const assistantUsage = isComplete ? invocationUsageSnapshot(message.message.usage) : undefined
+  return {
+    requestId: message.message.id,
+    model: message.message.model,
+    messageAssociation,
+    ...(assistantUsage ? { assistantUsage } : {}),
+    isStreamStopped: false
+  }
+}
+
+function selectAssistantUsage(
+  current: InvocationUsageSnapshot | undefined,
+  next: InvocationUsageSnapshot | undefined
+): InvocationUsageSnapshot | undefined {
+  if (!next) return current
+  if (!current || next.outputTokens >= current.outputTokens) return next
+  return current
+}
+
+function finiteNonnegativeDuration(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
+function startsThinking(event: SDKPartialAssistantMessage['event']): boolean {
+  return (
+    (event.type === 'content_block_start' && event.content_block.type === 'thinking') ||
+    (event.type === 'content_block_delta' && event.delta.type === 'thinking_delta')
+  )
+}
+
+function hasNonReasoningOutput(event: SDKPartialAssistantMessage['event']): boolean {
+  if (event.type === 'content_block_delta') {
+    return (
+      (event.delta.type === 'text_delta' && event.delta.text.length > 0) ||
+      (event.delta.type === 'input_json_delta' && event.delta.partial_json.length > 0)
+    )
+  }
+  if (event.type !== 'content_block_start') return false
+  return (
+    event.content_block.type === 'tool_use' ||
+    event.content_block.type === 'server_tool_use' ||
+    event.content_block.type === 'mcp_tool_use'
+  )
+}
+
+function mergePendingInvocation(current: PendingInvocationUsage, next: PendingInvocationUsage): PendingInvocationUsage {
+  const assistantUsage = selectAssistantUsage(current.assistantUsage, next.assistantUsage)
+  const terminalUsage = next.terminalUsage ?? current.terminalUsage
+  const timing = next.timing ?? current.timing
+  const metrics = next.metrics ?? current.metrics
   return {
     requestId: current.requestId,
     model: next.model || current.model,
     messageAssociation: current.messageAssociation,
-    inputTokens: Math.max(current.inputTokens, next.inputTokens),
-    outputTokens: Math.max(current.outputTokens, next.outputTokens),
-    totalTokens: Math.max(current.totalTokens, next.totalTokens),
-    noCacheTokens: Math.max(current.noCacheTokens, next.noCacheTokens),
-    cacheReadTokens: Math.max(current.cacheReadTokens, next.cacheReadTokens),
-    cacheWriteTokens: Math.max(current.cacheWriteTokens, next.cacheWriteTokens)
+    ...(assistantUsage ? { assistantUsage } : {}),
+    ...(terminalUsage ? { terminalUsage } : {}),
+    ...(timing ? { timing } : {}),
+    ...(metrics ? { metrics } : {}),
+    isStreamStopped: current.isStreamStopped || next.isStreamStopped
   }
 }
 
@@ -210,7 +294,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
   private _usageCapture?: AgentSessionUsageCapture
-  private pendingInvocationUsage?: PendingInvocationUsage
+  private readonly pendingInvocations = new Map<string, PendingInvocationUsage>()
+  private readonly streamInvocationIdsByLane = new Map<string, string>()
   private readonly flushedInvocationIds = new Set<string>()
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
@@ -401,7 +486,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   close(): void {
-    this.flushPendingInvocationUsage()
+    this.flushPendingInvocations()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
@@ -413,6 +498,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async runQueryLoop(): Promise<void> {
     try {
       for await (const message of this.query!) {
+        if (this._usageCapture?.owner === 'agent-sdk') {
+          // Temporary diagnostic: captures the exact SDK iterator payload so direct-provider
+          // `stream_event`, durable `assistant`, and aggregate `result` usage can be compared.
+          // Payloads include content; remove after provider compatibility testing is complete.
+          logger.info('[AI_USAGE_DIAGNOSTIC] Claude Agent SDK message', {
+            sessionId: this.input.sessionId,
+            sdkPayload: message
+          })
+        }
+
         if (message.type === 'system' && message.subtype === 'init') {
           this.updateResumeToken(message.session_id)
           if (!this.adapter) {
@@ -437,11 +532,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
 
         if (!this.adapter) {
-          if (message.type === 'assistant') {
+          if (message.type === 'stream_event') {
+            this.captureStreamInvocation(message, 'stateless')
+          } else if (message.type === 'assistant') {
             this.captureAssistantInvocation(message, 'stateless')
           } else if (message.type === 'result') {
             this.updateResumeToken(message.session_id)
-            this.flushPendingInvocationUsage()
+            this.flushPendingInvocations()
             logger.warn('Received a result message with no active turn; dropping turn-complete', {
               sessionId: this.input.sessionId
             })
@@ -491,22 +588,23 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           message.event.type === 'message_start' &&
           message.parent_tool_use_id == null
         ) {
-          this.flushPendingInvocationUsage()
+          this.flushPendingInvocations()
           this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
           this.steerBoundaryPending = undefined
         }
 
+        if (message.type === 'stream_event') this.captureStreamInvocation(message, 'current-turn')
         if (message.type === 'assistant') this.captureAssistantInvocation(message, 'current-turn')
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
         try {
           result = this.adapter.handleMessage(message)
         } catch (error) {
-          this.flushPendingInvocationUsage()
+          this.flushPendingInvocations()
           throw error
         }
         if (result.type === 'result') {
-          this.flushPendingInvocationUsage()
+          this.flushPendingInvocations()
           this.updateResumeToken(result.sessionId)
           // The steer was injected but no post-steer top-level assistant message followed (rare; the
           // turn ended right after the gated tool). Drop the arm — no boundary, no empty A2.
@@ -529,7 +627,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
       }
     } catch (error) {
-      this.flushPendingInvocationUsage()
+      this.flushPendingInvocations()
       // The Claude Code SDK sometimes ends the stream abruptly mid-output. When
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
@@ -549,7 +647,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.teardownSession()
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
     } finally {
-      this.flushPendingInvocationUsage()
+      this.flushPendingInvocations()
       this.query = undefined
       this.eventQueue.close()
     }
@@ -618,7 +716,125 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const capture = this._usageCapture
     if (capture?.owner !== 'agent-sdk') return
 
-    const next = invocationUsageFromAssistant(message, messageAssociation)
+    if (this.flushedInvocationIds.has(message.message.id)) return
+
+    const next = pendingInvocationFromAssistant(message, messageAssociation)
+    this.captureInvocationForLane(this.invocationLane(message.parent_tool_use_id), next)
+    if (this.pendingInvocations.get(next.requestId)?.isStreamStopped) {
+      this.flushInvocationUsage(next.requestId)
+    }
+  }
+
+  private captureStreamInvocation(
+    message: SDKPartialAssistantMessage,
+    messageAssociation: PendingInvocationUsage['messageAssociation']
+  ): void {
+    if (this._usageCapture?.owner !== 'agent-sdk') return
+
+    const lane = this.invocationLane(message.parent_tool_use_id)
+    if (message.event.type === 'message_start') {
+      const sdkMessage = message.event.message
+      const ttftMs = finiteNonnegativeDuration(message.ttft_ms)
+      this.captureInvocationForLane(lane, {
+        requestId: sdkMessage.id,
+        model: sdkMessage.model,
+        messageAssociation,
+        timing: {
+          streamStartedAt: performance.now(),
+          ...(ttftMs !== undefined ? { ttftMs } : {})
+        },
+        isStreamStopped: false
+      })
+      return
+    }
+
+    const requestId = this.streamInvocationIdsByLane.get(lane)
+    if (!requestId) return
+
+    if (message.event.type === 'content_block_start' || message.event.type === 'content_block_delta') {
+      const current = this.pendingInvocations.get(requestId)
+      if (!current) return
+      this.pendingInvocations.set(requestId, this.observeInvocationOutput(current, message))
+      return
+    }
+
+    if (message.event.type === 'message_delta') {
+      const current = this.pendingInvocations.get(requestId)
+      if (!current) return
+      const terminalUsage = invocationUsageSnapshot(message.event.usage)
+      const isStreamStopped = message.event.delta.stop_reason !== null
+      const finalized = isStreamStopped ? this.finalizeInvocationTiming(current) : current
+      this.pendingInvocations.set(requestId, {
+        ...finalized,
+        ...(terminalUsage ? { terminalUsage } : {}),
+        isStreamStopped: finalized.isStreamStopped || isStreamStopped
+      })
+      if (isStreamStopped && (terminalUsage || current.terminalUsage)) this.flushInvocationUsage(requestId)
+      return
+    }
+
+    if (message.event.type === 'message_stop') {
+      const current = this.pendingInvocations.get(requestId)
+      if (!current) return
+      this.pendingInvocations.set(requestId, { ...this.finalizeInvocationTiming(current), isStreamStopped: true })
+      if (current.terminalUsage || current.assistantUsage) this.flushInvocationUsage(requestId)
+    }
+  }
+
+  private observeInvocationOutput(
+    pending: PendingInvocationUsage,
+    message: SDKPartialAssistantMessage
+  ): PendingInvocationUsage {
+    const timing = pending.timing
+    if (!timing) return pending
+
+    let thinkingStartedAt = timing.thinkingStartedAt
+    let thinkingDurationMs = timing.thinkingDurationMs
+    if (startsThinking(message.event) && thinkingStartedAt === undefined) {
+      thinkingStartedAt = performance.now()
+    }
+    if (thinkingStartedAt !== undefined && thinkingDurationMs === undefined && hasNonReasoningOutput(message.event)) {
+      thinkingDurationMs = Math.max(0, Math.round(performance.now() - thinkingStartedAt))
+    }
+
+    return {
+      ...pending,
+      timing: {
+        ...timing,
+        ...(thinkingStartedAt !== undefined ? { thinkingStartedAt } : {}),
+        ...(thinkingDurationMs !== undefined ? { thinkingDurationMs } : {})
+      }
+    }
+  }
+
+  private finalizeInvocationTiming(pending: PendingInvocationUsage): PendingInvocationUsage {
+    const timing = pending.timing
+    if (!timing) return pending
+
+    const completedAt = performance.now()
+    const timeFirstTokenMs = timing.ttftMs
+    const timeCompletionMs =
+      timeFirstTokenMs !== undefined
+        ? Math.max(timeFirstTokenMs, Math.round(timeFirstTokenMs + completedAt - timing.streamStartedAt))
+        : undefined
+    const timeThinkingMs =
+      timing.thinkingDurationMs ??
+      (timing.thinkingStartedAt !== undefined
+        ? Math.max(0, Math.round(completedAt - timing.thinkingStartedAt))
+        : undefined)
+    const metrics = {
+      ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
+      ...(timeCompletionMs !== undefined ? { timeCompletionMs } : {}),
+      ...(timeThinkingMs !== undefined ? { timeThinkingMs } : {})
+    }
+
+    return {
+      ...pending,
+      ...(Object.keys(metrics).length > 0 ? { metrics } : {})
+    }
+  }
+
+  private captureInvocationForLane(lane: string, next: PendingInvocationUsage): void {
     if (this.flushedInvocationIds.has(next.requestId)) {
       logger.warn('Claude SDK emitted an invocation after it was already flushed', {
         sessionId: this.input.sessionId,
@@ -628,36 +844,45 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       return
     }
 
-    if (this.pendingInvocationUsage?.requestId === next.requestId) {
-      this.pendingInvocationUsage = mergeInvocationUsage(this.pendingInvocationUsage, next)
-      return
+    const previousRequestId = this.streamInvocationIdsByLane.get(lane)
+    if (previousRequestId && previousRequestId !== next.requestId) {
+      this.flushInvocationUsage(previousRequestId)
     }
+    this.streamInvocationIdsByLane.set(lane, next.requestId)
 
-    this.flushPendingInvocationUsage()
-    this.pendingInvocationUsage = next
+    const current = this.pendingInvocations.get(next.requestId)
+    this.pendingInvocations.set(next.requestId, current ? mergePendingInvocation(current, next) : next)
   }
 
-  private flushPendingInvocationUsage(): void {
-    const pending = this.pendingInvocationUsage
+  private flushPendingInvocations(): void {
+    for (const requestId of [...this.pendingInvocations.keys()]) {
+      this.flushInvocationUsage(requestId)
+    }
+  }
+
+  private flushInvocationUsage(requestId: string): void {
+    const pending = this.pendingInvocations.get(requestId)
     if (!pending) return
-    this.pendingInvocationUsage = undefined
+    this.pendingInvocations.delete(requestId)
+    for (const [lane, laneRequestId] of this.streamInvocationIdsByLane) {
+      if (laneRequestId === requestId) this.streamInvocationIdsByLane.delete(lane)
+    }
     this.flushedInvocationIds.add(pending.requestId)
+    const usage = pending.terminalUsage ?? pending.assistantUsage
     this.eventQueue.push({
       type: 'usage',
       invocation: {
         requestId: pending.requestId,
         model: pending.model,
         messageAssociation: pending.messageAssociation,
-        usage: {
-          inputTokens: pending.inputTokens,
-          outputTokens: pending.outputTokens,
-          totalTokens: pending.totalTokens,
-          noCacheTokens: pending.noCacheTokens,
-          cacheReadTokens: pending.cacheReadTokens,
-          cacheWriteTokens: pending.cacheWriteTokens
-        }
+        ...(usage ? { usage } : {}),
+        ...(pending.metrics ? { metrics: pending.metrics } : {})
       }
     })
+  }
+
+  private invocationLane(parentToolUseId: string | null | undefined): string {
+    return parentToolUseId == null ? 'top-level' : `tool:${parentToolUseId}`
   }
 
   private async emitContextUsage(): Promise<void> {

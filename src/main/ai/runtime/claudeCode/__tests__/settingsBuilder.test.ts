@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   resolveRequire: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
+  recordToolExecutionTiming: vi.fn(),
   rtkRewrite: vi.fn(),
   platform: { isMac: false },
   isWin: false
@@ -227,7 +228,11 @@ describe('buildClaudeCodeSessionSettings', () => {
       if (name === 'AgentSessionRuntimeService') {
         // Default to a live interactive turn so the approval path is exercised; the out-of-turn and
         // headless gates are asserted by tests that override this.
-        return { isCurrentTurnHeadless: () => false, hasLiveTurnStream: () => true }
+        return {
+          isCurrentTurnHeadless: () => false,
+          hasLiveTurnStream: () => true,
+          recordToolExecutionTiming: mocks.recordToolExecutionTiming
+        }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -246,6 +251,38 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.listLocalSkills.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
   })
+
+  it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
+    'captures %s duration through the live Agent runtime owner',
+    async (hookEventName) => {
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      const hook = settings.hooks?.[hookEventName]?.[0]?.hooks[0]
+
+      await hook?.(
+        {
+          hook_event_name: hookEventName,
+          tool_use_id: 'tool-1',
+          tool_name: 'Bash',
+          duration_ms: 750
+        } as never,
+        'tool-use-1',
+        { signal: { aborted: false } } as never
+      )
+
+      expect(mocks.recordToolExecutionTiming).toHaveBeenCalledWith('session-1', {
+        toolCallId: 'tool-1',
+        toolName: 'Bash',
+        durationMs: 750
+      })
+    }
+  )
 
   it('builds the SDK skill whitelist from the DB and workspace before returning settings', async () => {
     const session = {

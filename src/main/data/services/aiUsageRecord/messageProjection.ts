@@ -8,6 +8,7 @@ import type { AiUsageRecordRow } from '@main/data/db/schemas/aiUsageRecord'
 import type { MessageStats } from '@shared/data/types/message'
 import { and, eq } from 'drizzle-orm'
 
+import { mergeMessageUsageProjection } from '../utils/messageStats'
 import type { MessageRef, MessageUsageProjection } from './types'
 
 function sumOptional(
@@ -47,6 +48,9 @@ export function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): Messag
   const textTokens = sumOptional(rows, (row) =>
     row.outputTokens !== null ? Math.max(0, row.outputTokens - (row.reasoningTokens ?? 0)) : null
   )
+  let measuredOutputTokens = 0
+  let generationDurationMs = 0
+  let measuredInvocationCount = 0
   const costs = new Map<
     string,
     {
@@ -58,6 +62,18 @@ export function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): Messag
   >()
 
   for (const row of rows) {
+    if (row.outputTokens !== null && row.timeCompletionMs !== null && row.timeCompletionMs > 0) {
+      const duration =
+        row.timeFirstTokenMs !== null && row.timeFirstTokenMs < row.timeCompletionMs
+          ? row.timeCompletionMs - row.timeFirstTokenMs
+          : row.timeCompletionMs
+      if (duration > 0) {
+        measuredOutputTokens += row.outputTokens
+        generationDurationMs += duration
+        measuredInvocationCount += 1
+      }
+    }
+
     if (row.cost === null || row.costCurrency === null || row.costSource === null) continue
     const bucket = costs.get(row.costCurrency) ?? {
       currency: row.costCurrency,
@@ -98,35 +114,16 @@ export function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): Messag
       0
     ),
     unpricedRequestCount: rows.reduce((sum, row) => sum + (row.cost === null ? row.requestCount : 0), 0),
-    costs: [...costs.values()].sort((left, right) => left.currency.localeCompare(right.currency))
+    costs: [...costs.values()].sort((left, right) => left.currency.localeCompare(right.currency)),
+    ...(measuredInvocationCount > 0
+      ? {
+          providerPerformance: {
+            measuredOutputTokens,
+            generationDurationMs
+          }
+        }
+      : {})
   }
-}
-
-function mergeProjection(existing: MessageStats | null, projection: MessageUsageProjection): MessageStats {
-  const persisted = (existing ?? {}) as MessageStats & {
-    cost?: unknown
-    costCurrency?: unknown
-    costSource?: unknown
-    costBreakdown?: unknown
-    pricingSnapshot?: unknown
-  }
-  const messageOwned = { ...persisted }
-  delete messageOwned.inputTokens
-  delete messageOwned.outputTokens
-  delete messageOwned.totalTokens
-  delete messageOwned.inputTokenDetails
-  delete messageOwned.outputTokenDetails
-  delete messageOwned.requestCount
-  delete messageOwned.estimatedRequestCount
-  delete messageOwned.unpricedRequestCount
-  delete messageOwned.costs
-  delete messageOwned.cost
-  delete messageOwned.costCurrency
-  delete messageOwned.costSource
-  delete messageOwned.costBreakdown
-  delete messageOwned.pricingSnapshot
-
-  return { ...messageOwned, ...projection }
 }
 
 export function rebuildMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): boolean {
@@ -134,7 +131,7 @@ export function rebuildMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): bo
   if (ref.kind === 'chat') {
     const row = db.select({ stats: messageTable.stats }).from(messageTable).where(eq(messageTable.id, ref.id)).get()
     if (!row) return false
-    const nextStats = mergeProjection(row.stats, projection)
+    const nextStats = mergeMessageUsageProjection(row.stats, projection)
     if (isDeepStrictEqual(row.stats, nextStats)) return false
     db.update(messageTable).set({ stats: nextStats }).where(eq(messageTable.id, ref.id)).run()
   } else {
@@ -144,7 +141,7 @@ export function rebuildMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): bo
       .where(eq(agentSessionMessageTable.id, ref.id))
       .get()
     if (!row) return false
-    const nextStats = mergeProjection(row.stats, projection)
+    const nextStats = mergeMessageUsageProjection(row.stats, projection)
     if (isDeepStrictEqual(row.stats, nextStats)) return false
     db.update(agentSessionMessageTable).set({ stats: nextStats }).where(eq(agentSessionMessageTable.id, ref.id)).run()
   }

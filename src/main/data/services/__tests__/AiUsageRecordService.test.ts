@@ -150,6 +150,10 @@ describe('AiUsageRecordService', () => {
           computedRequestCount: 1
         }
       ],
+      providerPerformance: {
+        measuredOutputTokens: 500_000,
+        generationDurationMs: 100
+      },
       timeFirstTokenMs: 300,
       timeCompletionMs: 900,
       timeThinkingMs: 200
@@ -391,6 +395,34 @@ describe('AiUsageRecordService', () => {
     })
   })
 
+  it('projects weighted provider performance from only measurable invocations', () => {
+    aiUsageRecordService.recordInvocations([
+      invocation({
+        requestId: 'measured-step-1',
+        usage: { outputTokens: 10 },
+        metrics: { timeFirstTokenMs: 100, timeCompletionMs: 1_100 }
+      }),
+      invocation({
+        requestId: 'measured-step-2',
+        usage: { outputTokens: 20 },
+        metrics: { timeCompletionMs: 2_000 }
+      }),
+      invocation({
+        requestId: 'unmeasured-step',
+        usage: { outputTokens: 30 },
+        metrics: undefined
+      })
+    ])
+
+    expect(aiUsageRecordService.getMessageUsageProjection({ kind: 'chat', id: messageId })).toMatchObject({
+      outputTokens: 60,
+      providerPerformance: {
+        measuredOutputTokens: 30,
+        generationDurationMs: 3_000
+      }
+    })
+  })
+
   it('uses the same TTFT fallback expression for TPS ordering and keyset cursors', () => {
     aiUsageRecordService.recordInvocations([
       invocation({
@@ -441,6 +473,39 @@ describe('AiUsageRecordService', () => {
     expect(requestIds.slice(0, 3)).toEqual(['tps-100', 'tps-30-fallback', 'tps-20'])
     expect(requestIds).toHaveLength(5)
     expect(new Set(requestIds).size).toBe(5)
+  })
+
+  it('filters one message while preserving keyset pagination', () => {
+    aiUsageRecordService.recordInvocations([
+      invocation({ requestId: 'message-page-1', completedAt: 3_001 }),
+      invocation({ requestId: 'message-page-2', completedAt: 3_002 }),
+      invocation({
+        requestId: 'different-message',
+        context: context({ messageRef: { kind: 'chat', id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' } }),
+        completedAt: 3_003
+      })
+    ])
+
+    const first = aiUsageRecordService.list({
+      limit: 1,
+      sortBy: 'createdAt',
+      sortOrder: 'asc',
+      messageKind: 'chat',
+      messageId
+    })
+    const second = aiUsageRecordService.list({
+      limit: 1,
+      sortBy: 'createdAt',
+      sortOrder: 'asc',
+      messageKind: 'chat',
+      messageId,
+      cursor: first.nextCursor
+    })
+
+    expect(first.total).toBe(2)
+    expect(first.items.map((item) => item.requestId)).toEqual(['message-page-1'])
+    expect(second.items.map((item) => item.requestId)).toEqual(['message-page-2'])
+    expect(second.nextCursor).toBeUndefined()
   })
 
   it('uses derived total tokens consistently for ordering and keyset cursors', () => {

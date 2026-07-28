@@ -822,18 +822,24 @@ describe('AgentSessionMessageService', () => {
         .run()
     }
 
-    it('does not turn cumulative assistant message stats into a usage record', async () => {
+    it('persists runtime timing without turning it into a usage record', async () => {
       seedModel()
 
       agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
+        runtimeStats: {
+          runtimeTiming: {
+            startedAt: 1_000,
+            completedAt: 2_000,
+            spans: []
+          }
+        },
         message: {
           id: USAGE_MESSAGE_ID,
           role: 'assistant',
           status: 'success',
           data: { parts: [] },
-          modelId: 'anthropic::claude-sonnet',
-          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+          modelId: 'anthropic::claude-sonnet'
         }
       })
 
@@ -844,10 +850,20 @@ describe('AgentSessionMessageService', () => {
           .from(agentSessionMessageTable)
           .where(eq(agentSessionMessageTable.id, USAGE_MESSAGE_ID))
           .get()?.stats
-      ).toEqual({ requestCount: 0, estimatedRequestCount: 0, unpricedRequestCount: 0, costs: [] })
+      ).toEqual({
+        requestCount: 0,
+        estimatedRequestCount: 0,
+        unpricedRequestCount: 0,
+        costs: [],
+        runtimeTiming: {
+          startedAt: 1_000,
+          completedAt: 2_000,
+          spans: []
+        }
+      })
     })
 
-    it('needs no route-owner flag to suppress cumulative message usage', async () => {
+    it('needs no route-owner flag to suppress stats-less message persistence', async () => {
       seedModel()
 
       agentSessionMessageService.saveMessage({
@@ -857,8 +873,7 @@ describe('AgentSessionMessageService', () => {
           role: 'assistant',
           status: 'success',
           data: { parts: [] },
-          modelId: 'anthropic::claude-sonnet',
-          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+          modelId: 'anthropic::claude-sonnet'
         }
       })
 
@@ -895,8 +910,7 @@ describe('AgentSessionMessageService', () => {
           role: 'assistant',
           status: 'success',
           data: { parts: [] },
-          modelId: 'anthropic::claude-sonnet',
-          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+          modelId: 'anthropic::claude-sonnet'
         }
       })
 
@@ -956,8 +970,7 @@ describe('AgentSessionMessageService', () => {
           id: USAGE_MESSAGE_ID,
           role: 'assistant',
           status: 'success',
-          data: { parts: [] },
-          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+          data: { parts: [] }
         }
       })
 
@@ -973,8 +986,7 @@ describe('AgentSessionMessageService', () => {
           id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d302',
           role: 'user',
           status: 'success',
-          data: { parts: [] },
-          stats: { inputTokens: 1, outputTokens: 1 }
+          data: { parts: [] }
         }
       })
       agentSessionMessageService.saveMessage({

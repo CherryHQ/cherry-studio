@@ -55,8 +55,13 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = useState(false)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
+  const runtimeStartedAt = message.stats?.runtimeTiming?.startedAt
+  const runtimeCompletedAt = message.stats?.runtimeTiming?.completedAt
   const completedElapsedMs = useMemo(() => {
     if (props.phase === 'active') return undefined
+    if (runtimeStartedAt !== undefined && runtimeCompletedAt !== undefined) {
+      return Math.max(0, runtimeCompletedAt - runtimeStartedAt)
+    }
     if (typeof message.stats?.timeCompletionMs === 'number') return message.stats.timeCompletionMs
     if (!message.updatedAt) return undefined
 
@@ -64,7 +69,14 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
     const finishedAt = Date.parse(message.updatedAt)
     if (!Number.isFinite(startedAt) || !Number.isFinite(finishedAt) || finishedAt < startedAt) return undefined
     return finishedAt - startedAt
-  }, [message.createdAt, message.stats?.timeCompletionMs, message.updatedAt, props.phase])
+  }, [
+    message.createdAt,
+    message.stats?.timeCompletionMs,
+    message.updatedAt,
+    props.phase,
+    runtimeCompletedAt,
+    runtimeStartedAt
+  ])
 
   if (props.phase === 'active') {
     return (

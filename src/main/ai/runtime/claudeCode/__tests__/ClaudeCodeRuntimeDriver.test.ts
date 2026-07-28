@@ -873,6 +873,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       message: {
         id: 'request-sonnet',
         model: 'sonnet-sdk',
+        stop_reason: 'tool_use',
         usage: {
           input_tokens: 10,
           output_tokens: 5,
@@ -881,18 +882,19 @@ describe('ClaudeCodeRuntimeDriver', () => {
         }
       }
     })
-    // Consecutive SDK updates for the same provider request are cumulative.
-    // Keep the maximum of each field and emit only when the request id changes.
+    // Repeated complete assistant messages share one request id. Keep one whole
+    // snapshot (the one with the higher output count), never a per-field hybrid.
     queryQueue.push({
       type: 'assistant',
       message: {
         id: 'request-sonnet',
         model: 'sonnet-sdk',
+        stop_reason: 'tool_use',
         usage: {
-          input_tokens: 10,
+          input_tokens: 8,
           output_tokens: 7,
           cache_read_input_tokens: 4,
-          cache_creation_input_tokens: 3
+          cache_creation_input_tokens: 1
         }
       }
     })
@@ -901,6 +903,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       message: {
         id: 'request-haiku',
         model: 'haiku-sdk',
+        stop_reason: 'end_turn',
         usage: {
           input_tokens: 4,
           output_tokens: 6,
@@ -916,6 +919,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       message: {
         id: 'request-sonnet',
         model: 'sonnet-sdk',
+        stop_reason: 'end_turn',
         usage: {
           input_tokens: 999,
           output_tokens: 999,
@@ -965,12 +969,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
           model: 'sonnet-sdk',
           messageAssociation: 'current-turn',
           usage: {
-            inputTokens: 17,
+            inputTokens: 13,
             outputTokens: 7,
-            totalTokens: 24,
-            noCacheTokens: 10,
+            totalTokens: 20,
+            noCacheTokens: 8,
             cacheReadTokens: 4,
-            cacheWriteTokens: 3
+            cacheWriteTokens: 1
           }
         }
       },
@@ -991,6 +995,120 @@ describe('ClaudeCodeRuntimeDriver', () => {
         }
       }
     ])
+    void connection.close()
+  })
+
+  it('uses terminal stream usage when assistant snapshots omit usage', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'LongCat-2.0' },
+      settings: {},
+      sdkModelId: 'LongCat-2.0',
+      initializeTimeoutMs: 100,
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
+        providerId: 'longcat',
+        providerName: 'LongCat',
+        source: null,
+        frozenModels: [
+          { modelId: 'LongCat-2.0', modelName: 'LongCat 2.0', pricingSnapshot: null, aliases: ['LongCat-2.0'] }
+        ]
+      }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'longcat::LongCat-2.0' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      ttft_ms: 1379,
+      event: {
+        type: 'message_start',
+        message: { id: 'longcat-request', model: 'LongCat-2.0', usage: {} }
+      }
+    })
+    queryQueue.push({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      message: { id: 'longcat-request', model: 'LongCat-2.0', usage: {} }
+    })
+    queryQueue.push({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      message: { id: 'longcat-request', model: 'LongCat-2.0', usage: {} }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_delta',
+        delta: { stop_reason: 'tool_use' },
+        usage: {
+          input_tokens: 424,
+          output_tokens: 386,
+          cache_read_input_tokens: 43_392,
+          cache_creation_input_tokens: 0
+        }
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'message_stop' }
+    })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'longcat-result',
+      usage: {
+        input_tokens: 999,
+        output_tokens: 999,
+        cache_read_input_tokens: 999,
+        cache_creation_input_tokens: 999
+      }
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen.filter((event) => event?.type === 'usage')).toEqual([
+      {
+        type: 'usage',
+        invocation: {
+          requestId: 'longcat-request',
+          model: 'LongCat-2.0',
+          messageAssociation: 'current-turn',
+          usage: {
+            inputTokens: 43_816,
+            outputTokens: 386,
+            totalTokens: 44_202,
+            noCacheTokens: 424,
+            cacheReadTokens: 43_392,
+            cacheWriteTokens: 0
+          },
+          metrics: {
+            timeFirstTokenMs: 1379,
+            timeCompletionMs: expect.any(Number)
+          }
+        }
+      }
+    ])
+    const invocation = seen.find((event) => event?.type === 'usage')?.invocation
+    expect(invocation.metrics.timeCompletionMs).toBeGreaterThanOrEqual(invocation.metrics.timeFirstTokenMs)
     void connection.close()
   })
 
@@ -1029,6 +1147,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       message: {
         id: 'background-request',
         model: 'sonnet-sdk',
+        stop_reason: 'end_turn',
         usage: {
           input_tokens: 8,
           output_tokens: 3,

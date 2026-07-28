@@ -1,6 +1,7 @@
 import { EmptyState, Skeleton } from '@cherrystudio/ui'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
+import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import type {
   AiUsageRecordGroupIdentity,
   AiUsageRecordStatsBucket,
@@ -67,29 +68,34 @@ export function UsageDistributionChart({
   getBucketLabel,
   renderBucketLabel
 }: UsageDistributionChartProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const totalExploreMetric = getMetricValue(exploreTotals, chartMetric)
+  const firstDayOfWeek = useMemo(
+    () => getLocaleFirstDayOfWeek(i18n.resolvedLanguage),
+    [i18n.resolvedLanguage]
+  )
   const periodKeys = useMemo(() => {
     const keys: string[] = []
 
     for (const point of getTimelinePoints(timelineBuckets, activeRange, () => 0)) {
-      const key = toPeriodKey(point.date, rollup)
+      const key = toPeriodKey(point.date, rollup, firstDayOfWeek)
       if (keys[keys.length - 1] !== key) {
         keys.push(key)
       }
     }
 
     return keys
-  }, [activeRange, rollup, timelineBuckets])
+  }, [activeRange, firstDayOfWeek, rollup, timelineBuckets])
   const chartSeries = useMemo(
     () =>
       buildChartSeries(exploreTimelineRows, periodKeys, {
         rollup,
         metric: chartMetric,
         currency: costCurrency,
-        topCount
+        topCount,
+        firstDayOfWeek
       }),
-    [chartMetric, costCurrency, exploreTimelineRows, periodKeys, rollup, topCount]
+    [chartMetric, costCurrency, exploreTimelineRows, firstDayOfWeek, periodKeys, rollup, topCount]
   )
   const exploreTopBuckets = useMemo(
     () =>

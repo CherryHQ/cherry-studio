@@ -30,11 +30,46 @@ export type MessageId = z.infer<typeof MessageIdSchema>
 /**
  * Materialized statistics for one assistant message.
  *
- * Usage, request counts, and costs are a projection of immutable
- * `ai_usage_record` rows. Performance metrics are message-level end-to-end
- * measurements owned by message persistence and are never projected from
- * provider-call records.
+ * Usage, request counts, costs, and provider performance are projections of
+ * immutable `ai_usage_record` rows. Runtime timing and the legacy scalar
+ * timings are message-level end-to-end measurements owned by message
+ * persistence.
  */
+const MessageProviderPerformanceSchema = z.strictObject({
+  measuredOutputTokens: z.number().nonnegative(),
+  generationDurationMs: z.number().nonnegative()
+})
+export type MessageProviderPerformance = z.infer<typeof MessageProviderPerformanceSchema>
+
+const MessageRuntimeToolExecutionSpanSchema = z.strictObject({
+  id: z.string().min(1),
+  kind: z.literal('tool-execution'),
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1).optional(),
+  startedAt: z.number(),
+  completedAt: z.number().optional()
+})
+
+const MessageRuntimeApprovalWaitSpanSchema = z.strictObject({
+  id: z.string().min(1),
+  kind: z.literal('approval-wait'),
+  approvalId: z.string().min(1),
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1).optional(),
+  startedAt: z.number(),
+  completedAt: z.number().optional()
+})
+
+export const MessageRuntimeTimingSchema = z.strictObject({
+  startedAt: z.number(),
+  completedAt: z.number().optional(),
+  spans: z.array(
+    z.discriminatedUnion('kind', [MessageRuntimeToolExecutionSpanSchema, MessageRuntimeApprovalWaitSpanSchema])
+  )
+})
+export type MessageRuntimeTiming = z.infer<typeof MessageRuntimeTimingSchema>
+export type MessageRuntimeSpan = MessageRuntimeTiming['spans'][number]
+
 export const MessageStatsSchema = z.strictObject({
   // ── Token usage (AI SDK v6 `LanguageModelUsage` names, minus its
   //    deprecated flat mirrors — the nested breakdowns are the only truth) ──
@@ -72,7 +107,13 @@ export const MessageStatsSchema = z.strictObject({
     )
     .optional(),
 
-  // ── Performance metrics (measured locally) ──
+  // ── Provider performance (projected from measured invocation records) ──
+  providerPerformance: MessageProviderPerformanceSchema.optional(),
+
+  // ── Message runtime timing (measured locally) ──
+  runtimeTiming: MessageRuntimeTimingSchema.optional(),
+
+  // ── Historical scalar timing compatibility (rows without runtimeTiming) ──
   timeFirstTokenMs: z.number().optional(),
   timeCompletionMs: z.number().optional(),
   timeThinkingMs: z.number().optional()

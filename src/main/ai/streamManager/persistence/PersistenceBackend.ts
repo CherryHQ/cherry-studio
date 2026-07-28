@@ -8,7 +8,8 @@
  * synthesise UIMessages or repeat projection logic.
  */
 
-import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
+import type { MessageRuntimeStatsInput } from '@main/data/services/utils/messageStats'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import {
   type AgentTaskEventPartData,
@@ -16,8 +17,6 @@ import {
   readCherryMeta,
   withCherryMeta
 } from '@shared/data/types/uiParts'
-
-import type { SemanticTimings, TransportTimings } from '../types'
 
 const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', 'output-error', 'output-denied'])
 
@@ -102,15 +101,13 @@ export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessage
   return filtered.length === parts.length ? parts : filtered
 }
 
-export type StatsTimings = TransportTimings & SemanticTimings
-
 export interface PersistAssistantInput {
   /** Undefined when the stream errored before producing any chunks. */
   finalMessage?: CherryUIMessage
   status: 'success' | 'paused' | 'error'
   /** Set when the topic is multi-model. */
   modelId?: UniqueModelId
-  stats?: MessageStats
+  runtimeStats?: MessageRuntimeStatsInput
 }
 
 export interface PersistenceBackend {
@@ -135,39 +132,4 @@ export interface PersistenceBackend {
 
   /** Best-effort post-success hook; failures are swallowed by the listener. */
   afterPersist?(finalMessage: CherryUIMessage): Promise<void>
-}
-
-/**
- * Only message-level end-to-end timings are composed here. Usage and cost are
- * projected from immutable invocation records by the data layer.
- */
-export function statsFromTerminal(
-  finalMessage: CherryUIMessage | undefined,
-  timings: StatsTimings | undefined
-): MessageStats | undefined {
-  const stats: MessageStats = {}
-
-  let thinkingDurationMs = 0
-  let hasThinkingDuration = false
-  for (const part of finalMessage?.parts ?? []) {
-    if (part.type !== 'reasoning') continue
-    const thinkingMs = readCherryMeta(part)?.thinkingMs
-    if (thinkingMs === undefined || !Number.isFinite(thinkingMs) || thinkingMs < 0) continue
-    thinkingDurationMs += thinkingMs
-    hasThinkingDuration = true
-  }
-  if (hasThinkingDuration) {
-    stats.timeThinkingMs = Math.round(thinkingDurationMs)
-  }
-
-  if (timings) {
-    if (timings.firstTextAt != null) {
-      stats.timeFirstTokenMs = Math.round(timings.firstTextAt - timings.startedAt)
-    }
-    if (timings.completedAt != null) {
-      stats.timeCompletionMs = Math.round(timings.completedAt - timings.startedAt)
-    }
-  }
-
-  return Object.keys(stats).length > 0 ? stats : undefined
 }

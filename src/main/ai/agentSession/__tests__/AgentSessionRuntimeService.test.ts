@@ -321,7 +321,8 @@ describe('AgentSessionRuntimeService', () => {
           noCacheTokens: 10,
           cacheReadTokens: 0,
           cacheWriteTokens: 0
-        }
+        },
+        metrics: { timeFirstTokenMs: 120, timeCompletionMs: 480, timeThinkingMs: 75 }
       }
     })
 
@@ -353,6 +354,7 @@ describe('AgentSessionRuntimeService', () => {
             cacheReadTokens: 0,
             cacheWriteTokens: 0
           },
+          metrics: { timeFirstTokenMs: 120, timeCompletionMs: 480, timeThinkingMs: 75 },
           completedAt: expect.any(Number)
         })
       )

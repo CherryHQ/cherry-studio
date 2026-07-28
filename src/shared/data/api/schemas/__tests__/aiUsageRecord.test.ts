@@ -41,6 +41,14 @@ describe('AI usage record query contracts', () => {
     expect(AiUsageRecordListQuerySchema.safeParse({ sortBy: 'cost', costCurrency: 'CNY' }).success).toBe(true)
   })
 
+  it('requires message kind and id together', () => {
+    expect(AiUsageRecordListQuerySchema.safeParse({ messageKind: 'chat' }).success).toBe(false)
+    expect(AiUsageRecordListQuerySchema.safeParse({ messageId: 'message-1' }).success).toBe(false)
+    expect(
+      AiUsageRecordListQuerySchema.safeParse({ messageKind: 'agent-session', messageId: 'message-1' }).success
+    ).toBe(true)
+  })
+
   it('rejects reversed and unbounded timeline ranges', () => {
     expect(AiUsageRecordTimelineQuerySchema.safeParse({ from: to, to: from }).success).toBe(false)
     expect(

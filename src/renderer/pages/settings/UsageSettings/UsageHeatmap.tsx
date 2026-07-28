@@ -1,6 +1,7 @@
 import { NormalTooltip, SegmentedControl, Skeleton } from '@cherrystudio/ui'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
+import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecord'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,21 +14,22 @@ const CELL_SIZE = 12
 const CELL_GAP = 3
 const MIN_HEATMAP_DAYS = 365
 
-function startOfLocalWeek(date: Date): Date {
+function startOfLocalWeek(date: Date, firstDayOfWeek: number): Date {
   const day = startOfLocalDay(date)
-  day.setDate(day.getDate() - day.getDay())
+  day.setDate(day.getDate() - ((day.getDay() - firstDayOfWeek + 7) % 7))
   return day
 }
 
-function endOfLocalWeek(date: Date): Date {
-  const day = startOfLocalDay(date)
-  day.setDate(day.getDate() + (6 - day.getDay()))
+function endOfLocalWeek(date: Date, firstDayOfWeek: number): Date {
+  const day = startOfLocalWeek(date, firstDayOfWeek)
+  day.setDate(day.getDate() + 6)
   return day
 }
 
 export function buildHeatmapDays(
   buckets: AiUsageRecordTimelineBucket[],
-  range?: { from?: number; to?: number }
+  range: { from?: number; to?: number } | undefined,
+  firstDayOfWeek: number
 ): { date: Date; key: string; isFuture: boolean; isOutsideRange: boolean }[] {
   const today = startOfLocalDay(new Date())
   let rangeFirstDay: Date
@@ -49,8 +51,8 @@ export function buildHeatmapDays(
   const minimumFirstDay = new Date(rangeLastDay)
   minimumFirstDay.setDate(minimumFirstDay.getDate() - MIN_HEATMAP_DAYS + 1)
   const displayFirstDay = rangeFirstDay.getTime() < minimumFirstDay.getTime() ? rangeFirstDay : minimumFirstDay
-  const firstWeekDay = startOfLocalWeek(displayFirstDay)
-  const lastWeekDay = endOfLocalWeek(rangeLastDay)
+  const firstWeekDay = startOfLocalWeek(displayFirstDay, firstDayOfWeek)
+  const lastWeekDay = endOfLocalWeek(rangeLastDay, firstDayOfWeek)
 
   // Step by calendar date, not by DAY_MS: DST days are 23h/25h long, so millisecond
   // arithmetic would duplicate or skip a local date around a transition.
@@ -160,7 +162,14 @@ export default function UsageHeatmap({
   const { t, i18n } = useTranslation()
   const { ref: heatmapRef, width: heatmapWidth } = useElementWidth()
 
-  const days = useMemo(() => buildHeatmapDays(buckets, range), [buckets, range])
+  const firstDayOfWeek = useMemo(
+    () => getLocaleFirstDayOfWeek(i18n.resolvedLanguage),
+    [i18n.resolvedLanguage]
+  )
+  const days = useMemo(
+    () => buildHeatmapDays(buckets, range, firstDayOfWeek),
+    [buckets, firstDayOfWeek, range]
+  )
   const weeks = useMemo(
     () => Array.from({ length: Math.ceil(days.length / 7) }, (_, index) => days.slice(index * 7, index * 7 + 7)),
     [days]

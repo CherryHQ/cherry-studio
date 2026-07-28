@@ -4,7 +4,11 @@
 
 import * as z from 'zod'
 
-import { type AiUsageRecordAttribution, type AiUsageRecordEntry } from '../../types/aiUsageRecord'
+import {
+  type AiUsageRecordAttribution,
+  type AiUsageRecordEntry,
+  AiUsageRecordMessageKindSchema
+} from '../../types/aiUsageRecord'
 import { CURRENCY, type Currency, objectValues } from '../../types/model'
 import type { CursorPaginationParams, CursorPaginationResponse } from '../types'
 
@@ -55,12 +59,21 @@ export const AiUsageRecordListQuerySchema = z
     sortOrder: AiUsageRecordSortOrderSchema.default('desc'),
     from: z.number().int().nonnegative().optional(),
     to: z.number().int().nonnegative().optional(),
+    messageKind: AiUsageRecordMessageKindSchema.optional(),
+    messageId: z.string().min(1).optional(),
     /** Required when sorting monetary values so unlike currencies never compete. */
     costCurrency: CurrencySchema.optional()
   })
   .superRefine((value, ctx) => {
     if (value.sortBy === 'cost' && value.costCurrency === undefined) {
       ctx.addIssue({ code: 'custom', path: ['costCurrency'], message: 'costCurrency is required for cost sorting' })
+    }
+    if ((value.messageKind === undefined) !== (value.messageId === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: value.messageKind === undefined ? ['messageKind'] : ['messageId'],
+        message: 'messageKind and messageId must be provided together'
+      })
     }
   })
 export type AiUsageRecordListQuery = z.infer<typeof AiUsageRecordListQuerySchema>

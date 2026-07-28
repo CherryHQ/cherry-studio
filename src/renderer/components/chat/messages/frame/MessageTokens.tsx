@@ -1,4 +1,6 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
+import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
+import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MessageStats } from '@shared/data/types/message'
 import type { FC } from 'react'
 import { useId, useMemo, useState } from 'react'
@@ -6,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
+import { getMessageModelTokensPerSecond } from './messagePerformance'
 import MessageTokenDetailsCard from './MessageTokenDetailsCard'
 
 interface MessageTokensProps {
@@ -14,19 +17,6 @@ interface MessageTokensProps {
 
 function getTotalTokens(stats: MessageStats): number {
   return stats.totalTokens ?? (stats.inputTokens ?? 0) + (stats.outputTokens ?? 0)
-}
-
-function getTokensPerSecond(stats: MessageStats): number | undefined {
-  if (!stats.outputTokens || stats.timeCompletionMs === undefined) {
-    return undefined
-  }
-
-  const textGenerationDurationMs = stats.timeCompletionMs - (stats.timeFirstTokenMs ?? 0)
-  if (textGenerationDurationMs <= 0) {
-    return undefined
-  }
-
-  return stats.outputTokens / (textGenerationDurationMs / 1000)
 }
 
 function UserMessageTokens({ label, onLocate }: { label: string; onLocate: () => void }) {
@@ -50,10 +40,23 @@ function AssistantMessageTokens({
   onLocate: () => void
 }) {
   const [showAllDetails, setShowAllDetails] = useState(false)
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const contentId = useId()
+  const messageKind = isAgentSessionTopicId(message.topicId) ? 'agent-session' : 'chat'
+  const { pages, isLoading, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
+    enabled: isDetailsOpen && message.stats?.runtimeTiming !== undefined,
+    query: {
+      messageKind,
+      messageId: message.id,
+      sortBy: 'createdAt',
+      sortOrder: 'asc'
+    },
+    limit: 200
+  })
+  const records = useInfiniteFlatItems(pages)
 
   return (
-    <HoverCard openDelay={200} closeDelay={100}>
+    <HoverCard open={isDetailsOpen} onOpenChange={setIsDetailsOpen} openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
         <button
           type="button"
@@ -71,8 +74,15 @@ function AssistantMessageTokens({
         align="end"
         sideOffset={8}
         collisionPadding={12}
-        className="w-80 max-w-(--radix-hover-card-content-available-width) p-0">
-        <MessageTokenDetailsCard message={message} showAllDetails={showAllDetails} />
+        className="w-[28rem] max-w-(--radix-hover-card-content-available-width) p-0">
+        <MessageTokenDetailsCard
+          message={message}
+          records={records}
+          isRecordsLoading={isLoading}
+          hasMoreRecords={hasNext}
+          onLoadMoreRecords={loadNext}
+          showAllDetails={showAllDetails}
+        />
       </HoverCardContent>
     </HoverCard>
   )
@@ -108,7 +118,7 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
   }
 
   if (message.role === 'assistant') {
-    const tokensPerSecond = getTokensPerSecond(stats)
+    const tokensPerSecond = getMessageModelTokensPerSecond(stats)
     const throughputLabel =
       tokensPerSecond === undefined
         ? undefined

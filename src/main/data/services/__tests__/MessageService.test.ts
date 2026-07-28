@@ -1774,6 +1774,16 @@ describe('MessageService', () => {
       expect(result.success).toBe(false)
     })
 
+    it('CreateMessageSchema rejects caller-owned stats', () => {
+      const result = CreateMessageSchema.safeParse({
+        role: 'assistant',
+        data: { parts: [] },
+        status: 'success',
+        stats: { totalTokens: 42 }
+      })
+      expect(result.success).toBe(false)
+    })
+
     it('toContentRole passes content roles through and throws on the root sentinel', () => {
       expect(toContentRole('user')).toBe('user')
       expect(toContentRole('assistant')).toBe('assistant')
@@ -2301,16 +2311,18 @@ describe('MessageService', () => {
       )
     }
 
-    it('does not accept or synthesize usage when an assistant message is finalized', async () => {
+    it('persists only runtime timing without synthesizing usage', async () => {
       await seedAssistantMessage()
+      const runtimeTiming = { startedAt: 1_000, completedAt: 1_100, spans: [] }
 
       messageService.finalizeAssistantMessage('m-usage', {
         status: 'success',
         data: mainText('done'),
-        timingStats: { timeCompletionMs: 100 }
+        runtimeStats: { runtimeTiming }
       })
 
       expect(await dbh.db.select().from(aiUsageRecordTable)).toHaveLength(0)
+      expect(messageService.getById('m-usage').stats).toMatchObject({ runtimeTiming })
     })
 
     it('does not record for updates without stats or for non-assistant roles', async () => {
@@ -2384,6 +2396,46 @@ describe('MessageService', () => {
       const committed = messageService.getById('anchor')
       expect(stateOf(committed.data.parts, 'ap-a')).toBe('approval-responded')
       expect(stateOf(committed.data.parts, 'ap-b')).toBe('approval-responded')
+    })
+
+    it('commits the approval response and wait-span completion together', async () => {
+      await seedAnchorWithTwoApprovals()
+      dbh.db
+        .update(messageTable)
+        .set({
+          stats: {
+            runtimeTiming: {
+              startedAt: 1_000,
+              spans: [
+                {
+                  id: 'approval:ap-a',
+                  kind: 'approval-wait',
+                  approvalId: 'ap-a',
+                  toolCallId: 'c-a',
+                  startedAt: 1_500
+                },
+                {
+                  id: 'approval:ap-b',
+                  kind: 'approval-wait',
+                  approvalId: 'ap-b',
+                  toolCallId: 'c-b',
+                  startedAt: 1_600
+                }
+              ]
+            }
+          }
+        })
+        .where(eq(messageTable.id, 'anchor'))
+        .run()
+
+      messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: false }])
+
+      const committed = messageService.getById('anchor')
+      expect(stateOf(committed.data.parts, 'ap-a')).toBe('approval-responded')
+      expect(committed.stats?.runtimeTiming?.spans).toEqual([
+        expect.objectContaining({ approvalId: 'ap-a', completedAt: expect.any(Number) }),
+        expect.not.objectContaining({ completedAt: expect.anything() })
+      ])
     })
 
     it('returns null for a missing anchor (stale click on a deleted message)', async () => {

@@ -109,6 +109,7 @@ export type MessageUsageProjection = Pick<
   | 'estimatedRequestCount'
   | 'unpricedRequestCount'
   | 'costs'
+  | 'providerPerformance'
 >
 
 /**

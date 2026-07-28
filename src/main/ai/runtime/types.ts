@@ -50,15 +50,20 @@ export type AgentRuntimeEvent =
       invocation: {
         requestId: string
         model: string
-        /** Frozen when the SDK assistant message arrives; never inferred later from host turn state. */
+        /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
         messageAssociation: 'current-turn' | 'stateless'
-        usage: {
+        usage?: {
           inputTokens: number
           outputTokens: number
           totalTokens: number
           noCacheTokens: number
           cacheReadTokens: number
           cacheWriteTokens: number
+        }
+        metrics?: {
+          timeFirstTokenMs?: number
+          timeCompletionMs?: number
+          timeThinkingMs?: number
         }
       }
     }

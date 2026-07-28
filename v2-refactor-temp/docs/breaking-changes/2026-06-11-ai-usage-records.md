@@ -14,9 +14,10 @@ per-call performance, provider/model/source, and serving-credential snapshots.
 Historical v1 assistant messages are represented by explicit
 `legacy-aggregate` records with an estimated logical request count.
 
-`MessageStats` usage and cost are now a materialized aggregate of those records.
-Message persistence continues to own content, status, and end-to-end message
-timings, but no longer creates, updates, or repairs usage records.
+`MessageStats` usage, cost, and measured provider performance are now a
+materialized aggregate of those records. Message persistence continues to own
+content, status, and end-to-end runtime timing, but no longer creates, updates,
+or repairs usage records.
 
 These records are durable analytics, not an immutable or financially
 reconcilable billing ledger. Provider invoices remain authoritative.
@@ -47,12 +48,12 @@ Credential attribution shows its confidence:
   non-secret credential receipt together with provider/model/source/pricing
   snapshots before the provider call.
 - Agent sessions choose one capture owner per runtime route. Direct and
-  external-CLI routes record each Claude SDK assistant request using the
-  serving connection's receipt; gateway routes retain provider-call records
-  and ignore cumulative SDK usage. Direct/external assistant requests emitted
-  without an active turn are retained as stateless records with the frozen
-  connection source. Consumed warm processes retain the receipt selected when
-  that process actually started.
+  external-CLI routes record each Claude SDK provider step from its stream
+  lifecycle using the serving connection's receipt; gateway routes retain
+  provider-call records and ignore cumulative SDK usage. Direct/external
+  requests emitted without an active turn are retained as stateless records
+  with the frozen connection source. Consumed warm processes retain the
+  receipt selected when that process actually started.
 - Missing request-owned identity remains null/`unknown`; persistence and
   migration never infer provider, model, source, key, or pricing from current
   state.
@@ -70,6 +71,20 @@ Credential attribution shows its confidence:
   as unpriced data.
 - API-key rollups keep `explicit` selection and `matched` overrides separate,
   even when they refer to the same configured key.
+- New messages write only `MessageStats.runtimeTiming`; public message create
+  DTOs cannot write stats. Usage/cost/provider performance are replaced only
+  by the usage-record projector, while runtime persistence can write only the
+  runtime timeline.
+- Historical scalar message timing is read only when `runtimeTiming` is absent
+  and is never converted into a synthetic persisted timeline. Model TPS is
+  weighted across only provider steps with measurable output/duration;
+  end-to-end throughput includes tool and approval wall time. Direct Agent
+  tool duration comes from SDK `PostToolUse`/`PostToolUseFailure`, not chunk
+  timing.
+- Message details fetch invocation rows lazily through the existing
+  `/ai-usage-records` list with paired `messageKind`/`messageId` filters.
+- Old messages have no `runtimeTiming`; one renderer view model adapts their
+  legacy scalar timings and preserves the existing display.
 - A crash can still lose a best-effort stateless record between provider
   completion and the SQLite write.
 
@@ -81,7 +96,8 @@ automatically in Settings > Usage.
 ## Notes for release manager
 
 This accompanies the message-stats cost/cache work. `ai_usage_record` is the
-only usage/cost fact source; `MessageStats` is its materialized per-message
-projection plus separately owned message timings. Records are insert-only and
-the renderer has read-only access. Aggregate requests are limited to 366 days
-and server-ranked top-N groups with an explicit Other remainder.
+only usage/cost/provider-performance fact source; `MessageStats` is its
+materialized per-message projection plus separately owned runtime timing.
+Records are insert-only and the renderer has read-only access. Aggregate
+requests are limited to 366 days and server-ranked top-N groups with an
+explicit Other remainder.

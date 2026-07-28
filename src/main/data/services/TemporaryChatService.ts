@@ -26,6 +26,7 @@ import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { aiUsageRecordService } from './aiUsageRecord'
 import { messageService } from './MessageService'
+import { mergeMessageUsageProjection, type MessageRuntimeStatsInput } from './utils/messageStats'
 import { insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('DataApi:TemporaryChatService')
@@ -98,6 +99,26 @@ export class TemporaryChatService {
   }
 
   appendMessage(topicId: string, dto: CreateMessageDto, messageId?: string): Message {
+    return this.appendMessageWithStats(topicId, dto, undefined, messageId)
+  }
+
+  appendAssistantMessage(
+    topicId: string,
+    dto: Omit<CreateMessageDto, 'role'> & { role: 'assistant' },
+    runtimeStats: MessageRuntimeStatsInput | undefined,
+    messageId: string
+  ): Message {
+    const projection = aiUsageRecordService.getMessageUsageProjection({ kind: 'chat', id: messageId })
+    const stats = mergeMessageUsageProjection(runtimeStats, projection)
+    return this.appendMessageWithStats(topicId, dto, stats, messageId)
+  }
+
+  private appendMessageWithStats(
+    topicId: string,
+    dto: CreateMessageDto,
+    stats: Message['stats'] | undefined,
+    messageId?: string
+  ): Message {
     if (!this.topics.has(topicId)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
@@ -119,7 +140,7 @@ export class TemporaryChatService {
       siblingsGroupId: 0,
       modelId: dto.modelId ?? null,
       messageSnapshot: dto.messageSnapshot ?? null,
-      stats: dto.stats ?? null,
+      stats: stats ?? null,
       createdAt: now,
       updatedAt: now
     }

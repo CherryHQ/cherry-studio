@@ -24,6 +24,13 @@ provider/model/credential selection
         |             +--> read-only DataApi --> Settings > Usage
         |
         +--> SUM by messageKind/messageId --> MessageStats usage/cost
+                                      and providerPerformance
+
+tool execution / approval lifecycle
+              |
+              +--> MessageStats.runtimeTiming
+
+records + runtimeTiming --> message performance view model
 ```
 
 This is analytics, not an invoice ledger. Writes are best effort and SDK retry
@@ -46,8 +53,11 @@ invoices remain authoritative.
   first row.
 - Message persistence owns content, status, and message-level end-to-end
   timings. It never creates or repairs usage records.
-- `MessageStats` usage, cost, and request counts are a materialized aggregate
-  of records linked by `messageKind/messageId`.
+- `MessageStats` usage, cost, request counts, and `providerPerformance` are a
+  materialized aggregate of records linked by `messageKind/messageId`.
+- `MessageStats.runtimeTiming` is message-owned. It records tool execution and
+  approval waits against one epoch-based message clock; it is never projected
+  into a usage record.
 - Record timings describe one provider invocation. Message timings describe
   the whole assistant message. Neither is projected into the other.
 - Provider, model, source, pricing, and serving credential identity are frozen
@@ -185,11 +195,12 @@ If TTFT is absent or is not before completion, the denominator is
 `timeCompletionMs`. Missing/non-positive output or duration produces no value.
 
 Embedding, image, and rerank completion time is measured by the owner around
-the actual provider call. Claude Agent SDK assistant messages do not expose
-reliable per-request timestamps, so direct/external Agent record metrics remain
-null. Gateway-backed Agent calls pass through the language middleware and have
-normal per-call metrics. Legacy record metrics are also null; their historical
-message-level timings stay in `MessageStats`.
+the actual provider call. Direct/external Agent calls use the SDK's per-step
+`ttft_ms` plus the monotonic `message_start` to terminal delta/stop interval;
+steps without `ttft_ms` keep TTFT and completion null. Gateway-backed Agent
+calls pass through the language middleware and have normal per-call metrics.
+Legacy record metrics are also null; their historical message-level timings
+stay in `MessageStats`.
 
 ## Cost semantics
 
@@ -232,13 +243,19 @@ SQLite transaction as record insertion:
 - `unpricedRequestCount` sums logical requests whose row has null cost;
 - costs are grouped by currency and retain provider/computed request counts;
 - explicit zero-cost rows remain priced;
-- record timings are not aggregated.
+- records that have output usage and a usable generation duration contribute
+  to `providerPerformance.measuredOutputTokens` and
+  `providerPerformance.generationDurationMs`; unmeasured records contribute to
+  usage but not to either performance total;
+- raw record timings are not copied into `MessageStats`.
 
-The projector replaces only usage/cost/request fields and preserves existing
-message timing. Message finalization performs the inverse ownership merge:
-content/status/timing are updated and the current record projection is
-preserved or rebuilt. Therefore record-first and message-first write order
-converge to the same `MessageStats`.
+The projector replaces only usage/cost/request/provider-performance fields and
+preserves message-owned timing. A single data-layer merge primitive enforces
+the inverse boundary for message finalization: runtime writers can submit only
+`runtimeTiming`, while usage writers can submit only
+`MessageUsageProjection`. Public message create DTOs do not accept `stats`.
+Therefore record-first and message-first write order converge to the same
+`MessageStats`.
 
 Temporary message append reads the current projection. Promotion only rebuilds
 that projection; it does not create a record. Agent message upsert follows the
@@ -247,6 +264,58 @@ same rule.
 After commit, the service publishes changes for all three usage endpoints and
 for any affected chat/agent message read model. A write failure is logged and
 never changes the AI result.
+
+## Multi-step message performance
+
+New assistant messages may carry:
+
+```ts
+interface MessageProviderPerformance {
+  measuredOutputTokens: number
+  generationDurationMs: number
+}
+
+interface MessageRuntimeTiming {
+  startedAt: number
+  completedAt?: number
+  spans: Array<ToolExecutionSpan | ApprovalWaitSpan>
+}
+```
+
+There is no format-version field. New writers persist only `runtimeTiming`.
+Absence of `runtimeTiming` identifies a historical message; only then may the
+renderer normalize its scalar message timings into the same performance view
+model. Scalar timing is never copied into a new runtime timeline because it
+lacks absolute timestamps and tool/approval intervals.
+
+`AiStreamManager` owns one runtime timing collector per message execution. AI
+SDK tools report their exact execute interval through the existing loop hooks.
+Direct/external Claude Agent tools use the SDK's
+`PostToolUse`/`PostToolUseFailure.duration_ms`, which excludes approval and hook
+time. Approval spans begin when the approval request is emitted and end on
+approve, deny, abort, or error.
+
+A continuation's context provider includes the persisted timing snapshot in
+`PreparedDispatch`; `AiStreamManager` only consumes that seed. The collector
+keeps the earliest root start and prior spans and writes the latest completion.
+An approval decision and its span completion are committed in the same SQLite
+transaction, so a restart between the decision and continuation cannot leave
+the wait open.
+Abort/error closes every observable active runtime span. This does not create a
+successful provider record when the provider call itself has no final
+usage/result.
+
+The renderer reports two different rates:
+
+```text
+model TPS = SUM(measured output tokens) / SUM(measured generation duration)
+end-to-end throughput = whole-message output tokens / wall-clock message duration
+```
+
+Tool and approval time is excluded from model TPS and included in end-to-end
+throughput. Parallel intervals remain overlapping on the Model, Tool,
+Approval, and Other lanes; their percentages are never added as if they were
+serial.
 
 ## Agent runtime ownership
 
@@ -312,7 +381,14 @@ field mapping.
 
 `GET /ai-usage-records` is keyset-paginated (`limit` default 50, max 200) and
 sorts by `createdAt`, `totalTokens`, `cost`, `timeFirstTokenMs`, or
-`tokensPerSecond`. Cost sort requires and filters to one currency.
+`tokensPerSecond`. Cost sort requires and filters to one currency. Supplying
+`messageKind` and `messageId` together restricts the list to one message;
+supplying only one is rejected.
+
+The message details card enables this message-scoped query only while the card
+is open. Its compact model TPS comes from the complete materialized
+`providerPerformance`, so pagination of raw step details cannot change the
+headline value.
 
 Stats and timeline queries require an inclusive range of at most 366 days and
 server-limit top-N groups. `recordCount` counts rows; `requestCount` counts
@@ -328,7 +404,10 @@ global SWR focus/reconnect revalidation is disabled.
 - A crash after a provider succeeds but before the best-effort SQLite insert
   can lose a record.
 - Provider-internal retries invisible to Cherry Studio are not separate calls.
-- Direct Claude Agent SDK and legacy rows have no honest per-call latency.
+- Direct Agent SDK steps that omit `ttft_ms`, and all legacy rows, have no
+  honest per-call latency.
+- Individual provider steps with missing duration are shown as unavailable and
+  excluded from model TPS rather than estimated from tool/message events.
 - Rerank is counted but may have null usage and cost.
 - Historical serving keys cannot be reconstructed and remain `unknown`.
 - Estimated local cost is not an invoice, and currencies are not converted.

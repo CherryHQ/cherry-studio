@@ -140,6 +140,12 @@ export function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsag
   const filterConditions: SQL[] = []
   if (query.from !== undefined) filterConditions.push(gte(aiUsageRecordTable.createdAt, query.from))
   if (query.to !== undefined) filterConditions.push(lte(aiUsageRecordTable.createdAt, query.to))
+  if (query.messageKind !== undefined && query.messageId !== undefined) {
+    filterConditions.push(
+      eq(aiUsageRecordTable.messageKind, query.messageKind),
+      eq(aiUsageRecordTable.messageId, query.messageId)
+    )
+  }
   if (sortBy === 'cost' && query.costCurrency) {
     filterConditions.push(eq(aiUsageRecordTable.costCurrency, query.costCurrency))
   }

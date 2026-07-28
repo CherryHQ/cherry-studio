@@ -16,6 +16,7 @@ import type {
   AiStreamOpenResponse
 } from '@shared/ai/transport'
 import { shouldDeferToolOutput } from '@shared/ai/transport'
+import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
@@ -32,6 +33,7 @@ import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
+import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -82,6 +84,7 @@ function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error',
 export interface SendModelSpec {
   modelId: UniqueModelId
   request: ManagedAiStreamRequest
+  runtimeTimingSeed?: MessageRuntimeTiming
   rootSpan?: Span
   abortController?: AbortController
 }
@@ -108,6 +111,7 @@ export interface StartRuntimeTurnInput {
   topicId: string
   modelId: UniqueModelId
   request: ManagedAiStreamRequest
+  runtimeTimingSeed?: MessageRuntimeTiming
   listeners: StreamListener[]
   rootSpan?: Span
   abortController?: AbortController
@@ -166,6 +170,11 @@ function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
   } as CherryUIMessage
   exec.finalMessage = finalMessage
   return finalMessage
+}
+
+function toolNameFromApprovalChunk(chunk: UIMessageChunk): string | undefined {
+  const metadata = (chunk as { providerMetadata?: { cherry?: { toolName?: unknown } } }).providerMetadata
+  return typeof metadata?.cherry?.toolName === 'string' ? metadata.cherry.toolName : undefined
 }
 
 /**
@@ -366,7 +375,7 @@ export class AiStreamManager extends BaseService {
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
 
-    for (const { modelId, request, rootSpan, abortController } of input.models) {
+    for (const { modelId, request, runtimeTimingSeed, rootSpan, abortController } of input.models) {
       if (executions.has(modelId)) {
         throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
       }
@@ -375,6 +384,7 @@ export class AiStreamManager extends BaseService {
         modelId,
         request,
         input.siblingsGroupId,
+        runtimeTimingSeed,
         rootSpan,
         abortController
       )
@@ -468,6 +478,7 @@ export class AiStreamManager extends BaseService {
         {
           modelId: input.modelId,
           request: input.request,
+          runtimeTimingSeed: input.runtimeTimingSeed,
           rootSpan: input.rootSpan,
           abortController: input.abortController
         }
@@ -577,18 +588,30 @@ export class AiStreamManager extends BaseService {
    */
   resolveToolApproval(topicId: string, toolCallId: string): boolean {
     const stream = this.activeStreams.get(topicId)
-    if (!stream || !isLiveStatus(stream.status)) return false
+    if (!stream) return false
 
     let changed = false
     let pendingApprovalFlipped = false
     for (const exec of stream.executions.values()) {
       const pendingApprovals = exec.pendingApprovalToolCallIds
       if (!pendingApprovals?.delete(toolCallId)) continue
+      exec.runtimeTiming.finishApproval({ toolCallId })
       changed = true
       if (pendingApprovals.size === 0) pendingApprovalFlipped = true
     }
-    if (pendingApprovalFlipped) stream.lifecycle.onApprovalPendingChanged(stream)
+    if (pendingApprovalFlipped && isLiveStatus(stream.status)) stream.lifecycle.onApprovalPendingChanged(stream)
     return changed
+  }
+
+  addCompletedRuntimeSpan(topicId: string, assistantMessageId: string, span: MessageRuntimeSpan): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return false
+    const execution = [...stream.executions.values()].find(
+      (candidate) => candidate.anchorMessageId === assistantMessageId
+    )
+    if (!execution) return false
+    execution.runtimeTiming.addCompletedSpan(span)
+    return true
   }
 
   // ── Public: abort ─────────────────────────────────────────────────
@@ -632,12 +655,14 @@ export class AiStreamManager extends BaseService {
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     if (chunk.type === 'tool-approval-request') {
       ;(exec.pendingApprovalToolCallIds ??= new Set()).add(chunk.toolCallId)
+      exec.runtimeTiming.startApproval(chunk.approvalId, chunk.toolCallId, toolNameFromApprovalChunk(chunk))
     } else if (
       chunk.type === 'tool-output-available' ||
       chunk.type === 'tool-output-error' ||
       chunk.type === 'tool-output-denied'
     ) {
       exec.pendingApprovalToolCallIds?.delete(chunk.toolCallId)
+      exec.runtimeTiming.finishApproval({ toolCallId: chunk.toolCallId })
     }
     // Broadcast payloads and consumers only care about "any pending?", so only
     // the empty↔non-empty flip warrants a rebroadcast — size changes within
@@ -708,6 +733,11 @@ export class AiStreamManager extends BaseService {
     if (!exec || exec.status !== 'streaming') return
 
     exec.status = 'done'
+    exec.runtimeTiming.closeOpenToolSpans()
+    if ((exec.pendingApprovalToolCallIds?.size ?? 0) === 0) {
+      exec.runtimeTiming.closeOpenSpans()
+      exec.runtimeTiming.complete()
+    }
     endRootSpan(exec, 'ok')
 
     // Compute topic status first so listeners get isTopicDone
@@ -760,6 +790,8 @@ export class AiStreamManager extends BaseService {
     // `resolveTerminalStatus`.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
+    exec.runtimeTiming.closeOpenSpans()
+    exec.runtimeTiming.complete()
 
     endRootSpan(exec, 'aborted')
     stream.status = this.resolveTerminalStatus(stream)
@@ -795,6 +827,8 @@ export class AiStreamManager extends BaseService {
     // the in-flight tool part is terminalized by `finalizeInterruptedParts`.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
+    exec.runtimeTiming.closeOpenSpans()
+    exec.runtimeTiming.complete()
 
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
@@ -811,7 +845,8 @@ export class AiStreamManager extends BaseService {
       modelId: exec.modelId,
       anchorMessageId: exec.anchorMessageId,
       isTopicDone,
-      timings: { ...exec.timings }
+      timings: { ...exec.timings },
+      runtimeTiming: exec.runtimeTiming.snapshot()
     }
 
     await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
@@ -1098,6 +1133,7 @@ export class AiStreamManager extends BaseService {
     modelId: UniqueModelId,
     request: ManagedAiStreamRequest,
     siblingsGroupId?: number,
+    runtimeTimingSeed?: MessageRuntimeTiming,
     rootSpan?: Span,
     abortController?: AbortController
   ): StreamExecution {
@@ -1112,6 +1148,7 @@ export class AiStreamManager extends BaseService {
       droppedChunks: 0,
       siblingsGroupId,
       timings: { startedAt: performance.now() },
+      runtimeTiming: new MessageRuntimeTimingCollector(runtimeTimingSeed),
       loopPromise: Promise.resolve(),
       rootSpan
     }
@@ -1147,7 +1184,8 @@ export class AiStreamManager extends BaseService {
       // `signal` is injected here because it's not IPC-serialisable.
       rawStream = await aiService.streamText({
         ...request,
-        requestOptions: { ...request.requestOptions, signal }
+        requestOptions: { ...request.requestOptions, signal },
+        runtimeTimingSink: exec.runtimeTiming.sink
       })
     } catch (err) {
       if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
@@ -1227,7 +1265,8 @@ export class AiStreamManager extends BaseService {
       isTopicDone,
       // Snapshot timings so listeners see a stable copy even if the
       // execution object is mutated after dispatch.
-      timings: { ...exec.timings }
+      timings: { ...exec.timings },
+      runtimeTiming: exec.runtimeTiming.snapshot()
     }
     await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
   }
@@ -1243,7 +1282,8 @@ export class AiStreamManager extends BaseService {
       modelId: exec.modelId,
       anchorMessageId: exec.anchorMessageId,
       isTopicDone,
-      timings: { ...exec.timings }
+      timings: { ...exec.timings },
+      runtimeTiming: exec.runtimeTiming.snapshot()
     }
     await this.dispatchToListeners(stream, 'onPaused', (listener) => listener.onPaused(result))
   }

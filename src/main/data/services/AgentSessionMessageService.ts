@@ -24,13 +24,14 @@ import {
 } from '@shared/data/api/schemas/agentSessionMessages'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole, type MessageStats } from '@shared/data/types/message'
+import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { aiUsageRecordService } from './aiUsageRecord'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+import { mergeMessageRuntimeStats, type MessageRuntimeStatsInput } from './utils/messageStats'
 
 const logger = loggerService.withContext('AgentSessionMessageService')
 const MESSAGE_CURSOR_CONFIG = {
@@ -66,40 +67,8 @@ type ListSessionMessagesOptions = {
 type SaveAgentSessionMessageParams = {
   sessionId: string
   runtimeResumeToken?: string
+  runtimeStats?: MessageRuntimeStatsInput
   message: CreateAgentSessionMessageDto
-}
-
-function mergeMessageStats(
-  existing: MessageStats | null | undefined,
-  incoming: MessageStats | null | undefined
-): MessageStats | undefined {
-  const merged: MessageStats = {
-    ...(existing?.inputTokens !== undefined ? { inputTokens: existing.inputTokens } : {}),
-    ...(existing?.outputTokens !== undefined ? { outputTokens: existing.outputTokens } : {}),
-    ...(existing?.totalTokens !== undefined ? { totalTokens: existing.totalTokens } : {}),
-    ...(existing?.inputTokenDetails ? { inputTokenDetails: existing.inputTokenDetails } : {}),
-    ...(existing?.outputTokenDetails ? { outputTokenDetails: existing.outputTokenDetails } : {}),
-    ...(existing?.requestCount !== undefined ? { requestCount: existing.requestCount } : {}),
-    ...(existing?.estimatedRequestCount !== undefined ? { estimatedRequestCount: existing.estimatedRequestCount } : {}),
-    ...(existing?.unpricedRequestCount !== undefined ? { unpricedRequestCount: existing.unpricedRequestCount } : {}),
-    ...(existing?.costs ? { costs: existing.costs } : {}),
-    ...(incoming?.timeFirstTokenMs !== undefined
-      ? { timeFirstTokenMs: incoming.timeFirstTokenMs }
-      : existing?.timeFirstTokenMs !== undefined
-        ? { timeFirstTokenMs: existing.timeFirstTokenMs }
-        : {}),
-    ...(incoming?.timeCompletionMs !== undefined
-      ? { timeCompletionMs: incoming.timeCompletionMs }
-      : existing?.timeCompletionMs !== undefined
-        ? { timeCompletionMs: existing.timeCompletionMs }
-        : {}),
-    ...(incoming?.timeThinkingMs !== undefined
-      ? { timeThinkingMs: incoming.timeThinkingMs }
-      : existing?.timeThinkingMs !== undefined
-        ? { timeThinkingMs: existing.timeThinkingMs }
-        : {})
-  }
-  return Object.keys(merged).length > 0 ? merged : undefined
 }
 
 export class AgentSessionMessageService {
@@ -375,10 +344,10 @@ export class AgentSessionMessageService {
 
   private upsertMessage(
     db: DbOrTx,
-    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
+    params: SaveAgentSessionMessageParams,
     timestampMs = Date.now()
   ): AgentSessionMessageEntity {
-    const { sessionId, runtimeResumeToken = null, message } = params
+    const { sessionId, runtimeResumeToken = null, runtimeStats, message } = params
     const messageId = message.id ?? uuidv7()
     const status = message.status ?? 'success'
 
@@ -398,7 +367,7 @@ export class AgentSessionMessageService {
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
       const messageSnapshot =
         message.messageSnapshot === undefined ? existingRow.messageSnapshot : message.messageSnapshot
-      const stats = mergeMessageStats(existingRow.stats, message.stats) ?? null
+      const stats = mergeMessageRuntimeStats(existingRow.stats, runtimeStats) ?? null
 
       withSqliteErrors(
         () =>
@@ -441,7 +410,7 @@ export class AgentSessionMessageService {
       data: message.data,
       modelId: message.modelId,
       messageSnapshot: message.messageSnapshot,
-      stats: mergeMessageStats(undefined, message.stats) ?? null,
+      stats: mergeMessageRuntimeStats(undefined, runtimeStats) ?? null,
       runtimeResumeToken,
       createdAt: timestampMs,
       updatedAt: timestampMs

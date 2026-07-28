@@ -127,8 +127,7 @@ describe('TemporaryChatService', () => {
         role: 'assistant',
         data: mainText('world'),
         modelId: 'mdl-1',
-        messageSnapshot: snapshot,
-        stats: { totalTokens: 42 }
+        messageSnapshot: snapshot
       })
       expect(msg.parentId).toBeNull()
       expect(msg.siblingsGroupId).toBe(0)
@@ -136,7 +135,7 @@ describe('TemporaryChatService', () => {
       expect(msg.topicId).toBe(topic.id)
       expect(msg.modelId).toBe('mdl-1')
       expect(msg.messageSnapshot).toEqual(snapshot)
-      expect(msg.stats).toEqual({ totalTokens: 42 })
+      expect(msg.stats).toBeNull()
       expect(typeof msg.createdAt).toBe('string')
     })
 
@@ -239,14 +238,14 @@ describe('TemporaryChatService', () => {
 
       const topic = service.createTopic({ name: 'billed' })
       service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
-      const assistant = service.appendMessage(
+      const assistant = service.appendAssistantMessage(
         topic.id,
         {
           role: 'assistant',
           data: mainText('yo'),
-          modelId: 'openai::gpt-4o',
-          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+          modelId: 'openai::gpt-4o'
         },
+        undefined,
         'assistant-message-id'
       )
 
@@ -308,28 +307,14 @@ describe('TemporaryChatService', () => {
       })
 
       const topic = service.createTopic({ name: 'billed-by-provider' })
-      const assistant = service.appendMessage(
+      const assistant = service.appendAssistantMessage(
         topic.id,
         {
           role: 'assistant',
           data: mainText('yo'),
-          modelId: 'openai::gpt-4o',
-          stats: {
-            inputTokens: 1_000_000,
-            outputTokens: 0,
-            totalTokens: 1_000_000,
-            requestCount: 1,
-            unpricedRequestCount: 0,
-            costs: [
-              {
-                currency: 'USD',
-                amount: 0.9,
-                providerReportedRequestCount: 1,
-                computedRequestCount: 0
-              }
-            ]
-          }
+          modelId: 'openai::gpt-4o'
         },
+        undefined,
         'provider-billed-message'
       )
 

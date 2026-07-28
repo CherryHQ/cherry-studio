@@ -1,3 +1,4 @@
+import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecord'
 import { describe, expect, it } from 'vitest'
 
@@ -67,25 +68,39 @@ describe('selectCostTotal', () => {
 
 describe('toPeriodKey', () => {
   it('keeps the day itself for the daily rollup', () => {
-    expect(toPeriodKey('2026-03-04', 'daily')).toBe('2026-03-04')
+    expect(toPeriodKey('2026-03-04', 'daily', getLocaleFirstDayOfWeek('en-US'))).toBe(
+      '2026-03-04'
+    )
   })
 
-  it('maps a whole week onto its Monday', () => {
+  it('maps a whole week onto its locale-specific first day', () => {
     // 2026-03-02 is a Monday, 2026-03-08 the Sunday that closes the same week.
-    const week = ['2026-03-02', '2026-03-04', '2026-03-08'].map((date) => toPeriodKey(date, 'weekly'))
+    const mondayWeek = ['2026-03-02', '2026-03-04', '2026-03-08'].map((date) =>
+      toPeriodKey(date, 'weekly', getLocaleFirstDayOfWeek('zh-CN'))
+    )
+    const sundayWeek = ['2026-03-01', '2026-03-04', '2026-03-07'].map((date) =>
+      toPeriodKey(date, 'weekly', getLocaleFirstDayOfWeek('en-US'))
+    )
 
-    expect(week).toEqual(['2026-03-02', '2026-03-02', '2026-03-02'])
-    expect(toPeriodKey('2026-03-09', 'weekly')).toBe('2026-03-09')
+    expect(mondayWeek).toEqual(['2026-03-02', '2026-03-02', '2026-03-02'])
+    expect(sundayWeek).toEqual(['2026-03-01', '2026-03-01', '2026-03-01'])
   })
 
   it('maps a month onto its first day', () => {
-    expect(toPeriodKey('2026-03-31', 'monthly')).toBe('2026-03-01')
+    expect(toPeriodKey('2026-03-31', 'monthly', getLocaleFirstDayOfWeek('en-US'))).toBe(
+      '2026-03-01'
+    )
   })
 })
 
 describe('buildChartSeries', () => {
   const periods = ['2026-03-01', '2026-03-02', '2026-03-03']
-  const options = { rollup: 'daily', metric: 'tokens', topCount: 10 } as const
+  const options = {
+    rollup: 'daily',
+    metric: 'tokens',
+    topCount: 10,
+    firstDayOfWeek: getLocaleFirstDayOfWeek('en-US')
+  } as const
 
   it('aligns one series per group to the period axis', () => {
     const series = buildChartSeries(
