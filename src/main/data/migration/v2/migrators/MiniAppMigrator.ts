@@ -207,7 +207,10 @@ export class MiniAppMigrator extends BaseMigrator {
           const logoFile = await prepareBase64ImageFileEntry(
             ctx.paths.filesDataDir,
             miniAppLogoSlot(row.appId),
-            row.logoKey
+            row.logoKey,
+            // Ref-backed slot (`mini_app_logo`), same as the live `bindLogoImage`
+            // path: reclaim when the mini-app is deleted or its logo replaced.
+            'delete_when_unreferenced'
           )
           row.logoKey = null
           if (logoFile) logoFiles.push(logoFile)

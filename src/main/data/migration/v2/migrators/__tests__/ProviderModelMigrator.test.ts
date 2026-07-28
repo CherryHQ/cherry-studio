@@ -581,6 +581,11 @@ describe('ProviderModelMigrator', () => {
       const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, logoFileId))
       expect(entry?.origin).toBe('internal')
       expect(entry?.ext).toBe('webp')
+      // Must match what the live `bindLogoImage` path assigns: the logo is held
+      // only by the ref row above, so deleting the provider or replacing its logo
+      // has to make it a cleanup candidate. The DB default `'manual'` would strand
+      // the row and its WebP forever.
+      expect(entry?.cleanupPolicy).toBe('delete_when_unreferenced')
       expect(existsSync(path.join(filesDataDir, `${logoFileId}.webp`))).toBe(true)
 
       const [withoutLogo] = await dbh.db
