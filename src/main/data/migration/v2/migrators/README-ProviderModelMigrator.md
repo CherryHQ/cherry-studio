@@ -57,9 +57,9 @@ Projection rules:
   null. Explicit `capabilities[].isUserSelected` choices are preserved.
   `endpointTypes` is also preserved when the current provider-model registry
   cannot re-derive the legacy routing metadata, including dynamic models from
-  NewAPI-compatible providers. CherryIN models without legacy endpoint metadata
-  restore its prefix routing (`anthropic/`, `google/`, or OpenAI-compatible
-  fallback) explicitly.
+  built-in NewAPI providers and custom providers with legacy `type='new-api'`.
+  CherryIN models without legacy endpoint metadata restore its prefix routing
+  (`anthropic/`, `google/`, or OpenAI-compatible fallback) explicitly.
 - The v1 editor's synthetic `0/0` pricing value is treated as equivalent to an
   absent final-v1 price.
 

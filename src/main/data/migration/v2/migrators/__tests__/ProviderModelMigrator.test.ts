@@ -918,6 +918,14 @@ describe('ProviderModelMigrator', () => {
         modelId: 'dynamic-responses-model',
         endpointType: 'openai-response',
         expectedEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      },
+      {
+        providerId: 'custom-new-api',
+        providerName: 'Custom New API',
+        providerType: 'new-api',
+        modelId: 'dynamic-gemini-model',
+        endpointType: 'gemini',
+        expectedEndpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
       }
     ])(
       'preserves legacy endpoint routing for $providerId when the current registry cannot re-derive it',
