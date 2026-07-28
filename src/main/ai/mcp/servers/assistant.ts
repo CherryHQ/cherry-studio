@@ -3,11 +3,11 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
-import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { createAgent as createAgentCommand } from '@main/ai/agents/createAgent'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
@@ -488,7 +488,7 @@ class AssistantServer {
     }
 
     try {
-      const result = agentService.createAgent({
+      const result = await createAgentCommand({
         type: 'claude-code',
         name,
         description,
