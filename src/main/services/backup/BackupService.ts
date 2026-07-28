@@ -33,6 +33,12 @@ export type RestoreStatus =
       readonly preset: RestoreJournalV2['preset']
       /** Present only while `state === 'promoting'`: the last completed promotion step. */
       readonly step?: PromotionStepV2
+      /**
+       * A `failed` restore whose rollback did not finish. Its asides are still
+       * the only copy of what they hold, so nothing may be released until a
+       * restart retries the rollback — the UI must not offer acknowledgement.
+       */
+      readonly recoveryIncomplete?: true
     }
 
 export interface BackupStatus {
@@ -215,7 +221,8 @@ export class BackupService extends BaseService {
       state: journal.state,
       restoreId: journal.restoreId,
       preset: journal.preset,
-      ...(journal.state === 'promoting' ? { step: journal.step } : {})
+      ...(journal.state === 'promoting' ? { step: journal.step } : {}),
+      ...(journal.state === 'failed' && journal.recoveryIncomplete ? { recoveryIncomplete: true as const } : {})
     }
   }
 }

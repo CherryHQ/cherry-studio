@@ -96,6 +96,8 @@ const BackupV2Settings: FC = () => {
           return toast.error(t('settings.data.backup_v2.error.journal_unreadable'))
         case backupErrorCodes.ARM_FAILED:
           return toast.error(t('settings.data.backup_v2.error.arm_failed'))
+        case backupErrorCodes.RECOVERY_INCOMPLETE:
+          return toast.error(t('settings.data.backup_v2.error.recovery_incomplete'))
         case backupErrorCodes.EXPORT_DESTINATION:
           return toast.error(t('settings.data.backup_v2.error.export_destination'))
         default:
@@ -372,7 +374,11 @@ const RestoreOutcome: FC<{
   }
   if (restore.kind !== 'journal') return null
 
-  const acknowledgeable = restore.state === 'completed' || restore.state === 'failed' || restore.state === 'expired'
+  // A rollback that could not finish still owns the only copy of what it moved,
+  // so the button that releases it is withheld rather than shown and refused.
+  const acknowledgeable =
+    (restore.state === 'completed' || restore.state === 'failed' || restore.state === 'expired') &&
+    !restore.recoveryIncomplete
 
   return (
     <>
@@ -389,6 +395,9 @@ const RestoreOutcome: FC<{
       )}
       {restore.state === 'completed' && (
         <SettingHelpText>{t('settings.data.backup_v2.outcome.reconfirm_integrations')}</SettingHelpText>
+      )}
+      {restore.recoveryIncomplete && (
+        <Alert type="warning" showIcon message={t('settings.data.backup_v2.outcome.recovery_incomplete')} />
       )}
     </>
   )

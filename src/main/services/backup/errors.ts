@@ -54,6 +54,11 @@ export type RestoreStateErrorCode =
   | 'unreadable'
   /** Arming succeeded but the relaunch it exists for could not be started. */
   | 'relaunch-failed'
+  /**
+   * A failed restore could not put every file back, so its asides are still the
+   * only copy and may not be released. Temporary: the next boot retries.
+   */
+  | 'recovery-incomplete'
 
 export class RestoreStateError extends Error {
   readonly code: RestoreStateErrorCode
