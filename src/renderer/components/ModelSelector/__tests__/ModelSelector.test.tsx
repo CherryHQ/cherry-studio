@@ -119,6 +119,19 @@ vi.mock('@cherrystudio/ui', () => {
         </button>
       )
     },
+    HorizontalScrollContainer: ({
+      children,
+      className,
+      gap
+    }: {
+      children: ReactNode
+      className?: string
+      gap?: string
+    }) => (
+      <div data-testid="horizontal-scroll-container" className={className} data-gap={gap}>
+        {children}
+      </div>
+    ),
     HoverCard: ({ children }: { children: ReactNode }) => <>{children}</>,
     HoverCardContent: ({
       portalContainer,
@@ -449,7 +462,7 @@ describe('ModelSelector', () => {
     expect(screen.getByLabelText('models.action.unpin')).not.toHaveClass('text-primary!')
   })
 
-  it('renders filter tags as labeled chips without a filter title', () => {
+  it('renders filter tags as a single-row horizontal carousel without a filter title', () => {
     mockUseModelSelectorData.mockReturnValue(
       makeData({
         availableTags: [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.REASONING, 'free'],
@@ -461,7 +474,9 @@ describe('ModelSelector', () => {
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
     expect(screen.queryByText('models.filter.by_tag')).not.toBeInTheDocument()
-    expect(screen.getByText('models.type.vision')).toBeInTheDocument()
+    expect(screen.getByTestId('horizontal-scroll-container')).toHaveClass('w-full')
+    expect(screen.getByTestId('horizontal-scroll-container')).toHaveAttribute('data-gap', '6px')
+    expect(screen.getByText('models.type.vision').closest('button')).toHaveClass('shrink-0')
     expect(screen.getByText('models.type.reasoning')).toBeInTheDocument()
     expect(screen.getByText('models.type.free')).toBeInTheDocument()
   })
@@ -1052,13 +1067,13 @@ describe('ModelSelector', () => {
     expect(providerName).toHaveAttribute('title', 'OpenAI')
   })
 
-  it('renders fallback model avatars with a border', () => {
+  it('renders fallback model avatars without a decorative border', () => {
     const item = makeModelItem('openai::gpt-4' as UniqueModelId)
     mockUseModelSelectorData.mockReturnValue(makeData({ listItems: [item], modelItems: [item] }))
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(screen.getByTestId('avatar')).toHaveClass('border', 'border-border')
+    expect(screen.getByTestId('avatar')).not.toHaveClass('border', 'border-border')
   })
 
   it('passes the selector portal container to model detail hover cards', () => {
@@ -1102,6 +1117,32 @@ describe('ModelSelector', () => {
 
     expect(screen.getByTestId('model-selector-content')).toHaveStyle({ height: `${MODEL_SELECTOR_CONTENT_HEIGHT}px` })
     expect(mockVirtualListSizes.at(-1)).toBe(MODEL_SELECTOR_CONTENT_HEIGHT - 8)
+  })
+
+  it('keeps a usable default popover width for compact triggers', () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ width: '400px' })
+  })
+
+  it('accepts a popover width from the call site', () => {
+    mockUseModelSelectorData.mockReturnValue(makeData())
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        contentWidth="var(--radix-popover-trigger-width)"
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('model-selector-content')).toHaveStyle({
+      width: 'var(--radix-popover-trigger-width)'
+    })
   })
 
   it('fills the unified popover content height for short model lists', () => {

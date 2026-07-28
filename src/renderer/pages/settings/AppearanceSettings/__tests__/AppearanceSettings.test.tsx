@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { type MenuPresentationMode, ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -23,7 +24,8 @@ const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 const themeMocks = vi.hoisted(() => ({ setTheme: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
   const React = await import('react')
   const passthrough =
     (tag: string) =>
@@ -108,6 +110,11 @@ vi.mock('@cherrystudio/ui', async () => {
           )
         )
       ),
+    Select: actual.Select,
+    SelectContent: actual.SelectContent,
+    SelectItem: actual.SelectItem,
+    SelectTrigger: actual.SelectTrigger,
+    SelectValue: actual.SelectValue,
     Switch: ({ checked, onCheckedChange, ...props }: any) =>
       React.createElement('input', {
         ...props,
@@ -300,6 +307,16 @@ describe('AppearanceSettings selectors', () => {
     expect(screen.queryByRole('combobox', { name: /English/ })).not.toBeInTheDocument()
   })
 
+  it('uses shared Select triggers for language and theme', async () => {
+    const { container } = render(<AppearanceSettings />)
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
+    })
+
+    expect(container.querySelectorAll('[data-slot="select-trigger"]')).toHaveLength(2)
+  })
+
   it('does not render manual chat layout switches', async () => {
     render(<AppearanceSettings />)
 
@@ -356,26 +373,22 @@ describe('AppearanceSettings selectors', () => {
     ])
   })
 
-  it('matches the font triggers to the other appearance selectors', async () => {
+  it('matches both font control widths to the other selectors', async () => {
     const { container } = render(<AppearanceSettings />)
 
     await waitFor(() => {
       expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
     })
 
-    const fontSelectors = Array.from(container.querySelectorAll('select'))
+    const fontControlRows = Array.from(container.querySelectorAll('[data-popover-class-name]')).map(
+      (element) => element.parentElement
+    )
 
-    expect(fontSelectors).toHaveLength(2)
-    fontSelectors.forEach((selector) => {
-      expect(selector).toHaveClass(
-        'h-8',
-        'rounded-md',
-        'border-border',
-        'bg-transparent',
-        'text-sm',
-        'dark:bg-input/30'
-      )
-    })
+    expect(fontControlRows).toHaveLength(2)
+    expect(fontControlRows).toEqual([
+      expect.objectContaining({ className: expect.stringContaining('max-w-55') }),
+      expect.objectContaining({ className: expect.stringContaining('max-w-55') })
+    ])
   })
 
   it('shows migration guidance for marked v1 custom CSS', () => {
