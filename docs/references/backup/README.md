@@ -47,8 +47,10 @@ the document elaborates the mechanisms that enforce them.
    cross-filesystem (`EXDEV`) resource installs fail *before* mutation with an actionable
    error.
 7. **Snapshot-time vs staging-time failure differ.** A managed payload already missing at
-   snapshot time produces an explicitly *degraded* archive (export still allowed); a
-   payload that drifts *during* staging fails export closed.
+   snapshot time produces an explicitly *degraded* archive (export still allowed). A
+   payload that disappears, changes, becomes non-portable, or exceeds its per-unit
+   ceiling after the boundary is omitted atomically and disclosed; archive-wide,
+   database, staging-volume, aggregate-ceiling, and publication failures still fail closed.
 8. **Preparation is unarmed and identity-bound.** Restore preparation is cancellable and grants no
    permission to promote; explicit relaunch confirmation carries the preview's `restoreId`, and main
    arms only that exact still-prepared journal.
@@ -376,13 +378,17 @@ per-entry and total uncompressed bytes, compression ratio, and staging disk head
   streaming to the staged hash.
 - **Directories:** a deterministic initial tree manifest, per-file pre/post checks, and a
   final tree rescan.
-- Cancellation is checked per chunk/file. Any drift or disk-full removes only
-  operation-owned staging output.
+- Cancellation is checked per chunk/file. Expected source-unit failures remove only
+  operation-owned unit staging and let later units continue; aggregate ceilings, staging-volume
+  errors, archive-owned corruption, and publication failures still fail closed.
 
-A payload already missing at snapshot time → explicit `degraded` manifest section (export
-allowed). A payload that changes, disappears, escapes its registered root, or cannot be
-verified *while staging* → export fails closed, because the archive cannot prove which
-version it captured. A degraded Full archive is never presented as complete recovery.
+A payload already missing or wrong-typed at snapshot time records `absent-at-snapshot` or
+`type-mismatch-at-snapshot`. A post-boundary unit that changes, disappears, contains a
+non-regular node, violates portability, or exceeds a per-unit ceiling is omitted atomically
+with `changed-after-snapshot`, `non-regular-source`, `unportable-source`, or
+`resource-ceiling-exceeded`. The complete database remains authoritative, so newer live bytes
+are never paired with its older snapshot. A degraded Full archive is successful but is never
+presented as complete recovery.
 
 ---
 
