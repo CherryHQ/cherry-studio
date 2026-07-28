@@ -451,6 +451,12 @@
       "list": {
         "title": "Tasks"
       },
+      "model_switch_confirm": {
+        "confirm": "Switch model",
+        "description": "Different models may understand and process context differently. Switching may affect the continuity or quality of subsequent responses. Do you want to continue?",
+        "skip_for_app_run": "Don't ask again until I quit the app",
+        "title": "Switch to \"{{model}}\"?"
+      },
       "new": "New task",
       "pin": {
         "title": "Pin task"

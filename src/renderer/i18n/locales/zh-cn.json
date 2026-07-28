@@ -451,6 +451,12 @@
       "list": {
         "title": "任务"
       },
+      "model_switch_confirm": {
+        "confirm": "切换模型",
+        "description": "不同模型理解和处理上下文的方式可能不同。切换后，后续回复的连贯性或效果可能受到影响。是否继续切换？",
+        "skip_for_app_run": "退出应用前不再提示",
+        "title": "切换到「{{model}}」？"
+      },
       "new": "新任务",
       "pin": {
         "title": "固定任务"
