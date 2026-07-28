@@ -2940,7 +2940,7 @@ describe('ComposerSurface', () => {
     )
 
     const showInInputButton = screen.getByRole('button', { name: 'chat.input.paste_text_file' })
-    expect(showInInputButton).toHaveClass('h-auto', 'min-h-0', 'w-fit', 'p-0', 'text-primary')
+    expect(showInInputButton).toHaveClass('h-auto', 'min-h-0', 'w-fit', 'p-0', 'text-link')
     expect(showInInputButton).not.toHaveClass('h-7', 'rounded-full', 'px-2.5')
     const deleteButton = screen.getByRole('button', { name: 'common.delete' })
     expect(deleteButton).toBeInTheDocument()

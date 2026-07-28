@@ -37,7 +37,13 @@
     { "source": "--cs-secondary", "target": "--secondary", "strategy": "exact" },
     { "source": "--cs-secondary-foreground", "target": "--secondary-foreground", "strategy": "exact" },
     { "source": "--cs-muted", "target": "--muted", "strategy": "exact" },
-    { "source": "--cs-foreground-secondary", "target": null, "strategy": "review" },
+    {
+      "source": "--cs-foreground-secondary",
+      "target": "--muted-foreground",
+      "strategy": "contextual",
+      "contexts": ["color", "fill", "stroke"],
+      "reason": "The retired alpha foreground was consolidated into the solid readable secondary foreground."
+    },
     { "source": "--cs-muted-foreground", "target": "--muted-foreground", "strategy": "exact" },
     { "source": "--cs-accent", "target": "--accent", "strategy": "exact" },
     { "source": "--cs-accent-foreground", "target": "--accent-foreground", "strategy": "exact" },
@@ -67,8 +73,19 @@
     { "source": "--cs-sidebar-border", "target": "--sidebar-border", "strategy": "exact" },
     { "source": "--cs-sidebar-ring", "target": "--sidebar-ring", "strategy": "exact" },
     { "source": "--cs-background-subtle", "target": "--background-subtle", "strategy": "exact" },
+    {
+      "source": "--cs-foreground-tertiary",
+      "target": "--foreground-tertiary",
+      "strategy": "exact"
+    },
+    {
+      "source": "--cs-foreground-disabled",
+      "target": "--foreground-disabled",
+      "strategy": "exact"
+    },
     { "source": "--cs-border-subtle", "target": "--border-subtle", "strategy": "exact" },
     { "source": "--cs-border-strong", "target": "--border-strong", "strategy": "exact" },
+    { "source": "--cs-border-selected", "target": "--border-selected", "strategy": "exact" },
     { "source": "--cs-success", "target": "--success", "strategy": "exact" },
     { "source": "--cs-success-subtle", "target": "--success-subtle", "strategy": "exact" },
     {
@@ -161,11 +178,49 @@
       "reason": "Hover-state usage must remain a component state instead of becoming a static strong border."
     },
     {
+      "source": "--cs-border-muted",
+      "target": "--border-subtle",
+      "strategy": "contextual",
+      "contexts": ["border-color"],
+      "reason": "The retired low-emphasis border was consolidated into the shared subtle border role."
+    },
+    {
+      "source": "--cs-border-active",
+      "target": null,
+      "strategy": "review",
+      "reason": "The retired token mixed selected borders with focus feedback; use --border-selected or --ring by role."
+    },
+    {
       "source": "--cs-foreground-muted",
       "target": null,
       "strategy": "review",
       "contexts": ["color", "fill", "stroke"],
       "reason": "The old token mixes tertiary content with disabled component state."
+    },
+    { "source": "--cs-ghost-hover", "target": "--accent", "strategy": "exact" },
+    {
+      "source": "--cs-primary-hover",
+      "target": null,
+      "strategy": "review",
+      "reason": "Primary hover treatment belongs to the consuming component or link behavior."
+    },
+    {
+      "source": "--cs-secondary-hover",
+      "target": null,
+      "strategy": "review",
+      "reason": "Secondary hover treatment is owned by the shared Button variant."
+    },
+    {
+      "source": "--cs-secondary-active",
+      "target": null,
+      "strategy": "review",
+      "reason": "Secondary pressed treatment is owned by the shared Button variant."
+    },
+    {
+      "source": "--cs-ghost-active",
+      "target": null,
+      "strategy": "review",
+      "reason": "Ghost pressed treatment is owned by the shared Button variant."
     },
     { "source": "--cs-error-base", "target": "--error", "strategy": "exact" },
     { "source": "--cs-error-text", "target": "--error-subtle-foreground", "strategy": "exact" },
@@ -200,9 +255,10 @@
     { "source": "--color-error", "target": "--error", "strategy": "exact" },
     {
       "source": "--color-link",
-      "target": null,
-      "strategy": "review",
-      "reason": "Historical blue link styling requires owner context and must not create an unconsumed shared product role."
+      "target": "--link",
+      "strategy": "contextual",
+      "contexts": ["color"],
+      "reason": "Historical blue links require visual review before adopting the runtime-theme-backed product link role."
     },
     {
       "source": "--color-primary-bg",

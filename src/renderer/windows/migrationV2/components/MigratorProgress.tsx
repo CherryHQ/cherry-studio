@@ -36,7 +36,7 @@ const StatusIcon: React.FC<{ status: MigratorStatus }> = ({ status }) => {
         </span>
       )
     default:
-      return <span className={cn(ICON_WRAP, 'bg-muted/40 text-foreground-muted')} />
+      return <span className={cn(ICON_WRAP, 'bg-muted/40 text-foreground-tertiary')} />
   }
 }
 
@@ -49,7 +49,7 @@ const statusTextClass = (status: MigratorStatus): string => {
     case 'running':
       return 'text-primary'
     default:
-      return 'text-foreground-muted'
+      return 'text-foreground-tertiary'
   }
 }
 
@@ -71,7 +71,7 @@ export const MigratorProgressList: React.FC<Props> = ({ migrators }) => {
           <span
             className={cn(
               'flex-1 truncate text-sm',
-              migrator.status === 'pending' ? 'text-foreground-muted' : 'text-foreground'
+              migrator.status === 'pending' ? 'text-foreground-disabled' : 'text-foreground'
             )}>
             {migrator.name}
           </span>

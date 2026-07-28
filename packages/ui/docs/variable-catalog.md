@@ -117,8 +117,12 @@ Stable product variables are allowed in new code when no official Shadcn role ex
 | Variable | Intended property and role |
 | --- | --- |
 | `--background-subtle` | Very quiet product-wide surface background |
+| `--foreground-tertiary` | Low-emphasis metadata, empty-state copy, and quiet icon `color` |
+| `--foreground-disabled` | Disabled or unavailable foreground `color` |
 | `--border-subtle` | Very quiet `border-color` |
 | `--border-strong` | Higher-emphasis structural `border-color` |
+| `--border-selected` | Selected-state `border-color`; focus remains `--ring` |
+| `--link` | Clickable text `color`; initially follows `--primary` |
 
 ### Feedback families
 

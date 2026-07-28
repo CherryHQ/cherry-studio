@@ -251,7 +251,7 @@ const NutstoreSettings: FC = () => {
           <>
             <SettingRow>
               <SettingRowTitle>{t('settings.data.nutstore.username')}</SettingRowTitle>
-              <span className="text-foreground-muted">{nutstoreUsername}</span>
+              <span className="text-foreground-tertiary">{nutstoreUsername}</span>
             </SettingRow>
 
             <SettingDivider />

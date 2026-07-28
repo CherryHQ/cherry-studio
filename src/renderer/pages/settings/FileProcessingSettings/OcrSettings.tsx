@@ -103,7 +103,7 @@ const OcrSettings: FC = () => {
         <Scrollbar className={settingsContentScrollClassName}>
           <SettingsContentBody>
             {availableProcessors.status === 'error' ? (
-              <div className="flex h-full min-h-55 items-center justify-center text-foreground-muted text-sm">
+              <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
                 {t('settings.tool.file_processing.errors.load_processors_failed')}
               </div>
             ) : activeEntry ? (
@@ -117,7 +117,7 @@ const OcrSettings: FC = () => {
                 onSetLanguageOptions={setLanguageOptions}
               />
             ) : (
-              <div className="flex h-full min-h-55 items-center justify-center text-foreground-muted text-sm">
+              <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
                 {t('common.no_results')}
               </div>
             )}

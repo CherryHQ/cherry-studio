@@ -19,7 +19,7 @@ export default function ProviderSection({ id, title, description, action, childr
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             {title && <div className={sectionHeadingClasses}>{title}</div>}
-            {description && <div className="mt-1 text-foreground-muted text-xs leading-tight">{description}</div>}
+            {description && <div className="mt-1 text-foreground-tertiary text-xs leading-tight">{description}</div>}
           </div>
           {action}
         </div>

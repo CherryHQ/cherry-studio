@@ -56,7 +56,7 @@ function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean
 }
 
 const NoteText = ({ children }: { children: React.ReactNode }) => (
-  <span className="flex min-w-0 items-center py-0.5 text-[13px] text-foreground-secondary leading-5">{children}</span>
+  <span className="flex min-w-0 items-center py-0.5 text-[13px] text-muted-foreground leading-5">{children}</span>
 )
 
 export const MessageGenerateImageToolTitle = ({

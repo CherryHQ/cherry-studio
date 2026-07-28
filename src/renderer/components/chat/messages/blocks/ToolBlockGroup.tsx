@@ -92,7 +92,7 @@ const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
   [AgentToolsType.Write]: FileText
 }
 const TOOL_GROUP_ICON_CLASS_NAME =
-  'size-3.5 text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground'
+  'size-3.5 text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground'
 
 type ToolGroupTool = ToolRenderItem['toolResponse']['tool']
 type McpActivityAction = 'analyze' | 'create' | 'delete' | 'execute' | 'modify' | 'search' | 'send' | 'view'
@@ -446,7 +446,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
         {icon && (
           <span
             aria-hidden="true"
-            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground"
+            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground"
             data-testid="tool-group-content-icon">
             {icon}
           </span>
@@ -467,7 +467,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     const renderSemanticTitle = (title: React.ReactNode, icon?: React.ReactNode, key?: React.Key) =>
       renderWithElapsed(
         <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]" key={key}>
-          <span className="block truncate font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+          <span className="block truncate font-normal text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {title}
           </span>
           {isLiveProgress && (
@@ -487,7 +487,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     if (displayCandidate.kind === 'summary') {
       return renderWithElapsed(
         <div className="flex items-center text-[13px]">
-          <span className="whitespace-nowrap font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+          <span className="whitespace-nowrap font-normal text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {displayCandidate.label}
           </span>
         </div>,
@@ -500,7 +500,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
 
       return renderWithElapsed(
         <div className="flex min-w-0 items-center text-[13px]">
-          <PlaceholderShimmerText className="truncate font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+          <PlaceholderShimmerText className="truncate font-normal text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
             {displayCandidate.label}
           </PlaceholderShimmerText>
         </div>
@@ -553,7 +553,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
         {(summaryIcon || showContentIcon) && (
           <span
             aria-hidden="true"
-            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground"
+            className="flex size-3.5 shrink-0 items-center justify-center text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground"
             data-testid="tool-group-content-icon">
             {summaryIcon ?? (
               <ToolGroupContentIcon
@@ -565,7 +565,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
         )}
         <div className="min-w-0 overflow-hidden">
           <div className="flex items-center text-[13px]">
-            <span className="whitespace-nowrap font-normal text-foreground-muted transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+            <span className="whitespace-nowrap font-normal text-foreground-tertiary transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
               {fallbackLabel}
             </span>
           </div>

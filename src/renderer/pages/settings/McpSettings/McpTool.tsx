@@ -96,10 +96,10 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         <Flex className="items-center gap-2">
           {itemType && <Badge className={getTypeBadgeClass(prop.type)}>{itemType}</Badge>}
         </Flex>
-        {prop.description && <p className="m-0 text-foreground-secondary text-sm leading-5">{prop.description}</p>}
+        {prop.description && <p className="m-0 text-muted-foreground text-sm leading-5">{prop.description}</p>}
         {prop.enum && (
           <div className="mt-1">
-            <span className="text-foreground-secondary text-sm">
+            <span className="text-muted-foreground text-sm">
               {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
             </span>
             <div className="mt-1 flex flex-wrap gap-1">
@@ -120,7 +120,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
           prop.items?.type === 'object' &&
           prop.items.properties && (
             <div className="mt-1">
-              <span className="text-foreground-secondary text-sm italic">items:</span>
+              <span className="text-muted-foreground text-sm italic">items:</span>
               {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
             </div>
           )}
@@ -186,7 +186,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
             </Flex>
             {tool.description && (
               <Tooltip content={tool.description} fullWidthTrigger>
-                <p className="m-0 line-clamp-1 block w-full min-w-0 text-[13px] text-foreground-secondary leading-5">
+                <p className="m-0 line-clamp-1 block w-full min-w-0 text-[13px] text-muted-foreground leading-5">
                   {tool.description}
                 </p>
               </Tooltip>

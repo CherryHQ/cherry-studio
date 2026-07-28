@@ -231,7 +231,7 @@
 
 .markdown a,
 .markdown .link {
-  color: var(--primary);
+  color: var(--link);
   text-decoration: none;
   cursor: pointer;
 }
@@ -298,7 +298,7 @@
   vertical-align: super;
   line-height: 0;
   margin: 0 2px;
-  color: var(--primary);
+  color: var(--link);
   text-decoration: none;
 }
 
@@ -322,7 +322,7 @@
 }
 
 .footnotes a {
-  color: var(--primary);
+  color: var(--link);
 }
 
 .footnotes ol {
@@ -350,7 +350,7 @@
   vertical-align: super;
   line-height: 0;
   margin-left: 5px;
-  color: var(--primary);
+  color: var(--link);
   text-decoration: none;
 }
 

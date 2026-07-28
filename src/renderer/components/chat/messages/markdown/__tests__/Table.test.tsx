@@ -168,9 +168,9 @@ describe('Table', () => {
       expect(table.className).toContain('[&&_td]:wrap-break-word')
       expect(table.className).toContain('[&&_th]:wrap-break-word')
       expect(table.className).toContain('[&&_th]:bg-muted')
-      expect(table.className).toContain('[&&_th]:border-border-muted')
+      expect(table.className).toContain('[&&_th]:border-border-subtle')
       expect(table.className).toContain('[&&_th]:font-semibold')
-      expect(table.className).toContain('[&&_td]:border-border-muted')
+      expect(table.className).toContain('[&&_td]:border-border-subtle')
       expect(table.className).toContain('[&&_td]:bg-transparent')
       expect(table.className).toContain('[&&_thead]:bg-transparent')
       expect(table.className).toContain('[&&_tbody]:bg-transparent')
@@ -186,7 +186,7 @@ describe('Table', () => {
       expect(table.style.margin).toBe('0px')
       expect(table.style.overflow).toBe('hidden')
       expect(toolbar).toHaveClass('rounded-lg', 'border-border-subtle', 'bg-popover', 'shadow-md')
-      expect(copyButton).toHaveClass('rounded-md', 'text-foreground-muted', 'hover:bg-ghost-hover')
+      expect(copyButton).toHaveClass('rounded-md', 'text-foreground-tertiary', 'hover:bg-accent')
     })
 
     it('should render copy button with correct tooltip', () => {

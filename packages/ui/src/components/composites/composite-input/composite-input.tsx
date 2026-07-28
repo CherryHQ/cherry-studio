@@ -33,7 +33,7 @@ const inputGroupVariants = cva(
     variants: {
       disabled: {
         false: null,
-        true: ['bg-background-subtle', 'border-border-hover', 'cursor-not-allowed']
+        true: ['bg-background-subtle', 'border-border-strong', 'cursor-not-allowed']
       }
     },
     defaultVariants: {

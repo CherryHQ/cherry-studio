@@ -197,10 +197,10 @@ const Selector = <V extends string | number>({
           aria-label={accessibleLabel || undefined}
           aria-expanded={open && !disabled}
           aria-disabled={disabled || undefined}
+          pressed={open && !disabled}
           tabIndex={disabled ? -1 : 0}
           className={cn(
             'min-w-0 text-left leading-none',
-            open && !disabled && 'bg-secondary-active',
             disabled && 'cursor-not-allowed opacity-60',
             isPlaceholder && 'text-muted-foreground'
           )}

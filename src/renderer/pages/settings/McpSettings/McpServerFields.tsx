@@ -525,7 +525,7 @@ export function McpRuntimeFields({ form, singleColumn, inlineCards = true }: Fie
                   onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                   className="h-8 w-24 py-0"
                 />
-                <span className="text-foreground-muted text-xs">s</span>
+                <span className="text-foreground-tertiary text-xs">s</span>
               </div>
             </FormControl>
           </FormItem>

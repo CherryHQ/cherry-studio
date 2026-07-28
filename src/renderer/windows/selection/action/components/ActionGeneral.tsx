@@ -180,7 +180,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           <button
             type="button"
             onClick={() => setShowOriginal(!showOriginal)}
-            className="flex cursor-pointer items-center justify-between text-foreground-secondary text-xs transition-colors hover:text-primary">
+            className="flex cursor-pointer items-center justify-between text-muted-foreground text-xs transition-colors hover:text-primary">
             <span>
               {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
             </span>
@@ -188,7 +188,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           </button>
         </div>
         {showOriginal && (
-          <div className="mt-2 mb-3 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-foreground-secondary text-xs">
+          <div className="mt-2 mb-3 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-muted-foreground text-xs">
             {action.selectedText}
             <div className="flex justify-end">
               <CopyButton

@@ -79,7 +79,7 @@ export function ContextUsageSummary({
                     <span className="min-w-0 truncate">
                       {CATEGORY_NAME_KEYS[category.name] ? t(CATEGORY_NAME_KEYS[category.name]) : category.name}
                     </span>
-                    <span className="shrink-0 text-foreground-secondary">
+                    <span className="shrink-0 text-muted-foreground">
                       {category.tokens.toLocaleString()} ({share}%)
                     </span>
                   </div>

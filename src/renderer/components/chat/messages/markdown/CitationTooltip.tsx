@@ -84,7 +84,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
         </a>
         {displayContent && (
           <div
-            className="mb-2 overflow-hidden text-[13px] text-foreground-secondary leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
+            className="mb-2 overflow-hidden text-[13px] text-muted-foreground leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
             role="article"
             aria-label="Citation content"
             style={{
@@ -100,7 +100,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
           href={citation.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-primary text-xs hover:underline"
+          className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-link text-xs hover:underline"
           aria-label={`Visit ${hostname}`}
           onClick={handleClick}>
           {hostname}

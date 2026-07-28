@@ -178,7 +178,7 @@ const TranslateLanguageBar: FC<Props> = ({
               onClick={onExchange}
               disabled={!couldExchange}
               aria-label={t('translate.exchange.label')}
-              className="h-8 w-8 shrink-0 rounded-full text-foreground-muted shadow-none transition-all hover:bg-accent hover:text-foreground active:scale-90">
+              className="h-8 w-8 shrink-0 rounded-full text-foreground-tertiary shadow-none transition-all hover:bg-accent hover:text-foreground active:scale-90">
               <ArrowLeftRight size={14} />
             </Button>
           </Tooltip>
@@ -198,7 +198,7 @@ const TranslateLanguageBar: FC<Props> = ({
             <span className="text-sm leading-none">{bidirectionalSource.emoji}</span>
             <span className="truncate">{bidirectionalSource.label}</span>
           </span>
-          <ArrowLeftRight size={14} className="shrink-0 text-foreground-muted" />
+          <ArrowLeftRight size={14} className="shrink-0 text-foreground-tertiary" />
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="text-sm leading-none">{bidirectionalTarget.emoji}</span>
             <span className="truncate">{bidirectionalTarget.label}</span>

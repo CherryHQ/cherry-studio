@@ -32,12 +32,12 @@ export function ResourcePaneCountButton({ label, count, className }: ResourcePan
     <Tooltip content={title} delay={800}>
       <Button
         type="button"
-        variant="ghost"
+        variant={active ? 'secondary' : 'ghost'}
         aria-label={title}
         className={cn(
-          'group h-7 shrink-0 gap-1.5 rounded-full bg-card px-2.5 font-medium text-foreground-muted text-xs shadow-none',
+          'group h-7 shrink-0 gap-1.5 rounded-full bg-card px-2.5 font-medium text-foreground-tertiary text-xs shadow-none',
           'hover:bg-accent hover:text-foreground',
-          active && 'bg-secondary text-secondary-foreground hover:bg-secondary-hover hover:text-secondary-foreground',
+          active && 'bg-secondary text-secondary-foreground hover:text-secondary-foreground',
           '[&_svg]:!size-3.5 [-webkit-app-region:none]',
           className
         )}
@@ -47,7 +47,7 @@ export function ResourcePaneCountButton({ label, count, className }: ResourcePan
         <span>{label}</span>
         <span
           className={cn(
-            'text-foreground-muted group-hover:text-foreground-secondary',
+            'text-foreground-tertiary group-hover:text-muted-foreground',
             active && 'text-secondary-foreground group-hover:text-secondary-foreground'
           )}>
           {count}

@@ -1817,7 +1817,7 @@ const TopicStreamIndicator = ({
         // A spinner reads as "running", where the old pulsing amber dot looked
         // like a warning. Error uses a distinct icon instead of relying on
         // red/green color alone; completion remains a green read-receipt dot.
-        <Loader2 aria-hidden="true" className="size-3 animate-spin text-foreground-muted" />
+        <Loader2 aria-hidden="true" className="size-3 animate-spin text-foreground-tertiary" />
       ) : isErrored ? (
         <CircleAlert aria-hidden="true" className="size-3 text-error" />
       ) : (

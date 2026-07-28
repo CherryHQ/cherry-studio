@@ -50,13 +50,13 @@ function InspectableMetricBar({
         {activeSegment ? (
           <>
             <span className="truncate font-medium text-foreground">{activeSegment.label}</span>
-            <span className="shrink-0 text-foreground-secondary tabular-nums">
+            <span className="shrink-0 text-muted-foreground tabular-nums">
               {formatValue(activeSegment.value)} · {formatPercent(activeSegment.value / total)}
             </span>
           </>
         ) : (
           <>
-            <span className="truncate text-foreground-secondary">{title}</span>
+            <span className="truncate text-muted-foreground">{title}</span>
             {summary ? <span className="shrink-0 text-foreground tabular-nums">{summary}</span> : null}
           </>
         )}
@@ -96,11 +96,11 @@ function InspectableMetricBar({
         {visibleSegments.map((segment) => (
           <div
             key={segment.id}
-            className="inline-flex items-center gap-1.5 text-[11px] text-foreground-muted leading-4">
+            className="inline-flex items-center gap-1.5 text-[11px] text-foreground-tertiary leading-4">
             <span className={cn('size-1.5 rounded-full', segment.colorClassName)} aria-hidden="true" />
             <span>{segment.label}</span>
             {showAllDetails ? (
-              <span className="text-foreground-secondary tabular-nums">
+              <span className="text-muted-foreground tabular-nums">
                 {formatValue(segment.value)} · {formatPercent(segment.value / total)}
               </span>
             ) : null}
@@ -224,14 +224,14 @@ const MessageTokenDetailsCard = ({
             {model?.name ?? model?.id ?? message.modelId}
           </div>
           {providerName ? (
-            <div className="truncate text-foreground-secondary text-xs leading-5" title={providerName}>
+            <div className="truncate text-muted-foreground text-xs leading-5" title={providerName}>
               {providerName}
             </div>
           ) : null}
           {createdAtLabel ? (
             <time
               dateTime={message.createdAt}
-              className="block truncate text-[11px] text-foreground-muted leading-4"
+              className="block truncate text-[11px] text-foreground-tertiary leading-4"
               title={createdAtLabel}>
               {createdAtLabel}
             </time>
@@ -239,7 +239,7 @@ const MessageTokenDetailsCard = ({
         </div>
       </header>
 
-      <div className="space-y-2 border-border-muted border-t p-3">
+      <div className="space-y-2 border-border-subtle border-t p-3">
         <InspectableMetricBar
           id="token-usage"
           title={t('chat.message.token_details.usage')}

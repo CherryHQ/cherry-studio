@@ -221,7 +221,7 @@ const MessageErrorInfo: React.FC<{
       {canRemoveErrorPart && (
         <button
           type="button"
-          className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-foreground-muted opacity-0 transition-all duration-150"
+          className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-foreground-tertiary opacity-0 transition-all duration-150"
           onClick={onRemoveErrorPart}
           aria-label="close"
           title={t('common.close')}>
@@ -239,7 +239,7 @@ const MessageErrorInfo: React.FC<{
 
       {/* Description */}
       <div
-        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-primary"
+        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
         <ErrorMessage error={error} />
       </div>
@@ -251,7 +251,7 @@ const MessageErrorInfo: React.FC<{
             size="sm"
             type="button"
             variant="outline"
-            className="rounded-[5px] text-foreground-secondary hover:border-border-hover hover:bg-accent hover:text-foreground"
+            className="rounded-[5px] text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground"
             onClick={onNavigate}>
             {t('error.diagnosis.go_to_settings')}
           </Button>

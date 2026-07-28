@@ -109,7 +109,10 @@ const ItemName = ({
   disabled,
   ...props
 }: React.ComponentPropsWithoutRef<'span'> & { disabled: boolean }) => (
-  <span className={cn('ml-2 truncate', disabled ? 'text-foreground-muted' : 'text-foreground', className)} {...props} />
+  <span
+    className={cn('ml-2 truncate', disabled ? 'text-foreground-disabled' : 'text-foreground', className)}
+    {...props}
+  />
 )
 
 const ItemIcon = ({ className, disabled, ...props }: React.ComponentPropsWithoutRef<'div'> & { disabled: boolean }) => (

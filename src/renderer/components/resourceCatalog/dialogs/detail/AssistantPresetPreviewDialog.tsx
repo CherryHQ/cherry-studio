@@ -55,7 +55,7 @@ export function AssistantPresetPreviewDialog({
         size="xl"
         className="flex h-[min(600px,76vh)] flex-col gap-0 overflow-hidden p-0"
         onPointerDownOutside={(event) => adding && event.preventDefault()}>
-        <DialogHeader className="shrink-0 border-border-muted border-b px-5 pt-5 pr-12 pb-4 text-left">
+        <DialogHeader className="shrink-0 border-border-subtle border-b px-5 pt-5 pr-12 pb-4 text-left">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-base">
               {preset.emoji || '🤖'}
@@ -68,7 +68,7 @@ export function AssistantPresetPreviewDialog({
                     <Badge
                       key={group}
                       variant="secondary"
-                      className="border-0 bg-secondary px-1.5 py-px text-foreground-secondary text-xs">
+                      className="border-0 bg-secondary px-1.5 py-px text-muted-foreground text-xs">
                       {group}
                     </Badge>
                   ))}
@@ -78,10 +78,10 @@ export function AssistantPresetPreviewDialog({
           </div>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-subtle [&::-webkit-scrollbar]:w-1">
           {description && (
             <section>
-              <div className="mb-2 text-foreground-secondary text-sm">
+              <div className="mb-2 text-muted-foreground text-sm">
                 {t('library.assistant_catalog.preview_description')}
               </div>
               <p className="whitespace-pre-wrap text-foreground text-sm leading-relaxed">{description}</p>
@@ -90,17 +90,15 @@ export function AssistantPresetPreviewDialog({
 
           {prompt && (
             <section>
-              <div className="mb-2 text-foreground-secondary text-sm">
-                {t('library.assistant_catalog.preview_prompt')}
-              </div>
-              <p className="whitespace-pre-wrap rounded-md border border-border-subtle bg-muted p-4 text-foreground-secondary text-sm leading-relaxed">
+              <div className="mb-2 text-muted-foreground text-sm">{t('library.assistant_catalog.preview_prompt')}</div>
+              <p className="whitespace-pre-wrap rounded-md border border-border-subtle bg-muted p-4 text-muted-foreground text-sm leading-relaxed">
                 {prompt}
               </p>
             </section>
           )}
         </div>
 
-        <DialogFooter className="shrink-0 border-border-muted border-t px-5 py-4">
+        <DialogFooter className="shrink-0 border-border-subtle border-t px-5 py-4">
           <Button variant="outline" disabled={adding} onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>

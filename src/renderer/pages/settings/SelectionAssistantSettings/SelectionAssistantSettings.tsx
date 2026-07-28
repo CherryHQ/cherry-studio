@@ -100,7 +100,7 @@ const SelectionAssistantSettings: FC = () => {
           <div className="flex items-center">
             <button
               type="button"
-              className="cursor-pointer border-0 bg-transparent p-0 font-normal text-link text-xs hover:text-link-hover hover:underline"
+              className="cursor-pointer border-0 bg-transparent p-0 font-normal text-link text-xs hover:underline"
               onClick={() =>
                 ipcApi.request('system.shell.open_website', 'https://github.com/CherryHQ/cherry-studio/issues/6505')
               }>
@@ -371,10 +371,10 @@ const DemoContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'
   <div className={cn('mt-3.75 mb-1.25 flex items-center justify-center', className)} {...props} />
 )
 const QuestionIcon = ({ className, ...props }: React.ComponentProps<typeof CircleHelp>) => (
-  <CircleHelp className={cn('cursor-pointer text-foreground-muted', className)} {...props} />
+  <CircleHelp className={cn('cursor-pointer text-foreground-tertiary', className)} {...props} />
 )
 const ChecklistItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-0.5 flex items-center text-foreground-muted text-xs', className)} {...props} />
+  <div className={cn('mb-0.5 flex items-center text-foreground-tertiary text-xs', className)} {...props} />
 )
 
 export default SelectionAssistantSettings

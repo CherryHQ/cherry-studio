@@ -82,7 +82,7 @@ describe('Link', () => {
     expect(anchor).not.toBeNull()
     expect(anchor.getAttribute('target')).toBe('_blank')
     expect(anchor.getAttribute('rel')).toBe('noreferrer')
-    expect(anchor).toHaveClass('text-primary')
+    expect(anchor).toHaveClass('text-link')
     expect(anchor).not.toHaveClass('inline-flex')
 
     fireEvent.click(anchor)
@@ -118,7 +118,7 @@ describe('Link', () => {
     expect(anchor.getAttribute('href')).toBe('https://domain.com/path')
     expect(anchor.getAttribute('target')).toBe('_blank')
     expect(anchor.getAttribute('rel')).toBe('noreferrer')
-    expect(anchor).toHaveClass('text-primary', 'hover:underline')
+    expect(anchor).toHaveClass('text-link', 'hover:underline')
     expect(anchor).not.toHaveClass('inline-flex')
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')
     expect(screen.getByTestId('favicon').parentElement).toHaveClass('markdown-link-favicon', 'mr-1')
@@ -134,7 +134,7 @@ describe('Link', () => {
     )
 
     expect(screen.getAllByTestId('favicon')).toHaveLength(1)
-    expect(screen.getByRole('link')).toHaveClass('text-primary', 'flex', 'gap-2')
+    expect(screen.getByRole('link')).toHaveClass('text-link', 'flex', 'gap-2')
     expect(screen.getByRole('link')).not.toHaveClass('hover:underline')
   })
 

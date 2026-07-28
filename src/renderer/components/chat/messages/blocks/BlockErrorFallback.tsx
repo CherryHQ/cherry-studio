@@ -11,7 +11,7 @@ const BlockErrorFallback: ComponentType<FallbackProps> = ({ error }) => {
       <div className="text-error-text">
         {t('error.render.block', { defaultValue: 'This content block failed to render' })}
       </div>
-      {!isProd && error && <div className="mt-1 break-all font-mono text-foreground-muted">{error.message}</div>}
+      {!isProd && error && <div className="mt-1 break-all font-mono text-foreground-tertiary">{error.message}</div>}
     </div>
   )
 }

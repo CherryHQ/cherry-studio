@@ -951,7 +951,7 @@ describe('AgentRightPane', () => {
 
     const artifactButton = screen.getByRole('button', { name: 'report.md' })
     expect(artifactButton).not.toHaveClass('text-primary')
-    expect(artifactButton).toHaveClass('text-foreground-secondary')
+    expect(artifactButton).toHaveClass('text-muted-foreground')
   })
 
   it('does not mount the files capability while the shell is closed', () => {

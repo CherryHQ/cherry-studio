@@ -152,7 +152,7 @@ const Chat: FC<Props> = (props) => {
         title: t('chat.topics.edit.title'),
         message: '',
         defaultValue: topic.name || '',
-        extraNode: <div className="mt-2 text-foreground-secondary">{t('chat.topics.edit.title_tip')}</div>
+        extraNode: <div className="mt-2 text-muted-foreground">{t('chat.topics.edit.title_tip')}</div>
       })
       if (name && topic.name !== name) {
         await patchTopic(topic.id, { name, isNameManuallyEdited: true })

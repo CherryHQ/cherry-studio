@@ -35,7 +35,7 @@ const statusDotClassNames: Record<MessageStatus, string> = {
   pending: 'bg-warning',
   success: 'bg-success',
   error: 'bg-destructive',
-  paused: 'bg-foreground-muted'
+  paused: 'bg-foreground-tertiary'
 }
 
 function getModelShortLabel(modelId?: string | null) {
@@ -123,12 +123,12 @@ function TopicMessageFlowNodePreviewCard({
             {roleLabel}
           </span>
           {modelLabel ? (
-            <span className={cn('truncate font-mono text-foreground-muted', bodyXsTypographyClassName)}>
+            <span className={cn('truncate font-mono text-foreground-tertiary', bodyXsTypographyClassName)}>
               {modelLabel}
             </span>
           ) : null}
         </div>
-        <div className={cn('shrink-0 text-right text-foreground-muted', bodyXsTypographyClassName)}>
+        <div className={cn('shrink-0 text-right text-foreground-tertiary', bodyXsTypographyClassName)}>
           <div>{statusLabel}</div>
           <time dateTime={message?.createdAt ?? undefined}>{timeLabel}</time>
         </div>
@@ -244,7 +244,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
                 {roleLabel}
               </span>
               {modelLabel ? (
-                <span className={cn('truncate font-mono text-foreground-muted', bodyXsTypographyClassName)}>
+                <span className={cn('truncate font-mono text-foreground-tertiary', bodyXsTypographyClassName)}>
                   {modelLabel}
                 </span>
               ) : null}
@@ -257,7 +257,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
 
           <div
             className={cn(
-              'mt-2 flex items-center justify-between gap-2 text-foreground-muted',
+              'mt-2 flex items-center justify-between gap-2 text-foreground-tertiary',
               bodyXsTypographyClassName
             )}>
             <span className="flex min-w-0 items-center gap-1.5">

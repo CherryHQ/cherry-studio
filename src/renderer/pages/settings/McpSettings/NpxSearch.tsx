@@ -189,7 +189,7 @@ const NpxSearch: FC = () => {
                     href={record.npmLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="selectable inline-flex items-center gap-1 text-link text-sm hover:text-link-hover">
+                    className="selectable inline-flex items-center gap-1 text-link text-sm hover:underline">
                     {record.npmLink}
                     <ExternalLink size={13} />
                   </a>

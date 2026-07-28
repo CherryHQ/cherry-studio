@@ -77,7 +77,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
   // than the sign-in panel, so an already-signed-in user doesn't see it flash.
   if (loggedIn === null) {
     return (
-      <div className="flex items-center gap-2 text-foreground-muted text-xs">
+      <div className="flex items-center gap-2 text-foreground-tertiary text-xs">
         <RefreshCw className="size-4 animate-spin" aria-hidden />
         {t('common.loading')}
       </div>
@@ -85,7 +85,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
   }
 
   const agentOnlyNote = (
-    <div className="mt-1 text-foreground-muted text-xs">
+    <div className="mt-1 text-foreground-tertiary text-xs">
       {t('settings.provider.claude_code.agent_only_note')}{' '}
       <ProviderHelpLink className="mx-0" href={LEGAL_AND_COMPLIANCE_URL} target="_blank" rel="noreferrer">
         {t('settings.provider.claude_code.legal_link')}
@@ -100,7 +100,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
           <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
           <div className="min-w-0 flex-1">
             <div className="text-foreground text-sm">{t('settings.provider.claude_code.logged_in')}</div>
-            <div className="mt-1 text-foreground-muted text-xs">
+            <div className="mt-1 text-foreground-tertiary text-xs">
               {t('settings.provider.claude_code.logged_in_detail')}
             </div>
             {agentOnlyNote}
@@ -116,7 +116,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
             <CircleAlert className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
             <div className="min-w-0 flex-1">
               <div className="text-foreground text-sm">{t('settings.provider.claude_code.description')}</div>
-              <div className="mt-1 text-foreground-muted text-xs">
+              <div className="mt-1 text-foreground-tertiary text-xs">
                 {t('settings.provider.claude_code.description_detail')}
               </div>
               {agentOnlyNote}

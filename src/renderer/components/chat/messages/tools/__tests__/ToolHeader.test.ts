@@ -277,7 +277,7 @@ describe('ToolHeader', () => {
     )
 
     const commandPreview = screen.getByTestId('tool-command-preview')
-    expect(commandPreview).toHaveClass('bg-background-subtle', 'text-foreground-secondary')
+    expect(commandPreview).toHaveClass('bg-background-subtle', 'text-muted-foreground')
     expect(commandPreview.querySelector('span')).toBeNull()
   })
 

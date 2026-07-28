@@ -41,7 +41,7 @@ export default function ProviderSettingsDrawer({
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="font-semibold text-base text-foreground">{title}</span>
-          {description ? <span className="text-foreground-muted text-xs leading-tight">{description}</span> : null}
+          {description ? <span className="text-foreground-tertiary text-xs leading-tight">{description}</span> : null}
         </div>
         {titleActions ? <div className="flex shrink-0 items-center">{titleActions}</div> : null}
       </div>

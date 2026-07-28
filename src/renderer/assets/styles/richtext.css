@@ -85,7 +85,7 @@
 }
 
 .tiptap a {
-  color: var(--primary);
+  color: var(--link);
   text-decoration: none;
   cursor: pointer;
 }

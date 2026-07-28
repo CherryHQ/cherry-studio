@@ -532,7 +532,7 @@ const McpSettings: React.FC = () => {
     children: (
       <LogList>
         {logs.length === 0 && (
-          <span className="text-foreground-muted text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
+          <span className="text-foreground-tertiary text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
         )}
         {logs.map((log, idx) => (
           <LogItem key={`${log.timestamp}-${idx}`}>
@@ -684,7 +684,7 @@ const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'
 )
 
 const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('shrink-0 text-foreground-muted text-xs', className)} {...props} />
+  <span className={cn('shrink-0 text-foreground-tertiary text-xs', className)} {...props} />
 )
 
 const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (

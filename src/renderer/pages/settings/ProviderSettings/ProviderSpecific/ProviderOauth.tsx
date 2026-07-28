@@ -88,7 +88,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
           {t('settings.provider.bills')}
         </Button>
       </RowFlex>
-      <div className="flex items-center gap-1.5 text-[13px] text-foreground-secondary leading-[1.35]">
+      <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground leading-[1.35]">
         {serviceDescription}
       </div>
     </div>

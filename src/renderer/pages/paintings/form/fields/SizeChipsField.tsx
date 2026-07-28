@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import type { OptionItem } from '../../form/baseConfigItem'
@@ -10,11 +11,7 @@ const MIN_THUMB = 6
 const DEFAULT_COLUMNS = 3
 
 const chipClass = {
-  base: 'flex min-h-10 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[10px] px-1 py-1 text-[11px] leading-tight transition-all',
-  active:
-    'bg-secondary-active text-foreground ring-1 ring-[color:color-mix(in_oklch,var(--foreground)_33.3333%,transparent)]',
-  inactive: 'bg-muted text-muted-foreground/60 hover:bg-secondary-hover hover:text-foreground',
-  disabled: 'cursor-not-allowed opacity-50'
+  base: 'flex min-h-10 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[10px] px-1 py-1 text-[11px] leading-tight transition-all'
 }
 
 function RatioShape({ ratio, selected }: { ratio: Dim; selected: boolean }) {
@@ -81,20 +78,18 @@ export default function SizeChipsField({
         const chipLabel = deriveChipLabel(label, optionValue)
 
         return (
-          <button
+          <Button
             type="button"
+            variant="chip"
+            pressed={isSelected}
             key={optionValue}
             disabled={disabled}
             title={label}
-            className={cn(
-              chipClass.base,
-              isSelected ? chipClass.active : chipClass.inactive,
-              disabled && chipClass.disabled
-            )}
+            className={chipClass.base}
             onClick={() => onChange({ [fieldKey]: optionValue })}>
             <RatioThumb value={optionValue} selected={isSelected} />
             <span className="block max-w-full truncate font-medium tracking-tight">{chipLabel}</span>
-          </button>
+          </Button>
         )
       })}
     </div>

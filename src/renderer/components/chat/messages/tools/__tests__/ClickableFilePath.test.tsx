@@ -216,7 +216,7 @@ describe('ClickableFilePath', () => {
     })
     const span = screen.getByRole('link', { name: '/tmp/test.ts' })
     expect(span).toHaveClass('cursor-pointer', 'items-center')
-    expect(span).toHaveClass('text-primary')
+    expect(span).toHaveClass('text-link')
     expect(span.parentElement).toHaveClass('flex', 'flex-row', 'items-center')
   })
 
@@ -286,6 +286,6 @@ describe('ClickableFilePath', () => {
     expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
     const text = screen.getAllByText('/tmp/test.ts').find((element) => element.classList.contains('cursor-default'))
     expect(text).toBeInTheDocument()
-    expect(text).toHaveClass('text-foreground-secondary')
+    expect(text).toHaveClass('text-muted-foreground')
   })
 })

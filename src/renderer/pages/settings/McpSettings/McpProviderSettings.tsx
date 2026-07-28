@@ -114,7 +114,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   asChild
                   variant="ghost"
                   size="icon-sm"
-                  className="size-6 rounded-md text-muted-foreground shadow-none hover:text-primary">
+                  className="size-6 rounded-md text-muted-foreground shadow-none hover:text-link">
                   <a target="_blank" rel="noreferrer" href={provider.discoverUrl}>
                     <ExternalLink size={13} />
                   </a>
@@ -149,7 +149,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
             target="_blank"
             rel="noreferrer"
             href={provider.apiKeyUrl}
-            className="mt-3.5 inline-flex items-center text-primary text-xs hover:underline">
+            className="mt-3.5 inline-flex items-center text-link text-xs hover:underline">
             {t('settings.provider.get_api_key')}
           </a>
         )}

@@ -346,7 +346,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
             <div className={drawerClasses.healthProgressTrack}>
               <div className={drawerClasses.healthProgressFill} style={{ width: `${Math.round(progress)}%` }} />
             </div>
-            <div className="text-center text-foreground-muted text-sm">
+            <div className="text-center text-foreground-tertiary text-sm">
               {Math.round(progress)}% · {t('ovms.download.tip')}
             </div>
           </div>

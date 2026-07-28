@@ -55,10 +55,10 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
         size="xl"
         className="flex h-[min(640px,82vh)] flex-col gap-0 overflow-hidden p-0"
         data-testid="system-skill-dialog">
-        <div className="shrink-0 border-border-muted border-b px-6 pt-5 pb-4">
+        <div className="shrink-0 border-border-subtle border-b px-6 pt-5 pb-4">
           <DialogHeader className="min-w-0 text-left">
             <DialogTitle>{t('library.system_skill.title')}</DialogTitle>
-            <p className="mt-1 text-foreground-muted text-xs">{t('library.system_skill.description')}</p>
+            <p className="mt-1 text-foreground-tertiary text-xs">{t('library.system_skill.description')}</p>
           </DialogHeader>
           <ResourceCatalogSearchInput
             value={query}
@@ -70,7 +70,7 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
 
         <div className="flex min-h-0 flex-1 flex-col">
           {loading && skills.length === 0 ? (
-            <Center className="min-h-0 flex-1 text-foreground-muted text-sm">
+            <Center className="min-h-0 flex-1 text-foreground-tertiary text-sm">
               <Spinner text={t('common.loading')} />
             </Center>
           ) : error ? (
@@ -140,19 +140,19 @@ function SystemSkillRow({
   return (
     <div
       role="listitem"
-      className="flex min-h-20 items-center gap-4 border-border-muted border-b px-2 py-3 last:border-b-0">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground-muted">
+      className="flex min-h-20 items-center gap-4 border-border-subtle border-b px-2 py-3 last:border-b-0">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground-tertiary">
         {skill.status === 'conflict' ? <TriangleAlert className="size-4" /> : <FolderSearch className="size-4" />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate font-medium text-[13px] text-foreground">{skill.name}</span>
-          <span className="shrink-0 text-foreground-muted text-xs">{placementNames}</span>
+          <span className="shrink-0 text-foreground-tertiary text-xs">{placementNames}</span>
         </div>
         {skill.description ? (
-          <p className="mt-0.5 truncate text-foreground-muted text-xs">{skill.description}</p>
+          <p className="mt-0.5 truncate text-foreground-tertiary text-xs">{skill.description}</p>
         ) : null}
-        <p className="mt-1 truncate font-mono text-[11px] text-foreground-muted">{skill.directoryPath}</p>
+        <p className="mt-1 truncate font-mono text-[11px] text-foreground-tertiary">{skill.directoryPath}</p>
       </div>
       <Button variant="outline" size="sm" disabled={disabled} onClick={onClick} className="shrink-0">
         {importing ? (

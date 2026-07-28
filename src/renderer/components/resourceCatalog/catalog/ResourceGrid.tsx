@@ -365,7 +365,7 @@ export const ResourceGrid: FC<Props> = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-muted border-b')}>
+      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-subtle border-b')}>
         {isSettings ? (
           <>
             <div className="flex items-center justify-between gap-4">
@@ -403,22 +403,22 @@ export const ResourceGrid: FC<Props> = ({
                   ? 'flex size-[30px] shrink-0 items-center justify-center'
                   : 'flex size-3 shrink-0 items-center'
               }>
-              <Tag size={14} className="text-foreground-muted" />
+              <Tag size={14} className="text-foreground-tertiary" />
             </div>
             <div className="ml-2 flex shrink-0 items-center gap-1.5">
               {visibleGroups.map((group) => (
                 <ContextMenu key={group.id}>
                   <ContextMenuTrigger asChild>
                     <Button
-                      variant="ghost"
+                      variant={activeGroupId === group.id ? 'secondary' : 'ghost'}
                       onClick={() => onGroupFilter(activeGroupId === group.id ? null : group.id)}
                       className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
                         activeGroupId === group.id
-                          ? 'border-border-active bg-secondary text-foreground hover:bg-secondary-hover hover:text-foreground'
-                          : 'border-border-subtle text-foreground-muted hover:border-border-hover hover:bg-accent hover:text-foreground'
+                          ? 'border-border-selected bg-secondary text-foreground hover:text-foreground'
+                          : 'border-border-subtle text-foreground-tertiary hover:border-border-strong hover:bg-accent hover:text-foreground'
                       }`}>
                       <span>{group.name}</span>
-                      <span className="text-foreground-muted text-xs tabular-nums">{group.count}</span>
+                      <span className="text-foreground-tertiary text-xs tabular-nums">{group.count}</span>
                     </Button>
                   </ContextMenuTrigger>
                   <ContextMenuContent className="min-w-32">
@@ -441,7 +441,7 @@ export const ResourceGrid: FC<Props> = ({
                   aria-label={t('library.toolbar.all_groups')}
                   title={t('library.toolbar.all_groups')}
                   onClick={() => setShowAllGroups((value) => !value)}
-                  className="size-6 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground">
+                  className="size-6 shrink-0 rounded-full text-foreground-tertiary hover:bg-accent hover:text-foreground">
                   {showAllGroups ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
                 </Button>
               )}
@@ -465,14 +465,14 @@ export const ResourceGrid: FC<Props> = ({
                     }}
                     disabled={addingGroup}
                     placeholder={t('library.toolbar.add_group_placeholder')}
-                    className="h-6 w-20 rounded-full border-input bg-background px-2 text-xs placeholder:text-foreground-muted"
+                    className="h-6 w-20 rounded-full border-input bg-background px-2 text-xs placeholder:text-muted-foreground"
                   />
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => void handleAddGroup()}
                     disabled={addingGroup || !newGroupName.trim()}
-                    className="size-6 text-foreground-muted hover:text-foreground">
+                    className="size-6 text-foreground-tertiary hover:text-foreground">
                     <Plus size={12} />
                   </Button>
                 </div>
@@ -480,7 +480,7 @@ export const ResourceGrid: FC<Props> = ({
                 <Button
                   variant="ghost"
                   onClick={() => setShowAddGroup(true)}
-                  className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-muted border-dashed px-2 text-foreground-muted text-xs shadow-none hover:border-border-hover hover:bg-accent hover:text-foreground">
+                  className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-subtle border-dashed px-2 text-foreground-tertiary text-xs shadow-none hover:border-border-strong hover:bg-accent hover:text-foreground">
                   <Plus size={11} /> {t('library.toolbar.group_button')}
                 </Button>
               )}
@@ -542,7 +542,7 @@ export const ResourceGrid: FC<Props> = ({
       <div
         ref={scrollRef}
         className={cn(
-          'flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1',
+          'flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-subtle [&::-webkit-scrollbar]:w-1',
           isSettings ? 'py-3' : 'px-5 py-4'
         )}>
         {isLoading ? (

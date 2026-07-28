@@ -20,7 +20,7 @@ const SettingsActionsListHeader = memo(({ customItemsCount, maxCustomItems, onRe
       <SettingTitle>{t('selection.settings.actions.title')}</SettingTitle>
       <div className="flex-1" />
       <Tooltip content={t('selection.settings.actions.reset.tooltip')}>
-        <Button variant="ghost" className="mx-2 text-foreground-muted hover:text-primary" onClick={onReset}>
+        <Button variant="ghost" className="mx-2 text-foreground-tertiary hover:text-primary" onClick={onReset}>
           {t('selection.settings.actions.reset.button')}
         </Button>
       </Tooltip>

@@ -183,7 +183,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
               variant="outline"
               size="sm"
               onClick={() => openSettingsTab('/settings/provider')}
-              className="w-full rounded-xl border-border-subtle border-dashed py-2 text-foreground-secondary hover:border-border hover:text-foreground">
+              className="w-full rounded-xl border-border-subtle border-dashed py-2 text-muted-foreground hover:border-border hover:text-foreground">
               {t(getAddProviderHintKey(selectedCliTool))}
               <ExternalLink size={10} />
             </Button>

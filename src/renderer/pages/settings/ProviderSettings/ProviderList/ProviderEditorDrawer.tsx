@@ -770,7 +770,7 @@ function CustomProviderEndpointFields({
     const isPreferredEndpoint = preferredChatEndpoint === endpointType
     const labelAccessory =
       isTextEndpoint && isPreferredEndpoint && (isConfiguredTextEndpoint || showPreferredEndpointAsDefault) ? (
-        <Badge variant="secondary" className="h-5 border-0 px-1.5 py-0 font-normal text-foreground-muted text-xs">
+        <Badge variant="secondary" className="h-5 border-0 px-1.5 py-0 font-normal text-foreground-tertiary text-xs">
           {t('settings.provider.create_custom.endpoint_fields.default_chat')}
         </Badge>
       ) : isConfiguredTextEndpoint && onPreferredChatEndpointChange ? (
@@ -805,7 +805,7 @@ function CustomProviderEndpointFields({
             <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
               <span>{t('settings.provider.create_custom.endpoint_fields.more')}</span>
               {additionalConfiguredCount > 0 && (
-                <span className="truncate text-foreground-muted">
+                <span className="truncate text-foreground-tertiary">
                   {t('settings.provider.create_custom.endpoint_fields.more_configured', {
                     count: additionalConfiguredCount
                   })}
@@ -817,7 +817,7 @@ function CustomProviderEndpointFields({
             {additionalEndpoints.map(renderEndpointControl)}
             {additionalContent && (
               <>
-                <Separator className="bg-border-muted" />
+                <Separator className="bg-border-subtle" />
                 {additionalContent}
               </>
             )}
@@ -861,7 +861,7 @@ function PresetInstancePicker({
         <span className="text-[13px] text-foreground">
           {t('settings.provider.create_custom.preset_instance.title')}
         </span>
-        <span className="text-foreground-muted text-xs">
+        <span className="text-foreground-tertiary text-xs">
           {t('settings.provider.create_custom.preset_instance.description')}
         </span>
       </div>
@@ -895,7 +895,7 @@ function DuplicateHeader({ source }: { source: Provider }) {
   const presetId = source.presetProviderId
   const label = presetId ? t(getProviderLabelKey(presetId)) : source.name
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border-muted bg-muted/40 px-3 py-2">
+    <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-muted/40 px-3 py-2">
       <ProviderAvatar provider={{ id: presetId ?? source.id, name: label }} size={18} />
       <span className="truncate text-foreground/85 text-sm">{label}</span>
     </div>
@@ -1115,7 +1115,7 @@ function BaseUrlField({
         onBlur={onBlur}
       />
       {description && (
-        <p id={descriptionId} aria-live="polite" className="break-all text-foreground-muted text-xs">
+        <p id={descriptionId} aria-live="polite" className="break-all text-foreground-tertiary text-xs">
           {description}
         </p>
       )}

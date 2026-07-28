@@ -806,7 +806,7 @@ function AgentToolsFields({
               type="button"
               variant="ghost"
               onClick={openSkillsSettingsTab}
-              className="h-full min-h-11 w-full rounded-lg border border-border-muted border-dashed px-2.5 py-1.5 font-normal text-muted-foreground text-sm shadow-none transition-colors hover:border-border-hover hover:bg-accent/50 hover:text-foreground">
+              className="h-full min-h-11 w-full rounded-lg border border-border-subtle border-dashed px-2.5 py-1.5 font-normal text-muted-foreground text-sm shadow-none transition-colors hover:border-border-strong hover:bg-accent/50 hover:text-foreground">
               <ToolCase size={14} strokeWidth={1.7} />
               {t('agent.settings.skills.addMore')}
             </Button>

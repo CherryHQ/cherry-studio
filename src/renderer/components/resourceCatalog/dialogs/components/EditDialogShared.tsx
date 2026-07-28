@@ -463,7 +463,7 @@ export function EditDialogShell<TValues extends FieldValues>({
             onSubmit={(event) => event.preventDefault()}
             className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
             {/* Header — title, matching the create wizard's top bar. */}
-            <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-3 pr-12">
+            <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b px-6 py-3 pr-12">
               <div className="min-w-0">
                 <DialogTitle className="truncate text-base">{title}</DialogTitle>
               </div>
@@ -787,15 +787,15 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
         <div className="space-y-3">
           <div className="space-y-1">
             <div className="font-medium text-foreground text-xs">{t('library.config.prompt.variables_title')}</div>
-            <div className="text-foreground-secondary text-xs leading-relaxed">
+            <div className="text-muted-foreground text-xs leading-relaxed">
               {t('library.config.prompt.variables_description')}
             </div>
           </div>
-          <div className="rounded-md border border-border bg-muted/50 px-2 py-1.5 text-foreground-secondary text-xs">
+          <div className="rounded-md border border-border bg-muted/50 px-2 py-1.5 text-muted-foreground text-xs">
             {t('library.config.prompt.variables_example', { variable: '{{date}}' })}
           </div>
           <div>
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-foreground-secondary text-xs">
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-muted-foreground text-xs">
               {PROMPT_VARIABLES.map((variable) => (
                 <div key={variable.name} className="contents">
                   <button

@@ -329,9 +329,16 @@ with:
 
 ```text
 --background-subtle
+--foreground-tertiary
+--foreground-disabled
 --border-subtle
 --border-strong
+--border-selected
+--link
 ```
+
+Foreground roles use solid providers so their resolved contrast is independent of the surface beneath them.
+`--link` initially follows `--primary`, while remaining a separate product role for clickable text.
 
 The feedback intents are:
 

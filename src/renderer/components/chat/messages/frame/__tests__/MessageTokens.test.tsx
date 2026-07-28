@@ -125,7 +125,7 @@ describe('MessageTokens', () => {
     const tokenStats = container.querySelector('.message-tokens')
 
     expect(tokenStats).toHaveTextContent('42 Tokens')
-    expect(tokenStats).toHaveClass('text-xs', 'leading-5', 'text-foreground-secondary', 'tabular-nums')
+    expect(tokenStats).toHaveClass('text-xs', 'leading-5', 'text-muted-foreground', 'tabular-nums')
     expect(screen.queryByTestId('message-token-hover-card')).not.toBeInTheDocument()
   })
 

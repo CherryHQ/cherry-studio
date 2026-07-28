@@ -88,7 +88,7 @@ function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProp
     <div className={wrapperClassName}>
       <div className="relative">
         {searchIcon && (
-          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 flex text-foreground-muted">
+          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 flex text-foreground-tertiary">
             {searchIcon}
           </span>
         )}
@@ -98,7 +98,7 @@ function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProp
           onChange={(event) => actions.setQuery(event.target.value)}
           className={cn(
             'h-7 rounded-full border border-sidebar-border bg-sidebar pr-2 text-[10px] text-sidebar-foreground shadow-none transition-colors md:text-[10px]',
-            'placeholder:text-[10px] placeholder:text-foreground-muted focus-visible:border-sidebar-ring focus-visible:ring-0',
+            'placeholder:text-[10px] placeholder:text-muted-foreground focus-visible:border-sidebar-ring focus-visible:ring-0',
             searchIcon ? 'pl-6' : 'pl-2',
             className
           )}

@@ -24,10 +24,10 @@ export function FilePreviewToolbarButton({
         variant="ghost"
         size="icon-sm"
         aria-label={label}
-        aria-pressed={pressed}
+        pressed={pressed}
         disabled={disabled}
         onClick={onClick}
-        className={cn('text-muted-foreground hover:text-foreground', pressed && 'bg-ghost-active text-foreground')}>
+        className={cn('text-muted-foreground hover:text-foreground')}>
         {children}
       </Button>
     </Tooltip>

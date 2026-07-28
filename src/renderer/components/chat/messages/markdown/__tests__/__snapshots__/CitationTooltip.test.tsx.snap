@@ -48,7 +48,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       </a>
       <div
         aria-label="Citation content"
-        class="mb-2 overflow-hidden text-[13px] text-foreground-secondary leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
+        class="mb-2 overflow-hidden text-[13px] text-muted-foreground leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
         data-ui="chat.citation-tooltip.article"
         role="article"
         style="display: -webkit-box; overflow: hidden; -webkit-line-clamp: 3;"
@@ -57,7 +57,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       </div>
       <a
         aria-label="Visit example.com"
-        class="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-primary text-xs hover:underline"
+        class="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-link text-xs hover:underline"
         href="https://example.com/article"
         rel="noopener noreferrer"
         target="_blank"

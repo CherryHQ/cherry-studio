@@ -41,8 +41,8 @@ const Footer: FC<FooterProps> = ({
   }
 
   return (
-    <div className="drag flex flex-row justify-between py-1.5 text-foreground-secondary text-xs">
-      <div className="flex items-center justify-center gap-1 text-foreground-secondary text-xs">
+    <div className="drag flex flex-row justify-between py-1.5 text-muted-foreground text-xs">
+      <div className="flex items-center justify-center gap-1 text-muted-foreground text-xs">
         <FooterAction onClick={onEsc}>
           {loading ? (
             <Loader2 size={12} className="animate-spin text-error-base" />
@@ -92,7 +92,7 @@ const Footer: FC<FooterProps> = ({
 const FooterAction: FC<ButtonHTMLAttributes<HTMLButtonElement>> = ({ className, ...props }) => (
   <button
     type="button"
-    className={`nodrag flex items-center gap-1 rounded px-1.5 py-0.5 text-foreground-secondary transition-colors hover:bg-accent hover:text-primary ${className ?? ''}`}
+    className={`nodrag flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-primary ${className ?? ''}`}
     {...props}
   />
 )

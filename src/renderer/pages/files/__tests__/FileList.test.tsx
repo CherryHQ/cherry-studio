@@ -113,7 +113,7 @@ describe('FileList', () => {
     expect(firstRow).toHaveClass('grid', 'h-10', 'rounded-md', 'px-2.5')
     expect(firstRow).not.toHaveClass('border-b')
     const format = screen.getByText(getFormatLabel(file.format))
-    expect(format).toHaveClass('text-foreground-secondary', 'text-xs')
+    expect(format).toHaveClass('text-muted-foreground', 'text-xs')
     expect(format).not.toHaveClass('rounded-md', 'border-border-subtle', 'bg-background-subtle')
     expect(virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0].estimateSize()).toBe(44)
   })
@@ -296,7 +296,7 @@ describe('FileListHeader', () => {
 
     expect(header).toHaveClass('grid', 'mx-3', 'mb-2', 'h-10', 'shrink-0', 'border-border', 'border-b', 'px-2.5')
     expect(header).not.toHaveClass('sticky', 'bg-card', 'bg-background')
-    expect(activeSort).toHaveClass('!text-foreground-muted')
-    expect(inactiveSort).toHaveClass('!text-foreground-muted')
+    expect(activeSort).toHaveClass('!text-foreground-tertiary')
+    expect(inactiveSort).toHaveClass('!text-foreground-tertiary')
   })
 })

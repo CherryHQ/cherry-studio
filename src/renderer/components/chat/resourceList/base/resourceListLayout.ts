@@ -54,4 +54,4 @@ export const RESOURCE_LIST_TITLE_FADE_YIELD_CLASS =
 
 /** Compact search input used by the right-panel presentation of the topic/session lists (classic layout). */
 export const RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS =
-  'h-8 rounded-lg border-border-subtle bg-background-subtle pl-7 pr-2 text-xs shadow-none md:text-xs placeholder:text-xs placeholder:text-foreground-muted focus-visible:border-border-hover focus-visible:bg-background focus-visible:ring-0'
+  'h-8 rounded-lg border-border-subtle bg-background-subtle pl-7 pr-2 text-xs shadow-none md:text-xs placeholder:text-xs placeholder:text-muted-foreground focus-visible:border-ring focus-visible:bg-background focus-visible:ring-0'

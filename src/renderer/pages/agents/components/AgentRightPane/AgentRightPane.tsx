@@ -977,7 +977,7 @@ function AgentRightPaneHighlights({
                 <span
                   className={cn(
                     'wrap-break-word min-w-0 flex-1 text-xs leading-5',
-                    task.status === 'completed' ? 'text-muted-foreground line-through' : 'text-foreground-secondary'
+                    task.status === 'completed' ? 'text-muted-foreground line-through' : 'text-muted-foreground'
                   )}>
                   {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
                 </span>
@@ -996,7 +996,7 @@ function AgentRightPaneHighlights({
             {status.subagents.map((subagent) => (
               <li key={subagent.toolCallId} className="flex min-w-0 items-start gap-2">
                 <SubagentStatusIcon status={subagent.status} />
-                <span className="wrap-break-word min-w-0 flex-1 text-foreground-secondary text-xs leading-5">
+                <span className="wrap-break-word min-w-0 flex-1 text-muted-foreground text-xs leading-5">
                   {subagent.name}
                 </span>
               </li>
@@ -1017,7 +1017,7 @@ function AgentRightPaneHighlights({
                   type="button"
                   onClick={() => actions.openArtifactFile(artifact.path)}
                   title={artifact.path}
-                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-foreground-secondary transition-colors hover:bg-foreground/5 hover:text-foreground">
+                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
                   <FileText size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
                 </button>

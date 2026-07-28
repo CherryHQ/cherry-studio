@@ -266,7 +266,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     () => (
       <div className="flex flex-col gap-2">
         <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
-          <span className="text-foreground-secondary text-xs">{t('translate.preferred_target')}</span>
+          <span className="text-muted-foreground text-xs">{t('translate.preferred_target')}</span>
           <LanguageSelect
             value={targetLanguage.langCode}
             className="w-full [&>div]:w-full"
@@ -281,7 +281,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           />
         </div>
         <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
-          <span className="text-foreground-secondary text-xs">{t('translate.alter_language')}</span>
+          <span className="text-muted-foreground text-xs">{t('translate.alter_language')}</span>
           <LanguageSelect
             value={alterLanguage.langCode}
             className="w-full [&>div]:w-full"
@@ -318,7 +318,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         <div className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-1">
           <div className="flex min-w-0 shrink items-center gap-1.5">
             {/* Detected language display (read-only) */}
-            <div className="flex min-w-0 items-center whitespace-nowrap rounded bg-muted px-2 py-1 text-foreground-secondary text-xs">
+            <div className="flex min-w-0 items-center whitespace-nowrap rounded bg-muted px-2 py-1 text-muted-foreground text-xs">
               {isDetecting ? (
                 <span className="min-w-0 truncate">{t('translate.detecting')}</span>
               ) : (
@@ -379,7 +379,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             <button
               type="button"
               onClick={() => setShowOriginal(!showOriginal)}
-              className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-foreground-secondary text-xs transition-colors hover:text-primary">
+              className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-muted-foreground text-xs transition-colors hover:text-primary">
               <span>
                 {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
               </span>
@@ -388,7 +388,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           </div>
         </div>
         {showOriginal && (
-          <div className="mt-2 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-foreground-secondary text-xs">
+          <div className="mt-2 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-muted-foreground text-xs">
             {action.selectedText}{' '}
             <div className="flex justify-end">
               <CopyButton

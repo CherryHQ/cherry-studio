@@ -38,8 +38,8 @@ const TranslateOutputPane = ({
         className="selectable min-h-0 flex-1 overflow-x-hidden p-4 pr-12 text-base leading-relaxed">
         <div className="flex min-h-full flex-col">
           {translating && !translatedContent ? (
-            <div className="flex items-center gap-2 text-foreground-secondary">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-subtle-foreground/30 border-t-muted-foreground" />
               <span>{t('translate.processing')}</span>
             </div>
           ) : translatedContent ? (
@@ -57,7 +57,7 @@ const TranslateOutputPane = ({
         </IconButton>
       </div>
       <div className="flex shrink-0 items-center px-3 py-4">
-        {translatedContent && <span className="text-foreground-muted text-xs">{translatedContent.length}</span>}
+        {translatedContent && <span className="text-foreground-tertiary text-xs">{translatedContent.length}</span>}
         <IconButton
           size="sm"
           onClick={onExportToNotes}

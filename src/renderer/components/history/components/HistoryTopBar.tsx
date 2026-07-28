@@ -210,7 +210,7 @@ const HistoryTopBar = ({
         description={t('history.records.bulkMoveTopics.description', { count: selectedCount })}
         content={
           <div className="space-y-2">
-            <div className="font-medium text-foreground-secondary text-xs leading-4">
+            <div className="font-medium text-muted-foreground text-xs leading-4">
               {t('history.records.bulkMoveTopics.target')}
             </div>
             <SelectDropdown

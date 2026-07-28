@@ -17,7 +17,7 @@ const meta: Meta<typeof Button> = {
   argTypes: {
     variant: {
       control: { type: 'select' },
-      options: ['default', 'destructive', 'outline', 'secondary', 'emphasis', 'ghost', 'link'],
+      options: ['default', 'destructive', 'outline', 'secondary', 'emphasis', 'ghost', 'chip', 'link'],
       description: 'The visual style variant of the button'
     },
     size: {
@@ -28,6 +28,10 @@ const meta: Meta<typeof Button> = {
     disabled: {
       control: { type: 'boolean' },
       description: 'Whether the button is disabled'
+    },
+    pressed: {
+      control: { type: 'boolean' },
+      description: 'Whether the button represents a pressed toggle state'
     },
     asChild: {
       control: { type: 'boolean' },
@@ -93,6 +97,21 @@ export const Ghost: Story = {
   }
 }
 
+export const Chip: Story = {
+  args: {
+    variant: 'chip',
+    children: 'Chip'
+  }
+}
+
+export const PressedChip: Story = {
+  args: {
+    variant: 'chip',
+    pressed: true,
+    children: 'Pressed chip'
+  }
+}
+
 export const Link: Story = {
   args: {
     variant: 'link',
@@ -110,6 +129,10 @@ export const AllVariants: Story = {
       <Button variant="outline">Outline</Button>
       <Button variant="emphasis">Emphasis</Button>
       <Button variant="ghost">Ghost</Button>
+      <Button variant="chip">Chip</Button>
+      <Button variant="chip" pressed>
+        Pressed chip
+      </Button>
       <Button variant="link">Link</Button>
     </div>
   )

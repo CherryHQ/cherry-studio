@@ -50,7 +50,7 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
         <h3 className="font-semibold text-foreground text-lg leading-7">
           {t('knowledge.data_source.empty_description')}
         </h3>
-        <p className="mt-2 text-foreground-muted text-sm leading-5">{t('knowledge.data_source.empty.title')}</p>
+        <p className="mt-2 text-foreground-tertiary text-sm leading-5">{t('knowledge.data_source.empty.title')}</p>
         <div className="mt-7 flex flex-wrap justify-center gap-2.5">
           {KNOWLEDGE_DATA_SOURCE_TYPES.map((source) => {
             const Icon = dataSourceTypeDisplayConfig[source.value].icon.icon
@@ -63,7 +63,7 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
                 size="lg"
                 className="h-9 w-24 rounded-lg px-3 font-medium"
                 onClick={() => onAddSource(source.value)}>
-                <Icon className="size-4 text-foreground-secondary" />
+                <Icon className="size-4 text-muted-foreground" />
                 {t(source.labelKey)}
               </Button>
             )
@@ -226,14 +226,14 @@ const DataSourcePanel = ({
               <ChevronLeft className="size-4" />
               {t('knowledge.data_source.back_to_parent')}
             </Button>
-            <span className="min-w-0 truncate text-foreground-secondary text-sm" title={getItemTitle(currentDirectory)}>
+            <span className="min-w-0 truncate text-muted-foreground text-sm" title={getItemTitle(currentDirectory)}>
               {getItemTitle(currentDirectory)}
             </span>
           </div>
         )}
         {!isLoading && items.length === 0 ? (
           currentDirectory ? (
-            <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center text-foreground-muted text-sm">
+            <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center text-foreground-tertiary text-sm">
               {t('knowledge.data_source.empty_folder')}
             </div>
           ) : (

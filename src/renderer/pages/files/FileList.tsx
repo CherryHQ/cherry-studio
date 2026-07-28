@@ -24,7 +24,7 @@ export type SortDir = 'asc' | 'desc'
 const FILE_ROW_HEIGHT_PX = 44
 const FILE_LIST_GRID = 'grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_4rem_7rem_6.5rem] items-center gap-2'
 const FILE_LIST_CHECKBOX_CLASS_NAME =
-  'inline-flex items-center justify-center align-middle border-border-active text-foreground hover:bg-accent data-[state=checked]:border-border-active data-[state=checked]:bg-background-subtle data-[state=checked]:text-foreground focus-visible:ring-border-active/20'
+  'inline-flex items-center justify-center align-middle border-border-selected text-foreground hover:bg-accent data-[state=checked]:border-border-selected data-[state=checked]:bg-background-subtle data-[state=checked]:text-foreground focus-visible:ring-ring/20'
 
 function SortHeader({
   label,
@@ -47,7 +47,7 @@ function SortHeader({
       variant="ghost"
       size="sm"
       onClick={() => onSort(field)}
-      className="!text-foreground-muted hover:!text-foreground-secondary h-full min-h-0 w-full justify-start gap-1 rounded-none px-0 py-0 font-medium text-xs shadow-none hover:bg-transparent">
+      className="!text-foreground-tertiary hover:!text-muted-foreground h-full min-h-0 w-full justify-start gap-1 rounded-none px-0 py-0 font-medium text-xs shadow-none hover:bg-transparent">
       <span>{label}</span>
       <SortIcon size={9} className={iconClass} />
     </Button>
@@ -217,9 +217,9 @@ export const FileList = memo(function FileList({
                   </>
                 )}
               </div>
-              <span className="truncate text-foreground-secondary text-xs">{file.size}</span>
-              <span className="truncate text-foreground-secondary text-xs">{getFormatLabel(file.format)}</span>
-              <span className="truncate text-foreground-muted text-xs">{file.updatedAt}</span>
+              <span className="truncate text-muted-foreground text-xs">{file.size}</span>
+              <span className="truncate text-muted-foreground text-xs">{getFormatLabel(file.format)}</span>
+              <span className="truncate text-foreground-tertiary text-xs">{file.updatedAt}</span>
               <div className="grid grid-cols-4 justify-items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                 {canOpen ? (
                   <Button

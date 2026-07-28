@@ -174,7 +174,7 @@ export default function ProviderConnectionCheckDrawer({
             ) : (
               <div className="space-y-1.5">
                 <div className="text-[13px] text-foreground/85">{t('settings.provider.api_key.label')}</div>
-                <div className="rounded-md border border-border-muted bg-muted/20 px-3 py-2 font-mono text-[12px] text-foreground/70">
+                <div className="rounded-md border border-border-subtle bg-muted/20 px-3 py-2 font-mono text-[12px] text-foreground/70">
                   {selectedApiKey ? maskApiKey(selectedApiKey) : '—'}
                 </div>
               </div>

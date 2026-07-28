@@ -7,7 +7,7 @@ import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
 const controlButtonClass =
-  'h-full w-12 rounded-none text-foreground-secondary shadow-none transition-[background,color] duration-150 hover:bg-accent hover:text-foreground [&_svg]:pointer-events-none'
+  'h-full w-12 rounded-none text-muted-foreground shadow-none transition-[background,color] duration-150 hover:bg-accent hover:text-foreground [&_svg]:pointer-events-none'
 
 /**
  * Custom minimize/close controls for the frameless migration window on Windows/Linux.

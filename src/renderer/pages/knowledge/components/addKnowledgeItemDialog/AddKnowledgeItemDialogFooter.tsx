@@ -42,7 +42,7 @@ const AddKnowledgeItemDialogFooter = ({
       ) : null}
 
       <KnowledgeDialogFooter className="items-center sm:justify-between">
-        <span className="text-foreground-muted text-xs leading-4">{selectionCount > 0 ? selectionText : ''}</span>
+        <span className="text-foreground-tertiary text-xs leading-4">{selectionCount > 0 ? selectionText : ''}</span>
 
         <div className="flex gap-2">
           <DialogClose asChild>

@@ -372,7 +372,7 @@ function FileTokenPreviewCard({
   if (hasFailedPreview) {
     return (
       <div
-        className="bg-neutral-100 px-5 py-4 text-center text-foreground-secondary text-sm dark:bg-neutral-800"
+        className="bg-neutral-100 px-5 py-4 text-center text-muted-foreground text-sm dark:bg-neutral-800"
         data-file-token-image-preview-error="">
         {t('chat.input.image_preview_failed')}
       </div>
@@ -401,7 +401,7 @@ function FileTokenPreviewCard({
             <span className="shrink-0 font-medium uppercase">{presentation.typeLabel}</span>
             {sizeLabel && (
               <>
-                <span className="text-border-muted">·</span>
+                <span className="text-border-subtle">·</span>
                 <span className="shrink-0">{sizeLabel}</span>
               </>
             )}

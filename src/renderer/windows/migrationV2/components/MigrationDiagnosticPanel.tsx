@@ -71,13 +71,13 @@ export function MigrationDiagnosticPanel() {
 
   return (
     <section className="space-y-3 rounded-xl border border-border bg-muted/15 px-4 py-3">
-      <p className="text-foreground-secondary text-xs leading-relaxed">{t('migration.diagnostics.privacy')}</p>
+      <p className="text-muted-foreground text-xs leading-relaxed">{t('migration.diagnostics.privacy')}</p>
       <div role="status" aria-live="polite" aria-atomic="true" className="space-y-1 text-xs leading-relaxed">
         {saved && (
           <>
             <p className="font-medium text-foreground">{t('migration.diagnostics.saved_local')}</p>
             {diagnosticStatus === 'saved_without_logs' && (
-              <p className="text-foreground-secondary">{t('migration.diagnostics.logs_not_included')}</p>
+              <p className="text-muted-foreground">{t('migration.diagnostics.logs_not_included')}</p>
             )}
           </>
         )}
