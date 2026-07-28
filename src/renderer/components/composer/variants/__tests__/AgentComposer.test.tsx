@@ -977,7 +977,8 @@ describe('AgentComposer', () => {
       />
     )
     fireEvent.click(screen.getByText('send'))
-    const queued = mocks.surfaceProps?.queueContent as any
+    const queued = getQueueDock()
+    expect(queued).toBeTruthy()
     expect(queued.props.items[0].payload.userMessageParts).toContainEqual({
       type: 'data-knowledge-scope',
       data: { baseIds: [knowledgeBaseOne.id] }

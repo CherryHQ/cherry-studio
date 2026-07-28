@@ -1985,7 +1985,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private async startReceiveOnlyTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     if (!this.isCurrentEntry(entry) || !entry.rolling) return
-    const modelId = this.connectionTarget(entry).modelId
+    const { modelId, knowledgeBaseIds } = this.connectionTarget(entry)
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
@@ -2028,12 +2028,13 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const assistantMessageId = assistantMessage.id
     const turnId = crypto.randomUUID()
-    entry.currentTurn = {
+    const receiveOnlyTurn: AgentSessionTurn = {
       turnId,
       assistantMessageId,
       userMessage: syntheticMessage,
       modelId,
       reasoningEffort: 'default',
+      knowledgeBaseIds,
       // Pre-admitted: the connected runtime started this generation, so `admitTurn` must not send.
       admitted: true,
       abortController: new AbortController(),
@@ -2041,6 +2042,7 @@ export class AgentSessionRuntimeService extends BaseService {
       headless: true,
       receiveOnly: true
     }
+    entry.currentTurn = receiveOnlyTurn
 
     const messages = createRuntimeSeedMessages(syntheticMessage, assistantMessageId)
     if (rootSpan) {
@@ -2063,7 +2065,7 @@ export class AgentSessionRuntimeService extends BaseService {
         reasoningEffort: 'default',
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
-      abortController: entry.currentTurn.abortController,
+      abortController: receiveOnlyTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, syntheticMessage),
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId),

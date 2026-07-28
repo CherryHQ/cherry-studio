@@ -1876,7 +1876,7 @@ describe('AgentSessionRuntimeService', () => {
   describe('receive-only turn', () => {
     it('opens a receive-only headless turn and replays the buffered woken chunks', async () => {
       const service = new AgentSessionRuntimeService()
-      service.beginTurn(baseTurnInput)
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
       service.markTurnTerminal('session-1', 'success')
       const entry = getEntry(service)
       const send = vi.fn()
@@ -1895,7 +1895,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
       const wakeTurn = entry.currentTurn
-      expect(wakeTurn).toMatchObject({ admitted: true, headless: true })
+      expect(wakeTurn).toMatchObject({ admitted: true, headless: true, knowledgeBaseIds: ['kb-1'] })
 
       const reader = service
         .openTurnStream({ sessionId: 'session-1', turnId: wakeTurn.turnId, signal: new AbortController().signal })
