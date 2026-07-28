@@ -99,6 +99,8 @@ export interface MessageConfig {
   outputFormat?: OutputFormat
   /** Request abort signal (`context.request.signal`); aborts the upstream stream on client disconnect. */
   signal?: AbortSignal
+  /** Raw request headers used only to validate Cherry-internal usage correlation. */
+  requestHeaders?: Headers
   onError?: (error: unknown) => void
   onComplete?: () => void
 }
@@ -138,6 +140,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
+  const usageContext = config.requestHeaders
+    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
+    : undefined
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     providerId,
@@ -309,6 +314,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             messages,
             listener,
             callOverrides,
+            ...(usageContext ? { usageContext } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
         } catch (error) {
@@ -390,6 +396,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       messages,
       listener,
       callOverrides,
+      ...(usageContext ? { usageContext } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })
 

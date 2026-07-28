@@ -1,4 +1,5 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
+import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -7,12 +8,34 @@ import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashComma
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
+
+/**
+ * Agent-session usage has exactly one capture owner per runtime route.
+ * Direct/external SDK routes emit per-assistant-message invocation records;
+ * gateway routes are captured by the normal provider-call middleware.
+ */
+export type AgentSessionUsageCapture =
+  | {
+      owner: 'agent-sdk'
+      credentialReceipt: AiUsageCredentialReceipt
+      providerId: string
+      providerName: string | null
+      source: SourceSnapshot | null
+      frozenModels: ReadonlyArray<{
+        modelId: string
+        modelName: string | null
+        aliases: readonly string[]
+        pricingSnapshot: AiUsagePricingSnapshot | null
+      }>
+    }
+  | { owner: 'provider-calls' }
 
 export interface AiRuntimeDriver {
   readonly type: string
@@ -38,6 +61,12 @@ export interface AgentRuntimeConnectInput {
   knowledgeBaseIds?: readonly string[]
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
+  /**
+   * Synchronous host hook fired when a pending steer is actually injected. The host uses this
+   * before the SDK can issue its next provider request to reserve the continuation correlation;
+   * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
+   */
+  onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
 }
 
 export interface AgentRuntimeUserInput {
@@ -64,6 +93,28 @@ export interface AgentRuntimeToolApprovalRequest {
 export type AgentRuntimeEvent =
   | { type: 'chunk'; chunk: UIMessageChunk }
   | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
+  | {
+      type: 'usage'
+      invocation: {
+        requestId: string
+        model: string
+        /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
+        messageAssociation: 'current-turn' | 'stateless'
+        usage?: {
+          inputTokens: number
+          outputTokens: number
+          totalTokens: number
+          noCacheTokens: number
+          cacheReadTokens: number
+          cacheWriteTokens: number
+        }
+        metrics?: {
+          timeFirstTokenMs?: number
+          timeCompletionMs?: number
+          timeThinkingMs?: number
+        }
+      }
+    }
   | { type: 'resume-token'; token: string }
   | { type: 'turn-complete' }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
@@ -120,6 +171,8 @@ export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
+  /** Connection-route-owned usage capture policy and non-secret credential receipt. */
+  readonly usageCapture?: AgentSessionUsageCapture
   send(input: AgentRuntimeUserInput): void | Promise<void>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true

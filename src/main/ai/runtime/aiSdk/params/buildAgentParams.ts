@@ -14,7 +14,8 @@ import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIM
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { createHttpTraceFetch } from '../../../observability'
-import { providerToAiSdkConfig } from '../../../provider/config'
+import { resolveProviderAiSdkConfig } from '../../../provider/config'
+import type { ServingCredentialReceipt } from '../../../provider/credential'
 import {
   resolveAiSdkProviderId,
   type ResolvedEndpoint,
@@ -64,10 +65,14 @@ export interface BuildAgentParamsInput {
   assistant?: Assistant
   /** Caller-supplied features merged after `INTERNAL_FEATURES`. */
   extraFeatures?: readonly RequestFeature[]
+  /** Late-bound request usage middleware for nested tool-repair calls. */
+  getRepairUsagePlugins?: () => AiPlugin[]
 }
 
 export interface BuiltAgentParams {
   sdkConfig: SdkConfig
+  /** Non-secret receipt for the credential path selected for this request. */
+  credentialReceipt: ServingCredentialReceipt
   tools: ToolSet | undefined
   plugins: AiPlugin<any, any>[]
   system: string | undefined
@@ -83,7 +88,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
-  const sdkConfig = await resolveSdkConfig(provider, model, resolvedEndpoint, request.apiKeyOverride)
+  const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
+    provider,
+    model,
+    resolvedEndpoint,
+    request.apiKeyOverride
+  )
   applyHttpTrace(sdkConfig, request.chatId, model)
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
@@ -143,10 +153,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const contributions = collectFromFeatures(scope, features)
 
   const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
-  const options = buildAgentOptions(scope, contributions.stopConditions)
+  const options = buildAgentOptions(scope, contributions.stopConditions, input.getRepairUsagePlugins)
 
   return {
     sdkConfig,
+    credentialReceipt,
     tools,
     plugins: contributions.modelAdapters,
     system,
@@ -175,16 +186,22 @@ async function resolveSdkConfig(
   model: Model,
   resolvedEndpoint: ResolvedEndpoint,
   apiKeyOverride?: string
-): Promise<SdkConfig> {
-  const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride, resolvedEndpoint })
+): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
+  const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
+    apiKeyOverride,
+    resolvedEndpoint
+  })
   return {
-    ...config,
-    providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
-      actualProviderId: provider.id,
-      endpointType: resolvedEndpoint.endpointType,
-      gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
-    }),
-    modelId: model.apiModelId ?? model.id
+    sdkConfig: {
+      ...config,
+      providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
+        actualProviderId: provider.id,
+        endpointType: resolvedEndpoint.endpointType,
+        gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
+      }),
+      modelId: model.apiModelId ?? model.id
+    },
+    credentialReceipt
   }
 }
 
@@ -291,7 +308,11 @@ function resolveHasAnyKnowledgeBase(): boolean {
  * provider-scoped params), per-call headers/maxRetries, stop-after-N-tools,
  * and the tool-call repair function.
  */
-function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondition<ToolSet>[]): AgentOptions {
+function buildAgentOptions(
+  scope: RequestScope,
+  featureStopConditions: StopCondition<ToolSet>[],
+  getRepairUsagePlugins?: () => AiPlugin[]
+): AgentOptions {
   const {
     assistant,
     capabilities,
@@ -364,7 +385,8 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
     repairToolCall: createAiRepair({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
-      modelId: sdkConfig.modelId
+      modelId: sdkConfig.modelId,
+      getUsagePlugins: getRepairUsagePlugins
     })
   }
 }

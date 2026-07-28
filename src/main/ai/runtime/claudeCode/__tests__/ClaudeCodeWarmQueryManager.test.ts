@@ -78,7 +78,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
     const second = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
 
-    expect(consumed).toBe(warm)
+    expect(consumed?.warmQuery).toBe(warm)
     expect(second).toBeUndefined()
     expect(startupMock).toHaveBeenCalledWith({
       options: { model: 'sonnet', resume: 'sdk-1' },
@@ -100,7 +100,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'opus', resume: 'sdk-1' } as any })
 
     expect(stale.close).toHaveBeenCalledOnce()
-    expect(consumed).toBe(current)
+    expect(consumed?.warmQuery).toBe(current)
   })
 
   it('uses the same signature with or without abortController', () => {
@@ -212,8 +212,49 @@ describe('ClaudeCodeWarmQueryManager', () => {
       credentialsFingerprint: 'set-1'
     })
 
-    expect(consumed).toBe(warm)
+    expect(consumed?.warmQuery).toBe(warm)
     expect(warm.close).not.toHaveBeenCalled()
+  })
+
+  it('returns the receipt captured by the warm process instead of the separately rotated consume request', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any,
+      credentialsFingerprint: 'set-1',
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }]
+      }
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-b' } } as any,
+      credentialsFingerprint: 'set-1',
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-b', masked: 'key-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }]
+      }
+    })
+
+    expect(consumed).toMatchObject({
+      warmQuery: warm,
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a' }
+      }
+    })
   })
 
   it('discards a warm query when the enabled key set changed between park and consume', async () => {
@@ -285,7 +326,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
 
     expect(buildWarmRequestMock).toHaveBeenCalledWith('session-1')
-    expect(consumed).toBe(warm)
+    expect(consumed?.warmQuery).toBe(warm)
   })
 
   // Telemetry env is fixed at spawn and is part of the warm signature, so the park is only reusable
@@ -329,7 +370,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
         env: { ANTHROPIC_BASE_URL: 'https://api.example.com', ...traceEnv }
       } as any
     })
-    expect(consumed).toBe(warm)
+    expect(consumed?.warmQuery).toBe(warm)
   })
 
   // sessionId validation (empty / non-string) now lives in the IpcApi router's zod parse of
