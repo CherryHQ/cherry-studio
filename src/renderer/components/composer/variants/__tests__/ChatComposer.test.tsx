@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
+import type * as ComposerSpeedControlModule from '../shared/ComposerSpeedControl'
 
 const mocks = vi.hoisted(() => ({
   createTopic: vi.fn(),
@@ -266,8 +267,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
 }))
 
 vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@renderer/components/composer/variants/shared/ComposerSpeedControl')>()
+  const actual = await importOriginal<typeof ComposerSpeedControlModule>()
   return {
     ...actual,
     ComposerSpeedControl: (props: {

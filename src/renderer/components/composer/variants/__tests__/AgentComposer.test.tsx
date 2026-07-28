@@ -20,6 +20,7 @@ import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolLauncher } from '../../toolLauncher'
 import AgentComposer, { AgentHomeComposer, MissingAgentHomeComposer } from '../AgentComposer'
+import type * as ComposerSpeedControlModule from '../shared/ComposerSpeedControl'
 
 const mocks = vi.hoisted(() => ({
   draftText: 'hello',
@@ -370,8 +371,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
 }))
 
 vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@renderer/components/composer/variants/shared/ComposerSpeedControl')>()
+  const actual = await importOriginal<typeof ComposerSpeedControlModule>()
   return {
     ...actual,
     ComposerSpeedControl: (props: {
