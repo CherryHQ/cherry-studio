@@ -272,9 +272,7 @@ describe('restore preparation', () => {
         const read = readRestoreJournalV2()
         expect(read.kind).toBe('ok')
         if (read.kind !== 'ok') return
-        expect(read.journal.degradations).toEqual(
-          expect.arrayContaining([{ kind: 'restore-db:note', reason: 'path-unportable (1 row)' }])
-        )
+        expect(read.journal.degradations).toEqual([{ kind: 'report:path-unportable', reason: 'count:1' }])
       })
 
       it('omits the field entirely when nothing was reduced', async () => {
@@ -298,6 +296,32 @@ describe('restore preparation', () => {
       await exportArchive({ outPath: out, preset: 'full' })
       return out
     }
+
+    it('compacts omitted resources into durable totals and bounded path samples', async () => {
+      const out = join(workDir, 'out', 'degraded-full.cherrybackup')
+      await exportArchive({ outPath: out, preset: 'full' })
+
+      const preview = await prepareRestore({ archivePath: out })
+      const read = readRestoreJournalV2()
+
+      expect(preview.degradations).toHaveLength(4)
+      expect(read.kind).toBe('ok')
+      if (read.kind !== 'ok') return
+      expect(read.journal.degradations).toEqual([
+        { kind: 'report:resource-unavailable', reason: 'count:4' },
+        {
+          kind: 'report-sample:resource-unavailable',
+          reason: 'sample',
+          livePath: 'Data/Files/11111111-1111-4111-8111-111111111111.pdf'
+        },
+        {
+          kind: 'report-sample:resource-unavailable',
+          reason: 'sample',
+          livePath: 'Data/KnowledgeBase/kb-1'
+        },
+        { kind: 'report-sample:resource-unavailable', reason: 'sample', livePath: 'Data/Notes' }
+      ])
+    })
 
     it('seals an install entry per payload and stages the bytes the journal names', async () => {
       const full = await exportFull()

@@ -217,7 +217,7 @@ describe('RestoreJournalV2Schema — frozen restore-install cap', () => {
     expect(RestoreJournalV2Schema.safeParse(j).success).toBe(false)
   })
 
-  it('rejects more degradation lines than the cap, which is why the producer truncates', () => {
+  it('rejects more degradation lines than the cap, which is why the producer compacts them', () => {
     const overCap = Array.from({ length: MAX_JOURNAL_DEGRADATIONS + 1 }, (_, i) => ({
       kind: `restore-db:t${i}`,
       reason: 'path-unportable (1 row)'
@@ -239,7 +239,36 @@ describe('RestoreJournalV2Schema — degradation report', () => {
     expect(RestoreJournalV2Schema.safeParse(j).success).toBe(true)
   })
 
-  it('rejects a degradation line carrying anything beyond kind and reason (strict)', () => {
+  it('accepts an older single path and a compact report made from the same fields', () => {
+    expect(
+      RestoreJournalV2Schema.safeParse(
+        liteJournal({
+          degradations: [
+            { kind: 'resource:file-blob', reason: 'absent-at-snapshot', livePath: 'Data/Files/old.pdf' },
+            { kind: 'report:resource-changed', reason: 'count:500' },
+            { kind: 'report-sample:resource-changed', reason: 'sample', livePath: 'Data/Notes/a' },
+            { kind: 'report-sample:resource-changed', reason: 'sample', livePath: 'Data/Notes/b' },
+            { kind: 'report-sample:resource-changed', reason: 'sample', livePath: 'Data/Notes/c' }
+          ]
+        })
+      ).success
+    ).toBe(true)
+  })
+
+  it('rejects an absolute report sample path', () => {
+    expect(
+      RestoreJournalV2Schema.safeParse(
+        liteJournal({
+          degradations: [
+            { kind: 'report:resource-changed', reason: 'count:1' },
+            { kind: 'report-sample:resource-changed', reason: 'sample', livePath: '/private/note' }
+          ]
+        })
+      ).success
+    ).toBe(false)
+  })
+
+  it('rejects a degradation line carrying unknown fields (strict)', () => {
     const j = liteJournal({
       degradations: [{ kind: 'restore-db:note', reason: 'path-unportable (1 row)', rowId: 'n' }]
     })

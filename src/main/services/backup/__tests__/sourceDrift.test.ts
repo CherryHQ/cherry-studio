@@ -21,6 +21,7 @@ beforeEach(async () => {
 afterEach(async () => {
   driftHooks.afterStagePreVerify = async () => {}
   driftHooks.afterInitialLstat = async () => {}
+  driftHooks.beforeAncestorVerify = async () => {}
   await rm(dir, { recursive: true, force: true })
 })
 
@@ -196,6 +197,19 @@ describe('stageDirectoryWithDriftCheck', () => {
     }
     await expect(stageDirectoryWithDriftCheck({ sourceDir: srcDir, stagingDir: stageDir })).rejects.toThrow(/ancestor/)
     await expect(access(stageDir)).rejects.toThrow() // owned staging removed
+  })
+
+  it('classifies an ancestor removed before its file copy as source drift', async () => {
+    await src('a/1.txt', 'one')
+    await src('b/2.txt', 'two')
+    driftHooks.beforeAncestorVerify = async (_sourceDir, fileRel) => {
+      if (fileRel === 'b/2.txt') await rm(srcDir, { recursive: true })
+    }
+
+    await expect(stageDirectoryWithDriftCheck({ sourceDir: srcDir, stagingDir: stageDir })).rejects.toThrow(
+      /ancestor disappeared during staging/
+    )
+    await expect(access(stageDir)).rejects.toThrow()
   })
 
   it('rejects a symlink anywhere in the tree', async () => {
