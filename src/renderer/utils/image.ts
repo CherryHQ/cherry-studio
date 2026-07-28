@@ -1,9 +1,11 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
+import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
 import type * as HtmlToImage from 'html-to-image'
 import { Base64 } from 'js-base64'
-import mime from 'mime'
 
 const logger = loggerService.withContext('Utils:image')
 const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
@@ -811,9 +813,12 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
   }
 
   if (src.startsWith('file://')) {
-    const bytes = await window.api.fs.read(src)
-    const mimeType = mime.getType(src) || 'application/octet-stream'
-    return new Blob([bytes], { type: mimeType })
+    const path = AbsoluteFilePathSchema.parse(fileUrlToPath(src as FileUrlString))
+    const { content, mime } = await ipcApi.request('file.read', {
+      handle: createFilePathHandle(path),
+      options: { encoding: 'binary' }
+    })
+    return new Blob([content.slice() as unknown as BlobPart], { type: mime })
   }
 
   const response = await fetch(src)

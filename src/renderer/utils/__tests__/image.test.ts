@@ -1,6 +1,10 @@
 import * as htmlToImage from 'html-to-image'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const ipcMocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: ipcMocks }))
+
 import {
   captureElement,
   captureScrollable,
@@ -30,6 +34,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 beforeEach(() => {
+  ipcMocks.request.mockReset()
   vi.mocked(htmlToImage.toCanvas).mockReset()
   vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
     Promise.resolve({
@@ -202,44 +207,113 @@ describe('utils/image', () => {
     })
 
     it('inlines file image sources while capturing and restores them afterward', async () => {
-      const originalApi = window.api
-      const fsRead = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]))
-      Object.assign(window, {
-        api: {
-          ...originalApi,
-          fs: {
-            ...originalApi?.fs,
-            read: fsRead
-          }
-        }
+      ipcMocks.request.mockResolvedValue({
+        content: new Uint8Array([1, 2, 3]),
+        mime: 'image/webp',
+        version: { mtime: 1, size: 3 }
       })
 
-      try {
-        const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
-        vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node, options) => {
-          expect((node.querySelector('img') as HTMLImageElement).src).toMatch(/^data:image\/webp;base64,/)
-          expect(options?.imagePlaceholder).toMatch(/^data:image\//)
-          return finalCanvas
-        })
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node, options) => {
+        expect((node.querySelector('img') as HTMLImageElement).src).toMatch(/^data:image\/webp;base64,/)
+        expect(options?.imagePlaceholder).toMatch(/^data:image\//)
+        return finalCanvas
+      })
 
-        const div = document.createElement('div')
-        const image = document.createElement('img')
-        image.src = 'file:///tmp/avatar.webp'
-        image.srcset = 'file:///tmp/avatar@2x.webp 2x'
-        div.appendChild(image)
-        Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
-        Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
-        const ref = { current: div } as React.RefObject<HTMLDivElement>
+      const div = document.createElement('div')
+      const image = document.createElement('img')
+      image.src = 'file:///tmp/avatar.webp'
+      image.srcset = 'file:///tmp/avatar@2x.webp 2x'
+      div.appendChild(image)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
 
-        await expect(captureScrollable(ref)).resolves.toBe(finalCanvas)
+      await expect(captureScrollable(ref)).resolves.toBe(finalCanvas)
 
-        expect(fsRead).toHaveBeenCalledTimes(1)
-        expect(fsRead).toHaveBeenCalledWith('file:///tmp/avatar.webp')
-        expect(image.getAttribute('src')).toBe('file:///tmp/avatar.webp')
-        expect(image.getAttribute('srcset')).toBe('file:///tmp/avatar@2x.webp 2x')
-      } finally {
-        Object.assign(window, { api: originalApi })
-      }
+      expect(ipcMocks.request).toHaveBeenCalledTimes(1)
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
+        handle: { kind: 'path', path: '/tmp/avatar.webp' },
+        options: { encoding: 'binary' }
+      })
+      expect(image.getAttribute('src')).toBe('file:///tmp/avatar.webp')
+      expect(image.getAttribute('srcset')).toBe('file:///tmp/avatar@2x.webp 2x')
+    })
+
+    it('deduplicates identical file image reads during capture', async () => {
+      ipcMocks.request.mockResolvedValue({
+        content: new Uint8Array([1, 2, 3]),
+        mime: 'image/webp',
+        version: { mtime: 1, size: 3 }
+      })
+
+      const div = document.createElement('div')
+      const firstImage = document.createElement('img')
+      const secondImage = document.createElement('img')
+      firstImage.src = 'file:///tmp/avatar.webp'
+      secondImage.src = 'file:///tmp/avatar.webp'
+      div.append(firstImage, secondImage)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await captureScrollable(ref)
+
+      expect(ipcMocks.request).toHaveBeenCalledTimes(1)
+      expect(firstImage.getAttribute('src')).toBe('file:///tmp/avatar.webp')
+      expect(secondImage.getAttribute('src')).toBe('file:///tmp/avatar.webp')
+    })
+
+    it('continues capture with the placeholder when a file image read fails', async () => {
+      ipcMocks.request.mockRejectedValue(new Error('read failed'))
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node, options) => {
+        const image = node.querySelector('img') as HTMLImageElement
+        expect(image.getAttribute('src')).toBe('file:///tmp/missing.webp')
+        expect(image.hasAttribute('srcset')).toBe(false)
+        expect(options?.imagePlaceholder).toMatch(/^data:image\//)
+        return finalCanvas
+      })
+
+      const div = document.createElement('div')
+      const image = document.createElement('img')
+      image.src = 'file:///tmp/missing.webp'
+      image.srcset = 'file:///tmp/missing@2x.webp 2x'
+      div.appendChild(image)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await expect(captureScrollable(ref)).resolves.toBe(finalCanvas)
+
+      expect(image.getAttribute('src')).toBe('file:///tmp/missing.webp')
+      expect(image.getAttribute('srcset')).toBe('file:///tmp/missing@2x.webp 2x')
+    })
+
+    it('restores file image sources when html-to-image capture fails', async () => {
+      ipcMocks.request.mockResolvedValue({
+        content: new Uint8Array([1, 2, 3]),
+        mime: 'image/webp',
+        version: { mtime: 1, size: 3 }
+      })
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node) => {
+        expect((node.querySelector('img') as HTMLImageElement).src).toMatch(/^data:image\/webp;base64,/)
+        throw new Error('capture failed')
+      })
+
+      const div = document.createElement('div')
+      const image = document.createElement('img')
+      image.src = 'file:///tmp/avatar.webp'
+      image.srcset = 'file:///tmp/avatar@2x.webp 2x'
+      div.appendChild(image)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await expect(captureScrollable(ref)).rejects.toThrow('capture failed')
+
+      expect(image.getAttribute('src')).toBe('file:///tmp/avatar.webp')
+      expect(image.getAttribute('srcset')).toBe('file:///tmp/avatar@2x.webp 2x')
     })
 
     it('should restore styles when html-to-image capture fails', async () => {
@@ -396,15 +470,17 @@ describe('utils/image', () => {
 
   describe('getImageBlobFromSource', () => {
     const fetchMock = vi.fn()
-    const fsRead = vi.fn()
 
     beforeEach(() => {
       fetchMock.mockReset().mockResolvedValue({
         blob: async () => new Blob(['remote'], { type: 'image/webp' })
       })
-      fsRead.mockReset().mockResolvedValue(new Uint8Array([1, 2, 3]))
+      ipcMocks.request.mockResolvedValue({
+        content: new Uint8Array([1, 2, 3]),
+        mime: 'image/png',
+        version: { mtime: 1, size: 3 }
+      })
       vi.stubGlobal('fetch', fetchMock)
-      Object.assign(window, { api: { fs: { read: fsRead } } })
     })
 
     afterEach(() => {
@@ -416,7 +492,7 @@ describe('utils/image', () => {
 
       expect(blob.type).toBe('image/png')
       expect(fetchMock).not.toHaveBeenCalled()
-      expect(fsRead).not.toHaveBeenCalled()
+      expect(ipcMocks.request).not.toHaveBeenCalled()
     })
 
     it('decodes non-base64 inline data URLs without fetching', async () => {
@@ -432,7 +508,10 @@ describe('utils/image', () => {
     it('reads image blobs from file URLs', async () => {
       const blob = await getImageBlobFromSource('file:///tmp/example.png')
 
-      expect(fsRead).toHaveBeenCalledWith('file:///tmp/example.png')
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
+        handle: { kind: 'path', path: '/tmp/example.png' },
+        options: { encoding: 'binary' }
+      })
       expect(blob.type).toBe('image/png')
     })
 
