@@ -521,9 +521,13 @@ long-term history or offer redo.
 **Acknowledgement is the commit-to-keep action.** From `completed` it removes the previous
 state; from `rolled-back` it removes the displaced restored state. A completed Full restore
 cannot be acknowledged while any summary-listed Knowledge base lacks owner-proven rebuild
-completion, because clearing the journal would also erase its durable retry marker. Cleanup
-idempotently removes operation-owned artifacts **first**, clears the journal **last**, then
-releases GC protection. A crash before the last step leaves protection active and cleanup
+completion, because clearing the journal would also erase its durable retry marker. A deleted
+base counts as complete because it has no derived state left to rebuild. The user may also
+explicitly stop pending rebuild jobs and keep the restored profile with incomplete search
+indexes; that choice is written to the journal before jobs are cancelled, survives a crash,
+and permits acknowledgement without making provider availability a storage/GC hostage.
+Cleanup idempotently removes operation-owned artifacts **first**, clears the journal **last**,
+then releases GC protection. A crash before the last step leaves protection active and cleanup
 resumable.
 
 **No newly executed path terminalizes an incomplete direction.** A blocked pre-commit
@@ -563,8 +567,12 @@ Knowledge material and schedules none.
 Completion is owner-proven (every completed leaf has an index material row), then persisted
 per base in the restore journal; existence of `index.sqlite` alone is not completion. A
 bounded reconciliation pass schedules/reuses jobs and returns immediately, while a tracked
-poll retries until completion without making shutdown wait for embedding work. Export and
-directory payload hashing exclude only `{baseId}/.cherry/index.sqlite{,-wal,-shm}`.
+poll retries until completion without making shutdown wait for embedding work. While any
+restore-scoped job for a base remains active, later polls skip that base's full file/material
+scan and enqueue pass; they reconcile again only after those jobs settle. A durable user
+abandonment marker stops polling across restarts and cancels active restore-scoped jobs before
+rollback material is released. Export and directory payload hashing exclude only
+`{baseId}/.cherry/index.sqlite{,-wal,-shm}`.
 
 ---
 

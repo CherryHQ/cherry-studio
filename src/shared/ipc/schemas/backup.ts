@@ -138,5 +138,8 @@ export const backupRequestSchemas = {
     output: z.void()
   }),
   'backup.rollback_restore': defineRoute({ input: z.void(), output: z.void() }),
-  'backup.acknowledge_restore': defineRoute({ input: z.void(), output: AcknowledgeResultSchema })
+  'backup.acknowledge_restore': defineRoute({
+    input: z.strictObject({ knowledgeRebuild: z.enum(['require-complete', 'abandon']) }),
+    output: AcknowledgeResultSchema
+  })
 }

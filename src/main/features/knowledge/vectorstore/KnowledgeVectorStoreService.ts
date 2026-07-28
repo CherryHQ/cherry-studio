@@ -78,15 +78,6 @@ export class KnowledgeVectorStoreService extends BaseService {
   }
 
   /**
-   * Whether the base already has an index file, WITHOUT opening or creating one.
-   * For callers that only need to know whether indexing has ever happened — the
-   * post-restore rebuild scheduler skips bases that already have an index.
-   */
-  async hasIndexStore(baseId: string): Promise<boolean> {
-    return this.storeFileExists(baseId)
-  }
-
-  /**
    * Close the cached store and remove the base's entire on-disk footprint
    * (`feature.knowledgebase.data/{baseId}`) — source files, processed artifacts
    * and `index.sqlite` alike. Only safe when deleting the whole base.

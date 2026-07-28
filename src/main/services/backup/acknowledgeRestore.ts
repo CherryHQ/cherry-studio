@@ -21,12 +21,45 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
-import { clearRestoreJournalV2, readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
+import { clearRestoreJournalV2, readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 
 import { RestoreStateError } from './errors'
 
 const logger = loggerService.withContext('backupAcknowledgeRestore')
+
+export interface AbandonedKnowledgeRebuild {
+  readonly restoreId: string
+  readonly pendingBaseIds: readonly string[]
+}
+
+/**
+ * Persist the user's decision to keep the restored profile without waiting for
+ * every derived Knowledge index. The marker stops future polling across crashes;
+ * the service cancels in-memory jobs before acknowledgement releases rollback
+ * material.
+ */
+export function abandonKnowledgeRebuild(): AbandonedKnowledgeRebuild {
+  const read = readRestoreJournalV2()
+  if (read.kind === 'corrupt') {
+    throw new RestoreStateError('unreadable', 'the restore journal is unreadable and requires explicit repair')
+  }
+  if (read.kind === 'none' || read.journal.state !== 'completed') {
+    throw new RestoreStateError('wrong-state', 'only a completed restore can abandon Knowledge rebuilding')
+  }
+
+  const journal = read.journal
+  const completed = new Set(journal.knowledgeRebuild?.completedBaseIds ?? [])
+  const pendingBaseIds = journal.summary.knowledgeBaseIds.filter((id) => !completed.has(id))
+  writeRestoreJournalV2({
+    ...journal,
+    knowledgeRebuild: {
+      completedBaseIds: journal.summary.knowledgeBaseIds.filter((id) => completed.has(id)),
+      abandoned: true
+    }
+  })
+  return { restoreId: journal.restoreId, pendingBaseIds }
+}
 
 /** What the acknowledgement removed, for the caller to report. */
 export interface AcknowledgeResult {
@@ -76,6 +109,7 @@ export function acknowledgeRestore(): AcknowledgeResult {
 
   if (
     journal.state === 'completed' &&
+    !journal.knowledgeRebuild?.abandoned &&
     journal.summary.knowledgeBaseIds.some((id) => !journal.knowledgeRebuild?.completedBaseIds.includes(id))
   ) {
     // The journal is also the durable retry marker for derived Knowledge work.

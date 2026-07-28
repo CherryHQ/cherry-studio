@@ -485,7 +485,25 @@ export class KnowledgeService extends BaseService {
    * that `index.sqlite` exists.
    */
   async reconcileRestoredBaseFromMaterial(baseId: string, restoreId: string): Promise<'completed' | 'pending'> {
-    const base = knowledgeBaseService.getById(baseId)
+    let base: KnowledgeBase
+    try {
+      base = knowledgeBaseService.getById(baseId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        // Deleting the base is an explicit decision that leaves no derived state
+        // to rebuild; keeping its old summary ID pending would deadlock restore
+        // acknowledgement forever.
+        return 'completed'
+      }
+      throw error
+    }
+
+    // A previous pass already scheduled this base. Wait for those jobs to
+    // settle before walking every material file/row again; their restore-scoped
+    // idempotency keys make the eventual retry safe, but repeated full scans do
+    // nothing except I/O and duplicate-job log noise.
+    if ((await this.listActiveRestoreIndexJobs(baseId, restoreId)).length > 0) return 'pending'
+
     const items = knowledgeItemService
       .getItemsByBaseId(baseId)
       .filter(isIndexableKnowledgeItem)
@@ -523,6 +541,32 @@ export class KnowledgeService extends BaseService {
       )
     }
     return 'pending'
+  }
+
+  /** Stop every still-active indexing job created by one restore-specific rebuild. */
+  async cancelRestoredMaterialRebuild(restoreId: string): Promise<void> {
+    const jobManager = application.get('JobManager')
+    const jobs = await jobManager.list({
+      type: 'knowledge.index-documents',
+      status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES]
+    })
+    const matching = jobs.filter((job) => {
+      const narrowed = narrowKnowledgeJobInput(job)
+      return narrowed?.type === 'knowledge.index-documents' && narrowed.input.restoreId === restoreId
+    })
+    const results = await Promise.all(
+      matching.map((job) => jobManager.cancel(job.id, 'backup-restore-rebuild-abandoned'))
+    )
+    const timedOut = results.filter((result) => result.outcome === 'timed-out').length
+    if (timedOut > 0) {
+      // JobManager force-terminalizes timed-out rows. A handler that ignores its
+      // abort may still finish a derived index write, which is harmless after
+      // the user chose to stop waiting and keep the restored profile.
+      logger.warn('Some abandoned restore indexing jobs did not stop within the cancellation grace period', {
+        restoreId,
+        timedOut
+      })
+    }
   }
 
   /**
@@ -1032,6 +1076,17 @@ export class KnowledgeService extends BaseService {
       }
       throw error
     }
+  }
+
+  private async listActiveRestoreIndexJobs(baseId: string, restoreId: string) {
+    const jobs = await application.get('JobManager').list({
+      queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
+      status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES]
+    })
+    return jobs.filter((job) => {
+      const narrowed = narrowKnowledgeJobInput(job)
+      return narrowed?.type === 'knowledge.index-documents' && narrowed.input.restoreId === restoreId
+    })
   }
 
   private async cancelAllJobsForBase(baseId: string): Promise<void> {

@@ -967,6 +967,70 @@ describe('KnowledgeService', () => {
       )
     })
 
+    it('treats a user-deleted restored base as complete instead of blocking acknowledgement forever', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockImplementation(() => {
+        throw DataApiErrorFactory.notFound('KnowledgeBase', 'kb-1')
+      })
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).resolves.toBe('completed')
+      expect(listMock).not.toHaveBeenCalled()
+      expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('waits for active restore jobs instead of rescanning and re-enqueueing the whole base', async () => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+      listMock.mockResolvedValue([
+        {
+          id: 'restore-job-1',
+          type: 'knowledge.index-documents',
+          input: { baseId: 'kb-1', itemId: 'file-1', parentJobId: null, restoreId: 'restore-1' }
+        }
+      ])
+
+      await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).resolves.toBe('pending')
+      expect(listMock).toHaveBeenCalledWith({
+        queue: 'base.kb-1',
+        status: ['pending', 'delayed', 'running']
+      })
+      expect(knowledgeItemGetItemsByBaseIdMock).not.toHaveBeenCalled()
+      expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('cancels only active index jobs created by the abandoned restore', async () => {
+      const service = new KnowledgeService()
+      listMock.mockResolvedValue([
+        {
+          id: 'restore-job-1',
+          type: 'knowledge.index-documents',
+          input: { baseId: 'kb-1', itemId: 'file-1', parentJobId: null, restoreId: 'restore-1' }
+        },
+        {
+          id: 'ordinary-job',
+          type: 'knowledge.index-documents',
+          input: { baseId: 'kb-1', itemId: 'file-2', parentJobId: null }
+        },
+        {
+          id: 'other-restore-job',
+          type: 'knowledge.index-documents',
+          input: { baseId: 'kb-2', itemId: 'file-3', parentJobId: null, restoreId: 'restore-2' }
+        }
+      ])
+      cancelMock.mockResolvedValue({ outcome: 'cancelled' })
+
+      await service.cancelRestoredMaterialRebuild('restore-1')
+
+      expect(listMock).toHaveBeenCalledWith({
+        type: 'knowledge.index-documents',
+        status: ['pending', 'delayed', 'running']
+      })
+      expect(cancelMock).toHaveBeenCalledOnce()
+      expect(cancelMock).toHaveBeenCalledWith('restore-job-1', 'backup-restore-rebuild-abandoned')
+    })
+
     it('reports completion only when every expected material row exists', async () => {
       const service = new KnowledgeService()
       knowledgeBaseGetByIdMock.mockReturnValue(createBase())

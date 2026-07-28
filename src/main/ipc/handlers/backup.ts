@@ -232,8 +232,8 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     await mapped(() => application.get('BackupService').rollbackRestore())
   },
 
-  'backup.acknowledge_restore': async (_input, ctx) => {
+  'backup.acknowledge_restore': async (input, ctx) => {
     requireManagedWindow(ctx)
-    return mapped(() => application.get('BackupService').acknowledgeRestore())
+    return mapped(() => application.get('BackupService').acknowledgeRestore(input.knowledgeRebuild))
   }
 }

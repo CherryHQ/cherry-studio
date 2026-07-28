@@ -1,3 +1,4 @@
+import { application } from '@application'
 import type {
   JournalDegradation,
   PromotionStepV2,
@@ -8,7 +9,7 @@ import { readRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import { acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
+import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
 import { BackupBusyError, BackupCancelledError } from './errors'
 import { exportArchive, type ExportArchiveResult } from './exportArchive'
 import type { BackupPreset } from './manifest'
@@ -21,6 +22,7 @@ const POST_PROMOTION_POLL_MS = 10_000
 
 /** The mutually exclusive long-running operations this service owns. */
 export type BackupOperation = 'export' | 'prepare-restore'
+export type KnowledgeRebuildAcknowledgement = 'require-complete' | 'abandon'
 
 interface InFlightOperation {
   readonly operation: BackupOperation
@@ -97,10 +99,12 @@ export class BackupService extends BaseService {
   /** The current bounded reconciliation pass, tracked so `onStop` can join it (§6.7). */
   private postPromotionWork: Promise<unknown> | null = null
   private postPromotionPoll: Disposable | null = null
+  private postPromotionSuppressed = false
 
   protected onInit(): void {
     // Lifecycle services may be restarted on the same instance.
     this.shuttingDown = false
+    this.postPromotionSuppressed = false
   }
 
   /**
@@ -139,10 +143,10 @@ export class BackupService extends BaseService {
   }
 
   private startPostPromotionPass(): void {
-    if (this.shuttingDown || this.postPromotionWork) return
-    const work = runPostPromotionWork(() => !this.shuttingDown)
+    if (this.shuttingDown || this.postPromotionSuppressed || this.postPromotionWork) return
+    const work = runPostPromotionWork(() => !this.shuttingDown && !this.postPromotionSuppressed)
       .then((outcome) => {
-        if (this.shuttingDown) return
+        if (this.shuttingDown || this.postPromotionSuppressed) return
         if (outcome.pending) {
           this.postPromotionPoll ??= this.registerInterval(() => this.startPostPromotionPass(), POST_PROMOTION_POLL_MS)
         } else {
@@ -154,7 +158,7 @@ export class BackupService extends BaseService {
         // Derived work is a repair, never a boot dependency. Poll again: the
         // durable journal remains the source of truth until completion.
         logger.error('Post-promotion work failed', error as Error)
-        if (!this.shuttingDown) {
+        if (!this.shuttingDown && !this.postPromotionSuppressed) {
           this.postPromotionPoll ??= this.registerInterval(() => this.startPostPromotionPass(), POST_PROMOTION_POLL_MS)
         }
       })
@@ -242,7 +246,35 @@ export class BackupService extends BaseService {
    * release the GC protection it held (§6.5). Idempotent, and refuses an action
    * that has not finished — that one still needs its recovery artifacts.
    */
-  public acknowledgeRestore(): AcknowledgeResult {
+  public async acknowledgeRestore(knowledgeRebuild: KnowledgeRebuildAcknowledgement): Promise<AcknowledgeResult> {
+    if (knowledgeRebuild === 'abandon') {
+      // Stop the scheduler first, then persist the user's choice. A pass already
+      // inside one base sees the suppression probe before moving to another;
+      // waiting for that bounded pass closes the enqueue-vs-cancel race.
+      this.postPromotionSuppressed = true
+      this.postPromotionPoll?.dispose()
+      this.postPromotionPoll = null
+      let abandoned: ReturnType<typeof abandonKnowledgeRebuild>
+      try {
+        abandoned = abandonKnowledgeRebuild()
+      } catch (error) {
+        this.postPromotionSuppressed = false
+        throw error
+      }
+      if (this.postPromotionWork) await this.postPromotionWork
+      try {
+        await application.get('KnowledgeService').cancelRestoredMaterialRebuild(abandoned.restoreId)
+      } catch (error) {
+        // This is derived work after an explicit give-up. A cancellation
+        // bookkeeping failure cannot keep rollback storage and GC protection
+        // hostage; active handlers are still restore-scoped and write only the
+        // live derived index if they eventually settle.
+        logger.warn('Could not cancel every abandoned restore indexing job', error as Error, {
+          restoreId: abandoned.restoreId,
+          pendingBases: abandoned.pendingBaseIds.length
+        })
+      }
+    }
     return acknowledgeRestore()
   }
 
@@ -301,6 +333,7 @@ export class BackupService extends BaseService {
       ...(journal.state === 'failed' && journal.recoveryIncomplete ? { recoveryIncomplete: true as const } : {}),
       ...(journal.state === 'completed' && journal.resourcesIncomplete ? { resourcesIncomplete: true as const } : {}),
       ...(journal.state === 'completed' &&
+      !journal.knowledgeRebuild?.abandoned &&
       journal.summary.knowledgeBaseIds.some((id) => !journal.knowledgeRebuild?.completedBaseIds.includes(id))
         ? { knowledgeRebuildPending: true as const }
         : {}),

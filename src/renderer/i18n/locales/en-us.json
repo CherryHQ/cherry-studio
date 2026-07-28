@@ -5861,6 +5861,10 @@
           "rolled_back_title": "Restore rolled back"
         },
         "outcome": {
+          "abandon_rebuild_button": "Stop rebuilding and keep restored data",
+          "abandon_rebuild_confirm_content": "This releases the rollback copy now. Knowledge items whose search index is unfinished may not appear in search until you reindex them later.",
+          "abandon_rebuild_confirm_ok": "Stop and keep",
+          "abandon_rebuild_confirm_title": "Keep restored data without finishing the Knowledge index?",
           "acknowledge_button": "Keep restored data",
           "acknowledged": "Restore outcome confirmed. Data no longer in use has been released.",
           "completed_help": "Until you confirm, the previous database and every replaced file are still on this device as rollback material.",
@@ -5874,7 +5878,7 @@
           },
           "degradations": "{{count}} item(s) were restored in a reduced form.",
           "keep_previous_button": "Keep previous data",
-          "knowledge_rebuild_pending": "Restored Knowledge content is rebuilding its search index. You can roll back now, but wait for indexing to finish before releasing recovery data.",
+          "knowledge_rebuild_pending": "Restored Knowledge content is rebuilding its search index. You can wait, roll back, or stop rebuilding and keep the restored data with an incomplete index.",
           "reconfirm_integrations": "Restored integrations that run programs or reach the network stay off until you confirm them on this device.",
           "recovery_incomplete": "This restore could not put every file back, so the app is still holding the originals. Restart Cherry Studio to finish it — nothing can be released until then.",
           "resources_incomplete": "The restored database is in use, but some restored files are not in place yet. Restart Cherry Studio to finish it — nothing can be released until then.",

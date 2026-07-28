@@ -119,9 +119,11 @@ const RestoreSummarySchema = z.strictObject({
   knowledgeBaseIds: uniqueKnowledgeBaseIds
 })
 
-/** Durable completion, independent of the mere existence of an index file. */
+/** Durable completion or the user's explicit decision to stop derived rebuilding. */
 const KnowledgeRebuildSchema = z.strictObject({
-  completedBaseIds: uniqueKnowledgeBaseIds
+  completedBaseIds: uniqueKnowledgeBaseIds,
+  /** The restored DB stays live, but missing derived index material is accepted. */
+  abandoned: z.literal(true).optional()
 })
 
 /**
@@ -129,8 +131,8 @@ const KnowledgeRebuildSchema = z.strictObject({
  * `summarizeMaterializationDegradations`. Kept structural (`kind` + `reason`)
  * rather than typed to the materializer's enums: the journal is a durable
  * on-disk contract read by a LATER app version, and pinning it to today's
- * reason list would make tomorrow's new reason unparseable — i.e. quarantine a
- * perfectly good restore over a report string.
+ * reason list would make tomorrow's new reason unparseable and block startup
+ * over a report string rather than a recovery fact.
  */
 const JournalDegradationSchema = z.strictObject({
   kind: z.string().min(1),
@@ -165,8 +167,8 @@ const commonFields = {
  * reindex scheduler consumes; `failed`/`expired` carry an
  * optional terminal `reason` for post-boot reporting. `strictObject` +
  * `version: z.literal(2)` make a downgraded v1 parser reject a v2 journal (and
- * vice-versa): unknown version/fields → parse failure → the gate quarantines
- * rather than reinterprets (§5.2 strict-version quarantine).
+ * vice-versa): unknown version/fields → parse failure → the gate preserves the
+ * evidence and refuses normal startup rather than reinterpreting it (§5.2).
  */
 const journalVariants = [
   z.strictObject({ ...commonFields, state: z.literal('prepared') }),
@@ -349,8 +351,9 @@ export type ReadJournalV2FileResult =
 
 /**
  * Read the on-disk journal as v2. A v1 journal, a future version, or garbage all
- * come back `corrupt` — never reinterpreted (§5.2 strict-version quarantine).
- * Unreadable is `corrupt` too, not `none`: "absent" is a claim only ENOENT can
+ * come back `corrupt` here; preboot detects the version first and dispatches a
+ * recognized v1 journal to its compatibility reader. Unreadable is `corrupt`
+ * too, not `none`: "absent" is a claim only ENOENT can
  * make, and every other errno must fail safe for the reclaim guard.
  */
 export function readRestoreJournalV2(): ReadJournalV2FileResult {

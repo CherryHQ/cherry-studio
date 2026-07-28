@@ -26,7 +26,8 @@ describe('narrowKnowledgeJobInput', () => {
         input: {
           baseId: 'kb-1',
           itemId: 'file-1',
-          parentJobId: 'reindex-job'
+          parentJobId: 'reindex-job',
+          restoreId: 'restore-1'
         }
       })
     ).toEqual({
@@ -34,7 +35,8 @@ describe('narrowKnowledgeJobInput', () => {
       input: {
         baseId: 'kb-1',
         itemId: 'file-1',
-        parentJobId: 'reindex-job'
+        parentJobId: 'reindex-job',
+        restoreId: 'restore-1'
       }
     })
   })
@@ -107,6 +109,12 @@ describe('narrowKnowledgeJobInput', () => {
       narrowKnowledgeJobInput({
         type: 'knowledge.index-documents',
         input: { baseId: 'kb-1', itemId: 'file-1', parentJobId: 1 }
+      })
+    ).toBeNull()
+    expect(
+      narrowKnowledgeJobInput({
+        type: 'knowledge.index-documents',
+        input: { baseId: 'kb-1', itemId: 'file-1', parentJobId: null, restoreId: 1 }
       })
     ).toBeNull()
   })

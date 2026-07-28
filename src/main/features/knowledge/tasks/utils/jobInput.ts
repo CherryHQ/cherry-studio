@@ -103,11 +103,14 @@ function narrowIndexDocumentsJobPayload(rawInput: JobSnapshot['input']): Knowled
   if (!('parentJobId' in input)) return null
   const parentJobId = input.parentJobId
   if (parentJobId !== null && typeof parentJobId !== 'string') return null
+  const restoreId = input.restoreId
+  if (restoreId !== undefined && typeof restoreId !== 'string') return null
 
   return {
     baseId: basePayload.baseId,
     itemId: basePayload.itemId,
-    parentJobId
+    parentJobId,
+    ...(restoreId !== undefined ? { restoreId } : {})
   }
 }
 
