@@ -55,6 +55,10 @@ Projection rules:
 - If a current preset exists but the model is absent from the final-v1
   baseline, ordinary legacy fields have no provable user provenance and remain
   null. Explicit `capabilities[].isUserSelected` choices are preserved.
+  `endpointTypes` is also preserved when the current provider-model registry
+  cannot re-derive the legacy routing metadata. CherryIN models without legacy
+  endpoint metadata restore its prefix routing (`anthropic/`, `google/`, or
+  OpenAI-compatible fallback) explicitly.
 - The v1 editor's synthetic `0/0` pricing value is treated as equivalent to an
   absent final-v1 price.
 

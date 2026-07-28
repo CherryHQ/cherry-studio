@@ -902,6 +902,79 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.pricing).toBeNull()
     })
 
+    it('preserves legacy endpoint routing when the current registry cannot re-derive it', async () => {
+      registryFixtures.providers = [{ id: 'cherryin', name: 'CherryIN', endpointConfigs: {} }]
+      registryFixtures.models.set('anthropic/claude-sonnet-5', {
+        id: 'anthropic/claude-sonnet-5',
+        name: 'Claude Sonnet 5'
+      })
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: 'cherryin',
+              name: 'CherryIN',
+              type: 'openai',
+              enabled: true,
+              models: [
+                {
+                  id: 'anthropic/claude-sonnet-5',
+                  name: 'Claude Sonnet 5',
+                  supported_endpoint_types: ['anthropic']
+                }
+              ]
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'cherryin::anthropic/claude-sonnet-5'))
+      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+    })
+
+    it('restores CherryIN prefix routing when the legacy model omitted endpoint metadata', async () => {
+      registryFixtures.providers = [{ id: 'cherryin', name: 'CherryIN', endpointConfigs: {} }]
+      registryFixtures.models.set('google/gemini-3.1-pro-preview', {
+        id: 'google/gemini-3.1-pro-preview',
+        name: 'Gemini 3.1 Pro Preview'
+      })
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: 'cherryin',
+              name: 'CherryIN',
+              type: 'openai',
+              enabled: true,
+              models: [
+                {
+                  id: 'google/gemini-3.1-pro-preview',
+                  name: 'Gemini 3.1 Pro Preview'
+                }
+              ]
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'cherryin::google/gemini-3.1-pro-preview'))
+      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT])
+    })
+
     it('stores genuine legacy model deltas directly in sparse columns', async () => {
       registryFixtures.providers = [{ id: 'aihubmix', name: 'AiHubMix', endpointConfigs: {} }]
       registryFixtures.models.set('gpt-4o', {
