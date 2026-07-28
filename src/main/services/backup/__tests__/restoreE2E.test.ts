@@ -16,6 +16,7 @@ import { applyMigrations } from '@data/db/applyMigrations'
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { runRestorePromotionV2 } from '@data/db/restore/restorePromotionV2'
 import { snapshotTo } from '@data/db/restore/snapshot'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
@@ -53,6 +54,7 @@ import { armPreparedRestore, prepareRestore } from '../prepareRestore'
  */
 
 const FILE_ID = '11111111-1111-4111-8111-111111111111'
+const AGENT_ID = '22222222-2222-4222-8222-222222222222'
 const TARGET_MARKER = 'e2e-target-marker'
 
 const dbh = setupTestDatabase()
@@ -74,7 +76,8 @@ function pathFor(key: string, filename?: string): string {
     'feature.files.data': join(activeUserData, 'Data', 'Files'),
     'feature.knowledgebase.data': join(activeUserData, 'Data', 'KnowledgeBase'),
     'feature.notes.data': join(activeUserData, 'Data', 'Notes'),
-    'feature.agents.workspaces': join(activeUserData, 'Data', 'Agents'),
+    'feature.agents.data': join(activeUserData, 'Data', 'Agents'),
+    'feature.agents.system_workspaces': join(activeUserData, 'Data', 'Agents', 'system'),
     'feature.agents.skills': join(activeUserData, 'Data', 'Skills')
   }
   const base = bases[key]
@@ -122,6 +125,10 @@ function liveDbPath(userData = targetUserData): string {
 function seedSourceDatabase(): void {
   dbh.db.insert(fileEntryTable).values({ id: FILE_ID, origin: 'internal', name: 'report', ext: 'pdf', size: 4 }).run()
   dbh.db
+    .insert(agentTable)
+    .values({ id: AGENT_ID, type: 'agent', name: 'Backup agent', instructions: '', orderKey: 'a' })
+    .run()
+  dbh.db
     .insert(knowledgeBaseTable)
     .values({ id: 'kb-1', name: 'kb', status: 'completed', chunkSize: 512, chunkOverlap: 32 })
     .run()
@@ -134,7 +141,7 @@ function seedSourceDatabase(): void {
     .values({
       id: 'w-1',
       name: 'ws',
-      path: join(sourceUserData, 'Data', 'Agents', 's-1'),
+      path: join(sourceUserData, 'Data', 'Agents', 'system', 's-1'),
       type: 'system',
       orderKey: 'a'
     })
@@ -155,7 +162,10 @@ function seedSourceResources(): void {
   write(join('Data', 'Files', `${FILE_ID}.pdf`), 'SOURCE-BLOB')
   write(join('Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'SOURCE-KB')
   write(join('Data', 'Notes', 'a.md'), '# source note')
-  write(join('Data', 'Agents', 's-1', 'session.json'), 'SOURCE-WS')
+  write(join('Data', 'Agents', AGENT_ID, 'SOUL.md'), 'SOURCE-SOUL')
+  write(join('Data', 'Agents', AGENT_ID, 'USER.md'), 'SOURCE-USER')
+  write(join('Data', 'Agents', AGENT_ID, 'memory', 'profile.md'), 'SOURCE-MEMORY')
+  write(join('Data', 'Agents', 'system', 's-1', 'session.json'), 'SOURCE-WS')
   write(join('Data', 'Skills', 'skill-1', 'SKILL.md'), 'SOURCE-SKILL')
 }
 
@@ -171,7 +181,11 @@ async function exportFrom(preset: 'lite' | 'full', name: string): Promise<string
  * would hand the user. Nothing in the format stops them from editing the
  * manifest, so admission is what has to.
  */
-async function retargetFirstPayload(archivePath: string, livePath: string | null): Promise<string> {
+async function retargetFirstPayload(
+  archivePath: string,
+  livePath: string | null,
+  retargetRequirement = false
+): Promise<string> {
   const unpacked = join(workDir, 'tamper')
   mkdirSync(unpacked, { recursive: true })
   const zip = new StreamZip.async({ file: archivePath })
@@ -180,9 +194,18 @@ async function retargetFirstPayload(archivePath: string, livePath: string | null
 
   const manifestPath = join(unpacked, 'manifest.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    resourceRequirements: { livePath: string }[]
     resourcePayloads: { livePath: string }[]
   }
-  if (livePath !== null) manifest.resourcePayloads[0].livePath = livePath
+  if (livePath !== null) {
+    const original = manifest.resourcePayloads[0].livePath
+    manifest.resourcePayloads[0].livePath = livePath
+    if (retargetRequirement) {
+      const requirement = manifest.resourceRequirements.find((candidate) => candidate.livePath === original)
+      if (!requirement) throw new Error('fixture payload has no matching requirement')
+      requirement.livePath = livePath
+    }
+  }
   writeFileSync(manifestPath, JSON.stringify(manifest))
 
   const out = join(workDir, 'out', 'tampered.cherrybackup')
@@ -265,7 +288,7 @@ describe('Lite restore, cross-device', () => {
     // A path that still pointed at the producer's profile would send the app
     // reading and writing outside this device's managed roots.
     expect(note?.root_path).toBe(join(targetUserData, 'Data', 'Notes'))
-    expect(workspace?.path).toBe(join(targetUserData, 'Data', 'Agents', 's-1'))
+    expect(workspace?.path).toBe(join(targetUserData, 'Data', 'Agents', 'system', 's-1'))
   })
 
   it('installs no resources and leaves this device’s files exactly as they were', async () => {
@@ -288,6 +311,16 @@ describe('Lite restore, cross-device', () => {
 })
 
 describe('Full restore, empty target device', () => {
+  it('restores ordinary Notes even when the sparse note state table has zero rows', async () => {
+    dbh.db.delete(noteTable).run()
+    seedSourceResources()
+    const archive = await exportFrom('full', 'full-notes-without-state')
+
+    await restoreOnTarget(archive)
+
+    expect(readFileSync(join(targetUserData, 'Data', 'Notes', 'a.md'), 'utf8')).toBe('# source note')
+  })
+
   it('installs every declared resource next to the database that references it', async () => {
     seedSourceResources()
     const archive = await exportFrom('full', 'full-empty')
@@ -296,14 +329,21 @@ describe('Full restore, empty target device', () => {
     const preview = await prepareRestore({ archivePath: archive })
     expect(preview.preset).toBe('full')
     // Nothing to park on a device that has none of them.
-    expect(preview.resources).toEqual({ install: 5, replace: 0 })
+    expect(preview.resources).toEqual({ install: 6, replace: 0 })
     armPreparedRestore()
     await runRestorePromotionV2()
 
     expect(readFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'utf8')).toBe('SOURCE-BLOB')
     expect(readFileSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'utf8')).toBe('SOURCE-KB')
     expect(readFileSync(join(targetUserData, 'Data', 'Notes', 'a.md'), 'utf8')).toBe('# source note')
-    expect(readFileSync(join(targetUserData, 'Data', 'Agents', 's-1', 'session.json'), 'utf8')).toBe('SOURCE-WS')
+    expect(readFileSync(join(targetUserData, 'Data', 'Agents', AGENT_ID, 'SOUL.md'), 'utf8')).toBe('SOURCE-SOUL')
+    expect(readFileSync(join(targetUserData, 'Data', 'Agents', AGENT_ID, 'USER.md'), 'utf8')).toBe('SOURCE-USER')
+    expect(readFileSync(join(targetUserData, 'Data', 'Agents', AGENT_ID, 'memory', 'profile.md'), 'utf8')).toBe(
+      'SOURCE-MEMORY'
+    )
+    expect(readFileSync(join(targetUserData, 'Data', 'Agents', 'system', 's-1', 'session.json'), 'utf8')).toBe(
+      'SOURCE-WS'
+    )
     expect(readFileSync(join(targetUserData, 'Data', 'Skills', 'skill-1', 'SKILL.md'), 'utf8')).toBe('SOURCE-SKILL')
 
     const read = readRestoreJournalV2()
@@ -340,7 +380,7 @@ describe('Full restore, same device with content already there', () => {
 
     activeUserData = targetUserData
     const preview = await prepareRestore({ archivePath: archive })
-    expect(preview.resources).toEqual({ install: 0, replace: 5 })
+    expect(preview.resources).toEqual({ install: 0, replace: 6 })
     armPreparedRestore()
     await runRestorePromotionV2()
 
@@ -422,6 +462,21 @@ describe('what a restored archive may not switch on', () => {
     // rejection is measuring.
     activeUserData = targetUserData
     await expect(prepareRestore({ archivePath: repacked })).resolves.toMatchObject({ preset: 'full' })
+  })
+
+  it('refuses a payload redirected inside a managed root but outside the database closure', async () => {
+    seedSourceResources()
+    const archive = await exportFrom('full', 'full-redirected')
+    const unrelated = join(targetUserData, 'Data', 'Files', 'unrelated.pdf')
+    mkdirSync(join(unrelated, '..'), { recursive: true })
+    writeFileSync(unrelated, 'TARGET-ONLY')
+    const tampered = await retargetFirstPayload(archive, 'Data/Files/unrelated.pdf', true)
+
+    activeUserData = targetUserData
+    await expect(prepareRestore({ archivePath: tampered })).rejects.toThrow(/requirement-set/)
+
+    expect(readRestoreJournalV2().kind).toBe('none')
+    expect(readFileSync(unrelated, 'utf8')).toBe('TARGET-ONLY')
   })
 
   it('refuses an archive whose manifest aims a payload outside userData', async () => {

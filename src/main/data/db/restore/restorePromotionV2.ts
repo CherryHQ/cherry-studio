@@ -50,10 +50,11 @@ const logger = loggerService.withContext('RestorePromotionV2')
 type ArmedJournal = Extract<RestoreJournalV2, { state: 'armed' }>
 type PreparedJournal = Extract<RestoreJournalV2, { state: 'prepared' }>
 type PromotingJournal = Extract<RestoreJournalV2, { state: 'promoting' }>
+type RevertingJournal = Extract<RestoreJournalV2, { state: 'reverting' }>
 type FailedJournal = Extract<RestoreJournalV2, { state: 'failed' }>
 type CompletedJournal = Extract<RestoreJournalV2, { state: 'completed' }>
 type RollbackArmedJournal = Extract<RestoreJournalV2, { state: 'rollback-armed' }>
-type ActiveJournal = ArmedJournal | PromotingJournal | RollbackArmedJournal
+type ActiveJournal = ArmedJournal | PromotingJournal | RevertingJournal | RollbackArmedJournal
 
 const COMMIT_INDEX = PROMOTION_STEP_ORDER_V2.indexOf(DB_COMMIT_STEP)
 
@@ -103,6 +104,8 @@ export async function runRestorePromotionV2(): Promise<void> {
       return promoteArmed(journal)
     case 'promoting':
       return recoverPromoting(journal)
+    case 'reverting':
+      return finishPostCommitRevert(journal)
     case 'failed':
       // Terminal, with one loose end: a rollback that could not finish holds
       // asides the user cannot release, so retry it before reporting.
@@ -210,12 +213,7 @@ export function markRestoreFailedAfterCrashV2(): void {
   }
   const ctx = buildContext(journal)
   const facts = probeFacts(ctx)
-  if (
-    journal.state === 'promoting' &&
-    facts.live &&
-    facts.aside &&
-    recoveryPhase(journal.step, facts) === 'committed'
-  ) {
+  if (journal.state === 'promoting' && recoveryPhase(journal.step, facts) === 'committed') {
     logger.warn('Escaped crash left a committed promotion — keeping it resumable for the next boot', {
       restoreId: journal.restoreId
     })
@@ -231,9 +229,14 @@ export function markRestoreFailedAfterCrashV2(): void {
  * state: booting with only some resource units reversed would expose a mixed
  * database/filesystem state.
  */
-export function isRestoreRollbackPendingV2(): boolean {
+export function isRestoreRecoveryPendingV2(): boolean {
   const read = readRestoreJournalV2()
-  return read.kind === 'ok' && read.journal.state === 'rollback-armed'
+  return (
+    read.kind === 'ok' &&
+    (read.journal.state === 'promoting' ||
+      read.journal.state === 'reverting' ||
+      read.journal.state === 'rollback-armed')
+  )
 }
 
 /**
@@ -375,11 +378,13 @@ function recoverPromoting(journal: PromotingJournal): Promise<void> | void {
     case 'complete':
       // The commit landed. Persist it so a later crash needs no probe, then run
       // whatever follows it (integrity).
-      return executeForward(ctx, persistCommitMarker(journal), COMMIT_INDEX + 1, finishResources(ctx))
+      finishResources(ctx)
+      return executeForward(ctx, persistCommitMarker(journal), COMMIT_INDEX + 1)
     case 'install-forward':
       // Defensive: the marker claims committed while the staged DB is still
       // there, so the rename cannot have landed. Re-run it.
-      return executeForward(ctx, journal, COMMIT_INDEX, finishResources(ctx))
+      finishResources(ctx)
+      return executeForward(ctx, journal, COMMIT_INDEX)
     case 'discard-staged':
       discardStaged(ctx)
       return failRolledBack(ctx, `rolled back from step '${journal.step}'`)
@@ -460,16 +465,10 @@ function persistCommitMarker(journal: PromotingJournal): PromotingJournal {
  * is only a hint, so continue in memory — the on-disk marker then lags at most
  * to `live-aside`, exactly where the probe fires.
  *
- * `resourcesOk` is false only on a crash re-entry whose post-commit repair could
- * not finish; it travels to the completed journal, which is where it changes
- * what may be deleted.
+ * A resource repair that cannot finish escapes under the active journal; the
+ * preboot shell blocks this launch and retries before normal services start.
  */
-async function executeForward(
-  ctx: PromotionContext,
-  journal: PromotingJournal,
-  startIndex: number,
-  resourcesOk = true
-): Promise<void> {
+async function executeForward(ctx: PromotionContext, journal: PromotingJournal, startIndex: number): Promise<void> {
   let current = journal
   for (let i = startIndex; i < PROMOTION_STEP_ORDER_V2.length; i++) {
     const step = PROMOTION_STEP_ORDER_V2[i]
@@ -486,10 +485,12 @@ async function executeForward(
         continue
       }
       logger.error(`Promotion step '${step}' failed`, error as Error)
-      // One recovery for both sides of the commit: before it the aside does not
-      // exist yet and reverting degrades to "drop the staged DB"; after it the
-      // promoted database is parked and the aside comes back.
-      revertToAside(ctx, `step '${step}' failed: ${(error as Error).message}`)
+      const reason = `step '${step}' failed: ${(error as Error).message}`
+      if (i > COMMIT_INDEX) {
+        beginPostCommitRevert(current, reason)
+      } else {
+        revertToAside(ctx, reason)
+      }
       return
     }
     try {
@@ -507,7 +508,7 @@ async function executeForward(
   logger.info('Restore promoted — the new database is live', {
     restoreId: ctx.journal.restoreId
   })
-  finalizeCompleted(ctx, current.step, resourcesOk)
+  finalizeCompleted(ctx, current.step)
 }
 
 function runStep(ctx: PromotionContext, step: PromotionStepV2): void {
@@ -579,6 +580,60 @@ function integrityCheck(dbPath: string): string {
 }
 
 // ─── rollback ───
+
+/**
+ * Persist the reverse direction before touching a committed database or its
+ * resources. A crash after this write can no longer reinterpret an already
+ * restored old database as a successful forward promotion.
+ */
+function beginPostCommitRevert(journal: PromotingJournal, reason: string): void {
+  const reverting: RevertingJournal = { ...journal, state: 'reverting', reason }
+  writeRestoreJournalV2(reverting)
+  finishPostCommitRevert(reverting)
+}
+
+/**
+ * Finish a failed post-commit promotion in the durable reverse direction.
+ * Resources return first; the old database returns last as the reverse commit
+ * boundary. Until all moves converge the `reverting` marker remains and the
+ * preboot shell refuses to start normal services.
+ */
+function finishPostCommitRevert(journal: RevertingJournal): void {
+  const ctx = buildContext(journal)
+  const parked = rolledForwardDbPath(ctx)
+
+  recoverResourceUnits(journal.resourceInstalls, ctx.userData, 'pre-commit')
+
+  const live = fs.existsSync(ctx.livePath)
+  const aside = fs.existsSync(ctx.asidePath)
+  const parkedExists = fs.existsSync(parked)
+  if (live) assertRegularRollbackDb(ctx.livePath, 'revert live')
+  if (aside) assertRegularRollbackDb(ctx.asidePath, 'revert previous aside')
+  if (parkedExists) assertRegularRollbackDb(parked, 'revert rejected parked')
+  if (aside) {
+    if (live) {
+      if (parkedExists) {
+        throw new Error('post-commit revert cannot park the rejected database: destination already exists')
+      }
+      renameDurable(ctx.livePath, parked)
+    }
+    restoreLiveFromAside(ctx)
+  } else if (!live || !parkedExists) {
+    throw new Error('post-commit revert cannot prove previous-live plus rejected-parked state')
+  }
+
+  if (!fs.existsSync(ctx.livePath) || !fs.existsSync(parked) || fs.existsSync(ctx.asidePath)) {
+    throw new Error('post-commit revert did not converge to previous-live plus rejected-parked')
+  }
+  const result = integrityCheck(ctx.livePath)
+  if (result !== 'ok') {
+    throw new Error(`integrity_check on the reverted database failed: ${result}`)
+  }
+
+  if (!finalize(ctx, 'failed', journal.reason)) {
+    throw new Error('post-commit revert terminal journal is not durable')
+  }
+}
 
 /**
  * Reverse a completed restore after explicit user consent.
@@ -686,52 +741,28 @@ function revertToAside(ctx: PromotionContext, reason: string): void {
  * this runs on every failing path, including the ones where the database itself
  * had nothing left to undo.
  *
- * A wedged unit cannot hold the database hostage — the cardinal invariant is
- * that the live slot ends up holding a complete database — so the failure is
- * carried into the journal instead, as a durable `recoveryIncomplete` marker and
- * not only as prose in `reason`: it is what keeps the GC guard and
- * acknowledgement treating those asides as the originals they still are, and
- * what tells the next boot to retry the rollback.
+ * If any unit cannot return, this function throws under the still-active
+ * journal. The preboot shell then refuses this launch instead of exposing the
+ * old database beside archive resources.
  */
 function failRolledBack(ctx: PromotionContext, reason: string): void {
-  let suffix = ''
-  let incomplete = false
-  try {
-    recoverResourceUnits(ctx.journal.resourceInstalls, ctx.userData, 'pre-commit')
-  } catch (error) {
-    logger.error('Resource rollback could not complete — keeping the units and their asides', error as Error)
-    suffix = `; resource rollback incomplete: ${(error as Error).message}`
-    incomplete = true
-  }
-  finalize(ctx, 'failed', `${reason}${suffix}`, incomplete)
+  // Do not turn an incomplete reverse move into a terminal state. The existing
+  // promoting marker still carries the pre-commit direction, and escaping keeps
+  // preboot closed until a later attempt puts every original resource back.
+  recoverResourceUnits(ctx.journal.resourceInstalls, ctx.userData, 'pre-commit')
+  finalize(ctx, 'failed', reason)
 }
 
 /**
- * Bring the resource units to their committed terminal state on a crash re-entry
- * past the commit boundary. Reports whether they all got there.
- *
- * Normally a no-op: the install and its marker both precede the commit, so by
- * this point every unit is already installed. A unit that says otherwise is an
- * anomaly, and past the commit there is no rollback left to offer — the database
- * is live, and stranding the boot over a file would be the worse trade.
- *
- * But the promotion may not then report unqualified success. A unit that got as
- * far as "old file parked aside, new file not yet in place" has its only two
- * copies in the aside and the staging tree — exactly the two things
- * acknowledgement deletes. The caller carries this into the journal so both
- * survive until a retry puts the unit where it belongs.
+ * Bring resource units to their committed terminal state on crash re-entry.
+ * Normally this is a no-op because install precedes DB commit. Any anomaly must
+ * settle before boot; the active marker retains both copies for the retry.
  */
-function finishResources(ctx: PromotionContext): boolean {
-  try {
-    recoverResourceUnits(ctx.journal.resourceInstalls, ctx.userData, 'committed')
-    return true
-  } catch (error) {
-    logger.error('Resource units were inconsistent after the commit — continuing with the restored database', {
-      restoreId: ctx.journal.restoreId,
-      error: (error as Error).message
-    })
-    return false
-  }
+function finishResources(ctx: PromotionContext): void {
+  // A committed database and incomplete resources are not a usable terminal
+  // state. Let the error escape under the still-promoting journal so preboot
+  // blocks this launch and retries before any normal service opens the DB.
+  recoverResourceUnits(ctx.journal.resourceInstalls, ctx.userData, 'committed')
 }
 
 function restoreLiveFromAside(ctx: PromotionContext): void {
@@ -742,21 +773,18 @@ function restoreLiveFromAside(ctx: PromotionContext): void {
 
 /**
  * A state the promotion algorithm cannot produce (§6.4's fail-closed rows).
- * Mutate nothing except the cardinal invariant — an empty live slot with the old
- * database parked aside must be undone, or the next boot creates a fresh empty
- * database over the user's data — and keep the staging tree as a repair
- * artifact instead of deleting evidence.
+ * Mutate nothing and keep every artifact for repair. The preboot shell separately
+ * refuses an empty live slot and every still-active recovery direction.
  */
-function failClosed(ctx: PromotionContext): void {
-  logger.error('Restore recovery hit an inconsistent state — failing closed and keeping the artifacts', {
+function failClosed(ctx: PromotionContext): never {
+  const facts = probeFacts(ctx)
+  logger.error('Restore recovery hit an inconsistent state — refusing to mutate or boot', {
     restoreId: ctx.journal.restoreId,
-    ...probeFacts(ctx)
+    ...facts
   })
-  restoreLiveFromAside(ctx)
-  // `recoveryIncomplete`, because "artifacts kept for repair" has to mean
-  // something to the two paths that could otherwise delete them: an
-  // inconsistent unit's aside may be the only copy of the original target.
-  writeTerminal(ctx, 'failed', 'recovery state was inconsistent; artifacts kept for repair', true)
+  throw new Error(
+    `restore recovery state is inconsistent: staged=${facts.staged} live=${facts.live} aside=${facts.aside}`
+  )
 }
 
 // ─── terminal bookkeeping ───
@@ -781,7 +809,7 @@ function finalize(
   state: 'failed' | 'expired',
   reason: string,
   recoveryIncomplete = false
-): void {
+): boolean {
   if (!writeTerminal(ctx, state, reason, recoveryIncomplete)) {
     // The terminal state never reached the disk, so the journal on disk still
     // describes a promotion in flight. Dropping the tree now would leave exactly
@@ -791,26 +819,19 @@ function finalize(
     logger.error('Keeping the staging tree: the terminal journal is not on disk', {
       restoreId: ctx.journal.restoreId
     })
-    return
+    return false
   }
   if (recoveryIncomplete) {
     // The wedged units' archive copies still need somewhere to go when the
     // rollback is retried at the next boot.
-    return
+    return true
   }
   removeStagingTree(ctx.journal.restoreId)
+  return true
 }
 
-/**
- * The database is live. `resourcesOk` decides whether that is the whole story.
- *
- * When a unit did not reach its installed state, the journal says so and the
- * STAGING TREE STAYS: it holds that unit's new copy, and its aside holds the old
- * one, so dropping the tree here would leave the retry with nothing to install
- * and the user with a gap. Acknowledgement is refused for the same reason until
- * a boot repairs it.
- */
-function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2, resourcesOk: boolean): void {
+/** The database and every Full resource are live; record success, then clean staging. */
+function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2): void {
   writeRestoreJournalV2({
     ...ctx.journal,
     state: 'completed',
@@ -824,15 +845,8 @@ function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2, resourc
         ctx.userData,
         application.getPath('feature.knowledgebase.data')
       )
-    },
-    ...(resourcesOk ? {} : { resourcesIncomplete: true as const })
+    }
   })
-  if (!resourcesOk) {
-    logger.error('Restore completed with resource units still out of place — keeping them for the next boot', {
-      restoreId: ctx.journal.restoreId
-    })
-    return
-  }
   removeStagingTree(ctx.journal.restoreId)
 }
 

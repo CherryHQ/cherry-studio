@@ -21,6 +21,7 @@ const PROTECTED_STATES: ReadonlySet<RestoreJournalV2State> = new Set<RestoreJour
   'prepared',
   'armed',
   'promoting',
+  'reverting',
   'completed',
   'rollback-armed',
   'rolled-back'

@@ -204,6 +204,9 @@ function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
   }
   const state = overrides.state ?? 'armed'
   if (state === 'promoting') return { ...base, state, step: overrides.step ?? 'gate-passed' }
+  if (state === 'reverting') {
+    return { ...base, state, step: overrides.step ?? 'db-promoted', reason: 'integrity check failed' }
+  }
   if (state === 'completed' || state === 'rollback-armed' || state === 'rolled-back') {
     return { ...base, state, summary: { knowledgeBaseIds: [] } }
   }
@@ -435,6 +438,43 @@ describe('restore promotion v2', () => {
       expect(existsSync(asidePath())).toBe(false)
       expect(existsSync(join(userData, `restore-failed-${RID}.sqlite`))).toBe(true)
     })
+
+    it('does not reverse a committed database before the reverting marker is durable', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const stagedChain = chainOf(stagedPath())
+      writeFileSync(stagedPath(), 'not a database')
+      writeRestoreJournalV2(buildJournal({ chain: stagedChain }))
+      failJournalWrite.when = (candidate) => candidate.state === 'reverting'
+
+      await expect(runRestorePromotionV2()).rejects.toThrow(/state 'reverting'/)
+
+      expect(journalState()).toBe('promoting')
+      expect(readFileSync(livePath(), 'utf8')).toBe('not a database')
+      expect(readMarker(asidePath())).toBe('old')
+    })
+
+    it('keeps a durable reverse direction if power fails after the old database returns', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const stagedChain = chainOf(stagedPath())
+      writeFileSync(stagedPath(), 'not a database')
+      writeRestoreJournalV2(buildJournal({ chain: stagedChain }))
+      failJournalWrite.when = (candidate) => candidate.state === 'failed'
+
+      await expect(runRestorePromotionV2()).rejects.toThrow(/terminal journal is not durable/)
+
+      expect(journalState()).toBe('reverting')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readFileSync(join(userData, `restore-failed-${RID}.sqlite`), 'utf8')).toBe('not a database')
+      expect(hasPendingRestore()).toBe(true)
+
+      failJournalWrite.when = null
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+    })
   })
 
   describe('explicit rollback of a completed restore', () => {
@@ -625,9 +665,9 @@ describe('restore promotion v2', () => {
       makeStagedDb()
       writeRestoreJournalV2(buildJournal({ state: 'promoting', step: 'db-promoted' }))
 
-      await runRestorePromotionV2()
+      await expect(runRestorePromotionV2()).rejects.toThrow(/inconsistent/)
 
-      expect(journalState()).toBe('failed')
+      expect(journalState()).toBe('promoting')
       expect(readMarker(livePath())).toBe('old')
       // Evidence, not garbage: repair needs the staged database.
       expect(existsSync(stagedPath())).toBe(true)
@@ -781,6 +821,33 @@ describe('restore promotion v2', () => {
       expect(unitExists(unit.aside)).toBe(false)
     })
 
+    it('keeps the new database live until a blocked post-commit resource reverse can finish', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const stagedChain = chainOf(stagedPath())
+      const unit = baseUnit()
+      makeUnitDir(unit.staging, 'ARCHIVE')
+      makeUnitDir(unit.live, 'TARGET')
+      writeFileSync(stagedPath(), 'not a database')
+      writeRestoreJournalV2(buildJournal({ chain: stagedChain, resourceInstalls: [unit] }))
+      failResourceRollback.on = true
+
+      await expect(runRestorePromotionV2()).rejects.toThrow(/EPERM/)
+
+      expect(journalState()).toBe('reverting')
+      expect(readFileSync(livePath(), 'utf8')).toBe('not a database')
+      expect(readMarker(asidePath())).toBe('old')
+      expect(readUnitDir(unit.live)).toBe('ARCHIVE')
+      expect(readUnitDir(unit.aside)).toBe('TARGET')
+
+      failResourceRollback.on = false
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readUnitDir(unit.live)).toBe('TARGET')
+    })
+
     it('rolls back a crash that landed between installing the resources and parking the database', async () => {
       makeDb(livePath(), 'old')
       makeStagedDb()
@@ -878,7 +945,7 @@ describe('restore promotion v2', () => {
       expect(existsSync(stagingDir())).toBe(true)
     })
 
-    it('marks a rollback it could not finish and completes it at the next boot', async () => {
+    it('keeps preboot recovery pending until a blocked rollback completes', async () => {
       makeDb(livePath(), 'old')
       makeStagedDb()
       const unit = baseUnit()
@@ -893,19 +960,14 @@ describe('restore promotion v2', () => {
       )
       failResourceRollback.on = true
 
-      await runRestorePromotionV2()
+      await expect(runRestorePromotionV2()).rejects.toThrow(/EPERM/)
 
-      // A wedged unit may not hold the database hostage: the live slot still
-      // ends up holding a complete database…
-      expect(journalState()).toBe('failed')
+      // Keep the pre-commit direction instead of booting old DB + archive files.
+      expect(journalState()).toBe('promoting')
       expect(readMarker(livePath())).toBe('old')
-      // …but the failure is durable, because this aside is not spent rollback
-      // material — it is the only copy of the original target.
-      expect(recoveryIncomplete()).toBe(true)
       expect(readUnitDir(unit.live)).toBe('ARCHIVE')
       expect(readUnitDir(unit.aside)).toBe('TARGET')
       expect(existsSync(stagingDir())).toBe(true)
-      // Terminal to the reader, still protected from the sweep.
       expect(hasPendingRestore()).toBe(true)
 
       // Next boot: the OS is no longer refusing the rename.
@@ -913,16 +975,12 @@ describe('restore promotion v2', () => {
       await runRestorePromotionV2()
 
       expect(journalState()).toBe('failed')
-      expect(recoveryIncomplete()).toBe(false)
       expect(readUnitDir(unit.live)).toBe('TARGET')
-      expect(readUnitDir(unit.staging)).toBe('ARCHIVE')
       expect(hasPendingRestore()).toBe(false)
-      // The retry deliberately leaves the tree for acknowledgement: removing it
-      // here is exactly what would poison the triple above.
-      expect(existsSync(stagingDir())).toBe(true)
+      expect(existsSync(stagingDir())).toBe(false)
     })
 
-    it('does not report unqualified success when a unit stayed out of place, and finishes it next boot', async () => {
+    it('keeps preboot recovery pending until a committed install completes', async () => {
       // Crash re-entry past the commit: the database is live, but this unit only
       // got as far as "old copy parked aside, new copy still in staging".
       makeDb(asidePath(), 'old')
@@ -940,15 +998,12 @@ describe('restore promotion v2', () => {
       )
       failResourceInstall.on = true
 
-      await runRestorePromotionV2()
+      await expect(runRestorePromotionV2()).rejects.toThrow(/EPERM/)
 
-      // The database may not be held hostage over a file, so the promotion still
-      // completes…
-      expect(journalState()).toBe('completed')
+      // Keep the committed direction and block normal boot until the resource
+      // catches up with the already-live restored database.
+      expect(journalState()).toBe('promoting')
       expect(readMarker(livePath())).toBe('new')
-      // …but not as an unqualified success: this unit's only two copies are the
-      // staging tree and the aside, and acknowledgement deletes both.
-      expect(resourcesIncomplete()).toBe(true)
       expect(unitExists(unit.live)).toBe(false)
       expect(readUnitDir(unit.staging)).toBe('ARCHIVE')
       expect(readUnitDir(unit.aside)).toBe('TARGET')
@@ -960,7 +1015,6 @@ describe('restore promotion v2', () => {
       await runRestorePromotionV2()
 
       expect(journalState()).toBe('completed')
-      expect(resourcesIncomplete()).toBe(false)
       expect(readUnitDir(unit.live)).toBe('ARCHIVE')
       // Only now is the tree spent — the unit it was holding is in place.
       expect(existsSync(stagingDir())).toBe(false)

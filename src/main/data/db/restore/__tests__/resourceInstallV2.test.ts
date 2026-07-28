@@ -6,7 +6,8 @@ import { join } from 'node:path'
 import {
   installedKnowledgeBaseIds,
   installResourceUnits,
-  recoverResourceUnits
+  recoverResourceUnits,
+  resourceInstallDurability
 } from '@data/db/restore/resourceInstallV2'
 import type { ResourceInstallEntry } from '@data/db/restore/restoreJournalV2'
 import type { RecoveryPhase } from '@data/db/restore/restoreRecovery'
@@ -82,6 +83,7 @@ describe('resourceInstallV2', () => {
 
   afterEach(() => {
     crossDevice.on = false
+    vi.restoreAllMocks()
     rmSync(userData, { recursive: true, force: true })
   })
 
@@ -96,6 +98,19 @@ describe('resourceInstallV2', () => {
       expect(readUnit(unit.live)).toBe('ARCHIVE')
       expect(readUnit(unit.aside)).toBe('TARGET')
       expect(existsSync(abs(unit.staging))).toBe(false)
+    })
+
+    it('flushes the parent entries that create a new aside directory', () => {
+      const unit = entry('Data/KnowledgeBase/base-1')
+      makeDirUnit(unit.staging, 'ARCHIVE')
+      makeDirUnit(unit.live, 'TARGET')
+      const synced: string[] = []
+      vi.spyOn(resourceInstallDurability, 'syncDirectory').mockImplementation((dir) => synced.push(dir))
+
+      installResourceUnits([unit], userData)
+
+      expect(synced).toContain(abs('restore-aside'))
+      expect(synced).toContain(abs(`restore-aside/${RID}`))
     })
 
     it('installs into an absent target without creating an aside', () => {
@@ -118,6 +133,17 @@ describe('resourceInstallV2', () => {
 
       expect(existsSync(join(abs(unit.live), 'target-only.txt'))).toBe(false)
       expect(existsSync(join(abs(unit.aside), 'target-only.txt'))).toBe(true)
+    })
+
+    it('refuses a symlink substituted for the staged source after preparation', () => {
+      const unit = entry('Data/KnowledgeBase/base-1')
+      makeDirUnit('outside', 'ARCHIVE')
+      mkdirSync(join(abs(unit.staging), '..'), { recursive: true })
+      symlinkSync(abs('outside'), abs(unit.staging))
+
+      expect(() => installResourceUnits([unit], userData)).toThrow(/recovery-source-invalid/)
+      expect(readUnit('outside')).toBe('ARCHIVE')
+      expect(existsSync(abs(unit.live))).toBe(false)
     })
 
     it('refuses a symlinked target rather than following it', () => {

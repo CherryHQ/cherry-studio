@@ -22,7 +22,7 @@ import type { ResourceInstallEntry } from '@data/db/restore/restoreJournalV2'
 import type { AdmittedResource } from '../admission/verify'
 import { type BackupPlatform, isPathContainedIn } from '../portability/managedPathRebase'
 import { type ResourcePathCandidate, type TargetState, validateResourcePaths } from '../resourcePaths'
-import type { ResourceRoots } from './adapters'
+import { BACKUP_RESOURCE_KINDS, type BackupResourceKind, RESOURCE_ROOT_BY_KIND, type ResourceRoots } from './adapters'
 
 export interface PlanInstallsInput {
   /** Verified units from admission, still sitting in the admission staging tree. */
@@ -105,8 +105,10 @@ function nearestExistingAncestor(userDataPath: string, livePath: string): string
  * this code may replace (§4). The root ITSELF is allowed because one unit (the
  * managed Notes tree) is the root, but nothing above a root ever is.
  */
-function containedInRegisteredRoot(roots: ResourceRoots, absolute: string, platform: BackupPlatform): boolean {
-  return Object.values(roots).some((root) => root === absolute || isPathContainedIn(root, absolute, platform))
+function containedInKindRoot(roots: ResourceRoots, kind: string, absolute: string, platform: BackupPlatform): boolean {
+  if (!(BACKUP_RESOURCE_KINDS as readonly string[]).includes(kind)) return false
+  const root = roots[RESOURCE_ROOT_BY_KIND[kind as BackupResourceKind]]
+  return root === absolute || isPathContainedIn(root, absolute, platform)
 }
 
 /**
@@ -133,7 +135,7 @@ export function planResourceInstalls(input: PlanInstallsInput): ResourceInstallP
       resourceType: resource.resourceType,
       targetState: lstatTargetState(absolute),
       ancestorsSafe: ancestorsSafe(userDataPath, resource.livePath),
-      containedInRegisteredRoot: containedInRegisteredRoot(roots, absolute, platform),
+      containedInRegisteredRoot: containedInKindRoot(roots, resource.kind, absolute, platform),
       sameFilesystemAsRoot: fs.statSync(nearestExistingAncestor(userDataPath, resource.livePath)).dev === userDataDevice
     }
   })

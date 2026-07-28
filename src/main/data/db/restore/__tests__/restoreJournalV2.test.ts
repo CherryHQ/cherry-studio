@@ -40,12 +40,17 @@ function fullJournal(overrides: Record<string, unknown> = {}) {
 }
 
 describe('RestoreJournalV2Schema — versions & states', () => {
-  it('accepts all eight lifecycle states', () => {
+  it('accepts every lifecycle state', () => {
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'prepared' })).success).toBe(true)
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'armed' })).success).toBe(true)
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'promoting', step: 'db-promoted' })).success).toBe(
       true
     )
+    expect(
+      RestoreJournalV2Schema.safeParse(
+        liteJournal({ state: 'reverting', step: 'db-promoted', reason: 'integrity check failed' })
+      ).success
+    ).toBe(true)
     expect(
       RestoreJournalV2Schema.safeParse(liteJournal({ state: 'completed', step: 'integrity-ok', summary })).success
     ).toBe(true)
@@ -56,11 +61,12 @@ describe('RestoreJournalV2Schema — versions & states', () => {
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'expired' })).success).toBe(true)
   })
 
-  it('requires a step for promoting and rejects unknown steps/states', () => {
+  it('requires a step for active directions and rejects unknown steps/states', () => {
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'promoting' })).success).toBe(false)
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'promoting', step: 'not-a-step' })).success).toBe(
       false
     )
+    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'reverting', reason: 'failed' })).success).toBe(false)
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'staged' })).success).toBe(false)
   })
 

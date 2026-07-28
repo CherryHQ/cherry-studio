@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { snapshotTo } from '@data/db/restore/snapshot'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -32,7 +33,8 @@ const ROOTS: ResourceRoots = {
   files: `${USER_DATA}/Data/Files`,
   knowledge: `${USER_DATA}/Data/KnowledgeBase`,
   notes: `${USER_DATA}/Data/Notes`,
-  workspaces: `${USER_DATA}/Data/Agents`,
+  agentData: `${USER_DATA}/Data/Agents`,
+  systemWorkspaces: `${USER_DATA}/Data/Agents/system`,
   skills: `${USER_DATA}/Data/Skills`
 }
 
@@ -75,14 +77,15 @@ describe('collectResourceRequirements', () => {
       .run()
   }
 
-  it('reports nothing for an empty database', () => {
+  it('declares the managed Notes library even when sparse note state has no rows', () => {
     const inventory = collect()
 
-    expect(inventory.requirements).toEqual([])
+    expect(inventory.requirements).toEqual([{ kind: 'note-root', resourceType: 'directory', livePath: 'Data/Notes' }])
     expect(inventory.unverifiableByKind).toEqual({
       'file-blob': 0,
       'knowledge-base': 0,
       'note-root': 0,
+      'agent-data': 0,
       'agent-workspace': 0,
       skill: 0
     })
@@ -172,7 +175,7 @@ describe('collectResourceRequirements', () => {
       ])
     })
 
-    it('counts a user-chosen external root as unverifiable', () => {
+    it('counts a user-chosen external root as unverifiable without dropping the managed library', () => {
       dbh.db
         .insert(noteTable)
         .values({ id: 'n-3', rootPath: '/Users/someone/MyNotes', path: 'a.md', isStarred: true })
@@ -180,7 +183,7 @@ describe('collectResourceRequirements', () => {
 
       const inventory = collect()
 
-      expect(livePathsOf('note-root', inventory)).toEqual([])
+      expect(livePathsOf('note-root', inventory)).toEqual(['Data/Notes'])
       expect(inventory.unverifiableByKind['note-root']).toBe(1)
     })
 
@@ -192,8 +195,43 @@ describe('collectResourceRequirements', () => {
 
       const inventory = collect()
 
-      expect(livePathsOf('note-root', inventory)).toEqual([])
+      expect(livePathsOf('note-root', inventory)).toEqual(['Data/Notes'])
       expect(inventory.unverifiableByKind['note-root']).toBe(1)
+    })
+  })
+
+  describe('agent data', () => {
+    it('declares one identity-and-memory directory per live agent', () => {
+      dbh.db
+        .insert(agentTable)
+        .values({
+          id: '11111111-1111-4111-8111-111111111111',
+          type: 'agent',
+          name: 'A',
+          instructions: '',
+          orderKey: 'a'
+        })
+        .run()
+
+      const inventory = collect()
+
+      expect(livePathsOf('agent-data', inventory)).toEqual(['Data/Agents/11111111-1111-4111-8111-111111111111'])
+    })
+
+    it('ignores soft-deleted agents whose directories are garbage', () => {
+      dbh.db
+        .insert(agentTable)
+        .values({
+          id: '22222222-2222-4222-8222-222222222222',
+          type: 'agent',
+          name: 'deleted',
+          instructions: '',
+          orderKey: 'b',
+          deletedAt: Date.now()
+        })
+        .run()
+
+      expect(livePathsOf('agent-data', collect())).toEqual([])
     })
   })
 
@@ -202,21 +240,27 @@ describe('collectResourceRequirements', () => {
       dbh.db
         .insert(agentWorkspaceTable)
         .values([
-          { id: 'w-1', name: 'system', path: `${ROOTS.workspaces}/session-1`, type: 'system', orderKey: 'a' },
+          {
+            id: 'w-1',
+            name: 'system',
+            path: `${ROOTS.systemWorkspaces}/session-1`,
+            type: 'system',
+            orderKey: 'a'
+          },
           { id: 'w-2', name: 'mine', path: '/Users/someone/code/project', type: 'user', orderKey: 'b' }
         ])
         .run()
 
       const inventory = collect()
 
-      expect(livePathsOf('agent-workspace', inventory)).toEqual(['Data/Agents/session-1'])
+      expect(livePathsOf('agent-workspace', inventory)).toEqual(['Data/Agents/system/session-1'])
       expect(inventory.unverifiableByKind['agent-workspace']).toBe(1)
     })
 
     it('refuses a row that claims the workspaces root itself as one unit', () => {
       dbh.db
         .insert(agentWorkspaceTable)
-        .values({ id: 'w-3', name: 'root', path: ROOTS.workspaces, type: 'system', orderKey: 'a' })
+        .values({ id: 'w-3', name: 'root', path: ROOTS.systemWorkspaces, type: 'system', orderKey: 'a' })
         .run()
 
       const inventory = collect()
@@ -228,12 +272,18 @@ describe('collectResourceRequirements', () => {
     it('classifies by containment, not by the row-controlled type column', () => {
       dbh.db
         .insert(agentWorkspaceTable)
-        .values({ id: 'w-4', name: 'lying', path: `${ROOTS.workspaces}/session-9`, type: 'user', orderKey: 'a' })
+        .values({
+          id: 'w-4',
+          name: 'lying',
+          path: `${ROOTS.systemWorkspaces}/session-9`,
+          type: 'user',
+          orderKey: 'a'
+        })
         .run()
 
       const inventory = collect()
 
-      expect(livePathsOf('agent-workspace', inventory)).toEqual(['Data/Agents/session-9'])
+      expect(livePathsOf('agent-workspace', inventory)).toEqual(['Data/Agents/system/session-9'])
     })
   })
 

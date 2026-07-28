@@ -147,12 +147,51 @@ function assertAncestorsSafe(userData: string, relativePath: string): void {
   }
 }
 
+/** Test seam for the platform-specific directory durability tail. */
+export const resourceInstallDurability = {
+  syncDirectory(dir: string): void {
+    if (process.platform === 'win32') return
+    const fd = fs.openSync(dir, 'r')
+    try {
+      fs.fsyncSync(fd)
+    } finally {
+      fs.closeSync(fd)
+    }
+  }
+}
+
 /** Collects the directories whose entries changed, so they can be fsynced once each. */
 class DirBatch {
   private readonly dirs = new Set<string>()
 
+  private ensureDirectory(target: string): void {
+    const missing: string[] = []
+    let current = target
+    while (true) {
+      const stats = lstatOrNull(current)
+      if (stats !== null) {
+        if (stats.isSymbolicLink() || !stats.isDirectory()) {
+          throw new ResourceInstallError('unsafe-target-parent', current)
+        }
+        break
+      }
+      missing.push(current)
+      const parent = path.dirname(current)
+      if (parent === current) throw new ResourceInstallError('unsafe-target-parent', target)
+      current = parent
+    }
+
+    for (const directory of missing.reverse()) {
+      fs.mkdirSync(directory)
+      // Creating a directory changes its parent's entry; syncing only the new
+      // directory does not make that parent entry durable.
+      this.dirs.add(path.dirname(directory))
+      this.dirs.add(directory)
+    }
+  }
+
   rename(source: string, target: string): void {
-    fs.mkdirSync(path.dirname(target), { recursive: true })
+    this.ensureDirectory(path.dirname(target))
     try {
       fs.renameSync(source, target)
     } catch (error) {
@@ -172,16 +211,7 @@ class DirBatch {
    */
   flush(): readonly string[] {
     const dirs = [...this.dirs].sort()
-    if (process.platform !== 'win32') {
-      for (const dir of dirs) {
-        const fd = fs.openSync(dir, 'r')
-        try {
-          fs.fsyncSync(fd)
-        } finally {
-          fs.closeSync(fd)
-        }
-      }
-    }
+    for (const dir of dirs) resourceInstallDurability.syncDirectory(dir)
     this.dirs.clear()
     return dirs
   }
@@ -207,7 +237,10 @@ export function installResourceUnits(entries: readonly ResourceInstallEntry[], u
       throw new ResourceInstallError('staged-missing', unit.liveRel)
     }
 
-    assertAncestorsSafe(userData, unit.liveRel)
+    assertAncestorsSafe(userData, entry.staging)
+    assertAncestorsSafe(userData, entry.live)
+    assertAncestorsSafe(userData, entry.aside)
+    assertRecoverySource(unit.resourceType, unit.staged, `${unit.liveRel} staging`)
     assertTargetInstallable(unit)
 
     if (facts.live) {

@@ -6,23 +6,23 @@
  * attachment blobs, Knowledge sources, Notes trees, agent workspaces, installed
  * skills. Each adapter answers ONE question for its own kind:
  *
- *   "Which managed paths does this database point at?"
+ *   "Which managed paths belong to this database's portable library?"
  *
- * The answer is EXISTENCE-ORIENTED and produced from database rows alone. An
- * adapter never opens, stats, or hashes the target resource: doing so would (a)
- * make the inventory a snapshot of the producer's disk rather than of the
- * database, and (b) make restore preview cost proportional to the user's whole
- * library. Whether a declared path actually exists on the RESTORING device is a
- * question only that device can answer, and it answers it later against this
- * inventory (§2).
+ * The answer is EXISTENCE-ORIENTED and produced from database rows plus fixed
+ * app-owned roots whose contents SQLite does not inventory (notably the sparse
+ * Notes state table). An adapter never opens, stats, or hashes the target
+ * resource: doing so would (a) make the inventory a snapshot of the producer's
+ * disk rather than of the portable library, and (b) make restore preview cost
+ * proportional to the user's whole library. Whether a declared path actually
+ * exists on the RESTORING device is answered later against this inventory (§2).
  *
- * This is a private, static list — not a registry, not an extension point, and
- * feature modules never depend upward on it. Phase 3 adds `stageResources` here
- * for the Full preset; until then an adapter has exactly one method.
+ * This is a private, static list — not a registry or extension point — and
+ * feature modules never depend upward on it.
  */
 
 import path from 'node:path'
 
+import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -49,8 +49,10 @@ export interface ResourceRoots {
   readonly knowledge: string
   /** `feature.notes.data` — the managed Notes root. */
   readonly notes: string
-  /** `feature.agents.workspaces` — parent of per-session system workspaces. */
-  readonly workspaces: string
+  /** `feature.agents.data` — parent of per-agent identity and memory directories. */
+  readonly agentData: string
+  /** `feature.agents.system_workspaces` — parent of per-session system workspaces. */
+  readonly systemWorkspaces: string
   /** `feature.agents.skills` — installed skill library. */
   readonly skills: string
 }
@@ -71,9 +73,26 @@ export interface SnapshotReadContext {
 }
 
 /** Stable identifiers written into the manifest's `resourceRequirements[].kind`. */
-export const BACKUP_RESOURCE_KINDS = ['file-blob', 'knowledge-base', 'note-root', 'agent-workspace', 'skill'] as const
+export const BACKUP_RESOURCE_KINDS = [
+  'file-blob',
+  'knowledge-base',
+  'note-root',
+  'agent-data',
+  'agent-workspace',
+  'skill'
+] as const
 
 export type BackupResourceKind = (typeof BACKUP_RESOURCE_KINDS)[number]
+
+/** The one trusted managed root each resource kind is allowed to replace. */
+export const RESOURCE_ROOT_BY_KIND = Object.freeze({
+  'file-blob': 'files',
+  'knowledge-base': 'knowledge',
+  'note-root': 'notes',
+  'agent-data': 'agentData',
+  'agent-workspace': 'systemWorkspaces',
+  skill: 'skills'
+} as const satisfies Record<BackupResourceKind, keyof ResourceRoots>)
 
 /**
  * One adapter's view of the database.
@@ -210,21 +229,41 @@ const noteRootAdapter: BackupResourceAdapter = {
   collectRequirements(ctx) {
     const rows = ctx.db.select({ rootPath: noteTable.rootPath }).from(noteTable).all()
 
+    // `note` is sparse metadata, not the inventory of Markdown files. The
+    // managed Notes root is therefore always one resource unit, even when no
+    // file happens to be starred and the table has zero rows.
+    const managedRoot = managedLivePath(ctx, ctx.userDataPath, ctx.roots.notes)
+    const requirements: ResourceRequirement[] = managedRoot
+      ? [{ kind: 'note-root', resourceType: 'directory', livePath: managedRoot }]
+      : []
+
+    let unverifiable = managedRoot ? 0 : 1
+    // Rows below the managed root are covered by that one unit. Distinct
+    // external roots remain unverifiable and are counted without disclosing
+    // their paths.
+    for (const rootPath of new Set(rows.map((row) => row.rootPath))) {
+      const isManaged = rootPath === ctx.roots.notes || isPathContainedIn(ctx.roots.notes, rootPath, ctx.platform)
+      if (!isManaged) unverifiable++
+    }
+    return { requirements, unverifiable }
+  }
+}
+
+/** Agent identity and memory, one app-owned directory per live agent row. */
+const agentDataAdapter: BackupResourceAdapter = {
+  kind: 'agent-data',
+  collectRequirements(ctx) {
+    const rows = ctx.db.select({ id: agentTable.id }).from(agentTable).where(isNull(agentTable.deletedAt)).all()
+
     const requirements: ResourceRequirement[] = []
     let unverifiable = 0
-    // Most notes share one root, and an unverifiable root must be counted once,
-    // not once per starred note under it.
-    for (const rootPath of new Set(rows.map((row) => row.rootPath))) {
-      // The managed root is itself the unit, so the portable-path proof runs
-      // against userData rather than against the root (which would reject the
-      // root's own empty relative form).
-      const isManaged = isPathContainedIn(ctx.roots.notes, rootPath, ctx.platform)
-      const livePath = isManaged ? managedLivePath(ctx, ctx.userDataPath, rootPath) : null
+    for (const row of rows) {
+      const livePath = managedLivePath(ctx, ctx.roots.agentData, path.join(ctx.roots.agentData, row.id))
       if (livePath === null) {
         unverifiable++
         continue
       }
-      requirements.push({ kind: 'note-root', resourceType: 'directory', livePath })
+      requirements.push({ kind: 'agent-data', resourceType: 'directory', livePath })
     }
     return { requirements, unverifiable }
   }
@@ -245,7 +284,7 @@ const agentWorkspaceAdapter: BackupResourceAdapter = {
     const requirements: ResourceRequirement[] = []
     let unverifiable = 0
     for (const row of rows) {
-      const livePath = managedLivePath(ctx, ctx.roots.workspaces, row.path)
+      const livePath = managedLivePath(ctx, ctx.roots.systemWorkspaces, row.path)
       if (livePath === null) {
         unverifiable++
         continue
@@ -290,6 +329,7 @@ export const RESOURCE_ADAPTERS: readonly BackupResourceAdapter[] = [
   fileBlobAdapter,
   knowledgeBaseAdapter,
   noteRootAdapter,
+  agentDataAdapter,
   agentWorkspaceAdapter,
   skillAdapter
 ]
