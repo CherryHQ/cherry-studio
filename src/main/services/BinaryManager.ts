@@ -1110,6 +1110,16 @@ export class BinaryManager extends BaseService {
    * operation state — persisted definitions are never rewritten with a resolved
    * version, so there is no pin to hand back.
    */
+  private async assertToolApplied(name: string): Promise<void> {
+    const snapshot = (await this.getToolSnapshots([name]))[name]
+    if (snapshot.application?.status === 'applied' && snapshot.availability.source === 'mise') return
+
+    const applicationStatus = snapshot.application?.status ?? 'missing'
+    throw new Error(
+      `Tool install did not become active: ${name} (application: ${applicationStatus}, availability: ${snapshot.availability.source})`
+    )
+  }
+
   private async applyDefinition(
     definition: CustomToolDefinition,
     targetVersion: string | undefined,
@@ -1231,6 +1241,10 @@ export class BinaryManager extends BaseService {
           // partial backend change, which must also stale any in-flight latest batch.
           this.bumpMutationRevision()
           await this.applyDefinition(definition, targetVersion, definitions)
+          // Installation success uses the same authoritative fact rendered by
+          // Code CLI and Dependencies; weaker version/which checks must never
+          // produce a success toast followed by a Retry card.
+          await this.assertToolApplied(name)
           return { kind: 'done' }
         } catch (err) {
           return { kind: 'failed', error: err instanceof Error ? err.message : String(err) }
@@ -1359,6 +1373,7 @@ export class BinaryManager extends BaseService {
             // partial or successful mise mutation.
             this.bumpMutationRevision()
             await this.applyDefinition(definition, undefined, definitions)
+            await this.assertToolApplied(definition.name)
             return { ok: true }
           } catch (err) {
             return { ok: false, error: err instanceof Error ? err.message : String(err) }

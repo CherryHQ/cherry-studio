@@ -8,7 +8,7 @@ const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, 
   platformMock: { isWin: false },
   mockExecFileAsync: vi.fn(),
   mockFs: {
-    existsSync: vi.fn(() => false),
+    existsSync: vi.fn<(candidate: unknown) => boolean>(() => false),
     readFileSync: vi.fn(),
     writeFileSync: vi.fn(),
     mkdirSync: vi.fn(),
@@ -1802,11 +1802,16 @@ describe('BinaryManager', () => {
 
     it('applies an absent fixed recipe without writing Preference', async () => {
       const service = makeService()
+      let installed = false
+      mockFs.existsSync.mockImplementation(
+        (candidate: unknown) => installed && String(candidate).includes('/feature.binary.data/shims/fd')
+      )
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'use') installed = true
+        if (args[0] === 'ls' && !installed) return { stdout: JSON.stringify({}), stderr: '' }
         if (args[0] === 'ls')
           return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/installs/fd/10.0.0/bin/fd\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
@@ -1815,6 +1820,39 @@ describe('BinaryManager', () => {
       expect(miseArgs()).toContainEqual(['use', '-g', 'fd@latest'])
       expect(mockPreferenceService.set).not.toHaveBeenCalledWith('feature.binary.tools', expect.anything())
       expect(manifestRef.value).toEqual([])
+      await expect(service.getToolSnapshots(['fd'])).resolves.toMatchObject({
+        fd: {
+          application: { status: 'applied', version: '10.0.0' },
+          availability: { source: 'mise', version: '10.0.0' }
+        }
+      })
+    })
+
+    it('rejects false success when the executable resolves but the authoritative snapshot is broken', async () => {
+      const service = makeService()
+      let installed = false
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'use') installed = true
+        if (args[0] === 'ls' && !installed) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'ls') {
+          return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: false }] }), stderr: '' }
+        }
+        // applyDefinition's old weak postcondition accepts this runnable target,
+        // but the shared snapshot correctly rejects the inactive, shimless recipe.
+        if (args[0] === 'which') return { stdout: '/mock/mise/installs/fd/10.0.0/bin/fd\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'fd' })).rejects.toThrow(
+        'Tool install did not become active: fd (application: broken, availability: none)'
+      )
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
+        fd: {
+          status: 'failed',
+          action: 'install',
+          error: 'Tool install did not become active: fd (application: broken, availability: none)'
+        }
+      })
     })
 
     it('converges as a no-op when a mid-session system install appears in the refreshed env', async () => {
@@ -1837,11 +1875,16 @@ describe('BinaryManager', () => {
 
     it('refreshes the login-shell capture before deciding to install', async () => {
       const service = makeService()
+      let installed = false
+      mockFs.existsSync.mockImplementation(
+        (candidate: unknown) => installed && String(candidate).includes('/feature.binary.data/shims/fd')
+      )
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'use') installed = true
+        if (args[0] === 'ls' && !installed) return { stdout: JSON.stringify({}), stderr: '' }
         if (args[0] === 'ls')
           return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/installs/fd/10.0.0/bin/fd\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
@@ -1870,15 +1913,17 @@ describe('BinaryManager', () => {
 
     it('repairs an inactive-only fixed recipe instead of treating it as already applied', async () => {
       const service = makeService()
+      let repaired = false
       ;(mockFs.existsSync as any).mockImplementation((candidate: unknown) =>
         String(candidate).includes('/feature.binary.data/shims/fd')
       )
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls' && args.length === 2) {
-          return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: false }] }), stderr: '' }
-        }
+        if (args[0] === 'use') repaired = true
         if (args[0] === 'ls') {
-          return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
+          return {
+            stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: repaired }] }),
+            stderr: ''
+          }
         }
         if (args[0] === 'which') return { stdout: '/mock/mise/installs/fd/10.0.0/bin/fd\n', stderr: '' }
         return { stdout: '', stderr: '' }
@@ -1988,11 +2033,16 @@ describe('BinaryManager', () => {
     it('re-installs an owned custom tool by name without writing Preference or mutating its recipe', async () => {
       const service = makeService()
       manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
+      let installed = false
+      mockFs.existsSync.mockImplementation(
+        (candidate: unknown) => installed && String(candidate).includes('/feature.binary.data/shims/mytool')
+      )
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'use') installed = true
+        if (args[0] === 'ls' && !installed) return { stdout: JSON.stringify({}), stderr: '' }
         if (args[0] === 'ls')
           return { stdout: JSON.stringify({ 'npm:mytool': [{ version: '1.0.0', active: true }] }), stderr: '' }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/mytool\n', stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/installs/npm-mytool/1.0.0/bin/mytool\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
@@ -2036,13 +2086,18 @@ describe('BinaryManager', () => {
         { name: 'node', tool: 'core:node', requestedVersion: '20.0.0' },
         { name: 'mytool', tool: 'npm:mytool' }
       ]
+      let installed = false
+      mockFs.existsSync.mockImplementation(
+        (candidate: unknown) => installed && String(candidate).includes('/feature.binary.data/shims/mytool')
+      )
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'use') installed = true
+        if (args[0] === 'ls' && !installed) return { stdout: JSON.stringify({}), stderr: '' }
         if (args[0] === 'ls')
           return { stdout: JSON.stringify({ 'npm:mytool': [{ version: '1.0.0', active: true }] }), stderr: '' }
         // The custom node shim never resolves — it is defined but not applied.
         if (args[0] === 'which' && args[1] === 'node') return { stdout: '', stderr: '' }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/mytool\n', stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/installs/npm-mytool/1.0.0/bin/mytool\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
@@ -2084,11 +2139,16 @@ describe('BinaryManager', () => {
 
     it('persists the definition and installs it via the default runtime', async () => {
       const service = makeService()
+      let installed = false
+      mockFs.existsSync.mockImplementation(
+        (candidate: unknown) => installed && String(candidate).includes('/feature.binary.data/shims/mytool')
+      )
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'use') installed = true
+        if (args[0] === 'ls' && !installed) return { stdout: JSON.stringify({}), stderr: '' }
         if (args[0] === 'ls')
           return { stdout: JSON.stringify({ 'npm:mytool': [{ version: '1.0.0', active: true }] }), stderr: '' }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/mytool\n', stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/installs/npm-mytool/1.0.0/bin/mytool\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
@@ -2557,21 +2617,32 @@ describe('BinaryManager', () => {
       })
 
       const callOrder: string[] = []
+      const installed = new Set<string>()
+      mockFs.existsSync.mockImplementation((candidate: unknown) =>
+        [...installed].some((name) => String(candidate).includes(`/feature.binary.data/shims/${name}`))
+      )
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'use') {
           const toolSpec = args[args.length - 1]
+          const name = toolSpec.split('@')[0]
           callOrder.push(`use:${toolSpec}:start`)
           await new Promise((r) => setTimeout(r, 10))
+          installed.add(name)
           callOrder.push(`use:${toolSpec}:end`)
         }
-        if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
         if (args[0] === 'ls') {
-          const toolKey = args[2]
-          const version = toolKey === 'fd' ? '10.0.0' : '15.0.0'
-          return { stdout: JSON.stringify({ [toolKey]: [{ version }] }), stderr: '' }
+          const names = args.length > 2 ? [args[2]] : [...installed]
+          return {
+            stdout: JSON.stringify(
+              Object.fromEntries(
+                names.filter((name) => installed.has(name)).map((name) => [name, [{ version: '10.0.0', active: true }]])
+              )
+            ),
+            stderr: ''
+          }
         }
         if (args[0] === 'which') {
-          return { stdout: `/mock/mise/shims/${args[1]}\n`, stderr: '' }
+          return { stdout: `/mock/mise/installs/${args[1]}/10.0.0/bin/${args[1]}\n`, stderr: '' }
         }
         return { stdout: '', stderr: '' }
       })
@@ -2596,14 +2667,22 @@ describe('BinaryManager', () => {
         throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
       let releaseInstall!: () => void
+      let installed = false
       const installStarted = new Promise<void>((resolve) => {
         releaseInstall = resolve
       })
+      mockFs.existsSync.mockImplementation(
+        (candidate: unknown) => installed && String(candidate).includes('/feature.binary.data/shims/fd')
+      )
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'use') await installStarted
-        if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '1.0.0' }] }), stderr: '' }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        if (args[0] === 'use') {
+          await installStarted
+          installed = true
+        }
+        if (args[0] === 'ls' && !installed) return { stdout: '{}', stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ fd: [{ version: '1.0.0', active: true }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/installs/fd/1.0.0/bin/fd\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
@@ -2663,14 +2742,22 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       let releaseInstall!: () => void
+      let installed = false
       const installStarted = new Promise<void>((resolve) => {
         releaseInstall = resolve
       })
+      mockFs.existsSync.mockImplementation(
+        (candidate: unknown) => installed && String(candidate).includes('/feature.binary.data/shims/fd')
+      )
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'use') await installStarted
-        if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '1.0.0' }] }), stderr: '' }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        if (args[0] === 'use') {
+          await installStarted
+          installed = true
+        }
+        if (args[0] === 'ls' && !installed) return { stdout: '{}', stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ fd: [{ version: '1.0.0', active: true }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/installs/fd/1.0.0/bin/fd\n', stderr: '' }
         return { stdout: '', stderr: '' }
       })
 
@@ -2686,12 +2773,20 @@ describe('BinaryManager', () => {
 
   describe('install state tracking', () => {
     const mockSuccessfulInstall = (toolKey: string, binaryName: string) => {
+      let installed = false
       mockFs.readFileSync.mockImplementation(() => {
         throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
+      mockFs.existsSync.mockImplementation(
+        (candidate: unknown) => installed && String(candidate).includes(`/feature.binary.data/shims/${binaryName}`)
+      )
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'ls') return { stdout: JSON.stringify({ [toolKey]: [{ version: '1.0.0' }] }), stderr: '' }
-        if (args[0] === 'which') return { stdout: `/mock/mise/shims/${binaryName}\n`, stderr: '' }
+        if (args[0] === 'use') installed = true
+        if (args[0] === 'ls' && !installed) return { stdout: '{}', stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ [toolKey]: [{ version: '1.0.0', active: true }] }), stderr: '' }
+        if (args[0] === 'which')
+          return { stdout: `/mock/mise/installs/${binaryName}/1.0.0/bin/${binaryName}\n`, stderr: '' }
         return { stdout: '', stderr: '' }
       })
     }
