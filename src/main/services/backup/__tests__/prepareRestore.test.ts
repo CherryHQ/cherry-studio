@@ -20,6 +20,7 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -66,6 +67,8 @@ describe('restore preparation', () => {
   afterEach(() => {
     rmSync(workDir, { recursive: true, force: true })
     snapshotMock().mockReset()
+    mockMainLoggerService.info.mockReset()
+    mockMainLoggerService.warn.mockReset()
     vi.restoreAllMocks()
   })
 
@@ -203,6 +206,33 @@ describe('restore preparation', () => {
       const preview = await prepareRestore({ archivePath })
 
       expect(readdirSync(join(userData, 'restore-staging'))).toEqual([preview.restoreId])
+    })
+
+    it('keeps a durable preparation when the disposable admission root cannot be cleaned', async () => {
+      const replacement = join(workDir, 'replacement-admission-root')
+      mkdirSync(replacement)
+      mockMainLoggerService.warn.mockClear()
+      mockMainLoggerService.info.mockImplementation((message) => {
+        if (message !== 'Restore prepared') return
+        const stagingParent = join(userData, 'restore-staging')
+        const admittedRoot = readdirSync(stagingParent).find((entry) => entry.startsWith('cs-admit-'))
+        if (!admittedRoot) throw new Error('expected the admission staging root')
+        const admittedPath = join(stagingParent, admittedRoot)
+        rmSync(admittedPath, { recursive: true })
+        symlinkSync(replacement, admittedPath, 'dir')
+      })
+
+      const preview = await prepareRestore({ archivePath })
+
+      expect(readRestoreJournalV2()).toMatchObject({
+        kind: 'ok',
+        journal: { state: 'prepared', restoreId: preview.restoreId }
+      })
+      expect(existsSync(join(userData, 'restore-staging', preview.restoreId, 'backup.sqlite'))).toBe(true)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Could not remove admission staging after writing the restore journal; preserving it',
+        expect.any(Error)
+      )
     })
 
     it('does not touch the live database', async () => {

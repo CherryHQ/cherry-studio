@@ -216,10 +216,22 @@ export const PRESERVED_AFTER_REVIEW: Readonly<Record<string, string>> = Object.f
   // Portable user intent — a power-save blocker is requested at runtime
   // (src/main/core/power/PowerService.ts:295).
   'app.power.prevent_sleep_when_busy': 'portable user intent',
-  // Remote/account configuration, not device state. Preserved for the same reason
-  // MCP `command` is: the user must be able to re-enable sync without retyping it.
+  // Remote/account configuration, not device state. Backup v2 is a whole-profile
+  // restore and explicitly carries plaintext credentials (§5.1.1). These values
+  // remain inert because every automatic sync flag is reset; retaining them lets
+  // the user explicitly re-enable a destination without reconstructing it.
   'data.backup.webdav.host': 'remote destination config; only its automation is reset',
+  'data.backup.webdav.pass': 'remote credential; preserved but automatic sync is reset',
+  'data.backup.nutstore.token': 'remote credential; preserved but automatic sync is reset',
   'data.backup.s3.endpoint': 'remote destination config; only its automation is reset',
+  'data.backup.s3.access_key_id': 'remote credential; preserved but automatic sync is reset',
+  'data.backup.s3.secret_access_key': 'remote credential; preserved but automatic sync is reset',
+  // Third-party export credentials are consumed only by an explicit export
+  // action. Preserving them performs no I/O during restore or startup.
+  'data.integration.joplin.token': 'remote credential used only by an explicit export action',
+  'data.integration.notion.api_key': 'remote credential used only by an explicit export action',
+  'data.integration.siyuan.token': 'remote credential used only by an explicit export action',
+  'data.integration.yuque.token': 'remote credential used only by an explicit export action',
   // Third-party service endpoints that may legitimately be remote; no reader
   // proves a device binding.
   'data.integration.siyuan.api_url': 'may be remote; no device-binding evidence',

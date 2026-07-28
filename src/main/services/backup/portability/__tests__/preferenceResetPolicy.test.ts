@@ -102,12 +102,25 @@ describe('isPreferenceResetKey — classification', () => {
     expect(isPreferenceResetKey(key)).toBe(false)
   })
 
-  it('preserves remote destination credentials while resetting their automation', () => {
-    // Same shape as the MCP policy: keep the configuration, disarm the trigger.
+  it('preserves remote credentials as inert profile data while resetting every automatic trigger', () => {
+    // Whole-profile restore keeps configuration, including the credentials the
+    // archive already discloses; reset automation is the no-I/O boundary.
+    for (const key of [
+      'data.backup.nutstore.token',
+      'data.backup.s3.access_key_id',
+      'data.backup.s3.secret_access_key',
+      'data.backup.webdav.pass',
+      'data.integration.joplin.token',
+      'data.integration.notion.api_key',
+      'data.integration.siyuan.token',
+      'data.integration.yuque.token'
+    ]) {
+      expect(isPreferenceResetKey(key), key).toBe(false)
+      expect(PRESERVED_AFTER_REVIEW, key).toHaveProperty(key)
+    }
     expect(isPreferenceResetKey('data.backup.webdav.auto_sync')).toBe(true)
     expect(isPreferenceResetKey('data.backup.webdav.host')).toBe(false)
     expect(isPreferenceResetKey('data.backup.webdav.user')).toBe(false)
-    expect(isPreferenceResetKey('data.backup.webdav.pass')).toBe(false)
   })
 
   it('resets a small, auditable fraction of the schema', () => {

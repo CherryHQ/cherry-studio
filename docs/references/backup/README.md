@@ -137,7 +137,8 @@ rows and never combines two identities.
 | Device/platform-local preference keys | **Reset** to target defaults, from an explicit backup-owned list. |
 | Managed absolute paths under producer roots (`note.rootPath`, managed `agent_workspace.path`, managed paths in structured data) | **Rebase** deterministically onto target roots resolved through `application.getPath()`, using producer managed-root identities recorded in the manifest. |
 | Archive-supplied external absolute paths | **Never auto-activate.** Reset selecting preferences to target defaults; retain the path only as inert metadata when its owner proves no automatic I/O can follow it, otherwise convert/drop the path-bearing derived/reference row under an explicit degradation policy. |
-| Dangerous capabilities — MCP `command`/`dxtPath`/`isActive`/trust state, agent/channel automation, future active/trusted rows | **Reset** so nothing executes a command, opens an external path, or initiates a network side effect without fresh target-side confirmation. |
+| Dangerous capabilities — MCP `command`/`dxtPath`/`isActive`/trust state, agent/channel automation, future active/trusted rows | **Reset activation and trust state** so nothing executes a command, opens an external path, or initiates a network side effect without fresh target-side confirmation. Inert configuration is preserved; malformed executable fields fail closed, while malformed agent-channel `config` is reported but preserved behind `is_active = false` and revalidated on explicit activation. |
+| Credentials | **Preserve as profile data, never activate automatically.** Archives already contain them in plaintext. Backup-destination auto-sync flags reset, and integration credentials are consumed only by explicit user actions. The API Gateway key is the exception: it authenticates a target-local listener and is regenerated. |
 | Derived indexes | **Rebuild** after staging/restore where cheaper and safer than transporting runtime state. |
 
 **Invariant:** managed-path rebasing and runtime-key sanitation are deterministic archive
@@ -304,7 +305,10 @@ never quarantined or cleared automatically: it may be the only durable evidence 
 partially moved database/resource set. Preboot preserves the journal, staging tree, and
 asides, then refuses normal startup until a compatible build or explicit repair can prove a
 coherent state. This applies even when the live DB currently exists—presence alone does not
-prove that every resource matches it.
+prove that every resource matches it. A recognized active v1 journal is different: preboot
+dispatches it to the strict v1 compatibility state machine and lets that protocol converge
+before v2 services start, so upgrading between confirmation and promotion neither discards
+the requested restore nor boots a mixed DB/resource state.
 
 ### 5.3 Frozen operating ceilings
 
@@ -652,9 +656,10 @@ the UI.
 - **Archive admission** ([§5.2](#52-admission--rejected-before-journal-creation)) is the
   single trust boundary — nothing untrusted reaches a journal or live write before it
   passes.
-- **IpcApi handlers** stay thin: sender policy (managed-window sender required for
-  destructive commands), schema validation, `IpcError` mapping, and delegation to
-  `BackupService`. See [IPC Reference](../ipc/README.md).
+- **IpcApi handlers** stay thin: sender policy (the caller must be a WindowManager-owned
+  window, including the Main window that hosts Data Settings), schema validation,
+  `IpcError` mapping, and delegation to `BackupService`. Backup has no dedicated window.
+  See [IPC Reference](../ipc/README.md).
 - **Path scopes** ([§4](#4-path--filesystem-policy)) gate every filesystem effect:
   `feature.*` targets only, `external.*` never mutated.
 - **Capability reset** ([§3.1](#31-sanitation--materialization-policy)) ensures a restored
