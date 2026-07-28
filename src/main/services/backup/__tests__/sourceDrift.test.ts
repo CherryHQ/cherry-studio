@@ -157,6 +157,15 @@ describe('stageDirectoryWithDriftCheck', () => {
     expect(await readFile(path.join(stageDir, 'b/2.txt'), 'utf8')).toBe('two')
   })
 
+  it('preserves nested empty directories in the staged tree', async () => {
+    await mkdir(path.join(srcDir, 'empty', 'nested'), { recursive: true })
+
+    const { files } = await stageDirectoryWithDriftCheck({ sourceDir: srcDir, stagingDir: stageDir })
+
+    expect(files).toEqual([])
+    expect(existsSync(path.join(stageDir, 'empty', 'nested'))).toBe(true)
+  })
+
   it('INCLUDES .cherry index artifacts by default; excludes them only when opted in', async () => {
     await src('doc.md', 'body')
     await src('.cherry/index.sqlite', 'INDEX')

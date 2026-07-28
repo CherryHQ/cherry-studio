@@ -181,12 +181,12 @@ describe('resourceInstallV2', () => {
       expect(() => installResourceUnits([entry('Data/KnowledgeBase/base-1')], userData)).toThrow(/staged-missing/)
     })
 
-    it('treats an already-installed unit as done (re-entry inside one boot)', () => {
+    it('fails closed when staging is missing even if an old live target exists', () => {
       const unit = entry('Data/KnowledgeBase/base-1')
-      makeDirUnit(unit.live, 'ARCHIVE')
+      makeDirUnit(unit.live, 'TARGET')
 
-      expect(() => installResourceUnits([unit], userData)).not.toThrow()
-      expect(readUnit(unit.live)).toBe('ARCHIVE')
+      expect(() => installResourceUnits([unit], userData)).toThrow(/staged-missing/)
+      expect(readUnit(unit.live)).toBe('TARGET')
     })
 
     it('refuses to overwrite an aside that is already occupied', () => {

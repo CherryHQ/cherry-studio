@@ -8,7 +8,7 @@ import { CeilingExceededError, SourceDriftError } from '../../errors'
 import { hashDirectoryUnit, sha256File } from '../../hashing'
 import type { ResourceRequirement } from '../../manifest'
 import { driftHooks } from '../../sourceDrift'
-import { stageResources } from '../stageResources'
+import { measureResourceStageBytes, stageResources } from '../stageResources'
 
 /**
  * What the Full producer promises about its payloads (§1.7, §5.4): every unit it
@@ -49,6 +49,23 @@ describe('stageResources', () => {
   function stage(requirements: readonly ResourceRequirement[], signal?: AbortSignal) {
     return stageResources({ requirements, userDataPath: userData, resourcesDir, signal })
   }
+
+  it('measures file and directory work without creating staging output', async () => {
+    writeSource('Data/Files/blob.pdf', 'FILE')
+    writeSource('Data/KnowledgeBase/kb-1/raw/doc.txt', 'SOURCE')
+    writeSource('Data/KnowledgeBase/kb-1/.cherry/index.sqlite', 'DERIVED')
+
+    const bytes = await measureResourceStageBytes({
+      requirements: [
+        req('file-blob', 'file', 'Data/Files/blob.pdf'),
+        req('knowledge-base', 'directory', 'Data/KnowledgeBase/kb-1')
+      ],
+      userDataPath: userData
+    })
+
+    expect(bytes).toBe('FILE'.length + 'SOURCE'.length)
+    expect(() => readFileSync(resourcesDir)).toThrow()
+  })
 
   it('captures a file unit with the hash of the bytes it staged', async () => {
     const source = writeSource('Data/Files/blob.pdf', 'ATTACHMENT')

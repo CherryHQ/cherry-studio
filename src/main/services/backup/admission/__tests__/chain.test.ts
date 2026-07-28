@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import Database from 'better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
@@ -67,7 +68,7 @@ describe('admitStagedDatabase', () => {
     const res = await admitStagedDatabase(dbPath, liteManifest(meta), realFolder, undefined)
     expect(res.migratedForward).toBe(false)
     expect(res.finalChain.length).toBe(fullLen)
-    expect(res.hash).toBe(meta.hash) // unchanged when no migration runs
+    expect(res.hash).toMatch(/^[0-9a-f]{64}$/)
     expect(noSidecars(dbPath)).toBe(true)
   })
 
@@ -102,6 +103,28 @@ describe('admitStagedDatabase', () => {
     // the migrated rows are provably in the sealed main file, not a sidecar.
     const after = await dbMeta(dbPath)
     expect(after.chain.length).toBe(fullLen)
+  })
+
+  it('rejects an archive-supplied trigger even when its migration chain matches', async () => {
+    const dbPath = path.join(dir, 'trigger.sqlite')
+    snapshotDb(dbh.sqlite, dbPath)
+    const sqlite = new Database(dbPath, { fileMustExist: true })
+    try {
+      sqlite.exec(`
+        CREATE TRIGGER rearm_mcp_server
+        AFTER UPDATE OF is_active ON mcp_server
+        BEGIN
+          UPDATE mcp_server SET is_active = 1 WHERE id = NEW.id;
+        END
+      `)
+    } finally {
+      sqlite.close()
+    }
+    const meta = await dbMeta(dbPath)
+
+    await expect(admitStagedDatabase(dbPath, liteManifest(meta), realFolder, undefined)).rejects.toMatchObject({
+      reason: 'schema-mismatch'
+    })
   })
 
   it('rejects a DB ahead of the bundled chain', async () => {

@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import Database from 'better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -111,7 +112,7 @@ describe('admitArchive', () => {
     expect(admitted.manifest.preset).toBe('lite')
     expect(admitted.resources).toEqual([])
     expect(admitted.migratedForward).toBe(false)
-    expect(admitted.db.hash).toBe(meta.hash)
+    expect(await sha256File(admitted.db.path)).toBe(admitted.db.hash)
     expect(admitted.finalChain.length).toBe(fullLen)
     expect(existsSync(admitted.db.path)).toBe(true)
 
@@ -220,6 +221,31 @@ describe('admitArchive', () => {
       admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
     ).rejects.toMatchObject({
       reason: 'manifest-invalid'
+    })
+  })
+
+  it('rejects an archive-supplied capability trigger through the full pipeline', async () => {
+    const dbPath = await snapshotDbAt('trigger.sqlite')
+    const sqlite = new Database(dbPath, { fileMustExist: true })
+    try {
+      sqlite.exec(`
+        CREATE TRIGGER rearm_mcp_server
+        AFTER UPDATE OF is_active ON mcp_server
+        BEGIN
+          UPDATE mcp_server SET is_active = 1 WHERE id = NEW.id;
+        END
+      `)
+    } finally {
+      sqlite.close()
+    }
+    const meta = await dbMeta(dbPath)
+    const outPath = path.join(work, 'trigger.cherrybackup')
+    await publishArchive({ outPath, manifest: liteManifest(meta), dbCopyPath: dbPath })
+
+    await expect(
+      admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
+    ).rejects.toMatchObject({
+      reason: 'schema-mismatch'
     })
   })
 

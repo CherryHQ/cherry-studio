@@ -146,11 +146,11 @@ function extSuffix(ext: string | null): string {
  * Internal attachment blobs. One requirement per row, because each blob is
  * independently present or absent and Full installs them individually.
  *
- * Soft-deleted rows (`deleted_at` set) are neither required nor unverifiable:
- * they are garbage awaiting collection, their bytes are not part of the restored
- * database's meaning, and declaring them would make every restore report
- * phantom missing files. `origin='external'` rows point at a user-owned absolute
- * path that is never an overlay target (§4), so they only raise the count.
+ * Soft-deleted rows remain requirements: FileManager trash is recoverable user
+ * state, and the whole database snapshot preserves those rows, so omitting their
+ * bytes would leave recycle-bin entries that can no longer be restored.
+ * `origin='external'` rows point at a user-owned absolute path that is never an
+ * overlay target (§4), so they only raise the count.
  */
 const fileBlobAdapter: BackupResourceAdapter = {
   kind: 'file-blob',
@@ -158,7 +158,6 @@ const fileBlobAdapter: BackupResourceAdapter = {
     const rows = ctx.db
       .select({ id: fileEntryTable.id, ext: fileEntryTable.ext, origin: fileEntryTable.origin })
       .from(fileEntryTable)
-      .where(isNull(fileEntryTable.deletedAt))
       .all()
 
     const requirements: ResourceRequirement[] = []

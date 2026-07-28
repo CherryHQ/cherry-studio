@@ -209,8 +209,10 @@ manifest. For Full, it also proves exact staged-resource inventory agreement:
 every actual file/directory is covered by one non-overlapping manifest unit, each
 `archivePath` is derived from its `livePath`, and every unit's type, size, and
 SHA-256 match the staged bytes. The producer does NOT run the disk preflight — the export
-orchestrator (Phase 2) sizes the whole export and calls `assertDiskHeadroom`
-before staging; a mid-write `ENOSPC` is the producer's `DiskFullError` backstop.
+orchestrator (Phase 2) preflights the DB before snapshotting, scans the sealed
+requirement set to size Full resources before their first copy, and preflights
+the destination before archive publication. A mid-write `ENOSPC` remains the
+producer's `DiskFullError` backstop for races after those checks.
 
 ### 5.1.1 Manifest contents
 
@@ -237,17 +239,17 @@ by one SHA-256 (`hashDirectoryUnit`). The producer (over the staged tree) and
 admission (over the extracted tree) compute the identical digest via one shared
 scanner (`dirScan.ts`), so they can never disagree on membership or order:
 
-- the unit's **regular files only** — symlink/special nodes and a symlinked root
-  are rejected; **every** relative path (files *and* directories) must pass the
-  Phase-1a portable-path rules and share ONE case/NFC-collision namespace (so an
-  empty directory with a reserved/overlong/colliding name is rejected too); the
-  shared per-entry / total-byte / path depth+length ceilings and an **entry count
-  that includes directory entries** apply during the scan;
-- files sorted by their POSIX relative path (UTF-8 byte order);
-- each file framed **unambiguously** and concatenated into the digest as
-  `u64be(len(relPath)) ‖ relPath ‖ u64be(byteLen(content)) ‖ content`, where
-  `u64be` is an 8-byte big-endian length — the length prefixes make it impossible
-  to shift a path/content boundary to forge a colliding tree.
+- the unit's **directories and regular files** — symlink/special nodes and a
+  symlinked root are rejected; **every** relative path passes the Phase-1a
+  portable-path rules and shares ONE case/NFC-collision namespace, so nested
+  empty directories are both transported and authenticated; the shared
+  per-entry / total-byte / path depth+length ceilings and an **entry count that
+  includes directory entries** apply during the scan;
+- directories and files each sorted by their POSIX relative path (UTF-8 byte order);
+- each directory framed as `"D" ‖ u64be(len(relPath)) ‖ relPath`, followed by
+  each file framed as
+  `"F" ‖ u64be(len(relPath)) ‖ relPath ‖ u64be(byteLen(content)) ‖ content`;
+  type tags and length prefixes make every boundary unambiguous.
 
 Node metadata identity uses **bigint** stat (`dev`/`ino`/`size`/`mtimeNs`/`ctimeNs`)
 so a same-size fast rewrite or a metadata-only change is observable to a re-scan.
@@ -270,6 +272,9 @@ write:
 - Entry count, uncompressed size, compression ratio, or per-entry limit violations.
 - Hash/size mismatch.
 - Incompatible format, or a migration chain **ahead of** / **forked from** the app's chain.
+- Any post-migration table/index/view/trigger definition that differs from a
+  trusted database built by this app's production migrations. The archive's
+  migration journal is data, not proof of its actual schema.
 - Corrupt SQLite or an invalid staged migration result.
 - A manifest requirement set that differs from the materialized DB's authoritative closure,
   a payload absent from that closure, a payload kind aimed at another kind's root, or a
@@ -286,9 +291,11 @@ failure clean that root without touching siblings.
 A valid **older-chain** staged DB migrates forward with the production migrations and
 passes integrity checks (it is not rejected). The staged DB's actual complete chain must
 first equal the manifest chain, which must be an exact prefix of the bundled chain. After
-migration, admission checkpoint-seals the DB into one main file, requires both WAL/SHM
-sidecars to be absent, and returns final hash/size/chain separately from the unchanged
-original manifest. A **downgraded binary** reading a v2 journal fails safely through strict-version
+migration/custom-SQL refresh, admission compares the complete `sqlite_schema`
+against a trusted in-memory production database before portable sanitation can
+execute any data write. It then checkpoint-seals the DB into one main file,
+requires both WAL/SHM sidecars to be absent, and returns final hash/size/chain
+separately from the unchanged original manifest. A **downgraded binary** reading a v2 journal fails safely through strict-version
 quarantine without touching live data (the journal schema is a `strictObject` with a
 literal version — an unrecognized version parses as corrupt, so the gate cleans up rather
 than misinterpreting; see `RestoreJournalSchema`).
