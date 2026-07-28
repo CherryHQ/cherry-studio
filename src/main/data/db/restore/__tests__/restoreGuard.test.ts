@@ -49,6 +49,9 @@ function v2Journal(state: RestoreJournalV2State): RestoreJournalV2 {
       return { ...base, state, step: 'live-aside' }
     case 'completed':
       return { ...base, state, step: 'integrity-ok', summary: { knowledgeBaseIds: [] } }
+    case 'rollback-armed':
+    case 'rolled-back':
+      return { ...base, state, summary: { knowledgeBaseIds: [] } }
     default:
       return { ...base, state }
   }
@@ -71,21 +74,24 @@ describe('hasPendingRestore', () => {
     it.each([
       ['prepared', true],
       ['armed', true],
-      ['promoting', true]
+      ['promoting', true],
+      ['rollback-armed', true]
     ] as const)('protects storage in the non-terminal state %s', (state, expected) => {
       writeRestoreJournalV2(v2Journal(state))
 
       expect(hasPendingRestore()).toBe(expected)
     })
 
-    it('keeps protecting a completed restore, whose asides survive until acknowledgement', () => {
-      // §6.5: acknowledgement cleanup removes asides FIRST and clears the
-      // journal LAST, so a `completed` journal on disk proves the asides are
-      // still there. Sweeping now would unlink what the rollback path needs.
-      writeRestoreJournalV2(v2Journal('completed'))
+    it.each(['completed', 'rolled-back'] as const)(
+      'keeps protecting a %s restore, whose displaced side survives until acknowledgement',
+      (state) => {
+        // §6.5: acknowledgement cleanup removes artifacts FIRST and clears the
+        // journal LAST, so either state proves displaced data is still owned.
+        writeRestoreJournalV2(v2Journal(state))
 
-      expect(hasPendingRestore()).toBe(true)
-    })
+        expect(hasPendingRestore()).toBe(true)
+      }
+    )
 
     it.each([
       ['failed', false],

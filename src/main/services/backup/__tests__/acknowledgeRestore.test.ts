@@ -102,7 +102,11 @@ describe('acknowledgeRestore', () => {
     // on the whole time, and this call must finish the job rather than throw.
     writeRestoreJournalV2(journal())
 
-    expect(acknowledgeRestore()).toEqual({ acknowledged: true, restoreId: RID, removed: 0 })
+    expect(acknowledgeRestore()).toEqual({
+      acknowledged: true,
+      restoreId: RID,
+      removed: 0
+    })
     expect(readRestoreJournalV2().kind).toBe('none')
   })
 
@@ -133,6 +137,21 @@ describe('acknowledgeRestore', () => {
     expect(existsSync(join(userData, `restore-failed-${RID}.sqlite`))).toBe(false)
   })
 
+  it('acknowledges a completed rollback and releases the displaced restored side', () => {
+    mkdirSync(join(userData, 'restore-staging', RID), { recursive: true })
+    writeFileSync(join(userData, 'restore-staging', RID, 'restored-resource'), 'RESTORED')
+    writeFileSync(join(userData, `restore-failed-${RID}.sqlite`), 'RESTORED-DB')
+    writeRestoreJournalV2(journal({ state: 'rolled-back', step: undefined }))
+
+    expect(acknowledgeRestore()).toMatchObject({
+      acknowledged: true,
+      removed: 2
+    })
+    expect(existsSync(join(userData, `restore-failed-${RID}.sqlite`))).toBe(false)
+    expect(existsSync(join(userData, 'restore-staging', RID))).toBe(false)
+    expect(readRestoreJournalV2().kind).toBe('none')
+  })
+
   it.each(['failed', 'expired'] as const)('acknowledges the terminal state %s too', (state) => {
     writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
     writeRestoreJournalV2(journal({ state, step: undefined, summary: undefined }))
@@ -141,16 +160,25 @@ describe('acknowledgeRestore', () => {
     expect(readRestoreJournalV2().kind).toBe('none')
   })
 
-  it.each(['prepared', 'armed'] as const)('refuses to acknowledge an unfinished restore (%s)', (state) => {
-    writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
-    writeRestoreJournalV2(journal({ state, step: undefined, summary: undefined }))
+  it.each(['prepared', 'armed', 'rollback-armed'] as const)(
+    'refuses to acknowledge an unfinished restore (%s)',
+    (state) => {
+      writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
+      writeRestoreJournalV2(
+        journal({
+          state,
+          step: undefined,
+          ...(state === 'rollback-armed' ? {} : { summary: undefined })
+        })
+      )
 
-    // Releasing protection here would drop the aside a promotion is about to
-    // need, and the sweep would run against a database still being replaced.
-    expect(() => acknowledgeRestore()).toThrow(/has not finished/)
-    expect(existsSync(join(userData, asideRel))).toBe(true)
-    expect(hasPendingRestore()).toBe(true)
-  })
+      // Releasing protection here would drop the aside a promotion is about to
+      // need, and the sweep would run against a database still being replaced.
+      expect(() => acknowledgeRestore()).toThrow(/has not finished/)
+      expect(existsSync(join(userData, asideRel))).toBe(true)
+      expect(hasPendingRestore()).toBe(true)
+    }
+  )
 
   it('refuses to release asides a rollback could not put back yet', () => {
     writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
@@ -187,7 +215,9 @@ describe('acknowledgeRestore', () => {
     writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
     mkdirSync(join(userData, 'restore-aside'), { recursive: true })
     writeFileSync(join(userData, 'restore-aside', 'blob-1'), 'ORIGINAL-BLOB')
-    mkdirSync(join(userData, 'restore-staging', RID, 'files'), { recursive: true })
+    mkdirSync(join(userData, 'restore-staging', RID, 'files'), {
+      recursive: true
+    })
     writeFileSync(join(userData, 'restore-staging', RID, 'files', 'blob-1'), 'RESTORED-BLOB')
     writeRestoreJournalV2(
       journal({

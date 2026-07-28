@@ -43,6 +43,10 @@ const NOTICE_TEXT: Partial<Record<RestoreState, { readonly title: string; readon
     title: 'settings.data.backup_v2.notice.completed_title',
     description: 'settings.data.backup_v2.notice.completed_description'
   },
+  'rolled-back': {
+    title: 'settings.data.backup_v2.notice.rolled_back_title',
+    description: 'settings.data.backup_v2.notice.rolled_back_description'
+  },
   failed: {
     title: 'settings.data.backup_v2.notice.failed_title',
     description: 'settings.data.backup_v2.notice.failed_description'
@@ -76,7 +80,9 @@ export function useBackupRestoreNotice(): void {
           title: t(text.title),
           description: t(text.description)
         })
-        logger.info('Surfaced a restore outcome notice', { state: restore.state })
+        logger.info('Surfaced a restore outcome notice', {
+          state: restore.state
+        })
       })
       .catch((error) => logger.error('Failed to read the backup status', error as Error))
 

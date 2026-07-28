@@ -3,9 +3,9 @@
  * (docs/references/backup/README.md §6.5).
  *
  * Between a completed promotion and this call the restore still owns storage:
- * the replaced database sits in its aside, the orphan sweep stands aside, and a
- * rollback is still physically possible. Acknowledgement is the user saying the
- * restored state is the one they want, so it releases all of that.
+ * either the previous state remains available for rollback, or a completed
+ * rollback retains the displaced restored state. Acknowledgement commits to the
+ * currently live side and releases the other one.
  *
  * ORDER IS THE CONTRACT: asides first, journal LAST. The journal is what holds
  * GC protection, so clearing it before the asides would leave unprotected files
@@ -13,8 +13,8 @@
  * makes a crash anywhere in the middle resumable by simply calling this again —
  * protection stays on until the final unlink.
  *
- * This is crash-rollback protection, not a hidden long-term undo: once
- * acknowledged, the previous database is gone.
+ * This is one bounded undo, not history: once either result is acknowledged,
+ * its displaced database and resources are gone.
  */
 
 import fs from 'node:fs'
@@ -49,7 +49,12 @@ export function acknowledgeRestore(): AcknowledgeResult {
   }
 
   const journal = read.journal
-  if (journal.state === 'prepared' || journal.state === 'armed' || journal.state === 'promoting') {
+  if (
+    journal.state === 'prepared' ||
+    journal.state === 'armed' ||
+    journal.state === 'promoting' ||
+    journal.state === 'rollback-armed'
+  ) {
     // Acknowledging a restore that has not finished would release GC protection
     // over a database the promotion is still about to move.
     throw new RestoreStateError(
@@ -103,6 +108,10 @@ export function acknowledgeRestore(): AcknowledgeResult {
   }
 
   clearRestoreJournalV2()
-  logger.info('Restore acknowledged', { restoreId: journal.restoreId, state: journal.state, removed })
+  logger.info('Restore acknowledged', {
+    restoreId: journal.restoreId,
+    state: journal.state,
+    removed
+  })
   return { acknowledged: true, restoreId: journal.restoreId, removed }
 }

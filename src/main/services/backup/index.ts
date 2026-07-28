@@ -44,3 +44,4 @@ export {
 } from './resourcePaths'
 export { type CoverageReport, measureResourceCoverage, type ResourceCoverage } from './resources/coverage'
 export { type StagedResources, stageResources, type StageResourcesInput } from './resources/stageResources'
+export { armRestoreRollback } from './rollbackRestore'

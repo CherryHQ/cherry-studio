@@ -68,7 +68,16 @@ const RestoreStatusSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('unreadable'), error: z.string() }),
   z.strictObject({
     kind: z.literal('journal'),
-    state: z.enum(['prepared', 'armed', 'promoting', 'completed', 'failed', 'expired']),
+    state: z.enum([
+      'prepared',
+      'armed',
+      'promoting',
+      'completed',
+      'rollback-armed',
+      'rolled-back',
+      'failed',
+      'expired'
+    ]),
     restoreId: z.string(),
     preset: PresetSchema,
     step: z.string().optional(),
@@ -140,6 +149,7 @@ export const backupRequestSchemas = {
   }),
   'backup.cancel_restore': defineRoute({ input: z.void(), output: z.void() }),
   'backup.arm_restore': defineRoute({ input: z.void(), output: z.void() }),
+  'backup.rollback_restore': defineRoute({ input: z.void(), output: z.void() }),
   'backup.acknowledge_restore': defineRoute({ input: z.void(), output: AcknowledgeResultSchema })
 }
 

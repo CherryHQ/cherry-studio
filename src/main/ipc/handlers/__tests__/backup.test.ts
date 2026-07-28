@@ -9,6 +9,7 @@ const service = vi.hoisted(() => ({
   cancelOperation: vi.fn(),
   cancelRestore: vi.fn(),
   armRestore: vi.fn(),
+  rollbackRestore: vi.fn(),
   acknowledgeRestore: vi.fn()
 }))
 const applicationGet = vi.hoisted(() => vi.fn(() => service))
@@ -55,6 +56,7 @@ describe('backupHandlers', () => {
       ['backup.cancel_operation', () => backupHandlers['backup.cancel_operation'](undefined, detachedCtx)],
       ['backup.cancel_restore', () => backupHandlers['backup.cancel_restore'](undefined, detachedCtx)],
       ['backup.arm_restore', () => backupHandlers['backup.arm_restore'](undefined, detachedCtx)],
+      ['backup.rollback_restore', () => backupHandlers['backup.rollback_restore'](undefined, detachedCtx)],
       ['backup.acknowledge_restore', () => backupHandlers['backup.acknowledge_restore'](undefined, detachedCtx)]
     ])('refuses %s from a caller that is not a managed window', async (_route, call) => {
       await expect(call()).rejects.toMatchObject({ code: backupErrorCodes.SENDER_NOT_ALLOWED })
@@ -217,13 +219,19 @@ describe('backupHandlers', () => {
       ['wrong-state' as const, backupErrorCodes.RESTORE_STATE],
       ['unreadable' as const, backupErrorCodes.JOURNAL_UNREADABLE],
       ['recovery-incomplete' as const, backupErrorCodes.RECOVERY_INCOMPLETE],
-      ['relaunch-failed' as const, backupErrorCodes.ARM_FAILED]
+      ['relaunch-failed' as const, backupErrorCodes.ARM_FAILED],
+      ['rollback-unavailable' as const, backupErrorCodes.ROLLBACK_UNAVAILABLE]
     ])('maps a %s refusal to %s', async (code, expected) => {
       service.armRestore.mockImplementation(() => {
         throw new RestoreStateError(code, 'refused')
       })
 
       await expect(backupHandlers['backup.arm_restore'](undefined, ctx)).rejects.toMatchObject({ code: expected })
+    })
+
+    it('delegates an explicit rollback request', async () => {
+      await expect(backupHandlers['backup.rollback_restore'](undefined, ctx)).resolves.toBeUndefined()
+      expect(service.rollbackRestore).toHaveBeenCalledOnce()
     })
 
     it('cancels a prepared restore', async () => {
