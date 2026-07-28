@@ -133,13 +133,28 @@ describe('temporaryChatHandlers', () => {
 
   describe('POST /temporary/topics/:id/persist', () => {
     it('validates and forwards id plus aggregate target', async () => {
-      persistMock.mockReturnValue({ topicId: 'tid-123', messageCount: 4 })
-      const body = { aggregate: { key: 'selection-action:refine', name: 'Refine' } }
+      persistMock.mockReturnValue({
+        topicId: 'tid-123',
+        messageCount: 4,
+        messageIds: ['mid-1', 'mid-2', 'mid-3', 'mid-4']
+      })
+      const body = {
+        aggregate: { key: 'selection-action:refine', name: 'Refine' },
+        provenance: {
+          kind: 'selection-action' as const,
+          actionId: 'refine',
+          selectedText: 'original text'
+        }
+      }
       const result = await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(
         reqEnvelope({ params: { id: 'tid-123' }, body })
       )
       expect(persistMock).toHaveBeenCalledWith('tid-123', body)
-      expect(result).toEqual({ topicId: 'tid-123', messageCount: 4 })
+      expect(result).toEqual({
+        topicId: 'tid-123',
+        messageCount: 4,
+        messageIds: ['mid-1', 'mid-2', 'mid-3', 'mid-4']
+      })
     })
 
     it('rejects an empty aggregate key at the handler boundary', async () => {

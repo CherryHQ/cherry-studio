@@ -130,7 +130,9 @@ describe('ActionGeneral', () => {
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
     state.resetTopic.mockClear()
-    state.persist.mockReset().mockResolvedValue({ topicId: 'aggregate-topic', messageCount: 2 })
+    state.persist
+      .mockReset()
+      .mockResolvedValue({ topicId: 'aggregate-topic', messageCount: 2, messageIds: ['message-1', 'message-2'] })
     state.streamStatus = undefined
     state.temporaryTopicOptions = []
     state.useChatIds = []
@@ -202,6 +204,11 @@ describe('ActionGeneral', () => {
       aggregate: {
         key: 'selection-action:summary',
         name: 'Summary:'
+      },
+      provenance: {
+        kind: 'selection-action',
+        actionId: 'summary',
+        selectedText: 'hello'
       }
     })
 

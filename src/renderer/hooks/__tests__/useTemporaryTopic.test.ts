@@ -12,7 +12,7 @@ describe('useTemporaryTopic', () => {
     vi.mocked(dataApiService.post).mockImplementation(async (path) => {
       if (path === '/temporary/topics') return { id: 'temp-topic-1' } as never
       if (path === '/temporary/topics/temp-topic-1/persist') {
-        return { topicId: 'temp-topic-1', messageCount: 2 } as never
+        return { topicId: 'temp-topic-1', messageCount: 2, messageIds: ['message-1', 'message-2'] } as never
       }
       throw new Error(`Unexpected POST ${path}`)
     })
@@ -70,7 +70,7 @@ describe('useTemporaryTopic', () => {
     vi.mocked(dataApiService.post).mockImplementation(async (path) => {
       if (path === '/temporary/topics') return { id: 'temp-topic-1' } as never
       if (path === '/temporary/topics/temp-topic-1/persist') {
-        return { topicId: 'aggregate-topic-1', messageCount: 2 } as never
+        return { topicId: 'aggregate-topic-1', messageCount: 2, messageIds: ['message-1', 'message-2'] } as never
       }
       throw new Error(`Unexpected POST ${path}`)
     })
@@ -92,6 +92,10 @@ describe('useTemporaryTopic', () => {
       }
     })
     expect(dataApiService.patch).not.toHaveBeenCalled()
-    expect(persisted!).toEqual({ topicId: 'aggregate-topic-1', messageCount: 2 })
+    expect(persisted!).toEqual({
+      topicId: 'aggregate-topic-1',
+      messageCount: 2,
+      messageIds: ['message-1', 'message-2']
+    })
   })
 })

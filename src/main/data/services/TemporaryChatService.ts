@@ -16,6 +16,7 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { topicProvenanceTable } from '@data/db/schemas/topicProvenance'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
@@ -162,7 +163,10 @@ export class TemporaryChatService {
     return structuredClone(rows).map(rowToMessage)
   }
 
-  persist(topicId: string, dto: PersistTemporaryChatDto = {}): { topicId: string; messageCount: number } {
+  persist(
+    topicId: string,
+    dto: PersistTemporaryChatDto = {}
+  ): { topicId: string; messageCount: number; messageIds: string[] } {
     // 1. snapshot-and-clear: take the data out of the Maps immediately so that
     // concurrent handlers can't mutate it while the DB transaction runs.
     const topic = this.topics.get(topicId)
@@ -174,6 +178,13 @@ export class TemporaryChatService {
       throw DataApiErrorFactory.invalidOperation(
         'persist temporary chat',
         'Aggregate persistence requires an assistant-bound temporary topic'
+      )
+    }
+
+    if (dto.provenance && (this.messages.get(topicId)?.length ?? 0) === 0) {
+      throw DataApiErrorFactory.invalidOperation(
+        'persist temporary chat',
+        'Provenance requires at least one persisted message'
       )
     }
 
@@ -251,6 +262,18 @@ export class TemporaryChatService {
         if (msgs.length > 0) {
           tx.update(topicTable).set({ activeNodeId: prevId }).where(eq(topicTable.id, persistentTopicId)).run()
         }
+
+        if (dto.provenance && msgs.length > 0) {
+          tx.insert(topicProvenanceTable)
+            .values({
+              topicId: persistentTopicId,
+              kind: dto.provenance.kind,
+              data: dto.provenance,
+              firstMessageId: msgs[0].id,
+              lastMessageId: msgs[msgs.length - 1].id
+            })
+            .run()
+        }
       })
     } catch (err) {
       // Transaction failed: restore the snapshot so the user can retry.
@@ -271,9 +294,10 @@ export class TemporaryChatService {
       temporaryTopicId: topicId,
       persistentTopicId,
       aggregateKey: dto.aggregate?.key,
+      provenanceKind: dto.provenance?.kind,
       messageCount: msgs.length
     })
-    return { topicId: persistentTopicId, messageCount: msgs.length }
+    return { topicId: persistentTopicId, messageCount: msgs.length, messageIds: msgs.map((message) => message.id) }
   }
 
   private assertAcceptableAppendDto(dto: CreateMessageDto): void {

@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { topicProvenanceTable } from '@data/db/schemas/topicProvenance'
 import { assistantDataService } from '@data/services/AssistantService'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import { topicService } from '@data/services/TopicService'
@@ -181,7 +182,7 @@ describe('TemporaryChatService', () => {
       const m3 = service.appendMessage(topic.id, { role: 'user', data: mainText('again') })
 
       const result = service.persist(topic.id)
-      expect(result).toEqual({ topicId: topic.id, messageCount: 3 })
+      expect(result).toEqual({ topicId: topic.id, messageCount: 3, messageIds: [m1.id, m2.id, m3.id] })
 
       // In-memory store is cleared
       expect(() => service.listMessages(topic.id)).toThrow(/not found/i)
@@ -218,6 +219,54 @@ describe('TemporaryChatService', () => {
 
     it('unknown topicId → notFound', () => {
       expect(() => service.persist('no-such-id')).toThrow(/not found/i)
+    })
+
+    it('persists typed provenance against the exact aggregate message batch', async () => {
+      const assistant = assistantDataService.create({ name: 'Refine Assistant', modelId: null })
+      const topic = service.createTopic({ name: 'selected text', assistantId: assistant.id })
+      const user = service.appendMessage(topic.id, { role: 'user', data: mainText('prompt') })
+      const answer = service.appendMessage(topic.id, { role: 'assistant', data: mainText('refined') })
+
+      const result = service.persist(topic.id, {
+        aggregate: { key: 'selection-action:refine', name: 'Refine' },
+        provenance: {
+          kind: 'selection-action',
+          actionId: 'refine',
+          selectedText: 'selected text'
+        }
+      })
+
+      const [provenance] = await dbh.db
+        .select()
+        .from(topicProvenanceTable)
+        .where(eq(topicProvenanceTable.topicId, result.topicId))
+        .limit(1)
+      expect(provenance).toMatchObject({
+        topicId: result.topicId,
+        kind: 'selection-action',
+        firstMessageId: user.id,
+        lastMessageId: answer.id,
+        data: {
+          kind: 'selection-action',
+          actionId: 'refine',
+          selectedText: 'selected text'
+        }
+      })
+    })
+
+    it('rejects provenance for an empty persistence batch without consuming the temporary topic', () => {
+      const topic = service.createTopic({ name: 'empty' })
+
+      expect(() =>
+        service.persist(topic.id, {
+          provenance: {
+            kind: 'selection-action',
+            actionId: 'refine',
+            selectedText: 'selected text'
+          }
+        })
+      ).toThrow(/at least one persisted message/i)
+      expect(service.hasTopic(topic.id)).toBe(true)
     })
 
     it('persisted topic has a non-empty fractional-indexing orderKey', async () => {

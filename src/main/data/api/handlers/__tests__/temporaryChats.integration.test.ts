@@ -95,7 +95,11 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
     const persistResult = unwrap<PersistTemporaryChatResponse>(
       await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(req({ params: { id: topic.id }, body: {} }))
     )
-    expect(persistResult).toEqual({ topicId: topic.id, messageCount: 4 })
+    expect(persistResult).toEqual({
+      topicId: topic.id,
+      messageCount: 4,
+      messageIds: [m1.id, m2.id, m3.id, m4.id]
+    })
 
     const [persistedTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
     expect(persistedTopic?.assistantId).toBe(assistant.id)

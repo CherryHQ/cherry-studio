@@ -136,13 +136,31 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
       aggregate: {
         key: `selection-action:${action.id}`,
         name: historyTopicName
-      }
+      },
+      ...(action.selectedText?.trim()
+        ? {
+            provenance: {
+              kind: 'selection-action' as const,
+              actionId: action.id,
+              selectedText: action.selectedText
+            }
+          }
+        : {})
     }).catch((error) => {
       persistedTopicRef.current = null
       logger.error('Failed to persist selection assistant topic', error as Error)
       toast.error(t('common.save_failed'))
     })
-  }, [action.id, historyTopicName, persist, shouldSaveToAssistantHistory, status, t, temporaryTopicId])
+  }, [
+    action.id,
+    action.selectedText,
+    historyTopicName,
+    persist,
+    shouldSaveToAssistantHistory,
+    status,
+    t,
+    temporaryTopicId
+  ])
 
   const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => liveAssistants.at(-1), [liveAssistants])
 

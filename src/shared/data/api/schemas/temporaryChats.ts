@@ -30,7 +30,18 @@ export interface PersistTemporaryChatResponse {
   topicId: string
   /** Number of messages written to the persistent DB */
   messageCount: number
+  /** Ordered ids of the messages written by this persistence batch. */
+  messageIds: string[]
 }
+
+export const TemporaryChatProvenanceSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('selection-action'),
+    actionId: z.string().trim().min(1).max(128),
+    selectedText: z.string().trim().min(1)
+  })
+])
+export type TemporaryChatProvenance = z.infer<typeof TemporaryChatProvenanceSchema>
 
 export const PersistTemporaryChatSchema = z.strictObject({
   aggregate: z
@@ -40,7 +51,8 @@ export const PersistTemporaryChatSchema = z.strictObject({
       /** Initial topic name. Existing aggregate topic names are preserved. */
       name: TopicNameSchema
     })
-    .optional()
+    .optional(),
+  provenance: TemporaryChatProvenanceSchema.optional()
 })
 export type PersistTemporaryChatDto = z.infer<typeof PersistTemporaryChatSchema>
 
