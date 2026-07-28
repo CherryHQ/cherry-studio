@@ -34,9 +34,11 @@ import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { acknowledgeRestore } from '../acknowledgeRestore'
+import { presentJournalDegradations } from '../degradationReport'
 import { ArchiveAdmissionError } from '../errors'
 import { exportArchive } from '../exportArchive'
 import { armPreparedRestore, prepareRestore } from '../prepareRestore'
+import { driftHooks } from '../sourceDrift'
 
 /**
  * End-to-end proof for Backup v2: export → prepare → arm → preboot promotion →
@@ -256,6 +258,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  driftHooks.afterStagePreVerify = async () => {}
   rmSync(workDir, { recursive: true, force: true })
   ;(application.get('DbService').createSnapshot as unknown as Mock).mockReset()
   vi.restoreAllMocks()
@@ -373,6 +376,44 @@ describe('Full restore, empty target device', () => {
     const read = readRestoreJournalV2()
     if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
     expect(read.journal.summary?.knowledgeBaseIds).toEqual(['kb-1'])
+  })
+})
+
+describe('Full restore with an atomically excluded source unit', () => {
+  it('promotes the complete database, installs stable resources, and leaves the omitted target unit untouched', async () => {
+    seedSourceResources()
+    driftHooks.afterStagePreVerify = async (sourcePath) => {
+      if (sourcePath === join(sourceUserData, 'Data', 'Notes', 'a.md')) {
+        writeFileSync(join(sourceUserData, 'Data', 'Notes', 'changed-during-export.md'), 'DRIFT')
+      }
+    }
+    const archive = await exportFrom('full', 'full-with-exclusion')
+    driftHooks.afterStagePreVerify = async () => {}
+
+    mkdirSync(join(targetUserData, 'Data', 'Notes'), { recursive: true })
+    writeFileSync(join(targetUserData, 'Data', 'Notes', 'a.md'), '# target note')
+
+    activeUserData = targetUserData
+    const preview = await prepareRestore({ archivePath: archive })
+    expect(preview.degradations).toEqual(
+      expect.arrayContaining([{ kind: 'resource:note-root', livePath: 'Data/Notes', reason: 'changed-after-snapshot' }])
+    )
+    expect(preview.resources).toEqual({ install: 5, replace: 0 })
+
+    armPreparedRestore(preview.restoreId)
+    await runRestorePromotionV2()
+
+    expect(query(liveDbPath(), 'SELECT id FROM note WHERE id = ?', 'n-1')).toBeDefined()
+    expect(query(liveDbPath(), 'SELECT key FROM app_state WHERE key = ?', TARGET_MARKER)).toBeUndefined()
+    expect(readFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'utf8')).toBe('SOURCE-BLOB')
+    expect(readFileSync(join(targetUserData, 'Data', 'Notes', 'a.md'), 'utf8')).toBe('# target note')
+    expect(existsSync(join(targetUserData, 'Data', 'Notes', 'changed-during-export.md'))).toBe(false)
+
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
+    expect(presentJournalDegradations(read.journal.degradations ?? [])).toEqual([
+      { code: 'resource-changed', count: 1, paths: ['Data/Notes'] }
+    ])
   })
 })
 
