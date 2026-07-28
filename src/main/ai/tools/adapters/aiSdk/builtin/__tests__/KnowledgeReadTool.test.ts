@@ -41,17 +41,29 @@ type ReadArgs = {
   maxMatches?: number
 }
 
+type StrictReadArgs = Required<ReadArgs>
+
 function callExecute(args: ReadArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
-  const execute = entry.tool.execute as (args: ReadArgs, options: ToolExecutionOptions) => Promise<unknown>
-  return execute(args, {
-    toolCallId: 'tc-1',
-    messages: [],
-    experimental_context: {
-      requestId: 'req-1',
-      knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
-      abortSignal: new AbortController().signal
-    }
-  } as ToolExecutionOptions)
+  const execute = entry.tool.execute as (args: StrictReadArgs, options: ToolExecutionOptions) => Promise<unknown>
+  return execute(
+    {
+      charStart: 0,
+      charEnd: 0,
+      pattern: '',
+      ignoreCase: true,
+      maxMatches: 0,
+      ...args
+    },
+    {
+      toolCallId: 'tc-1',
+      messages: [],
+      experimental_context: {
+        requestId: 'req-1',
+        knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
+        abortSignal: new AbortController().signal
+      }
+    } as ToolExecutionOptions
+  )
 }
 
 function conceptContent(overrides: Record<string, unknown> = {}) {
@@ -78,7 +90,7 @@ describe('kb_read', () => {
   it('builds an entry with the agreed namespace + defer policy and is auto-approved (read-only)', () => {
     expect(entry.name).toBe(KB_READ_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('always')
+    expect(entry.defer).toBe('never')
     // kb_read only reads — the approval carve-out's auto-approve half: no per-call prompt (cf. kb_manage).
     expect(entry.tool.needsApproval).toBeFalsy()
   })
@@ -115,12 +127,24 @@ describe('kb_read', () => {
     })
   })
 
+  it('normalizes strict-path sentinels to read-mode defaults', async () => {
+    readConcept.mockResolvedValue(conceptContent())
+
+    await callExecute({ baseId: 'kb-1', conceptId: 'docs/intro.md' }, { knowledgeBaseIds: ['kb-1'] })
+
+    expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', {
+      charStart: 0,
+      charEnd: undefined
+    })
+    expect(grepConcept).not.toHaveBeenCalled()
+  })
+
   it('reads unscoped when the assistant has no knowledge scope', async () => {
     readConcept.mockResolvedValue(conceptContent())
 
     await callExecute({ baseId: 'kb-1', conceptId: 'docs/intro.md' }, { knowledgeBaseIds: [] })
 
-    expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', { charStart: undefined, charEnd: undefined })
+    expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', { charStart: 0, charEnd: undefined })
   })
 
   it('maps a NOT_FOUND into a steer to re-check the conceptId (not a raw throw)', async () => {

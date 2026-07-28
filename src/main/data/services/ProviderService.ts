@@ -9,11 +9,12 @@
 import { application } from '@application'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
-import { userProviderTable } from '@data/db/schemas/userProvider'
+import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
+import { buildApiFeaturesBaseline, diffApiFeatures } from '@data/services/ProviderRegistryService'
 import {
   clearSingleFileRefTx,
   getLogoFileId,
@@ -28,16 +29,18 @@ import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
 import { providerLogoRef } from '@shared/data/types/file'
+import type { EndpointType } from '@shared/data/types/model'
 import type {
   ApiKeyEntry,
   AuthConfig,
   AuthType,
+  EndpointConfigOverride,
   Provider,
   ProviderSettings,
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
-import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS, EndpointConfigSchema } from '@shared/data/types/provider'
-import { and, asc, eq, sql, type SQLWrapper } from 'drizzle-orm'
+import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
@@ -98,14 +101,47 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
   })
 }
 
-function normalizeEndpointConfigs(
-  endpointConfigs: UserProviderRow['endpointConfigs']
-): UserProviderRow['endpointConfigs'] {
-  if (!endpointConfigs) return endpointConfigs
+/**
+ * Project write-DTO endpoint configs down to the persisted override shape.
+ * Registry-owned fields never reach the row: `adapterFamily` survives only for
+ * custom (preset-less) providers, where it is a legacy relay routing hint
+ * (new-api/gateway) that endpoint-type inference cannot reproduce. Everything
+ * else resolves from the registry at read time (#17096).
+ */
+function projectEndpointConfigOverrides(
+  configs: Partial<Record<EndpointType, EndpointConfigOverride>> | null | undefined,
+  providerId: string,
+  presetProviderId: string | null,
+  storedConfigs?: Partial<Record<EndpointType, StoredEndpointConfigOverride>> | null
+): Partial<Record<EndpointType, StoredEndpointConfigOverride>> | null {
+  if (!configs || Object.keys(configs).length === 0) return null
 
-  return Object.fromEntries(
-    Object.entries(endpointConfigs).map(([endpointType, config]) => [endpointType, EndpointConfigSchema.parse(config)])
-  )
+  // Registry baseline for delta reduction. Renderer PATCHes echo the merged
+  // runtime snapshot, so without this every settings edit would re-freeze
+  // registry baseUrls into the row and defeat the delta.
+  const presetConfigs = getDataService('ProviderRegistryService').getProviderPreset(
+    providerId,
+    ['endpointConfigs'],
+    presetProviderId
+  ).endpointConfigs
+
+  const result: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
+  for (const [key, config] of Object.entries(configs)) {
+    if (!config) continue
+    const ep = key as EndpointType
+    const presetConfig = presetConfigs?.[ep]
+    const override: StoredEndpointConfigOverride = {}
+    if (config.baseUrl !== undefined && config.baseUrl !== presetConfig?.baseUrl) override.baseUrl = config.baseUrl
+    if (presetProviderId === null && storedConfigs?.[ep]?.adapterFamily !== undefined) {
+      override.adapterFamily = storedConfigs[ep].adapterFamily
+    }
+    // Drop entries fully covered by the registry; keep empty entries for
+    // endpoints the registry doesn't declare — key presence marks a
+    // user-configured endpoint and feeds the read-time key union.
+    if (Object.keys(override).length === 0 && presetConfig) continue
+    result[ep] = override
+  }
+  return Object.keys(result).length > 0 ? result : null
 }
 
 /**
@@ -113,10 +149,7 @@ function normalizeEndpointConfigs(
  */
 function rowToRuntimeProvider(row: UserProviderRow): Provider {
   const providerRegistryService = getDataService('ProviderRegistryService')
-  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(
-    row.providerId,
-    row.presetProviderId ?? undefined
-  )
+  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(row.providerId, row.presetProviderId)
 
   // Process API keys (strip actual key values for security)
   // oxlint-disable-next-line no-unused-vars
@@ -128,9 +161,10 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     authType = row.authConfig.type
   }
 
-  // Merge API features
+  // Merge API features: app defaults ← registry baseline ← row delta.
   const apiFeatures: RuntimeApiFeatures = {
     ...DEFAULT_API_FEATURES,
+    ...presetMetadata.apiFeatures,
     ...row.apiFeatures
   }
 
@@ -152,10 +186,15 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(row.providerId))),
     description: presetMetadata.description,
     websites: presetMetadata.websites,
-    // Strip legacy registry-only fields such as `reasoningFormatType`
-    // before persisted connection facts cross into runtime/renderer state.
-    endpointConfigs: normalizeEndpointConfigs(row.endpointConfigs) ?? undefined,
-    defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
+    // Registry-owned connection facts (adapterFamily, modelsApiUrls, the
+    // endpoint-type key set) resolve from the CURRENT registry at read time
+    // (#17096 — the seeder is insert-only, so the row alone goes stale);
+    // the row contributes only the user-owned baseUrl override. Legacy
+    // registry-only fields such as `reasoningFormatType` are stripped first.
+    endpointConfigs:
+      providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
+      undefined,
+    defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,
     authOptional: presetMetadata.authOptional,
@@ -197,12 +236,6 @@ class ProviderService {
       conditions.push(eq(userProviderTable.isEnabled, query.enabled))
     }
 
-    if (query.endpointType !== undefined) {
-      // endpointConfigs is a JSON text column: { "anthropic-messages": {...}, "openai-chat": {...} }
-      // Check if the key exists and is not null
-      conditions.push(sql`json_extract(${userProviderTable.endpointConfigs}, ${'$.' + query.endpointType}) IS NOT NULL`)
-    }
-
     const rows =
       conditions.length > 0
         ? db
@@ -236,10 +269,18 @@ class ProviderService {
   create(dto: CreateProviderDto): Provider {
     assertManagedCherryAiProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
 
-    const endpointConfigs = getDataService('ProviderRegistryService').resolveAdapterFamilies(
+    const endpointConfigs = projectEndpointConfigOverrides(
       dto.endpointConfigs,
+      dto.providerId,
       dto.presetProviderId ?? null
     )
+    const presetMetadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
+      dto.providerId,
+      dto.presetProviderId ?? null
+    )
+    const apiFeatures = diffApiFeatures(dto.apiFeatures, buildApiFeaturesBaseline(presetMetadata.apiFeatures))
+    const defaultChatEndpoint =
+      dto.defaultChatEndpoint !== presetMetadata.defaultChatEndpoint ? (dto.defaultChatEndpoint ?? null) : null
 
     const row = withSqliteErrors(
       () =>
@@ -253,10 +294,10 @@ class ProviderService {
             name: dto.name,
             logoKey: logoCols.logoKey,
             endpointConfigs,
-            defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
+            defaultChatEndpoint,
             apiKeys: dto.apiKeys ?? [],
             authConfig: dto.authConfig ?? null,
-            apiFeatures: dto.apiFeatures ?? null,
+            apiFeatures,
             providerSettings: dto.providerSettings ?? null,
             isEnabled: false
           }
@@ -295,6 +336,8 @@ class ProviderService {
       const [current] = tx
         .select({
           providerSettings: userProviderTable.providerSettings,
+          apiFeatures: userProviderTable.apiFeatures,
+          endpointConfigs: userProviderTable.endpointConfigs,
           isEnabled: userProviderTable.isEnabled,
           presetProviderId: userProviderTable.presetProviderId
         })
@@ -315,19 +358,37 @@ class ProviderService {
       if (logoCols) {
         updates.logoKey = logoCols.logoKey
       }
-      // PATCH replaces endpointConfigs wholesale, and settings UIs (e.g. the
-      // "add endpoint" drawer) send new entries as `{ baseUrl }` only. Backfill
-      // adapterFamily here too — same enrichment as create — so an edit can't
-      // strip the routing signal and drop the provider back to openai-compatible.
+      // PATCH replaces endpointConfigs wholesale; only the user-owned override
+      // shape is persisted — registry-owned fields resolve at read time.
       if (dto.endpointConfigs !== undefined) {
-        updates.endpointConfigs = getDataService('ProviderRegistryService').resolveAdapterFamilies(
+        updates.endpointConfigs = projectEndpointConfigOverrides(
           dto.endpointConfigs,
-          current.presetProviderId
+          providerId,
+          current.presetProviderId,
+          current.endpointConfigs
         )
       }
-      if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
       if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
-      if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
+      const presetMetadata =
+        dto.defaultChatEndpoint !== undefined || dto.apiFeatures !== undefined
+          ? getDataService('ProviderRegistryService').getProviderDisplayMetadata(providerId, current.presetProviderId)
+          : undefined
+      // A renderer may echo the merged runtime value while editing an unrelated
+      // field. Drop a baseline-equal endpoint instead of freezing that registry
+      // default into the row.
+      if (dto.defaultChatEndpoint !== undefined) {
+        updates.defaultChatEndpoint =
+          dto.defaultChatEndpoint === presetMetadata?.defaultChatEndpoint ? null : dto.defaultChatEndpoint
+      }
+      // apiFeatures follows the providerSettings pattern: shallow-merge the
+      // stored delta with the PATCH inside the tx (lost-update-safe), then
+      // reduce against the registry baseline so only real overrides persist.
+      if (dto.apiFeatures !== undefined) {
+        updates.apiFeatures = diffApiFeatures(
+          { ...current.apiFeatures, ...dto.apiFeatures },
+          buildApiFeaturesBaseline(presetMetadata?.apiFeatures)
+        )
+      }
       if (dto.providerSettings !== undefined) {
         updates.providerSettings = {
           ...(current.providerSettings as Partial<ProviderSettings> | null),
@@ -692,7 +753,7 @@ class ProviderService {
       const providerRegistryService = getDataService('ProviderRegistryService')
       if (
         (provider.presetProviderId && provider.presetProviderId === providerId) ||
-        providerRegistryService.isRegistryProvider(providerId)
+        (provider.presetProviderId !== null && providerRegistryService.isRegistryProvider(providerId))
       ) {
         throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
       }

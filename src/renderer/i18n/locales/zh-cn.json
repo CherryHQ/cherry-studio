@@ -1035,7 +1035,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "复制",
       "regenerate": "重新生成",
       "restart": {
         "button": "重启",
@@ -1047,8 +1046,6 @@
     "authHeader": {
       "title": "授权标头"
     },
-    "authHeaderText": "在授权标头中使用：",
-    "configuration": "配置",
     "description": "通过 OpenAI 和 Anthropic 兼容的 HTTP API 暴露 Cherry Studio 的 AI 功能",
     "documentation": {
       "title": "API 文档"
@@ -1056,13 +1053,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "复制 API 密钥",
-        "description": "用于 API 访问的安全认证令牌",
         "label": "API 密钥",
         "placeholder": "API 密钥将自动生成"
       },
       "port": {
-        "description": "网关的 TCP 端口号 (1000-65535)",
-        "helpText": "停止网关以更改端口",
         "label": "端口"
       },
       "url": {
@@ -1071,9 +1065,8 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "API 密钥已复制到剪贴板",
       "apiKeyRegenerated": "API 密钥已重新生成",
-      "notEnabled": "API 网关未启用。",
+      "notEnabled": "请先启动网关，再通过此地址连接。",
       "operationFailed": "API 网关操作失败：",
       "restartError": "重启 API 网关失败：",
       "restartFailed": "API 网关重启失败：",
@@ -1081,8 +1074,7 @@
       "startError": "启动 API 网关失败：",
       "startSuccess": "API 网关启动成功",
       "stopError": "停止 API 网关失败：",
-      "stopSuccess": "API 网关停止成功",
-      "urlCopied": "网关 URL 已复制到剪贴板"
+      "stopSuccess": "API 网关停止成功"
     },
     "status": {
       "running": "运行中",
@@ -2178,7 +2170,7 @@
     "terminal": "终端",
     "terminal_hint": "选择命令执行的终端应用",
     "terminal_placeholder": "选择终端应用",
-    "title": "Code Switch",
+    "title": "编码搭档",
     "tool_parameters": "参数设置",
     "up_to_date": "最新版本",
     "update_options": "更新选项",
@@ -6441,6 +6433,7 @@
       "viewErrorDetails": "查看详情"
     },
     "developer": {
+      "client_id": "客户端 ID",
       "enable_developer_mode": "启用开发者模式",
       "help": "启用开发者模式后，将可以使用调用链功能查看模型调用过程的数据流。更改将在重启应用后生效。",
       "title": "开发者模式"
@@ -8137,7 +8130,7 @@
   "title": {
     "apps": "小程序",
     "chat": "对话",
-    "code": "Code Switch",
+    "code": "编码搭档",
     "files": "文件",
     "home": "首页",
     "knowledge": "知识库",

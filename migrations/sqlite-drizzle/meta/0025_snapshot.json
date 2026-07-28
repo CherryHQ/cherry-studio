@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b9f1e103-c3e1-4ed9-8229-1b68f4689aec",
+  "id": "9c1532b1-8e4b-4b06-b7fa-d3f793bd3ffb",
   "prevId": "89e1707b-580e-4d39-8c85-9bd812a65a5b",
   "tables": {
     "agent": {
@@ -2780,13 +2780,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "compaction_summary": {
-          "name": "compaction_summary",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "fts_rowid": {
           "name": "fts_rowid",
           "type": "integer",
@@ -3727,7 +3720,7 @@
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "description": {
@@ -3748,7 +3741,7 @@
           "name": "capabilities",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "input_modalities": {
@@ -3767,13 +3760,6 @@
         },
         "endpoint_types": {
           "name": "endpoint_types",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "custom_endpoint_url": {
-          "name": "custom_endpoint_url",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3804,9 +3790,8 @@
           "name": "supports_streaming",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": true
+          "notNull": false,
+          "autoincrement": false
         },
         "reasoning": {
           "name": "reasoning",
@@ -3867,13 +3852,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "user_overrides": {
-          "name": "user_overrides",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -3924,7 +3902,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "user_model_custom_config_check": {
+          "name": "user_model_custom_config_check",
+          "value": "\"user_model\".\"preset_model_id\" IS NOT NULL OR (\"user_model\".\"name\" IS NOT NULL AND \"user_model\".\"capabilities\" IS NOT NULL AND \"user_model\".\"supports_streaming\" IS NOT NULL)"
+        }
+      }
     },
     "user_provider": {
       "name": "user_provider",

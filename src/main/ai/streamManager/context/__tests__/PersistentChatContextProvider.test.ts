@@ -7,6 +7,7 @@ import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -125,6 +126,40 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
+  it('restores the composer-selected knowledge bases when regenerating a response', async () => {
+    const knowledgeBaseIds = ['kb-selected-this-turn']
+    const submitted = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        userMessageParts: [
+          { type: 'text', text: 'search my selected knowledge base' },
+          { type: 'data-knowledge-scope', data: { baseIds: knowledgeBaseIds } }
+        ]
+      },
+      { hasLiveStream: false }
+    )
+    const userMessageId = submitted.userMessageId!
+
+    expect(getKnowledgeBaseIdsFromParts(messageService.getById(userMessageId).data.parts ?? [])).toEqual(
+      knowledgeBaseIds
+    )
+
+    const regenerated = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: userMessageId
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(regenerated.models[0].request.knowledgeBaseIds).toEqual(knowledgeBaseIds)
+  })
+
   it('steer-continuation: opens an assistant turn under the steer user row with a reminder-wrapped prompt', async () => {
     // u1 → a1 → u2, where u2 is the steer the user sent mid-turn (child of the assistant row).
     await dbh.db.insert(messageTable).values({
@@ -132,7 +167,12 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       parentId: 'a1',
       topicId: 'topic-1',
       role: 'user',
-      data: { parts: [{ type: 'text', text: 'actually do X instead' }] },
+      data: {
+        parts: [
+          { type: 'text', text: 'actually do X instead' },
+          { type: 'data-knowledge-scope', data: { baseIds: ['kb-selected-for-steer'] } }
+        ]
+      },
       status: 'success',
       siblingsGroupId: 0,
       modelId: MODEL_ID,
@@ -149,6 +189,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
 
     expect(resolveAssistantModelId).not.toHaveBeenCalled()
     expect(resolveModels).toHaveBeenLastCalledWith([MODEL_ID], MODEL_ID)
+    expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-selected-for-steer'])
 
     // A fresh assistant placeholder is created under u2 — no new user row.
     const children = messageService.getChildrenByParentId('u2')
@@ -371,7 +412,12 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
           parentId: null,
           topicId: 'topic-1',
           role: 'user',
-          data: { parts: [{ type: 'text', text: 'run the tool' }] },
+          data: {
+            parts: [
+              { type: 'text', text: 'run the tool' },
+              { type: 'data-knowledge-scope', data: { baseIds: ['kb-selected-for-approved-tool'] } }
+            ]
+          },
           status: 'success',
           siblingsGroupId: 0,
           createdAt: 100,
@@ -489,6 +535,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe(ANCHOR_MODEL_ID)
     expect(prepared.models[0].request.messageId).toBe('a1')
+    expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-selected-for-approved-tool'])
 
     // No placeholder row was created — the path to the anchor is unchanged.
     const afterCount = messageService.getPathToNode('a1').length

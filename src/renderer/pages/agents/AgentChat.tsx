@@ -7,10 +7,8 @@ import {
 } from '@renderer/components/chat/panes/Shell'
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import type { PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
-import type { ConversationCenterSlot } from '@renderer/components/chat/shell/ConversationPageShell'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
@@ -20,6 +18,7 @@ import {
   AgentConversationControls,
   type AgentConversationControlsProps
 } from '@renderer/components/composer/variants/agent/AgentConversationControls'
+import { MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -28,6 +27,7 @@ import { type AgentSessionSource, useUpdateSession } from '@renderer/hooks/agent
 import { useModelById } from '@renderer/hooks/useModel'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
+import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -36,7 +36,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
-import { lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChatMain from './AgentChatMain'
@@ -49,11 +49,6 @@ import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgent
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
-const MissingAgentHomeComposer = lazy(() =>
-  import('@renderer/components/composer/variants/AgentComposer').then((module) => ({
-    default: module.MissingAgentHomeComposer
-  }))
-)
 
 function getNewSessionWorkspaceDefaults(
   session: AgentSessionEntity
@@ -204,26 +199,7 @@ const AgentChat = ({
   const conversationState = sessionSnapshot ? 'ready' : isInitializing ? 'pending' : 'unavailable'
   const sessionAgentId = sessionSnapshot?.agentId ?? null
   const sendableAgentId = activeAgent && sessionAgentId ? sessionAgentId : undefined
-  const composerContextKey = sessionSnapshot && visibleAgentId ? `${sessionSnapshot.id}:${visibleAgentId}` : null
-  const composerContextResolved = !isActiveAgentLoading && (!activeAgent?.model || !isActiveModelLoading)
-  const [resolvedComposerContextKey, setResolvedComposerContextKey] = useState<string | null>(() =>
-    composerContextResolved ? composerContextKey : null
-  )
-  // Adjust during render (not in an effect) so a cached agent/model resolves in
-  // the same pass and the composer never paints a one-frame loading skeleton on
-  // plain session switches.
-  const nextResolvedComposerContextKey = !composerContextKey
-    ? null
-    : composerContextResolved
-      ? composerContextKey
-      : resolvedComposerContextKey === composerContextKey
-        ? resolvedComposerContextKey
-        : null
-  if (nextResolvedComposerContextKey !== resolvedComposerContextKey) {
-    setResolvedComposerContextKey(nextResolvedComposerContextKey)
-  }
-  const isComposerContextLoading = Boolean(composerContextKey && nextResolvedComposerContextKey !== composerContextKey)
-  const composerAgentId = isComposerContextLoading ? undefined : sendableAgentId
+  const composerAgentId = isActiveAgentLoading ? (sessionAgentId ?? undefined) : sendableAgentId
   const shouldFetchSessionHistoryOnMount = Boolean(
     sessionSnapshot &&
       (activeSessionSource === 'query' ||
@@ -375,7 +351,6 @@ const AgentChat = ({
   } else if (!sessionSnapshot && missingAgentSelection) {
     const composer = !isMultiSelectMode ? (
       <ConversationComposerSlot
-        scopeKey="missing-agent-selection"
         fallback={
           <MissingAgentHomeComposer
             onAgentChange={onMissingAgentSelectionAgentChange}
@@ -443,7 +418,7 @@ const AgentChat = ({
         runtime={runtime}
         homeWelcomeText={t('agent.home.welcome_title')}
         agentId={composerAgentId}
-        agentLoading={isComposerContextLoading}
+        composerPending={isActiveAgentLoading || isActiveModelLoading}
         activeAgent={activeAgent}
         activeModel={activeModel}
         workspaceWarning={workspaceWarning}
@@ -493,7 +468,7 @@ interface AgentChatSessionCenterProps {
   runtime: AgentChatRuntimeState
   homeWelcomeText?: string
   agentId?: string
-  agentLoading: boolean
+  composerPending: boolean
   activeAgent: GetAgentResponse | undefined
   activeModel?: Model
   workspaceWarning?: string
@@ -509,7 +484,7 @@ const AgentChatSessionCenter = ({
   runtime,
   homeWelcomeText,
   agentId,
-  agentLoading,
+  composerPending,
   activeAgent,
   activeModel,
   workspaceWarning,
@@ -522,7 +497,6 @@ const AgentChatSessionCenter = ({
   const composer = (
     <AgentComposerSlot
       agentId={agentId}
-      agentLoading={agentLoading}
       activeAgent={activeAgent}
       activeModel={activeModel}
       workspaceWarning={workspaceWarning}
@@ -533,7 +507,7 @@ const AgentChatSessionCenter = ({
       captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       stop={runtime.stop}
       isStreaming={runtime.isPending}
-      sendDisabled={false}
+      sendDisabled={composerPending}
       onCreateEmptySession={onCreateEmptySession}
       composerContext={runtime.composerContext}
     />

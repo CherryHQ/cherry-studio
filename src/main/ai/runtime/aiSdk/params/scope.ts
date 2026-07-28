@@ -29,6 +29,7 @@ export type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
 export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
   readonly providerId: T
+  readonly providerOptionsKey: string
   readonly providerSettings: AppProviderSettingsMap[T]
   readonly modelId: string
 }
