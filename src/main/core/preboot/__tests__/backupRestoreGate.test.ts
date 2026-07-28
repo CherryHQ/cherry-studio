@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Shell contract only (the promotion logic and the crash net's journal/aside
@@ -7,31 +11,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * exception: when recovery left no live DB while the aside still holds the
  * user's data, booting on would CREATE a fresh empty database, so the gate
  * must refuse and fail fast instead.
+ *
+ * The v1 park gate is tested against a real filesystem (real journal bytes,
+ * real renames) because preserving files is its entire job; only the v2
+ * promotion below it is mocked.
  */
 
-const journalVersionMock = vi.fn<() => 1 | 2 | 'none' | 'unknown'>()
+let userData = ''
+
+vi.mock('@application', () => ({
+  application: {
+    getPath: vi.fn((key: string, filename?: string) => {
+      const bases: Record<string, string> = {
+        'app.userdata': userData,
+        'app.database.file': join(userData, 'Data', 'cherrystudio.sqlite'),
+        'feature.backup.restore.file': join(userData, 'Data', 'restore-journal.json')
+      }
+      const base = bases[key]
+      if (!base) throw new Error(`Unexpected path key in backupRestoreGate test: ${key}`)
+      return filename ? join(base, filename) : base
+    })
+  }
+}))
+
 const runRestorePromotionMock = vi.fn<() => Promise<void>>()
 const markRestoreFailedAfterCrashMock = vi.fn<() => void>()
 const isLiveDbStrandedMock = vi.fn<() => boolean>()
 const isRestoreRollbackPendingMock = vi.fn<() => boolean>()
-
-vi.mock('@data/db/restore/restoreJournalV2', () => ({
-  readRestoreJournalFormatVersion: () => journalVersionMock()
-}))
-
-const runRestorePromotionV1Mock = vi.fn<() => Promise<void>>()
-const markRestoreFailedAfterCrashV1Mock = vi.fn<() => void>()
-const clearConvergedV1RestoreMock = vi.fn<() => void>()
-const isLiveDbStrandedV1Mock = vi.fn<() => boolean>()
-const isRestoreRecoveryPendingV1Mock = vi.fn<() => boolean>()
-
-vi.mock('@data/db/restore/restorePromotionV1Compat', () => ({
-  runRestorePromotion: () => runRestorePromotionV1Mock(),
-  markRestoreFailedAfterCrash: () => markRestoreFailedAfterCrashV1Mock(),
-  clearConvergedV1Restore: () => clearConvergedV1RestoreMock(),
-  isLiveDbStranded: () => isLiveDbStrandedV1Mock(),
-  isRestoreRecoveryPending: () => isRestoreRecoveryPendingV1Mock()
-}))
 
 vi.mock('@data/db/restore/restorePromotionV2', () => ({
   runRestorePromotionV2: () => runRestorePromotionMock(),
@@ -42,48 +48,100 @@ vi.mock('@data/db/restore/restorePromotionV2', () => ({
 
 import { runBackupRestoreGate } from '../backupRestoreGate'
 
+const journalPath = () => join(userData, 'Data', 'restore-journal.json')
+const parkedPath = () => `${journalPath()}.parked-v1`
+const livePath = () => join(userData, 'Data', 'cherrystudio.sqlite')
+
+/** A v1 journal as the v2 pre-releases wrote it — only `version` is ever read. */
+const V1_JOURNAL_BYTES = JSON.stringify(
+  {
+    version: 1,
+    restoreId: 'restore-abc',
+    createdAt: '2026-07-01T00:00:00.000Z',
+    state: 'staged',
+    db: { promote: 'restore-staging/restore-abc/work.sqlite', aside: 'Data/aside.sqlite' },
+    fileResources: []
+  },
+  null,
+  2
+)
+
+function writeV1Journal(): void {
+  writeFileSync(journalPath(), V1_JOURNAL_BYTES, 'utf8')
+}
+
 beforeEach(() => {
-  journalVersionMock.mockReset()
-  journalVersionMock.mockReturnValue(2)
+  userData = mkdtempSync(join(tmpdir(), 'backup-restore-gate-'))
+  mkdirSync(join(userData, 'Data'), { recursive: true })
+  writeFileSync(livePath(), 'live-db', 'utf8')
+
   runRestorePromotionMock.mockReset()
+  runRestorePromotionMock.mockResolvedValue(undefined)
   markRestoreFailedAfterCrashMock.mockReset()
   isLiveDbStrandedMock.mockReset()
   isLiveDbStrandedMock.mockReturnValue(false)
   isRestoreRollbackPendingMock.mockReset()
   isRestoreRollbackPendingMock.mockReturnValue(false)
-  runRestorePromotionV1Mock.mockReset()
-  markRestoreFailedAfterCrashV1Mock.mockReset()
-  clearConvergedV1RestoreMock.mockReset()
-  isLiveDbStrandedV1Mock.mockReset()
-  isLiveDbStrandedV1Mock.mockReturnValue(false)
-  isRestoreRecoveryPendingV1Mock.mockReset()
-  isRestoreRecoveryPendingV1Mock.mockReturnValue(false)
 })
 
-describe('runBackupRestoreGate', () => {
-  it('dispatches an upgrade-time v1 journal to the v1 recovery bridge and clears it only after convergence', async () => {
-    journalVersionMock.mockReturnValue(1)
-    runRestorePromotionV1Mock.mockResolvedValue(undefined)
+afterEach(() => {
+  rmSync(userData, { recursive: true, force: true })
+})
+
+describe('runBackupRestoreGate — v1 park gate', () => {
+  it('does nothing when no journal exists at all', async () => {
+    await expect(runBackupRestoreGate()).resolves.toBeUndefined()
+
+    expect(existsSync(parkedPath())).toBe(false)
+    expect(runRestorePromotionMock).toHaveBeenCalledOnce()
+  })
+
+  it('parks a v1 journal and boots on when the live database is in place', async () => {
+    writeV1Journal()
 
     await expect(runBackupRestoreGate()).resolves.toBeUndefined()
 
-    expect(runRestorePromotionV1Mock).toHaveBeenCalledOnce()
-    expect(clearConvergedV1RestoreMock).toHaveBeenCalledOnce()
+    expect(existsSync(journalPath())).toBe(false)
+    expect(existsSync(parkedPath())).toBe(true)
+    // Dropping the restore intent must not touch the database it targeted.
+    expect(readFileSync(livePath(), 'utf8')).toBe('live-db')
     expect(runRestorePromotionMock).not.toHaveBeenCalled()
   })
 
-  it('fails closed when an active v1 journal cannot converge', async () => {
-    journalVersionMock.mockReturnValue(1)
-    runRestorePromotionV1Mock.mockRejectedValue(new Error('v1 rename failed'))
-    isRestoreRecoveryPendingV1Mock.mockReturnValue(true)
+  it('parks by rename, so the parked file is the journal byte for byte', async () => {
+    writeV1Journal()
 
-    await expect(runBackupRestoreGate()).rejects.toThrow(/v1 restore recovery is incomplete/)
-    expect(markRestoreFailedAfterCrashV1Mock).toHaveBeenCalledOnce()
+    await runBackupRestoreGate()
+
+    expect(readFileSync(parkedPath())).toEqual(Buffer.from(V1_JOURNAL_BYTES, 'utf8'))
   })
 
-  it('delegates to the promotion logic and skips the crash net on success', async () => {
-    runRestorePromotionMock.mockResolvedValue(undefined)
+  it('refuses to boot and leaves the journal in place when the live database is missing', async () => {
+    writeV1Journal()
+    rmSync(livePath())
 
+    await expect(runBackupRestoreGate()).rejects.toThrow(/refusing to boot into an empty database/)
+
+    // The escape hatch is the journal under its original name: without it, the
+    // build that staged this restore could no longer finish it.
+    expect(readFileSync(journalPath(), 'utf8')).toBe(V1_JOURNAL_BYTES)
+    expect(existsSync(parkedPath())).toBe(false)
+    expect(runRestorePromotionMock).not.toHaveBeenCalled()
+  })
+
+  it('never overwrites an already parked journal', async () => {
+    writeFileSync(parkedPath(), 'parked-earlier', 'utf8')
+    writeV1Journal()
+
+    await expect(runBackupRestoreGate()).resolves.toBeUndefined()
+
+    expect(readFileSync(parkedPath(), 'utf8')).toBe('parked-earlier')
+    expect(readFileSync(`${parkedPath()}.2`, 'utf8')).toBe(V1_JOURNAL_BYTES)
+  })
+})
+
+describe('runBackupRestoreGate', () => {
+  it('delegates to the promotion logic and skips the crash net on success', async () => {
     await expect(runBackupRestoreGate()).resolves.toBeUndefined()
 
     expect(runRestorePromotionMock).toHaveBeenCalledOnce()
