@@ -5226,6 +5226,7 @@
       "label": "Are you sure you want to restore data?"
     },
     "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
+    "messages_paused": "A backup restore is in progress; new messages are paused until it completes.",
     "progress": {
       "completed": "Restore completed",
       "copying_files": "Copying files... {{progress}}%",

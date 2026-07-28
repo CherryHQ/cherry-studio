@@ -28,6 +28,24 @@ const FALLBACK_PROMPT =
 const summaryLocks = new Set<string>()
 const agentSessionRenameLocks = new Set<string>()
 
+// In-flight async naming writes, keyed `topic:${id}#seq` / `agent-session:${id}#seq`.
+// The summary renames are spawned detached (`void backend.afterPersist(...)` in
+// PersistenceListener), so a stream's loopPromise settles BEFORE the rename's DB
+// write lands. AiStreamManager.drainInFlight awaits this registry so a backup
+// restore's write-quiesce verdict cannot miss them. Registration happens
+// synchronously at method entry — a detached spawn is captured before its
+// caller's promise resolves.
+let namingSeq = 0
+const inFlightNamingWrites = new Map<string, Promise<void>>()
+
+function trackNamingWrite(prefix: string, run: () => Promise<void>): Promise<void> {
+  const promise = run()
+  const key = `${prefix}#${++namingSeq}`
+  inFlightNamingWrites.set(key, promise)
+  promise.catch(() => {}).finally(() => inFlightNamingWrites.delete(key))
+  return promise
+}
+
 // New placeholder agent sessions store `''`, matching topic names. Keep the
 // localized values so legacy sessions created before that change still auto-rename.
 // The locale-sync test in TopicNamingService.test.ts should fail when a new
@@ -147,7 +165,18 @@ export class TopicNamingService {
     }
   }
 
-  async maybeRenameFromConversationSummary(
+  maybeRenameFromConversationSummary(
+    topicId: string,
+    assistantId: string | undefined,
+    userMessageId: string,
+    finalMessage: UIMessage
+  ): Promise<void> {
+    return trackNamingWrite(`topic:${topicId}`, () =>
+      this.doMaybeRenameFromConversationSummary(topicId, assistantId, userMessageId, finalMessage)
+    )
+  }
+
+  private async doMaybeRenameFromConversationSummary(
     topicId: string,
     assistantId: string | undefined,
     userMessageId: string,
@@ -249,7 +278,18 @@ export class TopicNamingService {
    *                   AgentSessionRuntimeService from the saved user message.
    * @param finalMessage Accumulated assistant UIMessage for this turn.
    */
-  async maybeRenameAgentSession(
+  maybeRenameAgentSession(
+    agentId: string,
+    sessionId: string,
+    userText: string,
+    finalMessage: UIMessage
+  ): Promise<void> {
+    return trackNamingWrite(`agent-session:${sessionId}`, () =>
+      this.doMaybeRenameAgentSession(agentId, sessionId, userText, finalMessage)
+    )
+  }
+
+  private async doMaybeRenameAgentSession(
     agentId: string,
     sessionId: string,
     userText: string,
@@ -296,6 +336,14 @@ export class TopicNamingService {
     } finally {
       agentSessionRenameLocks.delete(sessionId)
     }
+  }
+
+  /**
+   * Advisory registry of in-flight async naming writes (drain wait-set for
+   * AiStreamManager's write-quiesce). Read-only; entries self-remove on settle.
+   */
+  inFlightWrites(): ReadonlyMap<string, Promise<void>> {
+    return inFlightNamingWrites
   }
 
   private getTopic(topicId: string): Topic | null {
