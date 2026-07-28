@@ -51,6 +51,13 @@ describe('isSafeRelativeSubpath', () => {
     expect(RELATIVE_SUBPATH_LIMITS.maxLength).toBeGreaterThan(0)
   })
 
+  it('rejects malformed UTF-16 before Node aliases it to the replacement character', () => {
+    for (const path of ['a\ud800b', 'a\udfffb', '\ud800/name', 'name/\udfff']) {
+      expect(isSafeRelativeSubpath(path)).toBe(false)
+    }
+    expect(isSafeRelativeSubpath('emoji-😀/file')).toBe(true)
+  })
+
   it('rejects ASCII control characters (incl. 0x1F and DEL)', () => {
     expect(isSafeRelativeSubpath('a\x01b')).toBe(false)
     expect(isSafeRelativeSubpath('a\x1fb')).toBe(false)

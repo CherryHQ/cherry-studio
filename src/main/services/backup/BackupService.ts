@@ -183,9 +183,9 @@ export class BackupService extends BaseService {
     cancelPreparedRestore()
   }
 
-  /** Confirm a prepared restore and relaunch into promotion. */
-  public armRestore(): void {
-    armPreparedRestore()
+  /** Confirm exactly the prepared restore whose preview the user accepted. */
+  public armRestore(restoreId: string): void {
+    armPreparedRestore(restoreId)
   }
 
   /** Restore the data retained before the last completed restore, then relaunch. */

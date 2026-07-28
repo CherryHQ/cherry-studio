@@ -225,8 +225,8 @@ async function retargetFirstPayload(
 /** Prepare, confirm, and let the preboot gate run — the whole restore. */
 async function restoreOnTarget(archivePath: string): Promise<void> {
   activeUserData = targetUserData
-  await prepareRestore({ archivePath })
-  armPreparedRestore()
+  const preview = await prepareRestore({ archivePath })
+  armPreparedRestore(preview.restoreId)
   await runRestorePromotionV2()
 }
 
@@ -300,7 +300,7 @@ describe('Lite restore, cross-device', () => {
     activeUserData = targetUserData
     const preview = await prepareRestore({ archivePath: archive })
     expect(preview.resources).toEqual({ install: 0, replace: 0 })
-    armPreparedRestore()
+    armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
     // Lite is a database-only restore: the blob the restored rows point at is
@@ -330,7 +330,7 @@ describe('Full restore, empty target device', () => {
     expect(preview.preset).toBe('full')
     // Nothing to park on a device that has none of them.
     expect(preview.resources).toEqual({ install: 6, replace: 0 })
-    armPreparedRestore()
+    armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
     expect(readFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'utf8')).toBe('SOURCE-BLOB')
@@ -381,7 +381,7 @@ describe('Full restore, same device with content already there', () => {
     activeUserData = targetUserData
     const preview = await prepareRestore({ archivePath: archive })
     expect(preview.resources).toEqual({ install: 0, replace: 6 })
-    armPreparedRestore()
+    armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
     expect(readFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'utf8')).toBe('SOURCE-BLOB')
@@ -398,8 +398,8 @@ describe('Full restore, same device with content already there', () => {
     writeFileSync(join(sourceUserData, 'Data', 'Notes', 'newer.md'), '# written after the backup')
 
     activeUserData = targetUserData
-    await prepareRestore({ archivePath: archive })
-    armPreparedRestore()
+    const preview = await prepareRestore({ archivePath: archive })
+    armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
     const read = readRestoreJournalV2()
@@ -506,8 +506,8 @@ describe('a crash before the commit boundary', () => {
     activeUserData = targetUserData
     mkdirSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1'), { recursive: true })
     writeFileSync(join(targetUserData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'TARGET-KB')
-    await prepareRestore({ archivePath: archive })
-    armPreparedRestore()
+    const preview = await prepareRestore({ archivePath: archive })
+    armPreparedRestore(preview.restoreId)
 
     // The crash: the marker claims the installs completed while the filesystem
     // still shows them pending. Pre-commit, the filesystem wins and the whole
