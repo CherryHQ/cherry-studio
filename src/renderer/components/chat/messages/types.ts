@@ -29,6 +29,7 @@ export interface MessageUiState {
   foldSelected?: boolean
   multiModelMessageStyle?: string
   useful?: boolean
+  disclosures?: Record<string, boolean>
 }
 
 export interface MessageListSelectionState {
