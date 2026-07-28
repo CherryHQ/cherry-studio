@@ -1655,6 +1655,17 @@ describe('ClaudeCodeRuntimeDriver', () => {
       expect(query.setPermissionMode).not.toHaveBeenCalled()
     })
 
+    it('forwards the requested knowledge scope into the config derivation', async () => {
+      // Without this the reconcile-side forward can be deleted outright and every other test stays
+      // green — the scope would then silently stop being rebuild-signature material on agent updates.
+      const { connection } = await connectWithSnapshot()
+      mocks.deriveConfig.mockClear()
+
+      await connection.reconcile({ modelId: 'claude-code::sonnet' as any, knowledgeBaseIds: ['kb-1'] })
+
+      expect(mocks.deriveConfig).toHaveBeenCalledWith('session-1', 'claude-code::sonnet', 'default', ['kb-1'])
+    })
+
     it('hot-patches live tool-policy facts and advances the baseline', async () => {
       const { connection, query, toolPolicySnapshot } = await connectWithSnapshot()
 

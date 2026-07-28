@@ -689,7 +689,11 @@ const AgentComposerInner = ({
   const workspaceWarning =
     resolvedWorkspaceWarning === null ? undefined : (resolvedWorkspaceWarning ?? detectedWorkspaceWarning)
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
-  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
+  const {
+    bases: allKnowledgeBases,
+    isLoading: isKnowledgeBasesLoading,
+    error: knowledgeBasesError
+  } = useKnowledgeBases()
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
@@ -763,15 +767,20 @@ const AgentComposerInner = ({
   }, [draftTokens])
 
   const selectedKnowledgeBasesScopeKey = `${sessionTopicId}:${agentId}`
-  const { selectableKnowledgeBases, selectedKnowledgeBasesInScope, resolveKnowledgeBaseMarker } =
-    useComposerKnowledgeBaseScope({
-      configuredKnowledgeBaseIds: agent?.knowledgeBaseIds,
-      allKnowledgeBases,
-      isKnowledgeBasesLoading,
-      scopeKey: selectedKnowledgeBasesScopeKey,
-      selectedKnowledgeBases,
-      setSelectedKnowledgeBases
-    })
+  const {
+    selectableKnowledgeBases,
+    selectedKnowledgeBasesInScope,
+    resolveKnowledgeBaseMarker,
+    restoreKnowledgeBaseSelection
+  } = useComposerKnowledgeBaseScope({
+    configuredKnowledgeBaseIds: agent?.knowledgeBaseIds,
+    allKnowledgeBases,
+    isKnowledgeBasesLoading,
+    knowledgeBasesError,
+    scopeKey: selectedKnowledgeBasesScopeKey,
+    selectedKnowledgeBases,
+    setSelectedKnowledgeBases
+  })
   const tokens = useMemo(
     () => [
       ...files.map(agentFileToComposerToken),
@@ -1105,10 +1114,9 @@ const AgentComposerInner = ({
       setText(item.draft.text)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedSkills(nextDraftTokens.map(getSkillFromCachedToken))
-      const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? []
-      setSelectedKnowledgeBases(allKnowledgeBases.filter((base) => knowledgeBaseIds.includes(base.id)))
+      restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
     },
-    [actionsRef, allKnowledgeBases, resetHistoryIndex, setFiles, setSelectedKnowledgeBases, setText]
+    [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
   )
 
   const handleSendDraft = useCallback(

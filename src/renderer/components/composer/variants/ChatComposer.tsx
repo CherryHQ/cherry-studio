@@ -432,7 +432,11 @@ const ChatComposerInner = ({
     updateAssistantSettings
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
-  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
+  const {
+    bases: allKnowledgeBases,
+    isLoading: isKnowledgeBasesLoading,
+    error: knowledgeBasesError
+  } = useKnowledgeBases()
   const { providers: loadedProviders } = useProviders(undefined, { enabled: !externalContextControls })
   const providers = resolvedProviders ?? loadedProviders
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -730,15 +734,20 @@ const ChatComposerInner = ({
     fallbackModel: runtimeModel
   })
 
-  const { selectableKnowledgeBases, selectedKnowledgeBasesInScope, resolveKnowledgeBaseMarker } =
-    useComposerKnowledgeBaseScope({
-      configuredKnowledgeBaseIds: assistant?.knowledgeBaseIds,
-      allKnowledgeBases,
-      isKnowledgeBasesLoading,
-      scopeKey: selectedKnowledgeBasesScopeKey,
-      selectedKnowledgeBases,
-      setSelectedKnowledgeBases
-    })
+  const {
+    selectableKnowledgeBases,
+    selectedKnowledgeBasesInScope,
+    resolveKnowledgeBaseMarker,
+    restoreKnowledgeBaseSelection
+  } = useComposerKnowledgeBaseScope({
+    configuredKnowledgeBaseIds: assistant?.knowledgeBaseIds,
+    allKnowledgeBases,
+    isKnowledgeBasesLoading,
+    knowledgeBasesError,
+    scopeKey: selectedKnowledgeBasesScopeKey,
+    selectedKnowledgeBases,
+    setSelectedKnowledgeBases
+  })
 
   // Single owner of the global draft cache. Runs after ComposerSurface's effects have synced the
   // editor to the current text, so getDraft() serializes the live tokens consistently. Every
@@ -1059,10 +1068,9 @@ const ChatComposerInner = ({
       setText(item.draft.text)
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
-      const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? []
-      setSelectedKnowledgeBases(allKnowledgeBases.filter((base) => knowledgeBaseIds.includes(base.id)))
+      restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
     },
-    [actionsRef, allKnowledgeBases, resetHistoryIndex, setFiles, setSelectedKnowledgeBases, setText]
+    [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
   )
 
   const buildEditedMessageParts = useCallback(

@@ -805,6 +805,16 @@ export class AgentSessionRuntimeService extends BaseService {
    * that gap (e.g. a re-prime re-entering `ensureConnection`) would close the connection and drop the
    * continuation. Mirrors the live-turn test in `applyAgentModelUpdate`. Without a live turn or roll
    * the connection follows the agent's latest model with the default reasoning selection.
+   *
+   * The turn's knowledge selection is frozen for exactly the same reason and on the same schedule.
+   * Note the idle branch's `knowledgeBaseIds: []` means "no per-turn composer selection", NOT "no
+   * knowledge": it is fed through `resolveKnowledgeBaseScope` against the agent's binding below, so a
+   * statically bound agent still serves its full binding while idle. Idle deliberately converges on
+   * the default config — same as `reasoningEffort: 'default'` — so any turn that carried a composer
+   * selection (an unbound agent's whole scope, or a bound agent's narrowing) costs one rebuild once
+   * it goes idle. That is intentional: the next turn's selection is unknowable, and prewarm builds
+   * binding-only scope too, so pinning the last turn's selection would only move the rebuild onto the
+   * next turn that does not repeat it.
    */
   private connectionTarget(entry: AgentSessionRuntimeEntry): AgentSessionConnectionTarget {
     const turn = entry.currentTurn
@@ -1350,8 +1360,17 @@ export class AgentSessionRuntimeService extends BaseService {
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     const modelId = entry.currentTurn?.modelId ?? entry.modelId
     const reasoningEffort = entry.currentTurn?.reasoningEffort ?? 'default'
-    const steerMessage = entry.rollSteerInputs?.[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
-    const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(steerMessage.data.parts ?? []) ?? []
+    const steerInput = entry.rollSteerInputs?.[0]?.message
+    const steerMessage = steerInput ?? createSyntheticUserMessage(entry.sessionId)
+    // A continuation without steer inputs (the defensive synthetic-message branch — a real roll always
+    // carries them) has no message to read a scope from, so inherit the rolled turn's scope like
+    // modelId/reasoningEffort above: the same SDK query keeps streaming with the kb_* tools it was
+    // built for, and claiming `[]` here would make the fold gate and push reconcile compare A2 against
+    // a scope the connection is not actually serving. With a real steer the fold gate has already
+    // proven both effective scopes equal, so reading it back off the message is equivalent.
+    const knowledgeBaseIds = steerInput
+      ? (getKnowledgeBaseIdsFromParts(steerInput.data.parts ?? []) ?? [])
+      : (entry.currentTurn?.knowledgeBaseIds ?? [])
     const headless = entry.rollHeadless === true
     entry.rollSteerInputs = undefined
     entry.rollHeadless = undefined

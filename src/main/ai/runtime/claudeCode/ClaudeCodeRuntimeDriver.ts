@@ -254,10 +254,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
-    // The hook can only inject text. Decline attachments so the host owns them immediately and queues
-    // them as the next SDK turn instead of leaving them in session-scoped state until this turn ends.
-    const hasAttachments = input.message.data?.parts?.some((part) => part.type === 'file') ?? false
-    if (!this.adapter || !this.steerHolder || hasAttachments) return false
+    // The hook can only inject text (`extractSteerText` drops everything else), so accept a steer only
+    // when every part is one we know survives that reduction — fail closed on anything new rather than
+    // silently swallowing it. `data-knowledge-scope` qualifies because the host's fold gate has already
+    // proven the incoming effective scope equals the live turn's, making the part redundant here; a
+    // `file` part does not, so it is declined and the host queues it as the next SDK turn immediately
+    // instead of stranding it in session-scoped state until this turn ends.
+    const isInjectableSteerPart = (part: { type: string }) =>
+      part.type === 'text' || part.type === 'data-knowledge-scope'
+    const canInject = input.message.data?.parts?.every(isInjectableSteerPart) ?? true
+    if (!this.adapter || !this.steerHolder || !canInject) return false
     // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
     // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)

@@ -10,6 +10,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -29,6 +30,8 @@ import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import { buildClaudeCodeSessionSettings, buildSkillWhitelist, type McpServerSnapshotMap } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
+
+const logger = loggerService.withContext('agentSessionWarmup')
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   connectionConfig: ConnectionConfig
@@ -162,9 +165,15 @@ export async function deriveConnectionConfig(
         selectedKnowledgeBaseIds
       )
     }
-  } catch {
+  } catch (error) {
     // Deleted provider/model rows — the connection cannot be rebuilt to a valid target, so it is
-    // invalid rather than merely stale.
+    // invalid rather than merely stale. A knowledge-scope change also routes here on every rebuild
+    // check, so an unexpected throw (missing workspace, skill-whitelist I/O) would otherwise end the
+    // turn as `paused` with no trace at all — log before swallowing.
+    logger.warn('Failed to derive connection config; treating the connection as unroutable', {
+      sessionId,
+      error
+    })
     return unroutable
   }
 }
@@ -212,7 +221,7 @@ async function deriveConnectionConfigFromSnapshot(
     maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
-    knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds).sort(),
+    knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     linkedChannelId
   }
@@ -343,7 +352,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
     credentialsFingerprint: route.credentialsFingerprint,
-    knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds).sort(),
+    knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     settings,
     sdkModelId
   }
