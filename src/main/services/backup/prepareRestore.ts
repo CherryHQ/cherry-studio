@@ -156,6 +156,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
 
   const restoreId = randomUUID()
   let promoted = false
+  let journalWritten = false
   try {
     const preset = admitted.manifest.preset
 
@@ -232,6 +233,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
           }
         : {})
     })
+    journalWritten = true
 
     logger.info('Restore prepared', {
       restoreId,
@@ -241,7 +243,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
       replacing: plan.replace,
       migratedForward: admitted.migratedForward
     })
-    return {
+    const preview = {
       restoreId,
       preset,
       coverage,
@@ -249,13 +251,30 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
       degradations,
       migratedForward: admitted.migratedForward
     }
+    try {
+      await admitted.cleanup()
+    } catch (error) {
+      // The durable journal now owns the promoted DB/resources. A disposable
+      // admission root that was replaced must stay untouched, but its cleanup
+      // failure cannot turn a successful preparation into an archive rejection.
+      logger.warn('Could not remove admission staging after writing the restore journal; preserving it', error as Error)
+    }
+    return preview
   } catch (error) {
     // The staged database is only reachable through the journal; without one it
     // is garbage this operation created and must remove.
-    if (promoted) removeStagedRestore(restoreId)
+    if (promoted && !journalWritten) removeStagedRestore(restoreId)
+    if (journalWritten) {
+      await admitted.cleanup().catch((cleanupError) => {
+        logger.warn(
+          'Could not remove admission staging after writing the restore journal; preserving it',
+          cleanupError as Error
+        )
+      })
+    } else {
+      await admitted.cleanup()
+    }
     throw error
-  } finally {
-    await admitted.cleanup()
   }
 }
 

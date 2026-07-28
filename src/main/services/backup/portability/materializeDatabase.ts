@@ -183,8 +183,9 @@ function preserveUpdatedAt(column: SQLiteColumn): SQL<number> {
 
 /**
  * Sentinel for a JSON column whose stored text is not JSON at all. It matches no
- * capability schema, so every sanitizer reports it malformed and fails that field
- * closed — the same path a well-formed value of the wrong shape takes.
+ * capability schema, so every sanitizer reports it malformed. Executable and
+ * automatic fields fail closed; an agent channel's inert `config` is deliberately
+ * preserved because `is_active = false` blocks I/O and activation validates it.
  */
 const MALFORMED_JSON: unique symbol = Symbol('backup:malformed-json')
 
