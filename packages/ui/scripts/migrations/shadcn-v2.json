@@ -117,7 +117,8 @@
     { "source": "--cs-highlight-foreground", "target": "--highlight-foreground", "strategy": "exact" },
     { "source": "--cs-highlight-accent", "target": "--highlight-accent", "strategy": "exact" },
     { "source": "--cs-chat-canvas", "target": "--chat-canvas", "strategy": "exact" },
-    { "source": "--cs-chat-composer", "target": "--chat-composer", "strategy": "exact" },
+    { "source": "--cs-chat-canvas-solid", "target": "--chat-canvas-solid", "strategy": "exact" },
+    { "source": "--cs-composer-surface", "target": "--composer-surface", "strategy": "exact" },
     { "source": "--cs-chat-user", "target": "--chat-user", "strategy": "exact" },
     {
       "source": "--cs-user-font-family",

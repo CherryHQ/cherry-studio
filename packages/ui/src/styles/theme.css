@@ -311,7 +311,8 @@
   /* ==================== */
   --color-background-subtle: var(--background-subtle);
   --color-chat-canvas: var(--chat-canvas);
-  --color-chat-composer: var(--chat-composer);
+  --color-chat-canvas-solid: var(--chat-canvas-solid);
+  --color-composer-surface: var(--composer-surface);
   --color-border-subtle: var(--border-subtle);
   --color-border-strong: var(--border-strong);
   --color-success: var(--success);

@@ -47,15 +47,20 @@
   /* Stable product domain: conversation surfaces.
    * The conversation is a three-level stack: `--chat-canvas` is the recessed
    * well the messages sit in, the surrounding rails keep `--background`, and
-   * `--chat-composer` / `--chat-user` are the blocks that float above the well.
+   * `--composer-surface` / `--chat-user` are the blocks that float above the well.
    * In light mode the well and the composer are both plain white, so the stack
    * only becomes visible in dark mode.
    *
-   * `--chat-composer` covers EVERY `ComposerSurface` instance on purpose, so
-   * the painting prompt bar lifts off its canvas the same way the chat and
-   * agent composers do. It is deliberately not scoped back to the chat pages. */
+   * `--composer-surface` covers EVERY `ComposerSurface` instance on purpose —
+   * hence the domain-free name — so the painting prompt bar lifts off its page
+   * the same way the chat and agent composers do.
+   *
+   * `--chat-canvas-solid` is the tone `--chat-canvas` resolves to over the
+   * rails in a normal window. Image exports need a concrete fill and have no
+   * window behind them, so they use this instead of the translucent value. */
   --chat-canvas: var(--cs-background);
-  --chat-composer: var(--cs-card);
+  --chat-canvas-solid: var(--cs-background);
+  --composer-surface: var(--cs-card);
 
   /* Stable product domain: user-message surface */
   --chat-user: rgba(0, 0, 0, 0.045);
@@ -75,10 +80,16 @@
   --highlight-accent: var(--cs-amber-800);
 
   /* Stable product domain: conversation surfaces.
-   * Opaque on purpose: the well is content, so it does not participate in the
-   * macOS transparent-window vibrancy the surrounding chrome still shows. */
-  --chat-canvas: oklch(0.191 0 0);
-  --chat-composer: oklch(0.269 0 0);
+   * `--chat-canvas` carries the same 0.55 alpha as `--background`, so the
+   * conversation keeps the macOS transparent-window vibrancy the rest of the
+   * window shows instead of punching an opaque slab through it. Sharing the
+   * alpha also fixes the step: both surfaces composite over the same backdrop,
+   * so the well stays `0.55 × (0.209 − 0.1727)` below the rails whatever is
+   * behind the window — the hierarchy cannot invert on a light wallpaper.
+   * Over the rails in a normal window this lands on `--chat-canvas-solid`. */
+  --chat-canvas: oklch(0.1727 0 0 / 0.55);
+  --chat-canvas-solid: oklch(0.191 0 0);
+  --composer-surface: oklch(0.269 0 0);
 
   /* Stable product domain: user-message surface.
    * Sits between the well and the composer so a sent message never reads as

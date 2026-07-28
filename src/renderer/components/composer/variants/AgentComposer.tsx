@@ -454,7 +454,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
         }>
         {/* Punches the donut hole out of the ring, so it must repaint the composer
             surface it sits on — not `--card`, which no longer matches it. */}
-        <span aria-hidden className="absolute inset-[2px] rounded-full bg-chat-composer" />
+        <span aria-hidden className="absolute inset-[2px] rounded-full bg-composer-surface" />
       </span>
     </Tooltip>
   )

@@ -141,8 +141,9 @@ Use `--destructive` for a dangerous action. Use the `--error*` family for error 
 | Inline code | `--inline-code`, `--inline-code-foreground` | Inline code `background-color` / `color` |
 | References | `--reference`, `--reference-foreground`, `--reference-subtle` | Reference surface, content, and quiet surface variant |
 | Search highlights | `--highlight`, `--highlight-foreground`, `--highlight-accent` | Match surface, content, and active-match surface |
-| Conversation surfaces | `--chat-canvas`, `--chat-composer` | Recessed message-well surface, and the composer surface floating above it |
+| Conversation surfaces | `--chat-canvas`, `--chat-canvas-solid` | Recessed message-well surface (translucent, so it keeps the window's vibrancy), and the tone it resolves to over the rails — image exports have no window behind them and need the solid one |
 | User message | `--chat-user` | User-message surface |
+| Composer | `--composer-surface` | Composer surface floating above its page, in every domain that mounts one (chat, agent, painting) |
 
 Product colors are not automatically Tailwind colors. Only names in `CHERRY_PRODUCT_COLOR_TOKENS` generate
 utilities; custom-CSS domains such as rich text use the matching unprefixed variable directly.
