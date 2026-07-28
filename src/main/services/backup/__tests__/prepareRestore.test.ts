@@ -25,6 +25,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { exportArchive } from '../exportArchive'
 import { armPreparedRestore, cancelPreparedRestore, prepareRestore } from '../prepareRestore'
+import { restoreStagingDurability } from '../stagingDurability'
 
 /**
  * Prepare/cancel/arm, driven with archives this repository's own producer made.
@@ -92,8 +93,10 @@ describe('restore preparation', () => {
         return join(userData, 'Data', 'KnowledgeBase')
       case 'feature.notes.data':
         return join(userData, 'Data', 'Notes')
-      case 'feature.agents.workspaces':
+      case 'feature.agents.data':
         return join(userData, 'Data', 'Agents')
+      case 'feature.agents.system_workspaces':
+        return join(userData, 'Data', 'Agents', 'system')
       case 'feature.agents.skills':
         return join(userData, 'Data', 'Skills')
       default:
@@ -116,7 +119,13 @@ describe('restore preparation', () => {
       .run()
     dbh.db
       .insert(agentWorkspaceTable)
-      .values({ id: 'w-1', name: 'ws', path: join(userData, 'Data', 'Agents', 's-1'), type: 'system', orderKey: 'a' })
+      .values({
+        id: 'w-1',
+        name: 'ws',
+        path: join(userData, 'Data', 'Agents', 'system', 's-1'),
+        type: 'system',
+        orderKey: 'a'
+      })
       .run()
   }
 
@@ -126,7 +135,7 @@ describe('restore preparation', () => {
     writeFileSync(join(userData, 'Data', 'Files', '11111111-1111-4111-8111-111111111111.pdf'), 'blob')
     mkdirSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1'), { recursive: true })
     mkdirSync(join(userData, 'Data', 'Notes'), { recursive: true })
-    mkdirSync(join(userData, 'Data', 'Agents', 's-1'), { recursive: true })
+    mkdirSync(join(userData, 'Data', 'Agents', 'system', 's-1'), { recursive: true })
   }
 
   describe('prepare', () => {
@@ -157,6 +166,18 @@ describe('restore preparation', () => {
       const preview = await prepareRestore({ archivePath })
 
       expect(preview.coverage).toEqual({ available: 3, missing: 1, unverifiable: 0 })
+    })
+
+    it('refuses to write prepared when staged bytes cannot be made durable', async () => {
+      vi.spyOn(restoreStagingDurability, 'syncFile').mockImplementation(() => {
+        throw new Error('simulated fsync failure')
+      })
+
+      await expect(prepareRestore({ archivePath })).rejects.toThrow(/fsync failure/)
+
+      expect(readRestoreJournalV2().kind).toBe('none')
+      expect(readdirSync(join(userData, 'restore-staging'))).toEqual([])
+      expect(readFileSync(join(userData, 'cherrystudio.sqlite'), 'utf8')).toBe('LIVE-DB')
     })
 
     it('writes a prepared journal pointing at a staged database that exists', async () => {
@@ -259,7 +280,7 @@ describe('restore preparation', () => {
       const read = readRestoreJournalV2()
       if (read.kind !== 'ok') throw new Error('expected a prepared journal')
       expect(read.journal.resourceInstalls.map((entry) => entry.live).sort()).toEqual([
-        'Data/Agents/s-1',
+        'Data/Agents/system/s-1',
         'Data/Files/11111111-1111-4111-8111-111111111111.pdf',
         'Data/KnowledgeBase/kb-1',
         'Data/Notes'

@@ -36,9 +36,8 @@ export type BackupPlatform = 'darwin' | 'win32' | 'linux'
  * - `feature.notes.data` ← `note.root_path`. Empty `feature.notes.path` makes the
  *   renderer fall back to this managed root (src/main/ipc/handlers/app.ts:20 →
  *   src/renderer/services/NotesService.ts:122).
- * - `feature.agents.workspaces` ← `agent_workspace.path` for SYSTEM workspaces,
- *   built as `join(getPath('feature.agents.workspaces'), sessionId)`
- *   (src/main/data/services/AgentWorkspaceService.ts:140).
+ * - `feature.agents.system_workspaces` ← `agent_workspace.path` for SYSTEM
+ *   workspaces, built below that registered root by AgentWorkspaceService.
  *
  * Deliberately ABSENT: `feature.files.data` and `feature.knowledgebase.data`
  * (their content is addressed by id, with no absolute path column — the only
@@ -55,7 +54,7 @@ export type BackupPlatform = 'darwin' | 'win32' | 'linux'
  */
 export const REBASABLE_MANAGED_ROOT_KEYS = [
   'feature.notes.data',
-  'feature.agents.workspaces'
+  'feature.agents.system_workspaces'
 ] as const satisfies readonly PathKey[]
 
 export type RebasableManagedRootKey = (typeof REBASABLE_MANAGED_ROOT_KEYS)[number]

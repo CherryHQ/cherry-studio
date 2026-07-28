@@ -28,8 +28,11 @@ the document elaborates the mechanisms that enforce them.
 
 1. **Shared portable DB.** Lite and Full export the same complete portable SQLite
    snapshot. There is no 10/14-domain distinction and no domain stripping.
-2. **Full always installs.** Full installs every archive-declared managed resource. An
-   existing target is moved aside first; target-only paths remain untouched.
+2. **Full installs only the authoritative closure.** After materializing the staged DB,
+   restore recomputes its resource requirements and requires exact
+   `(kind, resourceType, livePath)` agreement with the manifest. Full installs only
+   payloads authorized by that closure. An existing target is moved aside first;
+   target-only paths outside declared directory units remain untouched.
 3. **Lite never touches target files.** Missing resources on the target are *disclosed*,
    not a restore blocker.
 4. **Managed paths rebase; external paths never auto-activate.** Managed absolute paths
@@ -84,9 +87,11 @@ equality; it is diagnostic and never copies or mutates files to repair coverage.
 
 ### 2.2 Full — fixed resource overlay
 
-Full carries the same database plus every portable resource payload its manifest
-declares. Restore replaces the database and installs the resources through a single fixed
-state machine ([§6](#6-journal-v2--promotion)). There is **no** configurable merge, no
+Full carries the same database plus its portable resource payloads. Restore materializes
+that database, recomputes its authoritative resource closure, and rejects the archive unless
+its requirement set agrees exactly; every payload must be a member of that set and each kind
+is bound to one registered root. It then replaces the database and installs the authorized
+resources through a single fixed state machine ([§6](#6-journal-v2--promotion)). There is **no** configurable merge, no
 `SKIP/OVERWRITE/RENAME/FIELD_MERGE` selection, and no database identity map.
 
 Accepted tradeoff: Full does not produce an exact filesystem snapshot when the target
@@ -99,7 +104,8 @@ holds extra paths — target-only files are kept, by product decision.
 | Internal file blobs and authoritative file relationships | `external.*` files and absolute user paths |
 | Knowledge raw/source content (derived indexes rebuilt) | BootConfig and target-device startup choices |
 | Paintings and their internal file closure | Caches, logs, model/toolchain downloads, temp data |
-| Managed Notes bodies | Rebuildable FTS/Knowledge indexes |
+| Managed Notes bodies, including roots with zero sparse `note` state rows | Rebuildable FTS/Knowledge indexes |
+| Agent identity (`SOUL.md`, `USER.md`), memory, and system workspaces | User-selected external workspaces |
 | Local/ZIP Skills when their directory is authoritative | Third-party package state that cannot relocate safely |
 | Other Cherry-owned managed roots explicitly registered by the owning feature | |
 
@@ -159,9 +165,12 @@ release):
 - Journal entries whose live paths are not pairwise distinct, or where one live path is an
   ancestor of another.
 
-Registered-root containment, pairwise-distinctness, non-overlap, and same-filesystem
-eligibility are enforced **twice** — at archive admission and again at journal sealing —
-so resource order is irrelevant and admission is the trust boundary ([§5](#5-archive--manifest-v2)).
+Pairwise-distinctness and non-overlap are enforced at archive admission. After DB
+materialization, restore additionally requires exact agreement between the manifest and the
+DB-derived requirement closure, binds each resource kind to its one registered root, and
+rechecks containment, target type, ancestor safety, and same-filesystem eligibility while
+sealing the journal. Resource order is irrelevant; no archive path becomes an install target
+merely because it falls somewhere under a Cherry-owned root.
 
 ---
 
@@ -259,6 +268,9 @@ write:
 - Hash/size mismatch.
 - Incompatible format, or a migration chain **ahead of** / **forked from** the app's chain.
 - Corrupt SQLite or an invalid staged migration result.
+- A manifest requirement set that differs from the materialized DB's authoritative closure,
+  a payload absent from that closure, a payload kind aimed at another kind's root, or a
+  missing Full payload without its exact disclosed resource degradation.
 
 The ZIP catalog preserves every central-directory record instead of using a name-keyed
 map, so duplicate entries cannot hide one another. Central-directory sizes and compression
@@ -302,10 +314,13 @@ per-entry and total uncompressed bytes, compression ratio, and staging disk head
   install ceiling **unproducible and unadmissible** — the ceilings would contradict each
   other. `maxManifestBytes` is 32 MiB for exactly this reason, and a test builds a manifest at
   the install ceiling to prove the two constants still agree.
+- Before `prepared` is written, restore `fsync`s every staged DB/resource file, then all
+  staging directories bottom-up and the staging parent's entry. A durable journal therefore
+  never names payload bytes that a power loss can discard.
 - Resource-install `fsync`s affected parent directories in **bounded batches** before the
-  global step marker — not once per entry — so preboot install time is bounded by affected
-  directories, not entry count. A ceiling fixture proves this bound; a recorded,
-  non-gating benchmark documents expected preboot time (no flaky wall-clock CI assertion).
+  global step marker — including the parents whose entries create a new
+  `restore-aside/<restoreId>` tree — not once per entry. A ceiling fixture proves this bound;
+  a recorded, non-gating benchmark documents expected preboot time.
 
 ### 5.4 Source-drift detection (export staging)
 
@@ -334,6 +349,7 @@ promotion gate live in
 
 ```text
 prepared → armed → promoting → completed → rollback-armed → rolled-back
+                         ├───────→ reverting → failed
                          └───────→ failed | expired
 ```
 
@@ -341,11 +357,12 @@ prepared → armed → promoting → completed → rollback-armed → rolled-bac
 |---|---|
 | `prepared` | Staged and sealed. **Not** permission to restore — UI can cancel it and clean its staging tree. |
 | `armed` | Durably written *immediately before* `application.relaunch()` on explicit user confirmation. If relaunch initiation fails, the service clears the arm and reports failure. |
-| `promoting` | Preboot is executing; `step` is the durable last-completed global-step marker (compare via `indexOf` on the step-order table, never lexicographically). |
-| `completed` | New DB (and, for Full, all resources) live. Asides retained until the user either acknowledges or explicitly requests rollback. `resourcesIncomplete: true` marks a post-commit install that could not put every unit in place (§6.5). |
+| `promoting` | Preboot is executing; `step` is the durable last-completed global-step marker (compare via `indexOf` on the step-order table, never lexicographically). If either recovery direction cannot converge, this active marker remains and normal boot is refused. |
+| `reverting` | A failure after DB commit durably selected the reverse direction before any reverse move. Resources return first and the old DB last; a crash re-enters this state rather than misclassifying the old DB as a completed forward restore. |
+| `completed` | New DB and every Full resource are live. Asides are retained until the user either acknowledges or explicitly requests rollback. |
 | `rollback-armed` | Durably records explicit rollback consent immediately before relaunch. Preboot must finish the reverse move or fail fast; normal services may not open a mixed old/new state. |
 | `rolled-back` | The pre-restore DB and replaced resources are live again. Displaced restored copies remain operation-owned until acknowledgement. |
-| `failed` | Promotion crash rollback or integrity failure; old DB is live. `recoveryIncomplete: true` marks a rollback that could not put every unit back (§6.5). |
+| `failed` | Promotion rollback or integrity failure finished coherently; the old DB and original resources are live. |
 | `expired` | An **unarmed** `prepared` journal an unrelated restart found; cleaned rather than promoted. |
 
 Only `armed` enters promotion; only `rollback-armed` enters explicit reverse promotion.
@@ -453,6 +470,12 @@ durable `rollback-armed` direction. If any reverse move cannot converge, preboot
 rather than open normal services on a mixed DB/resource state. There is no merge and no redo
 chain.
 
+**A post-commit reverse direction is durable before reverse mutation.** A failed integrity
+check first writes `reverting`; only then may resources return and the old DB move back. If
+any move or the final `failed` write is interrupted, preboot retries under `reverting` and
+refuses normal startup until the old DB/resource state is coherent. The DB move is the
+reverse commit boundary, so a crash after it can never be interpreted as forward success.
+
 **The terminal state is durable before anything is deleted.** Every terminal outcome writes
 the journal **first** and drops the staging tree **second**, and a terminal write that fails
 keeps the tree (making the write retryable) instead of proceeding. The reverse order costs
@@ -468,8 +491,8 @@ quarantine** instead of permanently unlinking anything based on the newly restor
 `orphanSweep` stands aside on `hasPendingRestore()`
 (`src/main/services/file/internal/orphanSweep.ts`), which lives in
 [`src/main/data/db/restore/restoreGuard.ts`](../../../src/main/data/db/restore/restoreGuard.ts)
-and covers `prepared`, `armed`, `promoting`, `completed`, `rollback-armed`, and
-`rolled-back` recovery.
+and covers `prepared`, `armed`, `promoting`, `reverting`, `completed`,
+`rollback-armed`, and `rolled-back` recovery.
 
 **A completed restore presents exactly one reversible choice.** Before acknowledgement the
 user may explicitly return to the immediately preceding DB/resource state. The rollback is
@@ -482,25 +505,13 @@ state; from `rolled-back` it removes the displaced restored state. Cleanup idemp
 removes operation-owned artifacts **first**, clears the journal **last**, then releases GC
 protection. A crash before the last step leaves protection active and cleanup resumable.
 
-**An incomplete rollback keeps its asides.** `failed` normally holds nothing — everything went
-back where it came from. When the rollback could **not** finish (a unit the OS refused to
-move), its asides are still the only copy of what they hold, so the journal records
-`recoveryIncomplete: true` and that fact drives all three readers: `hasPendingRestore()` keeps
-protecting the files, acknowledgement **refuses** (releasing them would delete exactly what the
-repair needs), and the next boot **retries** the rollback before reporting — clearing the marker
-only once every unit is back, and deliberately leaving the staging tree for acknowledgement to
-collect (per §6.4, removing it first is what poisons the recovery triple). The retry is what
-keeps the refusal temporary rather than an unbounded hold.
-
-**An incomplete post-commit install keeps its staging tree.** The mirror image, past the
-commit boundary: the database is live, so there is no rollback left to offer, but a unit that
-did not reach its installed slot has its new copy only in the staging tree and its old one only
-in its aside. The journal records `resourcesIncomplete: true` on `completed`, which keeps the
-tree (`finalizeCompleted` skips the removal), **refuses** acknowledgement — it would delete
-both copies and leave that unit with neither — and makes the next boot **retry** the
-committed-direction repair, clearing the marker first and dropping the tree only after. A
-completed restore therefore never reports unqualified success while a file is still out of
-place.
+**No newly executed path terminalizes an incomplete direction.** A blocked pre-commit
+rollback remains `promoting`; a blocked post-commit reverse remains `reverting`; a blocked
+committed install remains `promoting`. The gate fails the launch and retries before normal
+services can open either database. The schema still accepts the older defensive
+`failed.recoveryIncomplete` and `completed.resourcesIncomplete` markers so an interrupted
+development build can be repaired rather than quarantined; those markers retain their asides,
+refuse acknowledgement, and retry at boot, but current execution does not create them.
 
 **The user must be asked, not waited on.** Because protection holds double storage and keeps
 orphan sweep standing aside, an unacknowledged `completed` restore that is never revisited

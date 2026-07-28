@@ -5874,6 +5874,7 @@
             "failed": "The last restore did not complete. Your previous data was kept.",
             "prepared": "A restore is prepared.",
             "promoting": "A restore is in progress.",
+            "reverting": "The failed restore is being reversed.",
             "rollback_armed": "The restore will be rolled back at the next start.",
             "rolled_back": "The restore was rolled back. Your previous data is active again."
           },

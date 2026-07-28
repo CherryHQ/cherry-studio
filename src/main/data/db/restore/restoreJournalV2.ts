@@ -151,10 +151,11 @@ const commonFields = {
 
 /**
  * Discriminated on `state`. `prepared`/`armed` carry no step (promotion has not
- * begun); `promoting` requires the last-completed step. A `completed` restore may
- * become `rollback-armed` only by explicit user consent; `rolled-back` is its
- * reverse terminal. States that passed the DB commit carry the durable `summary`
- * the post-promotion reindex scheduler consumes; `failed`/`expired` carry an
+ * begun); `promoting` requires the last-completed step. A post-commit failure
+ * writes `reverting` before reverse mutation. A `completed` restore may become
+ * `rollback-armed` only by explicit user consent; `rolled-back` is its reverse
+ * terminal. Successful states carry the durable `summary` the post-promotion
+ * reindex scheduler consumes; `failed`/`expired` carry an
  * optional terminal `reason` for post-boot reporting. `strictObject` +
  * `version: z.literal(2)` make a downgraded v1 parser reject a v2 journal (and
  * vice-versa): unknown version/fields → parse failure → the gate quarantines
@@ -167,6 +168,12 @@ const journalVariants = [
     ...commonFields,
     state: z.literal('promoting'),
     step: PromotionStepSchema
+  }),
+  z.strictObject({
+    ...commonFields,
+    state: z.literal('reverting'),
+    step: PromotionStepSchema,
+    reason: z.string().min(1)
   }),
   z.strictObject({
     ...commonFields,
