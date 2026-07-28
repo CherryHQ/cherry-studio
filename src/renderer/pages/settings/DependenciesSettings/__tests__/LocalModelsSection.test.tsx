@@ -96,7 +96,8 @@ describe('LocalModelsSection', () => {
     })
     expect(cancelButton).toHaveAttribute('data-variant', 'ghost')
     expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
-    expect(cancelButton).toHaveClass('group', 'size-7', 'shrink-0', 'rounded-full')
+    expect(cancelButton).toHaveClass('group', 'size-7', 'rounded-full')
+    expect(cancelButton.parentElement).toHaveClass('relative', 'ml-auto', 'size-7', 'shrink-0')
     expect(cancelButton.querySelector('svg')).toHaveClass(
       'opacity-0',
       'group-hover:opacity-100',
@@ -104,7 +105,10 @@ describe('LocalModelsSection', () => {
     )
 
     act(() => progressHandlers.forEach((h) => h({ model: 'embedding', status: 'downloading', percent: 45 })))
-    expect(within(embeddingCard()).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '45')
+    const progressbar = within(embeddingCard()).getByRole('progressbar')
+    expect(progressbar).toHaveAttribute('aria-valuenow', '45')
+    expect(cancelButton).not.toContainElement(progressbar)
+    expect(progressbar.parentElement).toBe(cancelButton.parentElement)
     expect(within(embeddingCard()).getByTestId('circular-progress')).toHaveAttribute('data-value', '45')
 
     fireEvent.click(cancelButton)

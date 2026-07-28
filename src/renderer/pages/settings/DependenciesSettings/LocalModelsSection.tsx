@@ -157,12 +157,15 @@ const ModelCard: FC<ModelCardProps> = ({
             )}
             {!ready &&
               (downloading ? (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="group relative ml-auto size-7 shrink-0 rounded-full"
-                  onClick={onCancel}
-                  aria-label={t('settings.dependencies.localModels.cancel')}>
+                <div className="relative ml-auto size-7 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="group size-7 rounded-full"
+                    onClick={onCancel}
+                    aria-label={t('settings.dependencies.localModels.cancel')}>
+                    <X className="size-2.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+                  </Button>
                   <span
                     role="progressbar"
                     aria-label={t('settings.dependencies.localModels.status.downloading')}
@@ -172,8 +175,7 @@ const ModelCard: FC<ModelCardProps> = ({
                     className="pointer-events-none absolute inset-0 flex items-center justify-center">
                     <CircularProgress value={percent} size={24} strokeWidth={2} />
                   </span>
-                  <X className="relative size-2.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-                </Button>
+                </div>
               ) : (
                 <Button
                   variant="outline"
