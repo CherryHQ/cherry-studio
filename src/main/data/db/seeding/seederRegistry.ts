@@ -10,9 +10,8 @@ import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
 /**
  * All seeders in execution order.
  *
- * Keep CherryAiDefaultModelSeeder before CherryAssistantSeeder and DefaultAssistantSeeder:
- * both seeded entities may reference the CherryAI default model (FK to user_model),
- * so the model row must exist first.
+ * Keep CherryAiDefaultModelSeeder before DefaultAssistantSeeder because the
+ * seeded assistant references the CherryAI default model (FK to user_model).
  *
  * To add a new seeder: create an ISeeder class, add it to this array.
  * No changes to DbService needed.
