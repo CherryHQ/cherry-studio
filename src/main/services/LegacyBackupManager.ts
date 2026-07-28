@@ -578,6 +578,11 @@ class BackupManager {
    * @param backupPath - Path to the backup ZIP file
    */
   async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<void> {
+    await this.stageRestore(backupPath)
+    application.relaunch()
+  }
+
+  private async stageRestore(backupPath: string): Promise<void> {
     return this.operationMutex.runExclusive(() => this.restoreUnlocked(backupPath))
   }
 
@@ -794,8 +799,7 @@ class BackupManager {
         journalCommitted = true
 
         onProgress({ stage: 'completed', progress: 100, total: 100 })
-        logger.info('[restoreDirect] Restore journal committed, relaunching app to promote it', { restoreId })
-        application.relaunch()
+        logger.info('[restoreDirect] Restore journal committed and ready for relaunch', { restoreId })
       } finally {
         if (!journalCommitted) {
           quiesceHold.dispose()
@@ -1111,13 +1115,14 @@ class BackupManager {
         writeStream.on('error', (error) => reject(error))
       })
 
-      return await this.restore(_, backupedFilePath)
+      await this.stageRestore(backupedFilePath)
     } catch (error: any) {
       logger.error('Failed to restore from WebDAV:', error)
       throw new Error(error.message || 'Failed to restore backup file')
     } finally {
       await fs.remove(downloadDir).catch(() => {})
     }
+    application.relaunch()
   }
 
   /**
@@ -1146,13 +1151,14 @@ class BackupManager {
       })
 
       logger.info(`S3 restore file downloaded successfully: ${filename}`)
-      return await this.restore(_, backupedFilePath)
+      await this.stageRestore(backupedFilePath)
     } catch (error: any) {
       logger.error('[BackupManager] Failed to restore from S3:', error)
       throw new Error(error.message || 'Failed to restore backup file')
     } finally {
       await fs.remove(downloadDir).catch(() => {})
     }
+    application.relaunch()
   }
 
   // ==================== File Utility Methods ====================

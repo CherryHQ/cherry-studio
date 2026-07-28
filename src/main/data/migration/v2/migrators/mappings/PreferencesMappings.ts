@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-07-28T17:06:00.229Z
+ * Generated at: 2026-07-24T09:02:32.801Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -673,12 +673,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.nutstore.sync_interval'
     },
     {
-      originalKey: 'nutstoreMaxBackups',
-      targetKey: 'data.backup.nutstore.max_backups'
-    },
-    {
       originalKey: 'nutstoreSkipBackupFile',
       targetKey: 'data.backup.nutstore.skip_backup_file'
+    },
+    {
+      originalKey: 'nutstoreMaxBackups',
+      targetKey: 'data.backup.nutstore.max_backups'
     }
   ],
   preprocess: [

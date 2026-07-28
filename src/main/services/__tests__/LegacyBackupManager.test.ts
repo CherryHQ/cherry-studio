@@ -381,6 +381,19 @@ describe('BackupManager direct v2 data compatibility', () => {
     return archive
   }
 
+  const mockDownloadedFileWrite = () => {
+    let finish: (() => void) | undefined
+    const writeStream = {
+      write: vi.fn(),
+      end: vi.fn(() => queueMicrotask(() => finish?.())),
+      on: vi.fn((event: string, callback: () => void) => {
+        if (event === 'finish') finish = callback
+        return writeStream
+      })
+    }
+    vi.mocked(fs.createWriteStream).mockReturnValue(writeStream as never)
+  }
+
   it('writes a version 7 archive with complete Data, IndexedDB, Local Storage, and cache.json', async () => {
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
       return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
@@ -569,7 +582,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.spyOn(backupManager as any, 'fsyncTree').mockImplementation(() => {})
   }
 
-  it('commits one crash-safe restore journal before relaunching', async () => {
+  it('commits one crash-safe restore journal without relaunching inside staging', async () => {
     arrangeDirectRestore()
 
     await (backupManager as any).restoreDirect('/extract')
@@ -602,9 +615,82 @@ describe('BackupManager direct v2 data compatibility', () => {
       })
     )
     expect((backupManager as any).fsyncTree).toHaveBeenCalledWith('/mock/userData/restore-staging')
-    expect(mockRelaunch).toHaveBeenCalledOnce()
+    expect(mockRelaunch).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).not.toHaveBeenCalled()
     expect(fs.remove).not.toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
+  })
+
+  it('removes the extracted archive before relaunching', async () => {
+    arrangeDirectRestore()
+    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
+      const target = String(entryPath)
+      return target.endsWith('/metadata.json') || target.startsWith('/mock/userData/')
+    })
+    const events: string[] = []
+    vi.mocked(fs.remove).mockImplementation(async (entryPath) => {
+      events.push(`remove:${String(entryPath)}`)
+    })
+    mockRelaunch.mockImplementation(() => {
+      events.push('relaunch')
+    })
+
+    await backupManager.restore({} as Electron.IpcMainInvokeEvent, '/backups/backup.zip')
+
+    expect(events).toContain('remove:/mock/temp/backup/extract-operation-id')
+    expect(events.indexOf('remove:/mock/temp/backup/extract-operation-id')).toBeLessThan(events.indexOf('relaunch'))
+  })
+
+  it('removes the WebDAV download directory before relaunching', async () => {
+    mockDownloadedFileWrite()
+    vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
+      getFileContents: vi.fn().mockResolvedValue(Buffer.from('backup'))
+    })
+    const stageRestore = vi.spyOn(backupManager as any, 'stageRestore').mockResolvedValue(undefined)
+    const events: string[] = []
+    vi.mocked(fs.remove).mockImplementation(async (entryPath) => {
+      events.push(`remove:${String(entryPath)}`)
+    })
+    mockRelaunch.mockImplementation(() => {
+      events.push('relaunch')
+    })
+
+    await backupManager.restoreFromWebdav({} as Electron.IpcMainInvokeEvent, {
+      webdavHost: 'https://example.com',
+      fileName: 'backup.zip'
+    })
+
+    expect(stageRestore).toHaveBeenCalledWith('/mock/temp/backup/webdav-download-operation-id/backup.zip')
+    expect(events).toEqual(['remove:/mock/temp/backup/webdav-download-operation-id', 'relaunch'])
+  })
+
+  it('removes the S3 download directory before relaunching', async () => {
+    mockDownloadedFileWrite()
+    vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({
+      getFileContents: vi.fn().mockResolvedValue(Buffer.from('backup'))
+    })
+    const stageRestore = vi.spyOn(backupManager as any, 'stageRestore').mockResolvedValue(undefined)
+    const events: string[] = []
+    vi.mocked(fs.remove).mockImplementation(async (entryPath) => {
+      events.push(`remove:${String(entryPath)}`)
+    })
+    mockRelaunch.mockImplementation(() => {
+      events.push('relaunch')
+    })
+
+    await backupManager.restoreFromS3({} as Electron.IpcMainInvokeEvent, {
+      endpoint: 'https://s3.example.com',
+      region: 'test',
+      bucket: 'backups',
+      accessKeyId: 'access-key',
+      secretAccessKey: 'secret-key',
+      fileName: 'backup.zip',
+      autoSync: false,
+      syncInterval: 0,
+      maxBackups: 1
+    })
+
+    expect(stageRestore).toHaveBeenCalledWith('/mock/temp/backup/s3-download-operation-id/backup.zip')
+    expect(events).toEqual(['remove:/mock/temp/backup/s3-download-operation-id', 'relaunch'])
   })
 
   it('restores complete-Data version 7 archives without reading standalone SQLite or .claude resources', async () => {

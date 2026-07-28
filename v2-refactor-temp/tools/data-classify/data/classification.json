@@ -518,20 +518,20 @@
           "targetKey": null
         },
         {
-          "originalKey": "nutstoreMaxBackups",
-          "type": "number",
-          "defaultValue": 0,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "data.backup.nutstore.max_backups"
-        },
-        {
           "originalKey": "nutstoreSkipBackupFile",
           "type": "boolean",
           "defaultValue": false,
           "status": "classified",
           "category": "preferences",
           "targetKey": "data.backup.nutstore.skip_backup_file"
+        },
+        {
+          "originalKey": "nutstoreMaxBackups",
+          "type": "number",
+          "defaultValue": 0,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.nutstore.max_backups"
         }
       ],
       "paintings": [
