@@ -5,7 +5,7 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
@@ -29,7 +29,12 @@ import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
 import type { AiBaseRequest, CallOverrides } from '../../../types'
-import { filterStandardParams } from '../../../utils/modelParameters'
+import {
+  adjustMaxOutputTokensForReasoning,
+  filterStandardParams,
+  getTemperature,
+  getTopP
+} from '../../../utils/modelParameters'
 import {
   buildCapabilityProviderOptions,
   buildResolvedReasoningProviderOptions,
@@ -101,11 +106,20 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const invocationModel = reasoningProfile.support
     ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
     : model
+  const customParameters = extractAiSdkStandardParams(assistant ? getCustomParameters(assistant) : {})
+  customParameters.standardParams = filterStandardParams(customParameters.standardParams, model)
+  const requestedMaxOutputTokens = resolveRequestedMaxOutputTokens(
+    request.callOverrides?.maxOutputTokens,
+    customParameters.standardParams.maxOutputTokens,
+    assistant,
+    model,
+    endpointType
+  )
   const reasoning = resolveReasoningInvocation({
     selection: request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default',
     model: invocationModel,
     profile: reasoningProfile.wire,
-    maxTokens: resolveReasoningMaxTokens(request.callOverrides?.maxOutputTokens, assistant, model),
+    maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
     assistantSummary: provider.settings.summaryText
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
@@ -142,7 +156,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const contributions = collectFromFeatures(scope, features)
 
   const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
-  const options = buildAgentOptions(scope, contributions.stopConditions)
+  const options = buildAgentOptions(scope, contributions.stopConditions, customParameters, requestedMaxOutputTokens)
 
   return {
     sdkConfig,
@@ -156,17 +170,20 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   }
 }
 
-export function resolveReasoningMaxTokens(
+export function resolveRequestedMaxOutputTokens(
   requestMaxOutputTokens: number | undefined,
+  customMaxOutputTokens: unknown,
   assistant: Assistant | undefined,
-  model: Model
+  model: Model,
+  endpointType: EndpointType | undefined
 ): number | undefined {
   if (requestMaxOutputTokens !== undefined) return requestMaxOutputTokens
+  if (typeof customMaxOutputTokens === 'number') return customMaxOutputTokens
 
   const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
   if (enableMaxTokens) return assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
 
-  return model.maxOutputTokens
+  return endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? model.maxOutputTokens : undefined
 }
 
 async function resolveSdkConfig(
@@ -304,7 +321,12 @@ export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, reques
  * provider-scoped params), per-call headers/maxRetries, stop-after-N-tools,
  * and the tool-call repair function.
  */
-function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondition<ToolSet>[]): AgentOptions {
+function buildAgentOptions(
+  scope: RequestScope,
+  featureStopConditions: StopCondition<ToolSet>[],
+  customParameters: ReturnType<typeof extractAiSdkStandardParams>,
+  requestedMaxOutputTokens: number | undefined
+): AgentOptions {
   const {
     assistant,
     capabilities,
@@ -340,13 +362,18 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
         : {}
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
-    const customParams = getCustomParameters(assistant)
-    if (Object.keys(customParams).length > 0) {
-      const split = extractAiSdkStandardParams(customParams)
-      standardParams = filterStandardParams(split.standardParams, model)
+    const temperature = getTemperature(assistant, model, reasoning)
+    const topP = getTopP(assistant, model, reasoning)
+    standardParams = {
+      ...(temperature !== undefined && { temperature }),
+      ...(topP !== undefined && { topP }),
+      ...customParameters.standardParams
+    }
+
+    if (Object.keys(customParameters.providerParams).length > 0) {
       providerOptions = mergeCustomProviderParameters(
         providerOptions,
-        split.providerParams,
+        customParameters.providerParams,
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
@@ -358,6 +385,13 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
   providerOptions = overridden.providerOptions as typeof providerOptions
+  const maxOutputTokens = adjustMaxOutputTokensForReasoning(requestedMaxOutputTokens, endpointType, reasoning)
+  if (maxOutputTokens !== undefined) {
+    standardParams = { ...standardParams, maxOutputTokens }
+  } else if ('maxOutputTokens' in standardParams) {
+    standardParams = { ...standardParams }
+    delete standardParams.maxOutputTokens
+  }
 
   const { headers, maxRetries } = request.requestOptions ?? {}
   const toolCallLimit = resolveToolCallLimit(assistant)
