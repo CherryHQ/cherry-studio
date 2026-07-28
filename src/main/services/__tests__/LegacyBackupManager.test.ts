@@ -296,6 +296,17 @@ describe('BackupManager direct v2 data compatibility', () => {
       data: false
     }
   }
+  const completeDataMetadata = {
+    ...metadata,
+    resources: {
+      database: false,
+      cache: true,
+      indexedDB: true,
+      localStorage: true,
+      appClaude: false,
+      data: true
+    }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -337,12 +348,13 @@ describe('BackupManager direct v2 data compatibility', () => {
     return archive
   }
 
-  it('writes a complete version 7 archive with SQLite, strict cache, Data, and app-owned .claude state', async () => {
+  it('writes a version 7 archive with complete Data, IndexedDB, Local Storage, and cache.json', async () => {
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
-      return String(entryPath) === '/mock/userData/cache.json'
+      return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
     })
     const copyDirectories = vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
-    const copyClaude = vi.spyOn(backupManager as any, 'copyAppClaudeState').mockResolvedValue(undefined)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(42)
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
     const archive = mockArchiveClose()
 
     const result = await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')
@@ -351,36 +363,42 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockJobManager.pause).toHaveBeenCalledOnce()
     expect(mockJobManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockDbService.checkpointTruncate).toHaveBeenCalledTimes(2)
-    expect(mockDbService.createSnapshot).toHaveBeenCalledWith(
-      '/mock/temp/backup/create-operation-id/cherrystudio.sqlite'
-    )
+    expect(mockDbService.createSnapshot).not.toHaveBeenCalled()
     expect(mockCacheService.flushPersistForBackup).toHaveBeenCalledOnce()
     expect(fs.copy).toHaveBeenCalledWith(
       '/mock/userData/cache.json',
       '/mock/temp/backup/create-operation-id/cache.json'
     )
     expect(copyDirectories).toHaveBeenCalledTimes(2)
-    expect(copyClaude).toHaveBeenCalledWith('/mock/temp/backup/create-operation-id/.claude')
-    expect(fs.ensureDir).toHaveBeenCalledWith('/mock/temp/backup/create-operation-id/Data')
     expect(fs.writeJson).toHaveBeenCalledWith(
       '/mock/temp/backup/create-operation-id/metadata.json',
       expect.objectContaining({
         version: 7,
         appName: 'Cherry Studio',
-        resources: expect.objectContaining({ appClaude: true, data: true })
+        resources: {
+          database: false,
+          cache: true,
+          indexedDB: true,
+          localStorage: true,
+          appClaude: false,
+          data: true
+        }
       }),
       { spaces: 2 }
+    )
+    expect(fs.copy).not.toHaveBeenCalledWith(
+      '/mock/userData/Data/cherrystudio.sqlite',
+      '/mock/temp/backup/create-operation-id/cherrystudio.sqlite'
     )
     expect(archive.directory).toHaveBeenCalledWith('/mock/temp/backup/create-operation-id', false)
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
   })
 
-  it('excludes separately managed SQLite, restore journal, and .claude state from Data', async () => {
+  it('copies Data without excluding any relative path', async () => {
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
       return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
     })
     vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
-    vi.spyOn(backupManager as any, 'copyAppClaudeState').mockResolvedValue(undefined)
     const getDirSize = vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(42)
     const copyDirectory = vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
     mockArchiveClose()
@@ -389,23 +407,17 @@ describe('BackupManager direct v2 data compatibility', () => {
 
     const dataCopyCall = copyDirectory.mock.calls.find(([source]) => source === '/mock/userData/Data')
     expect(dataCopyCall).toBeDefined()
-    const options = dataCopyCall?.[3] as {
-      excludeRelativePath: (relativePath: string) => boolean
-    }
+    const options = dataCopyCall?.[3] as { excludeRelativePath?: (relativePath: string) => boolean }
     expect(getDirSize).toHaveBeenCalledWith('/mock/userData/Data', dataCopyCall?.[3])
-    expect(options.excludeRelativePath('cherrystudio.sqlite')).toBe(true)
-    expect(options.excludeRelativePath('cherrystudio.sqlite-wal')).toBe(true)
-    expect(options.excludeRelativePath('restore-journal.json')).toBe(true)
-    expect(options.excludeRelativePath('restore-journal.json.corrupt-1')).toBe(true)
-    expect(options.excludeRelativePath('Agents/.claude')).toBe(true)
-    expect(options.excludeRelativePath('Agents/.claude/projects/session.jsonl')).toBe(true)
-    expect(options.excludeRelativePath('Agents/profile.json')).toBe(false)
-    expect(options.excludeRelativePath('Files/document.pdf')).toBe(false)
+    expect(options).toEqual({
+      dereferenceSymlinks: true,
+      sourceRootPath: '/mock/userData/Data'
+    })
+    expect(options.excludeRelativePath).toBeUndefined()
   })
 
   it('fails instead of archiving a stale cache.json when the strict flush fails', async () => {
     vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
-    vi.spyOn(backupManager as any, 'copyAppClaudeState').mockResolvedValue(undefined)
     mockCacheService.flushPersistForBackup.mockImplementationOnce(() => {
       throw new Error('cache write failed')
     })
@@ -421,19 +433,18 @@ describe('BackupManager direct v2 data compatibility', () => {
 
   it('fails closed when the live database changes while resources are copied', async () => {
     vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
-    vi.spyOn(backupManager as any, 'copyAppClaudeState').mockResolvedValue(undefined)
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => String(entryPath).endsWith('cache.json'))
-    mockHashDbFile.mockResolvedValueOnce('before').mockResolvedValueOnce('after')
+    mockHashDbFile.mockResolvedValueOnce('before').mockResolvedValueOnce('before').mockResolvedValueOnce('after')
 
     await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
-      'Data changed while the backup snapshot was being captured'
+      'Data changed while backup resources were being captured'
     )
 
     expect(fs.createWriteStream).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
   })
 
-  it('refuses to snapshot while a conversation can still write DB or .claude state', async () => {
+  it('refuses to copy Data while a conversation can still write it', async () => {
     mockAiStreamManager.hasLiveStreams.mockReturnValueOnce(true)
 
     await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
@@ -492,6 +503,39 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockRelaunch).toHaveBeenCalledOnce()
     expect(mockJobHold.dispose).not.toHaveBeenCalled()
     expect(fs.remove).not.toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
+  })
+
+  it('restores complete-Data version 7 archives without reading standalone SQLite or .claude resources', async () => {
+    arrangeDirectRestore(completeDataMetadata)
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      return createStats(String(entryPath) === '/extract/Data' ? 'directory' : 'file') as never
+    })
+    const createDataResources = vi.spyOn(backupManager as any, 'createDataJournalResources').mockResolvedValue([])
+
+    await (backupManager as any).restoreDirect('/extract')
+
+    expect(fs.copy).toHaveBeenCalledWith(
+      '/mock/userData/restore-staging/operation-id/resources/Data/cherrystudio.sqlite',
+      '/mock/userData/restore-staging/operation-id/work.sqlite'
+    )
+    expect(fs.copy).not.toHaveBeenCalledWith(
+      '/extract/cherrystudio.sqlite',
+      '/mock/userData/restore-staging/operation-id/work.sqlite'
+    )
+    expect((backupManager as any).copyClaudeState).not.toHaveBeenCalled()
+    expect(createDataResources).toHaveBeenCalledWith(
+      '/mock/userData/restore-staging/operation-id',
+      '/mock/userData/restore-staging/operation-id/resources/Data'
+    )
+
+    const dataStageCall = vi
+      .mocked((backupManager as any).stageArchiveDirectory)
+      .mock.calls.find(([source]: [string]) => source === '/extract/Data')
+    expect(dataStageCall?.[3]).toEqual({
+      dereferenceSymlinks: false,
+      sourceRootPath: '/extract/Data'
+    })
+    expect(dataStageCall?.[3]?.excludeRelativePath).toBeUndefined()
   })
 
   it('journals Data children without overlapping SQLite, the restore journal, or .claude', async () => {
@@ -569,6 +613,24 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockRelaunch).not.toHaveBeenCalled()
   })
 
+  it('rejects version 7 metadata with mixed resource layouts', async () => {
+    vi.mocked(fs.readJson).mockResolvedValue({
+      ...completeDataMetadata,
+      resources: {
+        ...completeDataMetadata.resources,
+        database: false,
+        appClaude: true
+      }
+    } as never)
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      'Backup version 7 metadata is incomplete'
+    )
+
+    expect(fs.copy).not.toHaveBeenCalled()
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+  })
+
   it('rejects metadata-less v1 ZIP backups', async () => {
     vi.mocked(fs.pathExists).mockResolvedValue(false as never)
 
@@ -631,7 +693,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(direct).toHaveBeenCalledTimes(2)
   })
 
-  it('backs up application .claude state but excludes the generated skills mirror', async () => {
+  it('restores legacy standalone .claude state but excludes the generated skills mirror', async () => {
     vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
       return createStats(String(entryPath).endsWith('settings.json') ? 'file' : 'directory') as never
     })

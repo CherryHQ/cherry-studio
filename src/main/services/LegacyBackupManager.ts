@@ -50,11 +50,11 @@ interface DirectBackupMetadata {
   platform: string
   arch: string
   resources: {
-    database: true
+    database: boolean
     cache: true
     indexedDB: true
     localStorage: true
-    appClaude: true
+    appClaude: boolean
     data: boolean
   }
 }
@@ -108,8 +108,9 @@ class BackupManager {
   /**
    * Backup metadata for direct backup format.
    *
-   * Version 7 adds the v2 SQLite database and cache.json. Restore requires an
-   * exact version match so v1's version 6 archives cannot overwrite v2 data.
+   * New version 7 archives store the complete Data directory instead of
+   * separate SQLite and .claude resources. The resource flags distinguish
+   * this layout from earlier version 7 archives, which remain restorable.
    */
   private createDirectBackupMetadata(): DirectBackupMetadata {
     return {
@@ -120,19 +121,19 @@ class BackupManager {
       platform: process.platform,
       arch: process.arch,
       resources: {
-        database: true,
+        database: false,
         cache: true,
         indexedDB: true,
         localStorage: true,
-        appClaude: true,
+        appClaude: false,
         data: true
       }
     }
   }
 
   /**
-   * Direct backup method - snapshots SQLite and copies cache.json plus the
-   * retained IndexedDB and Local Storage directories.
+   * Direct backup method - copies the complete Data directory plus cache.json,
+   * IndexedDB, and Local Storage.
    * @param _ - Electron IPC event
    * @param fileName - Name of the backup file
    * @param destinationPath - Path to save the backup (defaults to this.backupDir)
@@ -155,8 +156,8 @@ class BackupManager {
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       const userDataPath = application.getPath('app.userdata')
-      onProgress({ stage: 'copying_database', progress: 15, total: 100 })
-      logger.debug('[backupDirect] Capturing a consistent v2 data snapshot')
+      onProgress({ stage: 'copying_files', progress: 15, total: 100 })
+      logger.debug('[backupDirect] Capturing v2 backup resources')
 
       const jobManager = application.get('JobManager')
       const quiesceHold = jobManager.pause('backup: capture consistent snapshot')
@@ -169,8 +170,6 @@ class BackupManager {
         dbService.checkpointTruncate()
         const fingerprintBefore = await hashDbFile(liveDatabasePath)
 
-        dbService.createSnapshot(path.join(workDir, 'cherrystudio.sqlite'))
-
         application.get('CacheService').flushPersistForBackup()
         const cacheSource = application.getPath('app.userdata', 'cache.json')
         if (!(await fs.pathExists(cacheSource))) {
@@ -180,15 +179,21 @@ class BackupManager {
 
         await this.copyDirectoryOrCreate(path.join(userDataPath, 'IndexedDB'), path.join(workDir, 'IndexedDB'))
         await this.copyDirectoryOrCreate(path.join(userDataPath, 'Local Storage'), path.join(workDir, 'Local Storage'))
-        await this.copyAppClaudeState(path.join(workDir, '.claude'))
 
-        onProgress({ stage: 'copying_database', progress: 50, total: 100 })
+        onProgress({ stage: 'copying_files', progress: 50, total: 100 })
 
         const sourcePath = application.getPath('app.userdata.data')
         const tempDataDir = path.join(workDir, 'Data')
+        const databaseDataPath = this.toDataRelative(liveDatabasePath)
+        if (!databaseDataPath) {
+          throw new Error('SQLite database is not inside the Data directory')
+        }
 
         if (await fs.pathExists(sourcePath)) {
-          const copyOptions = this.createDataCopyOptions(sourcePath, true)
+          const copyOptions: CopyDirOptions = {
+            dereferenceSymlinks: true,
+            sourceRootPath: sourcePath
+          }
           const totalSize = await this.getDirSize(sourcePath, copyOptions)
           await this.copyDirWithProgress(
             sourcePath,
@@ -204,11 +209,16 @@ class BackupManager {
           spaces: 2
         })
 
+        const backupFingerprint = await hashDbFile(path.join(tempDataDir, databaseDataPath))
+        if (backupFingerprint !== fingerprintBefore) {
+          throw new Error('The SQLite file copied into Data does not match the live database. Please retry the backup.')
+        }
+
         this.assertNoActiveDataWriters()
         dbService.checkpointTruncate()
         const fingerprintAfter = await hashDbFile(liveDatabasePath)
         if (fingerprintAfter !== fingerprintBefore) {
-          throw new Error('Data changed while the backup snapshot was being captured. Please retry the backup.')
+          throw new Error('Data changed while backup resources were being captured. Please retry the backup.')
         }
       } finally {
         quiesceHold.dispose()
@@ -587,22 +597,15 @@ class BackupManager {
       }
 
       onProgress({ stage: 'validating', progress: 25, total: 100 })
-      onProgress({ stage: 'restoring_database', progress: 30, total: 100 })
+      onProgress({ stage: 'restoring_data', progress: 30, total: 100 })
 
       const workDatabase = path.join(restoreDir, 'work.sqlite')
       const stagedCache = path.join(restoreDir, 'resources', 'cache.json')
       const stagedIndexedDB = path.join(restoreDir, 'resources', 'IndexedDB')
       const stagedLocalStorage = path.join(restoreDir, 'resources', 'Local Storage')
       const stagedData = path.join(restoreDir, 'resources', 'Data')
-      const appClaudeDataPath = this.toDataRelative(application.getPath('feature.agents.claude.root'))
-      const bundleClaudeWithData = metadata.resources.data && appClaudeDataPath !== null
-      const stagedClaude = bundleClaudeWithData
-        ? path.join(stagedData, appClaudeDataPath)
-        : path.join(restoreDir, 'resources', '.claude')
 
-      await this.assertArchiveFile(path.join(extractionDir, 'cherrystudio.sqlite'), 'SQLite database')
       await this.assertArchiveFile(path.join(extractionDir, 'cache.json'), 'cache.json')
-      await fs.copy(path.join(extractionDir, 'cherrystudio.sqlite'), workDatabase)
       await fs.copy(path.join(extractionDir, 'cache.json'), stagedCache)
 
       await this.stageArchiveDirectory(path.join(extractionDir, 'IndexedDB'), stagedIndexedDB)
@@ -611,7 +614,9 @@ class BackupManager {
       if (metadata.resources.data) {
         const dataSource = path.join(extractionDir, 'Data')
         await this.assertArchiveDirectory(dataSource, 'Data')
-        const copyOptions = this.createDataCopyOptions(dataSource, false)
+        const copyOptions: CopyDirOptions = metadata.resources.database
+          ? this.createLegacyDataCopyOptions(dataSource, false)
+          : { dereferenceSymlinks: false, sourceRootPath: dataSource }
         await this.stageArchiveDirectory(
           dataSource,
           stagedData,
@@ -625,7 +630,32 @@ class BackupManager {
           copyOptions
         )
       }
-      await this.copyClaudeState(path.join(extractionDir, '.claude'), stagedClaude)
+
+      if (metadata.resources.database) {
+        await this.assertArchiveFile(path.join(extractionDir, 'cherrystudio.sqlite'), 'SQLite database')
+        await fs.copy(path.join(extractionDir, 'cherrystudio.sqlite'), workDatabase)
+      } else {
+        const databaseDataPath = this.toDataRelative(application.getPath('app.database.file'))
+        if (!databaseDataPath) {
+          throw new Error('SQLite database is not inside the Data directory')
+        }
+        const stagedDatabase = path.join(stagedData, databaseDataPath)
+        await this.assertArchiveFile(stagedDatabase, 'SQLite database in Data')
+        await fs.copy(stagedDatabase, workDatabase)
+      }
+
+      let bundleClaudeWithData = false
+      let stagedClaude: string | null = null
+      if (metadata.resources.appClaude) {
+        const appClaudeDataPath = this.toDataRelative(application.getPath('feature.agents.claude.root'))
+        if (metadata.resources.data && appClaudeDataPath !== null) {
+          bundleClaudeWithData = true
+          stagedClaude = path.join(stagedData, appClaudeDataPath)
+        } else {
+          stagedClaude = path.join(restoreDir, 'resources', '.claude')
+        }
+        await this.copyClaudeState(path.join(extractionDir, '.claude'), stagedClaude)
+      }
 
       const chain = this.validateStagedDatabase(workDatabase)
       onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
@@ -654,7 +684,7 @@ class BackupManager {
       if (metadata.resources.data) {
         fileResources.push(...(await this.createDataJournalResources(restoreDir, stagedData)))
       }
-      if (!bundleClaudeWithData) {
+      if (stagedClaude && !bundleClaudeWithData) {
         fileResources.push(
           await this.createJournalResource({
             restoreDir,
@@ -725,16 +755,16 @@ class BackupManager {
     }
 
     const resources = raw.resources as Record<string, unknown> | undefined
-    if (
-      !resources ||
-      resources.database !== true ||
-      resources.cache !== true ||
-      resources.indexedDB !== true ||
-      resources.localStorage !== true ||
-      resources.appClaude !== true ||
-      typeof resources.data !== 'boolean'
-    ) {
-      throw new Error('Backup version 7 metadata is incomplete')
+    const hasCommonResources =
+      resources?.cache === true &&
+      resources.indexedDB === true &&
+      resources.localStorage === true &&
+      typeof resources.data === 'boolean'
+    const hasLegacyLayout = resources?.database === true && resources.appClaude === true
+    const hasCompleteDataLayout =
+      resources?.database === false && resources.appClaude === false && resources.data === true
+    if (!resources || !hasCommonResources || (!hasLegacyLayout && !hasCompleteDataLayout)) {
+      throw new Error(`Backup version ${String(raw.version)} metadata is incomplete`)
     }
 
     return raw as unknown as DirectBackupMetadata
@@ -895,7 +925,7 @@ class BackupManager {
     return relativePath
   }
 
-  private createDataCopyOptions(sourceRootPath: string, dereferenceSymlinks: boolean): CopyDirOptions {
+  private createLegacyDataCopyOptions(sourceRootPath: string, dereferenceSymlinks: boolean): CopyDirOptions {
     return {
       dereferenceSymlinks,
       excludeRelativePath: (relativePath) => this.isReservedDataRelativePath(relativePath),
@@ -1093,19 +1123,9 @@ class BackupManager {
     await this.copyDirWithProgress(source, destination, () => {}, { dereferenceSymlinks: false })
   }
 
-  private async copyAppClaudeState(destination: string): Promise<void> {
-    const source = application.getPath('feature.agents.claude.root')
-    if (!(await fs.pathExists(source))) {
-      await fs.ensureDir(destination)
-      return
-    }
-    await this.copyClaudeState(source, destination)
-  }
-
   /**
-   * Copy Cherry Studio's private CLAUDE_CONFIG_DIR while excluding the
-   * generated `skills/` mirror. Never follows symlinks, so an archive cannot
-   * pull in the user's external ~/.claude or another external tree.
+   * Restore the standalone CLAUDE_CONFIG_DIR resource used by earlier
+   * version 7 archives. The generated `skills/` mirror is not restored.
    */
   private async copyClaudeState(source: string, destination: string): Promise<void> {
     const rootStats = await fs.lstat(source).catch(() => null)
@@ -1124,7 +1144,7 @@ class BackupManager {
       const destinationPath = path.join(destination, entry.name)
       const stats = await fs.lstat(sourcePath)
       if (stats.isSymbolicLink()) {
-        logger.warn('[backupDirect] Skipping symlink in application .claude state', { path: sourcePath })
+        logger.warn('[restoreDirect] Skipping symlink in application .claude state', { path: sourcePath })
         continue
       }
       if (stats.isDirectory()) {

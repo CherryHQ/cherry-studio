@@ -1,7 +1,7 @@
 /**
  * @deprecated v2 replacement pending. The retained v1 engine currently creates real compatibility
- * archives, including the v2 SQLite database and cache.json. Transient sync status remains in the
- * session-local, non-reactive `backupSyncState` below until the native v2 service replaces it.
+ * archives containing Data, IndexedDB, Local Storage, and cache.json. Transient sync status remains
+ * in the session-local, non-reactive `backupSyncState` below until the native v2 service replaces it.
  */
 //TODO Data Refactor
 // The code is messy, need to refactor all the backup related code
@@ -104,7 +104,7 @@ export async function backup() {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
   const selectFolder = await window.api.file.selectFolder()
   if (selectFolder) {
-    // Use the direct compatibility archive (SQLite/cache.json plus the retained v1 directories).
+    // Use the direct compatibility archive (Data, IndexedDB, Local Storage, and cache.json).
     await window.api.backup.backup(filename, selectFolder)
     toast.success(i18n.t('message.backup.success'))
   }

@@ -1,23 +1,23 @@
 ---
-title: Backup and restore are available during the v2 transition
+title: Backup and restore use complete Data directory archives
 category: changed
-severity: notice
-introduced_in_pr: TBD
+severity: breaking
+introduced_in_pr: "#17555"
 date: 2026-07-24
 ---
 
 ## What changed
 
-The existing local, WebDAV, Nutstore, and S3 backup settings are enabled again. Newly created direct archives use format version 7 and include the SQLite database, `cache.json`, the retained v1 data directories, and Cherry Studio's private `.claude` runtime state.
+The existing local, WebDAV, Nutstore, and S3 backup settings are enabled again. Newly created direct archives use format version 7 and contain the complete `Data` directory, `IndexedDB`, `Local Storage`, and `cache.json`. `metadata.json` is included only as the archive format manifest. SQLite and app-owned `.claude` files inside `Data` are copied as ordinary `Data` contents; no second top-level database or `.claude` resource is created.
 
 ## Why this matters to the user
 
-Backups created by the v2 app now contain its primary business database, persisted main-process cache, and the runtime files required to resume app-owned Claude sessions. Restore validates and durably stages the complete archive, then relaunches into the preboot promotion gate; a failed validation or promotion keeps the previous database and file resources intact.
+Backups now preserve the `Data` tree without selectively omitting files. Restore validates and durably stages the archive, routes the SQLite file through the crash-safe database promotion gate, and restores the remaining `Data` contents and top-level resources. A failed validation or promotion keeps the previous database and file resources intact.
 
 ## What the user should do
 
-Create a fresh backup after upgrading. Every Cherry Studio v1 backup format — version 6 direct ZIPs, metadata-less version 1-5 ZIPs, and `.bak` files — is rejected by v2 restore because it cannot provide a complete v2 data set.
+Create a fresh backup after upgrading. Cherry Studio v1 backup formats — version 6 direct ZIPs, metadata-less version 1-5 ZIPs, and `.bak` files — remain rejected. Earlier version 7 archives with standalone SQLite and `.claude` resources remain restorable.
 
 ## Notes for release manager
 
-The "skip file backup" option still excludes the `Data` directory, but it does not exclude SQLite, `cache.json`, or app-owned `.claude` state. The generated `.claude/skills` mirror is excluded and rebuilt by the app; external `~/.claude` and `CLAUDE_CONFIG_DIR` locations are never included.
+Version 7 copies every entry under `Data`. During restore, the database and restore-journal control files are handled separately from ordinary `Data` entries so they cannot overlap the promotion journal that is actively applying the restore.

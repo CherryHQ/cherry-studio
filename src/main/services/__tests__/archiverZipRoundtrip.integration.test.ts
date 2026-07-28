@@ -34,7 +34,7 @@ describe('archiver 8 ZIP round-trip (LegacyBackupManager API contract)', () => {
     // `archive.directory(this.tempDir, false)`.
     const srcDir = join(workDir, 'src')
     await mkdir(join(srcDir, 'nested'), { recursive: true })
-    await mkdir(join(srcDir, '.claude'), { recursive: true })
+    await mkdir(join(srcDir, 'Data'), { recursive: true })
     await mkdir(join(srcDir, 'IndexedDB'), { recursive: true })
     await writeFile(join(srcDir, 'root.txt'), 'root-content')
     await writeFile(join(srcDir, 'nested', 'inner.txt'), 'inner-content')
@@ -64,7 +64,7 @@ describe('archiver 8 ZIP round-trip (LegacyBackupManager API contract)', () => {
       // A fresh profile can legitimately have empty state directories. The
       // v7 restore contract requires their entries so it can distinguish
       // "restore an empty directory" from "archive is incomplete".
-      expect(names).toContain('.claude/')
+      expect(names).toContain('Data/')
       expect(names).toContain('IndexedDB/')
 
       expect((await zip.entryData('root.txt')).toString()).toBe('root-content')
