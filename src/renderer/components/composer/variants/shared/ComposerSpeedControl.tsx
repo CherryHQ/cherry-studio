@@ -1,13 +1,23 @@
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, Slider } from '@cherrystudio/ui'
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+  Slider
+} from '@cherrystudio/ui'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
+import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
-import { ChevronDown, Gauge, RotateCcw, Zap } from 'lucide-react'
+import { ChevronDown, Gauge, Zap } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const SLIDER_EFFORT_ORDER: readonly Exclude<ThinkingOption, 'default'>[] = [
+const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
+  'default',
   'none',
   'auto',
   'minimal',
@@ -18,7 +28,8 @@ const SLIDER_EFFORT_ORDER: readonly Exclude<ThinkingOption, 'default'>[] = [
   'max'
 ]
 
-const EFFORT_LABEL_KEYS: Record<Exclude<ThinkingOption, 'default'>, string> = {
+const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
+  default: 'assistants.settings.reasoning_effort.default',
   none: 'assistants.settings.reasoning_effort.off',
   minimal: 'assistants.settings.reasoning_effort.minimal',
   low: 'assistants.settings.reasoning_effort.low',
@@ -45,26 +56,27 @@ export function ComposerSpeedControl({
   onFastModeChange
 }: ComposerSpeedControlProps) {
   const { t } = useTranslation()
-  const sliderEfforts = useMemo(() => {
-    const declaredEfforts = new Set(model.reasoning?.selectableEfforts ?? [])
+  const reasoningOptions = useMemo(() => {
+    const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
     return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
   }, [model])
-  const supportsReasoning = sliderEfforts.length > 1
+  const sliderEfforts = reasoningOptions.filter((effort) => effort !== 'default')
+  const supportsReasoning = reasoningOptions.length > 1
+  const usesEffortSlider = sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1
   const supportsFast = model.supportsFastMode === true
 
   if (!supportsReasoning && !supportsFast) return null
 
-  const declaredDefaultIndex = model.reasoning?.defaultEffort
-    ? sliderEfforts.indexOf(model.reasoning.defaultEffort)
-    : -1
-  const autoIndex = sliderEfforts.indexOf('auto')
-  const defaultIndex = declaredDefaultIndex >= 0 ? declaredDefaultIndex : autoIndex >= 0 ? autoIndex : 0
-
-  // Model changes reconcile in an effect owned by the composer. During that one render, show the
-  // model's default anchor instead of passing an invalid index to the controlled Slider.
-  const selectedIndex = reasoningEffort === 'default' ? defaultIndex : sliderEfforts.indexOf(reasoningEffort)
-  const currentIndex = selectedIndex >= 0 ? selectedIndex : defaultIndex
-  const displayedEffort = supportsReasoning ? sliderEfforts[currentIndex] : undefined
+  // Model changes reconcile in an effect owned by the composer. During that one render, fall back
+  // to the first supported choice instead of displaying an invalid selection.
+  const selectedOption = supportsReasoning
+    ? reasoningOptions.includes(reasoningEffort)
+      ? reasoningEffort
+      : reasoningOptions[0]
+    : undefined
+  const selectedIndex = reasoningEffort === 'default' ? -1 : sliderEfforts.indexOf(reasoningEffort)
+  const currentIndex = selectedIndex >= 0 ? selectedIndex : 0
+  const displayedEffort = usesEffortSlider ? sliderEfforts[currentIndex] : selectedOption
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
   const triggerLabel = supportsReasoning ? effortLabel : fastMode ? t('agent.speed.fast') : t('agent.speed.label')
 
@@ -109,29 +121,12 @@ export function ComposerSpeedControl({
           ) : (
             <span className="text-muted-foreground">{t('agent.speed.label')}</span>
           )}
-          {supportsReasoning ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="ml-auto rounded-full"
-              aria-label={t('common.reset')}
-              disabled={reasoningEffort === 'default'}
-              title={t('assistants.settings.reasoning_effort.default_description')}
-              onClick={() => onReasoningEffortChange('default')}>
-              <RotateCcw size={14} />
-            </Button>
-          ) : null}
           {supportsFast ? (
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              className={cn(
-                'rounded-full',
-                !supportsReasoning && 'ml-auto',
-                fastMode && 'text-primary hover:text-primary'
-              )}
+              className={cn('ml-auto rounded-full', fastMode && 'text-primary hover:text-primary')}
               aria-label={t('agent.speed.fast')}
               aria-pressed={fastMode}
               onClick={() => onFastModeChange(!fastMode)}>
@@ -139,7 +134,7 @@ export function ComposerSpeedControl({
             </Button>
           ) : null}
         </div>
-        {supportsReasoning ? (
+        {supportsReasoning && usesEffortSlider ? (
           <div className="mx-2.5 mt-1 mb-2">
             <div className="flex items-center justify-between font-medium text-[11px]" aria-hidden="true">
               <span className="text-muted-foreground">{t('agent.speed.faster')}</span>
@@ -147,11 +142,6 @@ export function ComposerSpeedControl({
             </div>
             <div className="relative mt-1.5 h-8">
               <Slider
-                thumbAriaLabel={t('agent.speed.reasoning')}
-                getThumbAriaValueText={(value) => {
-                  const effort = sliderEfforts[value]
-                  return effort ? t(EFFORT_LABEL_KEYS[effort]) : ''
-                }}
                 value={[currentIndex]}
                 min={0}
                 max={sliderEfforts.length - 1}
@@ -167,7 +157,7 @@ export function ComposerSpeedControl({
                 )}
                 onValueChange={([index]) => {
                   const effort = sliderEfforts[index]
-                  if (effort) onReasoningEffortChange(index === defaultIndex ? 'default' : effort)
+                  if (effort) onReasoningEffortChange(effort)
                 }}
               />
               <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
@@ -185,6 +175,16 @@ export function ComposerSpeedControl({
               </div>
             </div>
           </div>
+        ) : supportsReasoning ? (
+          <DropdownMenuRadioGroup
+            value={displayedEffort}
+            onValueChange={(effort) => onReasoningEffortChange(effort as ThinkingOption)}>
+            {reasoningOptions.map((effort) => (
+              <DropdownMenuRadioItem key={effort} value={effort} className="text-xs">
+                {t(EFFORT_LABEL_KEYS[effort])}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>

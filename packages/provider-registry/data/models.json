@@ -7710,16 +7710,14 @@
       "reasoning": {
         "controls": [
           {
-            "default": "high",
             "kind": "effort",
-            "values": ["high", "max"]
+            "values": ["none", "high", "max", "xhigh"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "defaultEffort": "high",
-        "supportedEfforts": ["high", "max", "none"]
+        "supportedEfforts": ["none", "high", "max", "xhigh"]
       }
     },
     {
@@ -7751,16 +7749,14 @@
       "reasoning": {
         "controls": [
           {
-            "default": "high",
             "kind": "effort",
-            "values": ["high", "max"]
+            "values": ["none", "high", "max", "xhigh"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "defaultEffort": "high",
-        "supportedEfforts": ["high", "max", "none"]
+        "supportedEfforts": ["none", "high", "max", "xhigh"]
       }
     },
     {
@@ -17137,12 +17133,10 @@
       "reasoning": {
         "controls": [
           {
-            "default": "medium",
             "kind": "effort",
             "values": ["none", "low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "defaultEffort": "medium",
         "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
       }
     },
@@ -17185,12 +17179,10 @@
       "reasoning": {
         "controls": [
           {
-            "default": "medium",
             "kind": "effort",
             "values": ["none", "low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "defaultEffort": "medium",
         "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
       }
     },
@@ -17269,12 +17261,10 @@
       "reasoning": {
         "controls": [
           {
-            "default": "medium",
             "kind": "effort",
             "values": ["none", "low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "defaultEffort": "medium",
         "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
       }
     },
@@ -17353,12 +17343,10 @@
       "reasoning": {
         "controls": [
           {
-            "default": "medium",
             "kind": "effort",
             "values": ["none", "low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "defaultEffort": "medium",
         "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
       }
     },
@@ -22211,5 +22199,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "002b3b6429282e76"
+  "version": "8d1404a95a7cfe72"
 }

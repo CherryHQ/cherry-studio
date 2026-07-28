@@ -292,54 +292,6 @@ export default defineCreator({
       name: 'GPT 5.1 Thinking',
       capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
       outputModalities: ['text']
-    },
-    {
-      id: 'gpt-5-6',
-      reasoning: {
-        controls: [
-          {
-            kind: 'effort',
-            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
-            default: 'medium'
-          }
-        ]
-      }
-    },
-    {
-      id: 'gpt-5-6-sol',
-      reasoning: {
-        controls: [
-          {
-            kind: 'effort',
-            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
-            default: 'medium'
-          }
-        ]
-      }
-    },
-    {
-      id: 'gpt-5-6-terra',
-      reasoning: {
-        controls: [
-          {
-            kind: 'effort',
-            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
-            default: 'medium'
-          }
-        ]
-      }
-    },
-    {
-      id: 'gpt-5-6-luna',
-      reasoning: {
-        controls: [
-          {
-            kind: 'effort',
-            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
-            default: 'medium'
-          }
-        ]
-      }
     }
   ]
 })
