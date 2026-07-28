@@ -902,42 +902,62 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.pricing).toBeNull()
     })
 
-    it('preserves legacy endpoint routing when the current registry cannot re-derive it', async () => {
-      registryFixtures.providers = [{ id: 'cherryin', name: 'CherryIN', endpointConfigs: {} }]
-      registryFixtures.models.set('anthropic/claude-sonnet-5', {
-        id: 'anthropic/claude-sonnet-5',
-        name: 'Claude Sonnet 5'
-      })
-      const migrationContext = createContext(dbh.db, {
-        llm: {
-          providers: [
-            {
-              id: 'cherryin',
-              name: 'CherryIN',
-              type: 'openai',
-              enabled: true,
-              models: [
-                {
-                  id: 'anthropic/claude-sonnet-5',
-                  name: 'Claude Sonnet 5',
-                  supported_endpoint_types: ['anthropic']
-                }
-              ]
-            }
-          ]
-        }
-      })
-      await migrator.prepare(migrationContext)
+    it.each([
+      {
+        providerId: 'cherryin',
+        providerName: 'CherryIN',
+        providerType: 'openai',
+        modelId: 'anthropic/claude-sonnet-5',
+        endpointType: 'anthropic',
+        expectedEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      },
+      {
+        providerId: 'new-api',
+        providerName: 'New API',
+        providerType: 'new-api',
+        modelId: 'dynamic-responses-model',
+        endpointType: 'openai-response',
+        expectedEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      }
+    ])(
+      'preserves legacy endpoint routing for $providerId when the current registry cannot re-derive it',
+      async ({ providerId, providerName, providerType, modelId, endpointType, expectedEndpointType }) => {
+        registryFixtures.providers = [{ id: providerId, name: providerName, endpointConfigs: {} }]
+        registryFixtures.models.set(modelId, {
+          id: modelId,
+          name: modelId
+        })
+        const migrationContext = createContext(dbh.db, {
+          llm: {
+            providers: [
+              {
+                id: providerId,
+                name: providerName,
+                type: providerType,
+                enabled: true,
+                models: [
+                  {
+                    id: modelId,
+                    name: modelId,
+                    supported_endpoint_types: [endpointType]
+                  }
+                ]
+              }
+            ]
+          }
+        })
+        await migrator.prepare(migrationContext)
 
-      const result = await migrator.execute(migrationContext)
+        const result = await migrator.execute(migrationContext)
 
-      expect(result.success).toBe(true)
-      const [modelRow] = await dbh.db
-        .select()
-        .from(userModelTable)
-        .where(eq(userModelTable.id, 'cherryin::anthropic/claude-sonnet-5'))
-      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
-    })
+        expect(result.success).toBe(true)
+        const [modelRow] = await dbh.db
+          .select()
+          .from(userModelTable)
+          .where(eq(userModelTable.id, `${providerId}::${modelId}`))
+        expect(modelRow.endpointTypes).toEqual([expectedEndpointType])
+      }
+    )
 
     it('restores CherryIN prefix routing when the legacy model omitted endpoint metadata', async () => {
       registryFixtures.providers = [{ id: 'cherryin', name: 'CherryIN', endpointConfigs: {} }]
