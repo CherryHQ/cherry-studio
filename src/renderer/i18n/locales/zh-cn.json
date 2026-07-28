@@ -5832,6 +5832,7 @@
           "journal_unreadable": "本机的恢复记录无法读取，下次启动时将被隔离。",
           "recovery_incomplete": "上次恢复没能把每个文件都放回原位。请重启应用让它完成，然后才能释放。",
           "restore_state": "该操作与当前恢复状态不符。请先完成或放弃待处理的恢复。",
+          "rollback_unavailable": "本次恢复前的数据已被释放，无法再回退。请选择保留恢复结果以完成清理。",
           "unexpected": "操作意外失败。"
         },
         "export": {
@@ -5847,28 +5848,34 @@
           "title": "备份"
         },
         "notice": {
-          "completed_description": "先前的数据库和每个被替换的文件仍保留在本机，且常规文件清理会一直暂停，直到你确认。请打开 设置 → 数据 → 备份与恢复，选择\"保留恢复结果\"。",
-          "completed_title": "恢复已完成 —— 确认后可释放空间",
+          "completed_description": "先前的数据库和每个被替换的文件仍保留在本机，且常规文件清理仍处于暂停状态。请打开 设置 → 数据 → 备份与恢复，选择回退或保留恢复结果。",
+          "completed_title": "恢复已完成 —— 请检查结果",
           "expired_description": "已准备的恢复在执行前过期，没有任何内容被替换。可在 设置 → 数据 → 备份与恢复 中重新准备。",
           "expired_title": "恢复未执行",
           "failed_description": "先前的数据已保留，没有任何内容被替换。详情见 设置 → 数据 → 备份与恢复。",
-          "failed_title": "恢复未完成"
+          "failed_title": "恢复未完成",
+          "rolled_back_description": "先前的数据库和文件已重新启用。请打开 设置 → 数据 → 备份与恢复，确认后释放已移出的恢复数据。",
+          "rolled_back_title": "恢复已回退"
         },
         "outcome": {
           "acknowledge_button": "保留恢复结果",
-          "acknowledged": "已确认恢复，先前的数据已释放。",
+          "acknowledged": "已确认恢复结果，不再使用的数据已释放。",
           "completed_help": "在你确认之前，先前的数据库和每个被替换的文件仍保留在本机，可用于回滚。",
           "degradations": "有 {{count}} 项以降级的形式恢复。",
+          "keep_previous_button": "保留先前数据",
           "reconfirm_integrations": "恢复后会运行程序或访问网络的集成保持关闭，直到你在本机确认。",
           "recovery_incomplete": "这次恢复没能把每个文件都放回原位，应用仍在保留原件。请重启 Cherry Studio 让它完成 —— 在那之前不会释放任何内容。",
           "resources_incomplete": "恢复后的数据库已在使用，但部分恢复的文件尚未就位。请重启 Cherry Studio 让它完成 —— 在那之前不会释放任何内容。",
+          "rolled_back_help": "先前的数据库和被替换文件已重新启用。确认后将释放已移出的恢复副本。",
           "state": {
             "armed": "已确认恢复，将在下次启动时执行。",
             "completed": "恢复已完成。",
             "expired": "已准备的恢复未执行即过期。",
             "failed": "上次恢复未完成，先前的数据已保留。",
             "prepared": "已准备一个恢复。",
-            "promoting": "恢复正在进行。"
+            "promoting": "恢复正在进行。",
+            "rollback_armed": "已确认回退，将在下次启动时执行。",
+            "rolled_back": "恢复已回退，先前的数据已重新启用。"
           },
           "title": "上次恢复",
           "unreadable": "本机的恢复记录无法读取，下次启动时将被隔离。"
@@ -5899,6 +5906,12 @@
           "help": "恢复会用备份文件中的数据库整体替换当前数据库，不做合并。",
           "pending_elsewhere": "此前准备的恢复仍在等待。重新选择备份文件可查看其详情。",
           "title": "恢复"
+        },
+        "rollback": {
+          "button": "回退本次恢复",
+          "confirm_content": "Cherry Studio 将重启并恢复到本次恢复前的数据库和文件。恢复完成后产生的更改不会合并；确认回退结果后，这些数据将被释放。",
+          "confirm_ok": "回退并重启",
+          "confirm_title": "返回本次恢复前的数据？"
         },
         "title": "备份与恢复"
       },

@@ -112,7 +112,9 @@ const RestoreSummarySchema = z.strictObject({
   knowledgeBaseIds: z
     .array(z.string().min(1))
     .max(MAX_RESOURCE_INSTALL_ENTRIES)
-    .refine((ids) => new Set(ids).size === ids.length, { message: 'knowledge-base IDs must be unique' })
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: 'knowledge-base IDs must be unique'
+    })
 })
 
 /**
@@ -149,9 +151,10 @@ const commonFields = {
 
 /**
  * Discriminated on `state`. `prepared`/`armed` carry no step (promotion has not
- * begun); `promoting` requires the last-completed step; terminal states may
- * keep it for diagnostics. `completed` carries the durable `summary` the
- * post-promotion reindex scheduler consumes; `failed`/`expired` carry an
+ * begun); `promoting` requires the last-completed step. A `completed` restore may
+ * become `rollback-armed` only by explicit user consent; `rolled-back` is its
+ * reverse terminal. States that passed the DB commit carry the durable `summary`
+ * the post-promotion reindex scheduler consumes; `failed`/`expired` carry an
  * optional terminal `reason` for post-boot reporting. `strictObject` +
  * `version: z.literal(2)` make a downgraded v1 parser reject a v2 journal (and
  * vice-versa): unknown version/fields → parse failure → the gate quarantines
@@ -160,7 +163,11 @@ const commonFields = {
 const journalVariants = [
   z.strictObject({ ...commonFields, state: z.literal('prepared') }),
   z.strictObject({ ...commonFields, state: z.literal('armed') }),
-  z.strictObject({ ...commonFields, state: z.literal('promoting'), step: PromotionStepSchema }),
+  z.strictObject({
+    ...commonFields,
+    state: z.literal('promoting'),
+    step: PromotionStepSchema
+  }),
   z.strictObject({
     ...commonFields,
     state: z.literal('completed'),
@@ -174,6 +181,18 @@ const journalVariants = [
      * unit is installed; `true` is the only other value.
      */
     resourcesIncomplete: z.literal(true).optional()
+  }),
+  z.strictObject({
+    ...commonFields,
+    state: z.literal('rollback-armed'),
+    step: PromotionStepSchema.optional(),
+    summary: RestoreSummarySchema
+  }),
+  z.strictObject({
+    ...commonFields,
+    state: z.literal('rolled-back'),
+    step: PromotionStepSchema.optional(),
+    summary: RestoreSummarySchema
   }),
   z.strictObject({
     ...commonFields,

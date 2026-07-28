@@ -58,6 +58,9 @@ function toIpcError(error: unknown): unknown {
     if (error.code === 'relaunch-failed') {
       return new IpcError(backupErrorCodes.ARM_FAILED, error.message)
     }
+    if (error.code === 'rollback-unavailable') {
+      return new IpcError(backupErrorCodes.ROLLBACK_UNAVAILABLE, error.message)
+    }
     if (error.code === 'recovery-incomplete') {
       return new IpcError(backupErrorCodes.RECOVERY_INCOMPLETE, error.message)
     }
@@ -182,6 +185,11 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
   'backup.arm_restore': async (_input, ctx) => {
     assertManagedWindow(ctx)
     await mapped(() => application.get('BackupService').armRestore())
+  },
+
+  'backup.rollback_restore': async (_input, ctx) => {
+    assertManagedWindow(ctx)
+    await mapped(() => application.get('BackupService').rollbackRestore())
   },
 
   'backup.acknowledge_restore': async (_input, ctx) => {

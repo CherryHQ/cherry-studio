@@ -40,7 +40,7 @@ function fullJournal(overrides: Record<string, unknown> = {}) {
 }
 
 describe('RestoreJournalV2Schema — versions & states', () => {
-  it('accepts all six lifecycle states', () => {
+  it('accepts all eight lifecycle states', () => {
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'prepared' })).success).toBe(true)
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'armed' })).success).toBe(true)
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'promoting', step: 'db-promoted' })).success).toBe(
@@ -50,6 +50,8 @@ describe('RestoreJournalV2Schema — versions & states', () => {
       RestoreJournalV2Schema.safeParse(liteJournal({ state: 'completed', step: 'integrity-ok', summary })).success
     ).toBe(true)
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'completed', summary })).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'rollback-armed', summary })).success).toBe(true)
+    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'rolled-back', summary })).success).toBe(true)
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'failed' })).success).toBe(true)
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'expired' })).success).toBe(true)
   })
@@ -101,11 +103,10 @@ describe('RestoreJournalV2Schema — versions & states', () => {
 })
 
 describe('RestoreJournalV2Schema — terminal fields', () => {
-  it('requires a durable summary on completed', () => {
-    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'completed' })).success).toBe(false)
+  it.each(['completed', 'rollback-armed', 'rolled-back'] as const)('requires a durable summary on %s', (state) => {
+    expect(RestoreJournalV2Schema.safeParse(liteJournal({ state })).success).toBe(false)
     expect(
-      RestoreJournalV2Schema.safeParse(liteJournal({ state: 'completed', summary: { knowledgeBaseIds: ['kb-1'] } }))
-        .success
+      RestoreJournalV2Schema.safeParse(liteJournal({ state, summary: { knowledgeBaseIds: ['kb-1'] } })).success
     ).toBe(true)
   })
 
@@ -116,7 +117,7 @@ describe('RestoreJournalV2Schema — terminal fields', () => {
     ).toBe(false)
   })
 
-  it('rejects a summary on non-completed states (strict)', () => {
+  it('rejects a summary on states that never crossed the commit (strict)', () => {
     expect(RestoreJournalV2Schema.safeParse(liteJournal({ state: 'prepared', summary })).success).toBe(false)
   })
 

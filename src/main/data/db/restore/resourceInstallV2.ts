@@ -120,13 +120,21 @@ function assertTargetInstallable(unit: ResourceUnit): void {
   }
 }
 
+function assertRecoverySource(resourceType: ResourceUnit['resourceType'], source: string, label: string): void {
+  const stats = fs.lstatSync(source)
+  const matches = resourceType === 'file' ? stats.isFile() : stats.isDirectory()
+  if (stats.isSymbolicLink() || !matches) {
+    throw new ResourceInstallError('recovery-source-invalid', `${label} is not a regular ${resourceType}`)
+  }
+}
+
 /**
  * Every EXISTING ancestor of the target, below userData, must still be a real
  * directory. A symlinked ancestor would silently redirect the install outside
  * every registered root while the relative path still looked contained.
  */
-function assertAncestorsSafe(userData: string, unit: ResourceUnit): void {
-  const segments = unit.liveRel.split('/')
+function assertAncestorsSafe(userData: string, relativePath: string): void {
+  const segments = relativePath.split('/')
   segments.pop()
   let current = userData
   for (const segment of segments) {
@@ -134,7 +142,7 @@ function assertAncestorsSafe(userData: string, unit: ResourceUnit): void {
     const stats = lstatOrNull(current)
     if (stats === null) return
     if (!stats.isDirectory() || stats.isSymbolicLink()) {
-      throw new ResourceInstallError('unsafe-ancestor', `${unit.liveRel} passes through ${segment}`)
+      throw new ResourceInstallError('unsafe-ancestor', `${relativePath} passes through ${segment}`)
     }
   }
 }
@@ -199,7 +207,7 @@ export function installResourceUnits(entries: readonly ResourceInstallEntry[], u
       throw new ResourceInstallError('staged-missing', unit.liveRel)
     }
 
-    assertAncestorsSafe(userData, unit)
+    assertAncestorsSafe(userData, unit.liveRel)
     assertTargetInstallable(unit)
 
     if (facts.live) {
@@ -235,6 +243,12 @@ export function recoverResourceUnits(
 
   for (const entry of entries) {
     const unit = resolveUnit(userData, entry)
+    // Explicit rollback can run long after installation, so re-prove every
+    // rename parent. A newly symlinked ancestor must not redirect recovery
+    // outside userData while the journal's relative paths still look contained.
+    assertAncestorsSafe(userData, entry.staging)
+    assertAncestorsSafe(userData, entry.live)
+    assertAncestorsSafe(userData, entry.aside)
     const facts = probe(unit)
     const action = decideRecoveryAction({ phase, ...facts })
 
@@ -255,10 +269,12 @@ export function recoverResourceUnits(
       case 'restore-aside':
         // The aside holds the original target, so whatever occupies `live` is
         // the archive's copy: park it before the original comes back.
+        assertRecoverySource(unit.resourceType, unit.aside, `${unit.liveRel} aside`)
         if (facts.live) batch.rename(unit.live, unit.staged)
         batch.rename(unit.aside, unit.live)
         break
       case 'install-forward':
+        assertRecoverySource(unit.resourceType, unit.staged, `${unit.liveRel} staging`)
         batch.rename(unit.staged, unit.live)
         break
       case 'abort-inconsistent':

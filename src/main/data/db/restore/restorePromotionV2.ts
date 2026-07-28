@@ -52,7 +52,8 @@ type PreparedJournal = Extract<RestoreJournalV2, { state: 'prepared' }>
 type PromotingJournal = Extract<RestoreJournalV2, { state: 'promoting' }>
 type FailedJournal = Extract<RestoreJournalV2, { state: 'failed' }>
 type CompletedJournal = Extract<RestoreJournalV2, { state: 'completed' }>
-type ActiveJournal = ArmedJournal | PromotingJournal
+type RollbackArmedJournal = Extract<RestoreJournalV2, { state: 'rollback-armed' }>
+type ActiveJournal = ArmedJournal | PromotingJournal | RollbackArmedJournal
 
 const COMMIT_INDEX = PROMOTION_STEP_ORDER_V2.indexOf(DB_COMMIT_STEP)
 
@@ -112,6 +113,9 @@ export async function runRestorePromotionV2(): Promise<void> {
       // installed slot is holding storage the user cannot release.
       if (journal.resourcesIncomplete) retryIncompleteInstall(journal)
       return
+    case 'rollback-armed':
+      return rollbackCompletedRestore(journal)
+    case 'rolled-back':
     case 'expired':
       // Terminal. Reporting and acknowledgement cleanup own these.
       return
@@ -144,7 +148,9 @@ function retryIncompleteInstall(journal: CompletedJournal): void {
   delete settled.resourcesIncomplete
   writeRestoreJournalV2(settled)
   removeStagingTree(journal.restoreId)
-  logger.info('Finished an install a previous boot left incomplete', { restoreId: journal.restoreId })
+  logger.info('Finished an install a previous boot left incomplete', {
+    restoreId: journal.restoreId
+  })
 }
 
 /**
@@ -175,7 +181,9 @@ function retryIncompleteRollback(journal: FailedJournal): void {
   const completed: FailedJournal = { ...journal }
   delete completed.recoveryIncomplete
   writeRestoreJournalV2(completed)
-  logger.info('Finished a rollback a previous boot left incomplete', { restoreId: journal.restoreId })
+  logger.info('Finished a rollback a previous boot left incomplete', {
+    restoreId: journal.restoreId
+  })
 }
 
 /**
@@ -218,6 +226,17 @@ export function markRestoreFailedAfterCrashV2(): void {
 }
 
 /**
+ * Whether an explicit user-approved rollback has not reached its durable
+ * terminal marker. The preboot shell must fail fast on an escaped error in this
+ * state: booting with only some resource units reversed would expose a mixed
+ * database/filesystem state.
+ */
+export function isRestoreRollbackPendingV2(): boolean {
+  const read = readRestoreJournalV2()
+  return read.kind === 'ok' && read.journal.state === 'rollback-armed'
+}
+
+/**
  * Whether the user's database is stranded: the live slot is empty while this
  * machinery's aside still holds the previous one. Booting on from here would
  * create a fresh empty database on first open. A missing live database with no
@@ -254,7 +273,9 @@ export function isLiveDbStrandedV2(): boolean {
  * protected (§6.5), so clearing the journal first would orphan it.
  */
 function expirePrepared(journal: PreparedJournal): void {
-  logger.info('Found an unarmed preparation at boot — expiring it', { restoreId: journal.restoreId })
+  logger.info('Found an unarmed preparation at boot — expiring it', {
+    restoreId: journal.restoreId
+  })
   removeStagingTree(journal.restoreId)
   writeRestoreJournalV2({
     ...journal,
@@ -277,7 +298,9 @@ async function promoteArmed(journal: ArmedJournal): Promise<void> {
     return expire(ctx, `admission gate failed: ${(error as Error).message}`)
   }
 
-  logger.info('Restore admission gate passed, promoting', { restoreId: journal.restoreId })
+  logger.info('Restore admission gate passed, promoting', {
+    restoreId: journal.restoreId
+  })
   const promoting = markStep({ ...journal, state: 'promoting', step: 'gate-passed' }, 'gate-passed')
   await executeForward(ctx, promoting, PROMOTION_STEP_ORDER_V2.indexOf('gate-passed') + 1)
 }
@@ -315,7 +338,9 @@ function assertPromotable(ctx: PromotionContext): void {
  * promoted database forward on first open.
  */
 function chainIsBundledPrefix(chain: readonly AppliedMigration[]): boolean {
-  const bundled = readMigrationFiles({ migrationsFolder: application.getPath('app.database.migrations') })
+  const bundled = readMigrationFiles({
+    migrationsFolder: application.getPath('app.database.migrations')
+  })
   if (chain.length > bundled.length) {
     return false
   }
@@ -325,7 +350,10 @@ function chainIsBundledPrefix(chain: readonly AppliedMigration[]): boolean {
 }
 
 function expire(ctx: PromotionContext, reason: string): void {
-  logger.warn('Restore refused at admission gate — old DB stays live', { restoreId: ctx.journal.restoreId, reason })
+  logger.warn('Restore refused at admission gate — old DB stays live', {
+    restoreId: ctx.journal.restoreId,
+    reason
+  })
   finalize(ctx, 'expired', reason)
 }
 
@@ -336,7 +364,12 @@ function recoverPromoting(journal: PromotingJournal): Promise<void> | void {
   const facts = probeFacts(ctx)
   const phase = recoveryPhase(journal.step, facts)
   const action = dbUnitAction(decideRecoveryAction({ phase, ...facts }))
-  logger.warn('Resuming an interrupted promotion', { restoreId: journal.restoreId, step: journal.step, phase, action })
+  logger.warn('Resuming an interrupted promotion', {
+    restoreId: journal.restoreId,
+    step: journal.step,
+    phase,
+    action
+  })
 
   switch (action) {
     case 'complete':
@@ -471,7 +504,9 @@ async function executeForward(
       current = { ...current, step }
     }
   }
-  logger.info('Restore promoted — the new database is live', { restoreId: ctx.journal.restoreId })
+  logger.info('Restore promoted — the new database is live', {
+    restoreId: ctx.journal.restoreId
+  })
   finalizeCompleted(ctx, current.step, resourcesOk)
 }
 
@@ -544,6 +579,81 @@ function integrityCheck(dbPath: string): string {
 }
 
 // ─── rollback ───
+
+/**
+ * Reverse a completed restore after explicit user consent.
+ *
+ * Resources move first and the database moves last, mirroring forward promotion:
+ * the DB rename is again the commit boundary. The `rollback-armed` marker is the
+ * durable direction, so every crash re-enters this function and finishes the
+ * reverse moves. Nothing is deleted here: the displaced restored resources stay
+ * in their staging slots and the restored DB stays in `restore-failed-*` until
+ * acknowledgement releases them after the terminal marker is durable.
+ */
+function rollbackCompletedRestore(journal: RollbackArmedJournal): void {
+  const ctx = buildContext(journal)
+  const parked = rolledForwardDbPath(ctx)
+  const live = fs.existsSync(ctx.livePath)
+  const aside = fs.existsSync(ctx.asidePath)
+  const parkedExists = fs.existsSync(parked)
+
+  // Unlike forward promotion, explicit rollback can be requested after the app
+  // has run for a while. Re-prove every DB artifact before SQLite opens or a
+  // rename moves it; a replaced symlink must not redirect recovery elsewhere.
+  if (live) assertRegularRollbackDb(ctx.livePath, 'live')
+  if (aside) assertRegularRollbackDb(ctx.asidePath, 'previous aside')
+  if (parkedExists) assertRegularRollbackDb(parked, 'displaced restored')
+
+  // Initial reverse entry. Fold every committed frame into the restored main
+  // file before parking it, so the copy retained until acknowledgement is whole.
+  if (live && aside && !parkedExists) {
+    checkpointLiveDb(ctx.livePath)
+    fs.rmSync(`${ctx.livePath}-wal`, { force: true })
+    fs.rmSync(`${ctx.livePath}-shm`, { force: true })
+  } else if (live && aside && parkedExists) {
+    throw new Error('rollback state is inconsistent: live, previous aside, and displaced restored DB all exist')
+  } else if (!aside && (!live || !parkedExists)) {
+    throw new Error('rollback source is missing or the previous database cannot be proven live')
+  }
+
+  // Pre-commit direction restores old targets and parks restored targets back in
+  // their operation-owned staging slots. It is move-only and safe to re-enter.
+  recoverResourceUnits(journal.resourceInstalls, ctx.userData, 'pre-commit')
+
+  if (fs.existsSync(ctx.asidePath)) {
+    if (fs.existsSync(ctx.livePath)) {
+      if (fs.existsSync(parked)) {
+        throw new Error('rollback cannot park the restored database: destination already exists')
+      }
+      renameDurable(ctx.livePath, parked)
+    }
+    restoreLiveFromAside(ctx)
+  }
+
+  if (!fs.existsSync(ctx.livePath) || !fs.existsSync(parked) || fs.existsSync(ctx.asidePath)) {
+    throw new Error('rollback did not converge to previous-live plus displaced-restored')
+  }
+  const result = integrityCheck(ctx.livePath)
+  if (result !== 'ok') {
+    throw new Error(`integrity_check on the rolled-back DB failed: ${result}`)
+  }
+
+  writeRestoreJournalV2({ ...journal, state: 'rolled-back' })
+  logger.info('Restore rolled back — previous data is live', {
+    restoreId: journal.restoreId
+  })
+}
+
+function rolledForwardDbPath(ctx: PromotionContext): string {
+  return path.join(ctx.userData, `restore-failed-${ctx.journal.restoreId}.sqlite`)
+}
+
+function assertRegularRollbackDb(dbPath: string, role: string): void {
+  const stats = fs.lstatSync(dbPath)
+  if (stats.isSymbolicLink() || !stats.isFile()) {
+    throw new Error(`rollback ${role} database is not a regular file: ${dbPath}`)
+  }
+}
 
 /**
  * Put the pre-restore database back: park whatever currently occupies the live
@@ -769,7 +879,10 @@ function discardStaged(ctx: PromotionContext): void {
 function quarantineCorruptJournal(error: string): void {
   const journalPath = application.getPath('feature.backup.restore.file')
   const quarantined = `${journalPath}.corrupt-${Date.now()}`
-  logger.error('Corrupt restore journal — quarantining and clearing staging', { quarantined, error })
+  logger.error('Corrupt restore journal — quarantining and clearing staging', {
+    quarantined,
+    error
+  })
   try {
     fs.renameSync(journalPath, quarantined)
   } catch (renameError) {
@@ -777,7 +890,10 @@ function quarantineCorruptJournal(error: string): void {
     fs.rmSync(journalPath, { force: true })
   }
   // No trustworthy restoreId — clear the whole staging root.
-  fs.rmSync(application.getPath('feature.backup.restore.staging'), { recursive: true, force: true })
+  fs.rmSync(application.getPath('feature.backup.restore.staging'), {
+    recursive: true,
+    force: true
+  })
 }
 
 // ─── context & filesystem primitives ───

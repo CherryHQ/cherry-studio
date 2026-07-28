@@ -5832,6 +5832,7 @@
           "journal_unreadable": "The restore record on this device cannot be read. The next start will quarantine it.",
           "recovery_incomplete": "The last restore could not put every file back. Restart the app to finish it before releasing anything.",
           "restore_state": "That does not match the current state of the restore. Finish or discard the pending restore first.",
+          "rollback_unavailable": "The data from before this restore has already been released, so it can no longer be rolled back. Keep the restored data to finish cleanup.",
           "unexpected": "The operation failed unexpectedly."
         },
         "export": {
@@ -5847,28 +5848,34 @@
           "title": "Backup"
         },
         "notice": {
-          "completed_description": "The previous database and every file the restore replaced are still on this device, and routine file cleanup stays paused until you confirm. Open Settings → Data → Backup & restore and choose \"Keep restored data\".",
-          "completed_title": "Restore complete — confirm to reclaim space",
+          "completed_description": "The previous database and every file the restore replaced are still on this device, and routine file cleanup stays paused. Open Settings → Data → Backup & restore to roll back or keep the restored data.",
+          "completed_title": "Restore complete — review the result",
           "expired_description": "A prepared restore expired before it could run, so nothing was replaced. Prepare it again from Settings → Data → Backup & restore.",
           "expired_title": "The restore did not run",
           "failed_description": "Your previous data was kept and nothing was replaced. See Settings → Data → Backup & restore for what happened.",
-          "failed_title": "The restore did not complete"
+          "failed_title": "The restore did not complete",
+          "rolled_back_description": "Your previous database and files are active again. Open Settings → Data → Backup & restore and confirm to release the displaced restored data.",
+          "rolled_back_title": "Restore rolled back"
         },
         "outcome": {
           "acknowledge_button": "Keep restored data",
-          "acknowledged": "Restore acknowledged. The previous data has been released.",
+          "acknowledged": "Restore outcome confirmed. Data no longer in use has been released.",
           "completed_help": "Until you confirm, the previous database and every replaced file are still on this device as rollback material.",
           "degradations": "{{count}} item(s) were restored in a reduced form.",
+          "keep_previous_button": "Keep previous data",
           "reconfirm_integrations": "Restored integrations that run programs or reach the network stay off until you confirm them on this device.",
           "recovery_incomplete": "This restore could not put every file back, so the app is still holding the originals. Restart Cherry Studio to finish it — nothing can be released until then.",
           "resources_incomplete": "The restored database is in use, but some restored files are not in place yet. Restart Cherry Studio to finish it — nothing can be released until then.",
+          "rolled_back_help": "Your previous database and replaced files are active again. Confirm to release the displaced restored copies.",
           "state": {
             "armed": "A restore is armed and will run at the next start.",
             "completed": "A restore completed.",
             "expired": "A prepared restore expired without running.",
             "failed": "The last restore did not complete. Your previous data was kept.",
             "prepared": "A restore is prepared.",
-            "promoting": "A restore is in progress."
+            "promoting": "A restore is in progress.",
+            "rollback_armed": "The restore will be rolled back at the next start.",
+            "rolled_back": "The restore was rolled back. Your previous data is active again."
           },
           "title": "Last restore",
           "unreadable": "The restore record on this device cannot be read. The next start will quarantine it."
@@ -5899,6 +5906,12 @@
           "help": "A restore replaces the whole database with the one in the backup file. There is no merge.",
           "pending_elsewhere": "A restore prepared earlier is still waiting. Choose the backup again to see its details.",
           "title": "Restore"
+        },
+        "rollback": {
+          "button": "Roll back restore",
+          "confirm_content": "Cherry Studio will restart with the database and files from immediately before this restore. Changes made after the restore will not be merged and will be released after you confirm the rollback result.",
+          "confirm_ok": "Roll back and restart",
+          "confirm_title": "Return to the data from before this restore?"
         },
         "title": "Backup & restore"
       },

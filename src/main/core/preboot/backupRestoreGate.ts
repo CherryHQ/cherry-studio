@@ -1,5 +1,6 @@
 import {
   isLiveDbStrandedV2,
+  isRestoreRollbackPendingV2,
   markRestoreFailedAfterCrashV2,
   runRestorePromotionV2
 } from '@data/db/restore/restorePromotionV2'
@@ -25,13 +26,11 @@ const logger = loggerService.withContext('BackupRestoreGate')
  * resumable) so the next boot does not retry a promotion that just proved
  * itself poisonous.
  *
- * This shell never throws — a preboot exception falls into startApp's
- * fail-fast catch (forceExit) and dead-loops the app into "Unable to Start" —
- * with exactly ONE exception: when even the crash net could not put a live
- * DB in place (isLiveDbStrandedV2), booting on would silently CREATE a fresh
- * empty database while the user's data sits in the aside. That is the one
- * outcome worse than the fail-fast dialog, so the gate refuses to boot and
- * leaves the aside, the journal, and the staging tree as repair artifacts.
+ * This shell normally does not throw — a preboot exception falls into
+ * startApp's fail-fast catch (forceExit). It refuses to boot only when recovery
+ * cannot prove a coherent live state: either the DB is stranded aside or an
+ * explicitly armed rollback has not converged. Booting the latter would expose
+ * a mixed old/new DB-resource state and let new writes make recovery ambiguous.
  */
 export async function runBackupRestoreGate(): Promise<void> {
   try {
@@ -47,6 +46,9 @@ export async function runBackupRestoreGate(): Promise<void> {
       throw new Error(
         'Restore recovery failed: the live database is missing while the previous database is still parked aside — refusing to boot into an empty database'
       )
+    }
+    if (isRestoreRollbackPendingV2()) {
+      throw new Error('Restore rollback is incomplete — refusing to boot into a mixed restore state')
     }
   }
 }

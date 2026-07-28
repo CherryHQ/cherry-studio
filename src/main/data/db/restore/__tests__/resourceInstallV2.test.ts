@@ -277,6 +277,29 @@ describe('resourceInstallV2', () => {
       expect(readUnit(unit.live)).toBe('TARGET')
     })
 
+    it('pre-commit: refuses a symlink substituted for the retained aside', () => {
+      const unit = entry('Data/KnowledgeBase/base-1')
+      makeDirUnit(unit.live, 'ARCHIVE')
+      makeDirUnit('outside', 'TARGET')
+      mkdirSync(join(abs(unit.aside), '..'), { recursive: true })
+      symlinkSync(abs('outside'), abs(unit.aside))
+
+      expect(() => recoverResourceUnits([unit], userData, 'pre-commit')).toThrow(/recovery-source-invalid/)
+      expect(readUnit(unit.live)).toBe('ARCHIVE')
+      expect(readUnit('outside')).toBe('TARGET')
+    })
+
+    it('pre-commit: refuses a live path redirected after installation', () => {
+      const unit = entry('Data/KnowledgeBase/base-1')
+      makeDirUnit('outside/KnowledgeBase/base-1', 'ARCHIVE')
+      makeDirUnit(unit.aside, 'TARGET')
+      symlinkSync(abs('outside'), abs('Data'))
+
+      expect(() => recoverResourceUnits([unit], userData, 'pre-commit')).toThrow(/unsafe-ancestor/)
+      expect(readUnit('outside/KnowledgeBase/base-1')).toBe('ARCHIVE')
+      expect(readUnit(unit.aside)).toBe('TARGET')
+    })
+
     it('pre-commit: fails closed on the unprovable staged+live+aside state', () => {
       const unit = entry('Data/KnowledgeBase/base-1')
       makeDirUnit(unit.staging, 'ARCHIVE')

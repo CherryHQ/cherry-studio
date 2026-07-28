@@ -21,7 +21,9 @@ const PROTECTED_STATES: ReadonlySet<RestoreJournalV2State> = new Set<RestoreJour
   'prepared',
   'armed',
   'promoting',
-  'completed'
+  'completed',
+  'rollback-armed',
+  'rolled-back'
 ])
 
 export function hasPendingRestore(): boolean {

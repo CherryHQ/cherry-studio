@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { requestMock } = vi.hoisted(() => ({ requestMock: vi.fn() }))
 
 vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
+  loggerService: {
+    withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })
+  }
 }))
 vi.mock('i18next', () => ({ t: (key: string) => key }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: requestMock } }))
@@ -31,7 +33,12 @@ beforeEach(() => {
 
 describe('useBackupRestoreNotice', () => {
   it('tells the user a completed restore is still holding disk space', async () => {
-    statusIs({ kind: 'journal', state: 'completed', restoreId: 'r1', preset: 'full' })
+    statusIs({
+      kind: 'journal',
+      state: 'completed',
+      restoreId: 'r1',
+      preset: 'full'
+    })
 
     renderHook(() => useBackupRestoreNotice())
     await flush()
@@ -41,6 +48,25 @@ describe('useBackupRestoreNotice', () => {
       timeout: 0,
       title: 'settings.data.backup_v2.notice.completed_title',
       description: 'settings.data.backup_v2.notice.completed_description'
+    })
+  })
+
+  it('tells the user a completed rollback is still holding displaced data', async () => {
+    statusIs({
+      kind: 'journal',
+      state: 'rolled-back',
+      restoreId: 'r1',
+      preset: 'full'
+    })
+
+    renderHook(() => useBackupRestoreNotice())
+    await flush()
+
+    expect(toast.warning).toHaveBeenCalledWith({
+      key: 'backup-restore-notice',
+      timeout: 0,
+      title: 'settings.data.backup_v2.notice.rolled_back_title',
+      description: 'settings.data.backup_v2.notice.rolled_back_description'
     })
   })
 
@@ -65,17 +91,25 @@ describe('useBackupRestoreNotice', () => {
     expect(toast.warning).not.toHaveBeenCalled()
   })
 
-  it.each(['prepared', 'armed', 'promoting'])('stays quiet during the in-flight state %s', async (state) => {
-    statusIs({ kind: 'journal', state, restoreId: 'r1', preset: 'lite' })
+  it.each(['prepared', 'armed', 'promoting', 'rollback-armed'])(
+    'stays quiet during the in-flight state %s',
+    async (state) => {
+      statusIs({ kind: 'journal', state, restoreId: 'r1', preset: 'lite' })
 
-    renderHook(() => useBackupRestoreNotice())
-    await flush()
+      renderHook(() => useBackupRestoreNotice())
+      await flush()
 
-    expect(toast.warning).not.toHaveBeenCalled()
-  })
+      expect(toast.warning).not.toHaveBeenCalled()
+    }
+  )
 
   it('drops a status that arrives after unmount', async () => {
-    statusIs({ kind: 'journal', state: 'completed', restoreId: 'r1', preset: 'full' })
+    statusIs({
+      kind: 'journal',
+      state: 'completed',
+      restoreId: 'r1',
+      preset: 'full'
+    })
 
     const { unmount } = renderHook(() => useBackupRestoreNotice())
     unmount()

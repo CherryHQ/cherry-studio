@@ -48,8 +48,9 @@ the document elaborates the mechanisms that enforce them.
    payload that drifts *during* staging fails export closed.
 8. **Preparation is unarmed.** Restore preparation is cancellable and grants no
    permission to promote; only explicit relaunch confirmation arms promotion.
-9. **Completed asides block deletion until acknowledgement.** A completed restore's DB and
-   resource asides block permanent orphan deletion until the user acknowledges.
+9. **The displaced side blocks deletion until acknowledgement.** A completed restore may
+   explicitly roll back to its retained DB/resources; after either direction finishes, the
+   displaced side blocks permanent orphan deletion until the user acknowledges.
 
 ---
 
@@ -332,7 +333,8 @@ promotion gate live in
 ### 6.1 Lifecycle states
 
 ```text
-prepared → armed → promoting → completed | failed | expired
+prepared → armed → promoting → completed → rollback-armed → rolled-back
+                         └───────→ failed | expired
 ```
 
 | State | Meaning |
@@ -340,12 +342,15 @@ prepared → armed → promoting → completed | failed | expired
 | `prepared` | Staged and sealed. **Not** permission to restore — UI can cancel it and clean its staging tree. |
 | `armed` | Durably written *immediately before* `application.relaunch()` on explicit user confirmation. If relaunch initiation fails, the service clears the arm and reports failure. |
 | `promoting` | Preboot is executing; `step` is the durable last-completed global-step marker (compare via `indexOf` on the step-order table, never lexicographically). |
-| `completed` | New DB (and, for Full, all resources) live. Asides retained until acknowledgement. `resourcesIncomplete: true` marks a post-commit install that could not put every unit in place (§6.5). |
-| `failed` | Crash rollback or integrity failure; old DB is live. `recoveryIncomplete: true` marks a rollback that could not put every unit back (§6.5). |
+| `completed` | New DB (and, for Full, all resources) live. Asides retained until the user either acknowledges or explicitly requests rollback. `resourcesIncomplete: true` marks a post-commit install that could not put every unit in place (§6.5). |
+| `rollback-armed` | Durably records explicit rollback consent immediately before relaunch. Preboot must finish the reverse move or fail fast; normal services may not open a mixed old/new state. |
+| `rolled-back` | The pre-restore DB and replaced resources are live again. Displaced restored copies remain operation-owned until acknowledgement. |
+| `failed` | Promotion crash rollback or integrity failure; old DB is live. `recoveryIncomplete: true` marks a rollback that could not put every unit back (§6.5). |
 | `expired` | An **unarmed** `prepared` journal an unrelated restart found; cleaned rather than promoted. |
 
-Only `armed` enters promotion. Once armed, later local DB writes are intentionally
-replaced.
+Only `armed` enters promotion; only `rollback-armed` enters explicit reverse promotion.
+Once either action is armed, later writes in the state being displaced are intentionally
+replaced rather than merged.
 
 Every state also carries the **degradation report** — what materializing this
 archive against this device reduced (§4), aggregated per `(table, reason)`. It
@@ -439,6 +444,15 @@ state. Existence alone is insufficient — `(present, absent, present)` is ambig
 The table MUST be **total** over every reachable `(direction/step, staged, live, aside)`
 state and must reject overlapping/symlink/EXDEV states before mutation.
 
+**Explicit rollback reuses the same move-only triples.** It is available only from a
+fully `completed` restore before acknowledgement. Resources reverse first in the
+`pre-commit` direction; the DB moves last as the reverse commit boundary. The current
+restored DB is parked in the operation-owned forensic slot, restored resources move back to
+their staging slots, and the retained asides return to live. Crashes re-enter under the
+durable `rollback-armed` direction. If any reverse move cannot converge, preboot fails fast
+rather than open normal services on a mixed DB/resource state. There is no merge and no redo
+chain.
+
 **The terminal state is durable before anything is deleted.** Every terminal outcome writes
 the journal **first** and drops the staging tree **second**, and a terminal write that fails
 keeps the tree (making the write retryable) instead of proceeding. The reverse order costs
@@ -446,20 +460,27 @@ data: with the tree gone under a still-`promoting` journal, every rolled-back un
 pre-commit `-L-`, which the table above reads as an installed backup — so the next boot
 would move the user's own files back out.
 
-### 6.5 Completed-restore GC protection & acknowledgement
+### 6.5 Restore rollback, GC protection & acknowledgement
 
-While a completed restore's DB/resource asides are retained, orphan sweep must **abort or
+While a completed or rolled-back restore retains the displaced side, orphan sweep must
+**abort or
 quarantine** instead of permanently unlinking anything based on the newly restored DB —
 `orphanSweep` stands aside on `hasPendingRestore()`
 (`src/main/services/file/internal/orphanSweep.ts`), which lives in
 [`src/main/data/db/restore/restoreGuard.ts`](../../../src/main/data/db/restore/restoreGuard.ts)
-and covers `prepared`, `armed`, `promoting`, and completed-but-unacknowledged recovery
-across both journal versions.
+and covers `prepared`, `armed`, `promoting`, `completed`, `rollback-armed`, and
+`rolled-back` recovery.
 
-**Acknowledgement is the commit-to-keep action.** Cleanup idempotently removes recovery
-asides **first**, clears the journal **last**, then releases GC protection. A crash
-anywhere before the last step leaves protection active and cleanup resumable. This is crash
-rollback protection, not a hidden long-term undo feature.
+**A completed restore presents exactly one reversible choice.** Before acknowledgement the
+user may explicitly return to the immediately preceding DB/resource state. The rollback is
+whole-state replacement, not merge: writes made after restore are retained only as displaced
+artifacts until the rolled-back result is acknowledged, then released. It does not create a
+long-term history or offer redo.
+
+**Acknowledgement is the commit-to-keep action.** From `completed` it removes the previous
+state; from `rolled-back` it removes the displaced restored state. Cleanup idempotently
+removes operation-owned artifacts **first**, clears the journal **last**, then releases GC
+protection. A crash before the last step leaves protection active and cleanup resumable.
 
 **An incomplete rollback keeps its asides.** `failed` normally holds nothing — everything went
 back where it came from. When the rollback could **not** finish (a unit the OS refused to

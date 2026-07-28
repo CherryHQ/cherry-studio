@@ -54,6 +54,8 @@ export type RestoreStateErrorCode =
   | 'unreadable'
   /** Arming succeeded but the relaunch it exists for could not be started. */
   | 'relaunch-failed'
+  /** A completed journal survived, but acknowledgement already removed its rollback source. */
+  | 'rollback-unavailable'
   /**
    * A failed restore could not put every file back, so its asides are still the
    * only copy and may not be released. Temporary: the next boot retries.
