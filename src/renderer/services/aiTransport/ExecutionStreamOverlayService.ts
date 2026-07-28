@@ -1,10 +1,10 @@
 /**
- * Window-level owner of per-topic streaming overlay state (execution readers,
- * live snapshots, rAF-batched flushes). Extracted from `useExecutionOverlay`
- * so the overlay's lifetime is keyed by `topicId` instead of a component
- * instance: route/tab/topic switches release their view (refcount) without
- * tearing down readers or detaching the Main listener, and re-acquire the
- * retained view synchronously on remount.
+ * Window-level owner of streaming overlay state shared by topic and agent-session
+ * consumers (execution readers, live snapshots, rAF-batched flushes). Extracted
+ * from `useExecutionOverlay` so the overlay's lifetime is keyed by the transport
+ * `topicId` routing scope instead of a component instance: route/tab/conversation
+ * switches release their view (refcount) without tearing down readers or detaching
+ * the Main listener, and re-acquire the retained view synchronously on remount.
  *
  * Lifecycle rules:
  * - Readers start ONLY from a mounted consumer (`syncExecutions`), so the
@@ -15,12 +15,12 @@
  *   from Main on the next attach (entry dropped), both lossless.
  * - Terminal handoff is dual-mode. With a consumer mounted, the existing
  *   status-edge handoff (`useTopicOverlayHandoffOnTerminal` → refresh →
- *   `resetTopic`) owns disposal, unchanged. With `refCount === 0`, the edge
+ *   `reset`) owns disposal, unchanged. With `refCount === 0`, the edge
  *   would be unobservable (it is tracked per component instance), so the
  *   entry is dropped as soon as its last reader ends — the next mount
  *   rebuilds from DB + shared cache exactly like today's remount path.
  * - `MAX_ENTRIES` LRU eviction of refCount-0 entries is a leak backstop only
- *   (lost terminal events, deleted topics); steady state is O(live streams).
+ *   (lost terminal events, abandoned routing scopes); steady state is O(live streams).
  *
  * Reader semantics (moved verbatim from the hook): each execution gets a
  * one-shot `readUIMessageStream` reader with zero cross-turn state. The
@@ -39,7 +39,7 @@ import { isToolUIPart, readUIMessageStream } from 'ai'
 
 import { TopicStreamSubscription } from './TopicStreamSubscription'
 
-const logger = loggerService.withContext('TopicStreamOverlayService')
+const logger = loggerService.withContext('ExecutionStreamOverlayService')
 
 export interface ExecutionFinishEvent {
   message: CherryUIMessage
@@ -197,7 +197,7 @@ function computeView(snapshots: Record<string, CherryUIMessage>): ExecutionOverl
   return { overlay, liveAssistants }
 }
 
-export class TopicStreamOverlayService {
+export class ExecutionStreamOverlayService {
   readonly #entries = new Map<string, Entry>()
 
   acquire(topicId: string): void {
@@ -309,8 +309,8 @@ export class TopicStreamOverlayService {
     }
   }
 
-  /** Drop every overlay/snapshot entry for a topic (terminal handoff, quick-assistant clear()). */
-  resetTopic(topicId: string): void {
+  /** Drop every overlay/snapshot entry for a routing scope (terminal handoff, quick-assistant clear()). */
+  reset(topicId: string): void {
     const entry = this.#entries.get(topicId)
     if (!entry) return
     this.#invalidatePending(entry)
@@ -536,4 +536,4 @@ export class TopicStreamOverlayService {
   }
 }
 
-export const topicStreamOverlayService = new TopicStreamOverlayService()
+export const executionStreamOverlayService = new ExecutionStreamOverlayService()

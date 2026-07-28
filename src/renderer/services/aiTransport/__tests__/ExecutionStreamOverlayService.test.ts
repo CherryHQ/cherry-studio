@@ -99,7 +99,7 @@ vi.mock('../TopicStreamSubscription', () => ({
   TopicStreamSubscription: mocks.FakeSubscription
 }))
 
-import { TopicStreamOverlayService } from '../TopicStreamOverlayService'
+import { ExecutionStreamOverlayService } from '../ExecutionStreamOverlayService'
 
 const A = 'openai::gpt-4o' as UniqueModelId
 
@@ -154,9 +154,9 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('TopicStreamOverlayService', () => {
+describe('ExecutionStreamOverlayService', () => {
   it('keeps the reader running and the view updating across release, restores synchronously on re-acquire', async () => {
-    const service = new TopicStreamOverlayService()
+    const service = new ExecutionStreamOverlayService()
     const consumer = {}
     service.acquire(TOPIC)
     service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
@@ -181,7 +181,7 @@ describe('TopicStreamOverlayService', () => {
   })
 
   it('drops the entry (and detaches) when the last reader ends at refCount 0', async () => {
-    const service = new TopicStreamOverlayService()
+    const service = new ExecutionStreamOverlayService()
     const consumer = {}
     service.acquire(TOPIC)
     service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
@@ -201,7 +201,7 @@ describe('TopicStreamOverlayService', () => {
   })
 
   it('does NOT self-clean on terminal while a consumer is mounted — the status-edge handoff owns disposal', async () => {
-    const service = new TopicStreamOverlayService()
+    const service = new ExecutionStreamOverlayService()
     const consumer = {}
     service.acquire(TOPIC)
     service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
@@ -215,7 +215,7 @@ describe('TopicStreamOverlayService', () => {
     expect(sub.disposed).toBe(false)
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
 
-    service.resetTopic(TOPIC)
+    service.reset(TOPIC)
     expect(service.getView(TOPIC).overlay).toEqual({})
 
     service.release(TOPIC, consumer)
@@ -224,7 +224,7 @@ describe('TopicStreamOverlayService', () => {
 
   it('reconciles on remount: drops snapshots of no-longer-active executions, keeps streaming ones', async () => {
     const B = 'anthropic::claude' as UniqueModelId
-    const service = new TopicStreamOverlayService()
+    const service = new ExecutionStreamOverlayService()
     const consumer = {}
     const seed = () => [asst('anchor-a'), asst('anchor-b')]
     service.acquire(TOPIC)
@@ -253,7 +253,7 @@ describe('TopicStreamOverlayService', () => {
 
   it('restarts a reader with the same execution and anchor after it finishes while released', async () => {
     const B = 'anthropic::claude' as UniqueModelId
-    const service = new TopicStreamOverlayService()
+    const service = new ExecutionStreamOverlayService()
     const consumer = {}
     const seed = () => [asst('anchor-a'), asst('anchor-b')]
     service.acquire(TOPIC)
@@ -280,7 +280,7 @@ describe('TopicStreamOverlayService', () => {
   })
 
   it('notifies every mounted consumer exactly once per execution finish', async () => {
-    const service = new TopicStreamOverlayService()
+    const service = new ExecutionStreamOverlayService()
     const consumer1 = {}
     const consumer2 = {}
     service.acquire(TOPIC)
@@ -307,7 +307,7 @@ describe('TopicStreamOverlayService', () => {
 
   it('flushes stalled pending snapshots on acquire (hidden-window rAF stall)', async () => {
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1)
-    const service = new TopicStreamOverlayService()
+    const service = new ExecutionStreamOverlayService()
     const consumer = {}
     service.acquire(TOPIC)
     service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a')], getSeed)
@@ -324,7 +324,7 @@ describe('TopicStreamOverlayService', () => {
   })
 
   it('evicts the oldest refCount-0 entry past MAX_ENTRIES as a leak backstop', async () => {
-    const service = new TopicStreamOverlayService()
+    const service = new ExecutionStreamOverlayService()
     // 32 released-but-live entries (reader parked on an open stream — the
     // "terminal never arrived" leak shape the backstop exists for).
     for (let index = 0; index < 32; index++) {
@@ -345,7 +345,7 @@ describe('TopicStreamOverlayService', () => {
   })
 
   it('does not let an evicted reader finalizer delete a replacement entry for the same topic', async () => {
-    const service = new TopicStreamOverlayService()
+    const service = new ExecutionStreamOverlayService()
     for (let index = 0; index < 32; index++) {
       const topicId = `leak-${index}`
       const consumer = {}
@@ -368,7 +368,7 @@ describe('TopicStreamOverlayService', () => {
   })
 
   it('does not listen on an empty topicId (pending temp topic)', () => {
-    const service = new TopicStreamOverlayService()
+    const service = new ExecutionStreamOverlayService()
     service.acquire('')
     expect(mocks.subs.get('')!.listenCalls).toBe(0)
   })

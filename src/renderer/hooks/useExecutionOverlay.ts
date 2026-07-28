@@ -1,13 +1,13 @@
 /**
- * React binding for {@link topicStreamOverlayService}, which owns the
+ * React binding for {@link executionStreamOverlayService}, which owns the
  * per-execution streaming overlay (readers, snapshots, rAF batching) keyed by
  * `topicId`. This hook only acquires/releases a refcounted view, feeds the
  * service the consumer-visible execution set + DB seed rows, and reads the
- * retained view via `useSyncExternalStore` — so unmounting (route/tab/topic
+ * retained view via `useSyncExternalStore` — so unmounting (route/tab/conversation
  * switch) no longer tears the stream down, and remounting restores the live
  * overlay synchronously. Reader/seed semantics live in the service.
  */
-import { topicStreamOverlayService } from '@renderer/services/aiTransport'
+import { executionStreamOverlayService } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
@@ -50,29 +50,29 @@ export function useExecutionOverlay(
   // Declared before the sync effect so acquisition (entry creation) always
   // precedes reader convergence for a new topicId.
   useEffect(() => {
-    topicStreamOverlayService.acquire(topicId)
-    const offFinish = topicStreamOverlayService.onFinish(topicId, (executionId, event) =>
+    executionStreamOverlayService.acquire(topicId)
+    const offFinish = executionStreamOverlayService.onFinish(topicId, (executionId, event) =>
       onFinishRef.current?.(executionId, event)
     )
     return () => {
       offFinish()
-      topicStreamOverlayService.release(topicId, consumer)
+      executionStreamOverlayService.release(topicId, consumer)
     }
   }, [consumer, topicId])
 
   const getSeedMessages = useCallback(() => uiMessagesRef.current, [])
   // No cleanup: departure must not cancel readers (release() handles removal).
   useEffect(() => {
-    topicStreamOverlayService.syncExecutions(topicId, consumer, activeExecutions, getSeedMessages)
+    executionStreamOverlayService.syncExecutions(topicId, consumer, activeExecutions, getSeedMessages)
   }, [activeExecutions, consumer, getSeedMessages, topicId])
 
   const subscribe = useCallback(
-    (listener: () => void) => topicStreamOverlayService.subscribe(topicId, listener),
+    (listener: () => void) => executionStreamOverlayService.subscribe(topicId, listener),
     [topicId]
   )
   const view = useSyncExternalStore(
     subscribe,
-    useCallback(() => topicStreamOverlayService.getView(topicId), [topicId])
+    useCallback(() => executionStreamOverlayService.getView(topicId), [topicId])
   )
 
   const api = useRef<ExecutionOverlayApi>(undefined as never)
@@ -80,8 +80,9 @@ export function useExecutionOverlay(
     api.current = {
       overlay: view.overlay,
       liveAssistants: view.liveAssistants,
-      disposeOverlay: (messageId: string) => topicStreamOverlayService.disposeOverlay(topicIdRef.current, messageId),
-      reset: () => topicStreamOverlayService.resetTopic(topicIdRef.current)
+      disposeOverlay: (messageId: string) =>
+        executionStreamOverlayService.disposeOverlay(topicIdRef.current, messageId),
+      reset: () => executionStreamOverlayService.reset(topicIdRef.current)
     }
   }
   api.current.overlay = view.overlay
