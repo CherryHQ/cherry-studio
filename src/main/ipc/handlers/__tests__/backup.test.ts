@@ -55,7 +55,7 @@ describe('backupHandlers', () => {
       ['backup.prepare_restore', () => backupHandlers['backup.prepare_restore'](undefined, detachedCtx)],
       ['backup.cancel_operation', () => backupHandlers['backup.cancel_operation'](undefined, detachedCtx)],
       ['backup.cancel_restore', () => backupHandlers['backup.cancel_restore'](undefined, detachedCtx)],
-      ['backup.arm_restore', () => backupHandlers['backup.arm_restore'](undefined, detachedCtx)],
+      ['backup.arm_restore', () => backupHandlers['backup.arm_restore']({ restoreId: 'r1' }, detachedCtx)],
       ['backup.rollback_restore', () => backupHandlers['backup.rollback_restore'](undefined, detachedCtx)],
       ['backup.acknowledge_restore', () => backupHandlers['backup.acknowledge_restore'](undefined, detachedCtx)]
     ])('refuses %s from a caller that is not a managed window', async (_route, call) => {
@@ -222,11 +222,18 @@ describe('backupHandlers', () => {
       ['relaunch-failed' as const, backupErrorCodes.ARM_FAILED],
       ['rollback-unavailable' as const, backupErrorCodes.ROLLBACK_UNAVAILABLE]
     ])('maps a %s refusal to %s', async (code, expected) => {
-      service.armRestore.mockImplementation(() => {
+      service.armRestore.mockImplementationOnce(() => {
         throw new RestoreStateError(code, 'refused')
       })
 
-      await expect(backupHandlers['backup.arm_restore'](undefined, ctx)).rejects.toMatchObject({ code: expected })
+      await expect(backupHandlers['backup.arm_restore']({ restoreId: 'r1' }, ctx)).rejects.toMatchObject({
+        code: expected
+      })
+    })
+
+    it('binds arming to the restore preview the user confirmed', async () => {
+      await expect(backupHandlers['backup.arm_restore']({ restoreId: 'r1' }, ctx)).resolves.toBeUndefined()
+      expect(service.armRestore).toHaveBeenCalledWith('r1')
     })
 
     it('delegates an explicit rollback request', async () => {

@@ -309,7 +309,7 @@ export function cancelPreparedRestore(): void {
  * on the user's next unrelated restart, turning a failed button press into a
  * surprise database replacement.
  */
-export function armPreparedRestore(): void {
+export function armPreparedRestore(expectedRestoreId: string): void {
   const read = readRestoreJournalV2()
   if (read.kind !== 'ok') {
     throw new RestoreStateError(read.kind === 'corrupt' ? 'unreadable' : 'wrong-state', 'no prepared restore to arm')
@@ -317,6 +317,9 @@ export function armPreparedRestore(): void {
   const journal = read.journal
   if (journal.state !== 'prepared') {
     throw new RestoreStateError('wrong-state', `only a prepared restore can be armed (state: ${journal.state})`)
+  }
+  if (journal.restoreId !== expectedRestoreId) {
+    throw new RestoreStateError('wrong-state', 'the prepared restore no longer matches the preview being confirmed')
   }
 
   writeRestoreJournalV2({ ...journal, state: 'armed' })

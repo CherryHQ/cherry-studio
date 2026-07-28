@@ -168,6 +168,7 @@ const BackupV2Settings: FC = () => {
 
   const handleArm = () =>
     run({ kind: 'other' }, async () => {
+      if (!preview) return
       const confirmed = await popup.confirm({
         title: t('settings.data.backup_v2.restore.confirm_title'),
         content: t('settings.data.backup_v2.restore.confirm_content'),
@@ -177,8 +178,9 @@ const BackupV2Settings: FC = () => {
         okButtonProps: { danger: true }
       })
       if (!confirmed) return
-      // The app relaunches into the promotion; nothing after this runs.
-      await ipcApi.request('backup.arm_restore')
+      // Main atomically rejects the request if another window replaced this
+      // preparation while the confirmation dialog was open.
+      await ipcApi.request('backup.arm_restore', { restoreId: preview.restoreId })
     })
 
   const handleDiscard = () =>
@@ -212,6 +214,7 @@ const BackupV2Settings: FC = () => {
   const restore = status?.restore
   const journal = restore?.kind === 'journal' ? restore : null
   const hasPreparation = journal?.state === 'prepared'
+  const hasMatchingPreview = hasPreparation && preview?.restoreId === journal.restoreId
 
   return (
     <>
@@ -267,20 +270,22 @@ const BackupV2Settings: FC = () => {
           />
         </SettingRow>
 
-        {preview && <RestorePreviewCard preview={preview} />}
+        {hasMatchingPreview && <RestorePreviewCard preview={preview} />}
 
-        {(preview || hasPreparation) && (
+        {hasPreparation && (
           <>
             <SettingDivider />
             <RowFlex className="justify-end gap-2">
               <Button disabled={busy} onClick={handleDiscard}>
                 {t('settings.data.backup_v2.restore.discard_button')}
               </Button>
-              <Button variant="destructive" disabled={busy} onClick={handleArm}>
-                {t('settings.data.backup_v2.restore.arm_button')}
-              </Button>
+              {hasMatchingPreview && (
+                <Button variant="destructive" disabled={busy} onClick={handleArm}>
+                  {t('settings.data.backup_v2.restore.arm_button')}
+                </Button>
+              )}
             </RowFlex>
-            {!preview && hasPreparation && (
+            {!hasMatchingPreview && (
               <SettingHelpText>{t('settings.data.backup_v2.restore.pending_elsewhere')}</SettingHelpText>
             )}
           </>

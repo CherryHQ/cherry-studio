@@ -49,8 +49,9 @@ the document elaborates the mechanisms that enforce them.
 7. **Snapshot-time vs staging-time failure differ.** A managed payload already missing at
    snapshot time produces an explicitly *degraded* archive (export still allowed); a
    payload that drifts *during* staging fails export closed.
-8. **Preparation is unarmed.** Restore preparation is cancellable and grants no
-   permission to promote; only explicit relaunch confirmation arms promotion.
+8. **Preparation is unarmed and identity-bound.** Restore preparation is cancellable and grants no
+   permission to promote; explicit relaunch confirmation carries the preview's `restoreId`, and main
+   arms only that exact still-prepared journal.
 9. **The displaced side blocks deletion until acknowledgement.** A completed restore may
    explicitly roll back to its retained DB/resources; after either direction finishes, the
    displaced side blocks permanent orphan deletion until the user acknowledges.
@@ -204,8 +205,10 @@ and it only ever removes its own temp tree. When a volume cannot hard-link
 (Node documents `copyFile` as non-atomic), so the frozen atomic contract holds
 and no visible partial archive is ever produced. Before writing, the producer
 verifies the DB payload is a regular file whose size and SHA-256 match the
-manifest, and that the Full resource-presence shape (declared payloads ⇔ staged
-`resources/`) agrees. The producer does NOT run the disk preflight — the export
+manifest. For Full, it also proves exact staged-resource inventory agreement:
+every actual file/directory is covered by one non-overlapping manifest unit, each
+`archivePath` is derived from its `livePath`, and every unit's type, size, and
+SHA-256 match the staged bytes. The producer does NOT run the disk preflight — the export
 orchestrator (Phase 2) sizes the whole export and calls `assertDiskHeadroom`
 before staging; a mid-write `ENOSPC` is the producer's `DiskFullError` backstop.
 
@@ -261,7 +264,7 @@ content in a Skills/Notes unit is authoritative and never dropped.
 Admission is the trust boundary; all of the following fail **before** any journal or live
 write:
 
-- Path escapes, dot segments, duplicate names, undeclared payloads.
+- Path escapes, dot segments, malformed UTF-16 (lone surrogates), duplicate names, undeclared payloads.
 - Archive entries marked as symlinks/special files *before* extraction, plus staged-tree
   `lstat`/`realpath` escapes *after* extraction.
 - Entry count, uncompressed size, compression ratio, or per-entry limit violations.
@@ -348,7 +351,7 @@ promotion gate live in
 ### 6.1 Lifecycle states
 
 ```text
-prepared → armed → promoting → completed → rollback-armed → rolled-back
+prepared → armed → promoting → completed → rollback-armed → reverting → rolled-back
                          ├───────→ reverting → failed
                          └───────→ failed | expired
 ```

@@ -360,7 +360,14 @@ describe('restore preparation', () => {
     })
 
     it.each([
-      ['armed', () => armPreparedRestore()],
+      [
+        'armed',
+        () => {
+          const read = readRestoreJournalV2()
+          if (read.kind !== 'ok') throw new Error('expected a journal')
+          armPreparedRestore(read.journal.restoreId)
+        }
+      ],
       [
         'completed',
         () => {
@@ -399,8 +406,8 @@ describe('restore preparation', () => {
     })
 
     it('refuses to cancel a restore the user already confirmed', async () => {
-      await prepareRestore({ archivePath })
-      armPreparedRestore()
+      const preview = await prepareRestore({ archivePath })
+      armPreparedRestore(preview.restoreId)
 
       expect(() => cancelPreparedRestore()).toThrow(/only a prepared restore/i)
       expect(readRestoreJournalV2().kind).toBe('ok')
@@ -409,14 +416,14 @@ describe('restore preparation', () => {
 
   describe('arm', () => {
     it('writes armed durably before relaunch is initiated', async () => {
-      await prepareRestore({ archivePath })
+      const preview = await prepareRestore({ archivePath })
       let stateAtRelaunch: string | undefined
       vi.mocked(application.relaunch).mockImplementation(() => {
         const read = readRestoreJournalV2()
         stateAtRelaunch = read.kind === 'ok' ? read.journal.state : read.kind
       })
 
-      armPreparedRestore()
+      armPreparedRestore(preview.restoreId)
 
       // The marker is what the preboot gate acts on; a relaunch that outran it
       // would boot into an unarmed preparation and expire it.
@@ -424,12 +431,12 @@ describe('restore preparation', () => {
     })
 
     it('rolls the arm back to prepared when relaunch initiation fails', async () => {
-      await prepareRestore({ archivePath })
+      const preview = await prepareRestore({ archivePath })
       vi.mocked(application.relaunch).mockImplementation(() => {
         throw new Error('relaunch refused')
       })
 
-      expect(() => armPreparedRestore()).toThrow(/relaunch refused/)
+      expect(() => armPreparedRestore(preview.restoreId)).toThrow(/relaunch refused/)
 
       const read = readRestoreJournalV2()
       expect(read.kind).toBe('ok')
@@ -442,7 +449,20 @@ describe('restore preparation', () => {
     it('refuses to arm when nothing is prepared', () => {
       cancelPreparedRestore()
 
-      expect(() => armPreparedRestore()).toThrow(/no prepared restore/i)
+      expect(() => armPreparedRestore('missing')).toThrow(/no prepared restore/i)
+    })
+
+    it('refuses a stale preview after another preparation replaced it', async () => {
+      const stale = await prepareRestore({ archivePath })
+      const current = await prepareRestore({ archivePath })
+
+      expect(() => armPreparedRestore(stale.restoreId)).toThrow(/no longer matches/)
+
+      const read = readRestoreJournalV2()
+      expect(read.kind).toBe('ok')
+      if (read.kind !== 'ok') return
+      expect(read.journal).toMatchObject({ state: 'prepared', restoreId: current.restoreId })
+      expect(application.relaunch).not.toHaveBeenCalled()
     })
   })
 })

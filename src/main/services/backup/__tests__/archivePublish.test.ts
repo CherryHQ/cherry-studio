@@ -19,7 +19,7 @@ import {
 } from '../errors'
 import { durability } from '../fsyncBatch'
 import { hashStreamHooks } from '../hashing'
-import type { BackupManifest } from '../manifest'
+import type { BackupManifest, ResourcePayload } from '../manifest'
 import { BackupManifestSchema } from '../manifest'
 
 const BASE_CEILINGS: ProducerCeilings = {
@@ -34,6 +34,7 @@ const BASE_CEILINGS: ProducerCeilings = {
 const DB_CONTENT = 'DBDAT'
 const DB_SIZE = DB_CONTENT.length
 const DB_HASH = createHash('sha256').update(DB_CONTENT).digest('hex')
+const RESOURCE_HASH = createHash('sha256').update('RES').digest('hex')
 
 let dir: string
 let dbCopyPath: string
@@ -63,9 +64,9 @@ function fullManifest(withPayload: boolean): BackupManifest {
           {
             kind: 'file-blob',
             resourceType: 'file',
-            archivePath: 'resources/blob.bin',
+            archivePath: 'resources/Data/Files/blob.bin',
             livePath: 'Data/Files/blob.bin',
-            hash: 'b'.repeat(64),
+            hash: RESOURCE_HASH,
             sizeBytes: 3
           }
         ]
@@ -73,13 +74,21 @@ function fullManifest(withPayload: boolean): BackupManifest {
   }
 }
 
+function fullManifestWithPayload(patch: Partial<ResourcePayload>): BackupManifest {
+  const manifest = fullManifest(true)
+  if (manifest.preset !== 'full') throw new Error('expected Full fixture')
+  const payload = manifest.resourcePayloads[0]
+  if (!payload) throw new Error('expected fixture payload')
+  return { ...manifest, resourcePayloads: [{ ...payload, ...patch }] }
+}
+
 beforeEach(async () => {
   dir = await mkdtemp(path.join(tmpdir(), 'bk-pub-'))
   dbCopyPath = path.join(dir, 'backup-src.sqlite')
   await writeFile(dbCopyPath, DB_CONTENT)
   resourcesDir = path.join(dir, 'resources-src')
-  await mkdir(resourcesDir, { recursive: true })
-  await writeFile(path.join(resourcesDir, 'blob.bin'), 'RES')
+  await mkdir(path.join(resourcesDir, 'Data', 'Files'), { recursive: true })
+  await writeFile(path.join(resourcesDir, 'Data', 'Files', 'blob.bin'), 'RES')
   outPath = path.join(dir, 'out.cherrybackup')
 })
 afterEach(async () => {
@@ -100,7 +109,13 @@ describe('publishArchive — valid publication', () => {
     expect((await stat(outPath)).mode & 0o777).toBe(0o600)
     const zip = new StreamZip.async({ file: outPath })
     try {
-      expect(Object.keys(await zip.entries()).sort()).toEqual(['backup.sqlite', 'manifest.json', 'resources/blob.bin'])
+      expect(Object.keys(await zip.entries()).sort()).toEqual([
+        'backup.sqlite',
+        'manifest.json',
+        'resources/Data/',
+        'resources/Data/Files/',
+        'resources/Data/Files/blob.bin'
+      ])
       const parsed = BackupManifestSchema.safeParse(JSON.parse((await zip.entryData('manifest.json')).toString('utf8')))
       expect(parsed.success).toBe(true)
       expect((await zip.entryData('backup.sqlite')).toString('utf8')).toBe(DB_CONTENT)
@@ -280,8 +295,8 @@ describe('publishArchive — untrusted staged resource tree is scanned', () => {
 
   it('rejects a SYMLINKED resources root before any temp/output', async () => {
     const realTree = path.join(dir, 'real-tree')
-    await mkdir(realTree, { recursive: true })
-    await writeFile(path.join(realTree, 'blob.bin'), 'RES')
+    await mkdir(path.join(realTree, 'Data', 'Files'), { recursive: true })
+    await writeFile(path.join(realTree, 'Data', 'Files', 'blob.bin'), 'RES')
     const linkTree = path.join(dir, 'link-tree')
     await symlink(realTree, linkTree)
     await expectFailBeforeAnyWrite(
@@ -305,6 +320,24 @@ describe('publishArchive — untrusted staged resource tree is scanned', () => {
     )
     expect(existsSync(outPath)).toBe(false)
   })
+
+  it('rejects undeclared staged files before publication', async () => {
+    await writeFile(path.join(resourcesDir, 'extra.bin'), 'EXTRA')
+    await expectFailBeforeAnyWrite(publishArchive({ outPath, manifest: fullManifest(true), dbCopyPath, resourcesDir }))
+  })
+
+  it.each([
+    ['path', fullManifestWithPayload({ archivePath: 'resources/blob.bin' })],
+    ['type', fullManifestWithPayload({ resourceType: 'directory' })],
+    ['size', fullManifestWithPayload({ sizeBytes: 4 })],
+    ['hash', fullManifestWithPayload({ hash: 'b'.repeat(64) })]
+  ])('rejects a manifest whose declared resource %s disagrees with staged bytes', async (_field, manifest) => {
+    await expect(publishArchive({ outPath, manifest, dbCopyPath, resourcesDir })).rejects.toBeInstanceOf(
+      ManifestPayloadMismatchError
+    )
+    expect(existsSync(outPath)).toBe(false)
+    expect(await ownedTempRemains()).toBe(false)
+  })
 })
 
 describe('publishArchive — archive-wide ceilings', () => {
@@ -318,19 +351,19 @@ describe('publishArchive — archive-wide ceilings', () => {
   })
 
   it('reserves the 2 fixed entries when applying maxArchiveEntries (over rejects, exact-at passes)', async () => {
-    // resourcesDir has 1 file (blob.bin). Over: max=2 → resource budget 0 → reject.
+    // resourcesDir has 2 structural dirs + 1 file. Over: max=4 → resource budget 2 → reject.
     await expect(
       publishArchiveWithCeilings(
         { outPath, manifest: fullManifest(true), dbCopyPath, resourcesDir },
-        { ...BASE_CEILINGS, maxArchiveEntries: 2 }
+        { ...BASE_CEILINGS, maxArchiveEntries: 4 }
       )
     ).rejects.toBeInstanceOf(CeilingExceededError)
     expect(existsSync(outPath)).toBe(false)
 
-    // Exact-at: max=3 → budget 1 → the single resource entry fits (1 + 2 fixed = 3).
+    // Exact-at: max=5 → budget 3 → dirs + file + 2 fixed entries fit.
     await publishArchiveWithCeilings(
       { outPath, manifest: fullManifest(true), dbCopyPath, resourcesDir },
-      { ...BASE_CEILINGS, maxArchiveEntries: 3 }
+      { ...BASE_CEILINGS, maxArchiveEntries: 5 }
     )
     expect(existsSync(outPath)).toBe(true)
   })

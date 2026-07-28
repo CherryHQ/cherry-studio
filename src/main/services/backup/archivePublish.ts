@@ -4,6 +4,7 @@ import path from 'node:path'
 import { finished } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
+import { portableCollisionKey } from '@main/utils/relativePath'
 import { ZipArchive } from 'archiver'
 
 import { DB_ENTRY, MANIFEST_ENTRY, RESOURCES_PREFIX } from './archiveLayout'
@@ -18,8 +19,9 @@ import {
   OutputPathExistsError
 } from './errors'
 import { durability } from './fsyncBatch'
-import { sha256FileCancellable } from './hashing'
+import { hashDirectoryUnit, sha256FileCancellable } from './hashing'
 import { type BackupManifest, parseBackupManifest } from './manifest'
+import { validateResourcePathSet } from './resourcePaths'
 
 const logger = loggerService.withContext('backup/archivePublish')
 
@@ -101,6 +103,91 @@ export function publishArchive(inputs: PublishArchiveInputs): Promise<void> {
   return publishArchiveWithCeilings(inputs, DEFAULT_PRODUCER_CEILINGS)
 }
 
+function sameOrDescendant(pathKey: string, rootKey: string): boolean {
+  return pathKey === rootKey || pathKey.startsWith(`${rootKey}/`)
+}
+
+async function verifyExactResourceInventory(
+  resourcesDir: string,
+  manifest: BackupManifest,
+  scan: Awaited<ReturnType<typeof scanDirectoryUnit>>,
+  limits: DirScanLimits,
+  signal: AbortSignal | undefined
+): Promise<void> {
+  if (manifest.preset !== 'full') throw new ManifestPayloadMismatchError('Lite manifest cannot carry resources')
+  const pathSet = validateResourcePathSet(manifest.resourcePayloads.map((payload) => payload.livePath))
+  if (!pathSet.ok) {
+    throw new ManifestPayloadMismatchError(`resource payload paths are ${pathSet.violation.code}`)
+  }
+
+  const units = manifest.resourcePayloads.map((payload) => {
+    const expectedArchivePath = `${RESOURCES_PREFIX}${payload.livePath}`
+    if (payload.archivePath !== expectedArchivePath) {
+      throw new ManifestPayloadMismatchError(
+        `resource archivePath ${payload.archivePath} != expected ${expectedArchivePath}`
+      )
+    }
+    return { payload, key: portableCollisionKey(payload.livePath) }
+  })
+
+  for (const entry of scan.entries) {
+    const key = portableCollisionKey(entry.relPath)
+    const covering = units.filter(
+      ({ payload, key: unitKey }) =>
+        (payload.resourceType === 'file' && key === unitKey) ||
+        (payload.resourceType === 'directory' && sameOrDescendant(key, unitKey))
+    )
+    if (covering.length !== 1) {
+      throw new ManifestPayloadMismatchError(`resource file ${entry.relPath} is covered by ${covering.length} payloads`)
+    }
+  }
+
+  for (const dir of scan.dirs) {
+    const key = portableCollisionKey(dir.relPath)
+    const structural = units.some(
+      ({ payload, key: unitKey }) =>
+        sameOrDescendant(unitKey, key) || (payload.resourceType === 'directory' && sameOrDescendant(key, unitKey))
+    )
+    if (!structural) throw new ManifestPayloadMismatchError(`undeclared resource directory: ${dir.relPath}`)
+  }
+
+  for (const { payload } of units) {
+    const stagedPath = path.join(resourcesDir, ...payload.livePath.split('/'))
+    const stagedStat = await lstat(stagedPath).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') {
+        throw new ManifestPayloadMismatchError(`declared resource is missing: ${payload.livePath}`)
+      }
+      throw error
+    })
+    if (payload.resourceType === 'file') {
+      if (!stagedStat.isFile() || stagedStat.isSymbolicLink()) {
+        throw new ManifestPayloadMismatchError(`declared file is not a regular file: ${payload.livePath}`)
+      }
+      if (stagedStat.size !== payload.sizeBytes) {
+        throw new ManifestPayloadMismatchError(
+          `resource size ${stagedStat.size} != manifest ${payload.sizeBytes}: ${payload.livePath}`
+        )
+      }
+      const hash = await sha256FileCancellable(stagedPath, signal)
+      if (hash !== payload.hash) {
+        throw new ManifestPayloadMismatchError(
+          `resource sha256 ${hash} != manifest ${payload.hash}: ${payload.livePath}`
+        )
+      }
+      continue
+    }
+
+    if (!stagedStat.isDirectory() || stagedStat.isSymbolicLink()) {
+      throw new ManifestPayloadMismatchError(`declared directory is not a real directory: ${payload.livePath}`)
+    }
+    const hashed = await hashDirectoryUnit(stagedPath, { signal, limits })
+    const sizeBytes = hashed.files.reduce((total, file) => total + file.size, 0)
+    if (sizeBytes !== payload.sizeBytes || hashed.hash !== payload.hash) {
+      throw new ManifestPayloadMismatchError(`directory payload does not match manifest: ${payload.livePath}`)
+    }
+  }
+}
+
 export async function publishArchiveWithCeilings(
   inputs: PublishArchiveInputs,
   ceilings: ProducerCeilings
@@ -167,6 +254,7 @@ export async function publishArchiveWithCeilings(
       limits: scanLimits
     })
     resourceTotalBytes = resScan.totalBytes
+    await verifyExactResourceInventory(resourcesDir, validated, resScan, scanLimits, signal)
   }
 
   // Archive-wide uncompressed-byte ceiling (bigint — no Number overflow):
