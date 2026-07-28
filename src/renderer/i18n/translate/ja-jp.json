@@ -4939,6 +4939,11 @@
     "seed_random": "ランダム",
     "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
     "select_model": "モデルを選択",
+    "showcase": {
+      "caption": "テンプレートを選んで始め、下のプロンプトを自分好みに調整しましょう。",
+      "styles_label": "プロンプトテンプレート",
+      "title": "次の傑作は、ここから。"
+    },
     "style_options": {
       "anime": "アニメ",
       "auto": "自動",

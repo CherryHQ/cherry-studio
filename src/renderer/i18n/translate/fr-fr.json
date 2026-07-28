@@ -4939,6 +4939,11 @@
     "seed_random": "Aléatoire",
     "seed_tip": "La même graine et le même prompt peuvent générer des images similaires",
     "select_model": "Sélectionner un modèle",
+    "showcase": {
+      "caption": "Choisissez un modèle pour commencer, puis personnalisez le prompt ci-dessous.",
+      "styles_label": "Modèles de prompts",
+      "title": "Un espace pour votre prochain chef-d’œuvre."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",

@@ -4939,6 +4939,11 @@
     "seed_random": "Aleatoriu",
     "seed_tip": "Același seed și prompt pot produce imagini similare",
     "select_model": "Selectează modelul",
+    "showcase": {
+      "caption": "Alege un șablon pentru început, apoi personalizează promptul de mai jos.",
+      "styles_label": "Șabloane de prompturi",
+      "title": "Un spațiu pentru următoarea ta capodoperă."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",

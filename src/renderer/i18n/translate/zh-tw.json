@@ -4939,6 +4939,11 @@
     "seed_random": "隨機",
     "seed_tip": "相同的種子和提示詞可以產生相似的圖片",
     "select_model": "選擇模型",
+    "showcase": {
+      "caption": "選擇範本開始創作，再於下方依照你的想法調整提示詞。",
+      "styles_label": "提示詞範本",
+      "title": "下一件傑作，從這裡開始。"
+    },
     "style_options": {
       "anime": "動漫",
       "auto": "自動",

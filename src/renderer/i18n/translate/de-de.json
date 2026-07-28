@@ -4939,6 +4939,11 @@
     "seed_random": "Zufällig",
     "seed_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren",
     "select_model": "Modell auswählen",
+    "showcase": {
+      "caption": "Wähle eine Vorlage aus und passe anschließend den Prompt unten an.",
+      "styles_label": "Prompt-Vorlagen",
+      "title": "Raum für dein nächstes Meisterwerk."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",

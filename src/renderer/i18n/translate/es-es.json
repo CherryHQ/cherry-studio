@@ -4939,6 +4939,11 @@
     "seed_random": "Aleatorio",
     "seed_tip": "La misma semilla y la misma sugerencia generarán imágenes similares",
     "select_model": "Seleccionar modelo",
+    "showcase": {
+      "caption": "Elige una plantilla para empezar y personaliza el prompt a continuación.",
+      "styles_label": "Plantillas de prompts",
+      "title": "Un espacio para tu próxima obra maestra."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",

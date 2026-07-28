@@ -159,79 +159,105 @@ class BackupManager {
       onProgress({ stage: 'copying_files', progress: 15, total: 100 })
       logger.debug('[backupDirect] Capturing v2 backup resources')
 
-      const jobManager = application.get('JobManager')
-      const quiesceHold = jobManager.pause('backup: capture consistent snapshot')
+      const quiesceReason = 'backup: capture consistent snapshot'
+      const channelManager = application.get('ChannelManager')
+      const channelHold = channelManager.pause(quiesceReason)
       try {
-        await this.assertJobsDrained(jobManager)
-        this.assertNoActiveDataWriters()
+        const channelVerdict = await channelManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
+        this.assertWritersDrained([channelVerdict])
 
-        const dbService = application.get('DbService')
-        const liveDatabasePath = application.getPath('app.database.file')
-        dbService.checkpointTruncate()
-        const fingerprintBefore = await hashDbFile(liveDatabasePath)
+        const aiStreamManager = application.get('AiStreamManager')
+        const agentSessionRuntime = application.get('AgentSessionRuntimeService')
+        const jobManager = application.get('JobManager')
+        const writerHolds: Array<{ dispose(): void }> = []
+        try {
+          writerHolds.push(aiStreamManager.pause(quiesceReason))
+          writerHolds.push(agentSessionRuntime.pause(quiesceReason))
+          writerHolds.push(jobManager.pause(quiesceReason))
 
-        application.get('CacheService').flushPersistForBackup()
-        const cacheSource = application.getPath('app.userdata', 'cache.json')
-        if (!(await fs.pathExists(cacheSource))) {
-          throw new Error('Failed to persist cache.json for backup')
-        }
-        await fs.copy(cacheSource, path.join(workDir, 'cache.json'))
+          const writerVerdicts = await Promise.all([
+            aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            agentSessionRuntime.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
+          ])
+          this.assertWritersDrained(writerVerdicts)
 
-        await this.copyDirectoryOrCreate(path.join(userDataPath, 'IndexedDB'), path.join(workDir, 'IndexedDB'))
-        await this.copyDirectoryOrCreate(path.join(userDataPath, 'Local Storage'), path.join(workDir, 'Local Storage'))
+          const dbService = application.get('DbService')
+          const liveDatabasePath = application.getPath('app.database.file')
+          dbService.checkpointTruncate()
+          const fingerprintBefore = await hashDbFile(liveDatabasePath)
 
-        onProgress({ stage: 'copying_files', progress: 50, total: 100 })
-
-        const sourcePath = application.getPath('app.userdata.data')
-        const tempDataDir = path.join(workDir, 'Data')
-        const databaseDataPath = this.toDataRelative(liveDatabasePath)
-        if (!databaseDataPath) {
-          throw new Error('SQLite database is not inside the Data directory')
-        }
-        const restoreJournalDataPath = this.toDataRelative(application.getPath('feature.backup.restore.file'))
-
-        if (await fs.pathExists(sourcePath)) {
-          const copyOptions: CopyDirOptions = {
-            dereferenceSymlinks: true,
-            excludeRelativePath: (relativePath) => {
-              const normalizedPath = path.normalize(relativePath)
-              return (
-                normalizedPath === `${databaseDataPath}-wal` ||
-                normalizedPath === `${databaseDataPath}-shm` ||
-                (restoreJournalDataPath !== null &&
-                  (normalizedPath === restoreJournalDataPath || normalizedPath === `${restoreJournalDataPath}.tmp`))
-              )
-            },
-            sourceRootPath: sourcePath
+          application.get('CacheService').flushPersistForBackup()
+          const cacheSource = application.getPath('app.userdata', 'cache.json')
+          if (!(await fs.pathExists(cacheSource))) {
+            throw new Error('Failed to persist cache.json for backup')
           }
-          const totalSize = await this.getDirSize(sourcePath, copyOptions)
-          await this.copyDirWithProgress(
-            sourcePath,
-            tempDataDir,
-            this.createCopyProgressHandler(totalSize, 52, 80, 'copying_files', onProgress),
-            copyOptions
+          await fs.copy(cacheSource, path.join(workDir, 'cache.json'))
+
+          await this.copyDirectoryOrCreate(path.join(userDataPath, 'IndexedDB'), path.join(workDir, 'IndexedDB'))
+          await this.copyDirectoryOrCreate(
+            path.join(userDataPath, 'Local Storage'),
+            path.join(workDir, 'Local Storage')
           )
-        } else {
-          await fs.ensureDir(tempDataDir)
-        }
 
-        await fs.writeJson(path.join(workDir, 'metadata.json'), this.createDirectBackupMetadata(), {
-          spaces: 2
-        })
+          onProgress({ stage: 'copying_files', progress: 50, total: 100 })
 
-        const backupFingerprint = await hashDbFile(path.join(tempDataDir, databaseDataPath))
-        if (backupFingerprint !== fingerprintBefore) {
-          throw new Error('The SQLite file copied into Data does not match the live database. Please retry the backup.')
-        }
+          const sourcePath = application.getPath('app.userdata.data')
+          const tempDataDir = path.join(workDir, 'Data')
+          const databaseDataPath = this.toDataRelative(liveDatabasePath)
+          if (!databaseDataPath) {
+            throw new Error('SQLite database is not inside the Data directory')
+          }
+          const restoreJournalDataPath = this.toDataRelative(application.getPath('feature.backup.restore.file'))
 
-        this.assertNoActiveDataWriters()
-        dbService.checkpointTruncate()
-        const fingerprintAfter = await hashDbFile(liveDatabasePath)
-        if (fingerprintAfter !== fingerprintBefore) {
-          throw new Error('Data changed while backup resources were being captured. Please retry the backup.')
+          if (await fs.pathExists(sourcePath)) {
+            const copyOptions: CopyDirOptions = {
+              dereferenceSymlinks: true,
+              excludeRelativePath: (relativePath) => {
+                const normalizedPath = path.normalize(relativePath)
+                return (
+                  normalizedPath === `${databaseDataPath}-wal` ||
+                  normalizedPath === `${databaseDataPath}-shm` ||
+                  (restoreJournalDataPath !== null &&
+                    (normalizedPath === restoreJournalDataPath || normalizedPath === `${restoreJournalDataPath}.tmp`))
+                )
+              },
+              sourceRootPath: sourcePath
+            }
+            const totalSize = await this.getDirSize(sourcePath, copyOptions)
+            await this.copyDirWithProgress(
+              sourcePath,
+              tempDataDir,
+              this.createCopyProgressHandler(totalSize, 52, 80, 'copying_files', onProgress),
+              copyOptions
+            )
+          } else {
+            await fs.ensureDir(tempDataDir)
+          }
+
+          await fs.writeJson(path.join(workDir, 'metadata.json'), this.createDirectBackupMetadata(), {
+            spaces: 2
+          })
+
+          const backupFingerprint = await hashDbFile(path.join(tempDataDir, databaseDataPath))
+          if (backupFingerprint !== fingerprintBefore) {
+            throw new Error(
+              'The SQLite file copied into Data does not match the live database. Please retry the backup.'
+            )
+          }
+
+          dbService.checkpointTruncate()
+          const fingerprintAfter = await hashDbFile(liveDatabasePath)
+          if (fingerprintAfter !== fingerprintBefore) {
+            throw new Error('Data changed while backup resources were being captured. Please retry the backup.')
+          }
+        } finally {
+          for (const hold of writerHolds.reverse()) {
+            hold.dispose()
+          }
         }
       } finally {
-        quiesceHold.dispose()
+        channelHold.dispose()
       }
 
       onProgress({ stage: 'compressing', progress: 80, total: 100 })
@@ -1106,7 +1132,11 @@ class BackupManager {
     drainInFlight(options: { timeoutMs: number }): Promise<{ stragglerIds: string[]; startupRecoveryPending: boolean }>
   }): Promise<void> {
     const verdict = await jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
-    if (verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending) {
+    this.assertWritersDrained([verdict])
+  }
+
+  private assertWritersDrained(verdicts: Array<{ stragglerIds: string[]; startupRecoveryPending?: boolean }>): void {
+    if (verdicts.some((verdict) => verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending === true)) {
       throw new Error('Background data writes did not quiesce in time. Please retry after current tasks finish.')
     }
   }

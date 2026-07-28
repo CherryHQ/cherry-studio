@@ -4939,6 +4939,11 @@
     "seed_random": "Ngẫu nhiên",
     "seed_tip": "Cùng một hạt giống và lời nhắc có thể tạo ra những hình ảnh tương tự",
     "select_model": "Chọn Mô hình",
+    "showcase": {
+      "caption": "Chọn một mẫu để bắt đầu, rồi tùy chỉnh lời nhắc bên dưới theo ý bạn.",
+      "styles_label": "Mẫu lời nhắc",
+      "title": "Không gian cho kiệt tác tiếp theo của bạn."
+    },
     "style_options": {
       "anime": "Phim hoạt hình Nhật Bản",
       "auto": "Tự động",
