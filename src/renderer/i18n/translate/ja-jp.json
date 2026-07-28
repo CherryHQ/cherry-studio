@@ -378,6 +378,11 @@
         "label": "事前承認済みツール",
         "placeholder": "事前承認するツールを選択"
       },
+      "api_retry": {
+        "reason": "リクエスト失敗（{{error}}、HTTP {{status}}）— 再試行中",
+        "retrying": "{{attempt}}/{{max}}を再試行中…",
+        "retrying_in": "{{attempt}}/{{max}}回目の再試行まであと{{seconds}}秒"
+      },
       "auto_rename": "タスク名を生成",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "タスクの削除に失敗しました",
         "loadFailed": "タスクの読み込みに失敗しました",
         "runFailed": "タスクの実行に失敗しました",
+        "triggerInvalid": "無効なスケジュール: 式、タイムゾーン、または間隔範囲を確認してください",
         "updateFailed": "タスクの更新に失敗しました"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "実行",
       "runTriggered": "タスクがトリガーされました",
       "save": "保存",
+      "schedule": {
+        "custom": "カスタムスケジュール",
+        "daily": "毎日",
+        "hour": "時間",
+        "hourly": "毎時",
+        "interval": "カスタム間隔",
+        "intervalMinutes": "インターバル",
+        "invalid": "有効な実行頻度を入力してください。",
+        "minute": "分",
+        "once": "一度",
+        "runAt": "実行",
+        "summary": {
+          "daily": "毎日 {{time}}に",
+          "hourly": "毎時の開始時",
+          "interval": "毎{{count}}分",
+          "weekdays": "平日 {{time}}",
+          "weekly": "毎週{{weekday}}の{{time}}"
+        },
+        "time": "時間",
+        "weekday": "曜日",
+        "weekdays": {
+          "friday": "金曜日",
+          "monday": "月曜日",
+          "saturday": "土曜日",
+          "sunday": "日曜日",
+          "thursday": "木曜日",
+          "tuesday": "火曜日",
+          "wednesday": "水曜日"
+        },
+        "weekdaysOnly": "平日",
+        "weekly": "週次"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "間隔",
@@ -869,7 +907,7 @@
       "expired": "期限切れ",
       "inputPreview": "ツール入力プレビュー",
       "pending": "保留中（{{seconds}}秒）",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "保留中",
       "permissionExpired": "許可リクエストの期限が切れました。新しい指示を待っています...",
       "requiresElevatedPermissions": "このツールは昇格した権限が必要です。",
       "suggestion": {
@@ -1427,21 +1465,21 @@
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "参照された会話の読み込みに失敗しました",
+        "no_room": "メッセージにこの会話を追加する余地が残っていません",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "検索条件に一致するセッションはありません",
+            "label": "セッションが見つかりません"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "セッション"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "検索に一致するトピックはありません",
+            "label": "トピックが見つかりません"
           },
-          "title": "[to be translated]:Topics"
+          "title": "トピック"
         }
       },
       "resize_height": "入力の高さを変更",
@@ -2140,7 +2178,7 @@
     "terminal": "端末",
     "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
     "terminal_placeholder": "ターミナルアプリを選択",
-    "title": "コードツール",
+    "title": "Code Mate",
     "tool_parameters": "パラメータ設定",
     "up_to_date": "最新の状態",
     "update_options": "更新オプション",
@@ -2293,7 +2331,7 @@
     "provider": "プロバイダー",
     "reasoning_content": "深く考察済み",
     "refresh": "更新",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "リストを更新できませんでした。最後に読み込まれたバージョンを表示しています。",
     "regenerate": "再生成",
     "remove_image": "画像を削除",
     "rename": "名前を変更",
@@ -2609,7 +2647,7 @@
     "empty": {
       "no_match_description": "現在のフィルターに一致するファイルはありません",
       "no_match_title": "一致するファイルが見つかりません",
-      "title": "[to be translated]:No files yet"
+      "title": "ファイルがありません"
     },
     "empty_trash": "ゴミ箱を空にする",
     "error": {
@@ -3007,6 +3045,7 @@
     "embedding_model": "埋め込みモデル",
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースなし",
+    "empty_action": "ナレッジベースを作成",
     "empty_description": "まだナレッジベースがありません。ドキュメントの整理と検索を開始するために、ナレッジベースを作成してください。",
     "error": {
       "directory_not_migrated": "フォルダーの移行に失敗しました。削除してから再度アップロードしてください。",
@@ -3781,6 +3820,8 @@
         "title": "削除確認"
       },
       "failed": "削除に失敗しました",
+      "first_turn_not_supported": "最初のユーザーメッセージは削除できません。",
+      "root_unavailable": "メッセージはまだ読み込み中で、まだ削除できません。",
       "success": "削除が成功しました"
     },
     "dialog": {
@@ -6400,6 +6441,7 @@
       "viewErrorDetails": "詳細を表示"
     },
     "developer": {
+      "client_id": "クライアントID",
       "enable_developer_mode": "開発者モードを有効にする",
       "help": "開発者モードを有効にすると、トレース機能を使用してモデルの呼び出しプロセスにおけるデータフローを確認できるようになります。",
       "title": "開発者モード"
@@ -6582,7 +6624,9 @@
       "active": "有効",
       "addError": "サーバーの追加に失敗しました",
       "addServer": {
+        "advanced": "上級",
         "create": "クイック作成",
+        "createDescription": "サーバーを作成するための接続詳細を入力してください。それ以外の設定は後で調整できます。",
         "importFrom": {
           "connectionFailed": "接続に失敗しました",
           "dxt": "DXTパッケージをインポート",
@@ -6662,7 +6706,11 @@
         "success": "MCPサーバーの取得に成功しました"
       },
       "filter": {
-        "label": "フィルター"
+        "allStatuses": "すべてのステータス",
+        "allTypes": "すべての種類",
+        "builtinOnly": "内蔵のみ",
+        "status": "ステータスでフィルター",
+        "type": "タイプでフィルター"
       },
       "findMore": "MCP を見つける",
       "headers": "ヘッダー",
@@ -6719,6 +6767,7 @@
         "usage": "使用法",
         "version": "バージョン"
       },
+      "pageDescription": "MCPサーバーを管理します。有効にすると、エージェントはそれらが提供するツールとリソースを呼び出すことができます。",
       "prompts": {
         "arguments": "引数",
         "availablePrompts": "利用可能なプロンプト",
@@ -7682,12 +7731,39 @@
       "titlePlaceholder": "フレーズのタイトルを入力してください"
     },
     "scheduledTasks": {
+      "agentCreate": "エージェントで作成",
+      "allAgents": "すべてのエージェント",
+      "allStatuses": "すべてのステータス",
+      "clearFilters": "フィルターをクリア",
+      "createDescription": "エージェントが何をすべきか、そしていつ実行すべきかを設定します。",
+      "createTitle": "新規スケジュールタスク",
       "description": "すべてのエージェントにわたるスケジュールされたタスクを管理します。タスクは設定されたスケジュールに従って自動的に実行されます。",
+      "editDescription": "エージェントが行うべきことと、いつ実行すべきかを更新します。",
+      "editTitle": "予定タスクを編集",
+      "filterAgent": "エージェントでフィルター",
+      "filterStatus": "ステータスで絞り込む",
+      "manualCreate": "手動で作成する",
+      "newTask": "新しい",
       "noAgents": "エージェントが見つかりません。スケジュールされたタスクを追加するには、まずエージェントを作成してください。",
       "noAgentsTip": "ヒント: チャットでエージェントにスケジュールされたタスクを作成してもらうこともできます。",
+      "noAgentsTitle": "エージェントなし",
+      "noMatches": "別の検索条件やフィルターをお試しください。",
+      "noMatchesTitle": "一致するタスクがありません",
       "noTasks": "スケジュールされたタスクはありません。「＋追加」をクリックしてエージェント用のタスクを作成してください。",
+      "noTasksTitle": "予定されたタスクはありません",
+      "notFoundDescription": "このタスクは削除されたか、リンクが無効です。",
+      "notFoundTitle": "タスクが見つかりません",
+      "paginationLabel": "スケジュールされたタスクのページネーション",
+      "paginationStatus": "{{page}}/{{pageCount}}ページ · {{total}}件のタスク",
+      "search": "スケジュールされたタスクを検索",
+      "searchPlaceholder": "タスクまたはエージェントを検索",
       "selectTask": "タスクを選択して詳細を表示",
-      "title": "スケジュールされたタスク"
+      "title": "スケジュールされたタスク",
+      "validation": {
+        "agent": "エージェントを選択してください。",
+        "name": "タスク名を入力してください。",
+        "prompt": "タスクのプロンプトを入力してください。"
+      }
     },
     "shortcuts": {
       "action": "操作",
@@ -7776,6 +7852,7 @@
       "noInstalled": "スキルがインストールされていません",
       "noResults": "スキルが見つかりません",
       "noSkillFile": "SKILL.mdが見つかりません",
+      "pageDescription": "インストール済みのスキルを管理します。スキルはエージェントが実行できる機能を拡張し、必要に応じて呼び出されます。",
       "searchPlaceholder": "さらにスキルを見つける...",
       "searchRegistryTitle": "オンラインでスキルレジストリを検索してください",
       "searchTitle": "検索スキル",
@@ -8061,7 +8138,7 @@
   "title": {
     "apps": "アプリ",
     "chat": "チャット",
-    "code": "Code",
+    "code": "Code Mate",
     "files": "ファイル",
     "home": "ホーム",
     "knowledge": "ナレッジベース",

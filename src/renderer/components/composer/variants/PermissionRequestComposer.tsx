@@ -1,5 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
 import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/ArgsTable'
@@ -10,7 +11,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
-import { ArrowRight, Wrench } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -204,6 +205,8 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   const { t } = useTranslation()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const subtitle = getPermissionRequestSubtitle(request)
+  const ToolIcon = getToolGroupIcon(request.toolResponse.tool, request.toolResponse.arguments)
+  const toolTitle = getToolGroupSemanticTitle(request.toolResponse, 'waiting', t)
 
   const respond = useCallback(
     async (input: MessageToolApprovalInput, action: 'approve' | 'deny') => {
@@ -255,8 +258,10 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
         <div className="flex items-center justify-between gap-3 px-1">
           <div className="min-w-0 flex-1">
             <h2 className="line-clamp-1 flex min-w-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
-              <Wrench className="size-4 shrink-0 text-muted-foreground" />
-              <span className="truncate">{t('agent.toolPermission.confirmation')}</span>
+              <span className="inline-flex shrink-0 text-muted-foreground">
+                <ToolIcon aria-hidden="true" className="size-4" />
+              </span>
+              <span className="truncate">{toolTitle}</span>
             </h2>
             {subtitle ? (
               <div className="mt-0.5 line-clamp-1 text-muted-foreground text-xs leading-4">{subtitle}</div>
