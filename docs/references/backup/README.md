@@ -42,7 +42,7 @@ POSIX journal writes use temporary-file fsync → rename → parent fsync. Windo
 
 ## Deferred follow-up
 
-A later stacked Full PR may transport resource closure only after every resource owner provides an owner-owned consistent snapshot API. It must transport Knowledge indexes as sealed owner snapshots and may not use restore-time re-embedding as a substitute. This Lite contract deliberately exposes no Full enum, resource payload, resource install journal field, or owner registration seam.
+A later stacked Full PR may transport resource closure only after every resource owner provides an owner-owned consistent snapshot API. The current owner inventory and blockers are recorded in [Full Snapshot Readiness](./full-snapshot-readiness.md). It must transport Knowledge indexes as sealed owner snapshots and may not use restore-time re-embedding as a substitute. This Lite contract deliberately exposes no Full enum, resource payload, resource install journal field, or owner registration seam.
 
 ## Source provenance
 
