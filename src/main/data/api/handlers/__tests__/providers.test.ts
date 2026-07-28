@@ -273,6 +273,18 @@ describe('providerHandlers', () => {
       })
     })
 
+    it('preserves explicit custom provenance when the runtime provider has no preset id', async () => {
+      getByProviderIdMock.mockReturnValueOnce({ id: 'future-registry-collision', presetProviderId: undefined })
+      getProviderPresetMock.mockReturnValueOnce({ endpointConfigs: null })
+
+      await providerHandlers['/providers/:providerId/preset'].GET({
+        params: { providerId: 'future-registry-collision' },
+        query: { fields: 'endpointConfigs' }
+      } as never)
+
+      expect(getProviderPresetMock).toHaveBeenCalledWith('future-registry-collision', ['endpointConfigs'], null)
+    })
+
     it('rejects unknown or missing fields before resolving the provider', async () => {
       await expect(
         providerHandlers['/providers/:providerId/preset'].GET({

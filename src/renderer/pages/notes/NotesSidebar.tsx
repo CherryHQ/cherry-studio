@@ -393,7 +393,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         {!isShowStarred && !isShowSearch && (
           <div
             className="mt-1.5 mb-3 flex cursor-pointer items-center gap-2 px-3.5 py-1 text-muted-foreground text-xs italic hover:text-foreground"
-            onClick={handleSelectFolder}>
+            onClick={handleSelectFiles}>
             <FilePlus size={14} className="shrink-0" />
             <span>{t('notes.drop_markdown_hint')}</span>
           </div>

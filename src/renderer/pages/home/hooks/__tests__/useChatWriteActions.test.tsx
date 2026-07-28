@@ -1,7 +1,10 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { streamOpen } = vi.hoisted(() => ({ streamOpen: vi.fn() }))
+const { invalidateMessages, streamOpen } = vi.hoisted(() => ({
+  invalidateMessages: vi.fn(),
+  streamOpen: vi.fn()
+}))
 
 vi.mock('@data/DataApiService', () => ({ dataApiService: { get: vi.fn(), patch: vi.fn() } }))
 vi.mock('@logger', () => ({
@@ -12,6 +15,9 @@ vi.mock('@renderer/ipc', () => ({
 }))
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
+}))
+vi.mock('@renderer/components/chat/messages/utils/messageUiStateCache', () => ({
+  invalidateCachedMessageUiStates: invalidateMessages
 }))
 
 import type { Topic } from '@renderer/types/topic'
@@ -98,6 +104,7 @@ describe('useChatWriteActions — first-turn delete', () => {
     const { actions, cache } = renderActions('vroot', tree())
     await actions.deleteMessage('a1', { selectedMessageIds: ['a1'] })
     expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({ params: { id: 'a1' }, query: { cascade: false } })
+    expect(invalidateMessages).toHaveBeenCalledWith(['a1'])
   })
 
   it('rejects deletion before the authoritative root id is available', async () => {
@@ -123,10 +130,13 @@ describe('useChatWriteActions — first-turn delete', () => {
   })
 
   it('deleteMessageGroup on a first-turn group (parent = rootId) clears the topic', async () => {
-    const { actions, cache } = renderActions('vroot', tree())
+    const cache = makeCache()
+    vi.mocked(cache.clearTopicMessagesTrigger).mockResolvedValueOnce({ deletedIds: ['u1', 'a1'] })
+    const { actions } = renderActions('vroot', tree(), cache)
     await actions.deleteMessageGroup('vroot')
     expect(cache.clearTopicMessagesTrigger).toHaveBeenCalledWith({ params: { topicId: 't1' } })
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+    expect(invalidateMessages).toHaveBeenCalledWith(['u1', 'a1'])
   })
 
   it.each([
