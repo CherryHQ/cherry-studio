@@ -1,8 +1,8 @@
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type { InstalledSkill } from '@shared/types/skill'
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import SkillDetailDialog from '../SkillDetailDialog'
 
@@ -96,6 +96,10 @@ describe('SkillDetailDialog', () => {
     })
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('shows skill metadata in a dialog without file preview or delete entry points', () => {
     render(<SkillDetailDialog skill={createSkill()} open onOpenChange={vi.fn()} />)
 
@@ -113,14 +117,20 @@ describe('SkillDetailDialog', () => {
     expect(readSkillFileMock).not.toHaveBeenCalled()
   })
 
-  it('closes through the dialog close button', async () => {
-    const user = userEvent.setup()
+  it('keeps the selected skill mounted until the close animation finishes', async () => {
+    vi.useFakeTimers()
     const onOpenChange = vi.fn()
 
     render(<SkillDetailDialog skill={createSkill()} open onOpenChange={onOpenChange} />)
 
-    await user.click(screen.getByRole('button', { name: 'common.close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.close' }))
 
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS - 1))
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    await act(() => vi.advanceTimersByTime(1))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 

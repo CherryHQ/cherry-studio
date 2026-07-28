@@ -100,22 +100,6 @@ const Chat: FC<Props> = (props) => {
     useState<ChatConversationControlsSnapshot | null>(null)
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
-  const composerContextKey = activeTopic ? `${activeTopic.id}:${activeTopic.assistantId ?? 'default-assistant'}` : null
-  const composerContextResolved = !assistantContext.isLoading && !assistantContext.isModelPending
-  const [resolvedComposerContextKey, setResolvedComposerContextKey] = useState<string | null>(() =>
-    composerContextResolved ? composerContextKey : null
-  )
-  const nextResolvedComposerContextKey = !composerContextKey
-    ? null
-    : composerContextResolved
-      ? composerContextKey
-      : resolvedComposerContextKey === composerContextKey
-        ? resolvedComposerContextKey
-        : null
-  if (nextResolvedComposerContextKey !== resolvedComposerContextKey) {
-    setResolvedComposerContextKey(nextResolvedComposerContextKey)
-  }
-  const isComposerContextLoading = Boolean(composerContextKey && nextResolvedComposerContextKey !== composerContextKey)
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
 
@@ -315,7 +299,6 @@ const Chat: FC<Props> = (props) => {
         onStartBranchDraft={handleStartBranchDraft}
         assistantContext={assistantContext}
         providers={providers}
-        assistantContextLoading={isComposerContextLoading}
         onConversationControlsChange={setConversationControlsSnapshot}
       />
     ) : (

@@ -187,6 +187,34 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
+  it('forwards the local-send generation to the shared list state', () => {
+    const topic = {
+      id: 'agent-session-topic',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        localSendGeneration: 3,
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(value?.state.localSendGeneration).toBe(3)
+  })
+
   it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
     const topic = {
       id: 'agent-session-topic',
@@ -223,6 +251,8 @@ describe('useAgentMessageListProviderValue', () => {
     const deleteMessage = vi.fn()
     const respondToolApproval = vi.fn()
     const openArtifactFile = vi.fn()
+    const unbindExternalRuntime = vi.fn()
+    const onBindRuntime = vi.fn(() => unbindExternalRuntime)
     let value: MessageListProviderValue | undefined
 
     const Probe = () => {
@@ -235,6 +265,7 @@ describe('useAgentMessageListProviderValue', () => {
         openArtifactFile,
         deleteMessage,
         respondToolApproval,
+        onBindRuntime,
         messageNavigation: 'anchor',
         workspacePath: '/tmp/workspace'
       })
@@ -359,12 +390,15 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', expect.any(Function))
 
     const listLocateMessage = vi.fn()
-    const unbindRuntime = value?.actions.bindRuntime?.({
+    const listRuntime = {
+      captureLocalSendScrollEligibility: vi.fn(),
       scrollToBottom: vi.fn(),
       locateMessage: listLocateMessage,
       copyTopicImage: vi.fn(),
       exportTopicImage: vi.fn()
-    })
+    } as MessageListRuntime
+    const unbindRuntime = value?.actions.bindRuntime?.(listRuntime)
+    expect(onBindRuntime).toHaveBeenCalledWith(listRuntime)
 
     vi.useFakeTimers()
     try {
@@ -379,6 +413,7 @@ describe('useAgentMessageListProviderValue', () => {
       vi.useRealTimers()
       unbindRuntime?.()
     }
+    expect(unbindExternalRuntime).toHaveBeenCalledOnce()
 
     eventMocks.emit.mockClear()
     value?.actions.locateMessage?.('assistant-1', true)
@@ -753,6 +788,7 @@ describe('useAgentMessageListProviderValue', () => {
     render(<VisibleProbe />)
 
     const visibleRuntime: MessageListRuntime = {
+      captureLocalSendScrollEligibility: vi.fn(),
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
       exportTopicImage: vi.fn().mockResolvedValue(undefined),
       locateMessage: vi.fn(),
@@ -768,6 +804,7 @@ describe('useAgentMessageListProviderValue', () => {
     render(<CaptureProbe />)
 
     const captureRuntime: MessageListRuntime = {
+      captureLocalSendScrollEligibility: vi.fn(),
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
       exportTopicImage: vi.fn().mockResolvedValue(undefined),
       locateMessage: vi.fn(),

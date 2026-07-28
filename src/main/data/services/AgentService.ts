@@ -3,11 +3,11 @@ import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
-import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
@@ -269,14 +269,12 @@ export class AgentService {
     insertData: Omit<InsertAgentRow, 'orderKey'>
   ): { agent: AgentRow; modelName: string | null } | null {
     insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id })
-    const [joined] = tx
-      .select({ agent: agentsTable, modelName: userModelTable.name })
-      .from(agentsTable)
-      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
-      .where(eq(agentsTable.id, id))
-      .limit(1)
-      .all()
-    return joined ?? null
+    const [agent] = tx.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1).all()
+    if (!agent) return null
+    const modelName = agent.model
+      ? (modelService.getNamesByUniqueIdsTx(tx, [agent.model]).get(agent.model) ?? null)
+      : null
+    return { agent, modelName }
   }
 
   private findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): AgentRow | undefined {
@@ -292,17 +290,19 @@ export class AgentService {
 
   getAgent(id: string): AgentEntity | null {
     const database = application.get('DbService').getDb()
-    const [row] = database
-      .select({ agent: agentsTable, modelName: userModelTable.name })
+    const [agent] = database
+      .select()
       .from(agentsTable)
-      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
-    if (!row) return null
+    if (!agent) return null
     const mcpsMap = fetchMcpsForAgents(database, [id])
     const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, [id])
-    return rowToAgent(row.agent, row.modelName || null, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
+    const modelName = agent.model
+      ? (modelService.getNamesByUniqueIdsTx(database, [agent.model]).get(agent.model) ?? null)
+      : null
+    return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
   listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
@@ -351,9 +351,8 @@ export class AgentService {
     // ordering follows agent.orderKey so resource-list group reorders persist
     // across reloads.
     const baseQuery = database
-      .select({ agent: agentsTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
+      .select({ agent: agentsTable, pinOrderKey: pinTable.orderKey })
       .from(agentsTable)
-      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'agent'), eq(pinTable.entityId, agentsTable.id)))
       .where(whereClause)
       .orderBy(...orderByClauses)
@@ -369,11 +368,15 @@ export class AgentService {
     const agentIds = result.map((row) => row.agent.id)
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
     const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
+    const modelNames = modelService.getNamesByUniqueIdsTx(
+      database,
+      result.map((row) => row.agent.model)
+    )
 
     const agents = result.map((row) =>
       rowToAgent(
         row.agent,
-        row.modelName || null,
+        row.agent.model ? (modelNames.get(row.agent.model) ?? null) : null,
         mcpsMap.get(row.agent.id) ?? [],
         knowledgeBasesMap.get(row.agent.id) ?? []
       )
@@ -612,19 +615,22 @@ export class AgentService {
     if (agentIds.length === 0) return
     const database = application.get('DbService').getDb()
     const rows = database
-      .select({ agent: agentsTable, modelName: userModelTable.name })
+      .select()
       .from(agentsTable)
-      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .where(and(inArray(agentsTable.id, agentIds), isNull(agentsTable.deletedAt)))
       .all()
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
     const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
+    const modelNames = modelService.getNamesByUniqueIdsTx(
+      database,
+      rows.map((row) => row.model)
+    )
     for (const row of rows) {
       const agent = rowToAgent(
-        row.agent,
-        row.modelName || null,
-        mcpsMap.get(row.agent.id) ?? [],
-        knowledgeBasesMap.get(row.agent.id) ?? []
+        row,
+        row.model ? (modelNames.get(row.model) ?? null) : null,
+        mcpsMap.get(row.id) ?? [],
+        knowledgeBasesMap.get(row.id) ?? []
       )
       const updates: UpdateAgentDto =
         relation === 'mcps' ? { mcps: agent.mcps } : { knowledgeBaseIds: agent.knowledgeBaseIds ?? [] }
