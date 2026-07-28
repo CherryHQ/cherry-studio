@@ -13,6 +13,7 @@ import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@rende
 import {
   type ConversationResourceMenuItem,
   renderAssistantEntityIcon,
+  resolveCollapsedIdsForNewGroups,
   resolveDefaultCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   RESOURCE_LIST_TITLE_FADE_CLASS,
@@ -1115,6 +1116,31 @@ export function Topics({
     },
     [isAssistantDisplayMode, isRightPanel, setTopicExpansionAssistant, setTopicExpansionTime]
   )
+  // When a new assistant group appears while every existing assistant group is collapsed
+  // ("collapse all" state), collapse the new group too instead of letting it pop open. Only acts on
+  // the explicit collapsed-set (null = user has never interacted, the default-all-collapsed logic in
+  // `resolveDefaultCollapsedGroupIds` already covers that case).
+  const previousAssistantGroupIdsRef = useRef<readonly string[] | null>(null)
+  useEffect(() => {
+    if (!isAssistantDisplayMode || isRightPanel || topicExpansionAssistant === null) {
+      previousAssistantGroupIdsRef.current = null
+      return
+    }
+
+    const currentGroupIds = Array.from(
+      new Set(filteredTopics.filter((topic) => !topic.pinned).map(getTopicAssistantDisplayGroupId))
+    )
+    const previousGroupIds = previousAssistantGroupIdsRef.current
+    previousAssistantGroupIdsRef.current = currentGroupIds
+    if (previousGroupIds === null) return
+
+    const nextCollapsedIds = resolveCollapsedIdsForNewGroups({
+      collapsedIds: topicExpansionAssistant,
+      currentGroupIds,
+      previousGroupIds
+    })
+    if (nextCollapsedIds) setTopicExpansionAssistant([...nextCollapsedIds])
+  }, [filteredTopics, isAssistantDisplayMode, isRightPanel, setTopicExpansionAssistant, topicExpansionAssistant])
   const handleTopicDisplayModeChange = useCallback(
     (nextMode: TopicDisplayMode) => {
       if (nextMode === 'assistant') {

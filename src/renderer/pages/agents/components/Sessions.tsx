@@ -5,6 +5,7 @@ import {
   type ConversationResourceMenuItem,
   remapResourceListCollapsedGroupIds,
   renderAgentEntityIcon,
+  resolveCollapsedIdsForNewGroups,
   resolveDefaultCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
@@ -703,6 +704,43 @@ const Sessions = ({
     },
     [displayMode, isRightPanel, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )
+  // When a new agent group appears while every existing agent group is collapsed ("collapse all"
+  // state), collapse the new group too instead of letting it pop open. Scoped to agent mode: its
+  // collapsed-set ids match `sessionGroupBy` output directly (workdir mode remaps ids, so it is left
+  // to the default behaviour). null = user has never interacted → default-all-collapsed logic covers it.
+  const previousAgentGroupIdsRef = useRef<readonly string[] | null>(null)
+  useEffect(() => {
+    if (isRightPanel || displayMode !== 'agent' || sessionExpansionAgent === null) {
+      previousAgentGroupIdsRef.current = null
+      return
+    }
+
+    const currentGroupIds = Array.from(
+      new Set(
+        filteredGroupedSessions
+          .filter((session) => !session.pinned)
+          .map((session) => sessionGroupBy(session)?.id)
+          .filter((id): id is string => typeof id === 'string')
+      )
+    )
+    const previousGroupIds = previousAgentGroupIdsRef.current
+    previousAgentGroupIdsRef.current = currentGroupIds
+    if (previousGroupIds === null) return
+
+    const nextCollapsedIds = resolveCollapsedIdsForNewGroups({
+      collapsedIds: sessionExpansionAgent,
+      currentGroupIds,
+      previousGroupIds
+    })
+    if (nextCollapsedIds) setSessionExpansionAgent([...nextCollapsedIds])
+  }, [
+    displayMode,
+    filteredGroupedSessions,
+    isRightPanel,
+    sessionExpansionAgent,
+    sessionGroupBy,
+    setSessionExpansionAgent
+  ])
   const handleDeleteSession = useCallback(
     async (id: string) => {
       // Capture the deleted session before removal so selection can be scoped to its agent even

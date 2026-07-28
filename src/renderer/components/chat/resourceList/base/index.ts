@@ -2,7 +2,7 @@ export {
   ConversationResourceMenu,
   type ConversationResourceMenuItem
 } from './ConversationResourceMenu'
-export { resolveDefaultCollapsedGroupIds } from './defaultCollapsedGroups'
+export { resolveCollapsedIdsForNewGroups, resolveDefaultCollapsedGroupIds } from './defaultCollapsedGroups'
 export {
   buildResolvedResourceEntityMenuAction,
   buildResourceEntityIconTypeActionDescriptor,
