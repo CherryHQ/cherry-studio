@@ -142,7 +142,7 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
                   size="icon-sm"
                   aria-label={t('common.clear')}
                   onClick={() => setSearch('')}
-                  className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-foreground-tertiary hover:text-foreground">
+                  className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-muted-foreground hover:text-foreground">
                   <X size={12} />
                 </Button>
               ) : null}
@@ -263,7 +263,7 @@ function PromptRow({ onDelete, onEdit, prompt }: { onDelete: () => void; onEdit:
           size="icon-sm"
           aria-label={t('common.edit')}
           onClick={onEdit}
-          className="text-foreground-tertiary hover:text-foreground">
+          className="text-muted-foreground hover:text-foreground">
           <Pencil size={12} />
         </Button>
         <Button
@@ -271,7 +271,7 @@ function PromptRow({ onDelete, onEdit, prompt }: { onDelete: () => void; onEdit:
           size="icon-sm"
           aria-label={t('common.delete')}
           onClick={onDelete}
-          className="text-foreground-tertiary hover:bg-error-subtle hover:text-error-subtle-foreground">
+          className="text-muted-foreground hover:bg-error-subtle hover:text-error-subtle-foreground">
           <Trash2 size={12} />
         </Button>
       </div>

@@ -727,7 +727,8 @@ const TranslatePage: FC = () => {
             <Button
               variant="ghost"
               size="icon-sm"
-              className={historyOpen ? 'text-foreground' : 'text-foreground-tertiary hover:text-foreground'}
+              pressed={historyOpen}
+              className="text-muted-foreground hover:text-foreground data-[pressed=true]:text-foreground"
               onClick={() =>
                 setHistoryOpen((open) => {
                   const next = !open
@@ -735,14 +736,14 @@ const TranslatePage: FC = () => {
                   return next
                 })
               }
-              aria-label={t('translate.history.title')}
-              aria-pressed={historyOpen}>
+              aria-label={t('translate.history.title')}>
               <History size={14} />
             </Button>
             <Button
               variant="ghost"
               size="icon-sm"
-              className={settingsOpen ? 'text-foreground' : 'text-foreground-tertiary hover:text-foreground'}
+              pressed={settingsOpen}
+              className="text-muted-foreground hover:text-foreground data-[pressed=true]:text-foreground"
               onClick={() =>
                 setSettingsOpen((open) => {
                   const next = !open
@@ -750,8 +751,7 @@ const TranslatePage: FC = () => {
                   return next
                 })
               }
-              aria-label={t('translate.settings.title')}
-              aria-pressed={settingsOpen}>
+              aria-label={t('translate.settings.title')}>
               <SlidersHorizontal size={14} />
             </Button>
           </div>

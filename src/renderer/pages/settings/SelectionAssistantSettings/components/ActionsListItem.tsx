@@ -119,7 +119,7 @@ const ItemIcon = ({ className, disabled, ...props }: React.ComponentPropsWithout
   <div
     className={cn(
       'mx-2 flex items-center justify-center',
-      disabled ? 'text-muted-foreground/70' : 'text-muted-foreground group-hover/action-item:text-foreground',
+      disabled ? 'text-foreground-disabled' : 'text-muted-foreground group-hover/action-item:text-foreground',
       className
     )}
     {...props}

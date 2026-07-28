@@ -59,7 +59,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
           type="button"
           variant="ghost"
           aria-label={t('knowledge.recall.copy')}
-          className={`size-5 min-h-5 shrink-0 rounded p-0 shadow-none transition-all hover:bg-accent hover:text-foreground group-hover/chunk:opacity-100 ${copied ? 'text-success opacity-100' : 'text-foreground-tertiary opacity-0'}`}
+          className={`size-5 min-h-5 shrink-0 rounded p-0 shadow-none transition-all hover:bg-accent hover:text-foreground group-hover/chunk:opacity-100 ${copied ? 'text-success opacity-100' : 'text-muted-foreground opacity-0'}`}
           onClick={() => void copyContent()}>
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </Button>
@@ -67,7 +67,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
           type="button"
           variant="ghost"
           aria-label={t(isExpanded ? 'knowledge.recall.collapse' : 'knowledge.recall.expand')}
-          className="size-5 min-h-5 shrink-0 rounded p-0 text-foreground-tertiary shadow-none transition-all hover:bg-accent hover:text-foreground"
+          className="size-5 min-h-5 shrink-0 rounded p-0 text-muted-foreground shadow-none transition-all hover:bg-accent hover:text-foreground"
           onClick={() => setIsExpanded((current) => !current)}>
           {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
         </Button>

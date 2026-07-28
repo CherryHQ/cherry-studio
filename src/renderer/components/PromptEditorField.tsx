@@ -172,9 +172,7 @@ export function PromptEditorField({
           className={cn(
             'overflow-hidden rounded-md border bg-background transition-all focus-within:ring-2 focus-within:ring-ring/50',
             fill && 'flex min-h-0 flex-1 flex-col',
-            hasError
-              ? 'border-destructive/50 focus-within:border-destructive/60'
-              : 'border-border focus-within:border-ring'
+            hasError ? 'border-error-border focus-within:border-error' : 'border-border focus-within:border-ring'
           )}>
           {effectiveShowPreview ? (
             <div
@@ -203,7 +201,7 @@ export function PromptEditorField({
           )}
         </div>
         <FieldError className="text-xs" errors={error ? [{ message: error }] : undefined} />
-        <div className="flex justify-between text-muted-foreground/80 text-xs">
+        <div className="flex justify-between text-muted-foreground text-xs">
           <span>{t('library.config.prompt.dblclick_hint')}</span>
           <span className="tabular-nums">
             {t('library.config.prompt.tokens_label')}

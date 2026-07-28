@@ -104,7 +104,7 @@ const TranslateInputPane = ({
           onClick={onSelectFile}
           disabled={disabled || selecting}
           aria-label={t('translate.files.upload')}
-          className="mx-3 mb-4 flex shrink-0 flex-col items-center justify-center gap-3 rounded-md border border-border-subtle border-dashed px-4 py-4 text-foreground-tertiary transition-colors hover:border-border-strong hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60">
+          className="mx-3 mb-4 flex shrink-0 flex-col items-center justify-center gap-3 rounded-md border border-border-subtle border-dashed px-4 py-4 text-muted-foreground transition-colors hover:border-border-strong hover:bg-muted/30 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60">
           <span className="text-sm">{t('translate.files.upload')}</span>
           <span className="flex items-center gap-6">
             {uploadIcons.map((icon) => (
@@ -118,7 +118,7 @@ const TranslateInputPane = ({
           <button
             type="button"
             onClick={handleClear}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-foreground-tertiary text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
             <X size={14} className="lucide-custom" />
             <span>{t('common.clear')}</span>
           </button>

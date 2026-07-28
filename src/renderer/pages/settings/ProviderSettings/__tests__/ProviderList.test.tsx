@@ -385,7 +385,7 @@ describe('ProviderList', () => {
     expect(filterButton).toHaveClass('size-[22px]')
     expect(filterButton.querySelector('svg')).toHaveAttribute('width', '12')
     expect(filterButton).not.toHaveClass('bg-primary/10')
-    expect(filterButton.querySelector('svg')).toHaveClass('text-muted-foreground/60')
+    expect(filterButton.querySelector('svg')).toHaveClass('text-muted-foreground')
   })
 
   it('hides the bottom add button when provider list content does not overflow', () => {

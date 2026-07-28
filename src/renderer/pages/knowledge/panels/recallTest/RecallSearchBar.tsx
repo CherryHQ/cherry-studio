@@ -59,7 +59,7 @@ const RecallSearchBar = () => {
             type="button"
             variant="ghost"
             tabIndex={-1}
-            className={`min-h-0 shrink-0 rounded-none p-0 shadow-none transition-colors hover:bg-transparent hover:text-foreground ${isHistoryOpen ? 'text-primary' : 'text-foreground-tertiary'}`}
+            className={`min-h-0 shrink-0 rounded-none p-0 shadow-none transition-colors hover:bg-transparent hover:text-foreground ${isHistoryOpen ? 'text-primary' : 'text-muted-foreground'}`}
             onMouseDown={keepInputFocus}
             onClick={(event) => {
               event.stopPropagation()

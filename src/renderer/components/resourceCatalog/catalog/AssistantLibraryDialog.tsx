@@ -194,7 +194,7 @@ export function AssistantLibraryDialog({
                         'h-8 shrink-0 whitespace-nowrap rounded-lg px-3 text-sm transition-colors',
                         isActive
                           ? 'bg-secondary font-medium text-secondary-foreground'
-                          : 'font-normal text-foreground-tertiary hover:bg-accent hover:text-foreground'
+                          : 'font-normal text-muted-foreground hover:bg-accent hover:text-foreground'
                       )}>
                       {tab.label}
                     </button>
@@ -217,7 +217,7 @@ export function AssistantLibraryDialog({
                   size="icon-sm"
                   aria-label={t('common.clear')}
                   onClick={() => setSearch('')}
-                  className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-foreground-tertiary hover:text-foreground">
+                  className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-muted-foreground hover:text-foreground">
                   <X size={13} />
                 </Button>
               )}

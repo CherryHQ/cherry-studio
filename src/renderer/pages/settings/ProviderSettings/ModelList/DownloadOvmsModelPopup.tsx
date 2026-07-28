@@ -270,7 +270,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
       footer={footer}>
       <div className={drawerClasses.fieldList}>
         <div className="space-y-2">
-          <Label className="text-[13px] text-foreground/85">{t('ovms.download.model_id.label')}</Label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_id.label')}</Label>
           <Input
             className={drawerClasses.input}
             value={formValues.modelId}
@@ -297,7 +297,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           </div>
         </div>
         <div className="space-y-2">
-          <Label className="text-[13px] text-foreground/85">{t('ovms.download.model_name.label')}</Label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_name.label')}</Label>
           <Input
             className={drawerClasses.input}
             value={formValues.modelName}
@@ -309,7 +309,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           />
         </div>
         <div className="space-y-2">
-          <Label className="text-[13px] text-foreground/85">{t('ovms.download.model_source')}</Label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_source')}</Label>
           <Select
             value={formValues.modelSource}
             onValueChange={(value) => updateField('modelSource', value)}
@@ -325,7 +325,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label className="text-[13px] text-foreground/85">{t('ovms.download.model_task')}</Label>
+          <Label className="text-[13px] text-foreground">{t('ovms.download.model_task')}</Label>
           <Select
             value={formValues.task}
             onValueChange={(value) => updateField('task', value as OvmsDownloadTask)}

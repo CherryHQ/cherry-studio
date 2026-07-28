@@ -371,7 +371,7 @@ const DemoContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'
   <div className={cn('mt-3.75 mb-1.25 flex items-center justify-center', className)} {...props} />
 )
 const QuestionIcon = ({ className, ...props }: React.ComponentProps<typeof CircleHelp>) => (
-  <CircleHelp className={cn('cursor-pointer text-foreground-tertiary', className)} {...props} />
+  <CircleHelp className={cn('cursor-pointer text-muted-foreground', className)} {...props} />
 )
 const ChecklistItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('mb-0.5 flex items-center text-foreground-tertiary text-xs', className)} {...props} />

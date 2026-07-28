@@ -883,7 +883,7 @@ describe('AgentComposer', () => {
 
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
     expect(screen.getByTestId('agent-model-selector').querySelector('.lucide-chevron-down')).toBeInTheDocument()
-    expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('text-foreground/85')
+    expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('text-foreground')
 
     fireEvent.click(screen.getByText('select model 2'))
 
@@ -979,7 +979,7 @@ describe('AgentComposer', () => {
 
     const modelLabel = screen.getByText('Claude Sonnet 4.5')
     expect(modelLabel).not.toHaveClass('text-muted-foreground')
-    expect(modelLabel).not.toHaveClass('text-foreground/85')
+    expect(modelLabel).not.toHaveClass('text-foreground')
     expect(modelLabel.closest('button')).toBeDisabled()
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', '')
 
@@ -1175,9 +1175,9 @@ describe('AgentComposer', () => {
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
 
     expect(reasoningButton.compareDocumentPosition(skillButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(reasoningButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
+    expect(reasoningButton).toHaveClass('text-muted-foreground!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(skillButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(skillButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
+    expect(skillButton).toHaveClass('text-muted-foreground!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(skillButton.querySelector('.lucide-tool-case')).toBeInTheDocument()
 
     fireEvent.click(reasoningButton)

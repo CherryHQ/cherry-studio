@@ -85,8 +85,8 @@ export function FileTreeRow(props: FileTreeRowProps) {
         'group relative flex select-none items-center gap-1.5 rounded-3xs py-1 pr-2 text-left text-sm',
         'transition-colors',
         isFolder
-          ? 'text-foreground/75 hover:bg-accent/50 hover:text-foreground'
-          : 'text-muted-foreground/70 hover:bg-accent/40 hover:text-foreground',
+          ? 'text-foreground hover:bg-accent/50'
+          : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
         isSelected && 'bg-accent/60 text-foreground',
         isDragging && 'opacity-50',
         dragPosition === 'inside' && 'bg-primary/15 ring-1 ring-primary/40',
@@ -104,7 +104,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
             e.stopPropagation()
             toggleExpanded()
           }}
-          className="size-auto min-h-0 shrink-0 rounded-none p-0 text-muted-foreground/50 shadow-none hover:bg-transparent hover:text-muted-foreground"
+          className="size-auto min-h-0 shrink-0 rounded-none p-0 text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground"
           tabIndex={-1}
           aria-hidden>
           <ChevronRight

@@ -267,7 +267,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
               <div className="mt-0.5 line-clamp-1 text-muted-foreground text-xs leading-4">{subtitle}</div>
             ) : null}
           </div>
-          <div className="rounded-full bg-warning/10 px-2 py-1 font-medium text-[11px] text-warning">
+          <div className="rounded-full border border-warning-border bg-warning-subtle px-2 py-1 font-medium text-[11px] text-warning-subtle-foreground">
             {t('agent.toolPermission.pending')}
           </div>
         </div>

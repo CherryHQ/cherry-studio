@@ -1143,13 +1143,13 @@ describe('ComposerSurface', () => {
 
     const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
     expect(locateButton).toHaveAttribute('data-size', 'icon-sm')
-    expect(locateButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
+    expect(locateButton).toHaveClass('text-muted-foreground!', 'hover:bg-accent', 'hover:text-foreground!')
     fireEvent.click(locateButton)
     expect(onLocate).toHaveBeenCalledTimes(1)
 
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
     expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
-    expect(cancelButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
+    expect(cancelButton).toHaveClass('text-muted-foreground!', 'hover:bg-accent', 'hover:text-foreground!')
     expect(cancelButton).not.toHaveClass('text-info')
 
     fireEvent.click(cancelButton)

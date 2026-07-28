@@ -454,10 +454,10 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
         <div className="min-w-0 overflow-hidden">{content}</div>
         {elapsedText && (
           <>
-            <span aria-hidden="true" className="shrink-0 text-muted-foreground/40">
+            <span aria-hidden="true" className="shrink-0 text-foreground-tertiary">
               ·
             </span>
-            <span className="shrink-0 whitespace-nowrap text-muted-foreground/55 transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+            <span className="shrink-0 whitespace-nowrap text-muted-foreground transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
               {elapsedText}
             </span>
           </>
@@ -572,10 +572,10 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
         </div>
         {elapsedText && (
           <>
-            <span aria-hidden="true" className="shrink-0 text-muted-foreground/40">
+            <span aria-hidden="true" className="shrink-0 text-foreground-tertiary">
               ·
             </span>
-            <span className="shrink-0 whitespace-nowrap text-muted-foreground/55 transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
+            <span className="shrink-0 whitespace-nowrap text-muted-foreground transition-colors duration-150 group-hover/tool-group-trigger:text-foreground">
               {elapsedText}
             </span>
           </>

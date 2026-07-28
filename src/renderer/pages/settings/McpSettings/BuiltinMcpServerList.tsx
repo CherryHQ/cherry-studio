@@ -125,7 +125,7 @@ const BuiltinMcpServerList: FC = () => {
               <div className="ml-3 flex min-w-21.5 shrink-0 items-center justify-end self-center">
                 {isInstalled ? (
                   <div className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-muted-foreground text-xs">
-                    <Check size={13} className="text-success/75" />
+                    <Check size={13} className="text-success" />
                     {t('settings.skills.installed')}
                   </div>
                 ) : (

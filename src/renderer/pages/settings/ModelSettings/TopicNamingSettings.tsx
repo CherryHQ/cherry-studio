@@ -44,7 +44,7 @@ export const TopicNamingSettings = () => {
               <div className="truncate text-foreground text-sm">{t('settings.models.topic_naming.prompt')}</div>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" className="size-6 shrink-0 text-foreground-tertiary">
+                  <Button variant="ghost" size="icon-sm" className="size-6 shrink-0 text-muted-foreground">
                     <CircleHelp size={14} />
                   </Button>
                 </PopoverTrigger>

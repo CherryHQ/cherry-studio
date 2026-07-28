@@ -129,7 +129,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
         />
 
         {providerState.showSelectionHint && (
-          <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-warning text-xs">
+          <div className="flex items-center gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs">
             <CircleAlert className="size-3.5 shrink-0" />
             <span>{t('code.select_provider_before_launch', { toolName: activeMeta.label })}</span>
           </div>

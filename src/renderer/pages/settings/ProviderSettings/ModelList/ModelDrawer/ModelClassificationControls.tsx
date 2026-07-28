@@ -61,7 +61,7 @@ function OptionButton<T extends string>({
       type="button"
       variant={selected ? 'secondary' : 'outline'}
       size="sm"
-      aria-pressed={selected}
+      pressed={selected}
       className={cn(optionButtonClassName, selected && 'border border-border text-foreground')}
       onClick={onClick}>
       <Icon aria-hidden />

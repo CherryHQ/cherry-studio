@@ -138,7 +138,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
                     value="__conversation_picker_create_new__"
                     className="group h-9 cursor-pointer gap-2.5 rounded-md px-2.5"
                     onSelect={() => createAction.onSelect()}>
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
                       {createAction.icon}
                     </span>
                     <span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm leading-5">
@@ -168,7 +168,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
                           logger.error('Conversation picker onSelect rejected', error as Error)
                         )
                       }>
-                      <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
                         {item.icon}
                       </span>
                       <span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm leading-5">

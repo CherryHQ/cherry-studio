@@ -50,7 +50,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
       <div className="pointer-events-none relative flex items-center gap-3">
         <GripVertical
           size={13}
-          className="pointer-events-auto shrink-0 cursor-grab text-muted-foreground/25 active:cursor-grabbing"
+          className="pointer-events-auto shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
         />
 
         <span aria-hidden className="shrink-0">
@@ -75,14 +75,14 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             <span className="min-w-0 truncate text-foreground text-sm">{providerName}</span>
             {modelName && (
               <>
-                <span aria-hidden className="shrink-0 text-muted-foreground/35 text-xs">
+                <span aria-hidden className="shrink-0 text-foreground-tertiary text-xs">
                   ｜
                 </span>
-                <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground/50">{modelName}</span>
+                <span className="min-w-0 truncate font-mono text-[11px] text-foreground-tertiary">{modelName}</span>
               </>
             )}
           </div>
-          {description && <p className="mt-0.5 truncate text-muted-foreground/60 text-xs">{description}</p>}
+          {description && <p className="mt-0.5 truncate text-muted-foreground text-xs">{description}</p>}
         </div>
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
@@ -113,9 +113,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             variant={isCurrent ? 'destructive' : 'default'}
             size="sm"
             onClick={() => onToggleCurrent(provider)}
-            className={`min-h-0 px-2.5 py-1 ${
-              isCurrent ? 'bg-destructive/10 text-destructive shadow-none hover:bg-destructive/15' : ''
-            }`}>
+            className="min-h-0 px-2.5 py-1">
             {isCurrent ? <CircleMinus size={11} /> : <Play size={11} />}
             {isCurrent ? t('code.disable') : t('code.enable')}
           </Button>

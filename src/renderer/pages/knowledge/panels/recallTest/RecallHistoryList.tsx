@@ -18,7 +18,7 @@ const RecallHistoryList = () => {
         <Button
           type="button"
           variant="ghost"
-          className="h-auto min-h-0 rounded-none p-0 text-foreground-tertiary text-xs leading-4 shadow-none transition-colors hover:bg-transparent hover:text-red-500"
+          className="h-auto min-h-0 rounded-none p-0 text-muted-foreground text-xs leading-4 shadow-none transition-colors hover:bg-transparent hover:text-destructive"
           onClick={clearHistory}>
           {t('knowledge.recall.history_clear')}
         </Button>
@@ -36,7 +36,7 @@ const RecallHistoryList = () => {
           <button
             type="button"
             aria-label={t('knowledge.recall.history_remove')}
-            className="shrink-0 cursor-default text-foreground-tertiary opacity-0 transition-all hover:text-destructive group-hover/hist:opacity-100"
+            className="shrink-0 cursor-default text-muted-foreground opacity-0 transition-all hover:text-destructive group-hover/hist:opacity-100"
             onClick={(event) => {
               event.stopPropagation()
               removeHistory(item.id)

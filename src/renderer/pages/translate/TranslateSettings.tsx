@@ -302,7 +302,7 @@ const TranslatePromptField: FC = () => {
           <button
             type="button"
             onClick={onReset}
-            className="rounded-md text-foreground-tertiary text-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="rounded-md text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
             {t('common.reset')}
           </button>
         )
@@ -551,7 +551,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
             size="xs"
             onClick={() => setEditing(true)}
             aria-label={t('common.edit')}
-            className="text-foreground-tertiary opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
+            className="text-muted-foreground opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
             <PenLine size={10} />
           </IconButton>
           <IconButton
@@ -559,7 +559,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
             tone="destructive"
             onClick={() => setConfirmOpen(true)}
             aria-label={t('common.delete')}
-            className="text-foreground-tertiary opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
+            className="text-muted-foreground opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
             <X size={10} />
           </IconButton>
         </div>

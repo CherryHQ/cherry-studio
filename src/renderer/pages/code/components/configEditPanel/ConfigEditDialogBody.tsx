@@ -102,7 +102,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="shrink-0 text-muted-foreground/60 hover:text-foreground"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
               aria-label={t('code.open_provider_settings')}
               title={t('code.open_provider_settings')}
               onClick={() => {

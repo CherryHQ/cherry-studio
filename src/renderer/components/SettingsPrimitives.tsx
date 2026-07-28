@@ -84,7 +84,7 @@ export const SettingHelpTextRow = ({ className, ...props }: React.ComponentProps
 )
 
 export const SettingHelpText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('text-[11px] text-foreground/40', className)} {...props} />
+  <div className={cn('text-[11px] text-foreground-tertiary', className)} {...props} />
 )
 
 export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (

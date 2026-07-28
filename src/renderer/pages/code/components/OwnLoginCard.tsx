@@ -46,7 +46,7 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
       <div className="pointer-events-none relative flex items-center gap-3">
         <GripVertical
           size={13}
-          className="pointer-events-auto shrink-0 cursor-grab text-muted-foreground/25 active:cursor-grabbing"
+          className="pointer-events-auto shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
         />
 
         <span aria-hidden className="shrink-0">
@@ -89,9 +89,7 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
             variant={selected ? 'destructive' : 'default'}
             size="sm"
             onClick={onToggle}
-            className={`min-h-0 px-2.5 py-1 ${
-              selected ? 'bg-destructive/10 text-destructive shadow-none hover:bg-destructive/15' : ''
-            }`}>
+            className="min-h-0 px-2.5 py-1">
             {selected ? <CircleMinus size={11} /> : <Play size={11} />}
             {selected ? t('code.disable') : t('code.enable')}
           </Button>

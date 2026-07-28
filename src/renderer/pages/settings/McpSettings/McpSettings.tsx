@@ -637,7 +637,7 @@ const McpSettings: React.FC = () => {
                   size="sm"
                   variant="ghost"
                   onClick={() => onDeleteMcpServer(server)}
-                  className="-ml-2 -mt-1 hover:!bg-destructive/10 hover:!text-destructive rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
+                  className="-ml-2 -mt-1 hover:!bg-destructive hover:!text-destructive-foreground rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}
                 </Button>
@@ -745,9 +745,9 @@ const McpRuntimeStatusBadge = ({
   <span
     className={cn(
       'inline-flex h-4.5 items-center rounded-[9px] px-1.5 text-[11px] leading-4.5',
-      state === 'connected' && 'bg-success/10 text-success',
-      state === 'connecting' && 'bg-warning/10 text-warning',
-      state === 'error' && 'bg-destructive/10 text-destructive',
+      state === 'connected' && 'border border-success-border bg-success-subtle text-success-subtle-foreground',
+      state === 'connecting' && 'border border-warning-border bg-warning-subtle text-warning-subtle-foreground',
+      state === 'error' && 'border border-error-border bg-error-subtle text-error-subtle-foreground',
       state === 'disabled' && 'bg-muted text-muted-foreground',
       className
     )}

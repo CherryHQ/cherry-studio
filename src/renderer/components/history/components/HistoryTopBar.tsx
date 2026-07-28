@@ -150,7 +150,7 @@ const HistoryTopBar = ({
                   event.stopPropagation()
                   onStatusSelect(ALL_SOURCE_ID)
                 }}
-                className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 group-focus-within/status-select:pointer-events-auto group-focus-within/status-select:opacity-100 group-hover/status-select:pointer-events-auto group-hover/status-select:opacity-100">
+                className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 group-focus-within/status-select:pointer-events-auto group-focus-within/status-select:opacity-100 group-hover/status-select:pointer-events-auto group-hover/status-select:opacity-100">
                 <X size={12} />
               </Button>
             ) : null}

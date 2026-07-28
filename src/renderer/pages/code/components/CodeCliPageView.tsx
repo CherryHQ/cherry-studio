@@ -38,7 +38,7 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
           {contentProps ? (
             <CodeCliContentPanel {...contentProps} />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-muted-foreground/50 text-sm">
+            <div className="flex flex-1 items-center justify-center text-foreground-tertiary text-sm">
               {emptyMessage}
             </div>
           )}

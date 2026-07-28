@@ -292,7 +292,7 @@ const ModalSectionTitleLabel = ({ className, ...props }: React.ComponentPropsWit
 )
 
 const QuestionIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof CircleHelp>) => (
-  <CircleHelp className={cn('cursor-pointer text-foreground-tertiary', className)} {...props} />
+  <CircleHelp className={cn('cursor-pointer text-muted-foreground', className)} {...props} />
 )
 
 const ErrorText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

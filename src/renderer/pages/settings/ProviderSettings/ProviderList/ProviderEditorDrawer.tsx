@@ -642,7 +642,7 @@ export default function ProviderEditorDrawer({
       )}
 
       {duplicateSource && !duplicateNeedsBaseUrl(duplicateSource.authType) && (
-        <p className="text-muted-foreground/80 text-xs leading-[1.4]">
+        <p className="text-muted-foreground text-xs leading-[1.4]">
           {t('settings.provider.duplicate.fill_after_create')}
         </p>
       )}
@@ -897,7 +897,7 @@ function DuplicateHeader({ source }: { source: Provider }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-muted/40 px-3 py-2">
       <ProviderAvatar provider={{ id: presetId ?? source.id, name: label }} size={18} />
-      <span className="truncate text-foreground/85 text-sm">{label}</span>
+      <span className="truncate text-foreground text-sm">{label}</span>
     </div>
   )
 }
@@ -993,7 +993,7 @@ function NameField({ name, showError, onNameChange, onBlur, onEnter, disableEnte
   const errorId = `${uid}-name-error`
   return (
     <Field className="gap-2">
-      <FieldLabel required htmlFor={inputId} className="text-[13px] text-foreground/85">
+      <FieldLabel required htmlFor={inputId} className="text-[13px] text-foreground">
         {t('settings.provider.add.name.label')}
       </FieldLabel>
       <Input
@@ -1163,7 +1163,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
           size="icon-lg"
           aria-label={t(visible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key')}
           onClick={() => setVisible((v) => !v)}
-          className="-translate-y-1/2 absolute top-1/2 right-0 text-muted-foreground/70 hover:text-foreground">
+          className="-translate-y-1/2 absolute top-1/2 right-0 text-muted-foreground hover:text-foreground">
           {visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
         </Button>
       </div>

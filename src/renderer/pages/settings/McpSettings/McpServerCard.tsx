@@ -136,9 +136,9 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   const getTypeBadgeClass = () => {
     switch (server.type) {
       case 'sse':
-        return 'bg-success/10 text-success'
+        return 'border-success-border bg-success-subtle text-success-subtle-foreground'
       case 'streamableHttp':
-        return 'bg-info/10 text-info'
+        return 'border-info-border bg-info-subtle text-info-subtle-foreground'
       default:
         return 'bg-muted text-muted-foreground'
     }
@@ -255,7 +255,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
             key={server.id}
             disabled={isLoading}
             size="xs"
-            className="shadow-none data-[state=checked]:bg-success/85"
+            className="shadow-none data-[state=checked]:bg-success"
             onCheckedChange={handleToggleActive}
             data-no-dnd
           />
@@ -313,9 +313,9 @@ const ActiveDot = ({
   <div
     className={cn(
       'size-1.5 shrink-0 rounded-full',
-      $state === 'connected' && 'bg-success/85',
-      $state === 'connecting' && 'bg-warning/85',
-      $state === 'error' && 'bg-destructive/85',
+      $state === 'connected' && 'bg-success',
+      $state === 'connecting' && 'bg-warning',
+      $state === 'error' && 'bg-error',
       $state === 'disabled' && 'bg-muted-foreground/30',
       className
     )}

@@ -1135,13 +1135,13 @@ describe('ComposerToken', () => {
 
     const token = screen.getByText('city').closest('[data-composer-token-kind="promptVariable"]')
     expect(token).toHaveClass('text-info')
-    expect(token).not.toHaveClass('border-info/30', 'bg-info/10', 'rounded-md', 'ring-1')
+    expect(token).not.toHaveClass('border-info-border', 'bg-info-subtle', 'rounded-md', 'ring-1')
 
     rerender(<ComposerToken token={promptVariableToken} selected />)
 
     const selectedToken = screen.getByText('city').closest('[data-composer-token-kind="promptVariable"]')
     expect(selectedToken).toHaveClass('text-primary', 'underline', 'decoration-primary/40', 'underline-offset-2')
-    expect(selectedToken).not.toHaveClass('border-info/30', 'bg-info/10', 'rounded-md', 'ring-1')
+    expect(selectedToken).not.toHaveClass('border-info-border', 'bg-info-subtle', 'rounded-md', 'ring-1')
   })
 
   it('rejects unsupported token kinds', () => {

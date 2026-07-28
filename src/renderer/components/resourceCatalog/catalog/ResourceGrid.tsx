@@ -166,7 +166,7 @@ function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal, s
         <Button variant="default" size={size} className="shrink-0">
           <Plus size={size === 'sm' ? 12 : 16} className="lucide-custom" />
           <span>{t('library.skill_add.add')}</span>
-          <ChevronDown size={size === 'sm' ? 12 : 14} className="text-primary-foreground/70" />
+          <ChevronDown size={size === 'sm' ? 12 : 14} className="text-primary-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-40">
@@ -415,7 +415,7 @@ export const ResourceGrid: FC<Props> = ({
                       className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
                         activeGroupId === group.id
                           ? 'border-border-selected bg-secondary text-foreground hover:text-foreground'
-                          : 'border-border-subtle text-foreground-tertiary hover:border-border-strong hover:bg-accent hover:text-foreground'
+                          : 'border-border-subtle text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground'
                       }`}>
                       <span>{group.name}</span>
                       <span className="text-foreground-tertiary text-xs tabular-nums">{group.count}</span>
@@ -441,7 +441,7 @@ export const ResourceGrid: FC<Props> = ({
                   aria-label={t('library.toolbar.all_groups')}
                   title={t('library.toolbar.all_groups')}
                   onClick={() => setShowAllGroups((value) => !value)}
-                  className="size-6 shrink-0 rounded-full text-foreground-tertiary hover:bg-accent hover:text-foreground">
+                  className="size-6 shrink-0 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground">
                   {showAllGroups ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
                 </Button>
               )}
@@ -472,7 +472,7 @@ export const ResourceGrid: FC<Props> = ({
                     size="icon-sm"
                     onClick={() => void handleAddGroup()}
                     disabled={addingGroup || !newGroupName.trim()}
-                    className="size-6 text-foreground-tertiary hover:text-foreground">
+                    className="size-6 text-muted-foreground hover:text-foreground">
                     <Plus size={12} />
                   </Button>
                 </div>
@@ -480,7 +480,7 @@ export const ResourceGrid: FC<Props> = ({
                 <Button
                   variant="ghost"
                   onClick={() => setShowAddGroup(true)}
-                  className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-subtle border-dashed px-2 text-foreground-tertiary text-xs shadow-none hover:border-border-strong hover:bg-accent hover:text-foreground">
+                  className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-subtle border-dashed px-2 text-muted-foreground text-xs shadow-none hover:border-border-strong hover:bg-accent hover:text-foreground">
                   <Plus size={11} /> {t('library.toolbar.group_button')}
                 </Button>
               )}

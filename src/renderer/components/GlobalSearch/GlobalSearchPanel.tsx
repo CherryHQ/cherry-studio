@@ -1028,12 +1028,9 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                     aria-label={`${t('globalSearch.messageSearch.sourceLabel')}: ${t(
                       getMessageSourceFilterLabelKey(filterOption)
                     )}`}
-                    aria-pressed={messageSourceFilter === filterOption}
+                    pressed={messageSourceFilter === filterOption}
                     onClick={() => handleMessageSourceFilterSelect(filterOption)}
-                    className={cn(
-                      'h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground',
-                      messageSourceFilter === filterOption && 'bg-muted text-foreground hover:bg-muted'
-                    )}>
+                    className="h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground data-[pressed=true]:bg-muted data-[pressed=true]:text-foreground data-[pressed=true]:hover:bg-muted">
                     {t(getMessageSourceFilterLabelKey(filterOption))}
                   </Button>
                 ))}
@@ -1047,12 +1044,9 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                     type="button"
                     variant="ghost"
                     aria-label={`${t('globalSearch.filters.label')}: ${t(getFilterLabelKey(filterOption))}`}
-                    aria-pressed={filter === filterOption}
+                    pressed={filter === filterOption}
                     onClick={() => handleFilterSelect(filterOption)}
-                    className={cn(
-                      'h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground',
-                      filter === filterOption && 'bg-muted text-foreground hover:bg-muted'
-                    )}>
+                    className="h-7 rounded-[8px] px-2 font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground data-[pressed=true]:bg-muted data-[pressed=true]:text-foreground data-[pressed=true]:hover:bg-muted">
                     {t(getFilterLabelKey(filterOption))}
                   </Button>
                 ))}

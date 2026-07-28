@@ -42,7 +42,7 @@ export function ConversationSidebarToggleButton({
       <NavbarIcon
         tone="conversation"
         aria-label={label}
-        aria-pressed={showSidebar}
+        pressed={showSidebar}
         onClick={toggleShowSidebar}
         {...buttonProps}>
         <ToggleIcon />

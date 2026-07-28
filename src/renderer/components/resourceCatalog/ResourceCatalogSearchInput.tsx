@@ -45,7 +45,7 @@ export function ResourceCatalogSearchInput({
           size="icon-sm"
           aria-label={t('common.clear')}
           onClick={clear}
-          className="-translate-y-1/2 absolute top-1/2 right-1 size-6 rounded-full text-foreground-tertiary hover:bg-transparent hover:text-foreground">
+          className="-translate-y-1/2 absolute top-1/2 right-1 size-6 rounded-full text-muted-foreground hover:bg-transparent hover:text-foreground">
           <X size={12} />
         </Button>
       ) : null}

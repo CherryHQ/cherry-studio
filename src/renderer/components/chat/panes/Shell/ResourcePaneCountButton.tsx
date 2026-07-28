@@ -33,21 +33,21 @@ export function ResourcePaneCountButton({ label, count, className }: ResourcePan
       <Button
         type="button"
         variant={active ? 'secondary' : 'ghost'}
+        pressed={active}
         aria-label={title}
         className={cn(
-          'group h-7 shrink-0 gap-1.5 rounded-full bg-card px-2.5 font-medium text-foreground-tertiary text-xs shadow-none',
+          'group h-7 shrink-0 gap-1.5 rounded-full bg-card px-2.5 font-medium text-muted-foreground text-xs shadow-none',
           'hover:bg-accent hover:text-foreground',
           active && 'bg-secondary text-secondary-foreground hover:text-secondary-foreground',
           '[&_svg]:!size-3.5 [-webkit-app-region:none]',
           className
         )}
-        aria-pressed={active}
         onClick={handleClick}>
         <List />
         <span>{label}</span>
         <span
           className={cn(
-            'text-foreground-tertiary group-hover:text-muted-foreground',
+            'text-muted-foreground group-hover:text-foreground',
             active && 'text-secondary-foreground group-hover:text-secondary-foreground'
           )}>
           {count}

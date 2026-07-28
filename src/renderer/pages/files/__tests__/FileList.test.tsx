@@ -191,7 +191,7 @@ describe('FileList', () => {
     render(<FileList {...fileListProps(null)} onOpen={onOpen} />)
 
     const openButton = screen.getByRole('button', { name: 'files.open' })
-    expect(openButton).toHaveClass('size-6', '!text-muted-foreground/70')
+    expect(openButton).toHaveClass('size-6', '!text-muted-foreground')
     fireEvent.click(openButton)
 
     expect(onOpen).toHaveBeenCalledWith(file)

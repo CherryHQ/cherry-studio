@@ -103,7 +103,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
               }
             }}
             placeholder={t('settings.provider.api.key.new_key.placeholder')}
-            className="h-8 min-w-0 flex-1 rounded-lg border-border/30 bg-foreground/3 text-xs leading-tight placeholder:text-foreground/25 md:text-xs"
+            className="h-8 min-w-0 flex-1 rounded-lg border-border/30 bg-foreground/3 text-xs leading-tight placeholder:text-muted-foreground md:text-xs"
             spellCheck={false}
           />
           <div className="flex shrink-0 items-center gap-0.5">
@@ -130,7 +130,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
           <Tooltip content={t('common.copy')} delay={500}>
             <button
               type="button"
-              className="min-w-0 cursor-help truncate text-left text-foreground/70 text-xs leading-tight"
+              className="min-w-0 cursor-help truncate text-left text-muted-foreground text-xs leading-tight"
               onClick={handleCopy}>
               {maskApiKey(item.key)}
             </button>

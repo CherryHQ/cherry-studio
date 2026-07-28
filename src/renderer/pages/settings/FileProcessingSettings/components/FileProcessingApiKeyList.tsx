@@ -137,7 +137,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
               }
             }}
             placeholder={t('settings.provider.api.key.new_key.placeholder')}
-            className="h-8 min-w-0 flex-1 rounded-lg border-border/30 bg-foreground/3 text-sm leading-tight placeholder:text-foreground/25 md:text-sm"
+            className="h-8 min-w-0 flex-1 rounded-lg border-border/30 bg-foreground/3 text-sm leading-tight placeholder:text-muted-foreground md:text-sm"
             spellCheck={false}
           />
           <div className="flex shrink-0 items-center gap-0.5">
@@ -165,7 +165,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
             type="button"
             variant="ghost"
             size="sm"
-            className="h-auto min-w-0 flex-1 justify-start rounded-none px-0 py-0 text-left text-foreground/70 text-sm leading-tight shadow-none hover:bg-transparent hover:text-foreground/80"
+            className="h-auto min-w-0 flex-1 justify-start rounded-none px-0 py-0 text-left text-muted-foreground text-sm leading-tight shadow-none hover:bg-transparent hover:text-foreground"
             onClick={handleCopy}>
             <span className="min-w-0 truncate">{maskFileProcessingApiKey(item.key)}</span>
           </Button>

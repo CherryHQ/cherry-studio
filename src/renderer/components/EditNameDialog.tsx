@@ -102,7 +102,7 @@ const EditNameDialog = ({
               id={inputId}
               aria-invalid={hasAttemptedSubmit && !name.trim()}
               autoFocus
-              className="h-8 rounded-lg px-2.5 leading-4 placeholder:text-muted-foreground/70"
+              className="h-8 rounded-lg px-2.5 leading-4 placeholder:text-muted-foreground"
               placeholder={placeholder}
               value={name}
               onChange={(event) => {

@@ -85,7 +85,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
   }
 
   const agentOnlyNote = (
-    <div className="mt-1 text-foreground-tertiary text-xs">
+    <div className="mt-1 text-xs">
       {t('settings.provider.claude_code.agent_only_note')}{' '}
       <ProviderHelpLink className="mx-0" href={LEGAL_AND_COMPLIANCE_URL} target="_blank" rel="noreferrer">
         {t('settings.provider.claude_code.legal_link')}
@@ -96,13 +96,11 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
   return (
     <div className="flex flex-col gap-3">
       {loggedIn ? (
-        <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 p-3">
+        <div className="flex items-center gap-3 rounded-lg border border-success-border bg-success-subtle p-3 text-success-subtle-foreground">
           <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
           <div className="min-w-0 flex-1">
-            <div className="text-foreground text-sm">{t('settings.provider.claude_code.logged_in')}</div>
-            <div className="mt-1 text-foreground-tertiary text-xs">
-              {t('settings.provider.claude_code.logged_in_detail')}
-            </div>
+            <div className="text-sm">{t('settings.provider.claude_code.logged_in')}</div>
+            <div className="mt-1 text-xs">{t('settings.provider.claude_code.logged_in_detail')}</div>
             {agentOnlyNote}
           </div>
           <Button variant="secondary" size="sm" disabled={checking} onClick={() => void checkLogin()}>
@@ -111,14 +109,12 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col gap-3 rounded-lg border border-info/40 bg-info/10 p-3">
+        <div className="flex flex-col gap-3 rounded-lg border border-info-border bg-info-subtle p-3 text-info-subtle-foreground">
           <div className="flex gap-3">
             <CircleAlert className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
             <div className="min-w-0 flex-1">
-              <div className="text-foreground text-sm">{t('settings.provider.claude_code.description')}</div>
-              <div className="mt-1 text-foreground-tertiary text-xs">
-                {t('settings.provider.claude_code.description_detail')}
-              </div>
+              <div className="text-sm">{t('settings.provider.claude_code.description')}</div>
+              <div className="mt-1 text-xs">{t('settings.provider.claude_code.description_detail')}</div>
               {agentOnlyNote}
             </div>
           </div>

@@ -101,7 +101,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
           {canCopyTable && (
             <Tooltip content={t('common.copy')} delay={800}>
               <div
-                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-tertiary opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
+                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
                 role="button"
                 aria-label={t('common.copy')}
                 onClick={handleCopyTable}>
@@ -112,7 +112,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
           {canExportExcel && (
             <Tooltip content={t('common.export.excel')} delay={800}>
               <div
-                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-tertiary opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
+                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
                 role="button"
                 aria-label={t('common.export.excel')}
                 onClick={handleExportExcel}>

@@ -142,7 +142,7 @@ describe('ProviderCard', () => {
     const { enableButton } = renderCard({ isCurrent: true })
 
     expect(enableButton.className).not.toMatch(/\bbg-destructive(?:\s|$)/)
-    expect(enableButton).toHaveClass('bg-destructive/10')
+    expect(enableButton).toHaveClass('bg-destructive')
     expect(enableButton).toHaveClass('text-destructive')
   })
 

@@ -217,7 +217,7 @@ const MigrationToolsMenu: React.FC<MigrationToolsMenuProps> = ({ open, onOpenCha
           className={
             disabled
               ? 'text-foreground-disabled hover:text-foreground-disabled'
-              : 'text-foreground-tertiary hover:text-muted-foreground'
+              : 'text-muted-foreground hover:text-foreground'
           }>
           <Wrench size={15} />
         </Button>
@@ -650,7 +650,7 @@ const MigrationApp: React.FC = () => {
               <SelectTrigger
                 aria-label={t('migration.language.select')}
                 size="sm"
-                className="h-7 w-auto gap-1.5 border-0 bg-transparent px-1.5 text-foreground-tertiary text-xs shadow-none hover:bg-transparent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+                className="h-7 w-auto gap-1.5 border-0 bg-transparent px-1.5 text-muted-foreground text-xs shadow-none hover:bg-transparent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -664,7 +664,7 @@ const MigrationApp: React.FC = () => {
                 size="icon-sm"
                 aria-label={t(themeLabelKey[themeMode] ?? themeLabelKey.system)}
                 onClick={toggleTheme}
-                className="text-foreground-tertiary hover:bg-muted/40 hover:text-foreground">
+                className="text-muted-foreground hover:bg-muted/40 hover:text-foreground">
                 <ThemeIcon className="size-3.5" strokeWidth={1.6} />
               </Button>
             </Tooltip>

@@ -105,20 +105,18 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
                   </Avatar>
                 )
               ) : null}
-              <span className="min-w-0 truncate text-foreground/90">
+              <span className="min-w-0 truncate text-foreground">
                 {selectedName ? (
                   <>
                     {selectedName}
-                    {selectedProviderName && (
-                      <span className="text-muted-foreground/80"> | {selectedProviderName}</span>
-                    )}
+                    {selectedProviderName && <span className="text-muted-foreground"> | {selectedProviderName}</span>}
                   </>
                 ) : (
                   t('paintings.select_model')
                 )}
               </span>
             </div>
-            <ChevronDown className="size-3 shrink-0 text-muted-foreground/60" />
+            <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
           </Button>
         }
       />

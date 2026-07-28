@@ -336,7 +336,7 @@ const ChannelInstanceRow: FC<{
     if (isConnected) {
       statusColor = 'bg-success'
       statusTag = (
-        <Badge className="border-success/30 bg-success/10 px-1.5 py-0 text-[10px] text-success leading-3.5">
+        <Badge className="border-success-border bg-success-subtle px-1.5 py-0 text-[10px] text-success-subtle-foreground leading-3.5">
           {t('agent.channels.connected')}
         </Badge>
       )

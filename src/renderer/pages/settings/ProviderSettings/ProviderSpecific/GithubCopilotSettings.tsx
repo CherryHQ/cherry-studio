@@ -238,12 +238,12 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       case AuthStatus.AUTHENTICATED:
         return (
           <div className="mb-5">
-            <div className="flex gap-3 rounded-lg border border-success/30 bg-success/10 p-3">
+            <div className="flex gap-3 rounded-lg border border-success-border bg-success-subtle p-3 text-success-subtle-foreground">
               <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
               <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   {avatar ? <img src={avatar} alt="" className="size-5 shrink-0 rounded-full" loading="lazy" /> : null}
-                  <span className="truncate text-foreground text-sm">
+                  <span className="truncate text-sm">
                     {username || t('settings.provider.copilot.auth_success_title')}
                   </span>
                 </div>
@@ -348,13 +348,11 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       default:
         return (
           <div className="mb-5">
-            <div className="flex gap-3 rounded-lg border border-info/40 bg-info/10 p-3">
+            <div className="flex gap-3 rounded-lg border border-info-border bg-info-subtle p-3 text-info-subtle-foreground">
               <CircleAlert className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
               <div className="min-w-0 flex-1">
-                <div className="text-foreground text-sm">{t('settings.provider.copilot.description')}</div>
-                <div className="mt-1 text-foreground-tertiary text-xs">
-                  {t('settings.provider.copilot.description_detail')}
-                </div>
+                <div className="text-sm">{t('settings.provider.copilot.description')}</div>
+                <div className="mt-1 text-xs">{t('settings.provider.copilot.description_detail')}</div>
               </div>
               <Button className="shrink-0 self-center" disabled={loading} onClick={handleGetDeviceCode}>
                 {t('settings.provider.copilot.start_auth')}

@@ -254,7 +254,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
               <WindowButton onClick={handleMinimize}>
                 <Minus className="size-3.5" />
               </WindowButton>
-              <WindowButton onClick={handleClose} className="hover:bg-error hover:text-white">
+              <WindowButton onClick={handleClose} className="hover:bg-destructive hover:text-destructive-foreground">
                 <X className="size-3.5" />
               </WindowButton>
             </>

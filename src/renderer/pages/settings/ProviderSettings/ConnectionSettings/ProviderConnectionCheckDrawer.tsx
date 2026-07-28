@@ -124,7 +124,7 @@ export default function ProviderConnectionCheckDrawer({
         <div className="space-y-4">
           <div className="space-y-3">
             <div>
-              <Label className="mb-2.5 block text-[13px] text-foreground/85">{t('button.select_model')}</Label>
+              <Label className="mb-2.5 block text-[13px] text-foreground">{t('button.select_model')}</Label>
               {sortedModels.length > 0 ? (
                 <Combobox
                   className="h-9 w-full justify-between px-2.5 text-left font-normal"
@@ -150,7 +150,7 @@ export default function ProviderConnectionCheckDrawer({
 
             {hasMultipleKeys ? (
               <div>
-                <Label className="mb-2.5 block text-[13px] text-foreground/85">
+                <Label className="mb-2.5 block text-[13px] text-foreground">
                   {t('settings.models.check.select_api_key')}
                 </Label>
                 <Combobox

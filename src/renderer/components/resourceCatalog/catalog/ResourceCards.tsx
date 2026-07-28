@@ -81,7 +81,7 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
                 onDelete={onDelete}
                 onExport={onExport}
                 allGroups={allGroups}
-                triggerClassName="text-foreground-tertiary opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+                triggerClassName="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
               />
             ) : (
               <Button
@@ -89,7 +89,7 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
                 size="icon-sm"
                 aria-label={r.type === 'skill' ? t('library.action.uninstall') : t('common.delete')}
                 onClick={() => onDelete(r)}
-                className="text-foreground-tertiary opacity-0 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100 group-hover:opacity-100">
+                className="text-muted-foreground opacity-0 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100 group-hover:opacity-100">
                 <Trash2 size={12} className="lucide-custom" />
               </Button>
             )}

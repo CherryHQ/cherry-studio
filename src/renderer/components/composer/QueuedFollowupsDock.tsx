@@ -66,7 +66,7 @@ function QueuedFollowupRow({
       <span
         aria-hidden
         data-dragging={dragging ? 'true' : 'false'}
-        className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
+        className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
         <GripVertical className="size-4" />
       </span>
       <div className="min-w-0 flex-1">

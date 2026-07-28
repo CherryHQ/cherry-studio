@@ -254,13 +254,13 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 key={`${option.label}-${optionIndex}`}
                 type="button"
                 variant="ghost"
+                pressed={isSelected}
                 className={cn(
                   'group h-auto min-h-11 w-full justify-start gap-3 whitespace-normal rounded-[12px] px-3 py-2 text-left shadow-none',
                   'hover:bg-muted focus-visible:bg-muted',
                   isSelected && 'bg-muted'
                 )}
                 disabled={isSubmitting}
-                aria-pressed={isSelected}
                 onClick={() => handleSelectOption(option.label)}>
                 <span
                   className={cn(

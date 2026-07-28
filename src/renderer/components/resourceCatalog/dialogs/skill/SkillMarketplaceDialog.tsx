@@ -305,7 +305,7 @@ function SkillSearchResultRow({
                 size="icon-sm"
                 aria-label={t('settings.skills.viewSource')}
                 onClick={() => window.open(result.sourceUrl!)}
-                className="inline-flex size-4 shrink-0 items-center justify-center rounded-sm p-0 text-foreground-tertiary shadow-none hover:bg-accent hover:text-foreground">
+                className="inline-flex size-4 shrink-0 items-center justify-center rounded-sm p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
                 <ExternalLink className="size-3" />
               </Button>
             </Tooltip>

@@ -382,8 +382,8 @@ export function GlobalSearchMessagePreviewPanel({
                     openPreviewMessage(message.id)
                   }}
                   className={cn(
-                    '-mx-3 w-[calc(100%+1.5rem)] cursor-pointer rounded-xl px-3 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-                    message.id === activeMessageId && 'bg-accent/55 ring-1 ring-border-selected'
+                    '-mx-3 w-[calc(100%+1.5rem)] cursor-pointer rounded-xl border border-transparent px-3 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                    message.id === activeMessageId && 'border-border-selected bg-accent/55'
                   )}>
                   <div className="mb-1 font-medium text-muted-foreground text-xs">
                     {t(getMessageRoleLabelKey(message.role))}
