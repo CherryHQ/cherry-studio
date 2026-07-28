@@ -1,14 +1,20 @@
 import * as z from 'zod'
 
+const VersionDiagnosticSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[0-9A-Za-z][0-9A-Za-z.+-]*$/)
+
 const MigrationTipDiagnosticSchema = z.strictObject({
   folderMillis: z.number().int().safe().nonnegative(),
   hashPrefix: z.union([z.string().regex(/^[0-9a-f]{12}$/), z.literal('unavailable')])
 })
 
 const CompatibilityCommonSchema = z.object({
-  archiveAppVersion: z.string().min(1).max(64),
+  archiveAppVersion: VersionDiagnosticSchema,
   archiveBuildType: z.enum(['packaged', 'development', 'unknown']),
-  currentAppVersion: z.string().min(1).max(64),
+  currentAppVersion: VersionDiagnosticSchema,
   currentBuildType: z.enum(['packaged', 'development']),
   sourceMigrationCount: z.number().int().safe().positive(),
   targetMigrationCount: z.number().int().safe().positive(),
@@ -34,9 +40,9 @@ export const BackupFormatCompatibilityDiagnosticSchema = z.strictObject({
   kind: z.enum(['archive-newer', 'archive-legacy']),
   archiveFormatVersion: z.number().int().safe().nonnegative(),
   currentFormatVersion: z.number().int().safe().nonnegative(),
-  archiveAppVersion: z.string().min(1).max(64).optional(),
+  archiveAppVersion: VersionDiagnosticSchema.optional(),
   archiveBuildType: z.enum(['packaged', 'development', 'unknown']),
-  currentAppVersion: z.string().min(1).max(64),
+  currentAppVersion: VersionDiagnosticSchema,
   currentBuildType: z.enum(['packaged', 'development'])
 })
 

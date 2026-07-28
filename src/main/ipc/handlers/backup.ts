@@ -142,7 +142,11 @@ function toIpcError(error: unknown): unknown {
     return new IpcError(backupErrorCodes.FORMAT_UNSUPPORTED, error.message, data)
   }
   if (error instanceof ArchiveAdmissionError) {
-    return new IpcError(backupErrorCodes.ARCHIVE_REJECTED, error.message, { reason: error.reason })
+    // Admission detail can contain bounded archive-controlled names. Keep it in
+    // main logs/tests; neither `message` nor `data` may serialize it to renderer.
+    return new IpcError(backupErrorCodes.ARCHIVE_REJECTED, 'backup archive was rejected', {
+      reason: error.reason
+    })
   }
   if (error instanceof RestoreStateError) {
     if (error.code === 'unreadable') {

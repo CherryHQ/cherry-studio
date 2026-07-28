@@ -234,6 +234,7 @@ describe('backupHandlers', () => {
         code: backupErrorCodes.ARCHIVE_REJECTED,
         data: { reason: 'manifest-invalid' }
       })
+      expect((error as IpcError).message).toBe('backup archive was rejected')
       expect(JSON.stringify((error as IpcError).data)).not.toContain('/Users/private')
     })
 
