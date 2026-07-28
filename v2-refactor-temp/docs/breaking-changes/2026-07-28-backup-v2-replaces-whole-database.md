@@ -22,4 +22,4 @@ Export a fresh backup before restoring an old one if anything since then is wort
 
 ## Notes for release manager
 
-A v1 `.zip` backup file cannot be selected by the v2 restore UI. However, an already-confirmed v1 restore journal is completed by a strict compatibility gate during upgrade, so there is no separate pending-restore breaking change to announce. Worth a screenshot of the new section and of the confirmation dialog, since the "replaces everything" wording is the whole point.
+A v1 `.zip` backup file cannot be selected by the v2 restore UI. A restore confirmed in a 2.0 pre-release but not yet carried out is no longer completed after updating — it is set aside untouched; see `2026-07-29-v1-pending-restore-parked.md`, which folds in here. Worth a screenshot of the new section and of the confirmation dialog, since the "replaces everything" wording is the whole point.

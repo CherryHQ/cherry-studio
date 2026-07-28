@@ -57,6 +57,7 @@ prepared ──armed by the user──▶ armed ──gate passed──▶ promo
 | `restore-staging/` tree content (`feature.backup.restore.staging`) | BackupService before boot, promotion afterwards; explicit rollback reuses it to retain displaced restored resources until acknowledgement |
 | Terminal-journal deletion + aside cleanup | acknowledgement (§6.5) |
 | Quarantined corrupt journals (`restore-journal.json.corrupt-<epoch>`) | kept for forensics alongside terminal journals |
+| Parked pre-release journals (`restore-journal.json.parked-v1`) | `backupRestoreGate.ts` — a journal in the abandoned v1 format is renamed aside unparsed and never executed, so a later pre-release install cannot resume it; nothing it named is deleted |
 
 ## Writer requirements (preparation side)
 

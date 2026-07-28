@@ -339,10 +339,14 @@ never quarantined or cleared automatically: it may be the only durable evidence 
 partially moved database/resource set. Preboot preserves the journal, staging tree, and
 asides, then refuses normal startup until a compatible build or explicit repair can prove a
 coherent state. This applies even when the live DB currently exists—presence alone does not
-prove that every resource matches it. A recognized active v1 journal is different: preboot
-dispatches it to the strict v1 compatibility state machine and lets that protocol converge
-before v2 services start, so upgrading between confirmation and promotion neither discards
-the requested restore nor boots a mixed DB/resource state.
+prove that every resource matches it. A journal in the abandoned v1 format — written only by
+the v2.0.0 pre-releases, never by stable v1 — is different: preboot never executes it and
+never parses it. It is renamed aside (`.parked-v1`, never overwriting an earlier parked one)
+and the boot continues, so an upgrade drops the requested restore instead of carrying out a
+database replacement the user has long since forgotten. If the live DB is missing, the
+journal is left under its original name and startup is refused instead — reinstalling the
+pre-release is then the way to finish that restore. Nothing is deleted either way: the
+journal and everything v1 staged or parked aside stay on disk.
 
 ### 5.3 Frozen operating ceilings
 
@@ -731,7 +735,7 @@ evidence of *what* the system must do, never ancestry to inherit.
 | Preboot restore gate | `src/main/core/preboot/backupRestoreGate.ts` |
 | Path registry / containment rules (`feature.backup.*` keys) | `src/main/core/paths/pathRegistry.ts` |
 | Orphan sweep | `src/main/services/file/internal/orphanSweep.ts` |
-| Its `hasPendingRestore()` stand-aside guard (both journal versions) | `src/main/data/db/restore/restoreGuard.ts` |
+| Its `hasPendingRestore()` stand-aside guard | `src/main/data/db/restore/restoreGuard.ts` |
 | Preboot userData relocation (runs before the restore gate) | `src/main/core/preboot/userDataLocation.ts` |
 | v1 whole-store replacement semantics (evidence only) | `src/main/services/LegacyBackupManager.ts` |
 
