@@ -1582,6 +1582,46 @@ describe('AgentComposer', () => {
     })
   })
 
+  it('strips the knowledge sentence from input history but keeps a skill sentence', async () => {
+    // Input history is the one composer path backed by localStorage, so it is the only place a
+    // knowledge token's prompt text could outlive its `data-knowledge-scope` part across a restart —
+    // replayed as prose it would claim a base the kb_* tools were never authorized for. A skill's
+    // sentence needs no accompanying part, so it must survive verbatim.
+    const knowledgePrompt = `The user attached knowledge base "${knowledgeBaseOne.name}" (id: ${knowledgeBaseOne.id}).`
+    mocks.sendMessage.mockResolvedValue(undefined)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: `summarize ${knowledgePrompt} ${pdfSkillToken.promptText} now`,
+        tokens: [
+          { ...knowledgeBaseToken(knowledgeBaseOne), promptText: knowledgePrompt, textOffset: 'summarize '.length },
+          {
+            ...pdfSkillToken,
+            index: 1,
+            textOffset: `summarize ${knowledgePrompt} `.length
+          } as ComposerSerializedToken
+        ]
+      })
+    })
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    const [saved = ''] = MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history') ?? []
+    expect(saved).not.toContain(knowledgeBaseOne.id)
+    expect(saved).not.toContain(knowledgePrompt)
+    expect(saved).toContain(pdfSkillToken.promptText)
+    expect(saved).toContain('summarize')
+  })
+
   it('resets input history navigation after a successful agent send, so a subsequent ArrowDown does not restore the recalled draft', async () => {
     // Regression: clearCurrentDraft must also drop useInputHistory's nav state.
     // Without that, recalling a history item, sending it, then pressing ArrowDown
