@@ -105,7 +105,7 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
-import { ComposerSpeedControl } from './shared/ComposerSpeedControl'
+import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -1056,7 +1056,10 @@ const AgentComposerInner = ({
       const payload = buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: agentComposerTokenId.file,
-        extra: () => ({ reasoningEffort, ...(fastMode ? { fastMode: true } : {}) })
+        extra: () => ({
+          reasoningEffort: model ? resolveComposerReasoningEffort(model, reasoningEffort) : reasoningEffort,
+          ...(fastMode && model?.supportsFastMode === true ? { fastMode: true } : {})
+        })
       })
       if (!payload) return null
 
@@ -1069,7 +1072,7 @@ const AgentComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [fastMode, files, reasoningEffort, selectedKnowledgeBasesInScope]
+    [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(

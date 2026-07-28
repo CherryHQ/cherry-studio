@@ -85,7 +85,7 @@ import {
   hasUnsyncedComposerAttachments
 } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
-import { ComposerSpeedControl } from './shared/ComposerSpeedControl'
+import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -558,10 +558,6 @@ const ChatComposerInner = ({
     reasoningOverride?.assistantId === selectedAssistantId ? reasoningOverride.value : canonicalReasoningEffort
   const [fastMode, setFastMode] = useState(false)
 
-  useEffect(() => {
-    if (runtimeModel?.supportsFastMode !== true) setFastMode(false)
-  }, [runtimeModel?.supportsFastMode])
-
   // A local override only bridges the latest PATCH/revalidation window. Do
   // not retire it on an intermediate refresh from an older mutation.
   useEffect(() => {
@@ -571,37 +567,6 @@ const ChatComposerInner = ({
       return current
     })
   }, [selectedAssistantId])
-
-  const handleReasoningEffortChange = useCallback(
-    (option: ReasoningEffortOption) => {
-      if (!selectedAssistantId) return
-      if (
-        option === 'minimal' &&
-        runtimeModel &&
-        isOpenAIWebSearchModel(runtimeModel) &&
-        isGPT5SeriesReasoningModel(runtimeModel) &&
-        assistant?.settings.enableWebSearch
-      ) {
-        toast.warning(t('chat.web_search.warning.openai'))
-        return
-      }
-      const version = ++reasoningMutationVersionRef.current
-      setReasoningOverride({
-        assistantId: selectedAssistantId,
-        value: option,
-        version
-      })
-      void updateAssistantSettings({ reasoning_effort: option })
-        .then(() => {
-          setReasoningOverride((current) => (current?.version === version ? null : current))
-        })
-        .catch((error) => {
-          setReasoningOverride((current) => (current?.version === version ? null : current))
-          logger.warn('Failed to persist reasoning effort', { error })
-        })
-    },
-    [assistant?.settings.enableWebSearch, runtimeModel, selectedAssistantId, t, updateAssistantSettings]
-  )
 
   const handleModelSelect = useCallback(
     (nextModel: Model | undefined) => {
@@ -689,6 +654,58 @@ const ChatComposerInner = ({
     assistant && !assistant.modelId ? mentionedModelSelectorValue[0] : undefined
   const selectedModelForUnlinkedHome =
     !assistant && !assistantId && useMentionedModelSelector ? mentionedModelSelectorValue[0] : undefined
+  const effectiveSubmittedModels = useMentionedModelSelector
+    ? mentionedModelSelectorValue
+    : mentionedModels.length > 0
+      ? mentionedModels
+      : runtimeModel
+        ? [runtimeModel]
+        : EMPTY_MODELS
+  const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
+  // Without an assistant, reasoning has no persistence owner. Keep Fast available for the selected
+  // model while hiding a reasoning control that could not apply its selection.
+  const speedControlModel = useMemo(
+    () =>
+      effectiveSubmittedModel && !selectedAssistantId
+        ? { ...effectiveSubmittedModel, reasoning: undefined }
+        : effectiveSubmittedModel,
+    [effectiveSubmittedModel, selectedAssistantId]
+  )
+
+  useEffect(() => {
+    if (speedControlModel?.supportsFastMode !== true) setFastMode(false)
+  }, [speedControlModel?.supportsFastMode])
+
+  const handleReasoningEffortChange = useCallback(
+    (option: ReasoningEffortOption) => {
+      if (!selectedAssistantId) return
+      if (
+        option === 'minimal' &&
+        effectiveSubmittedModel &&
+        isOpenAIWebSearchModel(effectiveSubmittedModel) &&
+        isGPT5SeriesReasoningModel(effectiveSubmittedModel) &&
+        assistant?.settings.enableWebSearch
+      ) {
+        toast.warning(t('chat.web_search.warning.openai'))
+        return
+      }
+      const version = ++reasoningMutationVersionRef.current
+      setReasoningOverride({
+        assistantId: selectedAssistantId,
+        value: option,
+        version
+      })
+      void updateAssistantSettings({ reasoning_effort: option })
+        .then(() => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+        })
+        .catch((error) => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+          logger.warn('Failed to persist reasoning effort', { error })
+        })
+    },
+    [assistant?.settings.enableWebSearch, effectiveSubmittedModel, selectedAssistantId, t, updateAssistantSettings]
+  )
   const lockedMentionedModels =
     editingMessageForCurrentTopic?.lockedMentionedModels &&
     editingMessageForCurrentTopic.lockedMentionedModels.length > 1
@@ -1063,8 +1080,13 @@ const ChatComposerInner = ({
         requireText: false,
         extra: () => ({
           mentionedModels: mentionedModels.length ? mentionedModels.map((currentModel) => currentModel.id) : undefined,
-          reasoningEffort: assistantId ? reasoningEffort : 'default',
-          ...(fastMode ? { fastMode: true } : {})
+          reasoningEffort:
+            assistantId && speedControlModel
+              ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
+              : assistantId
+                ? reasoningEffort
+                : 'default',
+          ...(fastMode && speedControlModel?.supportsFastMode === true ? { fastMode: true } : {})
         })
       })
       if (!payload) return null
@@ -1078,7 +1100,7 @@ const ChatComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [assistantId, fastMode, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope]
+    [assistantId, fastMode, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope, speedControlModel]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1390,16 +1412,15 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
-  const sendAccessory: ComposerSurfaceProps['sendAccessory'] =
-    displayAssistant && runtimeModel ? (
-      <ComposerSpeedControl
-        model={runtimeModel}
-        reasoningEffort={reasoningEffort}
-        fastMode={fastMode}
-        onReasoningEffortChange={handleReasoningEffortChange}
-        onFastModeChange={setFastMode}
-      />
-    ) : null
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = speedControlModel ? (
+    <ComposerSpeedControl
+      model={speedControlModel}
+      reasoningEffort={reasoningEffort}
+      fastMode={fastMode}
+      onReasoningEffortChange={handleReasoningEffortChange}
+      onFastModeChange={setFastMode}
+    />
+  ) : null
 
   return (
     <ComposerToolDerivedStateProvider

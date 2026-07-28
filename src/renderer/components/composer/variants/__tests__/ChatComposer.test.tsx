@@ -67,6 +67,7 @@ const mocks = vi.hoisted(() => ({
   providerHookArgs: [] as unknown[][],
   speedControlProps: undefined as
     | {
+        model: Model
         reasoningEffort: string
         fastMode: boolean
         onReasoningEffortChange: (effort: string) => void
@@ -264,17 +265,23 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherVersion: () => mocks.toolLaunchersVersion
 }))
 
-vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', () => ({
-  ComposerSpeedControl: (props: {
-    reasoningEffort: string
-    fastMode: boolean
-    onReasoningEffortChange: (effort: string) => void
-    onFastModeChange: (enabled: boolean) => void
-  }) => {
-    mocks.speedControlProps = props
-    return <div data-testid="chat-speed-control" />
+vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@renderer/components/composer/variants/shared/ComposerSpeedControl')>()
+  return {
+    ...actual,
+    ComposerSpeedControl: (props: {
+      model: Model
+      reasoningEffort: string
+      fastMode: boolean
+      onReasoningEffortChange: (effort: string) => void
+      onFastModeChange: (enabled: boolean) => void
+    }) => {
+      mocks.speedControlProps = props
+      return <div data-testid="chat-speed-control" />
+    }
   }
-}))
+})
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
@@ -527,6 +534,7 @@ vi.mock('@shared/utils/model', () => ({
   isFunctionCallingModel: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
   isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
+  isReasoningModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.REASONING) ?? false,
   isWebSearchModel: () => false
 }))
 
@@ -882,6 +890,63 @@ describe('ChatComposer', () => {
     })
 
     expect(onSend).toHaveBeenCalledWith('fast please', expect.objectContaining({ fastMode: true }))
+  })
+
+  it('submits the first slider effort when a multi-tier model still stores Default', async () => {
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'low', 'high'] }],
+        selectableEfforts: ['none', 'low', 'high']
+      }
+    }
+    const onSend = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'match the UI', tokens: [] })
+    })
+
+    expect(onSend).toHaveBeenCalledWith('match the UI', expect.objectContaining({ reasoningEffort: 'none' }))
+  })
+
+  it('derives Fast from the explicitly submitted unlinked-home model', async () => {
+    mocks.assistant = undefined
+    mocks.model = undefined
+    mocks.selectedModel = { ...modelB, providerId: 'openai-codex', supportsFastMode: true }
+    const onSend = vi.fn()
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+    fireEvent.click(screen.getByText('select model 2'))
+
+    expect(mocks.speedControlProps?.model).toEqual(
+      expect.objectContaining({ id: modelB.id, supportsFastMode: true, reasoning: undefined })
+    )
+    act(() => mocks.speedControlProps?.onFastModeChange(true))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'fast please', tokens: [] })
+    })
+
+    expect(onSend).toHaveBeenCalledWith('fast please', expect.objectContaining({ fastMode: true }))
+  })
+
+  it('hides the speed control and clears Fast for a multi-model submission', async () => {
+    mocks.model = { ...model, supportsFastMode: true }
+    const onSend = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />)
+    await waitFor(() => expect(screen.getByTestId('chat-speed-control')).toBeInTheDocument())
+    act(() => mocks.speedControlProps?.onFastModeChange(true))
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+
+    expect(screen.queryByTestId('chat-speed-control')).not.toBeInTheDocument()
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'compare', tokens: [] })
+    })
+    expect(onSend).toHaveBeenCalledWith('compare', expect.not.objectContaining({ fastMode: true }))
   })
 
   it('rejects minimal reasoning while OpenAI web search is enabled', () => {

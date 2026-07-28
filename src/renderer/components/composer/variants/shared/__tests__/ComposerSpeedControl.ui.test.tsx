@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type ButtonHTMLAttributes, type MouseEvent, type ReactNode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ComposerSpeedControl } from '../ComposerSpeedControl'
+import { ComposerSpeedControl, resolveComposerReasoningEffort } from '../ComposerSpeedControl'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -99,6 +99,25 @@ function ControlledSpeedControl({ model, initialEffort }: { model: Model; initia
 }
 
 describe('ComposerSpeedControl UI', () => {
+  it('resolves a stored Default to the first multi-tier slider effort', () => {
+    expect(resolveComposerReasoningEffort(codexModel, 'default')).toBe('none')
+  })
+
+  it('preserves Default for a menu-only reasoning model', () => {
+    expect(
+      resolveComposerReasoningEffort(
+        {
+          ...codexModel,
+          reasoning: {
+            controls: [{ kind: 'toggle' }],
+            selectableEfforts: ['none', 'auto']
+          }
+        },
+        'default'
+      )
+    ).toBe('default')
+  })
+
   it('uses only a slider for GPT-5.6, with Off first and Default filtered out', async () => {
     const { container } = render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
 

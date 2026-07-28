@@ -4,7 +4,7 @@ import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LocalSkill } from '@shared/types/skill'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
@@ -83,6 +83,7 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   speedControlProps: undefined as
     | {
+        model: Model
         reasoningEffort: string
         fastMode: boolean
         onReasoningEffortChange: (effort: string) => void
@@ -368,17 +369,23 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerTokenReconcile: () => mocks.reconcileTokens
 }))
 
-vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', () => ({
-  ComposerSpeedControl: (props: {
-    reasoningEffort: string
-    fastMode: boolean
-    onReasoningEffortChange: (effort: string) => void
-    onFastModeChange: (enabled: boolean) => void
-  }) => {
-    mocks.speedControlProps = props
-    return <div data-testid="agent-speed-control" />
+vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@renderer/components/composer/variants/shared/ComposerSpeedControl')>()
+  return {
+    ...actual,
+    ComposerSpeedControl: (props: {
+      model: Model
+      reasoningEffort: string
+      fastMode: boolean
+      onReasoningEffortChange: (effort: string) => void
+      onFastModeChange: (enabled: boolean) => void
+    }) => {
+      mocks.speedControlProps = props
+      return <div data-testid="agent-speed-control" />
+    }
   }
-}))
+})
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: (agentId?: string | null) => {
@@ -1003,6 +1010,35 @@ describe('AgentComposer', () => {
           fastMode: true
         })
       }
+    )
+  })
+
+  it('submits the first slider effort when a multi-tier model still stores Default', async () => {
+    mocks.modelResult = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'low', 'high'] }],
+        selectableEfforts: ['none', 'low', 'high']
+      }
+    }
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'match the UI', tokens: [] })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'match the UI' },
+      { body: expect.objectContaining({ reasoningEffort: 'none' }) }
     )
   })
 

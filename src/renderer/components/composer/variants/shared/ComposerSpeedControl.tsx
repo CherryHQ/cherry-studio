@@ -40,6 +40,22 @@ const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
   auto: 'assistants.settings.reasoning_effort.auto'
 }
 
+/**
+ * Multi-tier sliders do not expose Default. Keep the submitted value aligned
+ * with the first tier that the control displays for a stored Default.
+ */
+export function resolveComposerReasoningEffort(model: Model, effort: ThinkingOption): ThinkingOption {
+  const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
+  const reasoningOptions = SLIDER_EFFORT_ORDER.filter((option) => declaredEfforts.has(option))
+  const sliderEfforts = reasoningOptions.filter((option) => option !== 'default')
+  const showEffortSlider = sliderEfforts.filter((option) => option !== 'none' && option !== 'auto').length > 1
+
+  if (showEffortSlider) {
+    return effort !== 'default' && sliderEfforts.includes(effort) ? effort : (sliderEfforts[0] ?? 'default')
+  }
+  return reasoningOptions.includes(effort) ? effort : (reasoningOptions[0] ?? 'default')
+}
+
 interface ComposerSpeedControlProps {
   model: Model
   reasoningEffort: ThinkingOption
@@ -62,21 +78,22 @@ export function ComposerSpeedControl({
   }, [model])
   const sliderEfforts = reasoningOptions.filter((effort) => effort !== 'default')
   const supportsReasoning = reasoningOptions.length > 1
-  const usesEffortSlider = sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1
+  const showEffortSlider = sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1
   const supportsFast = model.supportsFastMode === true
 
   if (!supportsReasoning && !supportsFast) return null
 
   // Model changes reconcile in an effect owned by the composer. During that one render, fall back
   // to the first supported choice instead of displaying an invalid selection.
+  const effectiveReasoningEffort = resolveComposerReasoningEffort(model, reasoningEffort)
   const selectedOption = supportsReasoning
-    ? reasoningOptions.includes(reasoningEffort)
-      ? reasoningEffort
+    ? reasoningOptions.includes(effectiveReasoningEffort)
+      ? effectiveReasoningEffort
       : reasoningOptions[0]
     : undefined
-  const selectedIndex = reasoningEffort === 'default' ? -1 : sliderEfforts.indexOf(reasoningEffort)
+  const selectedIndex = effectiveReasoningEffort === 'default' ? -1 : sliderEfforts.indexOf(effectiveReasoningEffort)
   const currentIndex = selectedIndex >= 0 ? selectedIndex : 0
-  const displayedEffort = usesEffortSlider ? sliderEfforts[currentIndex] : selectedOption
+  const displayedEffort = showEffortSlider ? sliderEfforts[currentIndex] : selectedOption
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
   const triggerLabel = supportsReasoning ? effortLabel : fastMode ? t('agent.speed.fast') : t('agent.speed.label')
 
@@ -134,7 +151,7 @@ export function ComposerSpeedControl({
             </Button>
           ) : null}
         </div>
-        {supportsReasoning && usesEffortSlider ? (
+        {supportsReasoning && showEffortSlider ? (
           <div className="mx-2.5 mt-1 mb-2">
             <div className="flex items-center justify-between font-medium text-[11px]" aria-hidden="true">
               <span className="text-muted-foreground">{t('agent.speed.faster')}</span>
