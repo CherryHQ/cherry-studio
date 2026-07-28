@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   resolveRequire: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
+  rtkRewrite: vi.fn(),
   platform: { isMac: false },
   isWin: false
 }))
@@ -159,7 +160,7 @@ vi.mock('@main/utils/commandResolver', () => ({
 }))
 
 vi.mock('@main/utils/rtk', () => ({
-  rtkRewrite: vi.fn()
+  rtkRewrite: mocks.rtkRewrite
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
@@ -227,6 +228,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.getAppLanguage.mockReturnValue('en-US')
+    mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkills.mockResolvedValue([])
@@ -609,7 +611,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
   })
 
-  it('does not deny interactive tools via PreToolUse for the current interactive turn', async () => {
+  it('forces AskUserQuestion through approval without denying other interactive tools', async () => {
     const isCurrentTurnHeadless = vi.fn(() => false)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
@@ -624,17 +626,30 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const results = await Promise.all(
-      (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
-        hook(
-          { hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_input: {} } as never,
-          'tool-use-1',
-          {} as never
+    const runHooks = (toolName: string) =>
+      Promise.all(
+        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+            'tool-use-1',
+            {} as never
+          )
         )
       )
+
+    const askUserQuestionResults = await runHooks('AskUserQuestion')
+    expect(askUserQuestionResults).toContainEqual(
+      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'ask' }) })
     )
-    expect(results).not.toContainEqual(
+    expect(askUserQuestionResults).not.toContainEqual(
       expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+    )
+
+    const enterPlanModeResults = await runHooks('EnterPlanMode')
+    expect(enterPlanModeResults).not.toContainEqual(
+      expect.objectContaining({
+        hookSpecificOutput: expect.objectContaining({ permissionDecision: expect.stringMatching(/ask|deny/) })
+      })
     )
   })
 
@@ -679,13 +694,22 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
-  it('does not deny AskUserQuestion at tool fire time for the current interactive turn', async () => {
+  it('keeps AskUserQuestion pending when the current permission mode auto-approves tools', async () => {
     const isCurrentTurnHeadless = vi.fn(() => false)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
       if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless, hasLiveTurnStream: () => true }
       throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { permission_mode: 'bypassPermissions' }
     })
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(() => ({ approval: 'auto' })),
@@ -700,13 +724,41 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const result = await settings.canUseTool?.('AskUserQuestion', { prompt: 'Need input?' }, {
+    const emit = vi.fn()
+    const input = {
+      questions: [
+        {
+          question: 'Which logger should we use?',
+          header: 'Logger',
+          options: [{ label: 'Pino' }, { label: 'Winston' }],
+          multiSelect: false
+        }
+      ]
+    }
+    settings.approvalEmitter!.emit = emit
+    const pending = settings.canUseTool?.('AskUserQuestion', input, {
       signal: { aborted: false },
       toolUseID: 'tool-use-1'
     } as never)
+    void pending
 
     expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
-    expect(result).toEqual({ behavior: 'allow', updatedInput: { prompt: 'Need input?' } })
+    expect(settings.permissionMode).toBe('bypassPermissions')
+    expect(mocks.approvalRegister).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        toolCallId: 'tool-use-1',
+        toolName: 'AskUserQuestion',
+        originalInput: input
+      })
+    )
+    expect(emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'tool-approval-request',
+        toolCallId: 'tool-use-1',
+        providerMetadata: { cherry: { transport: 'claude-agent', toolName: 'AskUserQuestion' } }
+      })
+    )
   })
 
   it('keeps AskUserQuestion available for channel-linked interactive sessions', async () => {
@@ -800,6 +852,28 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
+
+    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
+    const handlers = cherryServer.server._requestHandlers
+    const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toContain('cli_list')
+  })
+
+  it('exposes CLI management tools to a normal Agent session', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
+    const handlers = cherryServer.server._requestHandlers
+    const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+
+    expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
+      expect.arrayContaining(['cli_list', 'cli_search', 'cli_install'])
+    )
   })
 
   it('uses one captured channel snapshot for Assistant MCP, approval, and prompt policy', async () => {
@@ -869,7 +943,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // headlessInteractiveToolHook + headlessConfigMutationHook + disabledToolHook + workspacePathHook + dependencyIsolationHook + rtkRewriteHook + steerHook
+    // interactiveToolPermissionHook + headlessConfigMutationHook + disabledToolHook + workspacePathHook + dependencyIsolationHook + rtkRewriteHook + steerHook
     expect(preToolUse).toHaveLength(7)
 
     const steerHook = preToolUse![6] as unknown as (input: {
@@ -893,6 +967,31 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(output.hookSpecificOutput?.additionalContext).toContain('change direction now')
     expect(settings.steerHolder!.pending).toHaveLength(0) // drained in place
     expect(onInjected).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps RTK as the only Bash text rewrite', async () => {
+    mocks.rtkRewrite.mockResolvedValue('rtk eslint .')
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const rtkRewriteHook = settings.hooks?.PreToolUse?.[0]?.hooks?.[5]
+
+    const output = await rtkRewriteHook?.(
+      { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'eslint .' } } as never,
+      'tool-use-1',
+      {} as never
+    )
+
+    expect(mocks.rtkRewrite).toHaveBeenCalledWith('eslint .')
+    expect(output).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        updatedInput: { command: 'rtk eslint .' }
+      }
+    })
   })
 
   it('keeps an empty-text steer pending when the PreToolUse hook cannot inject it', async () => {

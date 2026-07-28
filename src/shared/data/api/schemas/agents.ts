@@ -141,8 +141,8 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
   orderKey: z.string(),
   model: UniqueModelIdSchema.nullable(),
   /**
-   * Human-readable primary model name resolved from `user_model.name` at read
-   * time. Edits still go through the `model` UniqueModelId field.
+   * Human-readable primary model name resolved from the current runtime Model
+   * at read time. Edits still go through the `model` UniqueModelId field.
    */
   modelName: z.string().nullable()
 })
@@ -293,6 +293,22 @@ export type AgentSchemas = {
       params: { agentId: string }
       query?: DeleteAgentQueryParams
       response: DeleteAgentResult
+    }
+  }
+
+  /** List scheduled tasks across every agent (settings overview, paginated) */
+  '/agent-tasks': {
+    GET: {
+      query?: ListQuery
+      response: OffsetPaginationResponse<ScheduledTaskEntity>
+    }
+  }
+
+  /** Get a scheduled task without requiring its owning Agent in the route */
+  '/agent-tasks/:taskId': {
+    GET: {
+      params: { taskId: string }
+      response: ScheduledTaskEntity
     }
   }
 

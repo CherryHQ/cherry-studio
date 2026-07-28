@@ -11,6 +11,7 @@ import {
 const STYLE_ID = 'cherry-rich-editor-style-helpers'
 
 const STYLE_CONTENT = `
+@layer app {
 .RichEditorWrapper {
   display: flex;
   flex-direction: column;
@@ -408,6 +409,7 @@ const STYLE_CONTENT = `
     visibility 0.15s ease;
   backdrop-filter: blur(6px);
   z-index: 40;
+}
 }
 `
 

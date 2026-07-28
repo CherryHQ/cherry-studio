@@ -57,6 +57,8 @@ interface Params {
   refresh: () => Promise<CherryUIMessage[]>
   cache: ReturnType<typeof useTopicMessagesCache>
   seedReservedMessages: (messages: CherryUIMessage[]) => Promise<void>
+  captureLocalSendScrollEligibility: () => void
+  onLocalSendStarted: () => void
   assistant?: Assistant
 }
 
@@ -68,8 +70,20 @@ interface Result {
 }
 
 export function useChatWriteActions(params: Params): Result {
-  const { topic, uiMessages, rootId, regenerate, setMessages, stop, refresh, cache, seedReservedMessages, assistant } =
-    params
+  const {
+    topic,
+    uiMessages,
+    rootId,
+    regenerate,
+    setMessages,
+    stop,
+    refresh,
+    cache,
+    seedReservedMessages,
+    captureLocalSendScrollEligibility,
+    onLocalSendStarted,
+    assistant
+  } = params
   const {
     branchWithoutIds,
     seedOptimisticBranch,
@@ -191,10 +205,9 @@ export function useChatWriteActions(params: Params): Result {
 
   const capabilityBody = useMemo<Record<string, unknown>>(
     () => ({
-      knowledgeBaseIds: assistant?.knowledgeBaseIds,
       enableWebSearch: assistant?.settings.enableWebSearch
     }),
-    [assistant?.knowledgeBaseIds, assistant?.settings.enableWebSearch]
+    [assistant?.settings.enableWebSearch]
   )
 
   /** Regenerate with capability body + target-driven anchor/model. */
@@ -239,6 +252,7 @@ export function useChatWriteActions(params: Params): Result {
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
     async (messageId, editedParts) => {
+      captureLocalSendScrollEligibility()
       const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
@@ -270,7 +284,7 @@ export function useChatWriteActions(params: Params): Result {
       // outer ChatContent hasn't re-rendered with the refreshed SWR
       // data yet), so the anchor lookup would miss the new user. We
       // already know the anchor is the new user's own id.
-      const ack = await ipcApi.request('ai.stream_open', {
+      const ack = await ipcApi.request('ai.stream.open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId: newMessage.id,
@@ -281,9 +295,20 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error(ack.message)
       }
 
+      onLocalSendStarted()
       await seedReservedMessages(ack.reservedMessages ?? [])
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
+    [
+      createSiblingTrigger,
+      captureLocalSendScrollEligibility,
+      seedReservedMessages,
+      refresh,
+      setMessages,
+      topic.id,
+      topic.assistantId,
+      uiMessages,
+      onLocalSendStarted
+    ]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(
@@ -301,7 +326,7 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       const modelId = target?.role === 'assistant' ? (target.metadata?.modelId as UniqueModelId | undefined) : undefined
-      const ack = await ipcApi.request('ai.stream_open', {
+      const ack = await ipcApi.request('ai.stream.open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId,
