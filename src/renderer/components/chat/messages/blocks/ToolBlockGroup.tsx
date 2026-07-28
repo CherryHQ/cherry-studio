@@ -21,6 +21,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
 
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import MessageTools from '../tools/MessageTools'
 import { AgentToolsType } from '../tools/shared/agentToolTypes'
 import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTools'
@@ -628,7 +629,9 @@ ToolGroupPartsBoundary.displayName = 'ToolGroupPartsBoundary'
 export const ToolBlockGroup = React.memo(
   ({ children, isLiveProgress: isLiveProgressProp, isThinking = false, items }: ToolBlockGroupProps) => {
     const { t } = useTranslation()
-    const [isExpanded, setIsExpanded] = React.useState(false)
+    const [isExpanded, setIsExpanded] = useMessageDisclosureState(
+      items[0] ? `tool-group:${items[0].toolResponse.toolCallId ?? items[0].id}` : undefined
+    )
     const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
     const requestFollowRecovery = useRequestScrollFollowRecovery(anchorRef)
     const allItemsCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
