@@ -537,7 +537,7 @@ const BinaryToolPresetCard: FC<{
       className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-hover"
       style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <div
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-xl',
@@ -545,7 +545,7 @@ const BinaryToolPresetCard: FC<{
             )}>
             <ToolIcon icon={tool.icon} />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-foreground text-sm leading-5">{tool.displayName}</span>
               {tool.displayName !== tool.name && (
@@ -581,30 +581,56 @@ const BinaryToolPresetCard: FC<{
           </div>
         </div>
 
-        {backendControllable && (
+        {(backendControllable || (canInstall && !failedRemove)) && (
           <div className="flex shrink-0 items-center gap-1">
-            {applied && (
+            {canInstall && !failedRemove && (
               <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-foreground-muted hover:text-foreground"
-                onClick={onUpdate}
+                variant="outline"
+                size="sm"
+                className="h-7 w-28 shrink-0 gap-1 font-medium text-xs"
+                onClick={onInstall}
                 disabled={busy}
-                aria-label={t('settings.dependencies.update')}
-                title={t('settings.dependencies.update')}>
-                <RefreshCw className="size-3.5" />
+                loading={installing}>
+                {!installing && <Download className="size-3.5 shrink-0" />}
+                <span className="truncate">
+                  {installing
+                    ? t('settings.dependencies.installing')
+                    : failedInstall || broken || applicationStatus === 'unknown'
+                      ? t('common.retry')
+                      : t('settings.mcp.install')}
+                </span>
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-foreground-muted hover:text-destructive"
-              onClick={onRemove}
-              disabled={busy}
-              aria-label={t('settings.dependencies.uninstall')}
-              title={t('settings.dependencies.uninstall')}>
-              {removing ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : <Trash2 className="size-3.5" />}
-            </Button>
+            {backendControllable && (
+              <>
+                {applied && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-foreground-muted hover:text-foreground"
+                    onClick={onUpdate}
+                    disabled={busy}
+                    aria-label={t('settings.dependencies.update')}
+                    title={t('settings.dependencies.update')}>
+                    <RefreshCw className="size-3.5" />
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-foreground-muted hover:text-destructive"
+                  onClick={onRemove}
+                  disabled={busy}
+                  aria-label={t('settings.dependencies.uninstall')}
+                  title={t('settings.dependencies.uninstall')}>
+                  {removing ? (
+                    <Loader2 className="size-3.5 motion-safe:animate-spin" />
+                  ) : (
+                    <Trash2 className="size-3.5" />
+                  )}
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -646,25 +672,7 @@ const BinaryToolPresetCard: FC<{
         <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
 
-      {canInstall && !failedRemove && (
-        <div className="mt-3 border-border border-t pt-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-full gap-1 text-xs"
-            onClick={onInstall}
-            disabled={busy}
-            loading={installing}>
-            {!installing && <Download className="size-3.5" />}
-            {installing
-              ? t('settings.dependencies.installing')
-              : failedInstall || broken || applicationStatus === 'unknown'
-                ? t('common.retry')
-                : t('settings.mcp.install')}
-          </Button>
-          {installing && <BinaryInstallingHint />}
-        </div>
-      )}
+      {canInstall && installing && <BinaryInstallingHint />}
     </div>
   )
 }
@@ -723,7 +731,7 @@ const CustomToolCard: FC<{
       className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-hover"
       style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <div
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-xl',
@@ -731,7 +739,7 @@ const CustomToolCard: FC<{
             )}>
             <ToolIcon />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <span className="text-foreground text-sm leading-5">{tool.name}</span>
             <div className="mt-0.5 text-muted-foreground text-xs">{toolSpec}</div>
             {installed && (
@@ -767,6 +775,24 @@ const CustomToolCard: FC<{
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
+          {canInstall && !failedRemove && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 w-28 shrink-0 gap-1 font-medium text-xs"
+              onClick={onInstall}
+              disabled={busy}
+              loading={installing}>
+              {!installing && <Download className="size-3.5 shrink-0" />}
+              <span className="truncate">
+                {installing
+                  ? t('settings.dependencies.installing')
+                  : failedInstall || applicationStatus === 'broken' || applicationStatus === 'unknown'
+                    ? t('common.retry')
+                    : t('settings.mcp.install')}
+              </span>
+            </Button>
+          )}
           {canUpdate && (
             <Button
               variant="ghost"
@@ -807,25 +833,7 @@ const CustomToolCard: FC<{
         <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
 
-      {canInstall && !failedRemove && (
-        <div className="mt-3 border-border border-t pt-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-full gap-1 text-xs"
-            onClick={onInstall}
-            disabled={busy}
-            loading={installing}>
-            {!installing && <Download className="size-3.5" />}
-            {installing
-              ? t('settings.dependencies.installing')
-              : failedInstall || applicationStatus === 'broken' || applicationStatus === 'unknown'
-                ? t('common.retry')
-                : t('settings.mcp.install')}
-          </Button>
-          {installing && <BinaryInstallingHint />}
-        </div>
-      )}
+      {canInstall && installing && <BinaryInstallingHint />}
     </div>
   )
 }
