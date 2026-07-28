@@ -6,6 +6,7 @@ import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } fro
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
+import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
@@ -17,29 +18,12 @@ import path from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
-import { sanitizeRemoteUrl } from '../utils/remoteUrlSafety'
 import { contextMenu } from './ContextMenu'
 
 const logger = loggerService.withContext('MainWindowService')
 
 // Create nativeImage for Linux window icon (required for Wayland)
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
-
-function isAllowedHtmlArtifactRequest(rawUrl: string): boolean {
-  try {
-    const url = new URL(rawUrl)
-    if (url.protocol === 'data:' || url.protocol === 'blob:') return true
-
-    if (url.protocol === 'ws:' || url.protocol === 'wss:') {
-      url.protocol = url.protocol === 'ws:' ? 'http:' : 'https:'
-    }
-
-    sanitizeRemoteUrl(url.toString())
-    return true
-  } catch {
-    return false
-  }
-}
 
 @Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)
