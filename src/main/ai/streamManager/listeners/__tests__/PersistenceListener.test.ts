@@ -467,6 +467,18 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     })
   }
 
+  it('finalizes an empty paused placeholder instead of leaving it pending', async () => {
+    const listener = makeMessageServiceListener()
+
+    await listener.onPaused({ finalMessage: undefined, status: 'paused' })
+
+    expect(messageUpdateMock).toHaveBeenCalledWith('assistant-1', {
+      data: { parts: [] },
+      status: 'paused',
+      stats: undefined
+    })
+  })
+
   it('drives the placeholder row to status=error when the persist write fails', async () => {
     // First update() is persistAssistant (fails); second is markTerminalError (succeeds).
     messageUpdateMock

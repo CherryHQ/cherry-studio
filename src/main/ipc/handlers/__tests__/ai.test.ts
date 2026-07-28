@@ -2,14 +2,16 @@ import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, agentSessionMessageService, messageService } = vi.hoisted(() => ({
+const { appGetMock, agentSessionMessageService, messageService, createAgent } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
-  messageService: { getById: vi.fn() }
+  messageService: { getById: vi.fn() },
+  createAgent: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
+vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
 
 import { aiHandlers } from '../ai'
 
@@ -59,6 +61,7 @@ const windowManager = { getWindow: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
   windowManager.getWindow.mockReturnValue({ webContents: fakeWebContents })
   appGetMock.mockImplementation((name: string) => {
     switch (name) {
@@ -284,6 +287,19 @@ describe('aiHandlers — streaming', () => {
 })
 
 describe('aiHandlers — agent sessions & tasks', () => {
+  it('delegates Agent creation to the owning operation', async () => {
+    const request = {
+      type: 'claude-code' as const,
+      name: 'Test',
+      model: 'anthropic::claude-sonnet' as const
+    }
+    const agent = { id: 'agent-1', ...request }
+    createAgent.mockResolvedValue(agent)
+
+    await expect(aiHandlers['ai.agent.create'](request, ctx)).resolves.toBe(agent)
+    expect(createAgent).toHaveBeenCalledWith(request, ctx)
+  })
+
   it('prewarm_agent_session primes the session connection so commands load before the first turn', async () => {
     claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(false)
     agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)

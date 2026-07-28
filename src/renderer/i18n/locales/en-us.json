@@ -441,6 +441,12 @@
       "list": {
         "title": "Tasks"
       },
+      "model_switch_confirm": {
+        "confirm": "Switch model",
+        "description": "Different models may understand and process context differently. Switching may affect the continuity or quality of subsequent responses. Do you want to continue?",
+        "skip_for_app_run": "Don't ask again until I quit the app",
+        "title": "Switch to \"{{model}}\"?"
+      },
       "new": "New task",
       "pin": {
         "title": "Pin task"
@@ -1035,7 +1041,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Copy",
       "regenerate": "Regenerate",
       "restart": {
         "button": "Restart",
@@ -1047,8 +1052,6 @@
     "authHeader": {
       "title": "Authorization Header"
     },
-    "authHeaderText": "Use in Authorization header:",
-    "configuration": "Configuration",
     "description": "Expose Cherry Studio's AI capabilities through OpenAI- and Anthropic-compatible HTTP APIs",
     "documentation": {
       "title": "API Documentation"
@@ -1056,13 +1059,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Copy API Key",
-        "description": "Secure authentication token for API access",
         "label": "API Key",
         "placeholder": "API key will be auto-generated"
       },
       "port": {
-        "description": "TCP port number for the gateway (1000-65535)",
-        "helpText": "Stop the gateway to change port",
         "label": "Port"
       },
       "url": {
@@ -1071,9 +1071,8 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "API Key copied to clipboard",
       "apiKeyRegenerated": "API Key regenerated",
-      "notEnabled": "The API Gateway is not enabled.",
+      "notEnabled": "Start the gateway before connecting to this address.",
       "operationFailed": "API Gateway operation failed: ",
       "restartError": "Failed to restart API Gateway: ",
       "restartFailed": "API Gateway restart failed: ",
@@ -1081,8 +1080,7 @@
       "startError": "Failed to start API Gateway: ",
       "startSuccess": "API Gateway started successfully",
       "stopError": "Failed to stop API Gateway: ",
-      "stopSuccess": "API Gateway stopped successfully",
-      "urlCopied": "Gateway URL copied to clipboard"
+      "stopSuccess": "API Gateway stopped successfully"
     },
     "status": {
       "running": "Running",
@@ -2178,7 +2176,7 @@
     "terminal": "Terminal",
     "terminal_hint": "Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Select terminal application",
-    "title": "Code Switch",
+    "title": "Code Mate",
     "tool_parameters": "Parameter Settings",
     "up_to_date": "Up to date",
     "update_options": "Update Options",
@@ -6441,6 +6439,7 @@
       "viewErrorDetails": "View details"
     },
     "developer": {
+      "client_id": "Client ID",
       "enable_developer_mode": "Enable Developer Mode",
       "help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation. Changes take effect after restarting the application.",
       "title": "Developer Mode"
@@ -8137,7 +8136,7 @@
   "title": {
     "apps": "Apps",
     "chat": "Chat",
-    "code": "Code Switch",
+    "code": "Code Mate",
     "files": "Files",
     "home": "Home",
     "knowledge": "Knowledge Base",

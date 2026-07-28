@@ -9,7 +9,7 @@ import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { ModelSnapshot } from '@shared/data/types/message'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useRef } from 'react'
 
 import { useAgentMessageListProviderValue } from './agentMessageListAdapter'
 import { rejectPendingAgentSessionImageActions } from './agentSessionImageActionBus'
@@ -23,54 +23,55 @@ interface AgentSessionImageCaptureHostProps {
 }
 
 const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: AgentSessionImageCaptureHostProps) => {
-  const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
+  const captureTarget = useRef({ activeAgent, modelFallback, session }).current
+  const topicId = useMemo(() => buildAgentSessionTopicId(captureTarget.session.id), [captureTarget.session.id])
   const loadMessages = useCallback(
-    () => getAgentSessionMessagesForExport(session, { modelFallback }),
-    [modelFallback, session]
+    () => getAgentSessionMessagesForExport(captureTarget.session, { modelFallback: captureTarget.modelFallback }),
+    [captureTarget]
   )
   const handleLoadError = useCallback(
     (error: unknown) => {
       logger.error('Failed to load agent session messages for image capture', error as Error, {
-        sessionId: session.id
+        sessionId: captureTarget.session.id
       })
-      rejectPendingAgentSessionImageActions(session.id, error)
+      rejectPendingAgentSessionImageActions(captureTarget.session.id, error)
     },
-    [session.id]
+    [captureTarget.session.id]
   )
   const { messages, partsByMessageId } = useMessageImageCaptureMessages({
     loadMessages,
     onError: handleLoadError
   })
-  const sessionExportTitle = useMemo(() => getAgentSessionExportTitle(session), [session])
+  const sessionExportTitle = useMemo(() => getAgentSessionExportTitle(captureTarget.session), [captureTarget.session])
 
   const topic = useMemo<Topic>(
     () => ({
       id: topicId,
       type: TopicType.Session as TopicTypeEnum,
-      assistantId: session.agentId ?? undefined,
+      assistantId: captureTarget.session.agentId ?? undefined,
       name: sessionExportTitle,
-      createdAt: session.createdAt,
-      updatedAt: session.updatedAt,
+      createdAt: captureTarget.session.createdAt,
+      updatedAt: captureTarget.session.updatedAt,
       messages: []
     }),
-    [session.agentId, session.createdAt, session.updatedAt, sessionExportTitle, topicId]
+    [captureTarget.session, sessionExportTitle, topicId]
   )
 
   const messageList = useAgentMessageListProviderValue({
     topic,
     messages: messages ?? [],
     partsByMessageId,
-    assistantProfile: activeAgent
+    assistantProfile: captureTarget.activeAgent
       ? {
-          name: activeAgent.name,
-          avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
+          name: captureTarget.activeAgent.name,
+          avatar: getAgentAvatarFromConfiguration(captureTarget.activeAgent.configuration)
         }
       : undefined,
-    assistantId: session.agentId ?? undefined,
+    assistantId: captureTarget.session.agentId ?? undefined,
     isLoading: false,
     imageActionConsumer: 'capture',
     messageNavigation: 'anchor',
-    workspacePath: session.workspace?.path
+    workspacePath: captureTarget.session.workspace?.path
   })
 
   return (

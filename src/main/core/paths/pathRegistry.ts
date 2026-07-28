@@ -54,9 +54,6 @@ export function buildPathRegistry() {
     'sys.downloads': app.getPath('downloads'),
     'sys.documents': app.getPath('documents'),
     'sys.desktop': app.getPath('desktop'),
-    'sys.music': app.getPath('music'),
-    'sys.pictures': app.getPath('pictures'),
-    'sys.videos': app.getPath('videos'),
     'sys.appdata': app.getPath('appData'), // OS root; use app.userdata for Cherry-owned
     'sys.appdata.autostart': path.join(app.getPath('appData'), 'autostart'), // Linux only
 
@@ -130,7 +127,8 @@ export function buildPathRegistry() {
     'feature.agents.claude.root': path.join(appUserData, '.claude'), // Claude Code config (relocated from ~/.claude for Windows compat)
     'feature.agents.claude.skills': path.join(appUserData, '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
-    'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-agent workspace parent
+    'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
+    'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
 
     // Files / Notes / Knowledgebase
@@ -206,7 +204,8 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
 
 /**
  * Keys that opt out of auto-ensure: OS dirs (`sys.*`), third-party
- * paths (`external.*`), and read-only build artifacts.
+ * paths (`external.*`), read-only build artifacts, and paths whose owning
+ * runtime must control materialization separately from database writes.
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
@@ -224,7 +223,10 @@ const NO_ENSURE = [
   'app.database.migrations',
   'feature.provider_registry.data',
   'feature.agents.builtin',
-  'feature.agents.skills.builtin'
+  'feature.agents.skills.builtin',
+  // AgentSessionService stores this path through DataApi. The runtime creates
+  // the concrete session directory later, keeping database writes filesystem-free.
+  'feature.agents.system_workspaces'
 ] as const satisfies readonly NoEnsureEntry[]
 
 /** Whether Application.getPath() should auto-create the directory for this key. */

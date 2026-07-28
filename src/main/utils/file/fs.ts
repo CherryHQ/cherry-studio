@@ -30,9 +30,11 @@ import { createReadStream, createWriteStream as nodeCreateWriteStream } from 'no
 import {
   access,
   constants,
+  lstat as fsLstat,
   mkdir as fsMkdirPromise,
   open as fsOpen,
   readFile,
+  realpath as fsRealpath,
   rename,
   rm as fsRm,
   stat as fsStat,
@@ -43,7 +45,7 @@ import { Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import mime from 'mime'
 import xxhashLoader from 'xxhash-wasm'
 
@@ -451,6 +453,31 @@ export async function stat(
     modifiedAt: Math.floor(s.mtimeMs),
     isDirectory: s.isDirectory()
   }
+}
+
+/** Get link-aware file/directory stats without following a symbolic link. */
+export async function lstat(target: AbsoluteFilePath): Promise<{
+  size: number
+  createdAt: number
+  modifiedAt: number
+  isDirectory: boolean
+  isFile: boolean
+  isSymbolicLink: boolean
+}> {
+  const s = await fsLstat(target)
+  return {
+    size: s.size,
+    createdAt: Math.floor(s.birthtimeMs),
+    modifiedAt: Math.floor(s.mtimeMs),
+    isDirectory: s.isDirectory(),
+    isFile: s.isFile(),
+    isSymbolicLink: s.isSymbolicLink()
+  }
+}
+
+/** Resolve an existing path to its physical filesystem location. */
+export async function realpath(target: AbsoluteFilePath): Promise<AbsoluteFilePath> {
+  return AbsoluteFilePathSchema.parse(await fsRealpath(target))
 }
 
 /**

@@ -3,7 +3,6 @@ import * as path from 'node:path'
 
 import { WindowType } from '@main/core/window/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -96,7 +95,7 @@ function createService() {
 function mockRenameInputs() {
   mocks.getTopic.mockReturnValue({
     id: 'topic-1',
-    name: 'Old Topic',
+    name: '',
     isNameManuallyEdited: false
   })
   mocks.getMessageById.mockReturnValue({
@@ -111,7 +110,6 @@ describe('TopicNamingService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
-    MockMainCacheServiceUtils.resetMocks()
     mockMainLoggerService.warn.mockClear()
     mockMainLoggerService.debug.mockClear()
     MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', true)
@@ -283,7 +281,7 @@ describe('TopicNamingService', () => {
     mocks.getTopic
       .mockReturnValueOnce({
         id: 'topic-1',
-        name: 'Old Topic',
+        name: '',
         isNameManuallyEdited: false
       })
       .mockReturnValueOnce({
@@ -308,7 +306,7 @@ describe('TopicNamingService', () => {
     mocks.getTopic
       .mockReturnValueOnce({
         id: 'topic-1',
-        name: 'First user text',
+        name: 'Hello there',
         isNameManuallyEdited: false
       })
       .mockReturnValueOnce({
@@ -323,6 +321,54 @@ describe('TopicNamingService', () => {
     } as never)
 
     expect(mocks.getTopic).toHaveBeenCalledTimes(2)
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+    expect(mocks.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('does not first-message rename a topic that already has a real title', async () => {
+    mocks.getTopic.mockReturnValue({
+      id: 'topic-1',
+      name: 'Existing Title',
+      isNameManuallyEdited: false
+    })
+
+    createService().maybeRenameFromFirstUserMessage('topic-1', 'message-1')
+
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+    expect(mocks.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('allows summary rename while the topic still has the first-message temporary title', async () => {
+    mocks.getTopic.mockReturnValue({
+      id: 'topic-1',
+      name: 'Hello there',
+      isNameManuallyEdited: false
+    })
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', {
+      name: 'Generated Title',
+      isNameManuallyEdited: false
+    })
+  })
+
+  it('does not summary-rename a topic that already has a generated title', async () => {
+    mocks.getTopic.mockReturnValue({
+      id: 'topic-1',
+      name: 'Generated Title',
+      isNameManuallyEdited: false
+    })
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.generateText).not.toHaveBeenCalled()
     expect(mocks.updateTopic).not.toHaveBeenCalled()
     expect(mocks.broadcast).not.toHaveBeenCalled()
   })

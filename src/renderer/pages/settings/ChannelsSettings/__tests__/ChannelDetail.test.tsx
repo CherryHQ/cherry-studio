@@ -190,6 +190,23 @@ describe('ChannelDetail', () => {
     } as never
   })
 
+  it('creates new channels inactive so empty default credentials pass server validation', async () => {
+    channelMocks.createChannel.mockResolvedValue({ id: 'channel-2' })
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    fireEvent.click(screen.getByText('agent.channels.add'))
+
+    await waitFor(() => {
+      expect(channelMocks.createChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'telegram',
+          config: channelDef.defaultConfig,
+          isActive: false
+        })
+      )
+    })
+  })
+
   it('sends null permissionMode when clearing an existing override to inherit', async () => {
     render(<ChannelDetail channelDef={channelDef} />)
 

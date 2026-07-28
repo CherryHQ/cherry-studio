@@ -12,7 +12,6 @@ import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentSchemas,
-  CreateAgentSchema,
   DeleteAgentQuerySchema,
   ListAgentsQuerySchema,
   type ListQuery,
@@ -59,12 +58,6 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const offset = (page - 1) * limit
       const { agents, total } = agentService.listAgents({ limit, offset, search })
       return { items: agents, total, page }
-    },
-
-    POST: async ({ body }) => {
-      const parsed = CreateAgentSchema.safeParse(body)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentService.createAgent(parsed.data)
     }
   },
 

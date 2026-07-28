@@ -1579,6 +1579,38 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
+  it('restores queued knowledge selection from the user-message parts', async () => {
+    const knowledgeBase = {
+      id: 'kb-1',
+      name: 'Knowledge One',
+      documentCount: 1
+    } as KnowledgeBase
+    mocks.topicPending = true
+    mocks.knowledgeBases = [knowledgeBase]
+
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    mocks.selectedKnowledgeBases = [knowledgeBase]
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const [knowledgeToken] = mocks.surfaceProps?.tokens ?? []
+    expect(knowledgeToken).toMatchObject({ id: 'knowledge:kb-1', kind: 'knowledge' })
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'queued knowledge question',
+        tokens: [serializeComposerToken(knowledgeToken)]
+      })
+    })
+
+    mocks.selectedKnowledgeBases = []
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    await act(async () => {
+      await queueContent.props.onEdit(queueContent.props.items[0].id)
+    })
+
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
+  })
+
   it('atomically restores a same-text queued draft with unmanaged tokens from a history preview', async () => {
     seedInputHistory(['queued draft'])
     mocks.topicPending = true
@@ -1755,6 +1787,39 @@ describe('ChatComposer', () => {
       await waitFor(() => {
         expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['final message'])
       })
+    })
+
+    it('strips the knowledge sentence from the saved entry', async () => {
+      // Input history is the one composer path backed by localStorage, so it is the only place a
+      // knowledge token's prompt text could outlive its `data-knowledge-scope` part across a restart —
+      // replayed as prose it would claim a base the kb_* tools were never authorized for.
+      const knowledgePrompt = 'The user attached knowledge base "Base 1" (id: base-1).'
+      const onSend = vi.fn().mockResolvedValue(undefined)
+
+      render(<ChatComposer topic={topic} onSend={onSend} />)
+
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({
+          text: `summarize ${knowledgePrompt} now`,
+          tokens: [
+            {
+              id: 'knowledge:base-1',
+              kind: 'knowledge',
+              label: 'Base 1',
+              promptText: knowledgePrompt,
+              index: 0,
+              textOffset: 'summarize '.length
+            } as ComposerSerializedToken
+          ]
+        })
+      })
+
+      await waitFor(() => expect(onSend).toHaveBeenCalled())
+      const [saved = ''] = MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history') ?? []
+      expect(saved).not.toContain('base-1')
+      expect(saved).not.toContain(knowledgePrompt)
+      expect(saved).toContain('summarize')
+      expect(saved).toContain('now')
     })
 
     it('does NOT save input history when onSend rejects', async () => {
@@ -3421,6 +3486,7 @@ describe('ChatComposer', () => {
         }
       }
     })
+    expect(editedParts[1]).toEqual({ type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } })
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
   })
@@ -3925,8 +3991,10 @@ describe('ChatComposer', () => {
     expect(onSend).toHaveBeenCalledWith(
       'hello',
       expect.objectContaining({
-        knowledgeBaseIds: ['kb-1'],
-        userMessageParts: [expect.objectContaining({ type: 'text', text: 'hello' })]
+        userMessageParts: [
+          expect.objectContaining({ type: 'text', text: 'hello' }),
+          { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } }
+        ]
       })
     )
     expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
@@ -3998,7 +4066,9 @@ describe('ChatComposer', () => {
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [serializeComposerToken(staleKnowledgeToken)] })
 
     expect(onSend).toHaveBeenCalledWith('hello', expect.any(Object))
-    expect(onSend.mock.calls[0]?.[1]?.knowledgeBaseIds).toBeUndefined()
+    expect(onSend.mock.calls[0]?.[1]?.userMessageParts).not.toContainEqual(
+      expect.objectContaining({ type: 'data-knowledge-scope' })
+    )
   })
 
   it('restores pasted knowledge tokens into selected knowledge base state before sending', async () => {
@@ -4036,7 +4106,7 @@ describe('ChatComposer', () => {
     expect(onSend).toHaveBeenCalledWith(
       'hello',
       expect.objectContaining({
-        knowledgeBaseIds: ['kb-1']
+        userMessageParts: expect.arrayContaining([{ type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } }])
       })
     )
   })
