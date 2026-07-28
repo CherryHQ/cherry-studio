@@ -710,7 +710,8 @@ export function CommandPopupMenu({
   disabled,
   renderIcon,
   extraItems = EMPTY_EXTRA_ITEMS,
-  presentationMode
+  presentationMode,
+  deferActionsUntilClosed = false
 }: {
   location: MenuLocation
   children: React.ReactNode
@@ -725,6 +726,7 @@ export function CommandPopupMenu({
   renderIcon?: CommandIconRenderer
   extraItems?: readonly CommandContextMenuExtraItem[]
   presentationMode?: MenuPresentationMode
+  deferActionsUntilClosed?: boolean
 }): React.ReactNode {
   const preferredMode = useCommandMenuPresentationMode()
   const context = useCommandContextReader()
@@ -733,6 +735,7 @@ export function CommandPopupMenu({
   const model = useResolvedCommandMenu(location)
   const mode = resolveMenuPresentationMode(location, presentationMode ?? preferredMode ?? 'cherry')
   const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false)
+  const pendingCherryActionRef = useRef<(() => void) | null>(null)
   const currentOpen = open ?? internalOpen
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
   const resolveShortcutLabel = useCallback(
@@ -804,7 +807,26 @@ export function CommandPopupMenu({
     [onOpenChange, open]
   )
 
-  const handleCherrySelectItem = useCloseBeforeAction(handleCherryOpenChange)
+  const handleCherrySelectItemAfterFrame = useCloseBeforeAction(handleCherryOpenChange)
+  const handleCherrySelectItemAfterClose = useCallback(
+    (action: () => void) => {
+      pendingCherryActionRef.current = action
+      handleCherryOpenChange(false)
+    },
+    [handleCherryOpenChange]
+  )
+  const handleCherryCloseAutoFocus = useCallback(() => {
+    // Radix fires this after the popup's exit animation and focus cleanup.
+    // Heavy actions (such as image capture) must not block that final frame.
+    const action = pendingCherryActionRef.current
+    pendingCherryActionRef.current = null
+    if (action) {
+      window.requestAnimationFrame(action)
+    }
+  }, [])
+  const handleCherrySelectItem = deferActionsUntilClosed
+    ? handleCherrySelectItemAfterClose
+    : handleCherrySelectItemAfterFrame
 
   if (disabled || combinedItems.length === 0) {
     return <>{children}</>
@@ -831,7 +853,12 @@ export function CommandPopupMenu({
   return (
     <DropdownMenu open={currentOpen} onOpenChange={handleCherryOpenChange}>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      <DropdownMenuContent align={align} side={side} sideOffset={sideOffset} className={contentClassName}>
+      <DropdownMenuContent
+        align={align}
+        side={side}
+        sideOffset={sideOffset}
+        className={contentClassName}
+        onCloseAutoFocus={deferActionsUntilClosed ? handleCherryCloseAutoFocus : undefined}>
         {combinedItems.map((item, index) =>
           isExtraMenuItem(item) ? (
             <CommandDropdownExtraItemView key={`extra-${item.id}`} item={item} onSelectItem={handleCherrySelectItem} />
