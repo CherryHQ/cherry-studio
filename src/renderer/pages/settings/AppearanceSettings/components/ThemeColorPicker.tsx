@@ -135,11 +135,12 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
         </PopoverContent>
       </Popover>
       <Input
+        size="sm"
         aria-label={ariaLabel}
         value={draftValue}
         onChange={(event) => setDraftValue(event.target.value)}
         onBlur={handleInputBlur}
-        className="h-8 w-24 font-mono text-xs uppercase"
+        className="w-24 font-mono uppercase"
         spellCheck={false}
       />
     </RowFlex>

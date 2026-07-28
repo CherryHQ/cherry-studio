@@ -484,6 +484,7 @@ export function SelectorShell({
                   <div className="relative flex min-w-0 flex-1 items-center rounded-full border border-border-subtle bg-background">
                     <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 size-3.25 text-muted-foreground/50" />
                     <Input
+                      size="sm"
                       type="text"
                       ref={setSearchInputElement}
                       value={search.value}
@@ -493,7 +494,7 @@ export function SelectorShell({
                       aria-activedescendant={search.activeDescendant}
                       aria-controls={search.ariaControls}
                       className={cn(
-                        'h-7 rounded-full border-0 bg-transparent! py-0 pr-7 pl-7 text-xs leading-7 shadow-none transition-none md:text-xs dark:bg-transparent!',
+                        'rounded-full border-0 bg-transparent! pr-7 pl-7 shadow-none transition-none dark:bg-transparent!',
                         'focus-visible:border-transparent focus-visible:ring-0',
                         'placeholder:text-muted-foreground/40'
                       )}

@@ -942,6 +942,7 @@ function AddToolDialog({
         <div className="flex flex-col gap-3 py-2">
           <div className="relative">
             <Input
+              size="sm"
               placeholder={t('settings.dependencies.searchRegistry')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -975,6 +976,7 @@ function AddToolDialog({
           )}
 
           <Input
+            size="sm"
             placeholder={t('settings.dependencies.fieldVersion')}
             value={version}
             onChange={(e) => setVersion(e.target.value)}
@@ -1032,6 +1034,7 @@ const UrlPresetField: FC<{
       <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
       <div className="flex items-center gap-2">
         <Input
+          size="sm"
           id={inputId}
           value={value}
           placeholder={placeholder}

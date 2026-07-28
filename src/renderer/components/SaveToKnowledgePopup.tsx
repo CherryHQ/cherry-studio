@@ -433,6 +433,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       <div className="space-y-2">
         <Label>{t('chat.save.knowledge.select.base.title')}</Label>
         <Combobox
+          size="sm"
           className="w-full"
           emptyText={t('common.no_results')}
           error={!formState.hasValidBase && !!selectedBaseId}

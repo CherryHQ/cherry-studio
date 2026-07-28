@@ -432,6 +432,7 @@ const AppearanceSettings: FC = () => {
             )}
             <div className="w-full min-w-0 max-w-55">
               <Combobox
+                size="sm"
                 placeholder={t('settings.display.font.select')}
                 emptyText={t('common.no_results')}
                 options={fontOptions}
@@ -457,6 +458,7 @@ const AppearanceSettings: FC = () => {
             )}
             <div className="w-full min-w-0 max-w-55">
               <Combobox
+                size="sm"
                 placeholder={t('settings.display.font.select')}
                 emptyText={t('common.no_results')}
                 options={fontOptions}
