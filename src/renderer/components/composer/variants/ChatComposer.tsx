@@ -60,7 +60,6 @@ import { useInputHistory } from '../useInputHistory'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
-import { useChatKnowledgeBaseScope } from './chat/useChatKnowledgeBaseScope'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
 import {
   chatComposerTokenId,
@@ -75,10 +74,15 @@ import {
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
-import { buildComposerQueuedPayload, hasUnsyncedComposerAttachments } from './shared/composerQueuedPayload'
+import {
+  buildComposerQueuedPayload,
+  getComposerHistoryText,
+  hasUnsyncedComposerAttachments
+} from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
@@ -746,16 +750,19 @@ const ChatComposerInner = ({
     fallbackModel: runtimeModel
   })
 
-  const { selectableKnowledgeBases, selectedKnowledgeBasesInScope, resolveKnowledgeBaseMarker } =
-    useChatKnowledgeBaseScope({
-      assistantKnowledgeBaseIds: assistant?.knowledgeBaseIds,
-      allKnowledgeBases,
-      isKnowledgeBasesLoading,
-      topicId: scopeKey,
-      selectedAssistantId,
-      selectedKnowledgeBases,
-      setSelectedKnowledgeBases
-    })
+  const {
+    selectableKnowledgeBases,
+    selectedKnowledgeBasesInScope,
+    resolveKnowledgeBaseMarker,
+    restoreKnowledgeBaseSelection
+  } = useComposerKnowledgeBaseScope({
+    configuredKnowledgeBaseIds: assistant?.knowledgeBaseIds,
+    allKnowledgeBases,
+    isKnowledgeBasesLoading,
+    scopeKey: selectedKnowledgeBasesScopeKey,
+    selectedKnowledgeBases,
+    setSelectedKnowledgeBases
+  })
 
   // Single owner of the global draft cache. Runs after ComposerSurface's effects have synced the
   // editor to the current text, so getDraft() serializes the live tokens consistently. Every
@@ -1069,7 +1076,7 @@ const ChatComposerInner = ({
           userMessageParts: [...payload.userMessageParts, ...fileParts],
           reasoningEffort: payload.reasoningEffort
         })
-        saveHistory(payload.text)
+        saveHistory(getComposerHistoryText(payload.userMessageParts))
         return true
       } catch (error) {
         logger.warn('send failed', { error })
@@ -1123,10 +1130,9 @@ const ChatComposerInner = ({
       setText(item.draft.text)
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
-      const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? []
-      setSelectedKnowledgeBases(allKnowledgeBases.filter((base) => knowledgeBaseIds.includes(base.id)))
+      restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
     },
-    [actionsRef, allKnowledgeBases, resetHistoryIndex, setFiles, setSelectedKnowledgeBases, setText]
+    [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
   )
 
   const buildEditedMessageParts = useCallback(

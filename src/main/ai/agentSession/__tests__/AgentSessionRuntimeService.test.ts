@@ -65,13 +65,18 @@ const baseTurnInput = {
 }
 const switchedModelId = 'claude-code::claude-opus-4-5' as any
 
-function userMessage(id: string) {
+function userMessage(id: string, knowledgeBaseIds: string[] = []) {
   return {
     id,
     topicId: 'agent-session:session-1',
     parentId: null,
     role: 'user',
-    data: { parts: [{ type: 'text', text: 'hello' }] },
+    data: {
+      parts: [
+        { type: 'text', text: 'hello' },
+        ...(knowledgeBaseIds.length ? [{ type: 'data-knowledge-scope', data: { baseIds: knowledgeBaseIds } }] : [])
+      ]
+    },
     status: 'success',
     createdAt: '',
     updatedAt: ''
@@ -515,6 +520,44 @@ describe('AgentSessionRuntimeService', () => {
 
       service.closeSession('session-1')
     })
+
+    it('inherits the rolled turn knowledge scope when the continuation has no steer message', async () => {
+      // The synthetic-message branch is the defensive one, but it must not silently claim an empty
+      // scope: modelId and reasoningEffort inherit from the rolled turn right above, and the SDK query
+      // it continues keeps serving the kb_* tools that turn was built for. Reporting `[]` here would
+      // make the fold gate and the push reconcile compare A2 against a scope nothing is serving.
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
+      const entry = getEntry(service)
+      entry.rolling = true
+      entry.rollSteerInputs = undefined
+
+      await (service as any).startContinuationTurn(entry)
+
+      expect(entry.currentTurn.knowledgeBaseIds).toEqual(['kb-1'])
+
+      service.closeSession('session-1')
+    })
+
+    it('inherits the rolled turn knowledge scope over a steer message carrying a different one', async () => {
+      // The fold gate only proved the two *effective* scopes equal under the binding at injection time
+      // (`resolveKnowledgeBaseScope` collapses an out-of-scope selection onto the whole binding), and
+      // A2 opens no connection — so the rolled turn's raw scope is the one the live query still serves.
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
+      const entry = getEntry(service)
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: userMessage('user-2', ['kb-2']), systemReminder: true }]
+      })
+      await (service as any).startContinuationTurn(entry)
+
+      expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(entry.currentTurn.knowledgeBaseIds).toEqual(['kb-1'])
+
+      service.closeSession('session-1')
+    })
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
@@ -873,7 +916,8 @@ describe('AgentSessionRuntimeService', () => {
     // The next turn (idle entry, no live turn) targets the edited model again.
     expect((service as any).connectionTarget({ ...getEntry(service), currentTurn: undefined })).toEqual({
       modelId: switchedModelId,
-      reasoningEffort: 'default'
+      reasoningEffort: 'default',
+      knowledgeBaseIds: []
     })
 
     await reader.cancel().catch(() => undefined)
@@ -1043,7 +1087,8 @@ describe('AgentSessionRuntimeService', () => {
     // the derive reads the post-update agent row, not the DTO's key presence).
     expect(connection.reconcile).toHaveBeenCalledWith({
       modelId: baseTurnInput.modelId,
-      reasoningEffort: 'default'
+      reasoningEffort: 'default',
+      knowledgeBaseIds: []
     })
     expect(connection.close).not.toHaveBeenCalled()
   })
@@ -1090,7 +1135,9 @@ describe('AgentSessionRuntimeService', () => {
     service.enqueueUserMessage('session-1', userMessage('user-2'))
 
     expect(connection.redirect).not.toHaveBeenCalled()
-    expect(entry.pendingTurns).toEqual([{ message: userMessage('user-2'), reasoningEffort: 'default' }])
+    expect(entry.pendingTurns).toEqual([
+      { message: userMessage('user-2'), reasoningEffort: 'default', knowledgeBaseIds: [] }
+    ])
     expect(entry.steerMessageIds?.has('user-2')).toBe(true)
   })
 
@@ -1288,7 +1335,8 @@ describe('AgentSessionRuntimeService', () => {
       )
       expect(firstConnection.reconcile).toHaveBeenCalledWith({
         modelId: baseTurnInput.modelId,
-        reasoningEffort: 'default'
+        reasoningEffort: 'default',
+        knowledgeBaseIds: []
       })
       expect(firstConnection.close).toHaveBeenCalledOnce()
       expect(connect).toHaveBeenCalledTimes(1)
@@ -1986,6 +2034,7 @@ describe('AgentSessionRuntimeService', () => {
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
         reasoningEffort: 'default',
+        knowledgeBaseIds: [],
         resumeToken: undefined,
         trace: {
           topicId: 'agent-session:session-1',
@@ -2039,6 +2088,7 @@ describe('AgentSessionRuntimeService', () => {
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
         reasoningEffort: 'default',
+        knowledgeBaseIds: [],
         resumeToken: 'resume-db',
         trace: {
           topicId: 'agent-session:session-1',
@@ -2197,6 +2247,223 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('steer redirect — real mid-turn injection (claude PreToolUse hook)', () => {
+    it('queues a steer whose effective knowledge scope differs from the live turn', async () => {
+      const events = createAsyncQueue<any>()
+      const redirect = vi.fn().mockReturnValue(true)
+      const connection = { events: events.iterable, send: vi.fn(), redirect, close: vi.fn() }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const firstMessage = userMessage('user-1', ['kb-1'])
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: firstMessage })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+      expect(connect).toHaveBeenCalledWith(expect.objectContaining({ knowledgeBaseIds: ['kb-1'] }))
+
+      const changedScopeMessage = userMessage('user-2', ['kb-2'])
+      service.enqueueUserMessage('session-1', changedScopeMessage)
+
+      expect(redirect).not.toHaveBeenCalled()
+      expect(getEntry(service).pendingTurns).toEqual([
+        { message: changedScopeMessage, reasoningEffort: 'default', knowledgeBaseIds: ['kb-2'] }
+      ])
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('rebuilds the connection for a queued turn with a different knowledge scope', async () => {
+      const firstEvents = createAsyncQueue<any>()
+      const secondEvents = createAsyncQueue<any>()
+      const firstConnection = {
+        events: firstEvents.iterable,
+        send: vi.fn(),
+        redirect: vi.fn().mockReturnValue(true),
+        reconcile: vi.fn().mockResolvedValue('rebuild'),
+        close: vi.fn()
+      }
+      const secondConnection = {
+        events: secondEvents.iterable,
+        send: vi.fn(),
+        redirect: vi.fn().mockReturnValue(true),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        close: vi.fn()
+      }
+      const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(secondConnection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
+      const firstStream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const firstReader = firstStream.getReader()
+      await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(firstConnection.send).toHaveBeenCalledOnce())
+
+      service.enqueueUserMessage('session-1', userMessage('user-2', ['kb-2']))
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(getEntry(service).currentTurn?.userMessage.id).toBe('user-2'))
+
+      const secondStream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: getEntry(service).currentTurn.turnId,
+        signal: new AbortController().signal
+      })
+      const secondReader = secondStream.getReader()
+      await expect(secondReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(secondConnection.send).toHaveBeenCalledOnce())
+
+      expect(firstConnection.reconcile).toHaveBeenCalledWith(expect.objectContaining({ knowledgeBaseIds: ['kb-2'] }))
+      expect(firstConnection.close).toHaveBeenCalledOnce()
+      expect(connect).toHaveBeenNthCalledWith(2, expect.objectContaining({ knowledgeBaseIds: ['kb-2'] }))
+
+      service.closeSession('session-1')
+      await firstReader.cancel().catch(() => undefined)
+      await secondReader.cancel().catch(() => undefined)
+    })
+
+    it('treats a reordered knowledge scope as unchanged and still folds the steer', async () => {
+      // Scope identity is a set, not a sequence. If it ever degrades to an index-wise comparison this
+      // steer gets queued as a whole new turn and the warm connection is torn down for nothing.
+      const events = createAsyncQueue<any>()
+      const redirect = vi.fn().mockReturnValue(true)
+      const connection = { events: events.iterable, send: vi.fn(), redirect, close: vi.fn() }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1', 'kb-2']) })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+      const reorderedScopeMessage = userMessage('user-2', ['kb-2', 'kb-1'])
+      service.enqueueUserMessage('session-1', reorderedScopeMessage)
+
+      expect(redirect).toHaveBeenCalledWith({ message: reorderedScopeMessage, systemReminder: true })
+      expect(getEntry(service).pendingTurns).toHaveLength(0)
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('reuses the warm connection for a queued turn whose knowledge scope is unchanged', async () => {
+      // Mirror of the rebuild test above: the scope only earns a teardown when it actually differs.
+      const events = createAsyncQueue<any>()
+      const connection = {
+        events: events.iterable,
+        send: vi.fn(),
+        // No live steer available, so the follow-up queues as the next turn instead of folding.
+        redirect: vi.fn().mockReturnValue(false),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        close: vi.fn()
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+      service.enqueueUserMessage('session-1', userMessage('user-2', ['kb-1']))
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(getEntry(service).currentTurn?.userMessage.id).toBe('user-2'))
+
+      const secondReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: getEntry(service).currentTurn.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await expect(secondReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(2))
+
+      expect(connection.reconcile).toHaveBeenCalledWith(expect.objectContaining({ knowledgeBaseIds: ['kb-1'] }))
+      expect(connect).toHaveBeenCalledOnce()
+      expect(connection.close).not.toHaveBeenCalled()
+
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+      await secondReader.cancel().catch(() => undefined)
+    })
+
+    it('lets a static Agent binding override different composer selections for steer matching', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        knowledgeBaseIds: ['kb-bound']
+      })
+      const events = createAsyncQueue<any>()
+      const redirect = vi.fn().mockReturnValue(true)
+      const connection = { events: events.iterable, send: vi.fn(), redirect, close: vi.fn() }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+      const sameEffectiveScopeMessage = userMessage('user-2', ['kb-2'])
+      service.enqueueUserMessage('session-1', sameEffectiveScopeMessage)
+
+      expect(redirect).toHaveBeenCalledWith({ message: sameEffectiveScopeMessage, systemReminder: true })
+      expect(getEntry(service).pendingTurns).toHaveLength(0)
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    })
+
     it('folds a live steer into the current turn via connection.redirect (not queued, no new turn)', async () => {
       const events = createAsyncQueue<any>()
       const redirect = vi.fn().mockReturnValue(true)
@@ -2243,7 +2510,7 @@ describe('AgentSessionRuntimeService', () => {
         listAvailableTools: vi.fn().mockResolvedValue([])
       })
       const service = new AgentSessionRuntimeService()
-      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
       const stream = service.openTurnStream({
         sessionId: 'session-1',
         turnId: handle.turnId,
@@ -2254,13 +2521,19 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
       // Steer redirected (stashed), but the turn calls no tool → the connection hands it back.
-      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      service.enqueueUserMessage('session-1', userMessage('user-2', ['kb-1']))
       expect(getEntry(service).pendingTurns).toHaveLength(0)
 
-      events.push({ type: 'steer-undelivered', inputs: [{ message: userMessage('user-2'), systemReminder: true }] })
+      events.push({
+        type: 'steer-undelivered',
+        inputs: [{ message: userMessage('user-2', ['kb-1']), systemReminder: true }]
+      })
       await vi.waitFor(() => expect(getEntry(service).pendingTurns).toHaveLength(1))
       // The undelivered steer is flagged so its next turn wraps it in a system-reminder.
       expect(getEntry(service).steerMessageIds?.has('user-2')).toBe(true)
+      // ...and the requeued turn keeps the scope it was composed with, so it does not open on a
+      // connection built for a different tool set.
+      expect(getEntry(service).pendingTurns[0].knowledgeBaseIds).toEqual(['kb-1'])
 
       service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)

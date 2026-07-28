@@ -198,11 +198,19 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     // The connection routes with the host-chosen model — not a fresh DB read — so a live turn keeps
     // the model captured at its creation even if the agent was edited since.
-    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1', 'claude-code::sonnet', 'default')
+    expect(mocks.buildRequest).toHaveBeenCalledWith(
+      'session-1',
+      'resume-1',
+      'claude-code::sonnet',
+      'default',
+      undefined
+    )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
-    await connection.send({ message: userMessage() })
+    const scopedMessage = userMessage()
+    scopedMessage.data.parts.push({ type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } })
+    await connection.send({ message: scopedMessage })
 
     await expect(nextInput).resolves.toMatchObject({
       value: {
@@ -1307,6 +1315,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(connection.redirect?.({ message: userMessage() })).toBe(true)
     expect(steerHolder.pending).toHaveLength(1)
 
+    const scopedSteer = userMessage()
+    scopedSteer.data.parts.push({ type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } })
+    expect(connection.redirect?.({ message: scopedSteer })).toBe(true)
+    expect(steerHolder.pending).toHaveLength(2)
+
     const attachmentSteer = {
       message: {
         ...userMessage(),
@@ -1321,7 +1334,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       systemReminder: true
     }
     expect(connection.redirect?.(attachmentSteer)).toBe(false)
-    expect(steerHolder.pending).toHaveLength(1)
+    expect(steerHolder.pending).toHaveLength(2)
 
     void connection.close()
     expect(steerHolder.dispose).toHaveBeenCalled()
@@ -1630,6 +1643,17 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
       await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('current')
       expect(query.setPermissionMode).not.toHaveBeenCalled()
+    })
+
+    it('forwards the requested knowledge scope into the config derivation', async () => {
+      // Without this the reconcile-side forward can be deleted outright and every other test stays
+      // green — the scope would then silently stop being rebuild-signature material on agent updates.
+      const { connection } = await connectWithSnapshot()
+      mocks.deriveConfig.mockClear()
+
+      await connection.reconcile({ modelId: 'claude-code::sonnet' as any, knowledgeBaseIds: ['kb-1'] })
+
+      expect(mocks.deriveConfig).toHaveBeenCalledWith('session-1', 'claude-code::sonnet', 'default', ['kb-1'])
     })
 
     it('hot-patches live tool-policy facts and advances the baseline', async () => {

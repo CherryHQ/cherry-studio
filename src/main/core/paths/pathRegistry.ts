@@ -54,9 +54,6 @@ export function buildPathRegistry() {
     'sys.downloads': app.getPath('downloads'),
     'sys.documents': app.getPath('documents'),
     'sys.desktop': app.getPath('desktop'),
-    'sys.music': app.getPath('music'),
-    'sys.pictures': app.getPath('pictures'),
-    'sys.videos': app.getPath('videos'),
     'sys.appdata': app.getPath('appData'), // OS root; use app.userdata for Cherry-owned
     'sys.appdata.autostart': path.join(app.getPath('appData'), 'autostart'), // Linux only
 

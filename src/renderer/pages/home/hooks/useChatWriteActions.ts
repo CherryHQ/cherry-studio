@@ -14,6 +14,7 @@
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -180,6 +181,7 @@ export function useChatWriteActions(params: Params): Result {
     await clearBranchCache()
     try {
       const result = await clearTopicMessagesTrigger({ params: { topicId: topic.id } })
+      invalidateCachedMessageUiStates(result.deletedIds)
       logger.info('Cleared all messages', { topicId: topic.id, count: result.deletedIds.length })
     } catch (err) {
       await rollbackBranch()
@@ -215,6 +217,7 @@ export function useChatWriteActions(params: Params): Result {
 
       try {
         await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
+        invalidateCachedMessageUiStates([id])
       } catch (err: unknown) {
         await rollbackBranch()
         throw err
@@ -238,6 +241,7 @@ export function useChatWriteActions(params: Params): Result {
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set([id])))
       try {
         const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
+        invalidateCachedMessageUiStates(result.deletedIds)
         const deletedSet = new Set(result.deletedIds)
         await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
         logger.info('Deleted message group', { id, count: result.deletedIds.length })
@@ -289,6 +293,8 @@ export function useChatWriteActions(params: Params): Result {
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
     async (messageId?: string, options?: { modelId?: UniqueModelId }) => {
+      captureLocalSendScrollEligibility()
+
       // Anchor semantics depend on the target role:
       //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
       //   - user:      keep the user itself, spawn assistant child — anchor = target.id
@@ -314,7 +320,7 @@ export function useChatWriteActions(params: Params): Result {
       // lives at the call site.
       setMessages(uiMessages)
 
-      await regenerate({
+      const regeneratePromise = regenerate({
         messageId,
         body: {
           ...capabilityBody,
@@ -322,8 +328,10 @@ export function useChatWriteActions(params: Params): Result {
           ...(regenModelId && { mentionedModels: [regenModelId] })
         }
       })
+      onLocalSendStarted()
+      await regeneratePromise
     },
-    [regenerate, capabilityBody, uiMessages, setMessages]
+    [regenerate, capabilityBody, uiMessages, setMessages, captureLocalSendScrollEligibility, onLocalSendStarted]
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
