@@ -56,14 +56,17 @@ export interface ArtboardProps {
 /**
  * Prompt + size strip. Rendered as a flex-col sibling directly above the
  * skeleton/image box (see call sites) so it stretches to match that box's
- * width rather than the full artboard — it travels with the artwork, not
- * the canvas.
+ * width rather than the full artboard.
  */
 const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt, sizeLabel }) => {
   return (
-    <div className="mb-2 flex items-center justify-between gap-2 text-muted-foreground text-xs">
-      <Tooltip content={prompt} placement="bottom" delay={800}>
-        <span className="flex min-w-0 items-center gap-1.5">
+    <div className="mb-2 flex w-full min-w-0 items-center justify-between gap-2 text-muted-foreground text-xs">
+      <Tooltip
+        classNames={{ placeholder: 'max-w-full min-w-0 flex-1 overflow-hidden' }}
+        content={prompt}
+        delay={800}
+        placement="bottom">
+        <span className="flex w-full min-w-0 items-center gap-1.5">
           <Palette className="size-3.5 shrink-0" aria-hidden />
           {/* CSS `truncate` clips to the available width responsively — the full
               prompt stays in the DOM (and in the tooltip) instead of a fixed-length
@@ -222,13 +225,11 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     viewerResizeObserverRef.current = observer
   }, [])
 
-  // `promptBar` renders inside the same transformed wrapper as the image (see
-  // below), so its own rendered height has to come out of the space
+  // `promptBar` renders in the fixed layout wrapper above the transformed image,
+  // so its own rendered height has to come out of the space
   // `displayedImageBoxSize` treats as available — otherwise bar + image
   // together can exceed `viewerContainer` and the image gets clipped instead
-  // of contain-fitting alongside the bar. `clientHeight` reflects layout size,
-  // unaffected by the wrapper's `transform: scale(...)`, so this stays correct
-  // at any zoom level.
+  // of contain-fitting alongside the bar.
   const setPromptBarRef = useCallback((el: HTMLDivElement | null) => {
     promptBarResizeObserverRef.current?.disconnect()
     promptBarResizeObserverRef.current = null
@@ -388,23 +389,19 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
           <div
             ref={setViewerContainerRef}
             className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
-            {/* The prompt bar is a flex-col sibling of the image inside this transformed
-                wrapper (not the image itself) so it pans/zooms/rotates together with the
-                artwork as one rigid unit instead of staying pinned while the image moves.
-                The wrapper is sized explicitly (displayedImageBoxSize, which already
+            {/* The prompt bar is a flex-col sibling of the transformed image so it stays
+                fixed while the image pans, zooms, or rotates. The layout wrapper is
+                sized explicitly (displayedImageBoxSize, which already
                 reserves the bar's own measured height — see setPromptBarRef) rather than
                 via CSS auto-sizing — ImageViewer nests the `<img>` behind a context-menu
                 wrapper that breaks intrinsic-size propagation, so an auto-sized flex-col
                 here ends up wider than the rendered photo, letterboxing the bar past its
                 real edges. */}
             <div
-              data-testid="artboard-image-transform"
-              className={`flex max-h-full max-w-full flex-col items-stretch ${
-                isDraggingImage ? 'transition-none' : 'transition-transform duration-150'
-              }`}
+              data-testid="artboard-image-layout"
+              className="flex max-h-full max-w-full flex-col items-stretch"
               style={{
-                ...(displayedImageBoxSize ? { width: displayedImageBoxSize.width } : undefined),
-                transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageScale}) rotate(${imageRotation}deg)`
+                ...(displayedImageBoxSize ? { width: displayedImageBoxSize.width } : undefined)
               }}>
               {promptBar && (
                 <div ref={setPromptBarRef} data-testid="artboard-prompt-bar-measure">
@@ -413,8 +410,9 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
               )}
               <ImageViewer
                 alt=""
-                className={`max-h-full min-h-0 max-w-full select-none rounded-md bg-secondary object-contain ${
-                  isDraggingImage ? 'cursor-grabbing' : 'cursor-grab'
+                data-testid="artboard-image-transform"
+                className={`max-h-full min-h-0 max-w-full select-none rounded-md object-contain ${
+                  isDraggingImage ? 'cursor-grabbing transition-none' : 'cursor-grab transition-transform duration-150'
                 }`}
                 draggable={false}
                 onLoad={onDisplayedImageLoad}
@@ -426,6 +424,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
                 src={currentImageUrl}
                 style={{
                   touchAction: 'none',
+                  transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageScale}) rotate(${imageRotation}deg)`,
                   ...(displayedImageBoxSize ? { height: displayedImageBoxSize.height } : undefined)
                 }}
               />
