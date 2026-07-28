@@ -1,3 +1,4 @@
+import { BACKUP_DEGRADATION_CODES } from '@shared/ipc/schemas/backup'
 import * as z from 'zod'
 
 /** The incompatible whole-database Lite archive format. */
@@ -13,6 +14,11 @@ const MigrationChainEntrySchema = z.strictObject({
 const ManagedRootIdentitySchema = z.strictObject({
   key: z.string().min(1),
   path: z.string().min(1)
+})
+
+const ManifestDegradationSchema = z.strictObject({
+  code: z.enum(BACKUP_DEGRADATION_CODES),
+  count: z.number().int().safe().positive()
 })
 
 const ProducerSchema = z.strictObject({
@@ -38,11 +44,19 @@ export const BackupManifestSchema = z.strictObject({
   db: z.strictObject({
     hash: Sha256HexSchema,
     sizeBytes: z.number().int().positive()
-  })
+  }),
+  // One aggregate per closed code; archive manifests never carry row IDs, paths, or details.
+  degradations: z
+    .array(ManifestDegradationSchema)
+    .max(BACKUP_DEGRADATION_CODES.length)
+    .refine((degradations) => new Set(degradations.map(({ code }) => code)).size === degradations.length, {
+      message: 'degradation codes must be unique'
+    })
 })
 
 export type BackupManifest = z.infer<typeof BackupManifestSchema>
 export type ManagedRootIdentity = z.infer<typeof ManagedRootIdentitySchema>
+export type BackupManifestDegradation = z.infer<typeof ManifestDegradationSchema>
 
 export type ReadManifestResult =
   | { readonly kind: 'ok'; readonly manifest: BackupManifest }

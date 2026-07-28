@@ -3,14 +3,29 @@ import * as z from 'zod'
 import { defineRoute } from '../define'
 
 /** Lite archive commands. Main owns all paths through native file dialogs. */
+export const BACKUP_DEGRADATION_CODES = [
+  'capability-malformed',
+  'external-file-dropped',
+  'path-unportable',
+  'path-collision',
+  'unknown'
+] as const
+export type BackupDegradationCode = (typeof BACKUP_DEGRADATION_CODES)[number]
+
 const DegradationSchema = z.strictObject({
-  code: z.enum(['capability-malformed', 'external-file-dropped', 'path-unportable', 'path-collision', 'unknown']),
-  count: z.number().int().positive()
+  code: z.enum(BACKUP_DEGRADATION_CODES),
+  count: z.number().int().safe().positive()
 })
+const DegradationsSchema = z
+  .array(DegradationSchema)
+  .max(BACKUP_DEGRADATION_CODES.length)
+  .refine((degradations) => new Set(degradations.map(({ code }) => code)).size === degradations.length, {
+    message: 'degradation codes must be unique'
+  })
 
 const RestorePreviewSchema = z.strictObject({
   restoreId: z.string().uuid(),
-  degradations: z.array(DegradationSchema),
+  degradations: DegradationsSchema,
   migratedForward: z.boolean()
 })
 
@@ -32,7 +47,7 @@ const RestoreStatusSchema = z.discriminatedUnion('kind', [
     ]),
     restoreId: z.string().uuid(),
     step: z.string().optional(),
-    degradations: z.array(DegradationSchema).optional()
+    degradations: DegradationsSchema.optional()
   })
 ])
 
@@ -56,7 +71,7 @@ export const backupRequestSchemas = {
       z.strictObject({
         status: z.literal('exported'),
         archivePath: z.string(),
-        degradations: z.array(DegradationSchema)
+        degradations: DegradationsSchema
       })
     ])
   }),

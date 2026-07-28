@@ -5817,7 +5817,7 @@
           "export_destination": "The backup cannot be published at that location. Pick a new filename or another drive.",
           "export_source": "Some source files changed or cannot be stored portably. Check the managed files and try the backup again.",
           "incompatible": "This backup is not compatible with this version of Cherry Studio. Nothing was changed.",
-          "journal_unreadable": "The restore record on this device cannot be read. The next start will quarantine it.",
+          "journal_unreadable": "The restore record on this device cannot be read. Startup stays blocked to preserve recovery evidence.",
           "recovery_incomplete": "The last restore could not put every file back. Restart the app to finish it before releasing anything.",
           "restore_resources": "The backup files cannot be installed safely at their target paths. Remove conflicting files or links, then prepare the restore again.",
           "restore_state": "That does not match the current state of the restore. Finish or discard the pending restore first.",
@@ -5870,7 +5870,7 @@
             "rolled_back": "The restore was rolled back. Your previous data is active again."
           },
           "title": "Last restore",
-          "unreadable": "The restore record on this device cannot be read. The next start will quarantine it."
+          "unreadable": "The restore record on this device cannot be read. Startup stays blocked to preserve recovery evidence."
         },
         "preset": {
           "lite": "Lite (database only)"

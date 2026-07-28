@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { snapshotTo } from '@data/db/restore/snapshot'
+import { fileEntryTable } from '@data/db/schemas/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import type { Mock } from 'vitest'
@@ -57,6 +58,33 @@ describe('exportArchive', () => {
       stagingParent: path.join(userData, 'backup-temp'),
       migrationsFolder
     })
+    await admitted.cleanup()
+  })
+
+  it('persists external-file sanitation as a closed aggregate through archive admission', async () => {
+    dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: '11111111-2222-4333-8444-555555555555',
+        origin: 'external',
+        name: 'private',
+        ext: 'txt',
+        size: null,
+        externalPath: '/source/private/sentinel.txt'
+      })
+      .run()
+
+    const outPath = path.join(work, 'degraded.cherrybackup')
+    const exported = await exportArchive({ outPath })
+    const admitted = await admitArchive({
+      archivePath: outPath,
+      stagingParent: path.join(userData, 'backup-temp'),
+      migrationsFolder
+    })
+
+    expect(exported.manifest.degradations).toEqual([{ code: 'external-file-dropped', count: 1 }])
+    expect(admitted.manifest.degradations).toEqual([{ code: 'external-file-dropped', count: 1 }])
+    expect(JSON.stringify(admitted.manifest.degradations)).not.toContain('/source/private')
     await admitted.cleanup()
   })
 })

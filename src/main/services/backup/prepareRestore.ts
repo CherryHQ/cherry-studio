@@ -13,6 +13,7 @@ import {
 import { loggerService } from '@logger'
 
 import { admitArchive } from './admission/admitArchive'
+import { compactDegradationsForJournal, manifestDegradationsForJournal } from './degradationReport'
 import { BackupCancelledError } from './errors'
 import { currentBackupPlatform } from './platform'
 import { type ManagedRootRebaseTable, prepareManagedRootRebase } from './portability/managedPathRebase'
@@ -94,7 +95,10 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
     staged = true
     durabilizeRestoreStaging(path.dirname(stagedPath))
 
-    const degradations = summarizeMaterializationDegradations(materialized.summary.degradations, 'restore-db')
+    const degradations = compactDegradationsForJournal([
+      ...manifestDegradationsForJournal(admitted.manifest.degradations),
+      ...summarizeMaterializationDegradations(materialized.summary.degradations, 'restore-db')
+    ])
     writeRestoreJournal({
       version: 2,
       restoreId,

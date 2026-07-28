@@ -231,6 +231,7 @@ export function liteManifest(db: DbMeta): BackupManifest {
     producer: { platform: 'darwin', managedRoots: [] },
     migrationChain: db.chain.map((m) => ({ folderMillis: m.folderMillis, hash: m.hash })),
     db: { hash: db.hash, sizeBytes: db.sizeBytes },
-    preset: 'lite'
+    preset: 'lite',
+    degradations: []
   }
 }

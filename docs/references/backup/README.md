@@ -13,7 +13,7 @@ manifest.json
 backup.sqlite
 ```
 
-`manifest.json` has literal `preset: "lite"`; no alternate preset, empty resource list, or future extension payload is accepted.
+`manifest.json` has literal `preset: "lite"`; no alternate preset, empty resource list, or future extension payload is accepted. Its bounded `degradations` report contains only closed `{ code, count }` portable-DB sanitation aggregates—never row IDs, paths, or field details.
 
 ## Safety boundary
 

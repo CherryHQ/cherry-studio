@@ -26,7 +26,8 @@ beforeEach(async () => {
     createdAt: '2026-07-28T00:00:00.000Z',
     producer: { platform: 'darwin', managedRoots: [] },
     migrationChain: chain,
-    db: { hash: await sha256File(dbPath), sizeBytes: statSync(dbPath).size }
+    db: { hash: await sha256File(dbPath), sizeBytes: statSync(dbPath).size },
+    degradations: []
   }
 })
 afterEach(async () => {

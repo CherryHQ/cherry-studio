@@ -17,6 +17,8 @@ import type { IpcContext, IpcHandlersFor } from '@shared/ipc/types'
 import { type BrowserWindow, dialog } from 'electron'
 
 const ARCHIVE_EXTENSION = 'cherrybackup'
+const STORAGE_UNAVAILABLE_MESSAGE = 'backup storage is unavailable'
+const EXPORT_DESTINATION_MESSAGE = 'backup destination is unavailable'
 
 function requireManagedWindow({ senderId }: IpcContext): BrowserWindow {
   const window = senderId === null ? undefined : application.get('WindowManager').getWindow(senderId)
@@ -34,10 +36,10 @@ function toIpcError(error: unknown): unknown {
     return new IpcError(code, 'backup archive was rejected')
   }
   if (error instanceof InsufficientDiskSpaceError || error instanceof DiskFullError) {
-    return new IpcError(backupErrorCodes.STORAGE_UNAVAILABLE, error.message)
+    return new IpcError(backupErrorCodes.STORAGE_UNAVAILABLE, STORAGE_UNAVAILABLE_MESSAGE)
   }
   if (error instanceof OutputPathExistsError || error instanceof HardLinkUnsupportedError) {
-    return new IpcError(backupErrorCodes.EXPORT_DESTINATION, error.message)
+    return new IpcError(backupErrorCodes.EXPORT_DESTINATION, EXPORT_DESTINATION_MESSAGE)
   }
   return error
 }
@@ -86,7 +88,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     if (canceled || !filePath) return { status: 'canceled' as const }
     const result = await cancellable(() => application.get('BackupService').export(filePath))
     if (!result) return { status: 'canceled' as const }
-    return { status: 'exported' as const, archivePath: result.outPath, degradations: [] }
+    return { status: 'exported' as const, archivePath: result.outPath, degradations: result.manifest.degradations }
   },
 
   'backup.prepare_restore': async (_input, ctx) => {

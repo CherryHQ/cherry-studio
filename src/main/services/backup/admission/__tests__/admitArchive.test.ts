@@ -65,6 +65,20 @@ describe('admitArchive', () => {
     await admitted.cleanup()
   })
 
+  it('preserves only closed export sanitation aggregates from the archive manifest', async () => {
+    const dbPath = await snapshot()
+    const manifest = {
+      ...liteManifest(await dbMeta(dbPath)),
+      degradations: [{ code: 'external-file-dropped' as const, count: 2 }]
+    }
+    const outPath = path.join(work, 'degraded.cherrybackup')
+    await publishArchive({ outPath, manifest, dbCopyPath: dbPath })
+
+    const admitted = await admitArchive({ archivePath: outPath, stagingParent, migrationsFolder })
+    expect(admitted.manifest.degradations).toEqual([{ code: 'external-file-dropped', count: 2 }])
+    await admitted.cleanup()
+  })
+
   it.each([
     [
       'duplicate',

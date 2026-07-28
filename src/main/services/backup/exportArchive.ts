@@ -7,12 +7,17 @@ import { loggerService } from '@logger'
 import Database from 'better-sqlite3'
 
 import { publishArchive } from './archivePublish'
+import { presentDegradations } from './degradationReport'
 import { assertDiskHeadroom } from './diskPreflight'
 import { BackupCancelledError } from './errors'
 import { BACKUP_FORMAT_VERSION, type BackupManifest, type ManagedRootIdentity } from './manifest'
 import { currentBackupPlatform } from './platform'
 import { REBASABLE_MANAGED_ROOT_KEYS } from './portability/managedPathRebase'
-import { type MaterializationSummary, materializePortableDatabase } from './portability/materializeDatabase'
+import {
+  type MaterializationSummary,
+  materializePortableDatabase,
+  summarizeMaterializationDegradations
+} from './portability/materializeDatabase'
 
 const logger = loggerService.withContext('backupExport')
 const STAGED_DB_NAME = 'backup.sqlite'
@@ -67,12 +72,18 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
       createdAt: new Date().toISOString(),
       producer: { platform: currentBackupPlatform(), managedRoots: producerManagedRoots() },
       migrationChain: readSealedChain(stagedDbPath),
-      db: { hash: materialized.hash, sizeBytes: materialized.sizeBytes }
+      db: { hash: materialized.hash, sizeBytes: materialized.sizeBytes },
+      degradations: presentDegradations(
+        summarizeMaterializationDegradations(materialized.summary.degradations, 'portable-db')
+      )
     }
 
     await assertDiskHeadroom({ target: outPath, neededBytes: materialized.sizeBytes })
     await publishArchive({ outPath, manifest, dbCopyPath: stagedDbPath, signal })
-    logger.info('Lite archive exported', { dbSizeBytes: materialized.sizeBytes })
+    logger.info('Lite archive exported', {
+      dbSizeBytes: materialized.sizeBytes,
+      degradations: manifest.degradations
+    })
     return { outPath, manifest, summary: materialized.summary }
   } finally {
     await rm(stagingRoot, { recursive: true, force: true })

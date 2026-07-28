@@ -5,15 +5,17 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let userData = ''
-const { relaunch, admitArchiveMock } = vi.hoisted(() => ({ relaunch: vi.fn(), admitArchiveMock: vi.fn() }))
+const { relaunch, admitArchiveMock, materializeMock, summarizeMock } = vi.hoisted(() => ({
+  relaunch: vi.fn(),
+  admitArchiveMock: vi.fn(),
+  materializeMock: vi.fn(),
+  summarizeMock: vi.fn()
+}))
 vi.mock('../admission/admitArchive', () => ({ admitArchive: admitArchiveMock }))
 vi.mock('../portability/managedPathRebase', () => ({ prepareManagedRootRebase: () => ({ ok: true, table: {} }) }))
 vi.mock('../portability/materializeDatabase', () => ({
-  materializePortableDatabase: async () => ({
-    summary: { degradations: [] },
-    chain: [{ folderMillis: 1, hash: 'one' }]
-  }),
-  summarizeMaterializationDegradations: () => []
+  materializePortableDatabase: materializeMock,
+  summarizeMaterializationDegradations: summarizeMock
 }))
 vi.mock('../platform', () => ({ currentBackupPlatform: () => 'darwin' }))
 vi.mock('../stagingDurability', () => ({ durabilizeRestoreStaging: () => {} }))
@@ -68,6 +70,8 @@ describe('restore preparation lifecycle', () => {
     mkdirSync(join(userData, 'Data'), { recursive: true })
     relaunch.mockReset()
     admitArchiveMock.mockReset()
+    materializeMock.mockResolvedValue({ summary: { degradations: [] }, chain: [{ folderMillis: 1, hash: 'one' }] })
+    summarizeMock.mockReturnValue([])
   })
   afterEach(() => rmSync(userData, { recursive: true, force: true }))
 
@@ -95,7 +99,7 @@ describe('restore preparation lifecycle', () => {
     writeFileSync(admittedDb, 'sealed')
     admitArchiveMock.mockResolvedValue({
       db: { path: admittedDb },
-      manifest: { producer: { platform: 'darwin', managedRoots: [] } },
+      manifest: { producer: { platform: 'darwin', managedRoots: [] }, degradations: [] },
       migratedForward: false,
       cleanup: async () => {}
     })
@@ -103,5 +107,27 @@ describe('restore preparation lifecycle', () => {
     const preview = await prepareRestore({ archivePath: join(userData, 'backup.cherrybackup') })
     expect(preview.restoreId).not.toBe(restoreId)
     expect(readRestoreJournal()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
+  })
+
+  it('carries export and target-side sanitation aggregates across the relaunch journal', async () => {
+    const admittedDb = join(userData, 'admitted.sqlite')
+    writeFileSync(admittedDb, 'sealed')
+    admitArchiveMock.mockResolvedValue({
+      db: { path: admittedDb },
+      manifest: {
+        producer: { platform: 'darwin', managedRoots: [] },
+        degradations: [{ code: 'external-file-dropped', count: 2 }]
+      },
+      migratedForward: false,
+      cleanup: async () => {}
+    })
+    summarizeMock.mockReturnValue([{ kind: 'restore-db:agent_workspace', reason: 'external-workspace-reset (1 row)' }])
+
+    const preview = await prepareRestore({ archivePath: join(userData, 'backup.cherrybackup') })
+    expect(preview.degradations).toEqual([
+      { kind: 'report:export-db:external-file-dropped', reason: 'count:2' },
+      { kind: 'report:restore-db:unknown', reason: 'count:1' }
+    ])
+    expect(readRestoreJournal()).toMatchObject({ kind: 'ok', journal: { degradations: preview.degradations } })
   })
 })

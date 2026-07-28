@@ -21,7 +21,13 @@ vi.mock('@application', () => ({
 vi.mock('@main/i18n', () => ({ t: () => 'Cherry Studio Backup' }))
 vi.mock('electron', () => ({ dialog: { showSaveDialog, showOpenDialog } }))
 
-import { ArchiveAdmissionError, BackupCancelledError } from '@main/services/backup'
+import {
+  ArchiveAdmissionError,
+  BackupCancelledError,
+  DiskFullError,
+  InsufficientDiskSpaceError,
+  OutputPathExistsError
+} from '@main/services/backup'
 
 import { backupHandlers } from '../backup'
 
@@ -40,11 +46,40 @@ describe('backupHandlers', () => {
     })
   })
 
-  it('opens a main-owned save dialog and exports Lite without renderer input', async () => {
+  it('opens a main-owned save dialog and returns closed Lite export degradations', async () => {
     showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/lite.cherrybackup' })
-    service.export.mockResolvedValue({ outPath: '/tmp/lite.cherrybackup' })
-    await expect(backupHandlers['backup.export'](undefined, ctx)).resolves.toMatchObject({ status: 'exported' })
+    service.export.mockResolvedValue({
+      outPath: '/tmp/lite.cherrybackup',
+      manifest: { degradations: [{ code: 'external-file-dropped', count: 2 }] }
+    })
+    await expect(backupHandlers['backup.export'](undefined, ctx)).resolves.toMatchObject({
+      status: 'exported',
+      degradations: [{ code: 'external-file-dropped', count: 2 }]
+    })
     expect(service.export).toHaveBeenCalledWith('/tmp/lite.cherrybackup')
+  })
+
+  it('presents journal degradation totals after a relaunch without internal origins', async () => {
+    service.getStatus.mockReturnValue({
+      operation: null,
+      restore: {
+        kind: 'journal',
+        state: 'completed',
+        restoreId: '11111111-2222-4333-8444-555555555555',
+        degradations: [
+          { kind: 'report:export-db:external-file-dropped', reason: 'count:2' },
+          { kind: 'report:restore-db:unknown', reason: 'count:1' }
+        ]
+      }
+    })
+    await expect(backupHandlers['backup.get_status'](undefined, ctx)).resolves.toMatchObject({
+      restore: {
+        degradations: [
+          { code: 'external-file-dropped', count: 2 },
+          { code: 'unknown', count: 1 }
+        ]
+      }
+    })
   })
 
   it('rejects a hostile archive without forwarding its detail', async () => {
@@ -60,6 +95,22 @@ describe('backupHandlers', () => {
     service.prepareRestore.mockRejectedValue(new ArchiveAdmissionError('chain-incompatible', 'archive chain'))
     await expect(backupHandlers['backup.prepare_restore'](undefined, ctx)).rejects.toMatchObject({
       code: backupErrorCodes.RESTORE_INCOMPATIBLE
+    })
+  })
+
+  it.each([
+    [
+      new InsufficientDiskSpaceError({ needed: 1, available: 0, path: '/private/sentinel' }),
+      backupErrorCodes.STORAGE_UNAVAILABLE
+    ],
+    [new DiskFullError('/private/sentinel'), backupErrorCodes.STORAGE_UNAVAILABLE],
+    [new OutputPathExistsError('/private/sentinel'), backupErrorCodes.EXPORT_DESTINATION]
+  ])('does not expose path-bearing operational errors', async (error, code) => {
+    showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/lite.cherrybackup' })
+    service.export.mockRejectedValue(error)
+    await expect(backupHandlers['backup.export'](undefined, ctx)).rejects.toMatchObject({
+      code,
+      message: expect.not.stringContaining('/private/sentinel')
     })
   })
 

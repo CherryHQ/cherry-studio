@@ -42,6 +42,38 @@ describe('BackupV2Settings', () => {
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.export'))
   })
 
+  it('shows closed sanitation totals from a prepared archive without raw source details', async () => {
+    const restoreId = '11111111-2222-4333-8444-555555555555'
+    let prepared = false
+    requestMock.mockImplementation(async (route: string) => {
+      if (route === 'backup.get_status') {
+        return prepared
+          ? { operation: null, restore: { kind: 'journal', state: 'prepared', restoreId } }
+          : { operation: null, restore: { kind: 'none' } }
+      }
+      if (route === 'backup.prepare_restore') {
+        prepared = true
+        return {
+          status: 'prepared',
+          preview: {
+            restoreId,
+            degradations: [
+              { code: 'external-file-dropped', count: 2 },
+              { code: 'unknown', count: 1 }
+            ],
+            migratedForward: false
+          }
+        }
+      }
+      return undefined
+    })
+    render(<BackupV2Settings />)
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.get_status'))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.general.restore.button' }))
+    await waitFor(() => expect(screen.getByText('settings.data.backup_v2.outcome.degradations')).toBeInTheDocument())
+    expect(JSON.stringify(tMock.mock.calls)).not.toContain('external-workspace-reset')
+  })
+
   it('arms only the exact restore id shown by main after destructive confirmation', async () => {
     const restoreId = '11111111-2222-4333-8444-555555555555'
     requestMock.mockImplementation(async (route: string) => {
