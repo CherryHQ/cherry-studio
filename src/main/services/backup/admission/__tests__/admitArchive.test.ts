@@ -54,14 +54,17 @@ describe('admitArchive', () => {
 
   async function buildResources(): Promise<{ dir: string; payloads: ResourcePayload[] }> {
     const dir = path.join(work, 'res')
-    await mkdir(path.join(dir, 'kb', 'sub'), { recursive: true })
-    await writeFile(path.join(dir, 'blob.bin'), 'BLOB-CONTENT')
-    await writeFile(path.join(dir, 'kb', 'a.txt'), 'A')
-    await writeFile(path.join(dir, 'kb', 'sub', 'b.txt'), 'BB')
+    const blobPath = path.join(dir, 'Data', 'Files', 'blob.bin')
+    const kbPath = path.join(dir, 'Data', 'KnowledgeBase', 'kb')
+    await mkdir(path.join(kbPath, 'sub'), { recursive: true })
+    await mkdir(path.dirname(blobPath), { recursive: true })
+    await writeFile(blobPath, 'BLOB-CONTENT')
+    await writeFile(path.join(kbPath, 'a.txt'), 'A')
+    await writeFile(path.join(kbPath, 'sub', 'b.txt'), 'BB')
 
-    const blobHash = await sha256File(path.join(dir, 'blob.bin'))
-    const blobSize = (await stat(path.join(dir, 'blob.bin'))).size
-    const kb = await hashDirectoryUnit(path.join(dir, 'kb'))
+    const blobHash = await sha256File(blobPath)
+    const blobSize = (await stat(blobPath)).size
+    const kb = await hashDirectoryUnit(kbPath)
     const kbSize = kb.files.reduce((sum, f) => sum + f.size, 0)
 
     return {
@@ -70,7 +73,7 @@ describe('admitArchive', () => {
         {
           kind: 'file-blob',
           resourceType: 'file',
-          archivePath: 'resources/blob.bin',
+          archivePath: 'resources/Data/Files/blob.bin',
           livePath: 'Data/Files/blob.bin',
           hash: blobHash,
           sizeBytes: blobSize
@@ -78,7 +81,7 @@ describe('admitArchive', () => {
         {
           kind: 'knowledge',
           resourceType: 'directory',
-          archivePath: 'resources/kb',
+          archivePath: 'resources/Data/KnowledgeBase/kb',
           livePath: 'Data/KnowledgeBase/kb',
           hash: kb.hash,
           sizeBytes: kbSize
@@ -172,7 +175,19 @@ describe('admitArchive', () => {
     const { dir, payloads } = await buildResources()
     const tampered = payloads.map((p) => (p.kind === 'file-blob' ? { ...p, hash: 'a'.repeat(64) } : p))
     const outPath = path.join(work, 'rtamper.cherrybackup')
-    await publishArchive({ outPath, manifest: fullManifest(meta, tampered), dbCopyPath: dbPath, resourcesDir: dir })
+    await writeRawZip(outPath, [
+      { name: 'manifest.json', data: Buffer.from(JSON.stringify(fullManifest(meta, tampered))) },
+      { name: 'backup.sqlite', data: await readFile(dbPath) },
+      { name: 'resources/Data/Files/blob.bin', data: await readFile(path.join(dir, 'Data', 'Files', 'blob.bin')) },
+      {
+        name: 'resources/Data/KnowledgeBase/kb/a.txt',
+        data: await readFile(path.join(dir, 'Data', 'KnowledgeBase', 'kb', 'a.txt'))
+      },
+      {
+        name: 'resources/Data/KnowledgeBase/kb/sub/b.txt',
+        data: await readFile(path.join(dir, 'Data', 'KnowledgeBase', 'kb', 'sub', 'b.txt'))
+      }
+    ])
     await expect(
       admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
     ).rejects.toMatchObject({
@@ -323,21 +338,22 @@ describe('admitArchive', () => {
   it('rejects a Full directory unit whose staged node is a regular file (type mismatch)', async () => {
     const dbPath = await snapshotDbAt()
     const meta = await dbMeta(dbPath)
-    const dir = path.join(work, 'res')
-    await mkdir(dir, { recursive: true })
-    await writeFile(path.join(dir, 'kb'), 'not-a-directory')
     const payloads: ResourcePayload[] = [
       {
         kind: 'knowledge',
         resourceType: 'directory',
-        archivePath: 'resources/kb',
+        archivePath: 'resources/Data/KnowledgeBase/kb',
         livePath: 'Data/KnowledgeBase/kb',
         hash: '0'.repeat(64),
         sizeBytes: 1
       }
     ]
     const outPath = path.join(work, 'typemismatch.cherrybackup')
-    await publishArchive({ outPath, manifest: fullManifest(meta, payloads), dbCopyPath: dbPath, resourcesDir: dir })
+    await writeRawZip(outPath, [
+      { name: 'manifest.json', data: Buffer.from(JSON.stringify(fullManifest(meta, payloads))) },
+      { name: 'backup.sqlite', data: await readFile(dbPath) },
+      { name: 'resources/Data/KnowledgeBase/kb', data: Buffer.from('not-a-directory') }
+    ])
     await expect(
       admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
     ).rejects.toMatchObject({ reason: 'payload-mismatch' })

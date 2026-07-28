@@ -182,9 +182,9 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     await mapped(() => application.get('BackupService').cancelRestore())
   },
 
-  'backup.arm_restore': async (_input, ctx) => {
+  'backup.arm_restore': async (input, ctx) => {
     assertManagedWindow(ctx)
-    await mapped(() => application.get('BackupService').armRestore())
+    await mapped(() => application.get('BackupService').armRestore(input.restoreId))
   },
 
   'backup.rollback_restore': async (_input, ctx) => {

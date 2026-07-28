@@ -152,24 +152,44 @@ describe('BackupV2Settings', () => {
   })
 
   it('never arms a restore that the user did not confirm', async () => {
-    statusIs({ kind: 'journal', state: 'prepared', restoreId: 'r1' })
+    requestMock.mockImplementation(async (route: string) =>
+      route === 'backup.prepare_restore'
+        ? { status: 'prepared', preview }
+        : { operation: null, restore: { kind: 'journal', state: 'prepared', restoreId: 'r1' } }
+    )
     vi.mocked(popup.confirm).mockResolvedValueOnce(false)
     await renderSettings()
+    click('settings.data.backup_v2.restore.choose_button')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.data.backup_v2.restore.arm_button' })))
 
     click('settings.data.backup_v2.restore.arm_button')
 
     await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
-    expect(requestMock).not.toHaveBeenCalledWith('backup.arm_restore')
+    expect(requestMock).not.toHaveBeenCalledWith('backup.arm_restore', expect.anything())
   })
 
-  it('arms the restore once the confirmation is accepted', async () => {
-    statusIs({ kind: 'journal', state: 'prepared', restoreId: 'r1' })
+  it('arms exactly the restore preview whose confirmation was accepted', async () => {
+    requestMock.mockImplementation(async (route: string) =>
+      route === 'backup.prepare_restore'
+        ? { status: 'prepared', preview }
+        : { operation: null, restore: { kind: 'journal', state: 'prepared', restoreId: 'r1' } }
+    )
     vi.mocked(popup.confirm).mockResolvedValueOnce(true)
     await renderSettings()
+    click('settings.data.backup_v2.restore.choose_button')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.data.backup_v2.restore.arm_button' })))
 
     click('settings.data.backup_v2.restore.arm_button')
 
-    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.arm_restore'))
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.arm_restore', { restoreId: 'r1' }))
+  })
+
+  it('does not offer to arm a durable preparation without its matching in-memory preview', async () => {
+    statusIs({ kind: 'journal', state: 'prepared', restoreId: 'r1' })
+    await renderSettings()
+
+    expect(screen.queryByRole('button', { name: 'settings.data.backup_v2.restore.arm_button' })).not.toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup_v2.restore.pending_elsewhere')).toBeInTheDocument()
   })
 
   it('discards a preparation without a relaunch', async () => {

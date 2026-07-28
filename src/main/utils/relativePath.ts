@@ -56,9 +56,25 @@ function hasControlChar(segment: string): boolean {
   return false
 }
 
+/** Reject lone UTF-16 surrogates before Node/filesystems replace them with U+FFFD. */
+function hasMalformedUtf16(segment: string): boolean {
+  for (let i = 0; i < segment.length; i++) {
+    const code = segment.charCodeAt(i)
+    if (code >= 0xd800 && code <= 0xdbff) {
+      if (i + 1 >= segment.length) return true
+      const next = segment.charCodeAt(i + 1)
+      if (next < 0xdc00 || next > 0xdfff) return true
+      i++
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return true
+    }
+  }
+  return false
+}
+
 function isPortableSegment(segment: string): boolean {
   if (segment === '' || segment === '.' || segment === '..') return false
-  if (hasControlChar(segment)) return false
+  if (hasControlChar(segment) || hasMalformedUtf16(segment)) return false
   if (RESERVED_CHARS.test(segment)) return false
   // Windows strips a trailing dot/space, which would silently alias `a ` → `a`.
   if (segment.endsWith('.') || segment.endsWith(' ')) return false

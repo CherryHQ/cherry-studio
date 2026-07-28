@@ -121,7 +121,10 @@ export const backupRequestSchemas = {
     output: z.strictObject({ cancelled: z.boolean() })
   }),
   'backup.cancel_restore': defineRoute({ input: z.void(), output: z.void() }),
-  'backup.arm_restore': defineRoute({ input: z.void(), output: z.void() }),
+  'backup.arm_restore': defineRoute({
+    input: z.strictObject({ restoreId: z.string().min(1) }),
+    output: z.void()
+  }),
   'backup.rollback_restore': defineRoute({ input: z.void(), output: z.void() }),
   'backup.acknowledge_restore': defineRoute({ input: z.void(), output: AcknowledgeResultSchema })
 }
