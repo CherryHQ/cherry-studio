@@ -18,11 +18,20 @@ import { defineRoute } from '../define'
 
 const PresetSchema = z.enum(['lite', 'full'])
 
-/** What the archive could not carry, recorded at snapshot time (§4). */
+export const BACKUP_DEGRADATION_CODES = [
+  'capability-malformed',
+  'path-unportable',
+  'path-collision',
+  'resource-unavailable',
+  'unknown'
+] as const
+
+export type BackupDegradationCode = (typeof BACKUP_DEGRADATION_CODES)[number]
+
+/** Localizable, bounded presentation of what export/restore reduced (§4). */
 const DegradationSchema = z.strictObject({
-  kind: z.string(),
-  livePath: z.string().optional(),
-  reason: z.string()
+  code: z.enum(BACKUP_DEGRADATION_CODES),
+  count: z.number().int().positive()
 })
 
 /** Does THIS device have the files the restored database will point at (§2)? */

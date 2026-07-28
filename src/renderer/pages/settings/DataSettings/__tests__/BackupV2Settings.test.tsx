@@ -49,9 +49,11 @@ const preview = {
 
 /** Answer `backup.get_status` with `restore`, everything else per-test. */
 function statusIs(restore: unknown) {
-  requestMock.mockImplementation(async (route: string) =>
-    route === 'backup.get_status' ? { operation: null, restore } : undefined
-  )
+  requestMock.mockImplementation(async (route: string) => {
+    if (route === 'backup.get_status') return { operation: null, restore }
+    if (route === 'backup.acknowledge_restore') return { acknowledged: true, restoreId: 'r1', removed: 1 }
+    return undefined
+  })
 }
 
 async function renderSettings() {
@@ -229,6 +231,7 @@ describe('BackupV2Settings', () => {
     click('settings.data.backup_v2.outcome.acknowledge_button')
 
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore'))
+    expect(toast.closeToast).toHaveBeenCalledWith('backup-restore-notice')
   })
 
   it('never rolls back a completed restore without a second explicit confirmation', async () => {
@@ -275,12 +278,13 @@ describe('BackupV2Settings', () => {
       kind: 'journal',
       state: 'completed',
       restoreId: 'r1',
-      degradations: [{ kind: 'restore-db:note', reason: 'path-unportable (2 rows)' }]
+      degradations: [{ code: 'path-unportable', count: 2 }]
     })
     await renderSettings()
 
     await waitFor(() => expect(screen.getByText('settings.data.backup_v2.outcome.degradations')).toBeInTheDocument())
-    expect(screen.getByText(/restore-db:note/)).toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup_v2.outcome.degradation.path_unportable')).toBeInTheDocument()
+    expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.outcome.degradation.path_unportable', { count: 2 })
   })
 
   it('withholds acknowledgement while a completed restore still owes a file', async () => {
@@ -348,7 +352,10 @@ describe('BackupV2Settings', () => {
     [backupErrorCodes.BUSY, 'settings.data.backup_v2.error.busy'],
     [backupErrorCodes.ARCHIVE_REJECTED, 'settings.data.backup_v2.error.archive_rejected'],
     [backupErrorCodes.JOURNAL_UNREADABLE, 'settings.data.backup_v2.error.journal_unreadable'],
-    [backupErrorCodes.ROLLBACK_UNAVAILABLE, 'settings.data.backup_v2.error.rollback_unavailable']
+    [backupErrorCodes.ROLLBACK_UNAVAILABLE, 'settings.data.backup_v2.error.rollback_unavailable'],
+    [backupErrorCodes.STORAGE_UNAVAILABLE, 'settings.data.backup_v2.error.storage_unavailable'],
+    [backupErrorCodes.EXPORT_SOURCE, 'settings.data.backup_v2.error.export_source'],
+    [backupErrorCodes.RESTORE_RESOURCES, 'settings.data.backup_v2.error.restore_resources']
   ])('turns %s into its own sentence', async (code, message) => {
     requestMock.mockImplementation(async (route: string) => {
       if (route === 'backup.prepare_restore') throw new IpcError(code, 'refused')

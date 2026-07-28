@@ -5828,11 +5828,14 @@
           "archive_rejected": "This backup file was rejected: it is damaged, incomplete, or made by an incompatible version.",
           "arm_failed": "The restart that performs the restore could not be started. Nothing was changed.",
           "busy": "Another backup operation is still running. Wait for it to finish.",
-          "export_destination": "The backup could not be written to that location. Check free space and pick a name that does not already exist.",
+          "export_destination": "The backup cannot be published at that location. Pick a new filename or another drive.",
+          "export_source": "Some source files changed or cannot be stored portably. Check the managed files and try the backup again.",
           "journal_unreadable": "The restore record on this device cannot be read. The next start will quarantine it.",
           "recovery_incomplete": "The last restore could not put every file back. Restart the app to finish it before releasing anything.",
+          "restore_resources": "The backup files cannot be installed safely at their target paths. Remove conflicting files or links, then prepare the restore again.",
           "restore_state": "That does not match the current state of the restore. Finish or discard the pending restore first.",
           "rollback_unavailable": "The data from before this restore has already been released, so it can no longer be rolled back. Keep the restored data to finish cleanup.",
+          "storage_unavailable": "There is not enough usable disk space to finish this operation. Free space on the app-data and backup drives, then try again.",
           "unexpected": "The operation failed unexpectedly."
         },
         "export": {
@@ -5861,6 +5864,13 @@
           "acknowledge_button": "Keep restored data",
           "acknowledged": "Restore outcome confirmed. Data no longer in use has been released.",
           "completed_help": "Until you confirm, the previous database and every replaced file are still on this device as rollback material.",
+          "degradation": {
+            "capability_malformed": "{{count}} integration configuration entries were malformed and kept disabled.",
+            "path_collision": "{{count}} managed paths collided on this device and were kept as inactive metadata.",
+            "path_unportable": "{{count}} managed paths could not be moved portably and were kept as inactive metadata.",
+            "resource_unavailable": "{{count}} managed files or folders were unavailable when the backup was created.",
+            "unknown": "{{count}} entries were reduced for a reason this app version cannot describe."
+          },
           "degradations": "{{count}} item(s) were restored in a reduced form.",
           "keep_previous_button": "Keep previous data",
           "reconfirm_integrations": "Restored integrations that run programs or reach the network stay off until you confirm them on this device.",

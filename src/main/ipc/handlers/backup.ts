@@ -1,17 +1,23 @@
 import { application } from '@application'
+import { t } from '@main/i18n'
 import {
   ArchiveAdmissionError,
   BackupBusyError,
   BackupCancelledError,
+  CeilingExceededError,
   DiskFullError,
   HardLinkUnsupportedError,
   InsufficientDiskSpaceError,
+  NonRegularSourceError,
   OutputPathExistsError,
-  RestoreStateError
+  ResourceInstallPlanError,
+  RestoreStateError,
+  SourceDriftError,
+  UnportableSourceError
 } from '@main/services/backup'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { backupRequestSchemas } from '@shared/ipc/schemas/backup'
+import type { BackupDegradationCode, backupRequestSchemas } from '@shared/ipc/schemas/backup'
 import type { IpcContext, IpcHandlersFor } from '@shared/ipc/types'
 import { dialog } from 'electron'
 
@@ -26,6 +32,28 @@ import { dialog } from 'electron'
  */
 
 const ARCHIVE_EXTENSION = 'cherrybackup'
+
+function presentDegradations(
+  degradations: readonly { readonly kind: string; readonly reason: string }[]
+): Array<{ code: BackupDegradationCode; count: number }> {
+  const counts = new Map<BackupDegradationCode, number>()
+  for (const degradation of degradations) {
+    let code: BackupDegradationCode = 'unknown'
+    let count = 1
+    if (degradation.kind.startsWith('resource:')) {
+      code = 'resource-unavailable'
+    } else {
+      const parsed = /^(capability-malformed|path-unportable|path-collision) \((\d+) rows?\)$/.exec(degradation.reason)
+      if (parsed) {
+        code = parsed[1] as BackupDegradationCode
+        const parsedCount = Number(parsed[2])
+        count = Number.isSafeInteger(parsedCount) && parsedCount > 0 ? parsedCount : 1
+      }
+    }
+    counts.set(code, (counts.get(code) ?? 0) + count)
+  }
+  return [...counts].map(([code, count]) => ({ code, count }))
+}
 
 /**
  * Every route here either replaces the database or releases the material that
@@ -66,13 +94,22 @@ function toIpcError(error: unknown): unknown {
     }
     return new IpcError(backupErrorCodes.RESTORE_STATE, error.message)
   }
+  if (error instanceof InsufficientDiskSpaceError || error instanceof DiskFullError) {
+    return new IpcError(backupErrorCodes.STORAGE_UNAVAILABLE, error.message)
+  }
   if (
-    error instanceof InsufficientDiskSpaceError ||
-    error instanceof DiskFullError ||
-    error instanceof OutputPathExistsError ||
-    error instanceof HardLinkUnsupportedError
+    error instanceof SourceDriftError ||
+    error instanceof NonRegularSourceError ||
+    error instanceof UnportableSourceError ||
+    error instanceof CeilingExceededError
   ) {
-    return new IpcError(backupErrorCodes.EXPORT_DESTINATION, (error as Error).message)
+    return new IpcError(backupErrorCodes.EXPORT_SOURCE, error.message)
+  }
+  if (error instanceof OutputPathExistsError || error instanceof HardLinkUnsupportedError) {
+    return new IpcError(backupErrorCodes.EXPORT_DESTINATION, error.message)
+  }
+  if (error instanceof ResourceInstallPlanError) {
+    return new IpcError(backupErrorCodes.RESTORE_RESOURCES, error.message, { reason: error.code })
   }
   return error
 }
@@ -114,9 +151,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     const { degradations, ...journal } = restore
     return {
       operation: status.operation,
-      restore: degradations
-        ? { ...journal, degradations: degradations.map((degradation) => ({ ...degradation })) }
-        : journal
+      restore: degradations ? { ...journal, degradations: presentDegradations(degradations) } : journal
     }
   },
 
@@ -126,7 +161,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
       // The export never overwrites, so a name that already exists fails the
       // operation rather than the dialog — say so where the user is choosing.
       defaultPath: `cherry-studio-${preset}-${new Date().toISOString().slice(0, 10)}.${ARCHIVE_EXTENSION}`,
-      filters: [{ name: 'Cherry Studio Backup', extensions: [ARCHIVE_EXTENSION] }]
+      filters: [{ name: t('dialog.cherry_backup_files'), extensions: [ARCHIVE_EXTENSION] }]
     })
     if (canceled || !filePath) {
       return { status: 'canceled' as const }
@@ -141,7 +176,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
       archivePath: result.outPath,
       preset: manifest.preset,
       resourceCount: manifest.preset === 'full' ? manifest.resourcePayloads.length : 0,
-      degradations: manifest.degradations.map((degradation) => ({ ...degradation }))
+      degradations: presentDegradations(manifest.degradations)
     }
   },
 
@@ -149,7 +184,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     assertManagedWindow(ctx)
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openFile'],
-      filters: [{ name: 'Cherry Studio Backup', extensions: [ARCHIVE_EXTENSION] }]
+      filters: [{ name: t('dialog.cherry_backup_files'), extensions: [ARCHIVE_EXTENSION] }]
     })
     const archivePath = filePaths[0]
     if (canceled || !archivePath) {
@@ -166,7 +201,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
         preset: preview.preset,
         coverage: { ...preview.coverage },
         resources: { ...preview.resources },
-        degradations: preview.degradations.map((degradation) => ({ ...degradation })),
+        degradations: presentDegradations(preview.degradations),
         migratedForward: preview.migratedForward
       }
     }

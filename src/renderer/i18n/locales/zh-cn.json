@@ -5828,11 +5828,14 @@
           "archive_rejected": "该备份文件被拒绝：文件损坏、不完整，或由不兼容的版本创建。",
           "arm_failed": "无法启动执行恢复所需的重启，未做任何更改。",
           "busy": "另一个备份操作正在进行，请等待其完成。",
-          "export_destination": "无法将备份写入该位置。请检查剩余空间，并选择一个尚不存在的文件名。",
+          "export_destination": "无法在该位置发布备份。请选择新的文件名或其他磁盘。",
+          "export_source": "部分源文件发生变化或无法以可移植格式保存。请检查受管文件后重试。",
           "journal_unreadable": "本机的恢复记录无法读取，下次启动时将被隔离。",
           "recovery_incomplete": "上次恢复没能把每个文件都放回原位。请重启应用让它完成，然后才能释放。",
+          "restore_resources": "无法将备份文件安全地安装到目标路径。请移除冲突的文件或链接，然后重新准备恢复。",
           "restore_state": "该操作与当前恢复状态不符。请先完成或放弃待处理的恢复。",
           "rollback_unavailable": "本次恢复前的数据已被释放，无法再回退。请选择保留恢复结果以完成清理。",
+          "storage_unavailable": "可用磁盘空间不足，无法完成操作。请清理应用数据盘和备份目标盘后重试。",
           "unexpected": "操作意外失败。"
         },
         "export": {
@@ -5861,6 +5864,13 @@
           "acknowledge_button": "保留恢复结果",
           "acknowledged": "已确认恢复结果，不再使用的数据已释放。",
           "completed_help": "在你确认之前，先前的数据库和每个被替换的文件仍保留在本机，可用于回滚。",
+          "degradation": {
+            "capability_malformed": "有 {{count}} 条集成配置格式异常，已保持停用。",
+            "path_collision": "有 {{count}} 个受管路径在本机发生冲突，已作为非活动元数据保留。",
+            "path_unportable": "有 {{count}} 个受管路径无法进行可移植转换，已作为非活动元数据保留。",
+            "resource_unavailable": "创建备份时有 {{count}} 个受管文件或文件夹不可用。",
+            "unknown": "有 {{count}} 项因当前版本无法说明的原因被降级。"
+          },
           "degradations": "有 {{count}} 项以降级的形式恢复。",
           "keep_previous_button": "保留先前数据",
           "reconfirm_integrations": "恢复后会运行程序或访问网络的集成保持关闭，直到你在本机确认。",

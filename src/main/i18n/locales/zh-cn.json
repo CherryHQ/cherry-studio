@@ -56,6 +56,7 @@
   },
   "dialog": {
     "all_files": "所有文件",
+    "cherry_backup_files": "Cherry Studio 备份文件",
     "data_reset": {
       "cancel": "取消",
       "confirm": "重置并重启",

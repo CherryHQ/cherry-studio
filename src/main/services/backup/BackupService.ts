@@ -9,7 +9,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
-import { BackupBusyError } from './errors'
+import { BackupBusyError, BackupCancelledError } from './errors'
 import { exportArchive, type ExportArchiveResult } from './exportArchive'
 import type { BackupPreset } from './manifest'
 import { runPostPromotionWork } from './postPromotion'
@@ -20,6 +20,12 @@ const logger = loggerService.withContext('BackupService')
 
 /** The mutually exclusive long-running operations this service owns. */
 export type BackupOperation = 'export' | 'prepare-restore'
+
+interface InFlightOperation {
+  readonly operation: BackupOperation
+  readonly controller: AbortController
+  readonly settled: Promise<void>
+}
 
 /**
  * What the durable restore journal currently says, with the file itself hidden:
@@ -83,7 +89,7 @@ export interface BackupStatus {
 @ServicePhase(Phase.WhenReady)
 export class BackupService extends BaseService {
   /** The one operation in flight, with the handle that can abort it; `null` when idle. */
-  private inFlight: { readonly operation: BackupOperation; readonly controller: AbortController } | null = null
+  private inFlight: InFlightOperation | null = null
   private shuttingDown = false
   /** The post-promotion rebuild, tracked so `onStop` can join it (§6.7). */
   private postPromotionWork: Promise<unknown> | null = null
@@ -128,9 +134,13 @@ export class BackupService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.shuttingDown = true
-    if (this.postPromotionWork) {
-      await this.postPromotionWork
+    const waits: Promise<unknown>[] = []
+    if (this.inFlight) {
+      this.inFlight.controller.abort()
+      waits.push(this.inFlight.settled)
     }
+    if (this.postPromotionWork) waits.push(this.postPromotionWork)
+    await Promise.all(waits)
   }
 
   public getStatus(): BackupStatus {
@@ -217,15 +227,25 @@ export class BackupService extends BaseService {
    * cancellation can never reach the operation that replaced the one it targeted.
    */
   public async runExclusive<T>(operation: BackupOperation, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    if (this.shuttingDown) throw new BackupCancelledError('backup service is shutting down')
     if (this.inFlight !== null) {
       throw new BackupBusyError(this.inFlight.operation, operation)
     }
     const controller = new AbortController()
-    this.inFlight = { operation, controller }
+    let markSettled = (): void => {}
+    const claim: InFlightOperation = {
+      operation,
+      controller,
+      settled: new Promise<void>((resolve) => {
+        markSettled = resolve
+      })
+    }
+    this.inFlight = claim
     try {
       return await work(controller.signal)
     } finally {
-      this.inFlight = null
+      if (this.inFlight === claim) this.inFlight = null
+      markSettled()
     }
   }
 
