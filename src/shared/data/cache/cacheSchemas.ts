@@ -179,7 +179,12 @@ export type UseCacheSchema = {
   'message.streaming.block.${blockId}': any // MessageBlock
   'message.streaming.siblings_counter.${topicId}': number
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
-  'message.ui.${messageId}': { foldSelected?: boolean; multiModelMessageStyle?: string; useful?: boolean }
+  'message.ui.${messageId}': {
+    foldSelected?: boolean
+    multiModelMessageStyle?: string
+    useful?: boolean
+    disclosures?: Record<string, boolean>
+  }
 }
 
 export const DefaultUseCache: UseCacheSchema = {
