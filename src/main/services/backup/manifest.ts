@@ -57,14 +57,14 @@ const ManagedRootIdentitySchema = z.strictObject({
 export const BACKUP_PRODUCER_BUILD_TYPES = ['packaged', 'development'] as const
 export type BackupProducerBuildType = (typeof BACKUP_PRODUCER_BUILD_TYPES)[number]
 
-// Presentation-safe producer provenance. It is rendered in compatibility
-// diagnostics, so keep it bounded printable ASCII rather than forwarding an
-// arbitrary manifest string across IPC.
+// Presentation-safe producer provenance. Electron app versions are semver-like
+// tokens; excluding whitespace, separators, and slashes prevents a manifest
+// value from masquerading as a path or injecting terminal/UI structure.
 const ProducerAppVersionSchema = z
   .string()
   .min(1)
   .max(64)
-  .regex(/^[\x20-\x7e]+$/)
+  .regex(/^[0-9A-Za-z][0-9A-Za-z.+-]*$/)
 
 const ProducerSchema = z.strictObject({
   appVersion: ProducerAppVersionSchema,
