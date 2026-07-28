@@ -24,10 +24,11 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogContent
+        size="xl"
         showCloseButton={false}
         onOpenAutoFocus={(event) => event.preventDefault()}
         overlayClassName="z-1001 bg-black/50 backdrop-blur-[8px]"
-        className="z-1001 flex h-[80vh] max-h-[80vh] w-[60vw] max-w-[60vw] flex-col gap-0 overflow-hidden rounded-4xl border border-border-subtle bg-background p-0 shadow-2xl sm:max-w-[60vw]">
+        className="z-1001 flex h-[min(640px,78vh)] flex-col gap-0 overflow-hidden rounded-4xl border border-border-subtle bg-background p-0 shadow-2xl">
         <DialogHeader className="sr-only">
           <DialogTitle>{t('globalSearch.open')}</DialogTitle>
         </DialogHeader>

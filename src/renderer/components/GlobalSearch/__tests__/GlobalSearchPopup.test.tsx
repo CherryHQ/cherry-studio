@@ -44,11 +44,13 @@ vi.mock('@cherrystudio/ui', async () => {
       children,
       className,
       overlayClassName,
-      overlayProps
+      overlayProps,
+      size
     }: PropsWithChildren<{
       className?: string
       overlayClassName?: string
       overlayProps?: ComponentProps<'div'>
+      size?: string
     }>) => {
       const context = React.use(DialogContext)
 
@@ -63,7 +65,7 @@ vi.mock('@cherrystudio/ui', async () => {
               context?.onOpenChange?.(false)
             }}
           />
-          <div data-testid="dialog-content" className={className}>
+          <div data-testid="dialog-content" data-size={size} className={className}>
             {children}
           </div>
         </>
@@ -137,7 +139,8 @@ describe('GlobalSearchPopup', () => {
 
     const overlay = await screen.findByTestId('dialog-overlay')
     expect(overlay).toHaveClass('z-1001')
-    expect(screen.getByTestId('dialog-content')).toHaveClass('z-1001')
+    expect(screen.getByTestId('dialog-content')).toHaveAttribute('data-size', 'xl')
+    expect(screen.getByTestId('dialog-content')).toHaveClass('z-1001', 'h-[min(640px,78vh)]')
 
     // Flush the lazy panel's Suspense resolution inside act before the test ends.
     await screen.findByLabelText('Search input')
