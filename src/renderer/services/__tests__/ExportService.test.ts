@@ -76,22 +76,13 @@ vi.mock('@renderer/utils/message/find', () => ({
     return (thinkingBlock as any)?.content || ''
   }),
   getCitationContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
-    if (message.parts?.length) {
-      const citations = message.parts.flatMap((part) => (part as any).providerMetadata?.cherry?.references || [])
-      if (citations.length === 0) return ''
-      return citations
-        .map(
-          (ref, index) =>
-            `[${index + 1}] [${ref.url || `https://example${index + 1}.com`}](${ref.title || `Example Citation ${index + 1}`})`
-        )
-        .join('\n\n')
-    }
-    const citationBlocks = message._fullBlocks?.filter((b) => b.type === MessageBlockType.CITATION) || []
-    // Return empty string if no citation blocks, otherwise mock citation content
-    if (citationBlocks.length === 0) return ''
-    // Mock citation format: [number] [url](title)
-    return citationBlocks
-      .map((_, index) => `[${index + 1}] [https://example${index + 1}.com](Example Citation ${index + 1})`)
+    const citations = message.parts?.flatMap((part) => (part as any).providerMetadata?.cherry?.references || []) ?? []
+    if (citations.length === 0) return ''
+    return citations
+      .map(
+        (ref, index) =>
+          `[${index + 1}] [${ref.url || `https://example${index + 1}.com`}](${ref.title || `Example Citation ${index + 1}`})`
+      )
       .join('\n\n')
   })
 }))
@@ -307,17 +298,6 @@ describe('ExportService', () => {
       expect(markdown).toBeDefined()
     })
 
-    it('should include citation content when citation blocks exist', async () => {
-      const msgWithCitation = createMessage({ role: 'assistant', id: 'a_cite' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Main content' },
-        { type: MessageBlockType.CITATION }
-      ])
-      const markdown = await messageToMarkdown(msgWithCitation)
-      expect(markdown).toContain('## 🤖 Assistant')
-      expect(markdown).toContain('Main content')
-      expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
-    })
-
     it('should format parts-only export view text', async () => {
       const message = createExportView([{ type: 'text', text: 'Parts-only content' }])
 
@@ -410,11 +390,22 @@ describe('ExportService', () => {
       const msgWithoutReasoning = createMessage({ role: 'assistant', id: 'a4' }, [
         { type: MessageBlockType.MAIN_TEXT, content: 'Simple Answer' }
       ])
-      const msgWithReasoningAndCitation = createMessage({ role: 'assistant', id: 'a5' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Answer with citation' },
-        { type: MessageBlockType.THINKING, content: 'Some thinking' },
-        { type: MessageBlockType.CITATION }
-      ])
+      const msgWithReasoningAndCitation = createMessage({
+        role: 'assistant',
+        id: 'a5',
+        parts: [
+          { type: 'reasoning', text: 'Some thinking' },
+          {
+            type: 'text',
+            text: 'Answer with citation',
+            providerMetadata: {
+              cherry: {
+                references: [{ category: 'citation', url: 'https://example1.com', title: 'Example Citation 1' }]
+              }
+            }
+          }
+        ] as any
+      })
       mockedMessages = [msgWithReasoning, msgWithThinkTag, msgWithoutReasoning, msgWithReasoningAndCitation]
     })
 
@@ -804,12 +795,16 @@ describe('Citation formatting in Markdown export', () => {
   })
 
   test('should properly test formatCitationsAsFootnotes through messageToMarkdown', async () => {
-    const msgWithCitations = createMessage({ role: 'assistant', id: 'test_footnotes' }, [
+    const msgWithCitations = createExportView([
       {
-        type: MessageBlockType.MAIN_TEXT,
-        content: 'Content with citations [<sup data-citation="test">1</sup>](url1) and [2].'
-      },
-      { type: MessageBlockType.CITATION }
+        type: 'text',
+        text: 'Content with citations [<sup data-citation="test">1</sup>](url1) and [2].',
+        providerMetadata: {
+          cherry: {
+            references: [{ category: 'citation', url: 'https://example1.com', title: 'Example Citation 1' }]
+          }
+        }
+      }
     ])
 
     // This tests the complete flow including formatCitationsAsFootnotes
