@@ -20,8 +20,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 // Knowledge-base selection is scoped per (topic + assistant) and reset on switch, so knowledge
-// tokens must not follow the global draft. Dropping them is offset-safe: they contribute no
-// promptText to the serialized text.
+// tokens must not follow the global draft.
+//
+// Known gap: knowledge tokens now carry a promptText, so dropping the token here leaves its
+// sentence behind in the cached text. A restored draft shows it as plain, chip-less prose (the
+// agent cache already behaves this way for quote / folder / reference). Excising the span and
+// re-basing the surviving tokens' offsets is the fix; deliberately deferred.
 export function getCacheableDraftTokens(tokens: readonly ComposerSerializedToken[]) {
   return tokens.filter((token) => token.kind !== 'knowledge')
 }
