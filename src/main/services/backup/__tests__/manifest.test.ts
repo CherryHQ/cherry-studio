@@ -127,6 +127,9 @@ describe('BackupManifestSchema — integrity fields', () => {
     const oversized = liteManifest()
     ;(oversized.producer as Record<string, unknown>).appVersion = 'x'.repeat(65)
     expect(BackupManifestSchema.safeParse(oversized).success).toBe(false)
+    const pathLike = liteManifest()
+    ;(pathLike.producer as Record<string, unknown>).appVersion = '/Users/private'
+    expect(BackupManifestSchema.safeParse(pathLike).success).toBe(false)
   })
 
   it('rejects unknown top-level fields (strict)', () => {
