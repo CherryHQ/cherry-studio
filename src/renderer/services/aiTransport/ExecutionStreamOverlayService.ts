@@ -21,8 +21,10 @@
  *   `reset`) owns disposal, unchanged. With `refCount === 0`, the edge
  *   would be unobservable (it is tracked per component instance), so a
  *   naturally-finished execution drops its overlay immediately — the
- *   persisted DB row owns it — and the entry drops once the last reader
- *   ends. Finished keys are tombstoned in `settledKeys`: a remount
+ *   persisted DB row owns it. The entry drops once the last reader ends
+ *   only after Main says the topic is done; `isTopicDone=false` keeps the
+ *   attachment across the gap before a continuation emits its first chunk.
+ *   Finished keys are tombstoned in `settledKeys`: a remount
  *   re-reporting a stale set cannot restart them; only an open transport
  *   branch holding a new turn's chunks overrides the tombstone.
  * - `MAX_ENTRIES` LRU eviction of refCount-0 entries is a leak backstop
@@ -412,6 +414,9 @@ export class ExecutionStreamOverlayService {
     sub.onExecutionTerminal(() => {
       if (this.#entries.get(topicId) === entry) this.#maybeDrop(entry)
     })
+    sub.onTopicStateChange(() => {
+      if (this.#entries.get(topicId) === entry) this.#maybeDrop(entry)
+    })
     return entry
   }
 
@@ -439,6 +444,10 @@ export class ExecutionStreamOverlayService {
 
   #maybeDrop(entry: Entry): void {
     if (entry.refCount > 0 || entry.liveReaderCount > 0) return
+    // A per-execution terminal with `isTopicDone=false` precedes scheduling
+    // the continuation, so there can be no next branch yet. Keep the Main
+    // attachment until an explicit topic terminal closes this ownership gap.
+    if (entry.sub.isTopicOpen()) return
     // A continuation round's chunks may already be queuing in auto-created
     // transport branches before any reader claims them (hidden steer/agent
     // handoff: A ends with isTopicDone=false, B streams right after).

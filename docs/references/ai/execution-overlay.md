@@ -70,7 +70,9 @@ class that owns:
 - **Terminal demux.** `Ai_StreamDone` / `Ai_StreamError` close the
   matching branch and fan out an `ExecutionTerminal` (`{ isAbort,
   isError }`) to listeners; if the payload carries `isTopicDone` or no
-  `executionId`, every branch terminates together.
+  `executionId`, every branch terminates together. An explicit
+  `isTopicDone=false` keeps the topic attachment alive across the empty
+  continuation gap before the next branch produces its first chunk.
 
 ### Cancellation layering — do not conflate
 
@@ -172,10 +174,10 @@ Destruction policy:
 |---|---|
 | Stream running | Entry retained regardless of mounts |
 | Stream ends, view mounted | Terminal status edge → `refresh()` DB → `reset()` drops the settled snapshots |
-| Stream ends, no view | That execution's overlay is dropped immediately (the persisted DB row owns it); the entry drops once its last reader ends — unless a continuation round's chunks are already queuing unclaimed in the transport, which pins the entry (and the Main attachment) until they are read or their round terminates |
+| Stream ends, no view | That execution's overlay is dropped immediately (the persisted DB row owns it); the entry drops once its last reader ends and Main confirms the topic is done. `isTopicDone=false` keeps only the topic attachment across the continuation gap; queued continuation chunks then pin it until they are read or their round terminates |
 | Leak backstop | `MAX_ENTRIES` LRU eviction of refCount-0 entries (readers cancelled first) |
 
-Three guards keep the lifecycle race-free without any turn-identity
+Four guards keep the lifecycle race-free without any turn-identity
 machinery:
 
 - **`reset()` / `disposeOverlay()` never touch an execution whose
@@ -186,6 +188,9 @@ machinery:
 - **A failed `ai.stream.attach` error-terminates its branches** so
   readers finish instead of hanging forever; the next mount re-attaches
   through a fresh subscription.
+- **`isTopicDone=false` retains the topic attachment across continuation
+  gaps.** An execution terminal is not permission to detach when Main has
+  explicitly kept the topic alive and has not scheduled the next branch yet.
 - **A finished execution key is tombstoned** (`settledKeys`), so a
   remount whose Activity-preserved consumer state still lists it cannot
   restart it into a zombie reader. The tombstone yields only to fresh

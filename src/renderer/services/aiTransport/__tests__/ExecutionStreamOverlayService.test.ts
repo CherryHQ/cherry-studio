@@ -16,8 +16,10 @@ const mocks = vi.hoisted(() => {
   class FakeSubscription {
     readonly branches = new Map<string, Branch>()
     readonly terminalCbs = new Set<TerminalCb>()
+    readonly topicStateCbs = new Set<() => void>()
     listenCalls = 0
     disposed = false
+    topicOpen = false
 
     constructor(readonly topicId: string) {
       subs.set(topicId, this)
@@ -59,6 +61,10 @@ const mocks = vi.hoisted(() => {
       return false
     }
 
+    isTopicOpen() {
+      return this.topicOpen
+    }
+
     #find(executionId: string, anchorMessageId?: string) {
       const exact = this.branches.get(this.#key(executionId, anchorMessageId))
       if (exact || anchorMessageId !== undefined) return exact
@@ -84,6 +90,11 @@ const mocks = vi.hoisted(() => {
       return () => this.terminalCbs.delete(cb)
     }
 
+    onTopicStateChange(cb: () => void) {
+      this.topicStateCbs.add(cb)
+      return () => this.topicStateCbs.delete(cb)
+    }
+
     dispose() {
       this.disposed = true
       for (const branch of this.branches.values()) {
@@ -96,6 +107,7 @@ const mocks = vi.hoisted(() => {
       }
       this.branches.clear()
       this.terminalCbs.clear()
+      this.topicStateCbs.clear()
     }
 
     // test helpers
@@ -107,7 +119,16 @@ const mocks = vi.hoisted(() => {
       if (!branch.closed) branch.controller.enqueue(chunk)
     }
 
-    terminal(executionId: string, t: { isAbort: boolean; isError: boolean }, anchorMessageId?: string) {
+    terminal(
+      executionId: string,
+      t: { isAbort: boolean; isError: boolean; isTopicDone?: boolean },
+      anchorMessageId?: string
+    ) {
+      const topicOpen = t.isTopicDone === false
+      if (t.isTopicDone !== undefined && this.topicOpen !== topicOpen) {
+        this.topicOpen = topicOpen
+        for (const cb of [...this.topicStateCbs]) cb()
+      }
       // Mirror production #emitTerminal: the branch closes before listeners fire.
       const branch = this.#find(executionId, anchorMessageId)
       if (branch) {
@@ -118,7 +139,9 @@ const mocks = vi.hoisted(() => {
           /* already closed */
         }
       }
-      for (const cb of [...this.terminalCbs]) cb(executionId, { ...t, anchorMessageId })
+      for (const cb of [...this.terminalCbs]) {
+        cb(executionId, { isAbort: t.isAbort, isError: t.isError, anchorMessageId })
+      }
     }
   }
 
@@ -418,14 +441,16 @@ describe('ExecutionStreamOverlayService', () => {
     await nextFrame()
     service.release(TOPIC, consumer)
 
-    // Main ends round A (isTopicDone=false) and streams round B onto a new
-    // anchor right away — its chunks auto-queue before A's finalizer runs.
+    // Production order: Main broadcasts A done(false), waits for listeners,
+    // and only then schedules B. The empty inter-turn gap must stay attached.
+    sub.terminal(A, { isAbort: false, isError: false, isTopicDone: false }, 'anchor-a')
+    await drainStreamMicrotasks()
+    expect(sub.disposed).toBe(false)
+
     sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
     sub.emit(A, { type: 'text-delta', id: 't2', delta: 'second' } as CherryUIMessageChunk, 'anchor-b')
-    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
-    await drainStreamMicrotasks()
 
-    // The unclaimed continuation pins the entry: no drop, no detach.
+    // The unclaimed continuation then pins the same retained entry.
     expect(sub.disposed).toBe(false)
 
     service.acquire(TOPIC)
@@ -446,13 +471,13 @@ describe('ExecutionStreamOverlayService', () => {
     await nextFrame()
     service.release(TOPIC, consumer)
 
-    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
-    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-a')
+    sub.terminal(A, { isAbort: false, isError: false, isTopicDone: false }, 'anchor-a')
     await drainStreamMicrotasks()
     expect(sub.disposed).toBe(false)
 
+    sub.emit(A, { type: 'text-start', id: 't2' } as CherryUIMessageChunk, 'anchor-b')
     // The user never returns; round B ends and closes the queued branch.
-    sub.terminal(A, { isAbort: false, isError: false }, 'anchor-b')
+    sub.terminal(A, { isAbort: false, isError: false, isTopicDone: true }, 'anchor-b')
     await drainStreamMicrotasks()
     expect(sub.disposed).toBe(true)
   })

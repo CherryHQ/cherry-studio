@@ -15,6 +15,7 @@ export interface ExecutionTerminal {
 }
 
 type TerminalListener = (executionId: UniqueModelId, terminal: ExecutionTerminal) => void
+type TopicStateListener = () => void
 
 interface Branch {
   executionId: UniqueModelId
@@ -48,10 +49,12 @@ export class TopicStreamSubscription {
   readonly #branches = new Map<string, Branch>()
   readonly #terminalByBranchKey = new Map<string, { executionId: UniqueModelId; terminal: ExecutionTerminal }>()
   readonly #terminalListeners = new Set<TerminalListener>()
+  readonly #topicStateListeners = new Set<TopicStateListener>()
   #ipcUnsubs: Array<() => void> = []
   #attached = false
   #attachInFlight: Promise<void> | null = null
   #disposed = false
+  #topicOpen = false
 
   constructor(topicId: string) {
     this.#topicId = topicId
@@ -89,6 +92,12 @@ export class TopicStreamSubscription {
     return false
   }
 
+  /** Main has explicitly ended an execution with `isTopicDone=false`, so
+   *  another execution may follow even when no branch exists yet. */
+  isTopicOpen(): boolean {
+    return this.#topicOpen
+  }
+
   unregister(executionId: UniqueModelId, anchorMessageId?: string): void {
     const key = branchKey(executionId, anchorMessageId)
     const branch = this.#branches.get(key)
@@ -97,11 +106,11 @@ export class TopicStreamSubscription {
     this.#branches.delete(key)
     this.#terminalByBranchKey.delete(key)
     if (anchorMessageId) this.#terminalByBranchKey.delete(branchKey(executionId))
-    if (this.#branches.size === 0 && this.#attached && !this.#disposed) {
+    if (this.#branches.size === 0 && this.#attached && !this.#disposed && !this.#topicOpen) {
       // Defer one tick: a transient `activeExecutions` flicker would otherwise
       // detach→reattach and momentarily drop Main's last listener.
       queueMicrotask(() => {
-        if (this.#branches.size === 0 && this.#attached && !this.#disposed) this.#detach()
+        if (this.#branches.size === 0 && this.#attached && !this.#disposed && !this.#topicOpen) this.#detach()
       })
     }
   }
@@ -118,6 +127,11 @@ export class TopicStreamSubscription {
     return () => this.#terminalListeners.delete(listener)
   }
 
+  onTopicStateChange(listener: TopicStateListener): () => void {
+    this.#topicStateListeners.add(listener)
+    return () => this.#topicStateListeners.delete(listener)
+  }
+
   dispose(): void {
     if (this.#disposed) return
     this.#disposed = true
@@ -125,6 +139,7 @@ export class TopicStreamSubscription {
     this.#branches.clear()
     this.#terminalByBranchKey.clear()
     this.#terminalListeners.clear()
+    this.#topicStateListeners.clear()
     if (this.#attached) void ipcApi.request('ai.stream.detach', { topicId: this.#topicId }).catch(() => {})
     this.#attached = false
     this.#attachInFlight = null
@@ -226,22 +241,44 @@ export class TopicStreamSubscription {
     }
   }
 
+  #updateTopicOpen(isTopicDone: boolean | undefined): boolean {
+    if (isTopicDone === undefined) return false
+    const topicOpen = !isTopicDone
+    if (topicOpen === this.#topicOpen) return false
+    this.#topicOpen = topicOpen
+    return true
+  }
+
+  #notifyTopicStateChange(): void {
+    for (const listener of this.#topicStateListeners) {
+      try {
+        listener()
+      } catch (err) {
+        logger.warn('topic state listener threw', { topicId: this.#topicId, err })
+      }
+    }
+  }
+
   #setupIpcListeners(): void {
     if (this.#ipcUnsubs.length > 0) return
     this.#ipcUnsubs.push(
       ipcApi.on('ai.stream.chunk', (data) => this.#routeChunk(data)),
       ipcApi.on('ai.stream.done', (data) => {
         if (data.topicId !== this.#topicId) return
+        const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
         const terminal: ExecutionTerminal = { isAbort: data.status === 'paused', isError: false }
         if (data.executionId) this.#emitTerminal(data.executionId, terminal, data.anchorMessageId)
         if (data.isTopicDone || !data.executionId) this.#terminateAll(terminal)
+        if (topicStateChanged) this.#notifyTopicStateChange()
       }),
       ipcApi.on('ai.stream.error', (data) => {
         if (data.topicId !== this.#topicId) return
+        const topicStateChanged = this.#updateTopicOpen(data.isTopicDone)
         this.#enqueueError(data.error, data.executionId, data.anchorMessageId)
         const terminal: ExecutionTerminal = { isAbort: false, isError: true }
         if (data.executionId) this.#emitTerminal(data.executionId, terminal, data.anchorMessageId)
         if (data.isTopicDone || !data.executionId) this.#terminateAll(terminal)
+        if (topicStateChanged) this.#notifyTopicStateChange()
       })
     )
   }
@@ -275,7 +312,7 @@ export class TopicStreamSubscription {
         // If every execution unregistered while this attach was in flight, the
         // deferred-detach guard in `unregister` saw `#attached === false` and skipped,
         // so nothing else will release Main's listener. Detach now that attach resolved.
-        if (this.#branches.size === 0 && !this.#disposed) this.#detach()
+        if (this.#branches.size === 0 && !this.#disposed && !this.#topicOpen) this.#detach()
       } catch (err) {
         logger.error('streamAttach failed', { topicId: this.#topicId, err })
         // Close open branches so their readers finish with an error terminal
