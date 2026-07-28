@@ -79,12 +79,18 @@ const failJournalWrite: { when: ((journal: RestoreJournalV2) => boolean) | null 
  */
 const failResourceRollback = { on: false }
 
+/** The same fault in the committed direction: a unit that cannot be put in place. */
+const failResourceInstall = { on: false }
+
 vi.mock('@data/db/restore/resourceInstallV2', async (importOriginal) => {
   const actual = await importOriginal<typeof ResourceInstallModule>()
   return {
     ...actual,
     recoverResourceUnits: (...args: Parameters<typeof actual.recoverResourceUnits>) => {
       if (failResourceRollback.on && args[2] === 'pre-commit') {
+        throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
+      }
+      if (failResourceInstall.on && args[2] === 'committed') {
         throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
       }
       actual.recoverResourceUnits(...args)
@@ -223,6 +229,7 @@ describe('restore promotion v2', () => {
     rmSync(userData, { recursive: true, force: true })
     failJournalWrite.when = null
     failResourceRollback.on = false
+    failResourceInstall.on = false
     vi.clearAllMocks()
   })
 
@@ -577,6 +584,13 @@ describe('restore promotion v2', () => {
       return read.journal.recoveryIncomplete === true
     }
 
+    /** Whether the completed journal on disk still claims an unfinished install. */
+    function resourcesIncomplete(): boolean {
+      const read = readRestoreJournalV2()
+      if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error(`not completed: ${journalState()}`)
+      return read.journal.resourcesIncomplete === true
+    }
+
     function completedSummary(): string[] {
       const read = readRestoreJournalV2()
       if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error(`not completed: ${journalState()}`)
@@ -743,6 +757,66 @@ describe('restore promotion v2', () => {
       // The retry deliberately leaves the tree for acknowledgement: removing it
       // here is exactly what would poison the triple above.
       expect(existsSync(stagingDir())).toBe(true)
+    })
+
+    it('does not report unqualified success when a unit stayed out of place, and finishes it next boot', async () => {
+      // Crash re-entry past the commit: the database is live, but this unit only
+      // got as far as "old copy parked aside, new copy still in staging".
+      makeDb(asidePath(), 'old')
+      makeDb(livePath(), 'new')
+      const unit = baseUnit()
+      makeUnitDir(unit.staging, 'ARCHIVE')
+      makeUnitDir(unit.aside, 'TARGET')
+      writeRestoreJournalV2(
+        buildJournal({ state: 'promoting', step: 'db-promoted', chain: chainOf(livePath()), resourceInstalls: [unit] })
+      )
+      failResourceInstall.on = true
+
+      await runRestorePromotionV2()
+
+      // The database may not be held hostage over a file, so the promotion still
+      // completes…
+      expect(journalState()).toBe('completed')
+      expect(readMarker(livePath())).toBe('new')
+      // …but not as an unqualified success: this unit's only two copies are the
+      // staging tree and the aside, and acknowledgement deletes both.
+      expect(resourcesIncomplete()).toBe(true)
+      expect(unitExists(unit.live)).toBe(false)
+      expect(readUnitDir(unit.staging)).toBe('ARCHIVE')
+      expect(readUnitDir(unit.aside)).toBe('TARGET')
+      expect(existsSync(stagingDir())).toBe(true)
+      expect(hasPendingRestore()).toBe(true)
+
+      // Next boot: the OS is no longer refusing the rename.
+      failResourceInstall.on = false
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('completed')
+      expect(resourcesIncomplete()).toBe(false)
+      expect(readUnitDir(unit.live)).toBe('ARCHIVE')
+      // Only now is the tree spent — the unit it was holding is in place.
+      expect(existsSync(stagingDir())).toBe(false)
+    })
+
+    it('keeps the install marker when the retry still cannot put the unit in place', async () => {
+      makeDb(livePath(), 'new')
+      const unit = baseUnit()
+      makeUnitDir(unit.staging, 'ARCHIVE')
+      makeUnitDir(unit.aside, 'TARGET')
+      writeRestoreJournalV2({
+        ...buildJournal({ state: 'completed', resourceInstalls: [unit], chain: chainOf(livePath()) }),
+        resourcesIncomplete: true
+      } as RestoreJournalV2)
+      failResourceInstall.on = true
+
+      await runRestorePromotionV2()
+
+      // No progress is not an excuse to release anything.
+      expect(resourcesIncomplete()).toBe(true)
+      expect(readUnitDir(unit.staging)).toBe('ARCHIVE')
+      expect(readUnitDir(unit.aside)).toBe('TARGET')
+      expect(existsSync(stagingDir())).toBe(true)
+      expect(hasPendingRestore()).toBe(true)
     })
 
     it('keeps the marker when the retry still cannot finish the rollback', async () => {

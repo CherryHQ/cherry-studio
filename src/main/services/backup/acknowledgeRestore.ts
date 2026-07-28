@@ -58,6 +58,17 @@ export function acknowledgeRestore(): AcknowledgeResult {
     )
   }
 
+  if (journal.state === 'completed' && journal.resourcesIncomplete) {
+    // A unit that never reached its installed slot has its new copy in the
+    // staging tree and its old one in the aside — the two things this function
+    // deletes. Releasing them would leave that unit with neither. The next boot
+    // retries the install and clears the marker.
+    throw new RestoreStateError(
+      'recovery-incomplete',
+      'the last restore could not put every file in place; restart the app to finish it before releasing anything'
+    )
+  }
+
   if (journal.state === 'failed' && journal.recoveryIncomplete) {
     // The rollback did not finish, so these asides are not spent rollback
     // material — they are the only copy of what they hold. Acknowledging would

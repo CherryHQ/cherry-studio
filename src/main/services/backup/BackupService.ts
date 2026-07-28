@@ -45,6 +45,12 @@ export type RestoreStatus =
        */
       readonly recoveryIncomplete?: true
       /**
+       * A `completed` restore whose resource units are not all installed. The
+       * database is live, but the staging tree and the asides both have to stay
+       * until a restart finishes the job — so acknowledgement is withheld.
+       */
+      readonly resourcesIncomplete?: true
+      /**
        * What this restore reduced (§4), carried by the journal so the report
        * survives the relaunch. Absent when nothing was reduced.
        */
@@ -233,6 +239,7 @@ export class BackupService extends BaseService {
       preset: journal.preset,
       ...(journal.state === 'promoting' ? { step: journal.step } : {}),
       ...(journal.state === 'failed' && journal.recoveryIncomplete ? { recoveryIncomplete: true as const } : {}),
+      ...(journal.state === 'completed' && journal.resourcesIncomplete ? { resourcesIncomplete: true as const } : {}),
       ...(journal.degradations && journal.degradations.length > 0 ? { degradations: journal.degradations } : {})
     }
   }

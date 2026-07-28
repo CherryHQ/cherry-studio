@@ -183,6 +183,36 @@ describe('acknowledgeRestore', () => {
     expect(hasPendingRestore()).toBe(true)
   })
 
+  it('refuses to release a unit a completed restore has not put in place yet', () => {
+    writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
+    mkdirSync(join(userData, 'restore-aside'), { recursive: true })
+    writeFileSync(join(userData, 'restore-aside', 'blob-1'), 'ORIGINAL-BLOB')
+    mkdirSync(join(userData, 'restore-staging', RID, 'files'), { recursive: true })
+    writeFileSync(join(userData, 'restore-staging', RID, 'files', 'blob-1'), 'RESTORED-BLOB')
+    writeRestoreJournalV2(
+      journal({
+        resourcesIncomplete: true,
+        preset: 'full',
+        resourceInstalls: [
+          {
+            resourceType: 'file',
+            staging: `restore-staging/${RID}/files/blob-1`,
+            live: 'Data/Files/blob-1',
+            aside: 'restore-aside/blob-1'
+          }
+        ]
+      })
+    )
+
+    // The database is live, but this unit exists ONLY in the staging tree and
+    // its aside — the two things acknowledgement deletes. Releasing them would
+    // leave the user with neither copy.
+    expect(() => acknowledgeRestore()).toThrow(/could not put every file in place/)
+    expect(existsSync(join(userData, 'restore-aside', 'blob-1'))).toBe(true)
+    expect(existsSync(join(userData, 'restore-staging', RID, 'files', 'blob-1'))).toBe(true)
+    expect(hasPendingRestore()).toBe(true)
+  })
+
   it('refuses to guess at an unreadable journal', () => {
     writeFileSync(join(userData, 'restore-journal.json'), '{ not json')
 
