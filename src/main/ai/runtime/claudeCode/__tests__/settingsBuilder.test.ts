@@ -1,4 +1,6 @@
+import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
 import type * as NodeModule from 'node:module'
+import os from 'node:os'
 import path from 'node:path'
 
 import {
@@ -26,6 +28,9 @@ const mocks = vi.hoisted(() => ({
   getBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
+  ensureAgentDataDirectory: vi.fn(),
+  ensureAgentStorageDirectory: vi.fn(),
+  buildPrompt: vi.fn(),
   getAppLanguage: vi.fn(),
   resolveRequire: vi.fn(),
   loggerWarn: vi.fn(),
@@ -95,7 +100,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn(async () => 'soul prompt') }))
+  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: mocks.buildPrompt }))
 }))
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({
@@ -141,6 +146,11 @@ vi.mock('@main/utils/file', () => ({
     const relative = path.relative(path.resolve(parent), path.resolve(child))
     return relative.length > 0 && !relative.startsWith('..') && !path.isAbsolute(relative)
   }
+}))
+
+vi.mock('@main/ai/agents/agentDataDirectory', () => ({
+  ensureAgentDataDirectory: mocks.ensureAgentDataDirectory,
+  ensureAgentStorageDirectory: mocks.ensureAgentStorageDirectory
 }))
 
 vi.mock('@main/i18n', () => ({
@@ -227,6 +237,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
+    mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => path.join(root, agentId))
+    mocks.buildPrompt.mockResolvedValue('soul prompt')
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false
@@ -247,6 +259,13 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(mocks.listLocalSkills).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
+    expect(settings.additionalDirectories).toEqual(['/app/feature.agents.data/agent-1'])
+    expect(mocks.buildPrompt).toHaveBeenCalledWith(
+      '/workspace/project',
+      expect.anything(),
+      true,
+      '/app/feature.agents.data/agent-1'
+    )
     expect(settings.systemPrompt as string).toContain('"/workspace/project"')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
@@ -449,10 +468,63 @@ describe('buildClaudeCodeSessionSettings', () => {
       'ask'
     )
     await expect(permissionDecisions('Write', { file_path: 'output.html' })).resolves.not.toContain('ask')
+    await expect(
+      permissionDecisions('Read', { file_path: '/app/feature.agents.data/agent-1/SOUL.md' })
+    ).resolves.not.toContain('ask')
     await expect(permissionDecisions('Glob', { path: '/workspace/project' })).resolves.not.toContain('ask')
     await expect(permissionDecisions('Glob', {})).resolves.not.toContain('ask')
     await expect(permissionDecisions('Bash', { command: 'cat /outside/read.txt' })).resolves.not.toContain('ask')
   })
+
+  it.runIf(process.platform !== 'win32')(
+    'does not reinterpret a workspace-relative path against the agent data directory',
+    async () => {
+      const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'settings-path-hook-'))
+      const workspacePath = path.join(tempRoot, 'workspace')
+      const agentDataPath = path.join(tempRoot, 'agent-data')
+      const outsidePath = path.join(tempRoot, 'outside')
+      await Promise.all([
+        mkdir(workspacePath),
+        mkdir(path.join(agentDataPath, 'memory'), { recursive: true }),
+        mkdir(outsidePath)
+      ])
+      await symlink(outsidePath, path.join(workspacePath, 'memory'))
+      mocks.ensureAgentDataDirectory.mockResolvedValue(agentDataPath)
+
+      try {
+        const session = {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: workspacePath }
+        }
+        const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+        const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+        const decisions = await Promise.all(
+          hooks.map((hook) =>
+            hook(
+              {
+                hook_event_name: 'PreToolUse',
+                tool_name: 'Read',
+                tool_input: { file_path: 'memory/passwd' }
+              } as never,
+              'tool-use-1',
+              {} as never
+            )
+          )
+        )
+
+        expect(
+          decisions.map(
+            (output) =>
+              (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput
+                ?.permissionDecision
+          )
+        ).toContain('ask')
+      } finally {
+        await rm(tempRoot, { recursive: true, force: true })
+      }
+    }
+  )
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
     mocks.getAgent.mockReturnValue({

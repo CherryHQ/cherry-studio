@@ -39,6 +39,7 @@ import {
   createLocalEmbeddingProvider,
   type LocalEmbeddingProviderSettings
 } from './custom/localEmbedding/localEmbeddingProvider'
+import { createMinimaxProvider, type MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
 import { createNewApi, type NewApiProviderSettings } from './custom/newapiProvider'
 import { createOllamaWithImageModel } from './custom/ollama/ollamaProvider'
@@ -179,6 +180,13 @@ export const OllamaExtension = ProviderExtension.create({
   supportsImageGeneration: true,
   create: (options?: OllamaProviderSettings) => createOllamaWithImageModel(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
+
+export const MinimaxExtension = ProviderExtension.create({
+  name: 'minimax',
+  aliases: ['minimax-global'] as const,
+  supportsImageGeneration: true,
+  create: createMinimaxProvider
+} as const satisfies ProviderExtensionConfig<MinimaxProviderSettings, ProviderV3, 'minimax'>)
 
 /** AiHubMix — multi-backend gateway (claude→anthropic, gemini→google, gpt→openai-responses). */
 export const AiHubMixExtension = ProviderExtension.create({
@@ -328,6 +336,7 @@ export const extensions = [
   GatewayExtension,
   CerebrasExtension,
   OllamaExtension,
+  MinimaxExtension,
   AiHubMixExtension,
   NewApiExtension,
   PpioExtension,
