@@ -3,6 +3,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -31,7 +32,7 @@ import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agent
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
+import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
@@ -62,6 +63,12 @@ const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
+
+function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false
+  const rightIds = new Set(right)
+  return left.every((id) => rightIds.has(id))
+}
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = 'success' | 'paused' | 'error'
@@ -111,6 +118,7 @@ type AgentSessionTurn = {
   userMessage: AgentSessionMessageEntity
   modelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
+  knowledgeBaseIds: readonly string[]
   admitted: boolean
   abortController: AbortController
   terminalStatus?: AgentSessionRuntimeTerminalStatus
@@ -124,6 +132,7 @@ type AgentSessionTurn = {
 type PendingAgentSessionTurn = {
   message: AgentSessionMessageEntity
   reasoningEffort: ReasoningEffortOption
+  knowledgeBaseIds: readonly string[]
 }
 
 type BackgroundFlowAccumulator = {
@@ -137,6 +146,7 @@ type BackgroundFlowAccumulator = {
 type AgentSessionConnectionTarget = {
   modelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
+  knowledgeBaseIds: readonly string[]
 }
 
 type AgentSessionRuntimeEntry = {
@@ -295,6 +305,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage,
       modelId: input.modelId,
       reasoningEffort: input.reasoningEffort ?? 'default',
+      knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       admitted: false,
       abortController: new AbortController(),
       activeToolIds: new Set(),
@@ -582,15 +593,23 @@ export class AgentSessionRuntimeService extends BaseService {
     // keeps its submit-time snapshot; the continuation and requeue paths both look it up by message id.
     if (opts.messageSnapshot) (entry.pendingSnapshots ??= new Map()).set(message.id, opts.messageSnapshot)
     const reasoningEffort = opts.reasoningEffort ?? 'default'
+    const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(message.data.parts ?? []) ?? []
 
     const turn = entry.currentTurn
     // Live turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
     // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
     // ends before it's injected, the connection emits `steer-undelivered` and we queue it below.
-    // The gate compares the live turn's frozen model/reasoning config with the incoming message:
-    // a changed model or effort must queue as the NEXT turn instead of being folded into a query
-    // already running with different connection-scoped options.
-    const canRedirectOnCurrentConfig = turn?.modelId === entry.modelId && turn.reasoningEffort === reasoningEffort
+    // The gate compares the live turn's frozen model/reasoning/knowledge config with the incoming
+    // message: a changed effective connection scope must queue as the NEXT turn instead of being
+    // folded into a query already running with different tools.
+    const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
+    const canRedirectOnCurrentConfig =
+      turn?.modelId === entry.modelId &&
+      turn.reasoningEffort === reasoningEffort &&
+      knowledgeScopeEquals(
+        resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, turn.knowledgeBaseIds),
+        resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, knowledgeBaseIds)
+      )
     if (
       turn &&
       !turn.terminalStatus &&
@@ -601,7 +620,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     // No live turn (or backend can't steer) → queue as the next turn, wrapped in a steer system-reminder.
-    entry.pendingTurns.push({ message, reasoningEffort })
+    entry.pendingTurns.push({ message, reasoningEffort, knowledgeBaseIds })
     ;(entry.steerMessageIds ??= new Set()).add(message.id)
     // An autonomous generation owns the connection until the runtime releases it.
     // Keep the user input queued instead of sending it into that generation.
@@ -824,6 +843,16 @@ export class AgentSessionRuntimeService extends BaseService {
    * that gap (e.g. a re-prime re-entering `ensureConnection`) would close the connection and drop the
    * continuation. Mirrors the live-turn test in `applyAgentModelUpdate`. Without a live turn or roll
    * the connection follows the agent's latest model with the default reasoning selection.
+   *
+   * The turn's knowledge selection is frozen for exactly the same reason and on the same schedule.
+   * Note the idle branch's `knowledgeBaseIds: []` means "no per-turn composer selection", NOT "no
+   * knowledge": it is fed through `resolveKnowledgeBaseScope` against the agent's binding below, so a
+   * statically bound agent still serves its full binding while idle. Idle deliberately converges on
+   * the default config — same as `reasoningEffort: 'default'` — so any turn that carried a composer
+   * selection (an unbound agent's whole scope, or a bound agent's narrowing) costs one rebuild once
+   * it goes idle. That is intentional: the next turn's selection is unknowable, and prewarm builds
+   * binding-only scope too, so pinning the last turn's selection would only move the rebuild onto the
+   * next turn that does not repeat it.
    */
   private connectionTarget(entry: AgentSessionRuntimeEntry): AgentSessionConnectionTarget {
     const turn = entry.currentTurn
@@ -834,13 +863,25 @@ export class AgentSessionRuntimeService extends BaseService {
         entry.backgroundWorkActive === true ||
         entry.autonomousGenerationActive === true)
     return live
-      ? { modelId: turn.modelId, reasoningEffort: turn.reasoningEffort }
-      : { modelId: entry.modelId, reasoningEffort: 'default' }
+      ? {
+          modelId: turn.modelId,
+          reasoningEffort: turn.reasoningEffort,
+          knowledgeBaseIds: turn.knowledgeBaseIds
+        }
+      : { modelId: entry.modelId, reasoningEffort: 'default', knowledgeBaseIds: [] }
   }
 
   private connectionTargetEquals(entry: AgentSessionRuntimeEntry, target: AgentSessionConnectionTarget): boolean {
     const current = this.connectionTarget(entry)
-    return current.modelId === target.modelId && current.reasoningEffort === target.reasoningEffort
+    const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
+    return (
+      current.modelId === target.modelId &&
+      current.reasoningEffort === target.reasoningEffort &&
+      knowledgeScopeEquals(
+        resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, current.knowledgeBaseIds),
+        resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, target.knowledgeBaseIds)
+      )
+    )
   }
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
@@ -941,6 +982,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentId: entry.agentId,
       modelId: target.modelId,
       reasoningEffort: target.reasoningEffort,
+      knowledgeBaseIds: target.knowledgeBaseIds,
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId)
     })
@@ -1048,7 +1090,8 @@ export class AgentSessionRuntimeService extends BaseService {
         for (const input of event.inputs) {
           entry.pendingTurns.push({
             message: input.message,
-            reasoningEffort: entry.currentTurn?.reasoningEffort ?? 'default'
+            reasoningEffort: entry.currentTurn?.reasoningEffort ?? 'default',
+            knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? []
           })
           ;(entry.steerMessageIds ??= new Set()).add(input.message.id)
         }
@@ -1718,7 +1761,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.refreshIdleTimer(entry)
       return
     }
-    const { message: nextMessage, reasoningEffort } = pendingTurn
+    const { message: nextMessage, reasoningEffort, knowledgeBaseIds } = pendingTurn
 
     // A queued follow-up can outlive the agent's model: deleting the model nulls `agent.model` via the FK
     // (`onDelete: 'set null'`) without emitting an agent update, so `applyAgentModelUpdate` never ran and
@@ -1786,6 +1829,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage: nextMessage,
       modelId: entry.modelId,
       reasoningEffort,
+      knowledgeBaseIds,
       admitted: false,
       abortController: new AbortController(),
       activeToolIds: new Set(),
@@ -2039,6 +2083,14 @@ export class AgentSessionRuntimeService extends BaseService {
     const modelId = entry.currentTurn?.modelId ?? entry.modelId
     const reasoningEffort = entry.currentTurn?.reasoningEffort ?? 'default'
     const steerMessage = entry.rollSteerInputs?.[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
+    // A2 opens no connection, so it must report the scope the still-streaming SDK query actually
+    // serves — inherit the rolled turn's, like modelId/reasoningEffort above. Reading the steer's own
+    // selection back off the message looks equivalent, because the fold gate proved both *effective*
+    // scopes equal before the roll, but that equality only holds under the binding at injection time:
+    // `resolveKnowledgeBaseScope` maps an empty or fully out-of-scope selection onto the whole
+    // binding, so a later binding edit can pull the two raw selections apart while the live-turn
+    // rebuild is still deferred, leaving the query serving one set and our bookkeeping claiming another.
+    const knowledgeBaseIds = entry.currentTurn?.knowledgeBaseIds ?? []
     const headless = entry.rollHeadless === true
     entry.rollSteerInputs = undefined
     entry.rollHeadless = undefined
@@ -2079,6 +2131,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage: steerMessage,
       modelId,
       reasoningEffort,
+      knowledgeBaseIds,
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
       admitted: true,
       abortController: new AbortController(),

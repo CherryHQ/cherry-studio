@@ -32,7 +32,12 @@ export interface WarmQueryRequest {
    * underlying connection material actually changing.
    */
   credentialsFingerprint?: string
-  /** Agent knowledge bindings baked into cherry-tools at startup. */
+  /**
+   * Effective knowledge scope (binding, else composer selection) baked into cherry-tools at startup.
+   * It is signature material precisely because it is frozen here: a warm query built for one scope
+   * must not be consumed by a turn that needs another. Prewarm runs with no composer selection, so a
+   * prewarmed entry carries binding-only scope and deliberately misses for a scoped turn.
+   */
   knowledgeBaseIds?: readonly string[]
 }
 
