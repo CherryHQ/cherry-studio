@@ -82,4 +82,40 @@ describe('painting template catalog', () => {
       'utf-8'
     )
   })
+
+  it('randomizes templates once when the catalog loads and keeps the order stable across rerenders', async () => {
+    paintingTemplateCatalogMocks.read.mockImplementation((path: string) => {
+      if (path.endsWith('catalog.json')) {
+        return Promise.resolve(JSON.stringify(['first-template', 'second-template', 'third-template']))
+      }
+
+      return Promise.resolve(
+        JSON.stringify({
+          'first-template': { label: 'First', prompt: 'First prompt' },
+          'second-template': { label: 'Second', prompt: 'Second prompt' },
+          'third-template': { label: 'Third', prompt: 'Third prompt' }
+        })
+      )
+    })
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+
+    const { result, rerender } = renderHook(() => usePaintingTemplateCatalog())
+
+    await waitFor(() => expect(result.current.templates).toHaveLength(3))
+    expect(result.current.templates.map(({ id }) => id)).toEqual([
+      'second-template',
+      'third-template',
+      'first-template'
+    ])
+
+    rerender()
+
+    expect(result.current.templates.map(({ id }) => id)).toEqual([
+      'second-template',
+      'third-template',
+      'first-template'
+    ])
+    expect(random).toHaveBeenCalledTimes(2)
+    random.mockRestore()
+  })
 })

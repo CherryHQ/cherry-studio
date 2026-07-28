@@ -58,7 +58,7 @@ vi.mock('../components/PaintingTemplateShowcase', () => ({
 
 vi.mock('../components/PaintingComposer', () => ({
   default: ({ painting, onGenerate }: { painting: { prompt?: string }; onGenerate: () => void }) => (
-    <div data-testid="painting-composer">
+    <div data-testid="painting-composer" style={{ height: painting.prompt ? 180 : 64 }}>
       <textarea aria-label="painting prompt" value={painting.prompt ?? ''} readOnly />
       <button type="button" onClick={onGenerate}>
         generate
@@ -207,6 +207,10 @@ describe('PaintingPage showcase', () => {
   it('fills the prompt from a style choice without starting generation', () => {
     render(<PaintingPage />)
 
+    const templateStage = screen.getByTestId('painting-template-stage')
+    expect(templateStage).toHaveClass('absolute', 'inset-0', 'z-0', 'pb-36')
+    expect(screen.getByTestId('painting-composer')).toHaveStyle({ height: '64px' })
+
     const templateButton = screen.getByRole('button', {
       name: 'Motion Step'
     })
@@ -214,6 +218,8 @@ describe('PaintingPage showcase', () => {
 
     expect(screen.getByRole('textbox', { name: 'painting prompt' })).toHaveValue('Create a poster for ${CITY RHYTHM}')
     expect(templateButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('painting-composer')).toHaveStyle({ height: '180px' })
+    expect(screen.getByTestId('painting-template-stage')).toBe(templateStage)
     expect(mocks.generate).not.toHaveBeenCalled()
   })
 })

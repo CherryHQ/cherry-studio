@@ -42,6 +42,22 @@ function getLocaleFileName(language: string) {
   return language.toLowerCase() === 'zh-cn' ? 'zh-cn.json' : 'en-us.json'
 }
 
+function shuffleTemplates(templates: PaintingTemplatePreset[]) {
+  const shuffled = [...templates]
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1))
+    const current = shuffled[index]
+    const replacement = shuffled[randomIndex]
+    if (!current || !replacement) continue
+
+    shuffled[index] = replacement
+    shuffled[randomIndex] = current
+  }
+
+  return shuffled
+}
+
 async function loadPaintingTemplateCatalog(resourcesPath: string, language: string): Promise<PaintingTemplatePreset[]> {
   const resourceRoot = joinPath(resourcesPath, PAINTING_TEMPLATE_RESOURCE_DIRECTORY)
   const [manifestContent, translationContent] = await Promise.all([
@@ -51,7 +67,7 @@ async function loadPaintingTemplateCatalog(resourcesPath: string, language: stri
   const manifest = normalizeManifest(JSON.parse(manifestContent))
   const translations = normalizeTranslations(JSON.parse(translationContent))
 
-  return manifest.map((id) => {
+  const templates = manifest.map((id) => {
     const translation = translations[id]
     if (!translation) {
       throw new Error(`Missing painting template translation: ${id}`)
@@ -64,6 +80,8 @@ async function loadPaintingTemplateCatalog(resourcesPath: string, language: stri
       ...translation
     }
   })
+
+  return shuffleTemplates(templates)
 }
 
 export function usePaintingTemplateCatalog() {
