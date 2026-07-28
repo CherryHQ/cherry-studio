@@ -111,7 +111,7 @@ class BackupManager {
    * Version 7 adds the v2 SQLite database and cache.json. Restore requires an
    * exact version match so v1's version 6 archives cannot overwrite v2 data.
    */
-  private createDirectBackupMetadata(skipBackupFile: boolean): DirectBackupMetadata {
+  private createDirectBackupMetadata(): DirectBackupMetadata {
     return {
       version: DIRECT_BACKUP_VERSION,
       timestamp: Date.now(),
@@ -125,7 +125,7 @@ class BackupManager {
         indexedDB: true,
         localStorage: true,
         appClaude: true,
-        data: !skipBackupFile
+        data: true
       }
     }
   }
@@ -136,23 +136,13 @@ class BackupManager {
    * @param _ - Electron IPC event
    * @param fileName - Name of the backup file
    * @param destinationPath - Path to save the backup (defaults to this.backupDir)
-   * @param skipBackupFile - Whether to skip backing up the Data directory
    * @returns Path to the created backup file
    */
-  async backup(
-    _: Electron.IpcMainInvokeEvent,
-    fileName: string,
-    destinationPath?: string,
-    skipBackupFile: boolean = false
-  ): Promise<string> {
-    return this.operationMutex.runExclusive(() => this.backupDirect(fileName, destinationPath, skipBackupFile))
+  async backup(_: Electron.IpcMainInvokeEvent, fileName: string, destinationPath?: string): Promise<string> {
+    return this.operationMutex.runExclusive(() => this.backupDirect(fileName, destinationPath))
   }
 
-  private async backupDirect(
-    fileName: string,
-    destinationPath: string | undefined,
-    skipBackupFile: boolean
-  ): Promise<string> {
+  private async backupDirect(fileName: string, destinationPath: string | undefined): Promise<string> {
     const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
     const workDir = await this.createOperationDir('create')
     const outputDirectory = destinationPath ?? this.backupDir
@@ -194,25 +184,23 @@ class BackupManager {
 
         onProgress({ stage: 'copying_database', progress: 50, total: 100 })
 
-        if (!skipBackupFile) {
-          const sourcePath = application.getPath('app.userdata.data')
-          const tempDataDir = path.join(workDir, 'Data')
+        const sourcePath = application.getPath('app.userdata.data')
+        const tempDataDir = path.join(workDir, 'Data')
 
-          if (await fs.pathExists(sourcePath)) {
-            const copyOptions = this.createDataCopyOptions(sourcePath, true)
-            const totalSize = await this.getDirSize(sourcePath, copyOptions)
-            await this.copyDirWithProgress(
-              sourcePath,
-              tempDataDir,
-              this.createCopyProgressHandler(totalSize, 52, 80, 'copying_files', onProgress),
-              copyOptions
-            )
-          } else {
-            await fs.ensureDir(tempDataDir)
-          }
+        if (await fs.pathExists(sourcePath)) {
+          const copyOptions = this.createDataCopyOptions(sourcePath, true)
+          const totalSize = await this.getDirSize(sourcePath, copyOptions)
+          await this.copyDirWithProgress(
+            sourcePath,
+            tempDataDir,
+            this.createCopyProgressHandler(totalSize, 52, 80, 'copying_files', onProgress),
+            copyOptions
+          )
+        } else {
+          await fs.ensureDir(tempDataDir)
         }
 
-        await fs.writeJson(path.join(workDir, 'metadata.json'), this.createDirectBackupMetadata(skipBackupFile), {
+        await fs.writeJson(path.join(workDir, 'metadata.json'), this.createDirectBackupMetadata(), {
           spaces: 2
         })
 
@@ -440,15 +428,11 @@ class BackupManager {
    * @param localConfig - Local backup configuration (directory path and options)
    * @returns Path to the created backup file
    */
-  async backupToLocalDir(
-    _: Electron.IpcMainInvokeEvent,
-    fileName: string,
-    localConfig: { localBackupDir?: string; skipBackupFile?: boolean }
-  ) {
+  async backupToLocalDir(_: Electron.IpcMainInvokeEvent, fileName: string, localConfig: { localBackupDir?: string }) {
     try {
       const backupDir = localConfig.localBackupDir || this.backupDir
       await fs.ensureDir(backupDir)
-      return await this.backup(_, fileName, backupDir, localConfig.skipBackupFile)
+      return await this.backup(_, fileName, backupDir)
     } catch (error) {
       logger.error('[backupToLocalDir] Local backup failed:', error as Error)
       throw error
@@ -464,7 +448,7 @@ class BackupManager {
    */
   async backupToWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-    const backupedFilePath = await this.backup(_, filename, undefined, webdavConfig.skipBackupFile)
+    const backupedFilePath = await this.backup(_, filename)
     const webdavClient = this.getWebDavInstance(webdavConfig)
     try {
       let result
@@ -504,7 +488,7 @@ class BackupManager {
 
     logger.debug(`[backupToS3] Starting S3 backup to ${filename}`)
 
-    const backupedFilePath = await this.backup(_, filename, undefined, s3Config.skipBackupFile)
+    const backupedFilePath = await this.backup(_, filename)
     const s3Client = this.getS3Storage(s3Config)
     try {
       const fileBuffer = await fs.promises.readFile(backupedFilePath)

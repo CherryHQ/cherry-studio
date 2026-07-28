@@ -5798,10 +5798,6 @@
         "button": "Ouvrir les journaux",
         "label": "Journaux de l'application"
       },
-      "backup": {
-        "skip_file_data_help": "Passer outre les fichiers de données tels que les images et les bases de connaissances lors de la sauvegarde, et ne sauvegarder que les conversations et les paramètres. Cela réduit l'occupation d'espace et accélère la vitesse de sauvegarde.",
-        "skip_file_data_title": "Sauvegarde réduite"
-      },
       "clear_cache": {
         "button": "Effacer le cache",
         "confirm": "L'effacement du cache supprimera les données du cache de l'application, y compris les données des mini-programmes. Cette action ne peut pas être annulée, voulez-vous continuer ?",
@@ -6176,10 +6172,6 @@
         "secretAccessKey": {
           "label": "Clé d'accès secrète",
           "placeholder": "Clé d'accès secrète"
-        },
-        "skipBackupFile": {
-          "help": "Lorsqu'activé, les données de fichiers seront ignorées lors de la sauvegarde, seules les configurations seront sauvegardées, réduisant considérablement la taille du fichier de sauvegarde",
-          "label": "Sauvegarde allégée"
         },
         "syncStatus": {
           "error": "Erreur de synchronisation : {{message}}",

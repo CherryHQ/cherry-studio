@@ -518,14 +518,6 @@
           "targetKey": null
         },
         {
-          "originalKey": "nutstoreSkipBackupFile",
-          "type": "boolean",
-          "defaultValue": false,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "data.backup.nutstore.skip_backup_file"
-        },
-        {
           "originalKey": "nutstoreMaxBackups",
           "type": "number",
           "defaultValue": 0,
@@ -1428,14 +1420,6 @@
           "targetKey": "chat.message.navigation_mode"
         },
         {
-          "originalKey": "skipBackupFile",
-          "type": "boolean",
-          "defaultValue": false,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "data.backup.general.skip_backup_file"
-        },
-        {
           "originalKey": "webdavHost",
           "type": "string",
           "defaultValue": "",
@@ -1490,14 +1474,6 @@
           "status": "classified",
           "category": "preferences",
           "targetKey": "data.backup.webdav.max_backups"
-        },
-        {
-          "originalKey": "webdavSkipBackupFile",
-          "type": "boolean",
-          "defaultValue": false,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "data.backup.webdav.skip_backup_file"
         },
         {
           "originalKey": "webdavDisableStream",
@@ -2305,14 +2281,6 @@
           "targetKey": "data.backup.local.max_backups"
         },
         {
-          "originalKey": "localBackupSkipBackupFile",
-          "type": "boolean",
-          "defaultValue": false,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "data.backup.local.skip_backup_file"
-        },
-        {
           "originalKey": "defaultPaintingProvider",
           "type": "string",
           "defaultValue": "zhipu",
@@ -2323,7 +2291,7 @@
         {
           "originalKey": "s3",
           "type": "unknown",
-          "defaultValue": "{ endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '', root: '', autoSync: false, syncInterval: 0, maxBackups: 0, skipBackupFile: false }",
+          "defaultValue": "{ endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '', root: '', autoSync: false, syncInterval: 0, maxBackups: 0 }",
           "status": "pending",
           "category": null,
           "targetKey": null,
@@ -2399,14 +2367,6 @@
               "status": "classified",
               "targetKey": "data.backup.s3.max_backups",
               "type": "number"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": false,
-              "originalKey": "skipBackupFile",
-              "status": "classified",
-              "targetKey": "data.backup.s3.skip_backup_file",
-              "type": "boolean"
             }
           ]
         },

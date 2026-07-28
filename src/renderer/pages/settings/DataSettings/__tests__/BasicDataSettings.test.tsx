@@ -52,6 +52,8 @@ describe('BasicDataSettings', () => {
   it('leaves backup and restore actions interactive', async () => {
     await renderSettings()
 
+    expect(screen.queryByText('settings.data.backup.skip_file_data_title')).not.toBeInTheDocument()
+
     for (const name of ['settings.general.backup.button', 'settings.general.restore.button']) {
       const action = screen.getByRole('button', { name })
       expect(action).toBeEnabled()

@@ -28,7 +28,6 @@ const WebDavSettings: FC = () => {
   const [webdavMaxBackups, setWebdavMaxBackups] = usePreference('data.backup.webdav.max_backups')
   const [webdavPass, setWebdavPass] = usePreference('data.backup.webdav.pass')
   const [webdavPath, setWebdavPath] = usePreference('data.backup.webdav.path')
-  const [webdavSkipBackupFile, setWebdavSkipBackupFile] = usePreference('data.backup.webdav.skip_backup_file')
   const [webdavSyncInterval, setWebdavSyncInterval] = usePreference('data.backup.webdav.sync_interval')
   const [webdavUser, setWebdavUser] = usePreference('data.backup.webdav.user')
 
@@ -55,10 +54,6 @@ const WebDavSettings: FC = () => {
 
   const onMaxBackupsChange = (value: number) => {
     void setWebdavMaxBackups(value)
-  }
-
-  const onSkipBackupFilesChange = (value: boolean) => {
-    void setWebdavSkipBackupFile(value)
   }
 
   const onDisableStreamChange = (value: boolean) => {
@@ -204,14 +199,6 @@ const WebDavSettings: FC = () => {
             { label: '50', value: 50 }
           ]}
         />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-        <Switch checked={webdavSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
       <SettingRow>

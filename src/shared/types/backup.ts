@@ -10,7 +10,6 @@ export type WebDavConfig = {
   webdavPass?: string
   webdavPath?: string
   fileName?: string
-  skipBackupFile?: boolean
   disableStream?: boolean
 }
 
@@ -22,7 +21,6 @@ export type S3Config = {
   secretAccessKey: string
   root?: string
   fileName?: string
-  skipBackupFile: boolean
   autoSync: boolean
   syncInterval: number
   maxBackups: number

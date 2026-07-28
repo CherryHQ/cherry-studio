@@ -5804,10 +5804,6 @@
         "button": "Open Logs",
         "label": "App Logs"
       },
-      "backup": {
-        "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
-        "skip_file_data_title": "Slim Backup"
-      },
       "clear_cache": {
         "button": "Clear Cache",
         "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
@@ -6182,10 +6178,6 @@
         "secretAccessKey": {
           "label": "Secret Access Key",
           "placeholder": "Secret Access Key"
-        },
-        "skipBackupFile": {
-          "help": "When enabled, file data will be skipped during backup, only configuration information will be backed up, significantly reducing backup file size",
-          "label": "Lightweight Backup"
         },
         "syncStatus": {
           "error": "Sync error: {{message}}",

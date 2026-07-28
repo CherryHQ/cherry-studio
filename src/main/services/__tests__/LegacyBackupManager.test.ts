@@ -337,7 +337,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     return archive
   }
 
-  it('writes a version 7 archive with SQLite, strict cache, and app-owned .claude state', async () => {
+  it('writes a complete version 7 archive with SQLite, strict cache, Data, and app-owned .claude state', async () => {
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
       return String(entryPath) === '/mock/userData/cache.json'
     })
@@ -345,7 +345,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     const copyClaude = vi.spyOn(backupManager as any, 'copyAppClaudeState').mockResolvedValue(undefined)
     const archive = mockArchiveClose()
 
-    const result = await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', true)
+    const result = await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')
 
     expect(result).toBe('/backups/backup.zip')
     expect(mockJobManager.pause).toHaveBeenCalledOnce()
@@ -361,12 +361,13 @@ describe('BackupManager direct v2 data compatibility', () => {
     )
     expect(copyDirectories).toHaveBeenCalledTimes(2)
     expect(copyClaude).toHaveBeenCalledWith('/mock/temp/backup/create-operation-id/.claude')
+    expect(fs.ensureDir).toHaveBeenCalledWith('/mock/temp/backup/create-operation-id/Data')
     expect(fs.writeJson).toHaveBeenCalledWith(
       '/mock/temp/backup/create-operation-id/metadata.json',
       expect.objectContaining({
         version: 7,
         appName: 'Cherry Studio',
-        resources: expect.objectContaining({ appClaude: true, data: false })
+        resources: expect.objectContaining({ appClaude: true, data: true })
       }),
       { spaces: 2 }
     )
@@ -384,7 +385,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     const copyDirectory = vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
     mockArchiveClose()
 
-    await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', false)
+    await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')
 
     const dataCopyCall = copyDirectory.mock.calls.find(([source]) => source === '/mock/userData/Data')
     expect(dataCopyCall).toBeDefined()
@@ -409,9 +410,9 @@ describe('BackupManager direct v2 data compatibility', () => {
       throw new Error('cache write failed')
     })
 
-    await expect(
-      backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', true)
-    ).rejects.toThrow('cache write failed')
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      'cache write failed'
+    )
 
     expect(mockCacheService.flushPersistForBackup).toHaveBeenCalledOnce()
     expect(fs.createWriteStream).not.toHaveBeenCalled()
@@ -424,9 +425,9 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => String(entryPath).endsWith('cache.json'))
     mockHashDbFile.mockResolvedValueOnce('before').mockResolvedValueOnce('after')
 
-    await expect(
-      backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', true)
-    ).rejects.toThrow('Data changed while the backup snapshot was being captured')
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      'Data changed while the backup snapshot was being captured'
+    )
 
     expect(fs.createWriteStream).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
@@ -435,9 +436,9 @@ describe('BackupManager direct v2 data compatibility', () => {
   it('refuses to snapshot while a conversation can still write DB or .claude state', async () => {
     mockAiStreamManager.hasLiveStreams.mockReturnValueOnce(true)
 
-    await expect(
-      backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups', true)
-    ).rejects.toThrow('A conversation is still running')
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      'A conversation is still running'
+    )
 
     expect(mockDbService.createSnapshot).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()

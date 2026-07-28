@@ -5804,10 +5804,6 @@
         "button": "打开日志",
         "label": "应用日志"
       },
-      "backup": {
-        "skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用，加快备份速度",
-        "skip_file_data_title": "精简备份"
-      },
       "clear_cache": {
         "button": "清除缓存",
         "confirm": "清除缓存将删除应用缓存的数据，包括小程序数据。此操作不可恢复，是否继续？",
@@ -6182,10 +6178,6 @@
         "secretAccessKey": {
           "label": "Secret Access Key",
           "placeholder": "Secret Access Key"
-        },
-        "skipBackupFile": {
-          "help": "开启后备份时将跳过文件数据，仅备份配置信息，显著减小备份文件体积",
-          "label": "精简备份"
         },
         "syncStatus": {
           "error": "同步错误: {{message}}",

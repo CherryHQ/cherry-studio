@@ -5798,10 +5798,6 @@
         "button": "開啟日誌",
         "label": "應用程式日誌"
       },
-      "backup": {
-        "skip_file_data_help": "備份時跳過圖片、知識庫等資料檔案，只備份聊天記錄與設定。可減少空間佔用並加快備份速度",
-        "skip_file_data_title": "精簡備份"
-      },
       "clear_cache": {
         "button": "清除快取",
         "confirm": "清除快取將刪除應用快取資料，包括小工具資料。此操作無法恢復，是否繼續？",
@@ -6176,10 +6172,6 @@
         "secretAccessKey": {
           "label": "Secret Access Key",
           "placeholder": "Secret Access Key"
-        },
-        "skipBackupFile": {
-          "help": "開啟後備份時將跳過檔案資料，僅備份設定資訊，顯著減小備份檔案體積",
-          "label": "精簡備份"
         },
         "syncStatus": {
           "error": "同步錯誤：{{message}}",
