@@ -186,7 +186,7 @@ describe('Table', () => {
       expect(table.style.margin).toBe('0px')
       expect(table.style.overflow).toBe('hidden')
       expect(toolbar).toHaveClass('rounded-lg', 'border-border-subtle', 'bg-popover', 'shadow-md')
-      expect(copyButton).toHaveClass('rounded-md', 'text-foreground-tertiary', 'hover:bg-accent')
+      expect(copyButton).toHaveClass('rounded-md', 'text-muted-foreground', 'hover:bg-accent')
     })
 
     it('should render copy button with correct tooltip', () => {

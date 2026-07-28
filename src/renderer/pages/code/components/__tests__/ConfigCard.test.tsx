@@ -138,12 +138,10 @@ describe('ProviderCard', () => {
     expect(screen.queryByText('code.enable')).not.toBeInTheDocument()
   })
 
-  it('renders the disable action as a soft destructive button', () => {
+  it('uses the shared destructive variant for the disable action', () => {
     const { enableButton } = renderCard({ isCurrent: true })
 
-    expect(enableButton.className).not.toMatch(/\bbg-destructive(?:\s|$)/)
-    expect(enableButton).toHaveClass('bg-destructive')
-    expect(enableButton).toHaveClass('text-destructive')
+    expect(enableButton).toHaveAttribute('variant', 'destructive')
   })
 
   it('uses a subtle primary tint as the selection background', () => {

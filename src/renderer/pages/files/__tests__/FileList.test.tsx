@@ -296,7 +296,7 @@ describe('FileListHeader', () => {
 
     expect(header).toHaveClass('grid', 'mx-3', 'mb-2', 'h-10', 'shrink-0', 'border-border', 'border-b', 'px-2.5')
     expect(header).not.toHaveClass('sticky', 'bg-card', 'bg-background')
-    expect(activeSort).toHaveClass('!text-foreground-tertiary')
-    expect(inactiveSort).toHaveClass('!text-foreground-tertiary')
+    expect(activeSort).toHaveClass('!text-muted-foreground')
+    expect(inactiveSort).toHaveClass('!text-muted-foreground')
   })
 })

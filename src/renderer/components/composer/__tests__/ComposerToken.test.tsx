@@ -443,7 +443,7 @@ describe('ComposerToken', () => {
       'text-sm'
     )
     expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).not.toHaveClass(
-      'text-muted-foreground'
+      'text-foreground-tertiary'
     )
   })
 

@@ -2055,7 +2055,12 @@ describe('Topics', () => {
     const badge = within(topicRow).getByTestId('topic-awaiting-approval-badge')
 
     expect(badge).toHaveTextContent('Pending')
-    expect(badge).toHaveClass('text-warning', 'group-hover:opacity-0')
+    expect(badge).toHaveClass(
+      'border-warning-border',
+      'bg-warning-subtle',
+      'text-warning-subtle-foreground',
+      'group-hover:opacity-0'
+    )
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
   })
 

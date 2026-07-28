@@ -43,7 +43,7 @@ exports[`Table > rendering > should match snapshot 1`] = `
     >
       <div
         aria-label="common.copy"
-        class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-tertiary opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
+        class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
         data-ui="chat.table.action.copy"
         role="button"
       >
@@ -59,7 +59,7 @@ exports[`Table > rendering > should match snapshot 1`] = `
     >
       <div
         aria-label="common.export.excel"
-        class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-tertiary opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
+        class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
         data-ui="chat.table.action.export"
         role="button"
       >
