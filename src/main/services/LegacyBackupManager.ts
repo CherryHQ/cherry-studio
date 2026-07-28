@@ -1059,7 +1059,7 @@ class BackupManager {
     }
 
     if (stats.isFile()) {
-      const fd = fs.openSync(entryPath, 'r')
+      const fd = fs.openSync(entryPath, process.platform === 'win32' ? 'r+' : 'r')
       try {
         fs.fsyncSync(fd)
       } finally {

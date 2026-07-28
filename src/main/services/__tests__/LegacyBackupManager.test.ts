@@ -582,6 +582,23 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.spyOn(backupManager as any, 'fsyncTree').mockImplementation(() => {})
   }
 
+  it('opens staged files with write access before fsync on Windows', () => {
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    vi.mocked(fs.lstatSync).mockReturnValue(createStats('file') as never)
+    vi.mocked(fs.openSync).mockReturnValue(42)
+
+    try {
+      ;(backupManager as any).fsyncTree('/mock/userData/restore-staging/work.sqlite')
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    }
+
+    expect(fs.openSync).toHaveBeenCalledWith('/mock/userData/restore-staging/work.sqlite', 'r+')
+    expect(fs.fsyncSync).toHaveBeenCalledWith(42)
+    expect(fs.closeSync).toHaveBeenCalledWith(42)
+  })
+
   it('commits one crash-safe restore journal without relaunching inside staging', async () => {
     arrangeDirectRestore()
 
