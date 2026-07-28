@@ -1009,6 +1009,31 @@ async function buildToolPermissions(
     }
   }
 
+  const postToolTimingHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
+      return {}
+    }
+    const event = input as unknown as Record<string, unknown>
+    const toolCallId = event.tool_use_id
+    const toolName = event.tool_name
+    const durationMs = event.duration_ms
+    if (
+      typeof toolCallId !== 'string' ||
+      typeof toolName !== 'string' ||
+      typeof durationMs !== 'number' ||
+      !Number.isFinite(durationMs) ||
+      durationMs < 0
+    ) {
+      return {}
+    }
+    application.get('AgentSessionRuntimeService').recordToolExecutionTiming(session.id, {
+      toolCallId,
+      toolName,
+      durationMs
+    })
+    return {}
+  }
+
   return {
     canUseTool,
     hooks: {
@@ -1025,7 +1050,9 @@ async function buildToolPermissions(
             steerHook
           ]
         }
-      ]
+      ],
+      PostToolUse: [{ hooks: [postToolTimingHook] }],
+      PostToolUseFailure: [{ hooks: [postToolTimingHook] }]
     },
     // `disabled`-exposure tools (incl. WebSearch/WebFetch) come from the declarative
     // registry; agent/assistant overlays stay until they migrate to per-tool exposure (PR-7).

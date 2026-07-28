@@ -9,8 +9,25 @@ import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
 import MessageTokens from '../MessageTokens'
 
+const dataApiMocks = vi.hoisted(() => ({
+  useInfiniteQuery: vi.fn(() => ({
+    pages: [] as Array<{ items: unknown[]; nextCursor?: string }>,
+    isLoading: false,
+    isRefreshing: false,
+    hasNext: false,
+    loadNext: vi.fn()
+  })),
+  useInfiniteFlatItems: vi.fn(() => [])
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', () => dataApiMocks)
+
 vi.mock('@cherrystudio/ui', () => ({
-  HoverCard: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  HoverCard: ({ children, onOpenChange }: { children: ReactNode; onOpenChange?: (open: boolean) => void }) => (
+    <div data-testid="message-token-hover-root" onMouseEnter={() => onOpenChange?.(true)}>
+      {children}
+    </div>
+  ),
   HoverCardContent: ({ children, className, id }: { children: ReactNode; className?: string; id?: string }) => (
     <div id={id} className={className} data-testid="message-token-hover-card">
       {children}
@@ -32,6 +49,10 @@ const translations: Record<string, string> = {
   'chat.message.token_details.cache_write': 'Cache write',
   'chat.message.token_details.input': 'Input',
   'chat.message.token_details.input_breakdown': 'Input breakdown',
+  'chat.message.token_details.lane_approval': 'Approval',
+  'chat.message.token_details.lane_model': 'Model',
+  'chat.message.token_details.lane_other': 'Other',
+  'chat.message.token_details.lane_tool': 'Tool',
   'chat.message.token_details.output': 'Output',
   'chat.message.token_details.reasoning': 'Reasoning',
   'chat.message.token_details.reasoning_time': 'Reasoning',
@@ -120,6 +141,55 @@ function renderWithProvider(message: MessageListItem) {
 }
 
 describe('MessageTokens', () => {
+  it('does not query invocation details until a new-format details card opens', () => {
+    renderWithProvider(
+      createMessage('assistant', {
+        outputTokens: 10,
+        runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
+      })
+    )
+
+    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
+      '/ai-usage-records',
+      expect.objectContaining({ enabled: false })
+    )
+
+    fireEvent.mouseEnter(screen.getByTestId('message-token-hover-root'))
+
+    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
+      '/ai-usage-records',
+      expect.objectContaining({
+        enabled: true,
+        query: expect.objectContaining({
+          messageKind: 'chat',
+          messageId: 'assistant-message-1'
+        })
+      })
+    )
+  })
+
+  it('loads remaining invocation pages while the duration distribution is open', () => {
+    const loadNext = vi.fn()
+    dataApiMocks.useInfiniteQuery.mockReturnValue({
+      pages: [{ items: [], nextCursor: 'next' }],
+      isLoading: false,
+      isRefreshing: false,
+      hasNext: true,
+      loadNext
+    })
+
+    renderWithProvider(
+      createMessage('assistant', {
+        outputTokens: 10,
+        runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
+      })
+    )
+
+    expect(loadNext).not.toHaveBeenCalled()
+    fireEvent.mouseEnter(screen.getByTestId('message-token-hover-root'))
+    expect(loadNext).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps user messages compact without rendering the assistant detail card', () => {
     const { container } = renderWithProvider(createMessage('user', { totalTokens: 42 }))
     const tokenStats = container.querySelector('.message-tokens')
@@ -132,8 +202,8 @@ describe('MessageTokens', () => {
   it('shows the compact total when throughput is unavailable', () => {
     renderWithProvider(
       createMessage('assistant', {
-        promptTokens: 1234,
-        completionTokens: 2048,
+        inputTokens: 1234,
+        outputTokens: 2048,
         totalTokens: 3282
       })
     )
@@ -170,9 +240,9 @@ describe('MessageTokens', () => {
   it('folds reasoning into output usage and reveals exact values on the matching segment', () => {
     renderWithProvider(
       createMessage('assistant', {
-        promptTokens: 100,
-        completionTokens: 100,
-        thoughtsTokens: 25,
+        inputTokens: 100,
+        outputTokens: 100,
+        outputTokenDetails: { reasoningTokens: 25 },
         totalTokens: 200
       })
     )
@@ -192,12 +262,10 @@ describe('MessageTokens', () => {
   it('visualizes uncached, cache-read, and cache-write input details', () => {
     renderWithProvider(
       createMessage('assistant', {
-        promptTokens: 100,
-        completionTokens: 20,
+        inputTokens: 100,
+        outputTokens: 20,
         totalTokens: 120,
-        noCacheTokens: 10,
-        cacheReadTokens: 70,
-        cacheWriteTokens: 20
+        inputTokenDetails: { noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 }
       })
     )
 
@@ -210,8 +278,8 @@ describe('MessageTokens', () => {
   it('shows throughput outside the card and splits waiting, reasoning, and text generation timing', () => {
     renderWithProvider(
       createMessage('assistant', {
-        promptTokens: 100,
-        completionTokens: 100,
+        inputTokens: 100,
+        outputTokens: 100,
         totalTokens: 200,
         timeFirstTokenMs: 4000,
         timeThinkingMs: 3000,
@@ -232,8 +300,37 @@ describe('MessageTokens', () => {
     expect(screen.getByTestId('metric-detail-request-duration')).toHaveTextContent('10s · 71.4%')
   })
 
+  it('shows the runtime duration distribution without a per-step detail list', () => {
+    renderWithProvider(
+      createMessage('assistant', {
+        outputTokens: 100,
+        runtimeTiming: {
+          startedAt: 1_000,
+          completedAt: 5_000,
+          spans: [
+            {
+              id: 'tool:read',
+              kind: 'tool-execution',
+              toolCallId: 'read',
+              toolName: 'Read',
+              startedAt: 2_000,
+              completedAt: 3_000
+            }
+          ]
+        }
+      })
+    )
+
+    const timeline = screen.getByTestId('message-performance-timeline')
+    expect(within(timeline).getByText('Model')).toBeInTheDocument()
+    expect(within(timeline).getByText('Tool')).toBeInTheDocument()
+    expect(within(timeline).getByText('Approval')).toBeInTheDocument()
+    expect(within(timeline).getByText('Other')).toBeInTheDocument()
+    expect(screen.queryByTestId('message-performance-steps')).not.toBeInTheDocument()
+  })
+
   it('omits unavailable performance measurements instead of rendering zero values', () => {
-    renderWithProvider(createMessage('assistant', { promptTokens: 10, completionTokens: 2, totalTokens: 12 }))
+    renderWithProvider(createMessage('assistant', { inputTokens: 10, outputTokens: 2, totalTokens: 12 }))
 
     const trigger = screen.getByRole('button', { name: '12 Tokens' })
     expect(trigger).toHaveClass('message-tokens')
@@ -246,9 +343,9 @@ describe('MessageTokens', () => {
   it('exposes exact read-only values when the hover-card trigger receives keyboard focus', () => {
     renderWithProvider(
       createMessage('assistant', {
-        promptTokens: 100,
-        completionTokens: 100,
-        thoughtsTokens: 25,
+        inputTokens: 100,
+        outputTokens: 100,
+        outputTokenDetails: { reasoningTokens: 25 },
         totalTokens: 200
       })
     )

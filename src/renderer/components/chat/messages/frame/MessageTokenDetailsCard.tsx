@@ -1,11 +1,18 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { createDurationFormatter } from '@renderer/utils/time'
+import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
+import {
+  buildMessagePerformanceViewModel,
+  type MessagePerformanceLaneId,
+  type MessagePerformanceViewModel
+} from './messagePerformance'
 
 interface MetricSegment {
   id: string
@@ -111,26 +118,113 @@ function InspectableMetricBar({
   )
 }
 
-function formatDuration(durationMs: number, numberFormatter: Intl.NumberFormat): string {
-  if (durationMs < 1000) {
-    return `${numberFormatter.format(Math.round(durationMs))}ms`
+/**
+ * Below this floor a real cost would render as an exact zero, which is
+ * indistinguishable from an unpriced request — show it as a "less than" instead.
+ */
+const COST_DISPLAY_FLOOR = 0.0001
+
+function formatCost(cost: number, currencyFormatter: Intl.NumberFormat): string {
+  if (cost > 0 && cost < COST_DISPLAY_FLOOR) {
+    return `<${currencyFormatter.format(COST_DISPLAY_FLOOR)}`
   }
 
-  const durationSeconds = durationMs / 1000
-  if (durationSeconds < 60) {
-    return `${numberFormatter.format(Number(durationSeconds.toFixed(1)))}s`
+  return currencyFormatter.format(cost)
+}
+
+const PERFORMANCE_LANES: ReadonlyArray<{
+  id: MessagePerformanceLaneId
+  colorClassName: string
+}> = [
+  { id: 'model', colorClassName: 'bg-blue-500' },
+  { id: 'tool', colorClassName: 'bg-emerald-500' },
+  { id: 'approval', colorClassName: 'bg-amber-500' },
+  { id: 'other', colorClassName: 'bg-neutral-400' }
+]
+
+function PerformanceTimeline({
+  performance,
+  formatMilliseconds,
+  formatPercent,
+  laneLabel,
+  legacySegmentLabel,
+  showAllDetails
+}: {
+  performance: MessagePerformanceViewModel
+  formatMilliseconds: (value: number) => string
+  formatPercent: (value: number) => string
+  laneLabel: (lane: MessagePerformanceLaneId) => string
+  legacySegmentLabel: (id: string) => string
+  showAllDetails: boolean
+}) {
+  if (
+    performance.startedAt === undefined ||
+    performance.completedAt === undefined ||
+    performance.completedAt <= performance.startedAt
+  ) {
+    return null
+  }
+  const total = performance.completedAt - performance.startedAt
+  const legacyIntervals = performance.intervals.filter((interval) => interval.id.startsWith('legacy-'))
+  if (legacyIntervals.length > 0) {
+    const colors: Record<string, string> = {
+      'legacy-waiting-first-token': 'bg-amber-500',
+      'legacy-reasoning-time': 'bg-fuchsia-500',
+      'legacy-text-generation': 'bg-blue-500'
+    }
+    return (
+      <InspectableMetricBar
+        id="request-duration"
+        title={legacySegmentLabel('request-duration')}
+        segments={legacyIntervals.map((interval) => ({
+          id: interval.id.replace('legacy-', ''),
+          label: legacySegmentLabel(interval.id),
+          value: interval.completedAt - interval.startedAt,
+          colorClassName: colors[interval.id] ?? 'bg-neutral-400'
+        }))}
+        formatValue={formatMilliseconds}
+        formatPercent={formatPercent}
+        showAllDetails={showAllDetails}
+      />
+    )
   }
 
-  const minutes = Math.floor(durationSeconds / 60)
-  const seconds = durationSeconds % 60
-  return `${numberFormatter.format(minutes)}m ${numberFormatter.format(Number(seconds.toFixed(1)))}s`
+  return (
+    <section className="space-y-1.5" data-testid="message-performance-timeline">
+      {PERFORMANCE_LANES.map((lane) => {
+        const intervals = performance.intervals.filter((interval) => interval.lane === lane.id)
+        return (
+          <div key={lane.id} className="grid grid-cols-[4.5rem_1fr] items-center gap-2">
+            <span className="truncate text-[11px] text-foreground-tertiary leading-4">{laneLabel(lane.id)}</span>
+            <div className="relative h-3 overflow-hidden rounded-sm bg-background-subtle">
+              {intervals.map((interval) => {
+                const left = Math.max(0, ((interval.startedAt - performance.startedAt!) / total) * 100)
+                const width = Math.max(0.5, ((interval.completedAt - interval.startedAt) / total) * 100)
+                const intervalLabel = interval.label ?? laneLabel(interval.lane)
+                return (
+                  <span
+                    key={interval.id}
+                    className={cn('absolute inset-y-0 rounded-sm opacity-85', lane.colorClassName)}
+                    style={{ left: `${left}%`, width: `${Math.min(width, 100 - left)}%` }}
+                    title={`${intervalLabel} · ${formatMilliseconds(interval.completedAt - interval.startedAt)}`}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </section>
+  )
 }
 
 const MessageTokenDetailsCard = ({
   message,
+  records = [],
   showAllDetails = false
 }: {
   message: MessageListItem
+  records?: readonly AiUsageRecordEntry[]
   showAllDetails?: boolean
 }) => {
   const { t, i18n } = useTranslation()
@@ -144,6 +238,7 @@ const MessageTokenDetailsCard = ({
     [locale]
   )
   const decimalFormatter = useMemo(() => new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }), [locale])
+  const durationFormatter = useMemo(() => createDurationFormatter(locale), [locale])
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(locale, {
@@ -161,53 +256,65 @@ const MessageTokenDetailsCard = ({
     return null
   }
 
-  const inputTokens = stats.promptTokens ?? 0
-  const outputTokens = stats.completionTokens ?? 0
+  const inputTokens = stats.inputTokens ?? 0
+  const outputTokens = stats.outputTokens ?? 0
   const totalTokens = stats.totalTokens ?? inputTokens + outputTokens
-  const reasoningTokens = Math.min(Math.max(stats.thoughtsTokens ?? 0, 0), outputTokens)
+  const reasoningTokens = Math.min(Math.max(stats.outputTokenDetails?.reasoningTokens ?? 0, 0), outputTokens)
   const textOutputTokens = Math.max(outputTokens - reasoningTokens, 0)
   const inputBreakdownSegments: MetricSegment[] = [
     {
       id: 'uncached',
       label: t('chat.message.token_details.uncached'),
-      value: stats.noCacheTokens ?? 0,
+      value: stats.inputTokenDetails?.noCacheTokens ?? 0,
       colorClassName: 'bg-neutral-400'
     },
     {
       id: 'cache-read',
       label: t('chat.message.token_details.cache_read'),
-      value: stats.cacheReadTokens ?? 0,
+      value: stats.inputTokenDetails?.cacheReadTokens ?? 0,
       colorClassName: 'bg-teal-500'
     },
     {
       id: 'cache-write',
       label: t('chat.message.token_details.cache_write'),
-      value: stats.cacheWriteTokens ?? 0,
+      value: stats.inputTokenDetails?.cacheWriteTokens ?? 0,
       colorClassName: 'bg-amber-500'
     }
   ]
-  const firstTokenDurationMs =
-    stats.timeFirstTokenMs !== undefined && stats.timeCompletionMs !== undefined
-      ? Math.min(stats.timeFirstTokenMs, stats.timeCompletionMs)
-      : undefined
-  const reasoningDurationMs =
-    stats.timeCompletionMs !== undefined && stats.timeThinkingMs !== undefined
-      ? Math.min(Math.max(stats.timeThinkingMs, 0), stats.timeCompletionMs)
-      : 0
-  const waitingFirstTokenDurationMs =
-    firstTokenDurationMs !== undefined
-      ? Math.max(0, firstTokenDurationMs - Math.min(reasoningDurationMs, firstTokenDurationMs))
-      : undefined
-  const textGenerationDurationMs =
-    waitingFirstTokenDurationMs !== undefined && stats.timeCompletionMs !== undefined
-      ? Math.max(0, stats.timeCompletionMs - waitingFirstTokenDurationMs - reasoningDurationMs)
-      : undefined
+  const performance = buildMessagePerformanceViewModel(stats, records)
+  const laneLabels: Record<MessagePerformanceLaneId, string> = {
+    model: t('chat.message.token_details.lane_model'),
+    tool: t('chat.message.token_details.lane_tool'),
+    approval: t('chat.message.token_details.lane_approval'),
+    other: t('chat.message.token_details.lane_other')
+  }
   const createdAt = Date.parse(message.createdAt)
   const createdAtLabel = Number.isFinite(createdAt) ? dateFormatter.format(new Date(createdAt)) : undefined
   const formatTokens = (value: number) =>
     t('chat.message.token_details.tokens', { value: numberFormatter.format(value) })
   const formatPercent = (value: number) => percentageFormatter.format(value)
-  const formatMilliseconds = (value: number) => formatDuration(value, decimalFormatter)
+  const formatMilliseconds = durationFormatter
+  const costLabel = stats.costs
+    ?.map((cost) =>
+      formatCost(
+        cost.amount,
+        new Intl.NumberFormat(locale, {
+          style: 'currency',
+          currency: cost.currency,
+          maximumFractionDigits: 4
+        })
+      )
+    )
+    .join(' · ')
+  const providerReportedRequestCount =
+    stats.costs?.reduce((sum, cost) => sum + cost.providerReportedRequestCount, 0) ?? 0
+  const computedRequestCount = stats.costs?.reduce((sum, cost) => sum + cost.computedRequestCount, 0) ?? 0
+  const costSourceLabel =
+    providerReportedRequestCount > 0 && computedRequestCount === 0
+      ? t('chat.message.token_details.cost_billed')
+      : computedRequestCount > 0 && providerReportedRequestCount === 0
+        ? t('chat.message.token_details.cost_estimated')
+        : undefined
 
   return (
     <div className="text-popover-foreground">
@@ -240,6 +347,20 @@ const MessageTokenDetailsCard = ({
       </header>
 
       <div className="space-y-2 border-border-subtle border-t p-3">
+        {costLabel ? (
+          <div
+            data-testid="message-cost"
+            className="flex h-5 min-w-0 items-center justify-between gap-3 text-xs leading-5">
+            <span className="truncate text-muted-foreground">{t('chat.message.token_details.cost')}</span>
+            <span className="flex shrink-0 items-baseline gap-1.5">
+              {costSourceLabel ? (
+                <span className="text-[11px] text-foreground-tertiary leading-4">{costSourceLabel}</span>
+              ) : null}
+              <span className="text-foreground tabular-nums">{costLabel}</span>
+            </span>
+          </div>
+        ) : null}
+
         <InspectableMetricBar
           id="token-usage"
           title={t('chat.message.token_details.usage')}
@@ -280,35 +401,58 @@ const MessageTokenDetailsCard = ({
           showAllDetails={showAllDetails}
         />
 
-        {waitingFirstTokenDurationMs !== undefined && textGenerationDurationMs !== undefined ? (
-          <InspectableMetricBar
-            id="request-duration"
-            title={t('chat.message.token_details.request_duration')}
-            segments={[
-              {
-                id: 'waiting-first-token',
-                label: t('chat.message.token_details.waiting_first_token'),
-                value: waitingFirstTokenDurationMs,
-                colorClassName: 'bg-amber-500'
-              },
-              {
-                id: 'reasoning-time',
-                label: t('chat.message.token_details.reasoning_time'),
-                value: reasoningDurationMs,
-                colorClassName: 'bg-fuchsia-500'
-              },
-              {
-                id: 'text-generation',
-                label: t('chat.message.token_details.text_generation'),
-                value: textGenerationDurationMs,
-                colorClassName: 'bg-blue-500'
-              }
-            ]}
-            formatValue={formatMilliseconds}
-            formatPercent={formatPercent}
-            showAllDetails={showAllDetails}
-          />
+        {performance.modelTokensPerSecond !== undefined ||
+        performance.endToEndTokensPerSecond !== undefined ||
+        performance.totalDurationMs !== undefined ? (
+          <section className="space-y-1 border-border-subtle border-t pt-2" data-testid="message-performance-summary">
+            {performance.modelTokensPerSecond !== undefined ? (
+              <div className="flex items-center justify-between gap-3 text-xs leading-5">
+                <span className="text-muted-foreground">{t('chat.message.token_details.model_throughput')}</span>
+                <span className="text-foreground tabular-nums">
+                  {t('chat.message.token_details.tokens_per_second_value', {
+                    value: decimalFormatter.format(performance.modelTokensPerSecond)
+                  })}
+                </span>
+              </div>
+            ) : null}
+            {performance.endToEndTokensPerSecond !== undefined ? (
+              <div className="flex items-center justify-between gap-3 text-xs leading-5">
+                <span className="text-muted-foreground">{t('chat.message.token_details.end_to_end_throughput')}</span>
+                <span className="text-foreground tabular-nums">
+                  {t('chat.message.token_details.tokens_per_second_value', {
+                    value: decimalFormatter.format(performance.endToEndTokensPerSecond)
+                  })}
+                </span>
+              </div>
+            ) : null}
+            {performance.totalDurationMs !== undefined ? (
+              <div className="flex items-center justify-between gap-3 text-xs leading-5">
+                <span className="text-muted-foreground">{t('chat.message.token_details.total_duration')}</span>
+                <span className="text-foreground tabular-nums">{formatMilliseconds(performance.totalDurationMs)}</span>
+              </div>
+            ) : null}
+          </section>
         ) : null}
+
+        <PerformanceTimeline
+          performance={performance}
+          formatMilliseconds={formatMilliseconds}
+          formatPercent={formatPercent}
+          laneLabel={(lane) => laneLabels[lane]}
+          legacySegmentLabel={(id) => {
+            switch (id) {
+              case 'legacy-waiting-first-token':
+                return t('chat.message.token_details.waiting_first_token')
+              case 'legacy-reasoning-time':
+                return t('chat.message.token_details.reasoning_time')
+              case 'legacy-text-generation':
+                return t('chat.message.token_details.text_generation')
+              default:
+                return t('chat.message.token_details.request_duration')
+            }
+          }}
+          showAllDetails={showAllDetails}
+        />
       </div>
     </div>
   )
