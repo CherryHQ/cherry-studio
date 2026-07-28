@@ -97,8 +97,16 @@ const BackupV2Settings: FC = () => {
   const [status, setStatus] = useState<BackupStatus | null>(null)
   const [preview, setPreview] = useState<RestorePreview | null>(null)
   const [running, setRunning] = useState<Running | null>(null)
-  const busy = running !== null
+  const activeOperation = running
+    ? running.kind === 'export'
+      ? 'export'
+      : running.kind === 'prepare'
+        ? 'prepare-restore'
+        : null
+    : status?.operation
+  const busy = running !== null || activeOperation != null
   const knowledgeRebuildPending = status?.restore.kind === 'journal' && status.restore.knowledgeRebuildPending === true
+  const statusPollingNeeded = status?.operation != null || knowledgeRebuildPending
 
   const refresh = useCallback(async () => {
     setStatus(await ipcApi.request('backup.get_status'))
@@ -109,10 +117,10 @@ const BackupV2Settings: FC = () => {
   }, [refresh])
 
   useEffect(() => {
-    if (!knowledgeRebuildPending) return
+    if (!statusPollingNeeded) return
     const timer = window.setInterval(() => void refresh(), 2_000)
     return () => window.clearInterval(timer)
-  }, [knowledgeRebuildPending, refresh])
+  }, [refresh, statusPollingNeeded])
 
   /** Turn the closed IPC code set into the one sentence the user can act on. */
   const reportFailure = useCallback(
@@ -180,10 +188,11 @@ const BackupV2Settings: FC = () => {
   const handleCancelOperation = useCallback(async () => {
     try {
       await ipcApi.request('backup.cancel_operation')
+      await refresh()
     } catch (error) {
       reportFailure(error)
     }
-  }, [reportFailure])
+  }, [refresh, reportFailure])
 
   const handleExport = (preset: Preset) =>
     run({ kind: 'export', preset }, async () => {
@@ -292,7 +301,7 @@ const BackupV2Settings: FC = () => {
                 {t('settings.general.backup.button')}
               </>
             }
-            active={running?.kind === 'export'}
+            active={activeOperation === 'export'}
             busy={busy}
             onStart={() => void handleChooseExport()}
             onCancel={handleCancelOperation}
@@ -304,7 +313,7 @@ const BackupV2Settings: FC = () => {
                 {t('settings.general.restore.button')}
               </>
             }
-            active={running?.kind === 'prepare'}
+            active={activeOperation === 'prepare-restore'}
             busy={busy}
             onStart={handlePrepare}
             onCancel={handleCancelOperation}

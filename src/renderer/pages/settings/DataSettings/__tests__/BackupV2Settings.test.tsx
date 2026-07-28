@@ -454,6 +454,21 @@ describe('BackupV2Settings', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: EXPORT_BUTTON })).toBeEnabled())
     })
 
+    it('restores the cancel control from the main-owned status after the page remounts', async () => {
+      requestMock.mockImplementation(async (route: string) => {
+        if (route === 'backup.get_status') return { operation: 'export', restore: { kind: 'none' } }
+        if (route === 'backup.cancel_operation') return { cancelled: true }
+        return undefined
+      })
+
+      await renderSettings()
+
+      expect(screen.queryByRole('button', { name: EXPORT_BUTTON })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'settings.general.restore.button' })).toBeDisabled()
+      await act(async () => click('common.cancel'))
+      expect(requestMock).toHaveBeenCalledWith('backup.cancel_operation')
+    })
+
     it('reports a cancelled operation with silence, not a success or a failure', async () => {
       const stalled = stall('backup.export')
       await renderSettings()

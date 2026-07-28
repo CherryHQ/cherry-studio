@@ -20,4 +20,4 @@ Export a fresh backup before restoring an old one if anything since then is wort
 
 ## Notes for release manager
 
-Fold `2026-07-27-v1-pending-restore-discarded.md` into this entry — it is the narrow upgrade-window case of the same rewrite. Correct that entry's closing line before publishing: the v2 restore route accepts `.cherrybackup` files only, and the v1 surfaces that could read a v1 `.zip` are still disabled, so a v1 backup file cannot be restored in v2 today. Worth a screenshot of the new section and of the confirmation dialog, since the "replaces everything" wording is the whole point.
+A v1 `.zip` backup file cannot be selected by the v2 restore UI. However, an already-confirmed v1 restore journal is completed by a strict compatibility gate during upgrade, so there is no separate pending-restore breaking change to announce. Worth a screenshot of the new section and of the confirmation dialog, since the "replaces everything" wording is the whole point.
