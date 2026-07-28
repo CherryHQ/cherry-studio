@@ -76,12 +76,13 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   /** Once the composer inset leaves too little height, the rail is cramped — hide it. */
   const tooShort = railHeight > 0 && railHeight < RAIL_MIN_HEIGHT_PX
   const visible = railOpacity > 0.02 && !tooShort
-  // The content has only fully yielded the rail's space at railOpacity = 1
-  // (gutter at max). Mid-fade the invisible hit layer would overlap message
-  // content and steal its clicks/selection, so interactivity waits for a full
-  // yield. railOpacity comes from a rounded integer gutter / 24, so it reaches
-  // exactly 1 — the epsilon only guards float noise.
-  const interactive = railOpacity >= 0.999 && !tooShort
+  // The hit strip is clickable whenever it is visible, but it only ever
+  // occupies space the content has already yielded: the content's right
+  // padding is 24px base + gutter, the strip is inset 16px (right-4), and
+  // railOpacity × 24 is the integer gutter — so the strip's width grows with
+  // the fade and everything left of it still belongs to the messages. At full
+  // opacity this is exactly the 32px strip.
+  const hitStripWidth = 8 + Math.round(railOpacity * 24)
 
   const turns = useMemo<AnchorTurn[]>(() => {
     const result: AnchorTurn[] = []
@@ -172,11 +173,11 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   // the rail itself. Mirror that offset into state so the card and wave track it.
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop)
 
-  // Losing interactivity mid-hover would otherwise freeze the wave and card
-  // behind the fade.
+  // Fading out mid-hover would otherwise freeze the wave and card behind the
+  // fade.
   useEffect(() => {
-    if (!interactive) setMouseY(null)
-  }, [interactive])
+    if (!visible) setMouseY(null)
+  }, [visible])
 
   // Few messages don't need anchoring. Only the rail is gated — the content's
   // gutter (MessageList) follows width alone, so when the turn count crosses
@@ -276,17 +277,17 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
         // top-2.5 sits just below the header; bottom-8 keeps the last tick clear
         // of the very bottom edge. The composer is inset to the left of this
         // gutter, so the ticks clear it. Opacity is driven by railOpacity, which
-        // already tracks width continuously, so no transition is needed. Pointer
-        // events stay off through the whole fade ramp — mid-fade this layer
-        // still overlaps message content — and only turn on once the gutter has
-        // fully yielded the rail's space (railOpacity = 1).
-        'group absolute top-2.5 right-4 bottom-8 z-20 w-8 select-none',
-        !interactive && 'pointer-events-none'
+        // already tracks width continuously, so no transition is needed. The
+        // strip's width (hitStripWidth) grows with the gutter so it never
+        // covers message content mid-fade — the visible ticks are clickable at
+        // any fade stage, and clicks left of the strip reach the messages.
+        'group absolute top-2.5 right-4 bottom-8 z-20 select-none',
+        !visible && 'pointer-events-none'
       )}
-      // inert keeps the mid-fade (or hidden) rail out of the Tab order and the
-      // accessibility tree — an invisible layer must not take keyboard focus.
-      inert={!interactive}
-      style={{ opacity: visible ? railOpacity : 0 }}
+      // inert keeps the hidden rail out of the Tab order and the accessibility
+      // tree — an invisible layer must not take keyboard focus.
+      inert={!visible}
+      style={{ opacity: visible ? railOpacity : 0, width: hitStripWidth }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}>
       <div

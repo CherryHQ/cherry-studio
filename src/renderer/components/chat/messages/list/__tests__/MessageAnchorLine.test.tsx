@@ -218,23 +218,39 @@ describe('MessageAnchorLine', () => {
   })
 
   describe('interactivity gating', () => {
-    it('keeps pointer events off while the rail is still fading in', () => {
+    it('stays clickable mid-fade with a hit strip confined to the yielded gutter', () => {
       const { container } = render(<MessageAnchorLine messages={messages} railOpacity={0.5} />)
 
       const rail = container.firstElementChild as HTMLElement
-      // Mid-fade the invisible hit layer still overlaps message content…
-      expect(rail).toHaveClass('pointer-events-none')
-      // …while the visual fade keeps tracking railOpacity through the ramp.
+      // Visible means clickable — the strip is never a dead layer…
+      expect(rail).not.toHaveClass('pointer-events-none')
+      expect(rail).not.toHaveAttribute('inert')
+      // …because its width only spans space the content has yielded
+      // (8px inset margin + railOpacity × 24 gutter), so message text left of
+      // it keeps its clicks and selection.
+      expect(rail.style.width).toBe('20px')
+      // The visual fade keeps tracking railOpacity through the ramp.
       expect(rail.style.opacity).toBe('0.5')
     })
 
-    it('enables pointer events once the gutter has fully yielded', () => {
+    it('spans the full 32px strip once the gutter has fully yielded', () => {
       const { container } = render(<MessageAnchorLine messages={messages} railOpacity={1} />)
 
-      expect(container.firstElementChild).not.toHaveClass('pointer-events-none')
+      const rail = container.firstElementChild as HTMLElement
+      expect(rail).not.toHaveClass('pointer-events-none')
+      expect(rail.style.width).toBe('32px')
     })
 
-    it('clears the hover preview when interactivity drops mid-hover', () => {
+    it('goes fully inert once the rail fades out', () => {
+      const { container } = render(<MessageAnchorLine messages={messages} railOpacity={0.01} />)
+
+      const rail = container.firstElementChild as HTMLElement
+      expect(rail).toHaveClass('pointer-events-none')
+      expect(rail).toHaveAttribute('inert')
+      expect(rail.style.opacity).toBe('0')
+    })
+
+    it('clears the hover preview when the rail fades out mid-hover', () => {
       restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
       partsMap['user-2'] = [textPart('Question two')]
       const { container, rerender, queryByText } = render(<MessageAnchorLine messages={messages} railOpacity={1} />)
@@ -242,7 +258,7 @@ describe('MessageAnchorLine', () => {
       fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
       expect(queryByText('Question two')).toBeInTheDocument()
 
-      rerender(<MessageAnchorLine messages={messages} railOpacity={0.5} />)
+      rerender(<MessageAnchorLine messages={messages} railOpacity={0.01} />)
       expect(queryByText('Question two')).not.toBeInTheDocument()
     })
   })
