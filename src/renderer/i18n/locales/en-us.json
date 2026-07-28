@@ -441,6 +441,12 @@
       "list": {
         "title": "Tasks"
       },
+      "model_switch_confirm": {
+        "confirm": "Switch model",
+        "description": "Different models may understand and process context differently. Switching may affect the continuity or quality of subsequent responses. Do you want to continue?",
+        "skip_for_app_run": "Don't ask again until I quit the app",
+        "title": "Switch to \"{{model}}\"?"
+      },
       "new": "New task",
       "pin": {
         "title": "Pin task"
@@ -1633,8 +1639,17 @@
       "token_details": {
         "cache_read": "Cache read",
         "cache_write": "Cache write",
+        "cost": "Cost",
+        "cost_billed": "Billed by provider",
+        "cost_estimated": "Estimated",
+        "end_to_end_throughput": "End-to-end throughput",
         "input": "Input",
         "input_breakdown": "Input breakdown",
+        "lane_approval": "Approval",
+        "lane_model": "Model",
+        "lane_other": "Other",
+        "lane_tool": "Tool",
+        "model_throughput": "Model generation TPS",
         "output": "Output",
         "reasoning": "Reasoning",
         "reasoning_time": "Reasoning",
@@ -1643,6 +1658,7 @@
         "text_output": "Text output",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Tokens/s",
+        "total_duration": "End-to-end duration",
         "uncached": "Uncached",
         "usage": "Token usage",
         "waiting_first_token": "Waiting"
@@ -2310,6 +2326,7 @@
     "open_in": "Open in {{name}}",
     "open_in_new_tab": "Open in new tab",
     "open_sidebar": "Open sidebar",
+    "other": "Other",
     "placeholders": {
       "select": {
         "model": "Select a model"
@@ -4312,6 +4329,7 @@
     },
     "pinned": "Pinned",
     "price": {
+      "cache_read": "Cache Read Price",
       "cost": "Cost",
       "currency": "Currency",
       "custom": "Custom",
@@ -8099,6 +8117,108 @@
       "onclose": "Minimize to Tray on Close",
       "show": "Show Tray Icon",
       "title": "Tray"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "Active days",
+        "cacheHitRate": "Cache hit rate",
+        "cacheObservedTokens": "Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "Starts with new requests",
+        "dailyAverage": "Daily average",
+        "explicitApiKey": "Selected key",
+        "lastPeriod": "vs last period",
+        "matchedApiKey": "Matched override",
+        "none": "N/A",
+        "peakDay": "Peak day",
+        "providerAuth": "Provider auth",
+        "streak": "Longest streak: {{days}} days",
+        "topModel": "Top model",
+        "totalCost": "Total cost",
+        "totalRequests": "Requests",
+        "totalTokens": "Total tokens",
+        "unattributedApiKey": "Unattributed request",
+        "unattributedSource": "Unattributed source"
+      },
+      "chart": {
+        "bar": "Bar",
+        "line": "Line",
+        "pie": "Pie",
+        "stack": "Stack"
+      },
+      "currency": "Currency",
+      "empty": {
+        "description": "Usage appears after supported AI requests create usage records.",
+        "title": "No usage yet"
+      },
+      "explore": {
+        "analysis": "Analysis",
+        "chart": "Chart",
+        "clearDate": "Clear date filter",
+        "drilldownTitle": "{{date}} drilldown",
+        "entries": "Requests",
+        "groupBy": "Group by",
+        "loadMore": "Load more",
+        "loading": "Loading...",
+        "metric": "Metric",
+        "noBreakdown": "No breakdown data",
+        "noBreakdownDescription": "Try a broader window or a different provider.",
+        "noEntries": "No entries",
+        "noEntriesDescription": "Try a broader window or a different provider.",
+        "rollup": "Rollup",
+        "selectedDate": "Selected date: {{date}}",
+        "shareLabel": "Share",
+        "title": "Explore",
+        "top": "Top",
+        "totalEntries_one": "{{count}} entry",
+        "totalEntries_other": "{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "API key",
+        "model": "Model",
+        "provider": "Provider",
+        "source": "Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "Usage on {{date}}",
+        "title": "Daily activity"
+      },
+      "metric": {
+        "cost": "Cost",
+        "requests": "Requests",
+        "tokens": "Tokens"
+      },
+      "overview": {
+        "title": "Overview"
+      },
+      "rollup": {
+        "daily": "Daily",
+        "monthly": "Monthly",
+        "total": "Total",
+        "weekly": "Weekly"
+      },
+      "summary": "{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "cost": "Cost",
+        "date": "Date",
+        "model": "Model",
+        "source": "Source",
+        "tokens": "Tokens",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Usage Analytics",
+      "tooltip": {
+        "cost": "Cost {{value}}",
+        "requests_one": "{{count}} request",
+        "requests_other": "{{count}} requests",
+        "tokens": "{{value}} tokens"
+      },
+      "window": {
+        "30d": "Last 30 days",
+        "365d": "Last year",
+        "90d": "Last 90 days"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

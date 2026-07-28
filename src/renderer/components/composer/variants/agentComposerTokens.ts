@@ -1,13 +1,21 @@
 import type { LocalSkill } from '@shared/types/skill'
 
 import type { ComposerDraftToken } from '../tokens'
-import { composerFileTokenId, fileToComposerToken, getComposerTokenIds } from './shared/composerTokens'
+import {
+  composerFileTokenId,
+  composerKnowledgeBaseTokenId,
+  fileToComposerToken,
+  getComposerTokenIds,
+  knowledgeBaseToComposerToken
+} from './shared/composerTokens'
 
 export const agentFileToComposerToken = fileToComposerToken
+export const agentKnowledgeBaseToComposerToken = knowledgeBaseToComposerToken
 export const getAgentComposerTokenIds = getComposerTokenIds
 
 export const agentComposerTokenId = {
   file: composerFileTokenId,
+  knowledge: composerKnowledgeBaseTokenId,
   skill: (skill: Pick<LocalSkill, 'filename'>) => `skill:${skill.filename}`
 }
 

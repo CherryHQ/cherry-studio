@@ -24,10 +24,15 @@ import {
 } from '@shared/data/api/schemas/agentSessionMessages'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
+import {
+  AGENT_SESSION_MESSAGE_SEARCH_ROLES,
+  coerceSearchRole,
+  type MessageRuntimeStatsInput
+} from '@shared/data/types/message'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
+import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -60,6 +65,13 @@ type ListSessionMessagesOptions = {
   cursor?: string
   limit?: number
   messageId?: string
+}
+
+type SaveAgentSessionMessageParams = {
+  sessionId: string
+  runtimeResumeToken?: string
+  runtimeStats?: MessageRuntimeStatsInput
+  message: CreateAgentSessionMessageDto
 }
 
 export class AgentSessionMessageService {
@@ -335,10 +347,10 @@ export class AgentSessionMessageService {
 
   private upsertMessage(
     db: DbOrTx,
-    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
+    params: SaveAgentSessionMessageParams,
     timestampMs = Date.now()
   ): AgentSessionMessageEntity {
-    const { sessionId, runtimeResumeToken = null, message } = params
+    const { sessionId, runtimeResumeToken = null, runtimeStats, message } = params
     const messageId = message.id ?? uuidv7()
     const status = message.status ?? 'success'
 
@@ -358,7 +370,7 @@ export class AgentSessionMessageService {
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
       const messageSnapshot =
         message.messageSnapshot === undefined ? existingRow.messageSnapshot : message.messageSnapshot
-      const stats = message.stats === undefined ? existingRow.stats : message.stats
+      const stats = mergeMessageRuntimeStats(existingRow.stats, runtimeStats) ?? null
 
       withSqliteErrors(
         () =>
@@ -401,7 +413,7 @@ export class AgentSessionMessageService {
       data: message.data,
       modelId: message.modelId,
       messageSnapshot: message.messageSnapshot,
-      stats: message.stats,
+      stats: mergeMessageRuntimeStats(undefined, runtimeStats) ?? null,
       runtimeResumeToken,
       createdAt: timestampMs,
       updatedAt: timestampMs
@@ -413,7 +425,7 @@ export class AgentSessionMessageService {
 
   private saveMessageTx(
     db: DbOrTx,
-    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
+    params: SaveAgentSessionMessageParams,
     timestampMs = Date.now()
   ): AgentSessionMessageEntity {
     const saved = this.upsertMessage(db, params, timestampMs)
@@ -421,27 +433,34 @@ export class AgentSessionMessageService {
     return saved
   }
 
-  saveMessage(
-    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
-    db?: DbOrTx
-  ): AgentSessionMessageEntity {
+  saveMessage(params: SaveAgentSessionMessageParams, db?: DbOrTx): AgentSessionMessageEntity {
     const timestampMs = Date.now()
     if (db) return this.saveMessageTx(db, params, timestampMs)
-    return application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    const saved = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    if (saved.role === 'assistant') {
+      aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: saved.id })
+    }
+    return saved
   }
 
   saveMessages(params: CreateAgentSessionMessagesDto): AgentSessionMessageEntity[] {
     const { sessionId, runtimeResumeToken, messages } = params
 
-    return application.get('DbService').withWriteTx((tx) => {
+    const saved = application.get('DbService').withWriteTx((tx) => {
       const timestampMs = Date.now()
-      const saved: AgentSessionMessageEntity[] = []
+      const result: AgentSessionMessageEntity[] = []
       for (const message of messages) {
-        saved.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
+        result.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
       }
       agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
-      return saved
+      return result
     })
+    for (const entity of saved) {
+      if (entity.role === 'assistant') {
+        aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: entity.id })
+      }
+    }
+    return saved
   }
 }
 

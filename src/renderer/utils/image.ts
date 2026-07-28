@@ -177,28 +177,9 @@ export const captureScrollable = async (
 
   if (el) {
     const htmlToImage = await loadHtmlToImage()
-
-    // Save original styles
-    const originalStyle = {
-      height: el.style.height,
-      maxHeight: el.style.maxHeight,
-      overflow: el.style.overflow,
-      position: el.style.position
-    }
-
-    const originalScrollTop = el.scrollTop
     let restoreLocalImageSources: (() => void) | undefined
 
     try {
-      // Hide scrollbars during capture
-      el.classList.add('hide-scrollbar')
-
-      // Modify styles to show full content
-      el.style.height = 'auto'
-      el.style.maxHeight = 'none'
-      el.style.overflow = 'visible'
-      el.style.position = 'static'
-
       // calculate the size of the element
       const totalWidth = el.scrollWidth
       const totalHeight = el.scrollHeight
@@ -232,11 +213,18 @@ export const captureScrollable = async (
         imagePlaceholder: TRANSPARENT_IMAGE_PLACEHOLDER,
         pixelRatio: window.devicePixelRatio,
         skipAutoScale: true,
-        canvasWidth: el.scrollWidth,
-        canvasHeight: el.scrollHeight,
+        width: totalWidth,
+        height: totalHeight,
+        canvasWidth: totalWidth,
+        canvasHeight: totalHeight,
         style: {
           backgroundColor: getComputedStyle(el).backgroundColor,
-          color: getComputedStyle(el).color
+          color: getComputedStyle(el).color,
+          height: 'auto',
+          maxHeight: 'none',
+          overflow: 'visible',
+          position: 'static',
+          scrollbarWidth: 'none'
         }
       }
 
@@ -250,20 +238,6 @@ export const captureScrollable = async (
       throw error
     } finally {
       restoreLocalImageSources?.()
-
-      // Restore original styles
-      el.style.height = originalStyle.height
-      el.style.maxHeight = originalStyle.maxHeight
-      el.style.overflow = originalStyle.overflow
-      el.style.position = originalStyle.position
-
-      // Restore original scroll position
-      setTimeout(() => {
-        el.scrollTop = originalScrollTop
-      }, 0)
-
-      // Remove scrollbar hiding class
-      el.classList.remove('hide-scrollbar')
     }
   }
 

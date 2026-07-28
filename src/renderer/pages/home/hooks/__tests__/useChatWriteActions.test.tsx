@@ -49,13 +49,15 @@ const uiMsg = (id: string, role: string, parentId: string | null): any => ({
 function renderActions(rootId: string | null, uiMessages: ReturnType<typeof uiMsg>[], cache = makeCache()) {
   const captureLocalSendScrollEligibility = vi.fn()
   const onLocalSendStarted = vi.fn()
+  const regenerate = vi.fn(async () => {})
+  const setMessages = vi.fn()
   const { result } = renderHook(() =>
     useChatWriteActions({
       topic: { id: 't1' } as Topic,
       uiMessages,
       rootId,
-      regenerate: vi.fn(async () => {}),
-      setMessages: vi.fn(),
+      regenerate,
+      setMessages,
       stop: vi.fn(async () => {}),
       refresh: vi.fn(async () => []),
       cache,
@@ -64,7 +66,13 @@ function renderActions(rootId: string | null, uiMessages: ReturnType<typeof uiMs
       onLocalSendStarted
     })
   )
-  return { actions: result.current.actions, cache, captureLocalSendScrollEligibility, onLocalSendStarted }
+  return {
+    actions: result.current.actions,
+    cache,
+    captureLocalSendScrollEligibility,
+    onLocalSendStarted,
+    regenerate
+  }
 }
 
 describe('useChatWriteActions — first-turn delete', () => {
@@ -203,6 +211,30 @@ describe('useChatWriteActions — edit message', () => {
       body: { data: { parts: editedParts } }
     })
     expect(cache.rollbackBranch).toHaveBeenCalledOnce()
+  })
+})
+
+describe('useChatWriteActions — regenerate', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('marks regeneration as a local send before waiting for the stream to finish', async () => {
+    const { actions, captureLocalSendScrollEligibility, onLocalSendStarted, regenerate } = renderActions('vroot', [
+      uiMsg('u1', 'user', 'vroot'),
+      uiMsg('a1', 'assistant', 'u1')
+    ])
+    let finishRegenerate: (() => void) | undefined
+    regenerate.mockImplementationOnce(() => new Promise<void>((resolve) => (finishRegenerate = resolve)))
+
+    const request = actions.regenerate('a1')
+
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
+    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
+      regenerate.mock.invocationCallOrder[0]
+    )
+    expect(onLocalSendStarted).toHaveBeenCalledOnce()
+
+    finishRegenerate?.()
+    await request
   })
 })
 
