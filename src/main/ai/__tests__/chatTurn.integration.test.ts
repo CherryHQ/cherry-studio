@@ -58,9 +58,7 @@ class FakeListener {
   readonly sources: Array<string | undefined> = []
   readonly doneResults: any[] = []
   readonly errorResults: any[] = []
-  terminalSnapshot: any
-
-  constructor(private readonly inspect: () => any) {}
+  onDoneImpl?: () => void
 
   onChunk(chunk: UIMessageChunk, sourceModelId?: string): void {
     this.chunks.push(chunk)
@@ -68,8 +66,8 @@ class FakeListener {
   }
 
   onDone(result: any): void {
-    this.terminalSnapshot = this.inspect()
     this.doneResults.push(result)
+    this.onDoneImpl?.()
   }
 
   onPaused(): void {}
@@ -140,8 +138,12 @@ describe('chat turn integration trajectory', () => {
 
     const manager = createManager()
     const topicId = 'chat-integration-1'
-    const listener = new FakeListener(() => manager.inspect(topicId))
+    const listener = new FakeListener()
     const modelId = 'test-provider::test-model' as const
+    let terminalSnapshot: ReturnType<typeof manager.inspect> | undefined
+    listener.onDoneImpl = () => {
+      terminalSnapshot = manager.inspect(topicId)
+    }
 
     manager.send({
       topicId,
@@ -167,7 +169,10 @@ describe('chat turn integration trajectory', () => {
     expect(listener.sources).toEqual(chunks.map(() => modelId))
     expect(listener.errorResults).toEqual([])
 
-    const snapshot = listener.terminalSnapshot!
+    if (!terminalSnapshot) {
+      throw new Error('Expected the terminal snapshot to be available during onDone')
+    }
+    const snapshot = terminalSnapshot
     expect(snapshot.status).toBe('done')
     expect(listener.doneResults[0].finalMessage).toEqual(snapshot.executions[0].finalMessage)
     expect(snapshot.executions[0].finalMessage).toMatchObject({ id: 'assistant-1', role: 'assistant' })
@@ -198,7 +203,7 @@ describe('chat turn integration trajectory', () => {
 
     const manager = createManager()
     const topicId = 'chat-integration-tool-1'
-    const listener = new FakeListener(() => manager.inspect(topicId))
+    const listener = new FakeListener()
     const modelId = 'test-provider::test-model' as const
 
     manager.send({
@@ -263,7 +268,7 @@ describe('chat turn integration trajectory', () => {
 
     const manager = createManager()
     const topicId = 'chat-integration-error-1'
-    const listener = new FakeListener(() => manager.inspect(topicId))
+    const listener = new FakeListener()
     const modelId = 'test-provider::test-model' as const
 
     manager.send({
