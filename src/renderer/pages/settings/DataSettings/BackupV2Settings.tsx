@@ -11,6 +11,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { BACKUP_RESTORE_NOTICE_KEY } from '@renderer/utils/backupRestoreNotice'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
@@ -36,6 +37,7 @@ type BackupStatus = OutputFor<'backup.get_status'>
 type RestorePreview = Extract<OutputFor<'backup.prepare_restore'>, { status: 'prepared' }>['preview']
 type Preset = 'lite' | 'full'
 type JournalRestore = Extract<NonNullable<BackupStatus['restore']>, { kind: 'journal' }>
+type PresentedDegradation = NonNullable<JournalRestore['degradations']>[number]
 
 /**
  * What is running, identified down to the row that started it — the abortable
@@ -62,6 +64,18 @@ const PRESET_EXPORT_TITLE_KEYS: Record<Preset, string> = {
 const PRESET_EXPORT_HELP_KEYS: Record<Preset, string> = {
   lite: 'settings.data.backup_v2.export.lite_help',
   full: 'settings.data.backup_v2.export.full_help'
+}
+
+const DEGRADATION_KEYS: Record<PresentedDegradation['code'], string> = {
+  'capability-malformed': 'settings.data.backup_v2.outcome.degradation.capability_malformed',
+  'path-unportable': 'settings.data.backup_v2.outcome.degradation.path_unportable',
+  'path-collision': 'settings.data.backup_v2.outcome.degradation.path_collision',
+  'resource-unavailable': 'settings.data.backup_v2.outcome.degradation.resource_unavailable',
+  unknown: 'settings.data.backup_v2.outcome.degradation.unknown'
+}
+
+function degradationCount(degradations: readonly PresentedDegradation[]): number {
+  return degradations.reduce((total, degradation) => total + degradation.count, 0)
 }
 
 const RESTORE_STATE_KEYS: Record<JournalRestore['state'], string> = {
@@ -114,8 +128,14 @@ const BackupV2Settings: FC = () => {
           return toast.error(t('settings.data.backup_v2.error.rollback_unavailable'))
         case backupErrorCodes.RECOVERY_INCOMPLETE:
           return toast.error(t('settings.data.backup_v2.error.recovery_incomplete'))
+        case backupErrorCodes.STORAGE_UNAVAILABLE:
+          return toast.error(t('settings.data.backup_v2.error.storage_unavailable'))
+        case backupErrorCodes.EXPORT_SOURCE:
+          return toast.error(t('settings.data.backup_v2.error.export_source'))
         case backupErrorCodes.EXPORT_DESTINATION:
           return toast.error(t('settings.data.backup_v2.error.export_destination'))
+        case backupErrorCodes.RESTORE_RESOURCES:
+          return toast.error(t('settings.data.backup_v2.error.restore_resources'))
         default:
           return toast.error(t('settings.data.backup_v2.error.unexpected'))
       }
@@ -164,7 +184,7 @@ const BackupV2Settings: FC = () => {
       toast.success(
         result.degradations.length > 0
           ? t('settings.data.backup_v2.export.done_degraded', {
-              count: result.degradations.length
+              count: degradationCount(result.degradations)
             })
           : t('settings.data.backup_v2.export.done')
       )
@@ -238,7 +258,9 @@ const BackupV2Settings: FC = () => {
 
   const handleAcknowledge = () =>
     run({ kind: 'other' }, async () => {
-      await ipcApi.request('backup.acknowledge_restore')
+      const result = await ipcApi.request('backup.acknowledge_restore')
+      if (!result.acknowledged) return
+      toast.closeToast(BACKUP_RESTORE_NOTICE_KEY)
       toast.success(t('settings.data.backup_v2.outcome.acknowledged'))
     })
 
@@ -420,7 +442,7 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
       {preview.degradations.length > 0 && (
         <SettingHelpText>
           {t('settings.data.backup_v2.preview.degradations', {
-            count: preview.degradations.length
+            count: degradationCount(preview.degradations)
           })}
         </SettingHelpText>
       )}
@@ -508,14 +530,12 @@ const RestoreOutcome: FC<{
           type="warning"
           showIcon
           message={t('settings.data.backup_v2.outcome.degradations', {
-            count: restore.degradations.length
+            count: degradationCount(restore.degradations)
           })}
           description={
             <ul>
               {restore.degradations.map((degradation) => (
-                <li key={`${degradation.kind}-${degradation.reason}`}>
-                  {degradation.kind}: {degradation.reason}
-                </li>
+                <li key={degradation.code}>{t(DEGRADATION_KEYS[degradation.code], { count: degradation.count })}</li>
               ))}
             </ul>
           }

@@ -17,6 +17,7 @@ const showSaveDialog = vi.hoisted(() => vi.fn())
 const showOpenDialog = vi.hoisted(() => vi.fn())
 
 vi.mock('@application', () => ({ application: { get: applicationGet } }))
+vi.mock('@main/i18n', () => ({ t: () => 'Cherry Studio Backup' }))
 vi.mock('electron', () => ({ dialog: { showSaveDialog, showOpenDialog } }))
 
 import {
@@ -24,7 +25,9 @@ import {
   BackupBusyError,
   BackupCancelledError,
   InsufficientDiskSpaceError,
-  RestoreStateError
+  ResourceInstallPlanError,
+  RestoreStateError,
+  SourceDriftError
 } from '@main/services/backup'
 
 import { backupHandlers } from '../backup'
@@ -40,7 +43,7 @@ const detachedCtx = { senderId: null }
 
 function manifest(preset: 'lite' | 'full') {
   return preset === 'lite'
-    ? { preset, degradations: [{ kind: 'knowledge-base', reason: 'absent at snapshot time' }] }
+    ? { preset, degradations: [{ kind: 'resource:knowledge-base', reason: 'absent at snapshot time' }] }
     : { preset, degradations: [], resourcePayloads: [{ livePath: 'Data/KnowledgeBase/base-1' }] }
 }
 
@@ -84,7 +87,7 @@ describe('backupHandlers', () => {
       })
 
       await expect(backupHandlers['backup.get_status'](undefined, detachedCtx)).resolves.toMatchObject({
-        restore: { degradations }
+        restore: { degradations: [{ code: 'path-unportable', count: 2 }] }
       })
     })
   })
@@ -124,7 +127,7 @@ describe('backupHandlers', () => {
 
       expect(result).toMatchObject({
         resourceCount: 0,
-        degradations: [{ kind: 'knowledge-base', reason: 'absent at snapshot time' }]
+        degradations: [{ code: 'resource-unavailable', count: 1 }]
       })
     })
 
@@ -137,12 +140,21 @@ describe('backupHandlers', () => {
       })
     })
 
-    it('maps a destination the archive cannot be written to', async () => {
+    it('maps insufficient working space separately from an invalid output path', async () => {
       showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
       service.export.mockRejectedValue(new InsufficientDiskSpaceError({ needed: 10, available: 1, path: '/tmp' }))
 
       await expect(backupHandlers['backup.export']({ preset: 'lite' }, ctx)).rejects.toMatchObject({
-        code: backupErrorCodes.EXPORT_DESTINATION
+        code: backupErrorCodes.STORAGE_UNAVAILABLE
+      })
+    })
+
+    it('maps source drift to an actionable export-source code', async () => {
+      showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
+      service.export.mockRejectedValue(new SourceDriftError('/profile/Data/Notes', 'tree changed'))
+
+      await expect(backupHandlers['backup.export']({ preset: 'full' }, ctx)).rejects.toMatchObject({
+        code: backupErrorCodes.EXPORT_SOURCE
       })
     })
 
@@ -188,6 +200,16 @@ describe('backupHandlers', () => {
       await expect(backupHandlers['backup.prepare_restore'](undefined, ctx)).rejects.toMatchObject({
         code: backupErrorCodes.ARCHIVE_REJECTED,
         data: { reason: 'chain-incompatible' }
+      })
+    })
+
+    it('maps a target resource conflict to its restore-specific code', async () => {
+      showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/in.cherrybackup'] })
+      service.prepareRestore.mockRejectedValue(new ResourceInstallPlanError('target-symlink', 'Data/Notes'))
+
+      await expect(backupHandlers['backup.prepare_restore'](undefined, ctx)).rejects.toMatchObject({
+        code: backupErrorCodes.RESTORE_RESOURCES,
+        data: { reason: 'target-symlink' }
       })
     })
 

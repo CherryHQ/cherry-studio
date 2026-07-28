@@ -16,7 +16,7 @@ Only visible in a narrow window: the app was closed between confirming a v1 rest
 
 ## What the user should do
 
-Run the restore again from v2 (Settings → Data → Restore) using the same backup file. v1 backup files remain importable.
+A v1 backup file cannot be restored by v2. If the restore is still needed, run it in a v1 build first, let that restore complete, then upgrade and create a new v2 `.cherrybackup` file. Keep the original v1 backup until the new backup has been verified.
 
 ## Notes for release manager
 

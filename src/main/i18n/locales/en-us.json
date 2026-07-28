@@ -82,6 +82,7 @@
   "dialog.architecture_mismatch.download": "Go to download page",
   "dialog.architecture_mismatch.later": "Later",
   "dialog.architecture_mismatch.title": "Install the Apple Silicon version",
+  "dialog.cherry_backup_files": "Cherry Studio Backup",
   "dialog.data_reset.cancel": "Cancel",
   "dialog.data_reset.confirm": "Reset and Restart",
   "dialog.data_reset.message": "This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",

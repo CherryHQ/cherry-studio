@@ -284,6 +284,34 @@ describe('BackupService', () => {
 
       expect(service.cancelOperation()).toBe(false)
     })
+
+    it('aborts and joins an in-flight operation during service shutdown', async () => {
+      let observed: AbortSignal | undefined
+      let workSettled = false
+      const operation = service.runExclusive(
+        'export',
+        (signal) =>
+          new Promise<string>((resolve) => {
+            observed = signal
+            signal.addEventListener(
+              'abort',
+              () => {
+                workSettled = true
+                resolve('cancelled-cleanly')
+              },
+              { once: true }
+            )
+          })
+      )
+      await vi.waitFor(() => expect(observed).toBeDefined())
+
+      await stop(service)
+
+      expect(observed?.aborted).toBe(true)
+      expect(workSettled).toBe(true)
+      await expect(operation).resolves.toBe('cancelled-cleanly')
+      await expect(service.runExclusive('export', async () => 'late')).rejects.toThrow(/shutting down/)
+    })
   })
 
   describe('startup recovery reporting', () => {

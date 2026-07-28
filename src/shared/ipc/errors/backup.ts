@@ -22,6 +22,12 @@ export const backupErrorCodes = {
   ROLLBACK_UNAVAILABLE: 'BACKUP_ROLLBACK_UNAVAILABLE',
   /** A failed restore still holds the only copy of what it moved; a restart retries it. */
   RECOVERY_INCOMPLETE: 'BACKUP_RECOVERY_INCOMPLETE',
-  /** The destination volume cannot take the archive (no space, exists, unsupported). */
-  EXPORT_DESTINATION: 'BACKUP_EXPORT_DESTINATION'
+  /** A backup/restore working volume has insufficient usable space. */
+  STORAGE_UNAVAILABLE: 'BACKUP_STORAGE_UNAVAILABLE',
+  /** The export source changed or violates the portable resource contract. */
+  EXPORT_SOURCE: 'BACKUP_EXPORT_SOURCE',
+  /** The selected output cannot be atomically published without clobbering. */
+  EXPORT_DESTINATION: 'BACKUP_EXPORT_DESTINATION',
+  /** Restore resources conflict with the target filesystem (type, symlink, or device). */
+  RESTORE_RESOURCES: 'BACKUP_RESTORE_RESOURCES'
 } as const

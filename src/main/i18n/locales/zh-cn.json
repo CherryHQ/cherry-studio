@@ -82,6 +82,7 @@
   "dialog.architecture_mismatch.download": "前往官网下载",
   "dialog.architecture_mismatch.later": "稍后再说",
   "dialog.architecture_mismatch.title": "请安装 Apple 芯片版",
+  "dialog.cherry_backup_files": "Cherry Studio 备份文件",
   "dialog.data_reset.cancel": "取消",
   "dialog.data_reset.confirm": "重置并重启",
   "dialog.data_reset.message": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
