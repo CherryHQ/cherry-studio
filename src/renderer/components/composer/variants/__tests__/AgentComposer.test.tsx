@@ -1013,7 +1013,7 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('submits the first slider effort when a multi-tier model still stores Default', async () => {
+  it('preserves Default when a multi-tier model has no declared default effort', async () => {
     mocks.modelResult = {
       ...model,
       capabilities: [MODEL_CAPABILITY.REASONING],
@@ -1038,7 +1038,7 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'match the UI' },
-      { body: expect.objectContaining({ reasoningEffort: 'none' }) }
+      { body: expect.objectContaining({ reasoningEffort: 'default' }) }
     )
   })
 
