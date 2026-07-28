@@ -5,6 +5,7 @@ import type {
   TreeNode,
   TreeResponse
 } from '@shared/data/types/message'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
 
 const LIVE_PREVIEW_LENGTH = 160
 
@@ -12,7 +13,7 @@ export interface TopicMessageFlowLiveNode {
   id: string
   parentId: string
   role: TreeNode['role']
-  type?: TreeNode['type']
+  isContextBoundary?: boolean
   preview: string
   modelId?: string | null
   status: MessageStatus
@@ -99,7 +100,7 @@ export function buildTopicMessageFlowLiveState({
         id: message.id,
         parentId,
         role: message.role === 'system' ? 'assistant' : message.role,
-        type: metadata.type,
+        isContextBoundary: hasClearContextPart(parts) || undefined,
         preview: extractTopicMessageFlowLivePreview(parts),
         modelId: metadata.modelId ?? null,
         status: isStreamingMessage ? 'pending' : (metadata.status ?? fallbackStatus),
@@ -127,7 +128,7 @@ function toTreeNode(node: TopicMessageFlowLiveNode, existing?: TreeNode): TopicM
     id: node.id,
     parentId: node.parentId,
     role: node.role,
-    type: node.type ?? existing?.type,
+    isContextBoundary: node.isContextBoundary ?? existing?.isContextBoundary,
     preview: node.preview || existing?.preview || '',
     modelId: node.modelId ?? existing?.modelId ?? null,
     status: node.status,

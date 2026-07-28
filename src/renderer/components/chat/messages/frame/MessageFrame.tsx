@@ -179,7 +179,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     [actions, isMultiSelectMode, isSelected, message.id]
   )
 
-  if (message.type === 'clear') {
+  if (message.isContextBoundary) {
     return (
       <div
         aria-disabled={!canStartNewContext}

@@ -305,7 +305,7 @@ describe('MessageGroup', () => {
       topicId: 'topic-1',
       createdAt: '2026-01-01T00:00:00.000Z',
       status: 'success',
-      type: 'clear'
+      isContextBoundary: true
     } as MessageListItem
 
     const { container } = render(<MessageGroup messages={[message]} topic={{ id: 'topic-1' } as Topic} />)
@@ -324,7 +324,7 @@ describe('MessageGroup', () => {
       topicId: 'topic-1',
       createdAt: '2026-01-01T00:00:00.000Z',
       status: 'success',
-      type: 'clear'
+      isContextBoundary: true
     } as MessageListItem
 
     render(<MessageGroup messages={[message]} topic={{ id: 'topic-1' } as Topic} />)

@@ -193,7 +193,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('clear-1')).toEqual(
       expect.objectContaining({
         parentId: 'u1',
-        data: { type: 'clear', parts: [] }
+        data: { parts: [{ type: 'data-clear', data: {} }] }
       })
     )
     expect(msgMap.get('u2')?.parentId).toBe('clear-1')

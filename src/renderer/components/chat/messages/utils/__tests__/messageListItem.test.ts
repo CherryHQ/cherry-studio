@@ -74,11 +74,11 @@ describe('toMessageListItem', () => {
     const message = {
       id: 'clear-1',
       role: 'user',
-      parts: [],
-      metadata: { status: 'success', type: 'clear' }
+      parts: [{ type: 'data-clear', data: {} }],
+      metadata: { status: 'success' }
     } as CherryUIMessage
 
-    expect(toMessageListItem(message, { topicId: 'topic-1' }).type).toBe('clear')
+    expect(toMessageListItem(message, { topicId: 'topic-1' }).isContextBoundary).toBe(true)
   })
 })
 

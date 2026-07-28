@@ -41,11 +41,11 @@ function makeCache() {
   } as unknown as Parameters<typeof useChatWriteActions>[0]['cache']
 }
 
-const uiMsg = (id: string, role: string, parentId: string | null, type?: 'clear'): any => ({
+const uiMsg = (id: string, role: string, parentId: string | null, isContextBoundary = false): any => ({
   id,
   role,
-  parts: [],
-  metadata: { parentId, type }
+  parts: isContextBoundary ? [{ type: 'data-clear', data: {} }] : [],
+  metadata: { parentId }
 })
 
 function renderActions(
@@ -95,7 +95,7 @@ function clearMessage() {
     topicId: 't1',
     parentId: 'u1',
     role: 'user',
-    data: { type: 'clear', parts: [] },
+    data: { parts: [{ type: 'data-clear', data: {} }] },
     searchableText: '',
     status: 'success',
     siblingsGroupId: 0,
@@ -155,15 +155,15 @@ describe('useChatWriteActions — clear context', () => {
         parentId: 'u1',
         role: 'user',
         status: 'success',
-        data: { type: 'clear', parts: [] }
+        data: { parts: [{ type: 'data-clear', data: {} }] }
       }
     })
     expect(cache.seedReservedMessages).toHaveBeenCalledWith([
       expect.objectContaining({
         id: 'clear-1',
         role: 'user',
-        parts: [],
-        metadata: expect.objectContaining({ parentId: 'u1', type: 'clear', status: 'success' })
+        parts: [{ type: 'data-clear', data: {} }],
+        metadata: expect.objectContaining({ parentId: 'u1', status: 'success' })
       })
     ])
     expect(seedReservedMessages).not.toHaveBeenCalled()
@@ -185,7 +185,7 @@ describe('useChatWriteActions — clear context', () => {
   it('removes the active clear marker without cascading and rolls the cache forward immediately', async () => {
     const { actions, cache, scrollToBottom } = renderActions('vroot', [
       uiMsg('u1', 'user', 'vroot'),
-      uiMsg('clear-1', 'user', 'u1', 'clear')
+      uiMsg('clear-1', 'user', 'u1', true)
     ])
 
     await act(async () => {
@@ -220,7 +220,7 @@ describe('useChatWriteActions — clear context', () => {
     vi.mocked(cache.deleteMessageTrigger).mockRejectedValueOnce(error)
     const { actions } = renderActions(
       'vroot',
-      [uiMsg('u1', 'user', 'vroot'), uiMsg('clear-1', 'user', 'u1', 'clear')],
+      [uiMsg('u1', 'user', 'vroot'), uiMsg('clear-1', 'user', 'u1', true)],
       cache
     )
 

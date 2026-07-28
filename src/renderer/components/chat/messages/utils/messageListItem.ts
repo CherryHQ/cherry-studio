@@ -9,6 +9,7 @@ import {
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 
 import type { MessageListItem } from '../types'
@@ -53,7 +54,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     assistantId: ctx.assistantId,
     topicId: ctx.topicId,
     parentId: metadata.parentId ?? null,
-    type: metadata.type,
+    isContextBoundary: hasClearContextPart(message.parts) || undefined,
     createdAt: metadata.createdAt ?? '',
     status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
     modelId,

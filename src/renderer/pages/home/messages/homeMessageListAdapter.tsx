@@ -271,7 +271,7 @@ export function useHomeMessageListProviderValue({
   useCommandHandler(
     'chat.message.copy_last',
     () => {
-      const lastMessage = messageItems.findLast((message) => message.type !== 'clear')
+      const lastMessage = messageItems.findLast((message) => !message.isContextBoundary)
       if (lastMessage) {
         const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
         const richContent = leafCapabilities.copyRichContent ? createComposerRichClipboardContentFromParts(parts) : null
@@ -295,7 +295,7 @@ export function useHomeMessageListProviderValue({
   useCommandHandler(
     'chat.message.edit_last_user',
     () => {
-      const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
+      const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && !m.isContextBoundary)
       if (lastUserMessage) {
         void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)
       }

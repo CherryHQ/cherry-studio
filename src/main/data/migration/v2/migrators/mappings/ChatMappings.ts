@@ -63,7 +63,7 @@ import type {
   TextUIPart
 } from '@shared/data/types/message'
 import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
-import { withCherryMeta } from '@shared/data/types/uiParts'
+import { createClearContextPart, withCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema, type Base64String } from '@shared/types/file'
 import type { SourceUrlUIPart } from 'ai'
 import mime from 'mime'
@@ -516,8 +516,8 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
  * | updatedAt | updatedAt | ISO string → timestamp |
  *
  * ## Message Type:
- * `type: 'clear'` is preserved as a context-boundary marker. Other message
- * type values are dropped.
+ * Legacy `type: 'clear'` is converted to a hidden `data-clear` part. Other
+ * message type values are dropped.
  *
  * ## Dropped Fields:
  * - useful (boolean)
@@ -562,8 +562,7 @@ export async function transformMessage(
     topicId: correctTopicId,
     role: oldMessage.role,
     data: {
-      parts,
-      ...(oldMessage.type === 'clear' ? { type: 'clear' as const } : {})
+      parts: oldMessage.type === 'clear' ? [...parts, createClearContextPart()] : parts
     },
     searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),

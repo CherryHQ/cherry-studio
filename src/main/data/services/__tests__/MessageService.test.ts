@@ -940,7 +940,7 @@ describe('MessageService', () => {
             parentId: null,
             topicId: 'topic-clear',
             role: 'user',
-            data: { type: 'clear', parts: [] },
+            data: { parts: [{ type: 'data-clear', data: {} }] },
             status: 'success',
             siblingsGroupId: 0,
             createdAt: 100,
@@ -951,7 +951,7 @@ describe('MessageService', () => {
 
       const result = messageService.getTree('topic-clear', { depth: -1 })
 
-      expect(result.nodes.find((node) => node.id === 'clear-1')?.type).toBe('clear')
+      expect(result.nodes.find((node) => node.id === 'clear-1')?.isContextBoundary).toBe(true)
     })
 
     it('returns every same-topic root tree even when roots are not in a sibling group', async () => {

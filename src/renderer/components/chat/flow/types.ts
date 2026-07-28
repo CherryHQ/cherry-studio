@@ -1,4 +1,4 @@
-import type { MessageData, MessageRole, MessageStatus } from '@shared/data/types/message'
+import type { MessageRole, MessageStatus } from '@shared/data/types/message'
 import type { Edge, Node } from '@xyflow/react'
 
 export const TOPIC_MESSAGE_FLOW_NODE_TYPE = 'topicMessage'
@@ -8,7 +8,7 @@ export type TopicMessageFlowEdgeState = 'active' | 'default' | 'inactive' | 'sib
 export interface TopicMessageFlowNodeData extends Record<string, unknown> {
   messageId: string
   role: MessageRole
-  type?: MessageData['type']
+  isContextBoundary?: boolean
   status: MessageStatus
   preview: string
   modelId?: string | null

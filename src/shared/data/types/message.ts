@@ -114,8 +114,6 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
  */
 export interface MessageData {
   parts?: CherryMessagePart[]
-  /** Context boundary marker. Clear messages intentionally carry no parts. */
-  type?: 'clear'
 }
 
 // ── Cherry-specific UI message types ────────────────────────────────
@@ -139,8 +137,6 @@ export interface CherryUIMessageMetadata {
   //    without a parallel `metadataMap` lookup that lags behind state.messages.
   /** `parent_id` of the persisted row; drives `askId` / tree walks. */
   parentId?: string | null
-  /** Context boundary marker projected from the persisted message data. */
-  type?: MessageData['type']
   /** Non-zero for messages that belong to a regenerate/multi-model cohort. */
   siblingsGroupId?: number
   /** `UniqueModelId` (`providerId::modelId`) the assistant was generated with. */
@@ -371,7 +367,6 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
-  if (v.type !== undefined && v.type !== 'clear') return false
   return true
 })
 
@@ -524,8 +519,8 @@ export interface TreeNode {
   parentId: string
   /** Message role — a tree node is never the virtual root, so content roles only */
   role: ContentMessageRole
-  /** Context boundary marker. */
-  type?: MessageData['type']
+  /** Derived from the message's hidden `data-clear` part. */
+  isContextBoundary?: boolean
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */

@@ -64,7 +64,7 @@ The migrator handles potential data inconsistencies from the old system:
 | **Orphan assistantId** | `topic.assistantId` (post-remap) not in `validAssistantIds` | Same NULL fallback as above; `orphanedAssistantTopics` counter increments and a warning is logged. |
 | **Empty topic name** | Both Dexie and Redux have empty `name` (ancient bug) | Use fallback "Unnamed Topic" |
 | **Missing topic timestamps** | Both Dexie and Redux miss `createdAt` / `updatedAt` | Derive from messages: `createdAt = min(message.createdAt)`, `updatedAt = max(message.createdAt)`. If no message has a parseable `createdAt`, falls through to `parseTimestamp()`'s `Date.now()` fallback (logged as a warning). |
-| **Message with no blocks** | `blocks` array is empty after resolution | Keep `type: 'clear'` messages as context boundaries; skip other messages and re-link their children to the nearest retained parent |
+| **Message with no blocks** | `blocks` array is empty after resolution | Keep legacy `type: 'clear'` messages as context boundaries, store them as hidden `data-clear` parts, and skip/re-link other empty messages |
 | **Topic where all messages are skipped** | All messages dropped (no blocks) | Keep topic, set `activeNodeId` to null. Distinct from the "empty source topic" case above (which is dropped). |
 
 ## Field Mappings
@@ -98,7 +98,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | (computed) | `parentId` | From tree building algorithm |
 | (from parent topic) | `topicId` | Uses parent topic.id for consistency |
 | `role` | `role` | Direct copy |
-| `blocks` + `mentions` + citations + clear `type` | `data` | Complex transformation; preserves `type: 'clear'` with empty parts |
+| `blocks` + `mentions` + citations + clear `type` | `data` | Complex transformation; converts legacy `type: 'clear'` to a hidden `data-clear` part |
 | (extracted) | `searchableText` | Extracted from text blocks |
 | `status` | `status` | Normalized to success/error/paused |
 | (computed) | `siblingsGroupId` | From multi-model detection |
@@ -109,7 +109,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | `createdAt` | `createdAt` | ISO string → timestamp |
 | `updatedAt` | `updatedAt` | ISO string → timestamp |
 
-**Dropped fields**: non-clear `type` values, `useful`, `enabledMCPs`, `agentSessionId`, `traceId` (span detail files are not part of the v1 chat migration source set), `providerMetadata`, `multiModelMessageStyle`, `askId` (replaced by parentId), `foldSelected` (replaced by siblingsGroupId)
+**Dropped fields**: `type` after converting `clear` to `data-clear`, `useful`, `enabledMCPs`, `agentSessionId`, `traceId` (span detail files are not part of the v1 chat migration source set), `providerMetadata`, `multiModelMessageStyle`, `askId` (replaced by parentId), `foldSelected` (replaced by siblingsGroupId)
 
 ### Block Type Mapping
 

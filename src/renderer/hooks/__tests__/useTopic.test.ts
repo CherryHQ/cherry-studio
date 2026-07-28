@@ -18,12 +18,14 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: { emit: vi.fn() }
 }))
 
-const apiMessage = (id: string, type?: 'clear') => ({
+const apiMessage = (id: string, isContextBoundary = false) => ({
   id,
   topicId: 'topic-a',
   parentId: 'root',
   role: 'user' as const,
-  data: { parts: type ? [] : [{ type: 'text' as const, text: id }], ...(type ? { type } : {}) },
+  data: {
+    parts: isContextBoundary ? [{ type: 'data-clear' as const, data: {} }] : [{ type: 'text' as const, text: id }]
+  },
   searchableText: '',
   status: 'success' as const,
   siblingsGroupId: 0,
@@ -43,7 +45,7 @@ describe('getTopicMessages', () => {
   it('filters clear markers and does not count them toward maxMessages', async () => {
     vi.mocked(dataApiService.get)
       .mockResolvedValueOnce({
-        items: [{ message: apiMessage('clear-1', 'clear') }, { message: apiMessage('newer') }],
+        items: [{ message: apiMessage('clear-1', true) }, { message: apiMessage('newer') }],
         nextCursor: 'older-page',
         activeNodeId: 'newer',
         assistantId: 'assistant-1',

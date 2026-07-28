@@ -25,6 +25,7 @@ import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { BranchMessagesResponse, CherryUIMessage, Message as DbMessage } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
+import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo, useRef, useState } from 'react'
 
@@ -119,7 +120,7 @@ export function useChatWriteActions(params: Params): Result {
     setIsStartingNewContext(true)
     const operation = (async () => {
       const activeMessage = uiMessages.find((message) => message.id === activeNodeId)
-      if (activeMessage?.metadata?.type === 'clear') {
+      if (hasClearContextPart(activeMessage?.parts)) {
         await seedOptimisticBranch((items) => branchWithoutIds(items, new Set([activeNodeId])))
         try {
           await deleteMessageTrigger({ params: { id: activeNodeId }, query: { cascade: false } })
@@ -136,7 +137,7 @@ export function useChatWriteActions(params: Params): Result {
               parentId: activeNodeId,
               role: 'user',
               status: 'success',
-              data: { type: 'clear', parts: [] }
+              data: { parts: [createClearContextPart()] }
             }
           })
           await seedMessagesCache([sharedMessageToUIMessage(message)])
