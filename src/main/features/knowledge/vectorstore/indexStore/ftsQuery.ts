@@ -26,11 +26,15 @@
  *
  * Known tradeoffs, accepted until a real CJK tokenizer replaces trigram in v2.x:
  *
- *  - OR has no minimum-should-match, so chunks sharing only filler trigrams
- *    (「是什么」) enter the candidate set. bm25() ranks the real answer far above
- *    them, but for a BM25-only base there is no downstream relevance gate
- *    (`applyRelevanceThreshold` skips 'ranking' scores and pure bm25 mode has no
- *    RRF), so weak matches can pad the tail up to topK.
+ *  - OR has no minimum-should-match and no stopword handling, so chunks sharing
+ *    only filler trigrams (「是什么」) enter the candidate set. bm25() usually ranks
+ *    the real answer above them, but not reliably: a chunk matching many filler
+ *    trigrams can outscore one matching the two trigrams that carry the subject
+ *    (an FAQ chunk 「公司的入职流程是什么？」 outranks the 报销流程 answer for
+ *    「公司的报销流程是什么」). Nothing downstream re-sorts that — `applyRelevanceThreshold`
+ *    only filters 'relevance' scores, and both 'bm25' and 'hybrid' yield 'ranking',
+ *    so `base.threshold` is inert unless the base has a rerank model that *succeeds*
+ *    (a failed rerank leaves the scores 'ranking'; see utils/indexing/rerank.ts).
  *  - Windowing covers Han/Hiragana/Katakana only. Thai, Lao, Khmer and Myanmar
  *    are space-less too but are NOT windowed — their clauses keep the
  *    exact-substring semantics; supporting them is deferred with the tokenizer.
@@ -44,9 +48,11 @@ const TRIGRAM_MIN_TOKEN_LENGTH = 3
 
 /**
  * Characters of the scripts windowed into trigrams: Han, Hiragana, Katakana.
- * `Script_Extensions`, not `Script`: shared marks these scripts use mid-word —
- * ー ｰ 々 〆 ヽ ゝ — are `Script=Common`, so plain `Script=` would terminate a
- * run at every ー, splitting サーバー into fragments too short to index.
+ * `Script_Extensions`, not `Script`: ー (U+30FC), ｰ (U+FF70) and 〆 (U+3006) are
+ * `Script=Common` despite being used mid-word, so plain `Script=` terminated a run
+ * at every ー, splitting サーバー into fragments too short to index. (々 U+3005,
+ * ヽ U+30FD and ゝ U+309D are already `Script=Han`/`Katakana`/`Hiragana` and were
+ * never affected — `Script_Extensions` keeps them matching too.)
  */
 const UNSEGMENTED_SCRIPT_PATTERN =
   /[\p{Script_Extensions=Han}\p{Script_Extensions=Hiragana}\p{Script_Extensions=Katakana}]/u
@@ -123,12 +129,18 @@ export function extractMatchTerms(query: string): string[] {
 }
 
 /**
- * The distinct terms too short to produce a trigram (2-character CJK words,
- * "to", "Go"). MATCH can never see them, but they are often the query's content
- * words — dropping 「系统」 from 「系统 architecture」 would silently turn the
- * query into a bare `MATCH "architecture"`. The store ANDs a `LIKE '%term%'`
- * filter per short term onto the MATCH query instead ({@link toFtsLikePattern}),
- * relaxed when the filters leave no candidate at all.
+ * The distinct terms of 1–2 characters, which produce no trigram. MATCH can never
+ * see them, and at 2 characters they are often the query's content words — dropping
+ * 「系统」 from 「系统 architecture」 would silently turn the query into a bare
+ * `MATCH "architecture"`. The store ANDs a `LIKE '%term%'` filter per short term
+ * onto the MATCH query instead ({@link toFtsLikePattern}), relaxed when the filters
+ * leave no candidate at all.
+ *
+ * Two sharp edges the relaxation does not cover: 1-character terms ("a", 「的」) are
+ * included and are rarely content-bearing, and the filters are plain substrings, so
+ * a short Latin term also matches inside longer words ("Go" hits "algorithm"). Both
+ * only bite when the filter eliminates the target chunk while some other chunk
+ * survives, since relaxation triggers on an empty result rather than a short one.
  */
 export function extractShortTerms(query: string): string[] {
   const { words } = splitQuery(query)
