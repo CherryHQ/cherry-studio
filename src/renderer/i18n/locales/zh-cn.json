@@ -6595,7 +6595,8 @@
     },
     "hardware_acceleration": {
       "confirm": {
-        "content": "禁用硬件加速需要重启应用才能生效，是否现在重启？",
+        "content_disable": "禁用硬件加速需要重启应用才能生效，是否现在重启？",
+        "content_enable": "启用硬件加速需要重启应用才能生效，是否现在重启？",
         "title": "需要重启应用"
       },
       "title": "禁用硬件加速"
