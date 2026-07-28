@@ -430,7 +430,7 @@ export function RightPanelHeaderControls({ canMaximize = false }: { canMaximize?
           tone="conversation"
           className="[&_svg]:!size-3.5 shrink-0"
           aria-label={maximizeLabel}
-          pressed={state.presentationMaximized}
+          aria-pressed={state.presentationMaximized}
           onClick={actions.toggleMaximized}>
           <MaximizeIcon />
         </NavbarIcon>
@@ -613,9 +613,9 @@ export function RightPanelShortcut({
       tone="conversation"
       className={cn('[&_svg]:!size-3.5 shrink-0', className)}
       active={active}
-      pressed={active}
       disabled={disabled}
       aria-label={label}
+      aria-pressed={active}
       data-shell-tab-shortcut={tab}
       onClick={handleClick}>
       {icon}

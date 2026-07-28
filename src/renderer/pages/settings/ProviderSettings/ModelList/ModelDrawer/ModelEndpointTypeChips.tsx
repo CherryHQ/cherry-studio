@@ -36,7 +36,7 @@ export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChi
             type="button"
             variant={active ? 'secondary' : 'outline'}
             size="sm"
-            pressed={active}
+            aria-pressed={active}
             className={active ? 'border border-border text-foreground' : undefined}
             onClick={() => toggle(option.id)}>
             {active ? <Check aria-hidden className="size-3" /> : null}

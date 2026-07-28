@@ -524,7 +524,7 @@ export function SelectorShell({
                         variant="ghost"
                         size="icon-sm"
                         disabled={multiSelect.disabled}
-                        pressed={multiSelect.checked}
+                        aria-pressed={multiSelect.checked}
                         aria-label={multiSelect.ariaLabel}
                         title={multiSelect.ariaLabel}
                         data-testid={multiSelect.dataTestId}

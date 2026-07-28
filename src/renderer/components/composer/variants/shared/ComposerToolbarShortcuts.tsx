@@ -339,14 +339,17 @@ export const ComposerToolbarShortcuts = ({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  pressed={!isModelUnavailable && shortcut.toggle && shortcut.resolved ? shortcut.active : undefined}
                   className={cn(
                     COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
                     'disabled:pointer-events-none',
-                    !shortcut.resolved && 'disabled:opacity-100'
+                    !shortcut.resolved && 'disabled:opacity-100',
+                    shortcut.active && 'bg-accent'
                   )}
                   aria-label={typeof shortcut.label === 'string' ? shortcut.label : undefined}
                   aria-haspopup={isModelUnavailable ? undefined : shortcut.haspopup}
+                  aria-pressed={
+                    !isModelUnavailable && shortcut.toggle && shortcut.resolved ? shortcut.active : undefined
+                  }
                   disabled={!isModelUnavailable && shortcut.disabled}
                   data-active={shortcut.active || undefined}
                   onClick={isModelUnavailable ? showModelRequiredToast : shortcut.select}>

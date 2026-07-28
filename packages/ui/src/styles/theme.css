@@ -334,6 +334,14 @@
   --color-error-border: var(--error-border);
 
   /* ==================== */
+  /* Compatibility: Existing Semantic Colors */
+  /* ==================== */
+  --color-destructive-hover: var(--cs-destructive-hover);
+  --color-secondary-hover: var(--cs-secondary-hover);
+  --color-secondary-active: var(--cs-secondary-active);
+  --color-ghost-active: var(--cs-ghost-active);
+
+  /* ==================== */
   /* Spacing */
   /* ==================== */
   /* Keep spacing opt-in for now to avoid overriding Tailwind container names. */

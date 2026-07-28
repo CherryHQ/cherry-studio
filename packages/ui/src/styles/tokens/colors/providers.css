@@ -14,6 +14,7 @@
   /* Brand Colors */
   --cs-primary: var(--cs-brand-500);
   --cs-destructive: var(--cs-red-500);
+  --cs-destructive-hover: var(--cs-red-400);
   --cs-success: var(--cs-green-500);
   --cs-warning: var(--cs-amber-500);
   --cs-info: var(--cs-blue-500);
@@ -41,8 +42,11 @@
 
   /* UI Element Colors */
   --cs-secondary: oklch(0 0 0 / 0.05); /* Secondary Button Background */
+  --cs-secondary-hover: oklch(0 0 0 / 0.1);
+  --cs-secondary-active: oklch(0 0 0 / 0.15);
   --cs-muted: oklch(0 0 0 / 0.05); /* Muted/Subtle Background */
   --cs-accent: oklch(0 0 0 / 0.05); /* Accent Background */
+  --cs-ghost-active: oklch(0 0 0 / 0.1); /* Ghost Button Active */
 
   /* Sidebar */
   --cs-sidebar: oklch(0.9672 0 0);
@@ -117,8 +121,11 @@
 
   /* UI Element Colors - Dark Mode */
   --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */
+  --cs-secondary-hover: oklch(1 0 0 / 0.2);
+  --cs-secondary-active: oklch(1 0 0 / 0.25);
   --cs-muted: oklch(1 0 0 / 0.1); /* Muted/Subtle Background */
   --cs-accent: oklch(1 0 0 / 0.1); /* Accent Background */
+  --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
 
   /* Sidebar */
   --cs-sidebar: oklch(0.2393 0 0);

@@ -294,10 +294,10 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                pressed={isPinned}
                 onClick={handleTogglePin}
                 className={toolbarButtonClassName({ active: isPinned })}
-                aria-label={isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')}>
+                aria-label={isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')}
+                aria-pressed={isPinned}>
                 <Pin size={14} />
               </Button>
             </Tooltip>
@@ -312,12 +312,12 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
               type="button"
               variant="ghost"
               size="icon-sm"
-              pressed={openLinkExternal}
               onClick={handleToggleOpenExternal}
               className={toolbarButtonClassName({ active: openLinkExternal })}
               aria-label={
                 openLinkExternal ? t('miniApp.popup.open_link_external_on') : t('miniApp.popup.open_link_external_off')
-              }>
+              }
+              aria-pressed={openLinkExternal}>
               <Link size={14} />
             </Button>
           </Tooltip>

@@ -24,7 +24,12 @@ describe('buildThemeContractCss', () => {
   })
 
   it('keeps compatibility color allowlists shrink-only', () => {
-    const frozenSemanticColors: readonly string[] = []
+    const frozenSemanticColors: readonly string[] = [
+      'destructive-hover',
+      'secondary-hover',
+      'secondary-active',
+      'ghost-active'
+    ]
     const frozenStatusColors: readonly string[] = []
 
     expect(COMPATIBILITY_SEMANTIC_COLOR_TOKENS.filter((token) => !frozenSemanticColors.includes(token))).toEqual([])
@@ -67,8 +72,8 @@ describe('buildThemeContractCss', () => {
     expect(css).not.toContain('--color-primary: var(--cs-theme-primary);')
     expect(css).not.toContain('--color-ring: var(--cs-ring);')
     expect(css).toContain('--color-destructive: var(--destructive);')
-    expect(css).not.toContain('--color-destructive-hover:')
-    expect(css).not.toContain('/* Compatibility: Existing Semantic Colors */')
+    expect(css).toContain('--color-destructive-hover: var(--cs-destructive-hover);')
+    expect(css).toContain('/* Compatibility: Existing Semantic Colors */')
     expect(css).not.toContain('--color-primary-hover:')
     expect(css).not.toContain('/* Compatibility: Existing Status Colors */')
     expect(css).not.toContain('--color-error-base:')

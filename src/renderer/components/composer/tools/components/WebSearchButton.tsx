@@ -183,8 +183,8 @@ const WebSearchButton: FC<Props> = (props) => {
       <ActionIconButton
         onClick={handleClick}
         active={enableWebSearch}
-        pressed={enableWebSearch}
         aria-label={ariaLabel}
+        aria-pressed={enableWebSearch}
         disabled={isDisabled}
         icon={icon}
       />

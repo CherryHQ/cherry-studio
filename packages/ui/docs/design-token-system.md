@@ -234,10 +234,11 @@ text-success-subtle-foreground
 authored CSS references the official or stable product variable directly. Existing non-semantic
 palette utilities remain available during primitive cleanup, but new shared UI should prefer semantic utilities.
 
-The frozen `COMPATIBILITY_SEMANTIC_COLOR_TOKENS` and `COMPATIBILITY_STATUS_COLOR_TOKENS` lists are now empty;
-historical semantic and status names are no longer exposed as Tailwind utilities. Adding a variable to a foundation
-stylesheet does not create a Tailwind color automatically. These compatibility lists are shrink-only and must not
-be used as the registration path for new component APIs.
+Historical semantic and status utilities are exposed only by the frozen
+`COMPATIBILITY_SEMANTIC_COLOR_TOKENS` and `COMPATIBILITY_STATUS_COLOR_TOKENS` lists. The remaining semantic
+entries support the unchanged shared Button contract and existing component-local active treatments; the status
+list is empty. Adding a variable to a foundation stylesheet does not create a Tailwind color automatically. These
+compatibility lists are shrink-only and must not be used as the registration path for new component APIs.
 
 ### 3.6 Internal ownership boundaries
 

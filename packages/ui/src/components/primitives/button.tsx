@@ -18,20 +18,14 @@ const buttonVariants = cva(
       variant: {
         default:
           'bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200',
-        destructive: 'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20',
+        destructive: 'bg-destructive text-white hover:bg-destructive-hover focus-visible:ring-destructive/20',
         outline: 'border border-border bg-transparent text-foreground shadow-none hover:bg-accent',
-        secondary:
-          'rounded-lg bg-secondary text-secondary-foreground shadow-none hover:bg-black/10 dark:hover:bg-white/20',
+        secondary: 'rounded-lg bg-secondary text-secondary-foreground shadow-none hover:bg-secondary-hover',
         /** Dialog primary action style: same color hierarchy as default, with a flatter v2 shell. */
         emphasis:
           'rounded-lg bg-neutral-900 text-white shadow-none hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200',
         ghost: 'text-neutral-900 shadow-none hover:bg-accent hover:text-accent-foreground dark:text-neutral-100',
-        chip: 'rounded-lg bg-muted text-muted-foreground shadow-none hover:bg-black/10 hover:text-foreground dark:hover:bg-white/20',
         link: 'text-neutral-900 underline-offset-4 hover:text-neutral-700 hover:underline dark:text-neutral-100 dark:hover:text-neutral-300'
-      },
-      pressed: {
-        true: '',
-        false: ''
       },
       size: {
         default: 'min-h-7.5 gap-1.5 px-2.5 text-[13px]',
@@ -44,27 +38,8 @@ const buttonVariants = cva(
         'icon-navbar': 'size-[30px] [&_svg]:!size-[18px]'
       }
     },
-    compoundVariants: [
-      {
-        variant: 'secondary',
-        pressed: true,
-        className: 'bg-black/15 text-foreground hover:bg-black/15 dark:bg-white/25 dark:hover:bg-white/25'
-      },
-      {
-        variant: 'ghost',
-        pressed: true,
-        className: 'bg-black/10 text-foreground hover:bg-black/10 dark:bg-white/15 dark:hover:bg-white/15'
-      },
-      {
-        variant: 'chip',
-        pressed: true,
-        className:
-          'bg-black/15 text-foreground ring-1 ring-foreground/30 hover:bg-black/15 dark:bg-white/25 dark:hover:bg-white/25'
-      }
-    ],
     defaultVariants: {
       variant: 'default',
-      pressed: false,
       size: 'default'
     }
   }
@@ -78,22 +53,17 @@ function Button({
   loading = false,
   loadingIcon,
   loadingIconClassName,
-  active = false,
-  pressed,
   disabled,
   children,
-  'aria-pressed': ariaPressed,
   ...props
 }: React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
-    active?: boolean
     asChild?: boolean
     loading?: boolean
     loadingIcon?: React.ReactNode
     loadingIconClassName?: string
   }) {
   const Comp = asChild ? Slot : 'button'
-  const visuallyActive = active || pressed
 
   // Determine spinner size based on button size
   const getSpinnerSize = () => {
@@ -114,11 +84,8 @@ function Button({
     <Comp
       data-slot="button"
       data-variant={variant ?? 'default'}
-      data-active={active || undefined}
-      data-pressed={pressed || undefined}
-      className={cn(buttonVariants({ variant, pressed: visuallyActive, size, className }))}
+      className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled || loading}
-      aria-pressed={pressed ?? ariaPressed}
       aria-busy={loading || undefined}
       data-busy={loading || undefined}
       {...props}>

@@ -208,19 +208,19 @@
       "source": "--cs-secondary-hover",
       "target": null,
       "strategy": "review",
-      "reason": "Secondary hover treatment is owned by the shared Button variant."
+      "reason": "Retained temporarily by the unchanged shared Button contract; other consumers require contextual review."
     },
     {
       "source": "--cs-secondary-active",
       "target": null,
       "strategy": "review",
-      "reason": "Secondary pressed treatment is owned by the shared Button variant."
+      "reason": "Retained temporarily for existing component-local active treatments."
     },
     {
       "source": "--cs-ghost-active",
       "target": null,
       "strategy": "review",
-      "reason": "Ghost pressed treatment is owned by the shared Button variant."
+      "reason": "Retained temporarily for existing component-local active treatments."
     },
     { "source": "--cs-error-base", "target": "--error", "strategy": "exact" },
     { "source": "--cs-error-text", "target": "--error-subtle-foreground", "strategy": "exact" },

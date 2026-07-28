@@ -663,14 +663,13 @@ const TranslatePage: FC = () => {
             onExchange={handleExchange}
           />
           {isTranslating ? (
-            <Button
+            <button
               type="button"
-              variant="secondary"
               onClick={onAbort}
-              className="h-8 gap-1.5 rounded-md px-3 text-foreground text-sm">
+              className="flex h-8 items-center gap-1.5 rounded-md bg-secondary px-3 text-foreground text-sm transition-all hover:bg-secondary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
               <CirclePause size={14} className="lucide-custom" />
               <span>{t('common.stop')}</span>
-            </Button>
+            </button>
           ) : (
             <button
               type="button"
@@ -727,8 +726,7 @@ const TranslatePage: FC = () => {
             <Button
               variant="ghost"
               size="icon-sm"
-              pressed={historyOpen}
-              className="text-muted-foreground hover:text-foreground data-[pressed=true]:text-foreground"
+              className={historyOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}
               onClick={() =>
                 setHistoryOpen((open) => {
                   const next = !open
@@ -736,14 +734,14 @@ const TranslatePage: FC = () => {
                   return next
                 })
               }
-              aria-label={t('translate.history.title')}>
+              aria-label={t('translate.history.title')}
+              aria-pressed={historyOpen}>
               <History size={14} />
             </Button>
             <Button
               variant="ghost"
               size="icon-sm"
-              pressed={settingsOpen}
-              className="text-muted-foreground hover:text-foreground data-[pressed=true]:text-foreground"
+              className={settingsOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}
               onClick={() =>
                 setSettingsOpen((open) => {
                   const next = !open
@@ -751,7 +749,8 @@ const TranslatePage: FC = () => {
                   return next
                 })
               }
-              aria-label={t('translate.settings.title')}>
+              aria-label={t('translate.settings.title')}
+              aria-pressed={settingsOpen}>
               <SlidersHorizontal size={14} />
             </Button>
           </div>

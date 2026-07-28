@@ -44,7 +44,7 @@ export const SubWindowControls = () => {
       <Tooltip placement="bottom" content={pinLabel} delay={400}>
         <NavbarIcon
           aria-label={pinLabel}
-          pressed={pinned}
+          aria-pressed={pinned}
           onClick={handleTogglePin}
           className={cn(pinned && 'text-primary! hover:text-primary!')}>
           <Pin className={pinned ? 'fill-current' : undefined} />

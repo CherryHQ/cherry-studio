@@ -78,8 +78,8 @@ and do not weaken foreground semantics with Tailwind color-opacity modifiers.
 - **Muted**: `var(--muted)` — subdued backgrounds, disabled states
 - **Accent**: `var(--accent)` — hover/active backgrounds for transparent buttons
 - **Secondary**: `var(--secondary)` — secondary action backgrounds
-- **Secondary Hover / Active**: use the shared Button variant and its `pressed` state; these are not standalone runtime semantics
-- **Ghost Hover / Active**: use `--accent` for the shared hover fill and the Button `pressed` state for persistent activation
+- **Secondary Hover / Active**: use the shared component variant state classes; these are not standalone runtime semantics
+- **Ghost Hover / Active**: use `--accent` for the shared hover fill; keep any additional active treatment component-local
 
 ### Sidebar (Distinct Spatial Zone)
 - **Sidebar**: `var(--sidebar)` — sidebar surface
@@ -106,7 +106,7 @@ and do not weaken foreground semantics with Tailwind color-opacity modifiers.
 
 ### Semantic Status — Single-token aliases
 - **Destructive**: `var(--destructive)` — dangerous user actions; use the `--error*` family for error feedback
-- **Destructive Hover**: use the shared component variant's `hover:bg-destructive/90` state
+- **Destructive Hover**: use the shared component variant's `hover:bg-destructive-hover` state; do not consume its compatibility adapter variable in authored CSS
 - **Destructive Foreground**: `var(--destructive-foreground)`
 - **Success**: `var(--success)` — positive states, confirmations
 - **Warning**: `var(--warning)` — caution states, pending actions
@@ -244,7 +244,7 @@ Source: `Button` from `@cherrystudio/ui` (`packages/ui/src/components/primitives
 - Text: `var(--secondary-foreground)`
 - Radius: `var(--radius-lg)`
 - Shadow: none
-- Hover / pressed: owned by the shared Button variant
+- Hover: shared `hover:bg-secondary-hover` state
 - Use: Secondary actions ("Cancel", "Back", "Export")
 
 **Emphasis**
@@ -260,14 +260,14 @@ Source: `Button` from `@cherrystudio/ui` (`packages/ui/src/components/primitives
 - Text: neutral foreground
 - Shadow: none
 - Hover: fill `var(--accent)`, text `var(--accent-foreground)`
-- Pressed: pass `pressed` to the shared Button
+- Active: component-local state treatment when required
 - Use: Toolbar actions, inline actions, icon buttons
 
 **Destructive**
 - Background: `var(--destructive)`
 - Text: white
 - Shadow: `shadow-xs`
-- Hover: shared `hover:bg-destructive/90` state
+- Hover: shared `hover:bg-destructive-hover` state
 - Use: Dangerous actions ("Delete", "Remove", "Reset")
 
 **Link**
@@ -275,12 +275,6 @@ Source: `Button` from `@cherrystudio/ui` (`packages/ui/src/components/primitives
 - Text: neutral foreground
 - Hover: neutral muted text + underline
 - Use: Inline text links, navigation shortcuts
-
-**Chip**
-- Background: `var(--muted)` at rest
-- Text: `var(--muted-foreground)` at rest, `var(--foreground)` when pressed
-- Hover / pressed surface: component-owned neutral alpha treatment
-- Use: Compact option chips and toggle buttons; pass `pressed` for persistent selection
 
 **Sizes**
 
@@ -334,11 +328,10 @@ Button hover behavior is variant-specific:
 |---------|-----------|-------------|-------------|-------------|
 | Default | neutral hover fill | — | keeps `shadow-xs` | — |
 | Outline | `var(--accent)` | existing border | none | — |
-| Secondary | component-owned neutral tint | — | none | — |
+| Secondary | shared `hover:bg-secondary-hover` state | — | none | — |
 | Emphasis | neutral hover fill | — | none | — |
 | Ghost | `var(--accent)` | — | none | `var(--accent-foreground)` |
-| Chip | component-owned neutral tint | pressed ring | none | `var(--foreground)` when pressed |
-| Destructive | shared `hover:bg-destructive/90` state | — | keeps `shadow-xs` | — |
+| Destructive | shared `hover:bg-destructive-hover` state | — | keeps `shadow-xs` | — |
 | Link | — | — | none | muted text + underline |
 
 **Hover rules:**
@@ -797,7 +790,7 @@ Use icon-library defaults unless a component has a documented reason to override
 - Let dark mode resolve through semantic surfaces instead of hard-coded dark palette branches
 - Use `var(--muted-foreground)` for secondary readable text
 - Keep `var(--shadow-xs)` only on button variants that already carry the base shadow (`default`, `destructive`)
-- Use shared Button variants and their `pressed` state instead of global neutral hover/active tokens
+- Use `*-hover` tokens or neutral hover classes according to the Button variant definition
 - Use `var(--accent)` fill for outline and ghost button hover states
 - Use `var(--success)`, `var(--warning)`, `var(--info)`, and `var(--error)` for status feedback, toasts, and badges; reserve `var(--destructive)` for dangerous actions
 - Use stable feedback pairs such as `bg-error-subtle text-error-subtle-foreground border-error-border` for richer status surfaces

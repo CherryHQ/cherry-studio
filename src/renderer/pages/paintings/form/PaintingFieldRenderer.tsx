@@ -1,5 +1,4 @@
-import { Button, buttonVariants, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
+import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -161,10 +160,11 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
             <label
               key={String(option.value)}
               htmlFor={`${fieldKey}-${option.value}`}
-              className={cn(
-                buttonVariants({ variant: 'chip', pressed: value === String(option.value) }),
-                'flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[10px] px-2 py-1.5 text-[11px] transition-all'
-              )}>
+              className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[10px] px-2 py-1.5 text-[11px] transition-all ${
+                value === String(option.value)
+                  ? 'bg-secondary-active text-foreground ring-1 ring-[color:color-mix(in_oklch,var(--foreground)_33.3333%,transparent)]'
+                  : 'bg-muted text-muted-foreground/60 hover:bg-secondary-hover hover:text-foreground'
+              }`}>
               <RadioGroupItem value={String(option.value)} id={`${fieldKey}-${option.value}`} className="sr-only" />
               {option.icon && (
                 <div className="flex items-center justify-center bg-transparent" aria-hidden>
