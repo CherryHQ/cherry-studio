@@ -4,6 +4,7 @@ import {
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import { CHAT_CAPTURE_BACKDROP_VARIABLE } from '@renderer/components/chat/messages/types'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
@@ -223,15 +224,19 @@ registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }
 })
 
 registerCommand('message.copyImage', async ({ actions, messageContainerRef }) => {
-  await captureScrollableAsBlob(messageContainerRef, async (blob) => {
-    if (blob) {
-      await actions.copyImage?.(blob)
-    }
-  })
+  await captureScrollableAsBlob(
+    messageContainerRef,
+    async (blob) => {
+      if (blob) {
+        await actions.copyImage?.(blob)
+      }
+    },
+    CHAT_CAPTURE_BACKDROP_VARIABLE
+  )
 })
 
 registerCommand('message.exportImage', async ({ actions, messageContainerRef, messageForExport, t }) => {
-  const imageData = await captureScrollableAsDataUrl(messageContainerRef)
+  const imageData = await captureScrollableAsDataUrl(messageContainerRef, CHAT_CAPTURE_BACKDROP_VARIABLE)
   const title = await getMessageTitle(messageForExport)
   if (!title || !imageData || !actions.saveImage) {
     actions.notifyError?.(t('message.error.unknown'))

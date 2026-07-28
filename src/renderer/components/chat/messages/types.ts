@@ -89,6 +89,13 @@ export interface MessageMenuConfig {
   exportMenuOptions: MessageMenuExportOptions
 }
 
+/**
+ * Backdrop the conversation image exports paint behind the captured messages.
+ * Must stay the conversation canvas — the generic `--background` default would
+ * make an exported image lighter than the conversation the user is looking at.
+ */
+export const CHAT_CAPTURE_BACKDROP_VARIABLE = '--chat-canvas'
+
 export const defaultMessageMenuExportOptions: MessageMenuExportOptions = {
   image: false,
   markdown: false,
