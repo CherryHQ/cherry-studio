@@ -93,10 +93,16 @@ export type OrphanReport =
  * top-level `outcome === 'completed'` would treat a crashed cleanup pass as
  * "all cleaned up". Read `entryCleanup.outcome` to surface that.
  *
- * Discriminated on `outcome` (mirrors `OrphanReport`). There is no `aborted`
- * outcome: the cleanup pass has no volume abort (spec §5.3).
+ * `outcome` is a plain enum field, not a discriminant: unlike `OrphanReport`,
+ * no outcome here carries fields the others lack, so a union would narrow to
+ * three identical shapes. There is no `aborted` outcome — the cleanup pass has
+ * no volume abort (spec §5.3).
+ *
+ * `candidates` counts what the reporting pass picked up, capped at its batch
+ * limit — not the full backlog. See `EntryCleanupReport.candidates`.
  */
-export type EntryCleanupSummary =
-  | { readonly outcome: 'completed'; readonly candidates: number; readonly deleted: number }
-  | { readonly outcome: 'skipped'; readonly candidates: number; readonly deleted: number }
-  | { readonly outcome: 'failed'; readonly candidates: number; readonly deleted: number }
+export interface EntryCleanupSummary {
+  readonly outcome: 'completed' | 'skipped' | 'failed'
+  readonly candidates: number
+  readonly deleted: number
+}

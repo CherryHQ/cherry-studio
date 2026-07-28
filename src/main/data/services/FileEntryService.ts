@@ -207,9 +207,6 @@ export interface FileEntryService {
   /** Auto-policy entries past grace with zero persistent refs (trashed included) — backs the GC pass. */
   findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[]
 
-  /** Count of `findCleanupCandidates` matches, ignoring `limit`. */
-  countCleanupCandidates(graceMs: number): number
-
   /**
    * All entry ids regardless of trashed state — backs the FS orphan sweep,
    * which needs to know which on-disk UUID files have a DB row
@@ -556,33 +553,21 @@ class FileEntryServiceImpl implements FileEntryService {
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
   }
 
-  private cleanupCandidateConditions(graceMs: number): SQL[] {
-    return [
+  findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[] {
+    const conditions: SQL[] = [
       // NOTE: no deletedAt filter — trashed auto entries are reclaimed too (spec §5.1)
       eq(fileEntryTable.cleanupPolicy, 'delete_when_unreferenced'),
-      lt(fileEntryTable.createdAt, Date.now() - graceMs),
+      lt(fileEntryTable.createdAt, Date.now() - opts.graceMs),
       ...persistentRefAbsenceConditions()
     ]
-  }
-
-  findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[] {
     const rows = this.getDb()
       .select({ entry: fileEntryTable })
       .from(fileEntryTable)
-      .where(and(...this.cleanupCandidateConditions(opts.graceMs)))
+      .where(and(...conditions))
       .orderBy(asc(fileEntryTable.createdAt))
       .limit(opts.limit)
       .all()
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
-  }
-
-  countCleanupCandidates(graceMs: number): number {
-    const rows = this.getDb()
-      .select({ c: count() })
-      .from(fileEntryTable)
-      .where(and(...this.cleanupCandidateConditions(graceMs)))
-      .all()
-    return rows[0]?.c ?? 0
   }
 
   listAllIds(): Set<FileEntryId> {

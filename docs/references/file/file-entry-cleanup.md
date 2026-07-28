@@ -172,7 +172,7 @@ A failed candidate is logged and simply retried on the next pass — no attempt 
 {
   event: 'file-entry-cleanup',
   outcome: 'completed' | 'skipped' | 'failed',   // no 'aborted' — the volume abort was removed (§5.3)
-  candidates: number,
+  candidates: number,          // this pass's batch size, saturating at the batch limit — NOT the backlog
   deleted: number,
   skippedRefsReappeared: number,
   gonePinned: number,          // vanished or upgraded to manual (ensureExternal reuse) between query and tx
@@ -184,6 +184,8 @@ A failed candidate is logged and simply retried on the next pass — no attempt 
 ```
 
 `'skipped'` is the pending-staged-restore stand-aside (§5.5): the pass ran, found the gate closed, and reclaimed nothing. Every count is zero and no candidate was examined — deliberately distinct from a `'completed'` pass that found nothing, so a restore window is never mistaken for a quiet one. It logs at `info` (a `'completed'`-level event, not a failure).
+
+`candidates` is what **this** pass picked up, so it saturates at the batch limit rather than reporting the whole backlog. The pass deliberately does not run a second `COUNT` over the same anti-join to widen it: the number reaches no UI (`runSweep` has no renderer caller), and a saturated batch is itself the backlog signal — consecutive `candidates == limit` records mean more is queued and the next pass will drain it.
 
 ## 6. Race and Failure Analysis
 

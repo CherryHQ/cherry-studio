@@ -30,6 +30,14 @@ export const ENTRY_CLEANUP_BATCH_LIMIT = 100
 
 export interface EntryCleanupReport {
   readonly outcome: 'completed' | 'skipped' | 'failed'
+  /**
+   * Candidates picked up by **this** pass, so it saturates at
+   * `ENTRY_CLEANUP_BATCH_LIMIT` rather than reporting the full backlog. The pass
+   * deliberately does not run a second COUNT over the same anti-join just to
+   * widen this number: it reaches no UI (`runSweep` has no renderer caller), and
+   * a saturated batch is itself the backlog signal — repeated
+   * `candidates === ENTRY_CLEANUP_BATCH_LIMIT` lines mean more is queued.
+   */
   readonly candidates: number
   readonly deleted: number
   readonly skippedRefsReappeared: number
@@ -63,7 +71,11 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
     })
   }
   try {
-    const candidates = deps.fileEntryService.countCleanupCandidates(ENTRY_CLEANUP_GRACE_MS)
+    const batch = deps.fileEntryService.findCleanupCandidates({
+      graceMs: ENTRY_CLEANUP_GRACE_MS,
+      limit: ENTRY_CLEANUP_BATCH_LIMIT
+    })
+    const candidates = batch.length
     if (candidates === 0) {
       return finish({
         outcome: 'completed',
@@ -77,10 +89,6 @@ export async function runEntryCleanup(deps: FileManagerDeps): Promise<EntryClean
       })
     }
 
-    const batch = deps.fileEntryService.findCleanupCandidates({
-      graceMs: ENTRY_CLEANUP_GRACE_MS,
-      limit: ENTRY_CLEANUP_BATCH_LIMIT
-    })
     let deleted = 0
     let skippedRefsReappeared = 0
     let gonePinned = 0
@@ -173,16 +181,7 @@ function finish(report: EntryCleanupReport, rawError?: unknown): EntryCleanupRep
   return report
 }
 
+/** Narrow the internal report to the wire summary — see `EntryCleanupSummary`. */
 export function summariseEntryCleanup(report: EntryCleanupReport): EntryCleanupSummary {
-  const base = { candidates: report.candidates, deleted: report.deleted }
-  switch (report.outcome) {
-    case 'failed':
-      return { outcome: 'failed', ...base }
-    case 'completed':
-      return { outcome: 'completed', ...base }
-    case 'skipped':
-      return { outcome: 'skipped', ...base }
-    default:
-      return assertNever(report.outcome)
-  }
+  return { outcome: report.outcome, candidates: report.candidates, deleted: report.deleted }
 }

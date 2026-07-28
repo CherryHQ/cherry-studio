@@ -1752,15 +1752,16 @@ describe('FileEntryService', () => {
 
       const ids = fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 }).map((e) => e.id)
       expect(ids.sort()).toEqual([auto, trashed].sort())
-      expect(fileEntryService.countCleanupCandidates(HOUR)).toBe(2)
     })
 
     it('respects the batch limit', async () => {
       for (let i = 0; i < 5; i++) {
         await seedEntry(`019606a0-0000-7000-8000-0000000cd00${i}`, 'delete_when_unreferenced', 2 * HOUR)
       }
+      // A short limit truncates; a wide one proves the conditions match all 5,
+      // so the truncation above is the limit's doing and not a stricter filter.
       expect(fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 3 })).toHaveLength(3)
-      expect(fileEntryService.countCleanupCandidates(HOUR)).toBe(5)
+      expect(fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 })).toHaveLength(5)
     })
 
     it('excludes candidates referenced by any registered persistent ref table (behavioral coverage)', async () => {

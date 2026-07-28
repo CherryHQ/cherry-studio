@@ -360,7 +360,7 @@ describe('entryCleanup', () => {
 
   it('reports failed with the raw error (stack) logged when the pass throws before the loop', async () => {
     const deps = makeDeps()
-    const spy = vi.spyOn(deps.fileEntryService, 'countCleanupCandidates').mockImplementation(() => {
+    const spy = vi.spyOn(deps.fileEntryService, 'findCleanupCandidates').mockImplementation(() => {
       throw new Error('db exploded')
     })
     const errorSpy = vi.spyOn(loggerService, 'error')
@@ -376,12 +376,29 @@ describe('entryCleanup', () => {
     spy.mockRestore()
   })
 
-  it('respects the batch limit and reports total candidates', async () => {
+  it('reports the candidates this pass picked up', async () => {
     expect(ENTRY_CLEANUP_BATCH_LIMIT).toBe(100)
     for (let i = 0; i < 5; i++) await seedInternal(nthId(200 + i), 'delete_when_unreferenced')
     const report = await runEntryCleanup(makeDeps())
     expect(report.candidates).toBe(5)
     expect(report.deleted).toBe(5)
+  })
+
+  it('saturates candidates at the batch limit and drains the rest on the next pass', async () => {
+    // `candidates` is the batch size, not the backlog: the pass runs the
+    // anti-join once and reports what it got. A saturated batch is the only
+    // backlog signal in the log line, so it must be exact — and the leftovers
+    // must still be reclaimed rather than stranded.
+    const total = ENTRY_CLEANUP_BATCH_LIMIT + 5
+    for (let i = 0; i < total; i++) await seedInternal(nthId(3000 + i), 'delete_when_unreferenced')
+
+    const first = await runEntryCleanup(makeDeps())
+    expect(first.candidates).toBe(ENTRY_CLEANUP_BATCH_LIMIT)
+    expect(first.deleted).toBe(ENTRY_CLEANUP_BATCH_LIMIT)
+
+    const second = await runEntryCleanup(makeDeps())
+    expect(second.candidates).toBe(5)
+    expect(second.deleted).toBe(5)
   })
 
   it('deleting a topic cascades refs and the pass then reclaims the attachment (integration)', async () => {
