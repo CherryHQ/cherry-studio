@@ -251,6 +251,24 @@ describe('MiniAppMigrator', () => {
       }
     })
 
+    it('should use the application logo for a sidecar-only custom app with an empty logo', async () => {
+      const { ctx, tmpUserData } = await createCustomMiniAppsFixture(
+        {},
+        [{ id: 'no-logo', name: 'No Logo', url: 'https://no-logo.example', logo: '' }],
+        dbh.db
+      )
+
+      try {
+        await migrator.prepare(ctx)
+        await migrator.execute(ctx)
+
+        const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'no-logo'))
+        expect(row.logoKey).toBe('application')
+      } finally {
+        await fs.rm(tmpUserData, { recursive: true, force: true })
+      }
+    })
+
     it('should append sidecar-only custom apps after Redux enabled apps in file order', async () => {
       const { ctx, tmpUserData } = await createCustomMiniAppsFixture(
         {

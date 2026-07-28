@@ -457,7 +457,8 @@ async function loadCustomMiniApps(file: string | undefined): Promise<LoadCustomM
       continue
     }
 
-    apps.push({ ...record, id: record.id, type: 'Custom' })
+    const logo = typeof record.logo === 'string' && record.logo.length > 0 ? record.logo : 'application'
+    apps.push({ ...record, id: record.id, logo, type: 'Custom' })
   }
 
   return { apps, isAuthoritativeSnapshot: true, invalidCount, warnings }
