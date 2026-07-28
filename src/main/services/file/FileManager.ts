@@ -130,7 +130,6 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
@@ -1100,7 +1099,7 @@ export class FileManager extends BaseService implements IFileManager {
   // ─── Mutation methods ───
 
   async createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry> {
-    return profileMutationBarrier.runMutation(() => internalCreateInternal(this.deps, params))
+    return internalCreateInternal(this.deps, params)
   }
 
   async batchCreateInternalEntries(items: CreateInternalEntryParams[]): Promise<BatchCreateResult> {
@@ -1167,7 +1166,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async write(id: FileEntryId, data: string | Uint8Array): Promise<FileVersion> {
-    return profileMutationBarrier.runMutation(() => internalWrite(this.deps, id, data))
+    return internalWrite(this.deps, id, data)
   }
 
   async writeIfUnchanged(
@@ -1176,28 +1175,16 @@ export class FileManager extends BaseService implements IFileManager {
     expectedVersion: FileVersion,
     expectedContentHash?: ContentHash
   ): Promise<FileVersion> {
-    return profileMutationBarrier.runMutation(() =>
-      internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
-    )
+    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
   }
 
   async createWriteStream(id: FileEntryId): Promise<AtomicWriteStream> {
-    const release = await profileMutationBarrier.acquireMutation()
-    try {
-      const stream = await internalCreateWriteStream(this.deps, id)
-      this.activeWriteStreams.add(stream)
-      const settle = () => {
-        this.activeWriteStreams.delete(stream)
-        release()
-      }
-      stream.once('finish', settle)
-      stream.once('error', settle)
-      stream.once('close', settle)
-      return stream
-    } catch (error) {
-      release()
-      throw error
-    }
+    const stream = await internalCreateWriteStream(this.deps, id)
+    this.activeWriteStreams.add(stream)
+    const forget = () => this.activeWriteStreams.delete(stream)
+    stream.once('finish', forget)
+    stream.once('close', forget)
+    return stream
   }
 
   /** Alias kept for backwards compatibility; prefer `createWriteStream`. */
@@ -1214,7 +1201,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async permanentDelete(id: FileEntryId): Promise<void> {
-    return profileMutationBarrier.runMutation(() => internalPermanentDelete(this.deps, id))
+    return internalPermanentDelete(this.deps, id)
   }
 
   async batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
@@ -1226,11 +1213,11 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    return profileMutationBarrier.runMutation(() => internalBatchPermanentDelete(this.deps, ids))
+    return internalBatchPermanentDelete(this.deps, ids)
   }
 
   async emptyTrash(): Promise<BatchMutationResult> {
-    return profileMutationBarrier.runMutation(() => internalEmptyTrash(this.deps))
+    return internalEmptyTrash(this.deps)
   }
 
   async rename(id: FileEntryId, newName: string): Promise<FileEntry> {
@@ -1238,7 +1225,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async copy(params: { id: FileEntryId; newName?: string }): Promise<FileEntry> {
-    return profileMutationBarrier.runMutation(() => internalCopy(this.deps, params))
+    return internalCopy(this.deps, params)
   }
 
   async withTempCopy<T>(id: FileEntryId, fn: (tempPath: string) => Promise<T>): Promise<T> {

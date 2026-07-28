@@ -370,10 +370,15 @@ per-entry and total uncompressed bytes, compression ratio, and staging disk head
 
 ### 5.4 Source-drift detection (export staging)
 
-- **Cross-store boundary:** Full export waits for complete owner-enrolled DB↔filesystem
-  mutations, freezes new ones, snapshots SQLite, and captures every required resource identity
-  before releasing the barrier. Managed mutations remain concurrent with one another outside
-  this short boundary; bulk byte copying happens after release against the captured baseline.
+- **Snapshot boundary (sequential, not atomic):** Full export snapshots SQLite and then captures
+  every required resource identity. The two steps are ordered but not mutually exclusive with
+  concurrent profile writes, so a write can land between them. A unit deleted before its identity
+  is read is degraded out with `absent-at-snapshot`; anything that changes after the baseline is
+  caught by per-unit drift detection and omitted with `changed-after-snapshot`. What remains
+  uncovered is a byte-level DB↔filesystem tearing window — a resource captured in a state the
+  exported database does not describe. Closing it fully requires a cross-store mutation barrier
+  and is deferred to a follow-up change. Bulk byte copying still happens after the baseline and
+  is always checked against it.
 - **Files:** snapshot-boundary identity plus source-handle pre/post metadata are compared while
   streaming to the staged hash.
 - **Directories:** a deterministic initial tree manifest, per-file pre/post checks, and a

@@ -31,7 +31,6 @@ import path from 'node:path'
 import { application } from '@application'
 import { readAppliedChain } from '@data/db/restore/appliedChain'
 import { loggerService } from '@logger'
-import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 
@@ -112,19 +111,26 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     let snapshotRequirements: ReturnType<typeof collectResourceRequirements>['requirements'] = []
     let resourceBaseline: ResourceStageBaseline | undefined
     if (preset === 'full') {
-      // This is the cross-store consistency point: wait for complete managed
-      // DB↔FS mutations, freeze new ones, snapshot SQLite, then capture the
-      // identity of every resource named by that snapshot. Expensive byte copies
-      // happen after release and must still match this baseline.
-      await profileMutationBarrier.runSnapshot(async () => {
-        dbService.createSnapshot(stagedDbPath)
-        const snapshotInventory = collectResourceRequirements({ dbPath: stagedDbPath })
-        snapshotRequirements = snapshotInventory.requirements
-        resourceBaseline = await captureResourceStageBaseline({
-          requirements: snapshotRequirements,
-          userDataPath,
-          signal
-        })
+      // Snapshot SQLite, then capture the identity of every resource that
+      // snapshot names. The two steps are ordered but NOT atomic: concurrent
+      // writers can still touch the filesystem in between, so this is a known
+      // window rather than a consistency point.
+      //
+      // What covers the window: a unit deleted before the baseline reads it is
+      // detected as ENOENT and degraded out of the archive (`absent-at-snapshot`);
+      // anything that changes after the baseline is caught by the per-unit drift
+      // check in `stageResources`, which omits the whole unit. What remains is a
+      // byte-level DB↔FS tearing window — a resource written after the snapshot
+      // but before the baseline can be captured in a state the exported database
+      // does not describe. Closing that fully needs a cross-store barrier and is
+      // deliberately left to a follow-up PR.
+      dbService.createSnapshot(stagedDbPath)
+      const snapshotInventory = collectResourceRequirements({ dbPath: stagedDbPath })
+      snapshotRequirements = snapshotInventory.requirements
+      resourceBaseline = await captureResourceStageBaseline({
+        requirements: snapshotRequirements,
+        userDataPath,
+        signal
       })
     } else {
       dbService.createSnapshot(stagedDbPath)
@@ -139,8 +145,8 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
       throw new Error('portable database materialization changed the managed resource closure')
     }
 
-    // Full only. The baseline was captured while the database snapshot boundary
-    // was frozen; staging later proves every copied unit still has that identity.
+    // Full only. The baseline was captured right after the database snapshot;
+    // staging later proves every copied unit still has that identity.
     const resourcesDir = path.join(stagingRoot, RESOURCES_DIR_NAME)
     if (resourceBaseline) {
       await assertDiskHeadroom({ target: stagingRoot, neededBytes: resourceBaseline.totalBytes })

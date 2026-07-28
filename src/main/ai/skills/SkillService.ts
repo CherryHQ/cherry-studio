@@ -6,7 +6,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
-import { profileMutationBarrier } from '@main/core/concurrency/ProfileMutationBarrier'
 import { isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
@@ -175,20 +174,18 @@ export class SkillService {
   }
 
   async uninstall(skillId: string): Promise<void> {
-    return profileMutationBarrier.runMutation(() =>
-      this.mutationLock.runExclusive(async () => {
-        const skill = agentGlobalSkillService.getById(skillId)
-        if (!skill) {
-          throw new Error(`Skill not found: ${skillId}`)
-        }
+    return this.mutationLock.runExclusive(async () => {
+      const skill = agentGlobalSkillService.getById(skillId)
+      if (!skill) {
+        throw new Error(`Skill not found: ${skillId}`)
+      }
 
-        const skillPath = this.getSkillStoragePath(skill.folderName)
-        await this.installer.uninstall(skillPath)
-        await this.unlinkMirror(skill.folderName)
-        agentGlobalSkillService.deleteById(skillId)
-        logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
-      })
-    )
+      const skillPath = this.getSkillStoragePath(skill.folderName)
+      await this.installer.uninstall(skillPath)
+      await this.unlinkMirror(skill.folderName)
+      agentGlobalSkillService.deleteById(skillId)
+      logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
+    })
   }
 
   /**
@@ -785,17 +782,6 @@ export class SkillService {
   }
 
   private async installSkillDirLocked(
-    skillDir: string,
-    source: string,
-    sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
-  ): Promise<InstalledSkill> {
-    return profileMutationBarrier.runMutation(() =>
-      this.installSkillDirWithinBarrier(skillDir, source, sourceUrl, provenance)
-    )
-  }
-
-  private async installSkillDirWithinBarrier(
     skillDir: string,
     source: string,
     sourceUrl: string | null,
@@ -1714,7 +1700,11 @@ export class SkillService {
       }
 
       await this.linkMirror(destFolderName)
-      logger.info('Built-in skill synced to DB', { folderName: destFolderName, firstInstall: !existing, filesUpdated })
+      logger.info('Built-in skill synced to DB', {
+        folderName: destFolderName,
+        firstInstall: !existing,
+        filesUpdated
+      })
       return filesUpdated
     })
   }

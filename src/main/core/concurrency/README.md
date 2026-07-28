@@ -3,13 +3,6 @@
 General concurrency primitives for the main process. **Event-source-agnostic** — nothing here knows
 about Preference, lifecycle, IPC, or any specific trigger.
 
-## `ProfileMutationBarrier`
-
-A process-wide reader/writer boundary for operations that mutate both SQLite and managed profile files.
-Mutations run concurrently with each other; `runSnapshot()` waits for active mutations and blocks new
-ones while a caller captures the database plus filesystem baseline. A mutation owner must wrap its
-complete DB↔filesystem operation—wrapping only one side recreates the torn-snapshot window.
-
 ## `KeyedMutex`
 
 Per-key serialisation of independent items: one lazily-created mutex per key, dropped when idle.
