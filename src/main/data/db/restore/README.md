@@ -9,7 +9,7 @@ The backup pipeline imports backup rows into a detached `work.sqlite` (a `VACUUM
 
 | File | Exports | Role |
 |---|---|---|
-| `restoreJournal.ts` | `RestoreJournal(Schema)`, `PROMOTION_STEP_ORDER`, `readRestoreJournal` / `writeRestoreJournal`, `hasPendingRestore` | Crash-safe journal contract (sidecar `restore-journal.json`, `feature.backup.restore.file`; MUST stay in the DB's directory — journal dir-fsyncs are what make a commit-step marker imply the DB rename is durable) |
+| `restoreJournal.ts` | `RestoreJournal(Schema)`, `PROMOTION_STEP_ORDER`, `readRestoreJournal` / `writeRestoreJournal`, `hasPendingRestore` | Crash-safe journal contract and durable pre-relaunch disclosure summary (sidecar `restore-journal.json`, `feature.backup.restore.file`; MUST stay in the DB's directory — journal dir-fsyncs are what make a commit-step marker imply the DB rename is durable) |
 | `checkpoint.ts` | `checkpointTruncateAssert` | Asserted `wal_checkpoint(TRUNCATE)` — shared by both fingerprint sides |
 | `hashDbFile.ts` | `hashDbFile` | Streaming sha256 of the DB main file — shared by both fingerprint sides |
 | `snapshot.ts` | `snapshotTo` | `VACUUM INTO` snapshot (produces the merge base `work.sqlite`) |
@@ -50,3 +50,4 @@ Before writing a `staged` journal:
 2. **Seal `work.sqlite`**: `checkpointTruncateAssert` + close ALL connections + assert no `-wal`/`-shm` remains. A dirty exit leaves committed restore data in the WAL; the gate renames only the main file, so unsealed WAL content would be silently lost (the gate re-seals defensively, but sealing is the writer's contract).
 3. **`chain` MUST come from `readAppliedChain(work)`** — never from the app's bundled migration list: drizzle's `migrate()` silently no-ops on an ahead-of-code DB, so the bundled list can be a strict subset of what the DB actually applied.
 4. **Add targets (`blob-add` / `dir-add` / `note-add` livePath) must not pre-exist**: the gate preflights this at admission and expires the restore on any conflict; a conflicted target is never clobbered by apply nor deleted by rollback.
+5. **Persist the disclosure summary with the staged journal**: the renderer may miss the live broadcast or be reconstructed before relaunch. `backup.restore_status` must be able to recover the exact `toRestore` / `toSkip` plan; absence is accepted only for journals written by an older build and must never be presented as a real empty plan.

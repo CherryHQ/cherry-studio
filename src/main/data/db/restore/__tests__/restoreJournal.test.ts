@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { RestoreJournal } from '@data/db/restore/restoreJournal'
-import { hasPendingRestore, readRestoreJournal, writeRestoreJournal } from '@data/db/restore/restoreJournal'
+import {
+  clearRestoreJournal,
+  hasPendingRestore,
+  readRestoreJournal,
+  writeRestoreJournal
+} from '@data/db/restore/restoreJournal'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -52,7 +57,14 @@ function stagedJournal(): RestoreJournal {
         livePath: 'Notes/a.md',
         asidePath: 'restore-staging/restore-0001/aside/a.md'
       }
-    ]
+    ],
+    summary: {
+      toRestore: [{ kind: 'file', count: 1 }],
+      toSkip: [{ id: 'existing-note.md', kind: 'note', reasonCode: 'target_exists' }],
+      degradations: [
+        { kind: 'row_pruned', scope: 'chat_message_file_ref', count: 2, detail: 'required file_entry missing' }
+      ]
+    }
   }
 }
 
@@ -75,6 +87,30 @@ describe('restoreJournal', () => {
 
       const result = readRestoreJournal()
       expect(result).toEqual({ kind: 'ok', journal: stagedJournal() })
+    })
+
+    it('accepts a legacy journal without a persisted summary', () => {
+      const legacyJournal = stagedJournal()
+      Reflect.deleteProperty(legacyJournal, 'summary')
+      writeFileSync(journalPath(), JSON.stringify(legacyJournal))
+
+      expect(readRestoreJournal()).toEqual({ kind: 'ok', journal: legacyJournal })
+    })
+
+    it('normalizes a legacy persisted skip reason to its stable code', () => {
+      const journal = stagedJournal()
+      writeFileSync(
+        journalPath(),
+        JSON.stringify({
+          ...journal,
+          summary: {
+            ...journal.summary,
+            toSkip: [{ id: 'existing-note.md', kind: 'note', reason: 'exists — skip' }]
+          }
+        })
+      )
+
+      expect(readRestoreJournal()).toEqual({ kind: 'ok', journal })
     })
 
     it('round-trips a promoting journal (step required)', () => {
@@ -157,6 +193,31 @@ describe('restoreJournal', () => {
 
     it('returns false when no journal exists', () => {
       expect(hasPendingRestore()).toBe(false)
+    })
+  })
+
+  describe('clearRestoreJournal', () => {
+    it('removes an existing journal file', () => {
+      writeRestoreJournal(stagedJournal())
+      expect(readRestoreJournal().kind).toBe('ok')
+
+      clearRestoreJournal()
+
+      expect(readRestoreJournal().kind).toBe('none')
+    })
+
+    it('is a no-op when no journal exists (ENOENT swallowed, never throws)', () => {
+      expect(() => clearRestoreJournal()).not.toThrow()
+      expect(readRestoreJournal().kind).toBe('none')
+    })
+
+    it('clears a terminal (completed) journal', () => {
+      const completed: RestoreJournal = { ...stagedJournal(), state: 'completed', step: 'integrity-ok' }
+      writeRestoreJournal(completed)
+
+      clearRestoreJournal()
+
+      expect(readRestoreJournal().kind).toBe('none')
     })
   })
 })

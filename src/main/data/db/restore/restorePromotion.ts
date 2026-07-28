@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isPathInside } from '@main/utils/file'
 import Database from 'better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 
@@ -21,6 +22,62 @@ function assertNever(x: never): never {
 type StagedJournal = Extract<RestoreJournal, { state: 'staged' }>
 type PromotingJournal = Extract<RestoreJournal, { state: 'promoting' }>
 type FileResource = RestoreJournal['fileResources'][number]
+
+/**
+ * Resolve a journal-stored userData-relative path and assert it stays inside
+ * userData. Journal is a disk file (tamperable); consumption is the trust
+ * boundary — reject absolute paths and `../` escapes before any fs op.
+ *
+ * @internal exported for unit tests
+ */
+export function assertPathInsideUserData(value: string, userData: string): string {
+  if (path.isAbsolute(value)) {
+    throw new Error(`restore journal path must be userData-relative, got absolute: ${value}`)
+  }
+  const realUserData = fs.realpathSync(userData)
+  const resolved = path.resolve(realUserData, value)
+  let canonical = resolved
+  try {
+    canonical = fs.realpathSync(resolved)
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+    // Leaf (or intermediate) missing — try parent realpath for symlink parents.
+    try {
+      const realParent = fs.realpathSync(path.dirname(resolved))
+      canonical = path.join(realParent, path.basename(resolved))
+    } catch {
+      // Parent also missing (e.g. nested aside dir not created yet). Lexical
+      // containment against realUserData is sufficient: resolve() already
+      // anchored at realUserData, so `../` escapes fail the check below.
+      canonical = resolved
+    }
+  }
+  if (canonical !== realUserData && !isPathInside(canonical, realUserData)) {
+    throw new Error(`restore journal path escapes userData: ${value}`)
+  }
+  return canonical
+}
+
+/**
+ * Validate every journal path the promotion gate will touch. Call before any
+ * rename/remove against journal-supplied paths.
+ *
+ * @internal exported for unit tests
+ */
+export function assertRestoreJournalPathsInsideUserData(
+  journal: Pick<RestoreJournal, 'db' | 'fileResources'>,
+  userData: string
+): void {
+  assertPathInsideUserData(journal.db.promote, userData)
+  assertPathInsideUserData(journal.db.aside, userData)
+  for (const entry of journal.fileResources) {
+    assertPathInsideUserData(entry.stagingPath, userData)
+    assertPathInsideUserData(entry.livePath, userData)
+    if (entry.asidePath !== undefined) {
+      assertPathInsideUserData(entry.asidePath, userData)
+    }
+  }
+}
 
 /**
  * After this step the work database IS the live database: crash recovery at
@@ -63,7 +120,14 @@ export async function runRestorePromotion(): Promise<void> {
     case 'completed':
     case 'failed':
     case 'expired':
-      // Reporting + deletion of terminal journals is owned by BackupService.
+      // Reporting + deletion of terminal journals is owned by BackupService. The
+      // staging tree is NOT: finalize() deletes it, but a crash between the terminal
+      // journal write and the rmSync — or an rmSync failure (AV/file lock) — strands
+      // a tree whose backup.sqlite holds plaintext secrets. A completed journal can
+      // outlive every boot (BackupService's staging GC runs only when NO journal
+      // exists, and completed is cleared only by the next startRestore), so re-run
+      // the idempotent delete here on every boot that sees a terminal journal.
+      removeStagingTree(journal.restoreId)
       return
     case 'staged':
       return promoteStaged(journal)
@@ -97,7 +161,13 @@ export function markRestoreFailedAfterCrash(): void {
   if (journal.state !== 'staged' && journal.state !== 'promoting') {
     return
   }
-  const ctx = buildContext(journal)
+  let ctx: PromotionContext
+  try {
+    ctx = buildContext(journal)
+  } catch (error) {
+    logger.warn('Escaped crash recovery: journal paths invalid — refusing fs ops', error as Error)
+    return
+  }
   if (journal.state === 'promoting' && commitLanded(ctx, journal)) {
     // The commit rename is durably on disk: the new DB is live with the old
     // DB parked aside. Freezing THAT to failed would strand a half-promoted
@@ -110,7 +180,12 @@ export function markRestoreFailedAfterCrash(): void {
     return
   }
   restoreLiveFromAside(ctx)
-  finalize(ctx, 'failed', journal.state === 'promoting' ? journal.step : undefined)
+  finalize(
+    ctx,
+    'failed',
+    journal.state === 'promoting' ? journal.step : undefined,
+    'app crashed during restore promotion — the previous database was restored'
+  )
 }
 
 /**
@@ -147,18 +222,27 @@ export function isLiveDbStranded(): boolean {
     return false
   }
   const livePath = application.getPath('app.database.file')
-  const asidePath = path.resolve(application.getPath('app.userdata'), read.journal.db.aside)
+  const userData = application.getPath('app.userdata')
+  let asidePath: string
+  try {
+    asidePath = assertPathInsideUserData(read.journal.db.aside, userData)
+  } catch {
+    // Tampered aside path — do not treat an out-of-tree file as our stranded DB.
+    return false
+  }
   return !fs.existsSync(livePath) && fs.existsSync(asidePath)
 }
 
 function buildContext(journal: StagedJournal | PromotingJournal): PromotionContext {
   const userData = application.getPath('app.userdata')
+  // Trust boundary: journal paths are disk-sourced; contain before any fs op.
+  assertRestoreJournalPathsInsideUserData(journal, userData)
   return {
     journal,
     userData,
     livePath: application.getPath('app.database.file'),
-    workPath: path.resolve(userData, journal.db.promote),
-    asidePath: path.resolve(userData, journal.db.aside)
+    workPath: assertPathInsideUserData(journal.db.promote, userData),
+    asidePath: assertPathInsideUserData(journal.db.aside, userData)
   }
 }
 
@@ -264,7 +348,7 @@ function expire(ctx: PromotionContext, reason: string): void {
     restoreId: ctx.journal.restoreId,
     reason
   })
-  finalize(ctx, 'expired')
+  finalize(ctx, 'expired', undefined, reason)
 }
 
 // ─── promoting: crash re-entry ───
@@ -314,7 +398,10 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
       restoreId: journal.restoreId,
       step: journal.step
     })
-    rollbackPreCommit(ctx)
+    rollbackPreCommit(
+      ctx,
+      `app crashed at step '${journal.step}' before the commit point — rolled back to the previous database`
+    )
     return
   }
   // Forward resume is legitimate only while the committed state is intact:
@@ -327,7 +414,7 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
       restoreId: journal.restoreId,
       step: journal.step
     })
-    revertPostCommit(ctx)
+    revertPostCommit(ctx, 'restore failed after the commit point — the previous database was restored')
     return
   }
   logger.warn('Crash at/after the commit point — resuming promotion', {
@@ -380,10 +467,11 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
         continue
       }
       logger.error(`Promotion step '${step}' failed`, error as Error)
+      const reason = `step '${step}' failed: ${error instanceof Error ? error.message : String(error)}`
       if (i <= commitIndex) {
-        rollbackPreCommit(ctx)
+        rollbackPreCommit(ctx, reason)
       } else {
-        revertPostCommit(ctx)
+        revertPostCommit(ctx, reason)
       }
       return
     }
@@ -392,7 +480,10 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
     } catch (error) {
       if (i < commitIndex) {
         logger.error(`Marker write for '${step}' failed before the commit point — rolling back`, error as Error)
-        rollbackPreCommit(ctx)
+        rollbackPreCommit(
+          ctx,
+          `journal write for step '${step}' failed: ${error instanceof Error ? error.message : String(error)}`
+        )
         return
       }
       logger.error(`Marker write for '${step}' failed at/past the commit point — continuing in memory`, error as Error)
@@ -494,10 +585,10 @@ function applyEntry(ctx: PromotionContext, entry: FileResource): void {
  * restore content is discarded with the staging tree — a failed restore is
  * re-run from the backup archive, never resumed from half-moved files.
  */
-function rollbackPreCommit(ctx: PromotionContext): void {
+function rollbackPreCommit(ctx: PromotionContext, reason?: string): void {
   inverseManifest(ctx)
   restoreLiveFromAside(ctx)
-  finalize(ctx, 'failed')
+  finalize(ctx, 'failed', undefined, reason)
 }
 
 /**
@@ -511,7 +602,7 @@ function rollbackPreCommit(ctx: PromotionContext): void {
  * has run, the live slot holds the OLD DB and parking it would destroy the
  * very database the revert is protecting.
  */
-function revertPostCommit(ctx: PromotionContext): void {
+function revertPostCommit(ctx: PromotionContext, reason?: string): void {
   if (fs.existsSync(ctx.livePath) && fs.existsSync(ctx.asidePath)) {
     const parked = path.join(ctx.userData, `work-failed-${ctx.journal.restoreId}.sqlite`)
     fs.rmSync(parked, { force: true })
@@ -520,7 +611,7 @@ function revertPostCommit(ctx: PromotionContext): void {
   }
   restoreLiveFromAside(ctx)
   inverseManifest(ctx)
-  finalize(ctx, 'failed')
+  finalize(ctx, 'failed', undefined, reason)
 }
 
 function restoreLiveFromAside(ctx: PromotionContext): void {
@@ -586,10 +677,30 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
  * Terminal journals themselves are kept — BackupService reads them for the
  * post-boot report and owns their deletion.
  */
-function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expired', step?: PromotionStep): void {
-  writeRestoreJournal({ ...ctx.journal, state, step } as RestoreJournal)
+function finalize(
+  ctx: PromotionContext,
+  state: 'completed' | 'failed' | 'expired',
+  step?: PromotionStep,
+  reason?: string
+): void {
+  writeRestoreJournal({ ...ctx.journal, state, step, reason } as RestoreJournal)
+  removeStagingTree(ctx.journal.restoreId)
+}
+
+/**
+ * Idempotently delete one restore's staging subtree. The journal's restoreId is
+ * schema-checked only as a non-empty string and this runs preboot with full fs
+ * privileges, so refuse any id whose joined path leaves the staging root.
+ */
+function removeStagingTree(restoreId: string): void {
   const stagingRoot = application.getPath('feature.backup.restore.staging')
-  fs.rmSync(path.join(stagingRoot, ctx.journal.restoreId), { recursive: true, force: true })
+  const target = path.resolve(stagingRoot, restoreId)
+  const rel = path.relative(stagingRoot, target)
+  if (rel === '' || rel.split(path.sep).includes('..') || path.isAbsolute(rel)) {
+    logger.error('Refusing to delete staging outside the staging root', { restoreId })
+    return
+  }
+  fs.rmSync(target, { recursive: true, force: true })
 }
 
 function quarantineCorruptJournal(error: string): void {

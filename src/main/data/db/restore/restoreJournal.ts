@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
+import { RestoreResultSummarySchema } from '@shared/types/backup'
 import * as z from 'zod'
 
 /**
@@ -75,30 +76,49 @@ const FileResourceSchema = z.strictObject({
   asidePath: z.string().min(1).optional()
 })
 
+/** A single file resource entry staged for preboot promotion. Exported for resource planning (ResourcePlan). */
+export type FileResource = z.infer<typeof FileResourceSchema>
+
 // All journal paths (db.*, fileResources[].*) are stored userData-relative;
-// readers join them onto the currently resolved userData.
+// readers join them onto the currently resolved userData. Schema only checks
+// non-empty strings — preboot consumption (restorePromotion) independently
+// asserts containment inside userData before any fs op (absolute / `../` reject).
 const commonFields = {
   version: z.literal(1),
   restoreId: z.string().min(1),
   /** ISO-8601 timestamp, diagnostic only — the gate never reads it. */
   createdAt: z.string().min(1),
   db: RestoreDbSchema,
-  fileResources: z.array(FileResourceSchema)
+  fileResources: z.array(FileResourceSchema),
+  /** Optional only for journals sealed by older builds. */
+  summary: RestoreResultSummarySchema.optional()
 }
 
 /**
  * Discriminated on `state`: staged has no step (it is set when the gate
  * transitions to promoting), promoting requires one, terminal states may keep
- * the last step for diagnostics. Strict objects + literal version: a future
- * journal v2 read by this version fails validation → corrupt → the gate
- * cleans up instead of misinterpreting it (fail-safe downgrade).
+ * the last step for diagnostics — failed/expired additionally carry a human-
+ * readable `reason` surfaced to the user via backup.restore_status. Strict
+ * objects + literal version: a future journal v2 read by this version fails
+ * validation → corrupt → the gate cleans up instead of misinterpreting it
+ * (fail-safe downgrade).
  */
 export const RestoreJournalSchema = z.discriminatedUnion('state', [
   z.strictObject({ ...commonFields, state: z.literal('staged') }),
   z.strictObject({ ...commonFields, state: z.literal('promoting'), step: PromotionStepSchema }),
   z.strictObject({ ...commonFields, state: z.literal('completed'), step: PromotionStepSchema.optional() }),
-  z.strictObject({ ...commonFields, state: z.literal('failed'), step: PromotionStepSchema.optional() }),
-  z.strictObject({ ...commonFields, state: z.literal('expired'), step: PromotionStepSchema.optional() })
+  z.strictObject({
+    ...commonFields,
+    state: z.literal('failed'),
+    step: PromotionStepSchema.optional(),
+    reason: z.string().optional()
+  }),
+  z.strictObject({
+    ...commonFields,
+    state: z.literal('expired'),
+    step: PromotionStepSchema.optional(),
+    reason: z.string().optional()
+  })
 ])
 
 export type RestoreJournal = z.infer<typeof RestoreJournalSchema>
@@ -179,4 +199,21 @@ export function hasPendingRestore(): boolean {
     return true
   }
   return result.kind === 'ok' && (result.journal.state === 'staged' || result.journal.state === 'promoting')
+}
+
+/**
+ * Remove the restore journal file. Idempotent and never throws — callers run in
+ * `BackupService.startRestore` / `performRestoreRecovery` hot paths.
+ *
+ * A missed delete is harmless: the next `writeRestoreJournal` renames a fresh
+ * `.tmp` over this path, recreating it. So ENOENT (already gone), EACCES/EPERM
+ * (the rename-over will fix), and any other failure are all silently swallowed
+ * — the journal is best-effort cleanup, not a correctness gate.
+ */
+export function clearRestoreJournal(): void {
+  try {
+    fs.unlinkSync(journalFilePath())
+  } catch {
+    // Swallow intentionally — see jsdoc: a missed delete is overwritten by the next write.
+  }
 }

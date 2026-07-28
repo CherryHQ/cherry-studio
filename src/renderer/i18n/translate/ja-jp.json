@@ -1319,6 +1319,7 @@
       "label": "データをバックアップしますか？"
     },
     "content": "バックアップ操作はすべてのアプリデータを含むため、時間がかかる場合があります。",
+    "credentials_warning": "[to be translated]:This backup includes API keys and provider credentials in plaintext. Store the archive securely.",
     "progress": {
       "completed": "バックアップ完了",
       "compressing": "圧縮中...",
@@ -5799,8 +5800,84 @@
         "label": "アプリログ"
       },
       "backup": {
+        "legacy_local_unavailable": "[to be translated]:Legacy local backup controls are disabled. Use Backup / Restore above.",
         "skip_file_data_help": "バックアップ時に、画像や知識ベースなどのデータファイルをバックアップ対象から除外し、チャット履歴と設定のみをバックアップします。スペースの占有を減らし、バックアップ速度を向上させます。",
         "skip_file_data_title": "精簡バックアップ",
+        "v2": {
+          "export": {
+            "cancel_timeout": "[to be translated]:Cancel timed out. The backup may still be running.",
+            "cancelled": "[to be translated]:Backup cancelled.",
+            "failure": "[to be translated]:Backup failed.",
+            "overwrite_confirm_content": "[to be translated]:A file already exists at this path. Replace it?",
+            "overwrite_confirm_title": "[to be translated]:Replace existing backup?",
+            "phase": {
+              "archive": "[to be translated]:Creating archive…",
+              "collect": "[to be translated]:Collecting data…",
+              "journal": "[to be translated]:Writing journal…",
+              "merge": "[to be translated]:Merging data…",
+              "preflight": "[to be translated]:Checking disk space…",
+              "quiesce": "[to be translated]:Quiescing services…",
+              "relaunch": "[to be translated]:Relaunching…",
+              "snapshot": "[to be translated]:Copying database…",
+              "verify": "[to be translated]:Verifying backup…"
+            },
+            "running": "[to be translated]:Backing up…",
+            "save_dialog_title": "[to be translated]:Save Backup",
+            "selecting": "[to be translated]:Choose where to save the backup…",
+            "starting": "[to be translated]:Starting backup…",
+            "success": "[to be translated]:Backup completed."
+          },
+          "file_filter": "[to be translated]:Cherry Backup",
+          "preset": {
+            "full": "[to be translated]:Full backup (all data)",
+            "lite": "[to be translated]:Lite backup (chat & settings, no knowledge/files)"
+          },
+          "restore": {
+            "confirm_content": "[to be translated]:Restoring will merge backup data into your current data (local non-empty values are kept), then relaunch the app. Continue?",
+            "failure": "[to be translated]:Restore failed.",
+            "outcome": {
+              "acknowledge_button": "[to be translated]:OK",
+              "completed": "[to be translated]:The last restore was applied successfully.",
+              "expired": "[to be translated]:The last restore was not applied: the staged data was rejected by the startup check. Your previous data is unchanged.",
+              "failed": "[to be translated]:The last restore failed. Your previous data was restored."
+            },
+            "pick_prompt": "[to be translated]:Select a .cherrybackup backup archive to restore.",
+            "relaunching": "[to be translated]:Restore staged. The app is relaunching…",
+            "selected": "[to be translated]:Selected archive:",
+            "skip_only": "[to be translated]:Only the skip (SKIP) merge strategy is supported. Overwrite and rename are not available yet.",
+            "summary": {
+              "degraded": "[to be translated]:Data affected by this restore",
+              "degraded_kind": {
+                "association_dropped": "[to be translated]:Some associations will be dropped because one side is unavailable.",
+                "attachment_unavailable": "[to be translated]:Some message attachments are not included in this archive.",
+                "field_conflict": "[to be translated]:Some fields conflicted and will keep the local value.",
+                "ref_cleared": "[to be translated]:Some links could not be preserved and will be cleared.",
+                "resource_content_missing": "[to be translated]:Some items will restore without their file content.",
+                "row_pruned": "[to be translated]:Some rows will be dropped because a required reference is missing.",
+                "rows_skipped": "[to be translated]:Some rows from the backup will not be imported."
+              },
+              "kind": {
+                "file": "[to be translated]:Files",
+                "knowledge": "[to be translated]:Knowledge bases",
+                "note": "[to be translated]:Notes",
+                "skill": "[to be translated]:Skills"
+              },
+              "none": "[to be translated]:No resource files to restore",
+              "pending_hint": "[to be translated]:The restore is staged and will apply after restart. Summary of this restore:",
+              "relaunch_failed": "[to be translated]:Restart failed. Click to try again.",
+              "restart_button": "[to be translated]:Restart now",
+              "skip_reason": {
+                "local_record_exists": "[to be translated]:A local item with the same identity already exists.",
+                "notes_root_unavailable": "[to be translated]:No managed Notes folder is configured.",
+                "outside_user_data": "[to be translated]:The destination is outside the app data directory.",
+                "target_exists": "[to be translated]:The destination already exists."
+              },
+              "unavailable": "[to be translated]:The detailed summary is unavailable, but the sealed restore can still continue after restart.",
+              "will_restore": "[to be translated]:Will restore",
+              "will_skip": "[to be translated]:Will skip (keeping the local version)"
+            }
+          }
+        },
         "v2_unavailable": "Backup & restore V2はまだ利用できません。近日公開予定です。"
       },
       "clear_cache": {

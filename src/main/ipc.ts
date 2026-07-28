@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { assertNotBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import {
   listDirectory as searchListDirectory,
   listDirectoryEntries as searchListDirectoryEntries
@@ -42,6 +43,11 @@ export async function registerIpc() {
 
   // spell check languages
   ipcMain.handle(IpcChannel.App_SetSpellCheckLanguages, (_, languages: string[]) => {
+    // Partial restore quiesce: reject while a restore holds BACKUP_IN_PROGRESS — this
+    // legacy handler writes the live preference table directly (PreferenceService.set),
+    // bypassing the gated Preference_Set ipcHandle, so without this gate a spell-check
+    // change during the snapshot→promote window would be overwritten and lost at promotion.
+    assertNotBackupInProgress()
     if (languages.length === 0) {
       return
     }

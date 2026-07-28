@@ -13,6 +13,7 @@ export { buildUrlSnapshotFile } from './utils/sources/urlSnapshot'
 export {
   assertSafeKnowledgeRelativePath,
   collectKnowledgeReservedRelativePaths,
+  getKnowledgeVectorStoreFilePathSync,
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from './utils/storage/pathStorage'

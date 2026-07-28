@@ -1325,6 +1325,7 @@
       "label": "Are you sure you want to backup data?"
     },
     "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+    "credentials_warning": "This backup includes API keys and provider credentials in plaintext. Store the archive securely.",
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",
@@ -5805,8 +5806,84 @@
         "label": "App Logs"
       },
       "backup": {
+        "legacy_local_unavailable": "Legacy local backup controls are disabled. Use Backup / Restore above.",
         "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
         "skip_file_data_title": "Slim Backup",
+        "v2": {
+          "export": {
+            "cancel_timeout": "Cancel timed out. The backup may still be running.",
+            "cancelled": "Backup cancelled.",
+            "failure": "Backup failed.",
+            "overwrite_confirm_content": "A file already exists at this path. Replace it?",
+            "overwrite_confirm_title": "Replace existing backup?",
+            "phase": {
+              "archive": "Creating archive…",
+              "collect": "Collecting data…",
+              "journal": "Writing journal…",
+              "merge": "Merging data…",
+              "preflight": "Checking disk space…",
+              "quiesce": "Quiescing services…",
+              "relaunch": "Relaunching…",
+              "snapshot": "Copying database…",
+              "verify": "Verifying backup…"
+            },
+            "running": "Backing up…",
+            "save_dialog_title": "Save Backup",
+            "selecting": "Choose where to save the backup…",
+            "starting": "Starting backup…",
+            "success": "Backup completed."
+          },
+          "file_filter": "Cherry Backup",
+          "preset": {
+            "full": "Full backup (all data)",
+            "lite": "Lite backup (chat & settings, no knowledge/files)"
+          },
+          "restore": {
+            "confirm_content": "Restoring will merge backup data into your current data (local non-empty values are kept), then relaunch the app. Continue?",
+            "failure": "Restore failed.",
+            "outcome": {
+              "acknowledge_button": "OK",
+              "completed": "The last restore was applied successfully.",
+              "expired": "The last restore was not applied: the staged data was rejected by the startup check. Your previous data is unchanged.",
+              "failed": "The last restore failed. Your previous data was restored."
+            },
+            "pick_prompt": "Select a .cherrybackup backup archive to restore.",
+            "relaunching": "Restore staged. The app is relaunching…",
+            "selected": "Selected archive:",
+            "skip_only": "Only the skip (SKIP) merge strategy is supported. Overwrite and rename are not available yet.",
+            "summary": {
+              "degraded": "Data affected by this restore",
+              "degraded_kind": {
+                "association_dropped": "Some associations will be dropped because one side is unavailable.",
+                "attachment_unavailable": "Some message attachments are not included in this archive.",
+                "field_conflict": "Some fields conflicted and will keep the local value.",
+                "ref_cleared": "Some links could not be preserved and will be cleared.",
+                "resource_content_missing": "Some items will restore without their file content.",
+                "row_pruned": "Some rows will be dropped because a required reference is missing.",
+                "rows_skipped": "Some rows from the backup will not be imported."
+              },
+              "kind": {
+                "file": "Files",
+                "knowledge": "Knowledge bases",
+                "note": "Notes",
+                "skill": "Skills"
+              },
+              "none": "No resource files to restore",
+              "pending_hint": "The restore is staged and will apply after restart. Summary of this restore:",
+              "relaunch_failed": "Restart failed. Click to try again.",
+              "restart_button": "Restart now",
+              "skip_reason": {
+                "local_record_exists": "A local item with the same identity already exists.",
+                "notes_root_unavailable": "No managed Notes folder is configured.",
+                "outside_user_data": "The destination is outside the app data directory.",
+                "target_exists": "The destination already exists."
+              },
+              "unavailable": "The detailed summary is unavailable, but the sealed restore can still continue after restart.",
+              "will_restore": "Will restore",
+              "will_skip": "Will skip (keeping the local version)"
+            }
+          }
+        },
         "v2_unavailable": "Backup & restore V2 is not available yet. Coming soon."
       },
       "clear_cache": {

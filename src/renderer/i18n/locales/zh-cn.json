@@ -1325,6 +1325,7 @@
       "label": "确定要备份数据吗？"
     },
     "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待",
+    "credentials_warning": "此备份包含明文 API 密钥与服务商凭证，请妥善保管备份文件。",
     "progress": {
       "completed": "备份完成",
       "compressing": "压缩文件...",
@@ -5805,8 +5806,84 @@
         "label": "应用日志"
       },
       "backup": {
+        "legacy_local_unavailable": "旧版本地备份相关功能已停用，请使用上方的备份/恢复。",
         "skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用，加快备份速度",
         "skip_file_data_title": "精简备份",
+        "v2": {
+          "export": {
+            "cancel_timeout": "取消超时。备份可能仍在进行。",
+            "cancelled": "备份已取消。",
+            "failure": "备份失败。",
+            "overwrite_confirm_content": "该路径已存在文件。要替换它吗？",
+            "overwrite_confirm_title": "替换已有备份？",
+            "phase": {
+              "archive": "正在创建归档…",
+              "collect": "正在收集数据…",
+              "journal": "正在写入日志…",
+              "merge": "正在合并数据…",
+              "preflight": "正在检查磁盘空间…",
+              "quiesce": "正在静默服务…",
+              "relaunch": "正在重启…",
+              "snapshot": "正在复制数据库…",
+              "verify": "正在校验备份…"
+            },
+            "running": "正在备份…",
+            "save_dialog_title": "保存备份",
+            "selecting": "请选择备份保存位置…",
+            "starting": "正在启动备份…",
+            "success": "备份完成。"
+          },
+          "file_filter": "Cherry 备份",
+          "preset": {
+            "full": "完整备份（全部数据）",
+            "lite": "精简备份（聊天与设置，不含知识库/文件）"
+          },
+          "restore": {
+            "confirm_content": "恢复将把备份数据合并到当前数据中（本地非空数据会保留），并重启应用，是否继续？",
+            "failure": "恢复失败。",
+            "outcome": {
+              "acknowledge_button": "知道了",
+              "completed": "上次恢复已成功应用。",
+              "expired": "上次恢复未生效：暂存数据未通过启动检查，原数据保持不变。",
+              "failed": "上次恢复失败，已回滚到恢复前的数据。"
+            },
+            "pick_prompt": "请选择要恢复的 .cherrybackup 备份文件。",
+            "relaunching": "恢复已暂存，应用正在重启…",
+            "selected": "已选择的备份：",
+            "skip_only": "当前仅支持跳过（SKIP）合并策略，覆盖与重命名尚未支持。",
+            "summary": {
+              "degraded": "本次恢复受影响的数据",
+              "degraded_kind": {
+                "association_dropped": "部分关联的一端不可用，该关联将被丢弃。",
+                "attachment_unavailable": "部分消息附件未包含在此备份文件中。",
+                "field_conflict": "部分字段存在冲突，将保留本地值。",
+                "ref_cleared": "部分关联无法保留，将被清空。",
+                "resource_content_missing": "部分项目将在缺少文件内容的情况下恢复。",
+                "row_pruned": "部分数据缺少必需的关联对象，将被丢弃。",
+                "rows_skipped": "备份中的部分数据不会被导入。"
+              },
+              "kind": {
+                "file": "文件",
+                "knowledge": "知识库",
+                "note": "笔记",
+                "skill": "技能"
+              },
+              "none": "没有需要恢复的资源文件",
+              "pending_hint": "恢复已暂存，将在重启后生效。本次恢复摘要：",
+              "relaunch_failed": "重启失败，点击重试。",
+              "restart_button": "立即重启",
+              "skip_reason": {
+                "local_record_exists": "本地已存在同一项目。",
+                "notes_root_unavailable": "尚未配置受管理的笔记目录。",
+                "outside_user_data": "目标位置不在应用数据目录内。",
+                "target_exists": "目标位置已存在。"
+              },
+              "unavailable": "详细恢复清单不可用，但已封存的恢复任务仍可在重启后继续。",
+              "will_restore": "将恢复",
+              "will_skip": "将跳过（保留本地版本）"
+            }
+          }
+        },
         "v2_unavailable": "V2 备份恢复尚未上线，敬请期待"
       },
       "clear_cache": {

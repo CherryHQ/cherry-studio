@@ -33,9 +33,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
-import { BACKUP_V2_READY, BackupUnavailableGate } from './BackupUnavailableGate'
+import { BackupUnavailableGate } from './BackupUnavailableGate'
 import NutstorePathPopup from './NutstorePathPopup'
 
+/** Nutstore-owned seed flag — never tied to local v2 action readiness. */
+const NUTSTORE_V1_PATH_SEED_ENABLED = false
 const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
 
 const NutstoreSettings: FC = () => {
@@ -80,8 +82,10 @@ const NutstoreSettings: FC = () => {
         if (decrypted) {
           setNutstoreUsername(decrypted.username)
           setNutstorePass(decrypted.access_token)
-          // Don't seed the v1 Nutstore path default while v2 backup is gated (silent v1 pref write)
-          if (!nutstorePath && BACKUP_V2_READY) {
+          // Don't seed the v1 Nutstore path default while Nutstore provider
+          // migration has not landed (must not read local v2 action readiness /
+          // BACKUP_V2_READY — that would silently write a v1 pref).
+          if (!nutstorePath && NUTSTORE_V1_PATH_SEED_ENABLED) {
             void setNutstorePath('/cherry-studio')
             // setStoragePath('/cherry-studio')
           }

@@ -5,6 +5,7 @@ import { Phase } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
 import { bootConfigService } from '@main/data/bootConfig'
+import { assertNotBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
@@ -263,6 +264,7 @@ export class PreferenceService extends BaseService {
       IpcChannel.Preference_Set,
       async (event, key: UnifiedPreferenceKeyType, value: UnifiedPreferenceType[UnifiedPreferenceKeyType]) => {
         this.assertTrustedSender(event, IpcChannel.Preference_Set)
+        assertNotBackupInProgress()
         await this.set(key, value)
       }
     )
@@ -274,6 +276,7 @@ export class PreferenceService extends BaseService {
 
     this.ipcHandle(IpcChannel.Preference_SetMultiple, async (event, updates: Partial<UnifiedPreferenceType>) => {
       this.assertTrustedSender(event, IpcChannel.Preference_SetMultiple)
+      assertNotBackupInProgress()
       await this.setMultiple(updates)
     })
 
@@ -361,6 +364,9 @@ export class PreferenceService extends BaseService {
    * @returns Promise that resolves when update completes
    */
   public async set<K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> {
+    // Gate main-process direct callers too (not only Preference_Set IPC) — a write
+    // during restore quiesce would otherwise land on live and fail the 2nd fingerprint.
+    assertNotBackupInProgress()
     const route = this.resolveKey(key)
 
     if (route.store === 'bootConfig') {
@@ -462,6 +468,7 @@ export class PreferenceService extends BaseService {
    * @returns Promise that resolves when all updates complete
    */
   public async setMultiple(updates: Partial<UnifiedPreferenceType>): Promise<void> {
+    assertNotBackupInProgress()
     try {
       // Resolve every key first: this routes each key to its backing store and
       // rejects inaccessible keys before any write, so a mixed batch with an
