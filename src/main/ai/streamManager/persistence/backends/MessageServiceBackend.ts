@@ -15,6 +15,7 @@ export interface MessageServiceBackendOptions {
 
 export class MessageServiceBackend implements PersistenceBackend {
   readonly kind = 'sqlite'
+  readonly canPersistEmptyTerminal = true
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 
   constructor(private readonly opts: MessageServiceBackendOptions) {
