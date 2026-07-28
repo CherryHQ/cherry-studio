@@ -31,12 +31,6 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>
 }))
 
-vi.mock('../BackupPopup', () => ({ default: { show: vi.fn() } }))
-vi.mock('../BackupUnavailableGate', () => ({
-  BackupUnavailableGate: ({ children }: { children: React.ReactNode }) => <>{children}</>
-}))
-vi.mock('../RestorePopup', () => ({ default: { show: vi.fn() } }))
-
 import BasicDataSettings from '../BasicDataSettings'
 
 async function renderSettings() {

@@ -5807,7 +5807,99 @@
       "backup": {
         "skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用，加快备份速度",
         "skip_file_data_title": "精简备份",
-        "v2_unavailable": "V2 备份恢复尚未上线，敬请期待"
+        "v2_unavailable": "云端备份位置尚未可用。请使用「备份与恢复」导出备份文件并从中恢复。"
+      },
+      "backup_v2": {
+        "error": {
+          "archive_rejected": "该备份文件被拒绝：文件损坏、不完整，或由不兼容的版本创建。",
+          "arm_failed": "无法启动执行恢复所需的重启，未做任何更改。",
+          "busy": "另一个备份操作正在进行，请等待其完成。",
+          "export_destination": "无法在该位置发布备份。请选择新的文件名或其他磁盘。",
+          "export_source": "部分源文件发生变化或无法以可移植格式保存。请检查受管文件后重试。",
+          "incompatible": "此备份与当前 Cherry Studio 版本不兼容，未更改任何数据。",
+          "journal_unreadable": "本机的恢复记录无法读取，下次启动时将被隔离。",
+          "recovery_incomplete": "上次恢复没能把每个文件都放回原位。请重启应用让它完成，然后才能释放。",
+          "restore_resources": "无法将备份文件安全地安装到目标路径。请移除冲突的文件或链接，然后重新准备恢复。",
+          "restore_state": "该操作与当前恢复状态不符。请先完成或放弃待处理的恢复。",
+          "rollback_unavailable": "本次恢复前的数据已被释放，无法再回退。请选择保留恢复结果以完成清理。",
+          "storage_unavailable": "可用磁盘空间不足，无法完成操作。请清理应用数据盘和备份目标盘后重试。",
+          "unexpected": "操作意外失败。"
+        },
+        "export": {
+          "button": "导出…",
+          "credentials_warning": "备份包含你的设置，其中的 API 密钥等凭据以可读形式保存，请妥善保管备份文件。",
+          "done": "备份已导出。",
+          "integrations_warning": "恢复后会运行程序或访问网络的集成保持关闭，直到你在恢复目标设备上确认。",
+          "lite_help": "仅数据库。恢复不会替换本机文件，因此依赖文件的内容可能不可用；常规清理稍后可能回收恢复后数据库不再引用的文件。",
+          "lite_title": "精简备份",
+          "title": "备份"
+        },
+        "notice": {
+          "completed_description": "之前的数据库仍保留在设备上。请前往“设置 → 数据 → 备份与还原”回滚或保留已还原的数据。",
+          "completed_title": "恢复已完成 —— 请检查结果",
+          "expired_description": "已准备的恢复在执行前过期，没有任何内容被替换。可在 设置 → 数据 → 备份与恢复 中重新准备。",
+          "expired_title": "恢复未执行",
+          "failed_description": "先前的数据已保留，没有任何内容被替换。详情见 设置 → 数据 → 备份与恢复。",
+          "failed_title": "恢复未完成",
+          "rolled_back_description": "之前的数据库已重新启用。请前往“设置 → 数据 → 备份与还原”确认并清理被替换的还原副本。",
+          "rolled_back_title": "恢复已回退"
+        },
+        "outcome": {
+          "acknowledge_button": "保留恢复结果",
+          "acknowledged": "已确认恢复结果，不再使用的数据已释放。",
+          "completed_help": "确认前，之前的数据库会保留在设备上，以便回滚。",
+          "degradation": {
+            "capability_malformed": "有 {{count}} 条集成配置格式异常，已保持停用。",
+            "external_file_dropped": "已移除 {{count}} 条外部文件引用，因为无法在本机安全打开源设备路径。",
+            "path_collision": "有 {{count}} 个受管路径在本机发生冲突，已作为非活动元数据保留。",
+            "path_unportable": "有 {{count}} 个受管路径无法进行可移植转换，已作为非活动元数据保留。",
+            "unknown": "有 {{count}} 项因当前版本无法说明的原因被降级。"
+          },
+          "degradations": "有 {{count}} 项以降级的形式恢复。",
+          "keep_previous_button": "保留先前数据",
+          "rolled_back_help": "之前的数据库已重新启用。确认后会清理被替换的还原副本。",
+          "state": {
+            "armed": "已确认恢复，将在下次启动时执行。",
+            "completed": "恢复已完成。",
+            "expired": "已准备的恢复未执行即过期。",
+            "failed": "上次恢复未完成，先前的数据已保留。",
+            "prepared": "已准备一个恢复。",
+            "promoting": "恢复正在进行。",
+            "reverting": "正在撤销失败的恢复。",
+            "rollback_armed": "已确认回退，将在下次启动时执行。",
+            "rolled_back": "恢复已回退，先前的数据已重新启用。"
+          },
+          "title": "上次恢复",
+          "unreadable": "本机的恢复记录无法读取，下次启动时将被隔离。"
+        },
+        "preset": {
+          "lite": "精简（仅数据库）"
+        },
+        "preview": {
+          "degradations": "创建该备份时有 {{count}} 项未被包含。",
+          "destructive": "恢复会替换当前数据库并重启应用。一旦确认保留，将无法撤销。",
+          "migrated_forward": "该备份由较旧版本创建，已在准备阶段升级。"
+        },
+        "restore": {
+          "arm_button": "恢复并重启",
+          "choose_button": "选择备份文件…",
+          "choose_title": "从备份文件恢复",
+          "confirm_content": "当前数据库将由备份替换，应用会重启。本地文件不会被修改。",
+          "confirm_ok": "替换并重启",
+          "confirm_title": "用该备份替换全部数据？",
+          "discard_button": "放弃准备",
+          "discarded": "已放弃准备的恢复。",
+          "help": "恢复会用备份文件中的数据库整体替换当前数据库，不做合并。",
+          "pending_elsewhere": "此前准备的恢复仍在等待。重新选择备份文件可查看其详情。",
+          "title": "恢复"
+        },
+        "rollback": {
+          "button": "回退本次恢复",
+          "confirm_content": "Cherry Studio 将重启并恢复到此次还原前的数据库。还原后的更改不会合并，确认回滚结果后将被清理。",
+          "confirm_ok": "回退并重启",
+          "confirm_title": "返回本次恢复前的数据？"
+        },
+        "title": "备份与恢复"
       },
       "clear_cache": {
         "button": "清除缓存",

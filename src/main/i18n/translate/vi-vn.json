@@ -56,6 +56,7 @@
   },
   "dialog": {
     "all_files": "Tất cả các tệp",
+    "cherry_backup_files": "[to be translated]:Cherry Studio Backup",
     "data_reset": {
       "cancel": "Hủy",
       "confirm": "Đặt lại và khởi động lại",
