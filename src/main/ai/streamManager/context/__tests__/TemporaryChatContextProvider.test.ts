@@ -215,8 +215,9 @@ describe('TemporaryChatContextProvider', () => {
     expect(request.messages).toBeDefined()
     expect(request.messages!).toHaveLength(1)
     expect(request.messages![0].role).toBe('user')
-    // The stream and persistence backend share one stable id so billing and
-    // later temporary-chat promotion converge on the same usage record.
+    // The stream and temporary backend share one stable message id so
+    // invocation records can link to it before later promotion rebuilds the
+    // same message projection.
     expect(request.messageId).toMatch(/^[0-9a-f-]{36}$/)
   })
 

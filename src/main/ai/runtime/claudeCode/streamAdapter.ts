@@ -251,12 +251,12 @@ function compactDetails<T extends Record<string, number | undefined>>(obj: T): {
 }
 
 /**
- * Project a `LanguageModelV3Usage` into the persisted `MessageStats` token
- * shape (AI SDK v6 names). Top-level `inputTokens` follows the v6 semantic of
- * TOTAL input (cache reads and writes included) — matching the SDK's own
- * `asLanguageModelUsage` projection; the cache breakdown lives in
- * `inputTokenDetails`, and `totalTokens` is the all-in figure. Cost is added
- * later at persistence time.
+ * Project a `LanguageModelV3Usage` into the live `MessageStats` token shape
+ * carried by stream metadata (AI SDK v6 names). Top-level `inputTokens`
+ * follows the v6 semantic of TOTAL input (cache reads and writes included) —
+ * matching the SDK's own `asLanguageModelUsage` projection; the cache
+ * breakdown lives in `inputTokenDetails`, and `totalTokens` is the all-in
+ * figure. Persistent usage and cost come from per-invocation records instead.
  */
 export function v3UsageToStats(usage: LanguageModelV3Usage): MessageStats {
   const inputTotal = usage.inputTokens.total ?? 0
@@ -881,9 +881,9 @@ export class ClaudeCodeStreamAdapter {
     this.setSessionId(message.session_id)
 
     if (message.subtype !== 'success') {
-      // Error results still carry the tokens Anthropic already billed. The driver only calls
-      // `emitUsageMetadata` when `handleMessage` returns normally, so emit the final snapshot
-      // BEFORE throwing — otherwise both message metadata and the usage record lose them.
+      // Error results still carry token totals useful to the live message. The driver only calls
+      // `emitUsageMetadata` when `handleMessage` returns normally, so emit the final UI snapshot
+      // BEFORE throwing. Per-invocation records are captured independently by the driver.
       ctx.sink.enqueue({
         type: 'message-metadata',
         messageMetadata: this.buildMessageMetadata(ctx.usage)

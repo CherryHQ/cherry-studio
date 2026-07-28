@@ -1262,9 +1262,9 @@ export class MessageService {
   }
 
   /**
-   * Internal AI-runtime finalizer. Content/status and message-level timings are
-   * message-owned; invocation usage/cost fields already present in `stats` are
-   * preserved for the record projector.
+   * Internal AI-runtime finalizer. Content/status and runtime timing are
+   * message-owned; the merge preserves the existing record-owned usage
+   * projection and never accepts usage/cost from this caller.
    */
   finalizeAssistantMessage(
     id: string,

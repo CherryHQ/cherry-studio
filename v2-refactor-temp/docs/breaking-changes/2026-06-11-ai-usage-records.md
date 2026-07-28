@@ -19,8 +19,8 @@ materialized aggregate of those records. Message persistence continues to own
 content, status, and end-to-end runtime timing, but no longer creates, updates,
 or repairs usage records.
 
-These records are durable analytics, not an immutable or financially
-reconcilable billing ledger. Provider invoices remain authoritative.
+These records are immutable analytics facts, not a financially reconcilable
+billing ledger. Provider invoices remain authoritative.
 
 ## Why this matters to the user
 

@@ -31,9 +31,9 @@ export type MessageId = z.infer<typeof MessageIdSchema>
  * Materialized statistics for one assistant message.
  *
  * Usage, request counts, costs, and provider performance are projections of
- * immutable `ai_usage_record` rows. Runtime timing and the legacy scalar
- * timings are message-level end-to-end measurements owned by message
- * persistence.
+ * immutable `ai_usage_record` rows. Runtime timing is message-owned and
+ * written by runtime persistence. Scalar timing fields are historical
+ * compatibility data read only when `runtimeTiming` is absent.
  */
 const MessageProviderPerformanceSchema = z.strictObject({
   measuredOutputTokens: z.number().nonnegative(),

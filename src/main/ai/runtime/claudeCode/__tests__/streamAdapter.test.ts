@@ -808,7 +808,7 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(sessionIds).toEqual(['sdk-error'])
   })
 
-  it('emits the billed usage metadata before throwing on error results', () => {
+  it('emits final live usage metadata before throwing on error results', () => {
     const { adapter, parts } = createAdapter()
 
     expect(() =>
@@ -822,8 +822,8 @@ describe('ClaudeCodeStreamAdapter', () => {
       )
     ).toThrow('boom')
 
-    // The driver never reaches `emitUsageMetadata` on a throw, so the adapter must have already
-    // flushed the tokens Anthropic billed — otherwise the usage record loses them.
+    // The driver never reaches `emitUsageMetadata` on a throw, so the adapter must flush the final
+    // live token snapshot itself. Invocation-record capture is a separate driver responsibility.
     expect(parts).toEqual([
       {
         type: 'message-metadata',
