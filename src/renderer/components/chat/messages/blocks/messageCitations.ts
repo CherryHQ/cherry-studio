@@ -218,6 +218,9 @@ export function resolveMessageCitations(parts: readonly CherryMessagePart[]): Me
  * forms) in `content` into rendered `<sup data-citation>` tags, and report the
  * cited subset in first-appearance order for the citations footer. Unknown
  * ids stay literal.
+ *
+ * Markers are numbered 1..N by first appearance in `content`, so the badges
+ * read in order and match the footer's ordering.
  */
 export function withToolCitationTags(
   content: string,
@@ -249,15 +252,25 @@ export function withToolCitationTags(
   const normalized =
     markerNumberMap.size > 0 ? normalizeCitationMarks(content, markerNumberMap, WEB_SEARCH_SOURCE.AISDK) : content
 
+  // Renumber by first appearance. `resolveMessageCitations` numbers every result it finds, so a
+  // model citing the 41st knowledge chunk would render a bare "41" while the footer lists only the
+  // handful actually cited — and the footer (ordered by appearance) would disagree with those
+  // numbers whenever the model cites out of order. Display numbers are therefore assigned here,
+  // where the text is known; the resolver's numbers stay as internal identity keys.
   const cited: Citation[] = []
-  const citedNumbers = new Set<number>()
+  const displayed = new Map<Citation, Citation>()
+  const renumbered = new Map<string, Citation>()
   for (const match of normalized.matchAll(/\[cite:([\w-]+)\]/g)) {
     const citation = lookup.get(match[1])
-    if (citation && !citedNumbers.has(citation.number)) {
-      citedNumbers.add(citation.number)
-      cited.push(citation)
+    if (!citation) continue
+    let display = displayed.get(citation)
+    if (!display) {
+      display = { ...citation, number: cited.length + 1 }
+      displayed.set(citation, display)
+      cited.push(display)
     }
+    renumbered.set(match[1], display)
   }
 
-  return { content: mapCitationMarksToTags(normalized, lookup), cited }
+  return { content: mapCitationMarksToTags(normalized, renumbered), cited }
 }

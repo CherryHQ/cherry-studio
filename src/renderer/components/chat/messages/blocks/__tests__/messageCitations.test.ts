@@ -120,12 +120,27 @@ describe('withToolCitationTags', () => {
   it('maps [cite:id] markers to sup tags and reports the cited subset in order', () => {
     const mc = resolveMessageCitations([webToolPart(webResults('abc')), kbToolPart(kbResults('kzz'))])
     const { content, cited } = withToolCitationTags('B fact. [cite:abc-2] KB fact. [cite:kzz-1] Again [cite:abc-2]', mc)
+    // Numbered by first appearance, not by position in the result set: abc-2 resolves to the
+    // resolver's #2 and kzz-1 to its #3, but they render as 1 and 2.
+    expect(content).toContain('1</sup>](https://b.com/y)')
     // Web citations link out; the URL-less KB citation must stay a bare <sup> so rehype-harden
     // does not rewrite an empty-href anchor into "<span>… [blocked]</span>".
-    expect(content).toContain('2</sup>](https://b.com/y)')
-    expect(content).toContain('3</sup>')
-    expect(content).not.toContain('3</sup>]()')
-    expect(cited.map((c) => c.number)).toEqual([2, 3])
+    expect(content).toContain('2</sup>')
+    expect(content).not.toContain('2</sup>]()')
+    expect(cited.map((c) => c.number)).toEqual([1, 2])
+    // A repeat of the same source reuses its number instead of taking a new one.
+    expect(content.match(/>1<\/sup>/g)).toHaveLength(2)
+  })
+
+  it('numbers badges in reading order even when the model cites out of order', () => {
+    const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
+    // abc-2 is the resolver's #2 and abc-1 its #1, but the text cites the later result first.
+    const { content, cited } = withToolCitationTags('First [cite:abc-2] then [cite:abc-1]', mc)
+
+    expect(content.indexOf('>1</sup>')).toBeLessThan(content.indexOf('>2</sup>'))
+    // The footer list follows the same order, so badge N is the Nth entry in the panel.
+    expect(cited.map((c) => c.number)).toEqual([1, 2])
+    expect(cited.map((c) => c.url)).toEqual(['https://b.com/y', 'https://a.com/x'])
   })
 
   it('leaves unknown ids literal', () => {
