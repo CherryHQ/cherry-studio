@@ -40,19 +40,19 @@ describe('dataSourcePanel.selectors', () => {
     expect(getItemStatus(createFileItem({ id: 'file-2', status: 'failed' }))).toEqual({
       kind: 'failed',
       labelKey: 'knowledge.data_source.status.error',
-      textClassName: 'text-red-500',
+      textClassName: 'text-error',
       icon: 'alert'
     })
     expect(getItemStatus(createFileItem({ id: 'file-3', status: 'embedding' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
-      textClassName: 'text-amber-500',
+      textClassName: 'text-warning',
       icon: 'loader'
     })
     expect(getItemStatus(createFileItem({ id: 'file-4', status: 'reading' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.rag.file_processing',
-      textClassName: 'text-blue-500',
+      textClassName: 'text-info',
       icon: 'loader'
     })
     expect(getItemStatus(createFileItem({ id: 'file-5', status: 'processing' }))).toEqual({
@@ -70,7 +70,7 @@ describe('dataSourcePanel.selectors', () => {
     expect(getItemStatus(createFileItem({ id: 'file-6', status: 'embedding' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
-      textClassName: 'text-amber-500',
+      textClassName: 'text-warning',
       icon: 'loader'
     })
     expect(getItemStatus(createDirectoryItem({ id: 'directory-2', status: 'preparing' }))).toEqual({

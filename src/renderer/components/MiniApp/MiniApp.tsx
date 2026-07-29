@@ -208,7 +208,7 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
                     ? '-right-[3px] -bottom-[3px] p-[3px] shadow-[0_0_0_1px_var(--border-subtle)]'
                     : '-right-0.5 -bottom-0.5 p-0.5'
                 )}>
-                <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
+                <IndicatorLight color="var(--success)" size={6} animation={!isActive} />
               </div>
             )}
           </div>

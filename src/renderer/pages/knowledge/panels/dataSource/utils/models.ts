@@ -73,7 +73,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'failed',
       labelKey: 'knowledge.data_source.status.error',
-      textClassName: 'text-red-500',
+      textClassName: 'text-error',
       icon: 'alert'
     }
   }
@@ -82,7 +82,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
-      textClassName: 'text-amber-500',
+      textClassName: 'text-warning',
       icon: 'loader'
     }
   }
@@ -91,7 +91,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'processing',
       labelKey: 'knowledge.rag.file_processing',
-      textClassName: 'text-blue-500',
+      textClassName: 'text-info',
       icon: 'loader'
     }
   }

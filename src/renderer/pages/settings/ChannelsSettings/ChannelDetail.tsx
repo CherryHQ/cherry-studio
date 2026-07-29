@@ -99,10 +99,10 @@ function formatTime(ts: number): string {
 }
 
 const LOG_LEVEL_COLORS: Record<string, string> = {
-  error: '#ff4d4f',
-  warn: '#faad14',
-  info: '#1677ff',
-  debug: '#8c8c8c'
+  error: 'var(--error)',
+  warn: 'var(--warning)',
+  info: 'var(--info)',
+  debug: 'var(--foreground-tertiary)'
 }
 
 const NO_AGENT_VALUE = '__none'
@@ -166,7 +166,9 @@ const ChannelLogModal: FC<{
           {logs.map((entry, i) => (
             <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
               <span className="shrink-0 text-muted-foreground">{formatTime(entry.timestamp)}</span>
-              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? '#8c8c8c' }}>[{entry.level.toUpperCase()}]</span>
+              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? 'var(--foreground-tertiary)' }}>
+                [{entry.level.toUpperCase()}]
+              </span>
               <span className="break-all">{entry.message}</span>
             </div>
           ))}
