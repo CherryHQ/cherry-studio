@@ -329,7 +329,8 @@ function DataTable<TData>({
               toggleExpandedRow(row.original)
             }}>
             <DirectionalIcon>
-              <ChevronRight className={cn('size-4 transition-transform', isExpanded && 'rotate-90')} />
+              {/* The mirror from DirectionalIcon composes with rotation, so RTL rotates the other way. */}
+              <ChevronRight className={cn('size-4 transition-transform', isExpanded && 'rotate-90 rtl:-rotate-90')} />
             </DirectionalIcon>
           </button>
         )

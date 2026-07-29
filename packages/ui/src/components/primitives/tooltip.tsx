@@ -26,17 +26,30 @@ type TooltipPlacement =
   | 'end-start'
   | 'end-end'
 
+const LOGICAL_SIDES = new Set<string>(['top', 'bottom', 'start', 'end'])
+const PHYSICAL_SIDES = new Set<string>(['top', 'bottom', 'left', 'right'])
+const ALIGNS = new Set<string>(['start', 'center', 'end'])
+
 function resolveSide(side: TooltipSide, direction: Direction): PhysicalSide {
   if (side === 'start' || side === 'end') return resolveInlineSide(side, direction)
   return side
 }
 
+/**
+ * Placement also reaches this component from untyped call sites. Physical sides still resolve as
+ * themselves so pre-logical callers keep rendering where they always did; anything unrecognised
+ * falls back to the default rather than reaching Radix as an invalid side.
+ */
 function parsePlacement(
   placement: TooltipPlacement | undefined,
   direction: Direction
 ): { side: PhysicalSide; align: Align } {
-  const [side = 'top', align = 'center'] = (placement ?? 'top').split('-') as [TooltipSide, Align?]
-  return { side: resolveSide(side, direction), align }
+  const [rawSide, rawAlign] = (placement ?? 'top').split('-')
+  const align = rawAlign !== undefined && ALIGNS.has(rawAlign) ? (rawAlign as Align) : 'center'
+
+  if (LOGICAL_SIDES.has(rawSide)) return { side: resolveSide(rawSide as TooltipSide, direction), align }
+  if (PHYSICAL_SIDES.has(rawSide)) return { side: rawSide as PhysicalSide, align }
+  return { side: 'top', align }
 }
 
 export type TooltipProviderProps = React.ComponentProps<typeof RadixProvider>

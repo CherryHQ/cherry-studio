@@ -339,13 +339,13 @@ function ContextMenuSeparator({ className, ...props }: React.ComponentProps<type
   )
 }
 
-function ContextMenuShortcut({ className, ...props }: React.ComponentProps<'span'>) {
+function ContextMenuShortcut({ className, dir, ...props }: React.ComponentProps<'span'>) {
   return (
     <span
       data-slot="context-menu-shortcut"
+      dir={dir ?? 'ltr'}
       className={cn('ms-auto text-xs tracking-widest text-muted-foreground', className)}
       {...props}
-      dir="ltr"
     />
   )
 }

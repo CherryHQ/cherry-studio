@@ -160,6 +160,22 @@ describe('DataTable', () => {
     expect(screen.getByRole('cell', { name: 'Engineer' })).toHaveClass('text-end')
   })
 
+  it('counter-rotates the expand chevron in RTL so it still opens downwards', () => {
+    // DirectionalIcon mirrors the chevron, and the mirror composes with the expanded rotation.
+    render(
+      <DataTable
+        data={people}
+        columns={columns}
+        rowKey="id"
+        expandedRowKeys={['1']}
+        renderExpandedRow={() => <div>details</div>}
+      />
+    )
+
+    const chevron = screen.getAllByRole('button', { name: 'Collapse row' })[0].querySelector('svg')
+    expect(chevron).toHaveClass('rotate-90', 'rtl:-rotate-90')
+  })
+
   it('bounds long cell and expanded row content to the table width', () => {
     const longCellText = 'Navigate to a URL and optionally fetch page content. '.repeat(4).trim()
     const longExpandedText = 'Expanded schema description '.repeat(8).trim()

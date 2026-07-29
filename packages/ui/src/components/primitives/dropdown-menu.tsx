@@ -153,13 +153,13 @@ function DropdownMenuSeparator({ className, ...props }: React.ComponentProps<typ
   )
 }
 
-function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<'span'>) {
+function DropdownMenuShortcut({ className, dir, ...props }: React.ComponentProps<'span'>) {
   return (
     <span
       data-slot="dropdown-menu-shortcut"
+      dir={dir ?? 'ltr'}
       className={cn('ms-auto text-xs tracking-widest text-muted-foreground', className)}
       {...props}
-      dir="ltr"
     />
   )
 }

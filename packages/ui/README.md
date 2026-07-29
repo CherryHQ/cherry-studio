@@ -187,9 +187,13 @@ import { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS, toUndefinedIfNull } 
 
 ### Direction and bidirectional content
 
-Mount `DirectionProvider` with the same direction as the application root. Shared component placement APIs use
-logical `start` / `end`; adapters such as `Drawer` and `Tooltip` translate those values only when an underlying
-library requires physical `left` / `right` values.
+Direction defaults to `ltr`, so components behave identically until a `DirectionProvider` is mounted. Shared
+component placement APIs use logical `start` / `end`; adapters such as `Drawer` and `Tooltip` translate those
+values only when an underlying library requires physical `left` / `right` values.
+
+`DirectionProvider` publishes the direction to both consumers that resolve it — components reading
+`useDirection()`, and logical CSS (`ms-*`, `end-*`, `rtl:*`), which resolves against the rendered `dir`
+attribute. It renders a `display: contents` carrier for the attribute, so the two cannot disagree.
 
 ```tsx
 import { DirectionProvider, Drawer, DirectionalIcon } from '@cherrystudio/ui/components'
@@ -204,9 +208,12 @@ import { ArrowRight } from 'lucide-react'
 ```
 
 Use `DirectionalIcon` only for arrows whose meaning follows reading direction; never wrap logos, check marks, or
-physical media controls. Text inputs default to `dir="auto"`, while technical input types such as email, number,
-password, telephone, and URL default to LTR. Callers may explicitly override `dir` when their content contract is
-more specific.
+physical media controls. Its mirror composes with any rotation on the same icon, so a chevron that also rotates
+open must counter-rotate under `rtl:` rather than rely on the mirror alone.
+
+Text inputs default to `dir="auto"`, while technical input types such as email, number, password, telephone, and
+URL default to LTR. Keyboard-shortcut slots default to LTR. Callers may explicitly override `dir` on any of these
+when their content contract is more specific.
 
 ## Development
 

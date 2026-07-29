@@ -239,6 +239,31 @@ describe('Tooltip', () => {
 
       expect(getTooltipContentElement('end in RTL')).toHaveAttribute('data-side', 'left')
     })
+
+    it('falls back to the default placement when given an unrecognised value', () => {
+      render(
+        // Placement still reaches this component from untyped call sites.
+        <Tooltip content="legacy tip" placement={'bottomRight' as never} isOpen>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+
+      const content = getTooltipContentElement('legacy tip')
+      expect(content).toHaveAttribute('data-side', 'top')
+      expect(content).toHaveAttribute('data-align', 'center')
+    })
+
+    it('keeps resolving physical placements for pre-logical call sites', () => {
+      render(
+        <Tooltip content="physical tip" placement={'left-end' as never} isOpen>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+
+      const content = getTooltipContentElement('physical tip')
+      expect(content).toHaveAttribute('data-side', 'left')
+      expect(content).toHaveAttribute('data-align', 'end')
+    })
   })
 
   describe('arrow rendering', () => {

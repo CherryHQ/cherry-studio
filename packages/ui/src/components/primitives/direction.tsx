@@ -13,10 +13,24 @@ interface DirectionProviderProps {
   dir: Direction
 }
 
-function DirectionProvider(props: DirectionProviderProps) {
-  return <RadixDirectionProvider {...props} />
+/**
+ * Publishes one direction to both consumers that resolve it: components reading `useDirection()`
+ * and logical CSS (`ms-*`, `end-*`, `rtl:*`), which resolves against the rendered `dir` attribute.
+ * The `display: contents` wrapper carries the attribute without taking part in layout, so the two
+ * cannot disagree — a context-only provider would let a component anchor to one edge while its
+ * classes anchor to the other.
+ */
+function DirectionProvider({ children, dir }: DirectionProviderProps) {
+  return (
+    <RadixDirectionProvider dir={dir}>
+      <div dir={dir} style={{ display: 'contents' }}>
+        {children}
+      </div>
+    </RadixDirectionProvider>
+  )
 }
 
+/** Defaults to `ltr` when no provider is mounted. */
 function useDirection(localDirection?: Direction): Direction {
   return useRadixDirection(localDirection)
 }

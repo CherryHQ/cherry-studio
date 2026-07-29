@@ -312,7 +312,8 @@ export function TreeSelect({
                 onClick={() => toggleExpanded(option.value)}
                 className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
                 <DirectionalIcon>
-                  <ChevronRight className={cn('size-4 transition-transform', expanded && 'rotate-90')} />
+                  {/* The mirror from DirectionalIcon composes with rotation, so RTL rotates the other way. */}
+                  <ChevronRight className={cn('size-4 transition-transform', expanded && 'rotate-90 rtl:-rotate-90')} />
                 </DirectionalIcon>
               </button>
             ) : (
