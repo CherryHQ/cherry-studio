@@ -1,0 +1,98 @@
+{
+  "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Yerleşik Cherry Studio danışmanı. Sorunları tespit edin, işlemleri yönlendirin, sık sorulan soruları (SSS) toplayın, hata/özellik taleplerini gönderin ve Yetenekleri (Skills) arayın/oluşturun."
+      }
+    },
+    "session": {
+      "workspace_status": {
+        "inaccessible": "Çalışma alanı yoluna erişilemiyor: {{path}}",
+        "missing": "Çalışma alanı yolu bulunamadı: {{path}}",
+        "not_directory": "Çalışma alanı yolu bir dizin değil: {{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "Hakkında",
+    "close": "Pencereyi Kapat",
+    "copy": "Kopyala",
+    "cut": "Kes",
+    "delete": "Sil",
+    "documentation": "Belgeler",
+    "edit": "Düzenle",
+    "feedback": "Geri Bildirim",
+    "file": "Dosya",
+    "forceReload": "Zorla Yenile",
+    "front": "Hepsini Öne Getir",
+    "help": "Yardım",
+    "hide": "Gizle",
+    "hideOthers": "Diğerlerini Gizle",
+    "minimize": "Küçült",
+    "paste": "Yapıştır",
+    "quit": "Çıkış",
+    "redo": "Yinele",
+    "releases": "Sürümler",
+    "reload": "Yenile",
+    "resetZoom": "Gerçek Boyut",
+    "selectAll": "Tümünü Seç",
+    "services": "Hizmetler",
+    "toggleDevTools": "Geliştirici Araçlarını Aç/Kapat",
+    "toggleFullscreen": "Tam Ekrana Geç/Çık",
+    "undo": "Geri Al",
+    "unhide": "Tümünü Göster",
+    "view": "Görünüm",
+    "website": "Web Sitesi",
+    "window": "Pencere",
+    "zoom": "Yakınlaştırma",
+    "zoomIn": "Yakınlaştır",
+    "zoomOut": "Uzaklaştır"
+  },
+  "common": {
+    "copy": "Kopyala",
+    "cut": "Kes",
+    "inspect": "İncele",
+    "paste": "Yapıştır"
+  },
+  "dialog": {
+    "all_files": "Tüm Dosyalar",
+    "data_reset": {
+      "cancel": "İptal",
+      "confirm": "Sıfırla ve Yeniden Başlat",
+      "message": "Bu işlem sohbetleri, asistanları, bilgi tabanlarını, dosyaları ve ayarları silecek, ardından uygulamayı yeniden başlatacaktır. Bu işlem geri alınamaz. Devam edilsin mi?",
+      "title": "Uygulama Verilerini Sıfırla"
+    },
+    "html_files": "HTML Dosyaları",
+    "open_file": "Dosya Aç",
+    "pdf_files": "PDF Dosyaları",
+    "png_image": "PNG Görseli",
+    "save_as_html": "HTML Olarak Kaydet",
+    "save_as_pdf": "PDF Olarak Kaydet",
+    "save_file": "Dosyayı Kaydet",
+    "select_folder": "Klasör Seç",
+    "word_document": "Word Belgesi"
+  },
+  "paintings": {
+    "generate_failed": "Görsel oluşturulamadı",
+    "image_mix_failed": "Görseller karıştırılamadı"
+  },
+  "selection": {
+    "name": "Seçim Asistanı"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "Bu sayfayı kapatıp Cherry Studio'ya dönebilirsiniz",
+          "title": "Kimlik Doğrulama Başarılı"
+        }
+      }
+    },
+    "title": "Ayarlar"
+  },
+  "tray": {
+    "quit": "Çıkış",
+    "show_quick_assistant": "Hızlı Asistan",
+    "show_window": "Pencereyi Göster"
+  }
+}
