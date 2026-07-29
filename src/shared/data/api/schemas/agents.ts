@@ -7,6 +7,7 @@
  */
 
 import { UniqueModelIdSchema } from '@shared/data/types/model'
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../types'
@@ -44,6 +45,7 @@ export const AgentConfigurationSchema = z
     avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
+    reasoning_effort: ReasoningEffortOptionSchema.optional(),
     max_turns: z.number().optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
     bootstrap_completed: z.boolean().optional(),

@@ -14,6 +14,7 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
+import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -428,6 +429,21 @@ export class AgentService {
   updateAgent(id: string, updates: UpdateAgentDto): AgentEntity | null {
     const existing = this.getAgent(id)
     if (!existing) return null
+
+    if (updates.model && updates.model !== existing.model) {
+      const nextModel = modelService.findByIdTx(application.get('DbService').getDb(), updates.model)
+      if (nextModel) {
+        const configuration = updates.configuration ?? existing.configuration ?? {}
+        updates = {
+          ...updates,
+          configuration: {
+            ...configuration,
+            reasoning_effort:
+              resolveReasoningEffortForModel(nextModel, configuration.reasoning_effort ?? 'default') ?? 'default'
+          }
+        }
+      }
+    }
 
     // A configuration write may only preserve the existing builtin_role — see getBuiltinRole.
     // Forging or changing it is rejected; omitting it re-injects the stored value so a whole-blob

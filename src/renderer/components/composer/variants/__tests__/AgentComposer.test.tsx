@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   selectedKnowledgeBases: [] as KnowledgeBase[],
   knowledgeBases: [] as KnowledgeBase[],
   agentKnowledgeBaseIds: [] as string[],
+  agentConfiguration: {} as AgentConfiguration,
   agentLookupId: undefined as string | null | undefined,
   modelLookupId: undefined as UniqueModelId | null | undefined,
   modelResult: undefined as Model | undefined,
@@ -44,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   timeoutCallbacks: new Map<string, () => void>(),
   setTimeoutTimer: vi.fn(),
   clearTimeoutTimer: vi.fn(),
+  updateAgent: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
@@ -386,11 +389,11 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
         modelName: 'Claude Sonnet 4.5',
         instructions: 'Follow instructions',
         knowledgeBaseIds: mocks.agentKnowledgeBaseIds,
-        configuration: {}
+        configuration: mocks.agentConfiguration
       }
     }
   },
-  useUpdateAgent: () => ({ updateModel: mocks.updateModel })
+  useUpdateAgent: () => ({ updateAgent: mocks.updateAgent, updateModel: mocks.updateModel })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
@@ -701,6 +704,7 @@ describe('AgentComposer', () => {
     mocks.selectedKnowledgeBases = []
     mocks.knowledgeBases = []
     mocks.agentKnowledgeBaseIds = []
+    mocks.agentConfiguration = {}
     mocks.agentLookupId = undefined
     mocks.modelLookupId = undefined
     mocks.modelResult = model
@@ -755,6 +759,8 @@ describe('AgentComposer', () => {
     }
     mocks.updateModel.mockReset()
     mocks.updateModel.mockResolvedValue({})
+    mocks.updateAgent.mockReset()
+    mocks.updateAgent.mockImplementation(async (form) => ({ configuration: form.configuration }))
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
@@ -1057,6 +1063,40 @@ describe('AgentComposer', () => {
     expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')
   })
 
+  it('loads and persists the agent reasoning effort without replacing other configuration', () => {
+    mocks.agentConfiguration = { permission_mode: 'plan', reasoning_effort: 'high' }
+    mocks.modelResult = {
+      ...model,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'high'] }],
+        selectableEfforts: ['low', 'high']
+      }
+    }
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('low'))
+
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      {
+        id: 'agent-1',
+        configuration: { permission_mode: 'plan', reasoning_effort: 'low' }
+      },
+      { showSuccessToast: false }
+    )
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('low')
+  })
+
   it('updates the agent model from the inline model selector when model changes are allowed', () => {
     render(
       <AgentComposer
@@ -1075,9 +1115,14 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.updateModel).toHaveBeenCalledWith('agent-1', 'anthropic::claude-opus-4', {
-      showSuccessToast: false
-    })
+    expect(mocks.updateModel).toHaveBeenCalledWith(
+      {
+        agent: expect.objectContaining({ id: 'agent-1', configuration: {} }),
+        model: expect.objectContaining({ id: 'anthropic::claude-opus-4' }),
+        reasoningEffort: 'default'
+      },
+      { showSuccessToast: false }
+    )
   })
 
   it('reconciles the session reasoning selection after the model update succeeds', async () => {

@@ -1,6 +1,7 @@
 import type * as UseCacheModule from '@data/hooks/useCache'
 import { useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
+import type { Model } from '@shared/data/types/model'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
@@ -80,7 +81,7 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      configuration: { avatar: '🤖' },
+      configuration: { avatar: '🤖', reasoning_effort: 'high' },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
@@ -90,6 +91,7 @@ describe('useAgent', () => {
 
     // Known field preserved; optional fields not explicitly set remain undefined
     expect(result.current.agent?.configuration?.avatar).toBe('🤖')
+    expect(result.current.agent?.configuration?.reasoning_effort).toBe('high')
     expect(result.current.agent?.configuration?.permission_mode).toBeUndefined()
     expect(result.current.agent?.configuration?.max_turns).toBeUndefined()
   })
@@ -100,9 +102,9 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      // permission_mode/'invalid' fails enum check; env_vars/null fails record check.
+      // permission_mode/reasoning_effort 'invalid' fail enum checks; env_vars/null fails record check.
       // max_turns/200 is well-typed and must survive.
-      configuration: { permission_mode: 'invalid', env_vars: null, max_turns: 200 },
+      configuration: { permission_mode: 'invalid', reasoning_effort: 'invalid', env_vars: null, max_turns: 200 },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
@@ -326,24 +328,45 @@ describe('useUpdateAgent', () => {
   })
 
   describe('updateModel', () => {
-    it('delegates to updateAgent with model field', async () => {
+    it('atomically updates the model and its normalized agent reasoning effort', async () => {
+      const nextModel = {
+        id: 'anthropic::new-model',
+        providerId: 'anthropic',
+        apiModelId: 'new-model',
+        name: 'New Model',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      } satisfies Model
       const mockTrigger = vi.fn().mockResolvedValue({
         id: 'agent-1',
         name: 'A',
         model: 'anthropic::new-model',
         type: 'claude-code',
-        configuration: {},
+        configuration: { avatar: '🤖', reasoning_effort: 'default' },
         createdAt: '',
         updatedAt: ''
       })
       MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
 
       const { result } = renderHook(() => useUpdateAgent())
-      const updated = await act(async () => result.current.updateModel('agent-1', 'anthropic::new-model'))
+      const updated = await act(async () =>
+        result.current.updateModel({
+          agent: {
+            id: 'agent-1',
+            configuration: { avatar: '🤖', reasoning_effort: 'high' }
+          },
+          model: nextModel
+        })
+      )
 
       expect(mockTrigger).toHaveBeenCalledWith({
         params: { agentId: 'agent-1' },
-        body: { model: 'anthropic::new-model' }
+        body: {
+          model: 'anthropic::new-model',
+          configuration: { avatar: '🤖', reasoning_effort: 'default' }
+        }
       })
       expect(updated?.model).toBe('anthropic::new-model')
     })

@@ -657,7 +657,7 @@ const AgentComposerInner = ({
   deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
-  const { updateModel } = useUpdateAgent()
+  const { updateAgent, updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -693,8 +693,13 @@ const AgentComposerInner = ({
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
   }
 
-  const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
-  const previousModelIdRef = useRef(model?.id)
+  const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
+  const canonicalReasoningEffort = model
+    ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
+    : configuredReasoningEffort
+  const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>(canonicalReasoningEffort)
+  const reasoningMutationVersionRef = useRef(0)
+  const pendingReasoningMutationRef = useRef<number | null>(null)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraftRef.current?.tokens ?? []).map(getSkillFromCachedToken)
   )
@@ -714,12 +719,13 @@ const AgentComposerInner = ({
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
+  const canonicalReasoningEffortRef = useLatest(canonicalReasoningEffort)
 
   useEffect(() => {
-    if (previousModelIdRef.current === model?.id) return
-    previousModelIdRef.current = model?.id
-    setReasoningEffort((current) => (model ? (resolveReasoningEffortForModel(model, current) ?? 'default') : 'default'))
-  }, [model])
+    if (pendingReasoningMutationRef.current === null) {
+      setReasoningEffort(canonicalReasoningEffort)
+    }
+  }, [canonicalReasoningEffort])
 
   const setText = useCallback(
     (nextText: string, options: { persist?: boolean } = {}) => {
@@ -957,12 +963,26 @@ const AgentComposerInner = ({
 
   const handleModelSelect = useCallback(
     async (nextModel?: Model) => {
-      if (!canChangeModel || !nextModel || nextModel.id === model?.id) return
-      const updatedAgent = await updateModel(agentId, nextModel.id, { showSuccessToast: false })
-      if (!updatedAgent) return
-      setReasoningEffort((current) => resolveReasoningEffortForModel(nextModel, current) ?? 'default')
+      if (!agent || !canChangeModel || !nextModel || nextModel.id === model?.id) return
+
+      const previousReasoningEffort = reasoningEffort
+      const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, previousReasoningEffort) ?? 'default'
+      const version = ++reasoningMutationVersionRef.current
+      pendingReasoningMutationRef.current = version
+      setReasoningEffort(nextReasoningEffort)
+
+      const updatedAgent = await updateModel(
+        { agent, model: nextModel, reasoningEffort: previousReasoningEffort },
+        { showSuccessToast: false }
+      )
+      if (pendingReasoningMutationRef.current !== version) return
+
+      pendingReasoningMutationRef.current = null
+      setReasoningEffort(
+        updatedAgent ? (updatedAgent.configuration?.reasoning_effort ?? nextReasoningEffort) : previousReasoningEffort
+      )
     },
-    [agentId, canChangeModel, model?.id, updateModel]
+    [agent, canChangeModel, model?.id, reasoningEffort, updateModel]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -990,9 +1010,38 @@ const AgentComposerInner = ({
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const toolsSession = sessionData
+  const handleReasoningEffortChange = useCallback(
+    (option: ThinkingOption) => {
+      if (!agent) return
+
+      const version = ++reasoningMutationVersionRef.current
+      pendingReasoningMutationRef.current = version
+      setReasoningEffort(option)
+
+      void updateAgent(
+        {
+          id: agent.id,
+          configuration: {
+            ...agent.configuration,
+            reasoning_effort: option
+          }
+        },
+        { showSuccessToast: false }
+      ).then((updatedAgent) => {
+        if (pendingReasoningMutationRef.current !== version) return
+
+        pendingReasoningMutationRef.current = null
+        setReasoningEffort(
+          updatedAgent ? (updatedAgent.configuration?.reasoning_effort ?? option) : canonicalReasoningEffortRef.current
+        )
+      })
+    },
+    [agent, canonicalReasoningEffortRef, updateAgent]
+  )
+
   const reasoningContext = useMemo(
-    () => ({ effort: reasoningEffort, onEffortChange: setReasoningEffort }),
-    [reasoningEffort]
+    () => ({ effort: reasoningEffort, onEffortChange: handleReasoningEffortChange }),
+    [handleReasoningEffortChange, reasoningEffort]
   )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill

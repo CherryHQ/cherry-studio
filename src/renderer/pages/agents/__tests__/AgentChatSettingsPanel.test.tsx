@@ -540,9 +540,13 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith('agent-1', 'provider:model-2', {
-        showSuccessToast: false
-      })
+      expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
+        {
+          agent: expect.objectContaining({ id: 'agent-1' }),
+          model: expect.objectContaining({ id: 'provider:model-2' })
+        },
+        { showSuccessToast: false }
+      )
     )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
@@ -571,9 +575,13 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith('agent-1', 'provider:model-2', {
-        showSuccessToast: false
-      })
+      expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
+        {
+          agent: expect.objectContaining({ id: 'agent-1' }),
+          model: expect.objectContaining({ id: 'provider:model-2' })
+        },
+        { showSuccessToast: false }
+      )
     )
   })
 

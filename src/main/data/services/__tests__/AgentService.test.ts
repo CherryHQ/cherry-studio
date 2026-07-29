@@ -230,6 +230,21 @@ describe('AgentService', () => {
     })
   })
 
+  describe('model updates', () => {
+    it('atomically normalizes the agent reasoning effort and preserves configuration', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', reasoning_effort: 'high' }
+      })
+
+      const updated = agentService.updateAgent(created.id, { model: TEST_MODEL_ID })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖', reasoning_effort: 'default' }
+      })
+    })
+  })
+
   describe('builtin_role write protection', () => {
     it('rejects createAgent when configuration carries a builtin_role', async () => {
       const error = captureError(() =>

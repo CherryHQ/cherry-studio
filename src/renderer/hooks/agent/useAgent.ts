@@ -12,11 +12,13 @@ import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,6 +27,11 @@ import { useAgentTools } from './useAgentTools'
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 
 export type AgentWithTools = AgentEntity & { tools: Tool[] }
+type UpdateAgentModelInput = {
+  agent: Pick<AgentEntity, 'configuration' | 'id'>
+  model: Model
+  reasoningEffort?: ReasoningEffortOption
+}
 
 /**
  * Fetch a single agent by id from SQLite via DataApi. Parses `configuration`
@@ -136,8 +143,22 @@ export const useUpdateAgent = () => {
   )
 
   const updateModel = useCallback(
-    async (agentId: string, modelId: UniqueModelId, options?: UpdateAgentBaseOptions) => {
-      return updateAgent({ id: agentId, model: modelId }, options)
+    async ({ agent, model, reasoningEffort }: UpdateAgentModelInput, options?: UpdateAgentBaseOptions) => {
+      const nextReasoningEffort =
+        resolveReasoningEffortForModel(model, reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default') ??
+        'default'
+
+      return updateAgent(
+        {
+          id: agent.id,
+          model: model.id,
+          configuration: {
+            ...agent.configuration,
+            reasoning_effort: nextReasoningEffort
+          }
+        },
+        options
+      )
     },
     [updateAgent]
   )
