@@ -82,9 +82,11 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }
 }))
 
+const mockShikiMarkdownIt = vi.hoisted(() => vi.fn().mockResolvedValue(''))
+
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
-    shikiMarkdownIt: vi.fn().mockResolvedValue('')
+    shikiMarkdownIt: mockShikiMarkdownIt
   })
 }))
 
@@ -1205,5 +1207,45 @@ describe('TranslatePage', () => {
     fireEvent.click(historyButton)
     expect(historyButton).toHaveAttribute('aria-pressed', 'false')
     expect(screen.queryByTestId('translate-history-open')).toBeNull()
+  })
+})
+
+describe('markdown rendering cadence', () => {
+  it('paces parsing across streamed output updates and lands the final snapshot', async () => {
+    vi.useFakeTimers()
+    try {
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.enable_markdown', true)
+      mockShikiMarkdownIt.mockClear()
+
+      const { rerender } = render(<TranslatePage />)
+
+      // the useCache mock reads at render time, so drive updates with rerender
+      act(() => {
+        MockUseCacheUtils.setCacheValue('translate.output', 'a')
+      })
+      rerender(<TranslatePage />)
+      act(() => {
+        MockUseCacheUtils.setCacheValue('translate.output', 'ab')
+      })
+      rerender(<TranslatePage />)
+      act(() => {
+        MockUseCacheUtils.setCacheValue('translate.output', 'abc')
+      })
+      rerender(<TranslatePage />)
+
+      // leading edge renders the first snapshot, the rest coalesce
+      expect(mockShikiMarkdownIt).toHaveBeenCalledTimes(1)
+      expect(mockShikiMarkdownIt).toHaveBeenLastCalledWith('a')
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200)
+      })
+
+      // trailing edge catches up with the latest text, not every frame
+      expect(mockShikiMarkdownIt).toHaveBeenCalledTimes(2)
+      expect(mockShikiMarkdownIt).toHaveBeenLastCalledWith('abc')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
