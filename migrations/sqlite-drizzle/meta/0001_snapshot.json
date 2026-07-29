@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "fb6b9992-f536-46d1-8017-cbc6c4af7b2c",
+  "id": "ae655987-49e2-4365-8290-be90cf30ed7a",
   "prevId": "ac2ab25f-24eb-420c-b648-7d71ca7c606b",
   "tables": {
     "agent": {
@@ -288,12 +288,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "agent_channel_type_check": {
-          "name": "agent_channel_type_check",
-          "value": "\"agent_channel\".\"type\" IN ('telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack')"
-        }
-      }
+      "checkConstraints": {}
     },
     "agent_channel_task": {
       "name": "agent_channel_task",
