@@ -60,7 +60,7 @@ export function ModelSelectorRow({
       ref={ref}
       className={cn(
         MODEL_SELECTOR_ROW_CLASS,
-        selected && 'bg-accent/70 text-foreground',
+        selected && 'bg-accent/70 text-accent-foreground',
         !selected && !disabled && focused && 'bg-accent/60',
         !selected && !disabled && !focused && 'text-foreground hover:bg-accent/60',
         disabled && 'cursor-not-allowed text-muted-foreground opacity-50',

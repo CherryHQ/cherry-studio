@@ -87,7 +87,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
         isFolder
           ? 'text-foreground hover:bg-accent/50'
           : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
-        isSelected && 'bg-accent/60 text-foreground',
+        isSelected && 'bg-accent/60 text-accent-foreground',
         isDragging && 'opacity-50',
         dragPosition === 'inside' && 'bg-primary/15 ring-1 ring-primary/40',
         dragPosition === 'before' &&

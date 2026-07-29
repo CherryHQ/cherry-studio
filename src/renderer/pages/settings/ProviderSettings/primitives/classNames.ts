@@ -258,11 +258,11 @@ export const modelListClasses = {
   manageListRow: 'group flex items-center gap-2 rounded-lg px-1.5 py-[5px] transition-colors hover:bg-accent/50',
   manageListRowLast: 'mb-0.5',
   manageDrawerFilterChipBase: 'h-auto min-h-0 rounded-full px-2 py-[2px] text-xs transition-colors',
-  manageDrawerFilterChipActive: 'bg-accent/50 !text-foreground',
+  manageDrawerFilterChipActive: 'bg-accent/50 !text-accent-foreground',
   manageDrawerFilterChipIdle: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
   manageDrawerCapChipBase:
     'h-auto min-h-0 min-w-0 items-center gap-[3px] rounded-full px-1.5 py-[2px] text-xs transition-colors',
-  manageDrawerCapChipActive: 'bg-accent/50 !text-foreground',
+  manageDrawerCapChipActive: 'bg-accent/50 !text-accent-foreground',
   manageDrawerCapChipIdle: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
   manageDrawerCountBadge:
     'shrink-0 rounded-full bg-muted/50 px-1.5 py-[1px] text-xs text-foreground-tertiary tabular-nums',

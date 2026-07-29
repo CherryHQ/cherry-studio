@@ -384,7 +384,7 @@ export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuPro
         <button
           key={launcher.id}
           type="button"
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-foreground [&_svg]:size-4"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-accent-foreground [&_svg]:size-4"
           data-active
           disabled={launcher.disabled}
           aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}
