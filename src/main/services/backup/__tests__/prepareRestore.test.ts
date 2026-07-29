@@ -562,8 +562,17 @@ describe('restore preparation', () => {
   })
 
   describe('arm', () => {
+    async function prepareFullForArm(): Promise<Awaited<ReturnType<typeof prepareRestore>>> {
+      const full = join(workDir, 'out', 'arm-full.cherrybackup')
+      createTargetResources()
+      writeFileSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'SOURCE')
+      writeFileSync(join(userData, 'Data', 'Notes', 'a.md'), '# note')
+      await exportArchive({ outPath: full })
+      return prepareRestore({ archivePath: full })
+    }
+
     it('writes armed durably before relaunch is initiated', async () => {
-      const preview = await prepareRestore({ archivePath })
+      const preview = await prepareFullForArm()
       let stateAtRelaunch: string | undefined
       vi.mocked(application.relaunch).mockImplementation(() => {
         const read = readRestoreJournalV2()
@@ -575,6 +584,86 @@ describe('restore preparation', () => {
       // The marker is what the preboot gate acts on; a relaunch that outran it
       // would boot into an unarmed preparation and expire it.
       expect(stateAtRelaunch).toBe('armed')
+    })
+
+    it('reseals hadLive from the drained arm-time topology', async () => {
+      const preview = await prepareFullForArm()
+      const prepared = readRestoreJournalV2()
+      if (prepared.kind !== 'ok') throw new Error('expected prepared restore')
+      const knowledge = prepared.journal.resourceInstalls.find((entry) => entry.live === 'Data/KnowledgeBase/kb-1')
+      if (!knowledge) throw new Error('expected Knowledge install entry')
+      expect(knowledge.hadLive).toBe(true)
+      rmSync(join(userData, ...knowledge.live.split('/')), { recursive: true })
+
+      armPreparedRestore(preview.restoreId)
+
+      const armed = readRestoreJournalV2()
+      expect(armed).toMatchObject({ kind: 'ok', journal: { state: 'armed' } })
+      if (armed.kind !== 'ok') return
+      expect(armed.journal.resourceInstalls.find((entry) => entry.live === knowledge.live)?.hadLive).toBe(false)
+    })
+
+    it('reseals a target that appeared after preparation as replaceable', async () => {
+      const full = join(workDir, 'out', 'arm-target-added.cherrybackup')
+      createTargetResources()
+      writeFileSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1', 'doc.txt'), 'SOURCE')
+      writeFileSync(join(userData, 'Data', 'Notes', 'a.md'), '# note')
+      await exportArchive({ outPath: full })
+      rmSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1'), { recursive: true })
+      const preview = await prepareRestore({ archivePath: full })
+      let prepared = readRestoreJournalV2()
+      if (prepared.kind !== 'ok') throw new Error('expected prepared restore')
+      expect(prepared.journal.resourceInstalls.find((entry) => entry.live === 'Data/KnowledgeBase/kb-1')?.hadLive).toBe(
+        false
+      )
+      mkdirSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1'), { recursive: true })
+
+      armPreparedRestore(preview.restoreId)
+
+      prepared = readRestoreJournalV2()
+      if (prepared.kind !== 'ok') throw new Error('expected armed restore')
+      expect(prepared.journal.resourceInstalls.find((entry) => entry.live === 'Data/KnowledgeBase/kb-1')?.hadLive).toBe(
+        true
+      )
+    })
+
+    it('refuses arm when a staged unit disappeared and leaves the journal prepared', async () => {
+      const preview = await prepareFullForArm()
+      const prepared = readRestoreJournalV2()
+      if (prepared.kind !== 'ok') throw new Error('expected prepared restore')
+      const unit = prepared.journal.resourceInstalls[prepared.journal.resourceInstalls.length - 1]
+      rmSync(join(userData, ...unit.staging.split('/')), { recursive: true })
+
+      expect(() => armPreparedRestore(preview.restoreId)).toThrow(/staged-missing/)
+      expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
+      expect(application.relaunch).not.toHaveBeenCalled()
+    })
+
+    it('refuses arm when a live target became a symlink', async () => {
+      const preview = await prepareFullForArm()
+      const prepared = readRestoreJournalV2()
+      if (prepared.kind !== 'ok') throw new Error('expected prepared restore')
+      const unit = prepared.journal.resourceInstalls.find((entry) => entry.live === 'Data/KnowledgeBase/kb-1')
+      if (!unit) throw new Error('expected Knowledge install entry')
+      rmSync(join(userData, ...unit.live.split('/')), { recursive: true })
+      mkdirSync(join(userData, 'outside'), { recursive: true })
+      symlinkSync(join(userData, 'outside'), join(userData, ...unit.live.split('/')))
+
+      expect(() => armPreparedRestore(preview.restoreId)).toThrow(/target-not-installable/)
+      expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
+      expect(application.relaunch).not.toHaveBeenCalled()
+    })
+
+    it('refuses arm when an aside slot is already occupied', async () => {
+      const preview = await prepareFullForArm()
+      const prepared = readRestoreJournalV2()
+      if (prepared.kind !== 'ok') throw new Error('expected prepared restore')
+      const unit = prepared.journal.resourceInstalls[prepared.journal.resourceInstalls.length - 1]
+      mkdirSync(join(userData, ...unit.aside.split('/')), { recursive: true })
+
+      expect(() => armPreparedRestore(preview.restoreId)).toThrow(/aside-occupied/)
+      expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
+      expect(application.relaunch).not.toHaveBeenCalled()
     })
 
     it('rolls the arm back to prepared when relaunch initiation fails', async () => {
