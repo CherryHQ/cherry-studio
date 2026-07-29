@@ -37,7 +37,11 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: mocks.getSessionById, ensureTraceId: mocks.ensureTraceId }
+  agentSessionService: {
+    getById: mocks.getSessionById,
+    ensureTraceId: mocks.ensureTraceId,
+    onSessionUpdated: () => () => {}
+  }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -143,7 +147,11 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
       ...message,
       id: message.id ?? 'generated-message-id'
     }))
-    // startNextTurn re-reads the live agent before draining — it needs a non-null model.
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: baseTurnInput.modelId
+    })
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {

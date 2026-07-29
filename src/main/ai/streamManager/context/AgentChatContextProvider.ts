@@ -8,6 +8,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -60,7 +61,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const agentId = session.agentId
     const agent = agentService.getAgent(agentId)
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
-    if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
+    if (!session.modelId) throw new Error(`Session ${session.id} has no model configured`)
 
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
     if (!driver) {
@@ -68,17 +69,18 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
     await driver.validateSession(session)
 
-    const uniqueModelId = agent.model
+    const uniqueModelId = session.modelId
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
-    // The agent owns the model it ran — snapshot the agent (with the model nested) so the
-    // header shows the agent first, even after the agent is deleted.
+    const model = modelService.getByKey(providerId, rawModelId)
+    // Snapshot the author and the session-owned model so the header remains stable even after
+    // either the agent defaults or the session selection changes.
     const messageSnapshot = {
       id: agent.id,
       name: agent.name,
       // Normalized effective avatar (mirrors renderer `getAgentAvatar`): blank/whitespace → the default,
       // so we never freeze a truthy-but-broken source. `🤖` is `DEFAULT_AGENT_AVATAR`.
       emoji: agent.configuration?.avatar?.trim() || '🤖',
-      model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+      model: { id: rawModelId, name: model.name ?? rawModelId, provider: providerId }
     }
 
     const userMessageId = uuidv7()

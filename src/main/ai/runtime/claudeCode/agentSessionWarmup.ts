@@ -193,14 +193,14 @@ export async function deriveConnectionConfig(
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return unroutable
   const agent = agentService.getAgent(session.agentId)
-  if (!agent?.model) return unroutable
+  if (!agent || !session.modelId) return unroutable
   try {
     return {
       ok: true,
       config: await deriveConnectionConfigFromSnapshot(
         session,
         agent,
-        connectionModelId ?? agent.model,
+        connectionModelId ?? session.modelId,
         reasoningEffort,
         selectedKnowledgeBaseIds
       )
@@ -235,7 +235,7 @@ async function deriveConnectionConfigFromSnapshot(
     const model = modelService.getByKey(providerId, modelId)
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
     // Same pinning semantics as the query-request builder (see its comment).
-    const pinSubModelsToPrimary = uniqueModelId !== agent.model
+    const pinSubModelsToPrimary = uniqueModelId !== session.modelId
     routeFacts = deriveRouteFacts(
       provider,
       model,
@@ -310,8 +310,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   sessionId: string,
   effectiveResume?: string,
   /** Connection-scoped model override: a live turn runs on the model captured at its creation,
-   *  which may differ from the agent's latest model after a mid-window edit. Defaults to the
-   *  agent's current model (prewarm and turn-less connections). */
+   *  which may differ from the session's latest model after a mid-window edit. Defaults to the
+   *  session's current model (prewarm and turn-less connections). */
   connectionModelId?: UniqueModelId,
   /** Canonical reasoning selection frozen when the turn was submitted. */
   reasoningEffort: ReasoningEffortOption = 'default',
@@ -322,24 +322,24 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   if (!session?.agentId) return undefined
 
   const agent = agentService.getAgent(session.agentId)
-  if (!agent?.model) return undefined
+  if (!agent || !session.modelId) return undefined
   const linkedChannelSnapshot = agentChannelService.findBySessionId(session.id)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
-  const uniqueModelId = connectionModelId ?? agent.model
+  const uniqueModelId = connectionModelId ?? session.modelId
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   // A live turn's connection is pinned to the model captured at turn creation, which can already be an
-  // edit behind `agent.model`. The turn captured only its primary, so when the primary is a pre-edit
-  // capture (the effective model differs from the latest `agent.model`), pin plan/small to it too rather
+  // edit behind `session.modelId`. The turn captured only its primary, so when the primary is a pre-edit
+  // capture (the effective model differs from the latest `session.modelId`), pin plan/small to it too rather
   // than read the possibly-edited-ahead latest sub-models — otherwise the captured turn would launch with
   // the old ANTHROPIC_MODEL but new sonnet/haiku defaults, or be forced onto the gateway by a sub-model
   // that now points at another provider. With no edit (or a turn-less connection) the latest sub-models
   // still apply.
-  const pinSubModelsToPrimary = uniqueModelId !== agent.model
+  const pinSubModelsToPrimary = uniqueModelId !== session.modelId
   const planModel = pinSubModelsToPrimary ? undefined : agent.planModel
   const smallModel = pinSubModelsToPrimary ? undefined : agent.smallModel
   const route = await resolveClaudeCodeRuntimeRoute(

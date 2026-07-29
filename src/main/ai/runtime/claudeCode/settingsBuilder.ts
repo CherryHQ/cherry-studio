@@ -71,7 +71,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import type { McpTool } from '@shared/types/mcp'
@@ -366,8 +366,8 @@ export async function buildClaudeCodeSessionSettings(
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
     ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
-    buildEnvironment(provider, agent),
-    discoverPlugins(cwd, agent.id)
+    buildEnvironment(provider, agent, session.modelId),
+    discoverPlugins(cwd, session.agentId)
   ])
   const mcpWarm = await mcpWarmPromise
   const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(agentConfig?.builtin_role)
@@ -609,7 +609,11 @@ function workspacePathErrorMessage(path: string, status: PathStatus): string {
     : t('agent.session.workspace_status.inaccessible', { path })
 }
 
-async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise<Record<string, string | undefined>> {
+async function buildEnvironment(
+  provider: Provider,
+  agent: AgentEntity,
+  primaryModelId: UniqueModelId | null
+): Promise<Record<string, string | undefined>> {
   const loginShellEnv = await getShellEnv()
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
@@ -617,14 +621,14 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
   // API key and base URL are injected by the agent-session runtime query builder.
   // This function only builds agent-specific env vars.
 
-  // agent.model is UniqueModelId ("providerId::modelId"). DB lookup for
+  // primaryModelId is the session-owned UniqueModelId ("providerId::modelId"). DB lookup for
   // apiModelId, fall back to raw if missing.
-  if (!agent.model) {
-    throw new Error(`buildEnvironment: agent ${agent.id} has no model`)
+  if (!primaryModelId) {
+    throw new Error(`buildEnvironment: session for agent ${agent.id} has no model`)
   }
-  const { providerId, modelId: rawModelId } = parseUniqueModelId(agent.model)
-  const { providerId: sonnetProviderId, modelId: sonnetModelId } = parseUniqueModelId(agent?.planModel ?? agent.model)
-  const { providerId: haikuProviderId, modelId: haikuModelId } = parseUniqueModelId(agent?.smallModel ?? agent.model)
+  const { providerId, modelId: rawModelId } = parseUniqueModelId(primaryModelId)
+  const { providerId: sonnetProviderId, modelId: sonnetModelId } = parseUniqueModelId(agent.planModel ?? primaryModelId)
+  const { providerId: haikuProviderId, modelId: haikuModelId } = parseUniqueModelId(agent.smallModel ?? primaryModelId)
   // Resolve each model id independently: one model missing from the table must not force the others
   // to fall back, and each falls back to its OWN raw id (not the main model's). Common for
   // agent-specific models that aren't in the model table.

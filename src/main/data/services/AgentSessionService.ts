@@ -12,6 +12,7 @@ import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/Agent
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
@@ -24,6 +25,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -41,6 +43,12 @@ const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 
+export interface AgentSessionUpdatedEvent {
+  sessionId: string
+  updates: UpdateAgentSessionDto
+  session: AgentSessionEntity
+}
+
 type JoinedSessionRow = {
   session: SessionRow
   workspace: AgentWorkspaceRow
@@ -52,6 +60,8 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     ...clean,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
+    // modelId is legitimately nullable when no model is selected or its model row was deleted.
+    modelId: row.session.modelId as UniqueModelId | null,
     workspace: rowToAgentWorkspace(row.workspace),
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
@@ -70,6 +80,9 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class AgentSessionService {
+  private readonly _onSessionUpdated = new Emitter<AgentSessionUpdatedEvent>()
+  readonly onSessionUpdated: Event<AgentSessionUpdatedEvent> = this._onSessionUpdated.event
+
   search(query: { q: string; limit: number; updatedAtFrom?: number }): SessionEntitySearchItem[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
@@ -119,7 +132,7 @@ export class AgentSessionService {
    * while seeders run, so create() would fail through DbService.withWriteTx().
    */
   createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
-    this.assertAgentExistsTx(tx, dto.agentId)
+    const agent = this.assertAgentExistsTx(tx, dto.agentId)
     const createdAt = Date.now()
 
     let workspaceId: string
@@ -151,6 +164,7 @@ export class AgentSessionService {
     this.insertTx(tx, {
       id,
       agentId: dto.agentId,
+      modelId: agent.model as UniqueModelId | null,
       name: dto.name,
       description: dto.description,
       workspaceId,
@@ -168,14 +182,15 @@ export class AgentSessionService {
     tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
   }
 
-  private assertAgentExistsTx(tx: DbOrTx, agentId: string): void {
+  private assertAgentExistsTx(tx: DbOrTx, agentId: string): { id: string; model: string | null } {
     const [agent] = tx
-      .select({ id: agentsTable.id })
+      .select({ id: agentsTable.id, model: agentsTable.model })
       .from(agentsTable)
       .where(eq(agentsTable.id, agentId))
       .limit(1)
       .all()
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
+    return agent
   }
 
   getById(id: string): AgentSessionEntity {
@@ -337,14 +352,26 @@ export class AgentSessionService {
     }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (dto.modelId !== undefined) patch.modelId = dto.modelId
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const row = withSqliteErrors(
-      () => this.updateTx(application.get('DbService').getDb(), id, patch),
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          if (dto.agentId !== undefined) {
+            const agent = this.assertAgentExistsTx(tx, dto.agentId)
+            // Rebinding an empty placeholder to another agent adopts that agent's default.
+            // A caller can still provide modelId explicitly in the same PATCH.
+            if (dto.modelId === undefined) patch.modelId = agent.model as UniqueModelId | null
+          }
+          return this.updateTx(tx, id, patch)
+        }),
       defaultHandlersFor('Session', id)
     )
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
-    return this.getById(id)
+    const session = this.getById(id)
+    this._onSessionUpdated.fire({ sessionId: id, updates: patch, session })
+    return session
   }
 
   updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): SessionRow | undefined {
@@ -423,6 +450,7 @@ export class AgentSessionService {
     values: {
       id: string
       agentId: string
+      modelId: UniqueModelId | null
       name: string
       description?: string
       workspaceId: string

@@ -19,7 +19,8 @@ const activeAgentMock = vi.hoisted(() => ({
 }))
 const activeModelMock = vi.hoisted(() => ({
   value: { id: 'provider:model-1', name: 'Model 1' } as any,
-  isLoading: false
+  isLoading: false,
+  requestedId: undefined as string | null | undefined
 }))
 const updateAgentMock = vi.hoisted(() => ({
   updateModel: vi.fn()
@@ -157,10 +158,13 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModelById: (modelId?: string | null) => ({
-    model: modelId && !activeModelMock.isLoading ? activeModelMock.value : undefined,
-    isLoading: activeModelMock.isLoading
-  })
+  useModelById: (modelId?: string | null) => {
+    activeModelMock.requestedId = modelId
+    return {
+      model: modelId && !activeModelMock.isLoading ? activeModelMock.value : undefined,
+      isLoading: activeModelMock.isLoading
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
@@ -303,7 +307,14 @@ describe('AgentChat settings panel', () => {
   const renderAgentChat = (props: ComponentProps<typeof AgentChat> = {}) =>
     render(
       <AgentChat
-        activeSession={{ id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any}
+        activeSession={
+          {
+            id: 'session-1',
+            agentId: 'agent-1',
+            modelId: 'provider:model-1',
+            accessiblePaths: []
+          } as any
+        }
         activeSessionSource="query"
         {...props}
       />
@@ -316,6 +327,7 @@ describe('AgentChat settings panel', () => {
     activeAgentMock.isLoading = false
     activeModelMock.value = { id: 'provider:model-1', name: 'Model 1' }
     activeModelMock.isLoading = false
+    activeModelMock.requestedId = undefined
     modelSwitchConfirmationCacheMock.value = false
     modelSwitchConfirmationCacheMock.set.mockReset()
     modelSwitchConfirmationCacheMock.set.mockImplementation((value: boolean) => {
@@ -328,6 +340,7 @@ describe('AgentChat settings panel', () => {
     updateAgentMock.updateModel.mockReset()
     updateAgentMock.updateModel.mockResolvedValue({ id: 'agent-1' })
     updateSessionMock.updateSession.mockReset()
+    updateSessionMock.updateSession.mockResolvedValue({ id: 'session-1' })
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
     toolApprovalRespondMock.mockReset()
@@ -392,6 +405,7 @@ describe('AgentChat settings panel', () => {
       activeSession: {
         id: 'session-1',
         agentId: 'agent-1',
+        modelId: 'provider:model-1',
         workspaceId: 'workspace-1',
         workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
       } as any,
@@ -540,11 +554,21 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith('agent-1', 'provider:model-2', {
-        showSuccessToast: false
-      })
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', modelId: 'provider:model-2' },
+        { showSuccessToast: false }
+      )
     )
+    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('resolves the active model from the session instead of the agent default', () => {
+    activeAgentMock.value = { id: 'agent-1', model: 'provider:agent-default' }
+
+    renderAgentChat()
+
+    expect(activeModelMock.requestedId).toBe('provider:model-1')
   })
 
   it('asks for confirmation before switching the model when the session has messages', async () => {
@@ -557,12 +581,12 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('agent.session.model_switch_confirm.description')
-    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'agent.session.model_switch_confirm.skip_for_app_run' }))
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
     expect(
@@ -571,9 +595,10 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith('agent-1', 'provider:model-2', {
-        showSuccessToast: false
-      })
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', modelId: 'provider:model-2' },
+        { showSuccessToast: false }
+      )
     )
   })
 
@@ -601,7 +626,7 @@ describe('AgentChat settings panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
-    await waitFor(() => expect(updateAgentMock.updateModel).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(updateSessionMock.updateSession).toHaveBeenCalledTimes(1))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 

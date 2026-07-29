@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   cacheDeleteShared: vi.fn(),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
+  getModelByKey: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn()
 }))
@@ -26,12 +27,17 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
-    ensureTraceId: mocks.ensureTraceId
+    ensureTraceId: mocks.ensureTraceId,
+    onSessionUpdated: () => () => {}
   }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent, onAgentUpdated: () => () => {} }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: mocks.getModelByKey }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -157,9 +163,16 @@ describe('AgentSessionRuntimeService', () => {
     mocks.markMessagesError.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     mocks.recordUsage.mockReturnValue(undefined)
-    // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
-    // the deleted-model path override it with `{ model: null }`.
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: baseTurnInput.modelId
+    })
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      name: modelId === 'claude-opus-4-5' ? 'Claude Opus' : 'Claude Sonnet'
+    }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
@@ -956,16 +969,18 @@ describe('AgentSessionRuntimeService', () => {
     expect(getEntry(service).currentTurn.headless).toBe(true)
   })
 
-  it('reconnects an idle runtime when the agent model changes before the next turn', async () => {
+  it('reconnects an idle runtime when the session model changes before the next turn', async () => {
     const firstConnection = {
       events: createAsyncQueue<any>().iterable,
       send: vi.fn(),
-      close: vi.fn()
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('rebuild')
     }
     const secondConnection = {
       events: createAsyncQueue<any>().iterable,
       send: vi.fn(),
-      close: vi.fn()
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
     }
     const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(secondConnection)
     runtimeDriverRegistry.register({
@@ -987,10 +1002,10 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() => expect(firstConnection.send).toHaveBeenCalled())
 
     void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
-    await (service as any).handleAgentUpdated(
-      'agent-1',
-      { model: switchedModelId },
-      { id: 'agent-1', model: switchedModelId }
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { modelId: switchedModelId },
+      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
     )
 
     const second = service.beginTurn({
@@ -1020,7 +1035,7 @@ describe('AgentSessionRuntimeService', () => {
     await secondReader.cancel().catch(() => undefined)
   })
 
-  it('retries callers sharing an in-flight connect when a mid-flight model edit discards it', async () => {
+  it('retries callers sharing an in-flight connect when a mid-flight session model edit discards it', async () => {
     const firstConnection = {
       events: createAsyncQueue<any>().iterable,
       send: vi.fn(),
@@ -1055,10 +1070,15 @@ describe('AgentSessionRuntimeService', () => {
     // Model edited while that connect is in flight → the first attempt self-discards and resolves
     // false. Both callers must retry, not surface false — a false with a current entry leaves
     // openTurnStream's turn hanging forever.
-    await (service as any).handleAgentUpdated(
-      'agent-1',
-      { model: switchedModelId },
-      { id: 'agent-1', model: switchedModelId }
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: switchedModelId
+    })
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { modelId: switchedModelId },
+      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
     )
     firstConnect.resolve(firstConnection)
 
@@ -1072,7 +1092,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(getEntry(service).connection).toBe(secondConnection)
   })
 
-  it('connects a turn created before a model edit with its captured model (edit-before-open-stream)', async () => {
+  it('connects a turn created before a session model edit with its captured model (edit-before-open-stream)', async () => {
     const connection = {
       events: createAsyncQueue<any>().iterable,
       send: vi.fn(),
@@ -1093,10 +1113,10 @@ describe('AgentSessionRuntimeService', () => {
     // Model edited in the window between beginTurn (assistant row, turn.modelId, persistence and
     // trace already stamped with the old model) and the renderer opening the turn stream. The turn
     // must execute on the model it records — not silently connect with the edited one.
-    await (service as any).handleAgentUpdated(
-      'agent-1',
-      { model: switchedModelId },
-      { id: 'agent-1', model: switchedModelId }
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { modelId: switchedModelId },
+      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
     )
 
     const stream = service.openTurnStream({
@@ -1121,7 +1141,7 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
-  it('invalidates an entry with an in-flight connect when the agent model is cleared', async () => {
+  it('invalidates an entry with an in-flight connect when the session model is cleared', async () => {
     const connection = {
       events: createAsyncQueue<any>().iterable,
       send: vi.fn(),
@@ -1145,10 +1165,14 @@ describe('AgentSessionRuntimeService', () => {
     const connecting = (service as any).ensureConnection(entry) as Promise<boolean>
     await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
 
-    // An agent update clears the model (explicit `PATCH { model: null }`). The entry must be invalidated
-    // so the in-flight old-model connect can't install against a now-modelless agent. (Deleting the model
-    // nulls agent.model via the FK but emits no agent update, so it does not reach this path.)
-    await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+    // A session update clears the model. The entry must be invalidated so the in-flight old-model
+    // connect cannot install against a now-unroutable session.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: null })
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { modelId: null },
+      { id: 'session-1', agentId: 'agent-1', modelId: null }
+    )
     expect(service.inspect('session-1')).toBeUndefined()
     expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
 
@@ -1161,7 +1185,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(connect).toHaveBeenCalledTimes(1)
   })
 
-  it('pauses a live turn and tears the session down when the agent model is cleared', async () => {
+  it('pauses a live turn and tears the session down when the session model is cleared', async () => {
     const connection = {
       events: createAsyncQueue<any>().iterable,
       send: vi.fn(),
@@ -1190,12 +1214,16 @@ describe('AgentSessionRuntimeService', () => {
     )
     const turn = getEntry(service).currentTurn
 
-    // An agent update clears the model mid-turn (explicit `PATCH { model: null }`). The live turn is
-    // paused (the renderer learns it stopped) and the session is fully torn down. (Deleting the model
-    // nulls agent.model via the FK but emits no agent update, so it does not reach this path.)
-    await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+    // A session update clears the model mid-turn. The live turn is paused (the renderer learns it
+    // stopped) and the session is fully torn down.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: null })
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { modelId: null },
+      { id: 'session-1', agentId: 'agent-1', modelId: null }
+    )
 
-    expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'agent-model-cleared')
+    expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'session-model-cleared')
     expect(turn.terminalStatus).toBe('paused')
     await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
     expect(service.inspect('session-1')).toBeUndefined()
@@ -1203,7 +1231,7 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
-  it('keeps the live connection across a steer roll when the agent model changes mid-roll', async () => {
+  it('keeps the live connection across a steer roll when the session model changes mid-roll', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
     const entry = getEntry(service)
@@ -1216,10 +1244,10 @@ describe('AgentSessionRuntimeService', () => {
     entry.currentTurn.terminalStatus = 'success'
     entry.rolling = true
 
-    await (service as any).handleAgentUpdated(
-      'agent-1',
-      { model: switchedModelId },
-      { id: 'agent-1', model: switchedModelId }
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { modelId: switchedModelId },
+      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
     )
 
     expect(connection.close).not.toHaveBeenCalled()
@@ -1264,6 +1292,25 @@ describe('AgentSessionRuntimeService', () => {
     expect(connect).not.toHaveBeenCalled()
     expect(connection.close).not.toHaveBeenCalled()
     expect(getEntry(service).connection).toBe(connection)
+  })
+
+  it('does not retarget an existing session when only the agent default model changes', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    entry.connection = connection
+
+    await (service as any).handleAgentUpdated('agent-1', { model: switchedModelId })
+
+    expect(entry.modelId).toBe(baseTurnInput.modelId)
+    expect(connection.reconcile).not.toHaveBeenCalled()
+    expect(connection.close).not.toHaveBeenCalled()
   })
 
   it('reconciles the connection on any agent update without closing a current one', async () => {
@@ -1325,10 +1372,10 @@ describe('AgentSessionRuntimeService', () => {
     }
     entry.connection = connection
 
-    await (service as any).handleAgentUpdated(
-      'agent-1',
-      { model: switchedModelId },
-      { id: 'agent-1', model: switchedModelId }
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { modelId: switchedModelId },
+      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
     )
     service.enqueueUserMessage('session-1', userMessage('user-2'))
 
@@ -1832,7 +1879,11 @@ describe('AgentSessionRuntimeService', () => {
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([])
       })
-      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getSessionById.mockReturnValue({
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: baseTurnInput.modelId
+      })
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
 
       const service = new AgentSessionRuntimeService()
@@ -1876,7 +1927,11 @@ describe('AgentSessionRuntimeService', () => {
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([])
       })
-      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getSessionById.mockReturnValue({
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: baseTurnInput.modelId
+      })
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
 
       const service = new AgentSessionRuntimeService()
@@ -3186,16 +3241,21 @@ describe('AgentSessionRuntimeService', () => {
     expect(getEntry(service).sessionTraceId).toBe('a'.repeat(32))
   })
 
-  it('starts queued turns with the latest agent model after a model edit', async () => {
+  it('starts queued turns with the latest session model after a model edit', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
     entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default' })
 
-    await (service as any).handleAgentUpdated(
-      'agent-1',
-      { model: switchedModelId },
-      { id: 'agent-1', model: switchedModelId }
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: switchedModelId
+    })
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { modelId: switchedModelId },
+      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
     )
     await (service as any).startNextTurn(entry)
 
@@ -3228,18 +3288,18 @@ describe('AgentSessionRuntimeService', () => {
     service.beginTurn(baseTurnInput)
     service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: followUpSnapshot })
 
-    // User switches the agent model before the queued follow-up drains — the runtime runs the LATEST model.
-    await (service as any).handleAgentUpdated(
-      'agent-1',
-      { model: switchedModelId },
-      { id: 'agent-1', model: switchedModelId, modelName: 'Claude Opus' }
-    )
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      type: 'test-runtime',
-      model: switchedModelId,
-      modelName: 'Claude Opus'
+    // User switches this session's model before the queued follow-up drains — the runtime runs the latest
+    // session selection without changing any sibling session.
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: switchedModelId
     })
+    await (service as any).handleSessionUpdated(
+      'session-1',
+      { modelId: switchedModelId },
+      { id: 'session-1', agentId: 'agent-1', modelId: switchedModelId }
+    )
 
     service.markTurnTerminal('session-1', 'success')
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -3267,10 +3327,10 @@ describe('AgentSessionRuntimeService', () => {
     const entry = getEntry(service)
     entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'default' })
 
-    // The model was deleted while user-2 sat queued: its `user_model` row is gone and `agent.model` is
-    // FK-nulled, but no agent update fires — the entry still caches the deleted model. The drain must
-    // re-read the live model and bail, not stamp/start a turn with the stale deleted `entry.modelId`.
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: null })
+    // The model was deleted while user-2 sat queued: its `user_model` row is gone and `session.modelId`
+    // is FK-nulled, but no session update fires — the entry still caches the deleted model. The drain
+    // must re-read the live session and bail instead of starting on the stale cached model.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', modelId: null })
     mocks.saveMessage.mockClear()
     mocks.startRuntimeTurn.mockClear()
 

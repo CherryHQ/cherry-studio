@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   ensureTraceId: vi.fn(),
   getAgent: vi.fn(),
+  getModel: vi.fn(),
   saveMessage: vi.fn(),
   saveMessages: vi.fn(),
   maybeRenameAgentSessionFromFirstUserMessage: vi.fn(),
@@ -24,6 +25,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: mocks.getModel }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -82,7 +87,12 @@ describe('AgentChatContextProvider', () => {
       validateSession: mocks.runtimeValidateSession,
       listAvailableTools: vi.fn().mockResolvedValue([])
     })
-    mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-opus',
+      workspace: { path: '/tmp' }
+    })
     mocks.ensureTraceId.mockReturnValue('a'.repeat(32))
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -91,6 +101,7 @@ describe('AgentChatContextProvider', () => {
       model: 'anthropic::claude-sonnet',
       modelName: 'Claude Sonnet'
     })
+    mocks.getModel.mockReturnValue({ id: 'anthropic::claude-opus', name: 'Claude Opus' })
     mocks.saveMessage.mockImplementation(({ sessionId, message }) => ({
       id: message.id,
       sessionId,
@@ -152,10 +163,10 @@ describe('AgentChatContextProvider', () => {
     const savedMessages = mocks.saveMessages.mock.calls[0][0].messages
     expect(savedMessages[1]).toMatchObject({
       role: 'assistant',
-      modelId: 'anthropic::claude-sonnet'
+      modelId: 'anthropic::claude-opus'
     })
     expect(prepared.models).toHaveLength(1)
-    expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')
+    expect(prepared.models[0].modelId).toBe('anthropic::claude-opus')
     expect(prepared.models[0].request.runtime).toEqual({
       kind: 'agent-session',
       sessionId: 'session-1',
@@ -173,12 +184,12 @@ describe('AgentChatContextProvider', () => {
         role: 'assistant',
         metadata: expect.objectContaining({
           status: 'pending',
-          modelId: 'anthropic::claude-sonnet',
+          modelId: 'anthropic::claude-opus',
           messageSnapshot: {
             id: 'agent-1',
             name: 'My Agent',
             emoji: '🤖',
-            model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+            model: { id: 'claude-opus', name: 'Claude Opus', provider: 'anthropic' }
           }
         })
       })
@@ -188,7 +199,7 @@ describe('AgentChatContextProvider', () => {
       topicId: 'agent-session:session-1',
       agentId: 'agent-1',
       agentType: 'claude-code',
-      modelId: 'anthropic::claude-sonnet',
+      modelId: 'anthropic::claude-opus',
       assistantMessageId: prepared.models[0].request.messageId,
       userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
       headless: false,
@@ -197,7 +208,7 @@ describe('AgentChatContextProvider', () => {
         id: 'agent-1',
         name: 'My Agent',
         emoji: '🤖',
-        model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+        model: { id: 'claude-opus', name: 'Claude Opus', provider: 'anthropic' }
       }
     })
     expect(prepared.listeners).toEqual([
@@ -225,7 +236,7 @@ describe('AgentChatContextProvider', () => {
           id: 'agent-1',
           name: 'My Agent',
           emoji: '🤖',
-          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+          model: { id: 'claude-opus', name: 'Claude Opus', provider: 'anthropic' }
         }
       }
     )
@@ -256,7 +267,7 @@ describe('AgentChatContextProvider', () => {
           id: 'agent-1',
           name: 'My Agent',
           emoji: '🤖',
-          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+          model: { id: 'claude-opus', name: 'Claude Opus', provider: 'anthropic' }
         }
       }
     )
