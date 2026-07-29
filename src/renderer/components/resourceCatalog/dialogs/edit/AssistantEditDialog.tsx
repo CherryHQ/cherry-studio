@@ -30,6 +30,7 @@ import {
   initialAssistantFormState
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -90,7 +91,7 @@ type AssistantToolTab = 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
-const UI_DEFAULT_MAX_TOOL_CALLS = 20
+const UI_MAX_TOOL_CALLS = 100
 
 function isAssistantToolTab(value: string): value is AssistantToolTab {
   return value === 'tools.mcp' || value === 'tools.knowledge'
@@ -746,7 +747,13 @@ function AssistantAdvancedFields({
 
       <ToggleFieldGroup
         label={t('library.config.basic.max_tool_calls')}
-        valueLabel={values.enableMaxToolCalls ? undefined : t('library.config.basic.unlimited')}
+        valueLabel={
+          values.enableMaxToolCalls
+            ? undefined
+            : t('library.config.basic.max_tool_calls_default', {
+                count: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+              })
+        }
         description={t('library.config.basic.field.max_tool_calls.hint')}
         enabled={values.enableMaxToolCalls}
         onEnabledChange={(checked) => form.setValue('enableMaxToolCalls', checked, { shouldDirty: true })}
@@ -758,6 +765,7 @@ function AssistantAdvancedFields({
               <EditableNumber
                 block
                 min={1}
+                max={UI_MAX_TOOL_CALLS}
                 step={1}
                 precision={0}
                 align="start"
@@ -765,7 +773,9 @@ function AssistantAdvancedFields({
                 className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
                 value={field.value}
                 onChange={(value) =>
-                  field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOOL_CALLS)
+                  field.onChange(
+                    typeof value === 'number' && value > 0 ? value : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+                  )
                 }
               />
             )}
