@@ -189,7 +189,7 @@ describe('FileList', () => {
     render(<FileList {...fileListProps(null)} />)
 
     const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
-    expect(checkbox).toHaveClass('border-border', 'data-[state=checked]:border-border-selected')
+    expect(checkbox).toHaveClass('data-[state=checked]:border-border-selected')
     expect(checkbox).not.toHaveClass('border-border-selected')
   })
 
