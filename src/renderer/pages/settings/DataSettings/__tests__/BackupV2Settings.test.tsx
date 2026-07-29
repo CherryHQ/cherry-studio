@@ -96,9 +96,11 @@ describe('BackupV2Settings', () => {
     const backupButton = screen.getByRole('button', { name: 'settings.general.backup.button' })
     const restoreButton = screen.getByRole('button', { name: 'settings.general.restore.button' })
     expect(backupButton.parentElement).toBe(restoreButton.parentElement)
+    // The credentials warning survives the copy cull: it changes how the user
+    // must handle the file they are about to create.
     expect(screen.getByText('settings.data.backup_v2.export.credentials_warning')).toBeInTheDocument()
-    expect(screen.getByText('settings.data.backup_v2.export.integrations_warning')).toBeInTheDocument()
-    expect(screen.getByText('settings.data.backup_v2.restore.help')).toBeInTheDocument()
+    expect(screen.queryByText('settings.data.backup_v2.export.integrations_warning')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.data.backup_v2.restore.help')).not.toBeInTheDocument()
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
   })
 
@@ -177,11 +179,7 @@ describe('BackupV2Settings', () => {
     // The coverage buckets are the pipeline's taxonomy, not a decision the user
     // makes here, so the preview must not surface them.
     expect(screen.queryByText('settings.data.backup_v2.preview.coverage_counts')).not.toBeInTheDocument()
-    expect(screen.getByText('settings.data.backup_v2.preview.resources_counts')).toBeInTheDocument()
-    expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.preview.resources_counts', {
-      install: 3,
-      replaceCount: 1
-    })
+    expect(screen.queryByText('settings.data.backup_v2.preview.resources_counts')).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', {
         name: 'settings.data.backup_v2.restore.arm_button'
@@ -386,8 +384,10 @@ describe('BackupV2Settings', () => {
       })
     ).not.toBeInTheDocument()
 
+    // The button already states that it stops the rebuild and keeps the result,
+    // so giving up goes straight through instead of asking again.
     click('settings.data.backup_v2.outcome.abandon_rebuild_button')
-    await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
+    expect(popup.confirm).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore', { knowledgeRebuild: 'abandon' })
     )

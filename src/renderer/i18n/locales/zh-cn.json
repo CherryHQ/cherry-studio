@@ -5885,9 +5885,8 @@
         "export": {
           "credentials_warning": "备份包含你的设置，其中的 API 密钥等凭据以可读形式保存，请妥善保管备份文件。",
           "done": "备份已导出。",
-          "done_degraded": "备份已创建，但有 {{count}} 项未被包含。请查看下方详情；从该归档恢复时可能无法还原这些内容。",
-          "done_degraded_title": "备份已创建，但包含排除项",
-          "integrations_warning": "恢复后会运行程序或访问网络的集成保持关闭，直到你在恢复目标设备上确认。"
+          "done_degraded": "备份已创建，但包含 {{count}} 项排除或可移植转换。请查看下方详情，并在处理相关原因后重新创建备份。",
+          "done_degraded_title": "备份已创建，但包含排除项"
         },
         "notice": {
           "completed_description": "先前的数据库和每个被替换的文件仍保留在本机，且常规文件清理仍处于暂停状态。请打开 设置 → 数据 → 备份与恢复，选择回退或保留恢复结果。",
@@ -5901,9 +5900,6 @@
         },
         "outcome": {
           "abandon_rebuild_button": "停止重建并保留恢复结果",
-          "abandon_rebuild_confirm_content": "这会立即释放回滚副本。搜索索引尚未完成的知识库内容可能无法被搜索，直到你之后手动重新索引。",
-          "abandon_rebuild_confirm_ok": "停止并保留",
-          "abandon_rebuild_confirm_title": "不等待知识库索引完成并保留恢复结果？",
           "acknowledge_button": "保留恢复结果",
           "acknowledged": "已确认恢复结果，不再使用的数据已释放。",
           "completed_help": "在你确认之前，先前的数据库和每个被替换的文件仍保留在本机，可用于回滚。",
@@ -5925,7 +5921,7 @@
           },
           "degradations": "创建该备份时有 {{count}} 项未被包含。",
           "keep_previous_button": "保留先前数据",
-          "knowledge_rebuild_pending": "正在为恢复的知识库内容重建搜索索引。你可以等待、回滚，或停止重建并保留索引尚未完成的恢复结果。",
+          "knowledge_rebuild_pending": "正在为恢复的知识库内容重建搜索索引。",
           "reconfirm_integrations": "恢复后会运行程序或访问网络的集成保持关闭，直到你在本机确认。",
           "recovery_incomplete": "这次恢复没能把每个文件都放回原位，应用仍在保留原件。请重启 Cherry Studio 让它完成 —— 在那之前不会释放任何内容。",
           "resources_incomplete": "恢复后的数据库已在使用，但部分恢复的文件尚未就位。请重启 Cherry Studio 让它完成 —— 在那之前不会释放任何内容。",
@@ -5946,10 +5942,7 @@
         },
         "preview": {
           "degradations": "创建该备份时有 {{count}} 项未被包含。",
-          "destructive": "恢复会替换当前数据库并重启应用。一旦确认保留，将无法撤销。",
-          "migrated_forward": "该备份由较旧版本创建，已在准备阶段升级。",
-          "resources": "待恢复的文件（预估）",
-          "resources_counts": "新增 {{install}} 项，替换 {{replaceCount}} 项"
+          "destructive": "恢复会替换当前数据库并重启应用。一旦确认保留，将无法撤销。"
         },
         "restore": {
           "arm_button": "恢复并重启",
@@ -5960,7 +5953,6 @@
           "confirm_title": "用该备份替换全部数据？",
           "discard_button": "放弃准备",
           "discarded": "已放弃准备的恢复。",
-          "help": "恢复会用备份文件中的数据库整体替换当前数据库，不做合并。",
           "pending_elsewhere": "此前准备的恢复仍在等待。重新选择备份文件可查看其详情。",
           "title": "恢复"
         },

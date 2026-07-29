@@ -593,19 +593,13 @@ const BackupV2Settings: FC = () => {
       await ipcApi.request('backup.rollback_restore')
     })
 
+  /**
+   * No confirmation on `abandon`: the button the user just pressed already says
+   * it stops the rebuild and keeps the result, so a dialog repeating that adds
+   * no information — and the outcome is recoverable by re-indexing later.
+   */
   const acknowledge = (knowledgeRebuild: 'require-complete' | 'abandon') =>
     run({ kind: 'other' }, async () => {
-      if (knowledgeRebuild === 'abandon') {
-        const confirmed = await popup.confirm({
-          title: t('settings.data.backup_v2.outcome.abandon_rebuild_confirm_title'),
-          content: t('settings.data.backup_v2.outcome.abandon_rebuild_confirm_content'),
-          okText: t('settings.data.backup_v2.outcome.abandon_rebuild_confirm_ok'),
-          cancelText: t('common.cancel'),
-          centered: true,
-          okButtonProps: { danger: true }
-        })
-        if (!confirmed) return
-      }
       const result = await ipcApi.request('backup.acknowledge_restore', { knowledgeRebuild })
       if (!result.acknowledged) return
       toast.closeToast(BACKUP_RESTORE_NOTICE_KEY)
@@ -655,8 +649,6 @@ const BackupV2Settings: FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingHelpText>{t('settings.data.backup_v2.export.credentials_warning')}</SettingHelpText>
-      <SettingHelpText>{t('settings.data.backup_v2.export.integrations_warning')}</SettingHelpText>
-      <SettingHelpText>{t('settings.data.backup_v2.restore.help')}</SettingHelpText>
 
       {hasMatchingPreview && <RestorePreviewCard preview={preview} />}
 
@@ -731,34 +723,19 @@ const AbortableAction: FC<{
 }
 
 /**
- * What this device would do with the archive — counted at preparation time, on
- * purpose stated as an estimate: a file can still appear or vanish before the
- * restart that performs the restore, and the preboot state machine owns the
- * final answer.
- *
- * The `coverage` buckets (available / rebuildable / missing / unverifiable) are
- * deliberately NOT shown: they are the pipeline's own taxonomy, and none of them
- * changes what the user can do here — the decision in front of them is the whole
- * archive, taken or not. Main still measures and journals them, so a support
- * question is answered from the log rather than from the user's screen.
+ * The preview says only what is WRONG with this archive, plus the one warning
+ * that the restore is destructive. Everything the pipeline counts when a restore
+ * would go fine — coverage buckets, install/replace totals, "this archive was
+ * migrated forward" — is deliberately absent: none of it changes the single
+ * decision on this screen, which is to take the whole archive or not. Main still
+ * measures and journals all of it, so support questions are answered from the
+ * log rather than from the user's screen.
  */
 const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
   const { t } = useTranslation()
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3">
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.backup_v2.preview.resources')}</SettingRowTitle>
-        <span>
-          {t('settings.data.backup_v2.preview.resources_counts', {
-            install: preview.resources.install,
-            replaceCount: preview.resources.replace
-          })}
-        </span>
-      </SettingRow>
-      {preview.migratedForward && (
-        <SettingHelpText>{t('settings.data.backup_v2.preview.migrated_forward')}</SettingHelpText>
-      )}
       {preview.degradations.length > 0 && (
         <SettingHelpText>
           <DegradationDetails

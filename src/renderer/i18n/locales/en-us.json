@@ -5885,9 +5885,8 @@
         "export": {
           "credentials_warning": "A backup contains your settings, including API keys and other credentials, in readable form. Keep the file somewhere safe.",
           "done": "Backup exported.",
-          "done_degraded": "Backup created, but {{count}} item(s) were not included. Review the details below; restoring this archive may not recreate them.",
-          "done_degraded_title": "Backup created with exclusions",
-          "integrations_warning": "Restored integrations that run programs or reach the network stay off until you confirm them on the device you restore to."
+          "done_degraded": "The backup was created with {{count}} exclusion(s) or portability change(s). Review the details below and make a fresh backup after addressing the listed causes.",
+          "done_degraded_title": "Backup created with exclusions"
         },
         "notice": {
           "completed_description": "The previous database and every file the restore replaced are still on this device, and routine file cleanup stays paused. Open Settings → Data → Backup & restore to roll back or keep the restored data.",
@@ -5901,9 +5900,6 @@
         },
         "outcome": {
           "abandon_rebuild_button": "Stop rebuilding and keep restored data",
-          "abandon_rebuild_confirm_content": "This releases the rollback copy now. Knowledge items whose search index is unfinished may not appear in search until you reindex them later.",
-          "abandon_rebuild_confirm_ok": "Stop and keep",
-          "abandon_rebuild_confirm_title": "Keep restored data without finishing the Knowledge index?",
           "acknowledge_button": "Keep restored data",
           "acknowledged": "Restore outcome confirmed. Data no longer in use has been released.",
           "completed_help": "Until you confirm, the previous database and every replaced file are still on this device as rollback material.",
@@ -5925,7 +5921,7 @@
           },
           "degradations": "This backup was created without {{count}} item(s).",
           "keep_previous_button": "Keep previous data",
-          "knowledge_rebuild_pending": "Restored Knowledge content is rebuilding its search index. You can wait, roll back, or stop rebuilding and keep the restored data with an incomplete index.",
+          "knowledge_rebuild_pending": "Rebuilding the search index for the restored knowledge content.",
           "reconfirm_integrations": "Restored integrations that run programs or reach the network stay off until you confirm them on this device.",
           "recovery_incomplete": "This restore could not put every file back, so the app is still holding the originals. Restart Cherry Studio to finish it — nothing can be released until then.",
           "resources_incomplete": "The restored database is in use, but some restored files are not in place yet. Restart Cherry Studio to finish it — nothing can be released until then.",
@@ -5946,10 +5942,7 @@
         },
         "preview": {
           "degradations": "{{count}} item(s) were not included when this backup was made.",
-          "destructive": "Restoring replaces the current database and restarts the app. This cannot be undone once you confirm keeping it.",
-          "migrated_forward": "This backup was made by an older version and was upgraded during preparation.",
-          "resources": "Files to restore (estimate)",
-          "resources_counts": "{{install}} to add, {{replaceCount}} to replace"
+          "destructive": "Restoring replaces the current database and restarts the app. This cannot be undone once you confirm keeping it."
         },
         "restore": {
           "arm_button": "Restore and restart",
@@ -5960,7 +5953,6 @@
           "confirm_title": "Replace all data with this backup?",
           "discard_button": "Discard preparation",
           "discarded": "Prepared restore discarded.",
-          "help": "A restore replaces the whole database with the one in the backup file. There is no merge.",
           "pending_elsewhere": "A restore prepared earlier is still waiting. Choose the backup again to see its details.",
           "title": "Restore"
         },
