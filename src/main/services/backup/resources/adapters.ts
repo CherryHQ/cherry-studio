@@ -30,7 +30,8 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { noteTable } from '@data/db/schemas/note'
 import type { DbOrTx } from '@data/db/types'
 import { isAgentRuntimeConfigCaptureExcluded, isWorkspaceManagedSkillProjection } from '@main/ai/skills/capturePolicy'
-import { isKnowledgeCaptureExcluded } from '@main/features/knowledge'
+import { collectKnowledgeRequiredMaterial, isKnowledgeCaptureExcluded } from '@main/features/knowledge'
+import { toInternalBlobFileName } from '@main/services/file'
 import { isSafeRelativeSubpath } from '@main/utils/relativePath'
 import { eq, isNull, sql } from 'drizzle-orm'
 
@@ -180,11 +181,6 @@ function managedLivePath(ctx: SnapshotReadContext, root: string, absolute: strin
   return isSafeRelativeSubpath(relative) ? relative : null
 }
 
-/** File extension suffix, matching internal blob storage (`{id}{.ext}`). */
-function extSuffix(ext: string | null): string {
-  return ext ? `.${ext}` : ''
-}
-
 /**
  * Internal attachment blobs. One requirement per row, because each blob is
  * independently present or absent and Full installs them individually.
@@ -210,11 +206,7 @@ const fileBlobAdapter: BackupResourceAdapter = {
         unverifiable++
         continue
       }
-      const livePath = managedLivePath(
-        ctx,
-        ctx.roots.files,
-        path.join(ctx.roots.files, `${row.id}${extSuffix(row.ext)}`)
-      )
+      const livePath = managedLivePath(ctx, ctx.roots.files, path.join(ctx.roots.files, toInternalBlobFileName(row)))
       if (livePath === null) {
         unverifiable++
         continue
@@ -225,31 +217,6 @@ const fileBlobAdapter: BackupResourceAdapter = {
   }
 }
 
-/** Material root inside a Knowledge unit; every item path resolves under it. */
-const KNOWLEDGE_MATERIAL_ROOT = 'raw'
-
-/**
- * The material path of one indexable leaf, mirroring the Knowledge owner's
- * `toMaterialRelativePath` — except that this reads an UNTRUSTED database and so
- * is total: anything that is not a usable path yields `null`, which makes the
- * base unprovable rather than throwing mid-inventory.
- */
-function materialRelativePath(row: { type: string; data: string }): string | null {
-  let parsed: unknown
-  try {
-    // Read as TEXT and parse here: an archive controls these bytes, and a
-    // malformed row must make its base unprovable, not abort the inventory.
-    parsed = JSON.parse(row.data)
-  } catch {
-    return null
-  }
-  if (typeof parsed !== 'object' || parsed === null) return null
-  const data = parsed as { relativePath?: unknown; indexedRelativePath?: unknown }
-  const chosen =
-    row.type === 'file' && typeof data.indexedRelativePath === 'string' ? data.indexedRelativePath : data.relativePath
-  return typeof chosen === 'string' && chosen.length > 0 ? chosen : null
-}
-
 /**
  * Per base id, the `raw/` material every COMPLETED indexable leaf needs for the
  * target to rebuild the index this archive excludes.
@@ -258,7 +225,7 @@ function materialRelativePath(row: { type: string; data: string }): string | nul
  * reproduce. `directory` items are containers whose children are separate rows,
  * and they are the rows that name material.
  */
-function knowledgeMaterialsByBase(ctx: SnapshotReadContext): Map<string, UnitContentRequirement> {
+function knowledgeMaterialsByBase(ctx: SnapshotReadContext): ReadonlyMap<string, UnitContentRequirement> {
   const rows = ctx.db
     .select({
       baseId: knowledgeItemTable.baseId,
@@ -268,22 +235,7 @@ function knowledgeMaterialsByBase(ctx: SnapshotReadContext): Map<string, UnitCon
     .from(knowledgeItemTable)
     .where(eq(knowledgeItemTable.status, 'completed'))
     .all()
-
-  const byBase = new Map<string, string[] | null>()
-  for (const row of rows) {
-    if (row.type === 'directory') continue
-    const collected = byBase.get(row.baseId)
-    if (collected === null) continue
-    const relative = materialRelativePath(row)
-    if (relative === null) {
-      byBase.set(row.baseId, null)
-      continue
-    }
-    const paths = collected ?? []
-    paths.push(`${KNOWLEDGE_MATERIAL_ROOT}/${relative}`)
-    byBase.set(row.baseId, paths)
-  }
-  return byBase
+  return collectKnowledgeRequiredMaterial(rows)
 }
 
 /**
