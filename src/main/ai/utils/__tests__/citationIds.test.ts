@@ -1,24 +1,23 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { citeId, newCitePrefix } from '../citationIds'
 
-afterEach(() => vi.restoreAllMocks())
-
 describe('newCitePrefix', () => {
-  it('is always three base36 characters', () => {
-    for (let i = 0; i < 50; i++) expect(newCitePrefix()).toMatch(/^[a-z0-9]{3}$/)
+  it('is always eight hex characters', () => {
+    for (let i = 0; i < 50; i++) expect(newCitePrefix()).toMatch(/^[0-9a-f]{8}$/)
   })
 
-  it('pads a random draw whose base36 form is too short', () => {
-    // Math.random() === 0 renders as "0", leaving nothing after slice(2, 5).
-    vi.spyOn(Math, 'random').mockReturnValue(0)
-    expect(newCitePrefix()).toBe('000')
+  it('does not repeat across the lookup calls one message can hold', () => {
+    // A repeat would give two different results the same id, which the renderer
+    // resolves to whichever it saw first — dropping the later source silently.
+    const prefixes = Array.from({ length: 100 }, newCitePrefix)
+    expect(new Set(prefixes).size).toBe(prefixes.length)
   })
 })
 
 describe('citeId', () => {
   it('numbers results from 1, matching what the model is shown', () => {
-    expect(citeId('k3f', 0)).toBe('k3f-1')
-    expect(citeId('k3f', 4)).toBe('k3f-5')
+    expect(citeId('3f2a1b9c', 0)).toBe('3f2a1b9c-1')
+    expect(citeId('3f2a1b9c', 4)).toBe('3f2a1b9c-5')
   })
 })

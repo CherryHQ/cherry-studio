@@ -18,7 +18,7 @@ vi.mock('@application', () => ({
 
 import { searchWeb } from '../webLookup'
 
-const CITE_ID = /^[a-z0-9]{3}-\d+$/
+const CITE_ID = /^[0-9a-f]{8}-\d+$/
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -40,7 +40,6 @@ describe('searchWeb', () => {
   })
 
   it('assigns disjoint id sets across calls', async () => {
-    vi.spyOn(Math, 'random').mockReturnValueOnce(0.1111).mockReturnValueOnce(0.9999)
     const results = [{ title: 'a', url: 'https://a.com', content: 'A' }]
     searchKeywordsMock.mockResolvedValue({ results })
     const first = (await searchWeb('q1')) as Array<{ id: string }>

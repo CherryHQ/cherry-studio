@@ -1,8 +1,9 @@
 /**
  * Inline-citation guidance for agent sessions, appended to the system prompt
  * only for the lookup tools the agent can actually call (web unless the user
- * disabled both cherry-tools web lookups; kb only when the agent has bound
- * knowledge bases). Mirrors the assistant-path `CITATIONS_SYSTEM_PROMPT`
+ * disabled both cherry-tools web lookups; kb only when the resolved knowledge
+ * scope is non-empty — a static binding or a per-turn composer selection).
+ * Mirrors the assistant-path `CITATIONS_SYSTEM_PROMPT`
  * (`../aiSdk/prompts/citations.ts`); the `[cite:id]` markers are resolved by
  * the renderer against the message's own tool results.
  */

@@ -18,7 +18,7 @@ vi.mock('@application', () => ({
 
 import { searchKnowledge } from '../knowledgeLookup'
 
-const CITE_ID = /^[a-z0-9]{3}-\d+$/
+const CITE_ID = /^[0-9a-f]{8}-\d+$/
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -33,5 +33,27 @@ describe('searchKnowledge', () => {
     const ids = (output as Array<{ id: string }>).map((r) => r.id)
     ids.forEach((id) => expect(id).toMatch(CITE_ID))
     expect(ids.map((id) => id.split('-')[1])).toEqual(['1', '2'])
+  })
+
+  it('tags each hit with the base it came from', async () => {
+    // conceptId is base-relative, so without baseId two bases' `README.md` are
+    // indistinguishable downstream — and kb_read needs the baseId to follow a hit up.
+    knowledgeSearchMock
+      .mockResolvedValueOnce([
+        { pageContent: 'from A', score: 0.9, conceptId: 'README.md', title: 'README', metadata: { itemType: 'file' } }
+      ])
+      .mockResolvedValueOnce([
+        { pageContent: 'from B', score: 0.8, conceptId: 'README.md', title: 'README', metadata: { itemType: 'file' } }
+      ])
+
+    const output = (await searchKnowledge('query', ['base1', 'base2'], [])) as Array<{
+      baseId: string
+      conceptId: string
+    }>
+
+    expect(output.map((r) => [r.baseId, r.conceptId])).toEqual([
+      ['base1', 'README.md'],
+      ['base2', 'README.md']
+    ])
   })
 })

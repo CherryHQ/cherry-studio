@@ -1,15 +1,21 @@
 /**
- * Render-time citation registry — resolves a message's inline citations
- * directly from its own parts, with no persisted reference metadata:
+ * Citation registry — resolves a message's inline citations directly from its
+ * own parts, with no persisted reference metadata:
  *
  * - `tool-web_search` / `tool-web_fetch` / `tool-kb_search` / `tool-kb_read`
  *   results (assistant runtime), including the same tools called through
  *   `tool_invoke` (deferred)
  *   or the `cherry-tools` in-process MCP server (agent runtime, `dynamic-tool`
- *   parts). Result ids ("k3f-2") are minted per lookup call in the main
+ *   parts). Result ids ("3f2a1b9c-2") are minted per lookup call in the main
  *   process (`citationIds.ts`) and echoed back by the model as `[cite:id]`.
  * - `source-url` parts from provider-native web search, keyed by their
  *   provider-assigned numbers so plain `[N]` markers resolve.
+ *
+ * This lives in `utils/` rather than beside the chat blocks because the markers
+ * sit in the *persisted* message text: rendering, Markdown/plain-text export and
+ * copy-to-clipboard all have to resolve them, and only rendering goes through
+ * `components/`. `resolveCitationMarkers` is the shared core — `withToolCitationTags`
+ * is the render-side wrapper that turns the markers into `<sup>` badges.
  *
  * Migrated v1 messages carry `providerMetadata.cherry.references` instead and
  * keep rendering through the legacy `partsToBlocks` path — MainTextBlock
@@ -35,7 +41,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { DynamicToolUIPart, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
-import { normalizeToolOutputResponse } from '../tools/toolResponse'
+import { normalizeToolOutputResponse } from './toolOutput'
 
 export interface MessageCitations {
   /** Wire id (stringified) → citation with its assigned display number. */
@@ -133,17 +139,30 @@ function toSnippet(content: string): string {
  */
 function parseKbReadCitation(
   output: unknown
-): { id: string; conceptId: string; title: string; content: string } | null {
+): { id: string; baseId?: string; conceptId: string; title: string; content: string } | null {
   const read = kbReadOutputSchema.safeParse(output)
   if (read.success) {
-    const { id, conceptId, title, content } = read.data
-    return id ? { id, conceptId, title, content: toSnippet(content) } : null
+    const { id, baseId, conceptId, title, content } = read.data
+    return id ? { id, baseId, conceptId, title, content: toSnippet(content) } : null
   }
   const grep = kbGrepOutputSchema.safeParse(output)
   if (!grep.success) return null
-  const { id, conceptId, title, matches } = grep.data
+  const { id, baseId, conceptId, title, matches } = grep.data
   if (!id || matches.length === 0) return null
-  return { id, conceptId, title, content: toSnippet(matches.map((match) => match.snippet).join(' … ')) }
+  return { id, baseId, conceptId, title, content: toSnippet(matches.map((match) => match.snippet).join(' … ')) }
+}
+
+/**
+ * Document identity for the one-citation-per-document dedup. `conceptId` is a
+ * base-relative path, so it only identifies a document within its own base —
+ * two bases can each hold a `README.md`. Results persisted before `baseId` was
+ * propagated carry none; those keep deduping on the bare `conceptId`, which is
+ * how they already behaved.
+ */
+function documentKey(item: { baseId?: string; conceptId?: string }): string | undefined {
+  if (!item.conceptId) return undefined
+  // NUL separator: neither id can contain one, so the join is unambiguous.
+  return `${item.baseId ?? ''}\u0000${item.conceptId}`
 }
 
 /** Numeric value a lookup-result id can answer a bare `[N]` marker with. */
@@ -181,15 +200,22 @@ export function resolveMessageCitations(parts: readonly CherryMessagePart[]): Me
   let nextNumber = all.reduce((max, citation) => Math.max(max, citation.number), 0) + 1
   let lookupCallCount = 0
   const toolMarkerCandidates = new Map<number, Citation>()
-  const byConceptId = new Map<string, Citation>()
+  const byDocument = new Map<string, Citation>()
 
-  const addKnowledgeCitation = (item: { id: string | number; conceptId?: string; title?: string; content: string }) => {
+  const addKnowledgeCitation = (item: {
+    id: string | number
+    baseId?: string
+    conceptId?: string
+    title?: string
+    content: string
+  }) => {
     const key = String(item.id)
     if (byId.has(key)) return
     // One citation per document, the knowledge-base counterpart of the URL dedup below: kb_search
     // can return several chunks of one file and kb_read may then quote that same file again, but
     // the reader only cares which document backed the statement. First occurrence wins.
-    const existing = item.conceptId ? byConceptId.get(item.conceptId) : undefined
+    const document = documentKey(item)
+    const existing = document ? byDocument.get(document) : undefined
     if (existing) {
       byId.set(key, existing)
       return
@@ -203,7 +229,7 @@ export function resolveMessageCitations(parts: readonly CherryMessagePart[]): Me
       type: 'knowledge'
     }
     byId.set(key, citation)
-    if (item.conceptId) byConceptId.set(item.conceptId, citation)
+    if (document) byDocument.set(document, citation)
     all.push(citation)
     const markerNumber = markerNumberOfId(item.id)
     if (markerNumber !== undefined && !toolMarkerCandidates.has(markerNumber)) {
@@ -277,20 +303,32 @@ export function resolveMessageCitations(parts: readonly CherryMessagePart[]): Me
   return { byId, byMarkerNumber, all }
 }
 
+/** Resolved markers, ready for a caller to render, rewrite or strip. */
+export interface ResolvedCitationMarkers {
+  /**
+   * `content` with provider-specific marks normalized to `[cite:id]` and repeat
+   * badges collapsed. Markers are left in place — the caller decides what they
+   * become (a `<sup>` badge when rendering, `[N]` or nothing when exporting).
+   */
+  content: string
+  /** Marker id → the citation it resolves to, renumbered by first appearance. */
+  byMarker: Map<string, Citation>
+  /** The cited subset in first-appearance order, for the citations footer / sources list. */
+  cited: Citation[]
+}
+
 /**
- * Transform `[cite:id]` markers (plus resolvable bare `[N]` / provider-mark
- * forms) in `content` into rendered `<sup data-citation>` tags, and report the
- * cited subset in first-appearance order for the citations footer. Unknown
- * ids stay literal.
+ * Resolve `[cite:id]` markers (plus resolvable bare `[N]` / provider-mark forms)
+ * in `content` against a message's citations. Unknown ids stay literal.
  *
- * Markers are numbered 1..N by first appearance in `content`, so the badges
- * read in order and match the footer's ordering.
+ * Markers are numbered 1..N by first appearance in `content`, so the badges read
+ * in order and match the footer's ordering.
+ *
+ * Shared by every consumer of the markers — rendering, Markdown/plain-text
+ * export and copy — so all three agree on which marker means which source.
  */
-export function withToolCitationTags(
-  content: string,
-  citations: MessageCitations
-): { content: string; cited: Citation[] } {
-  if (!content || citations.byId.size === 0) return { content, cited: [] }
+export function resolveCitationMarkers(content: string, citations: MessageCitations): ResolvedCitationMarkers {
+  if (!content || citations.byId.size === 0) return { content, byMarker: new Map(), cited: [] }
 
   const cleanCache = new Map<Citation, Citation>()
   const clean = (citation: Citation): Citation => {
@@ -352,5 +390,40 @@ export function withToolCitationTags(
     return kept.join('')
   })
 
-  return { content: mapCitationMarksToTags(collapsed, renumbered), cited }
+  return { content: collapsed, byMarker: renumbered, cited }
+}
+
+/**
+ * Export / copy view: every resolved `[cite:id]` marker becomes a plain `[N]`,
+ * and an id that resolves to nothing is dropped — an internal marker must never
+ * escape into exported text or the clipboard. Also returns the cited sources in
+ * display order so the caller can render a sources list.
+ *
+ * Rendering deliberately leaves an unresolved id visible (it is a model mistake
+ * worth seeing on screen); an export is a finished document, so it is removed.
+ */
+export function toExportableCitations(
+  content: string,
+  parts: readonly CherryMessagePart[]
+): { content: string; cited: Citation[] } {
+  const { content: resolved, byMarker, cited } = resolveCitationMarkers(content, resolveMessageCitations(parts))
+  return {
+    content: resolved.replace(/\[cite:([\w-]+)\]/g, (_match, id: string) => {
+      const citation = byMarker.get(id)
+      return citation ? `[${citation.number}]` : ''
+    }),
+    cited
+  }
+}
+
+/**
+ * Render-side wrapper: resolve the markers, then turn each into its
+ * `<sup data-citation>` badge. Unknown ids stay literal.
+ */
+export function withToolCitationTags(
+  content: string,
+  citations: MessageCitations
+): { content: string; cited: Citation[] } {
+  const { content: resolved, byMarker, cited } = resolveCitationMarkers(content, citations)
+  return { content: mapCitationMarksToTags(resolved, byMarker), cited }
 }

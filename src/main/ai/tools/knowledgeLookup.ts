@@ -166,7 +166,10 @@ export async function searchKnowledge(
   const perBase = await Promise.all(
     targetIds.map(async (baseId) => {
       try {
-        return { ok: true as const, results: await knowledgeService.search(baseId, query) }
+        const results = await knowledgeService.search(baseId, query)
+        // Tag each hit with the base it came from: the flatMap below loses the closure, and
+        // `conceptId` alone is only unique within one base.
+        return { ok: true as const, results: results.map((result) => ({ result, baseId })) }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         logger.warn('KnowledgeService.search failed', { baseId, query, error: message })
@@ -183,22 +186,24 @@ export async function searchKnowledge(
   }
 
   const merged = perBase.flatMap((r) => (r.ok ? r.results : []))
-  const dedupedByContent = new Map<string, KnowledgeSearchResult>()
-  for (const result of merged) {
-    const existing = dedupedByContent.get(result.pageContent)
-    if (!existing || result.score > existing.score) {
-      dedupedByContent.set(result.pageContent, result)
+  const dedupedByContent = new Map<string, { result: KnowledgeSearchResult; baseId: string }>()
+  for (const hit of merged) {
+    const existing = dedupedByContent.get(hit.result.pageContent)
+    if (!existing || hit.result.score > existing.result.score) {
+      dedupedByContent.set(hit.result.pageContent, hit)
     }
   }
-  const sorted = [...dedupedByContent.values()].sort((a, b) => b.score - a.score)
+  const sorted = [...dedupedByContent.values()].sort((a, b) => b.result.score - a.result.score)
 
   const prefix = newCitePrefix()
-  return sorted.map((result, index) => ({
+  return sorted.map(({ result, baseId }, index) => ({
     id: citeId(prefix, index),
-    // Provenance so the model can follow a hit with kb_read. conceptId
+    // Provenance so the model can follow a hit with kb_read. baseId pairs with
+    // conceptId to identify the document (conceptId is base-relative). conceptId
     // is absent only for a not-yet-indexed snapshot (no relativePath); title is
     // always set. type is the item kind (file / url / note); `?.` keeps the map
     // resilient to a result without metadata (none in production).
+    baseId,
     conceptId: result.conceptId,
     title: result.title,
     type: result.metadata?.itemType,
@@ -246,6 +251,8 @@ async function readConcept(
     return {
       // One slice, one source — index 0 yields the call's only cite id.
       id: citeId(newCitePrefix(), 0),
+      // Pairs with the base-relative conceptId to identify the document globally.
+      baseId,
       conceptId: result.conceptId,
       title: result.title,
       type: result.itemType,
@@ -299,6 +306,8 @@ async function grepConcept(
     return {
       // Every match is in this one document, so the call yields a single cite id.
       id: citeId(newCitePrefix(), 0),
+      // Pairs with the base-relative conceptId to identify the document globally.
+      baseId,
       conceptId: result.conceptId,
       title: result.title,
       type: result.itemType,

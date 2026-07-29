@@ -1,7 +1,7 @@
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { describe, expect, it } from 'vitest'
 
-import { getMainTextContent, getNamingTextContent } from '../find'
+import { getMainTextContent, getNamingTextContent, getToolCitationExport } from '../find'
 
 function createExportView(parts: MessageExportView['parts']): MessageExportView {
   return {
@@ -44,5 +44,57 @@ describe('message/find', () => {
     ] as MessageExportView['parts'])
 
     expect(getMainTextContent(message)).toBe('Answer')
+  })
+})
+
+describe('getToolCitationExport', () => {
+  it('rewrites tool-part markers and lists their sources', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com', content: 'snippet' }]
+      },
+      { type: 'text', text: 'Fact. [cite:3f2a1b9c-1]' }
+    ] as MessageExportView['parts'])
+
+    expect(getToolCitationExport(message, 'Fact. [cite:3f2a1b9c-1]')).toEqual({
+      content: 'Fact. [1]',
+      citation: '[1] [Example](https://example.com)'
+    })
+  })
+
+  it('lists a URL-less knowledge citation without a link', () => {
+    const message = createExportView([
+      {
+        type: 'tool-kb_search',
+        toolCallId: 'c2',
+        state: 'output-available',
+        input: { query: 'q', baseIds: ['b'] },
+        output: [{ id: '3f2a1b9c-1', baseId: 'b', conceptId: 'notes/one.md', title: 'One.md', content: 'kb', score: 1 }]
+      },
+      { type: 'text', text: 'From notes. [cite:3f2a1b9c-1]' }
+    ] as MessageExportView['parts'])
+
+    expect(getToolCitationExport(message, 'From notes. [cite:3f2a1b9c-1]').citation).toBe('[1] One.md')
+  })
+
+  it('defers to legacy reference metadata rather than renumbering it', () => {
+    // Migrated v1 messages number their `[N]` markers from the stored references;
+    // re-resolving would renumber by first appearance and drift from that list.
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-1', url: 'https://second.com' },
+      {
+        type: 'text',
+        text: 'Legacy answer [2]',
+        providerMetadata: {
+          cherry: { references: [{ category: 'citation', number: 2, url: 'https://second.com', title: 'Second' }] }
+        }
+      }
+    ] as MessageExportView['parts'])
+
+    expect(getToolCitationExport(message, 'Legacy answer [2]')).toEqual({ content: 'Legacy answer [2]', citation: '' })
   })
 })

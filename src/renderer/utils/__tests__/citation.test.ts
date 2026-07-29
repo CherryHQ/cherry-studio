@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   determineCitationSource,
   generateCitationTag,
+  isLinkableCitationUrl,
   mapCitationMarksToTags,
   normalizeCitationMarks,
   withCitationTags
@@ -536,6 +537,24 @@ Numbered list:
       expect(result).toContain('2</sup>')
       expect(result).not.toContain('](')
       expect(result).not.toContain('()')
+    })
+
+    // Migrated v1 knowledge citations store a bare file path here. `CitationSup` mounts the
+    // tooltip for exactly the citations this branch leaves unlinked, so both must agree.
+    it('should emit a bare sup for a non-http URL that CitationSup can pick up', () => {
+      const citation: Citation = {
+        number: 7,
+        url: '/Users/me/docs/notes.md',
+        title: 'notes.md',
+        type: 'knowledge'
+      }
+
+      expect(isLinkableCitationUrl(citation.url)).toBe(false)
+      const result = generateCitationTag(citation)
+
+      expect(result).toMatch(/^<sup data-citation=/)
+      expect(result).toContain('7</sup>')
+      expect(result).not.toContain('](')
     })
 
     it('should emit a bare sup when the citation has no URL', () => {

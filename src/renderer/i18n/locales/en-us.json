@@ -3854,6 +3854,7 @@
       }
     },
     "citation": "{{count}} citations",
+    "citation_source": "Citation source",
     "citations": "References",
     "conversation_reset": "Previous conversation history could not be found — continuing in a new conversation",
     "copied": "Copied!",

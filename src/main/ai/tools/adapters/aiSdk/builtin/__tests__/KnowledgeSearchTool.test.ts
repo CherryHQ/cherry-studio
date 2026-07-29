@@ -129,9 +129,11 @@ describe('kb_search', () => {
     )) as Array<{ id: string; content: string; score: number }>
 
     expect(result).toEqual([
-      { id: expect.stringMatching(/^[a-z0-9]{3}-1$/), content: 'A', score: 0.95 },
-      { id: expect.stringMatching(/^[a-z0-9]{3}-2$/), content: 'C', score: 0.6 },
-      { id: expect.stringMatching(/^[a-z0-9]{3}-3$/), content: 'B', score: 0.5 }
+      // baseId tracks which base each hit came from — 'A' is deduped in kb-2's favour on score,
+      // and without it two bases' same-path documents are indistinguishable downstream.
+      { id: expect.stringMatching(/^[0-9a-f]{8}-1$/), baseId: 'kb-2', content: 'A', score: 0.95 },
+      { id: expect.stringMatching(/^[0-9a-f]{8}-2$/), baseId: 'kb-2', content: 'C', score: 0.6 },
+      { id: expect.stringMatching(/^[0-9a-f]{8}-3$/), baseId: 'kb-1', content: 'B', score: 0.5 }
     ])
     // All ids within one call share the same random prefix
     expect(new Set(result.map((r) => r.id.split('-')[0])).size).toBe(1)
@@ -146,7 +148,9 @@ describe('kb_search', () => {
       { query: 'q', baseIds: ['broken', 'good'] },
       { knowledgeBaseIds: ['broken', 'good'] }
     )) as Array<{ id: string; content: string }>
-    expect(result).toEqual([{ id: expect.stringMatching(/^[a-z0-9]{3}-1$/), content: 'ok', score: 0.7 }])
+    expect(result).toEqual([
+      { id: expect.stringMatching(/^[0-9a-f]{8}-1$/), baseId: 'good', content: 'ok', score: 0.7 }
+    ])
   })
 
   describe('toModelOutput', () => {

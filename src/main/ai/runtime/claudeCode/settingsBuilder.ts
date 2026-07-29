@@ -403,8 +403,18 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath
   )
 
-  // 5. System prompt
-  const systemPrompt = await buildSystemPrompt(session, agent, cwd, linkedChannelSnapshot !== null, agentDataPath)
+  // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
+  // step 6 exposes the kb_* tools — a composer-only selection on an unbound agent still gets them, and
+  // without the guidance the model would never emit the `[cite:id]` markers those results need.
+  const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, options?.knowledgeBaseIds)
+  const systemPrompt = await buildSystemPrompt(
+    session,
+    agent,
+    cwd,
+    linkedChannelSnapshot !== null,
+    agentDataPath,
+    knowledgeBaseScope
+  )
 
   // 6. MCP servers (session + built-in)
   const mcpServers = buildMcpServers(
@@ -1205,7 +1215,9 @@ export async function buildSystemPrompt(
   agent: AgentEntity,
   cwd: string,
   channelLinked?: boolean,
-  agentDataPath = cwd
+  agentDataPath = cwd,
+  /** Resolved knowledge scope for this connection; defaults to the agent's static binding alone. */
+  knowledgeBaseIds: readonly string[] = agent.knowledgeBaseIds ?? []
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const agentConfig = agent.configuration
 
@@ -1239,9 +1251,7 @@ export async function buildSystemPrompt(
   const isLookupEnabled = (toolName: string) => !disabledTools.has(toCherryBuiltinRuntimeName(toolName))
   const citationsGuidance = buildCitationsGuidance({
     web: isLookupEnabled(WEB_SEARCH_TOOL_NAME) || isLookupEnabled(WEB_FETCH_TOOL_NAME),
-    kb:
-      (agent.knowledgeBaseIds?.length ?? 0) > 0 &&
-      (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME))
+    kb: knowledgeBaseIds.length > 0 && (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME))
   })
   const citationsBlock = citationsGuidance ? `\n\n${citationsGuidance}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`

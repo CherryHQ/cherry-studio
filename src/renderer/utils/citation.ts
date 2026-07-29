@@ -183,6 +183,15 @@ export function mapCitationMarksToTags(content: string, citationMap: Map<string,
   })
 }
 
+/**
+ * Whether a citation URL can be rendered as a markdown link. Migrated v1
+ * knowledge citations carry truthy non-URL values (raw file paths, the literal
+ * `note`), so a plain truthiness test disagrees with what `generateCitationTag`
+ * emits. Single source of truth: `CitationSup` mounts the tooltip on exactly
+ * the citations this rejects.
+ */
+export const isLinkableCitationUrl = (url?: string): boolean => !!url && url.startsWith('http')
+
 /** Build the rendered tag for a single citation. */
 export function generateCitationTag(citation: Citation): string {
   const supData = {
@@ -199,8 +208,7 @@ export function generateCitationTag(citation: Citation): string {
   const citationJson = encodeHTML(JSON.stringify(supData)).replace(/\|/g, '&#124;')
 
   const supTag = `<sup data-citation='${citationJson}'>${citation.number}</sup>`
-  const isLink = citation.url && citation.url.startsWith('http')
-  if (!isLink) {
+  if (!isLinkableCitationUrl(citation.url)) {
     // Knowledge-base and memory citations have no URL. Wrapping them in `[...]()` yields an empty
     // href, which rehype-harden rewrites into `<span>…<sup/> [blocked]</span>` — that both defaces
     // the marker and drops the tooltip, since the tooltip only mounts on `<a>`. Emit the bare

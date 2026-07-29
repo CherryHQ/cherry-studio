@@ -139,9 +139,13 @@ export const kbSearchInputSchema = z.object({
 
 export const kbSearchOutputItemSchema = z.object({
   // Citation id the model echoes back as `[cite:id]`. New results use a per-call
-  // random-prefixed string ("k3f-2") so ids stay unique across multiple lookup
+  // random-prefixed string ("3f2a1b9c-2") so ids stay unique across multiple lookup
   // calls in one message; number is kept so older persisted results still parse.
   id: z.union([z.string(), z.number().int().positive()]),
+  // Owning base of the hit. kb_search fans out across `baseIds`, so this is both
+  // what kb_read needs to follow the hit up and what makes `conceptId` (a
+  // base-relative path) globally unique — two bases can hold their own README.md.
+  baseId: z.string().optional(),
   // Concept ID (the source document's relative path, OKF §2), display title, and
   // item type, so the model can follow a hit with kb_read. Optional:
   // older persisted tool results predate these fields and must still parse.
@@ -265,6 +269,9 @@ export const kbReadOutputSchema = z.object({
   // document slice, so the whole result is a single source. Optional because results persisted
   // before kb_read joined the citation pipeline carry no id — those simply aren't citable.
   id: z.string().optional(),
+  // Echoes the requested base so `conceptId` (base-relative) identifies a document
+  // globally — see kbSearchOutputItemSchema. Optional for the same back-compat reason.
+  baseId: z.string().optional(),
   conceptId: z.string(),
   title: z.string(),
   type: z.string(),
@@ -292,6 +299,8 @@ export const kbGrepOutputSchema = z.object({
   // One id for the whole result, not one per match: every match lives in the same document, so
   // they resolve to a single source. Optional for the same back-compat reason as kb_read.
   id: z.string().optional(),
+  // See kbReadOutputSchema — same role, same back-compat reason.
+  baseId: z.string().optional(),
   conceptId: z.string(),
   title: z.string(),
   type: z.string(),

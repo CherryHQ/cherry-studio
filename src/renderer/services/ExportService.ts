@@ -23,7 +23,8 @@ import {
   getCitationContent,
   getMainTextContent,
   getNamingTextContent,
-  getThinkingContent
+  getThinkingContent,
+  getToolCitationExport
 } from '@renderer/utils/message/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
@@ -232,8 +233,13 @@ const createBaseMarkdown = async (
     }
   }
 
-  const content = getComposerTextFromMessage(message, getMainTextContent(message))
-  let citation = excludeCitations ? '' : getCitationContent(message)
+  const rawContent = getComposerTextFromMessage(message, getMainTextContent(message))
+  // Tool-derived citations live as `[cite:id]` markers in the text with no persisted
+  // reference metadata, so resolve them to plain `[N]` here — otherwise the internal
+  // marker leaks into the export and the sources list comes back empty. Messages that
+  // do carry reference metadata keep the legacy path (see `getToolCitationExport`).
+  const { content, citation: toolCitation } = getToolCitationExport(message, rawContent)
+  let citation = excludeCitations ? '' : getCitationContent(message) || toolCitation
 
   let processedContent = forceDollarMathInMarkdown ? convertMathFormula(content) : content
 

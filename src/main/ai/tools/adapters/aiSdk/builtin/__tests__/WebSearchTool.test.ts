@@ -106,8 +106,8 @@ describe('web_search', () => {
 
     const result = (await callSearchExecute({ query: 'q' })) as Array<{ id: string }>
     expect(result).toEqual([
-      { id: expect.stringMatching(/^[a-z0-9]{3}-1$/), title: 'A', url: 'https://a.com', content: 'about A' },
-      { id: expect.stringMatching(/^[a-z0-9]{3}-2$/), title: 'B', url: 'https://b.com', content: 'about B' }
+      { id: expect.stringMatching(/^[0-9a-f]{8}-1$/), title: 'A', url: 'https://a.com', content: 'about A' },
+      { id: expect.stringMatching(/^[0-9a-f]{8}-2$/), title: 'B', url: 'https://b.com', content: 'about B' }
     ])
     // All ids within one call share the same random prefix
     expect(new Set(result.map((r) => r.id.split('-')[0])).size).toBe(1)
@@ -316,8 +316,8 @@ describe('web_fetch', () => {
     const result = await callFetchExecute({ urls: ['https://a.com', 'https://b.com'] })
 
     expect(result).toEqual([
-      { id: expect.stringMatching(/^[a-z0-9]{3}-1$/), title: 'A', url: 'https://a.com', content: 'about A' },
-      { id: expect.stringMatching(/^[a-z0-9]{3}-2$/), title: 'B', url: 'https://b.com', content: 'about B' }
+      { id: expect.stringMatching(/^[0-9a-f]{8}-1$/), title: 'A', url: 'https://a.com', content: 'about A' },
+      { id: expect.stringMatching(/^[0-9a-f]{8}-2$/), title: 'B', url: 'https://b.com', content: 'about B' }
     ])
   })
 

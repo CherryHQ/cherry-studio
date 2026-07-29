@@ -636,6 +636,31 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.systemPrompt as string).toContain('mcp__cherry-tools__kb_search')
   })
 
+  // The kb_* tools are exposed from the resolved scope, so an unbound Agent still gets them from the
+  // frozen composer selection alone — the guidance has to follow, or those results never get cited.
+  it('includes kb_search in citation guidance for a composer-only selection on an unbound Agent', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      knowledgeBaseIds: [],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, {
+      knowledgeBaseIds: ['kb-selected']
+    })
+
+    expect(settings.systemPrompt as string).toContain('mcp__cherry-tools__kb_search')
+  })
+
   it('omits citation guidance when both web tools are disabled and no knowledge base is bound', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

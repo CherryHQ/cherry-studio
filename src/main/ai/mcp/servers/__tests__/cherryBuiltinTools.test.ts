@@ -175,7 +175,7 @@ describe('cherryBuiltinTools', () => {
     expect(searchKeywords).toHaveBeenCalledWith({ keywords: ['hello'] }, { signal })
     expect(result.isError).toBeFalsy()
     expect(JSON.parse(textOf(result))).toEqual([
-      { id: expect.stringMatching(/^[a-z0-9]{3}-1$/), title: 'A', url: 'https://a.com', content: 'about A' }
+      { id: expect.stringMatching(/^[0-9a-f]{8}-1$/), title: 'A', url: 'https://a.com', content: 'about A' }
     ])
   })
 
@@ -266,7 +266,7 @@ describe('cherryBuiltinTools', () => {
     expect(kbSearch).toHaveBeenCalledWith('b1', 'topic')
     expect(kbSearch).toHaveBeenCalledWith('b2', 'topic')
     expect(JSON.parse(textOf(result))[0]).toMatchObject({
-      id: expect.stringMatching(/^[a-z0-9]{3}-1$/),
+      id: expect.stringMatching(/^[0-9a-f]{8}-1$/),
       content: 'doc'
     })
   })
@@ -337,7 +337,7 @@ describe('cherryBuiltinTools', () => {
     expect(kbReadConcept).toHaveBeenCalledWith('b1', 'docs/intro.md', { charStart: 0, charEnd: 11 })
     expect(result.isError).toBeFalsy()
     expect(JSON.parse(textOf(result))).toMatchObject({
-      id: expect.stringMatching(/^[a-z0-9]{3}-1$/),
+      id: expect.stringMatching(/^[0-9a-f]{8}-1$/),
       conceptId: 'docs/intro.md',
       type: 'file',
       content: 'hello world'
@@ -385,7 +385,7 @@ describe('cherryBuiltinTools', () => {
     // read mode must NOT run when a pattern is present.
     expect(kbReadConcept).not.toHaveBeenCalled()
     expect(JSON.parse(textOf(result))).toMatchObject({
-      id: expect.stringMatching(/^[a-z0-9]{3}-1$/),
+      id: expect.stringMatching(/^[0-9a-f]{8}-1$/),
       conceptId: 'docs/intro.md',
       type: 'note',
       totalMatches: 1

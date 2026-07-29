@@ -5,6 +5,7 @@ import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type * as MessageFind from '@renderer/utils/message/find'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, test, vi } from 'vitest'
 
@@ -36,7 +37,10 @@ vi.mock('@renderer/i18n/label', () => ({
 }))
 
 // Mock the find utility functions - crucial for the test
-vi.mock('@renderer/utils/message/find', () => ({
+vi.mock('@renderer/utils/message/find', async (importOriginal) => ({
+  // `[cite:id]` resolution is the behaviour under test in the tool-part cases below,
+  // so keep the real implementation rather than restating it as a mock.
+  getToolCitationExport: (await importOriginal<typeof MessageFind>()).getToolCitationExport,
   // Provide type safety for mocked message
   getMainTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
     if (message.parts?.length) {
@@ -217,6 +221,16 @@ function createExportView(parts: any[], role: 'user' | 'assistant' | 'system' = 
   }
 }
 
+function toolSearchPart(results: unknown[]): any {
+  return {
+    type: 'tool-web_search',
+    toolCallId: 'search-1',
+    state: 'output-available',
+    input: { query: 'q' },
+    output: results
+  }
+}
+
 // --- Global Test Setup ---
 
 // Store mocked messages generated in beforeEach blocks
@@ -373,6 +387,63 @@ describe('ExportService', () => {
 
       expect(markdown).toContain('Answer with citation')
       expect(markdown).toContain('[^1]: [https://example.com](Example)')
+    })
+
+    it('should resolve tool-part [cite:id] markers and list their sources', async () => {
+      // Tool-derived citations carry no `cherry.references`; the marker lives in the
+      // text, so an unresolved export leaks the internal id and lists no sources.
+      const message = createExportView([
+        toolSearchPart([{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com', content: 'snippet' }]),
+        { type: 'text', text: 'Prices rose 3%. [cite:3f2a1b9c-1]' }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).not.toContain('[cite:')
+      expect(markdown).toContain('Prices rose 3%. [^1]')
+      expect(markdown).toContain('[^1]: [Example](https://example.com)')
+    })
+
+    it('should list a URL-less knowledge citation by title', async () => {
+      const message = createExportView([
+        {
+          type: 'tool-kb_search',
+          toolCallId: 'kb1',
+          state: 'output-available',
+          input: { query: 'q', baseIds: ['b'] },
+          output: [
+            { id: '3f2a1b9c-1', baseId: 'b', conceptId: 'notes/one.md', title: 'One.md', content: 'kb', score: 0.9 }
+          ]
+        },
+        { type: 'text', text: 'From my notes. [cite:3f2a1b9c-1]' }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).not.toContain('[cite:')
+      expect(markdown).toContain('[^1]: One.md')
+    })
+
+    it('should strip tool-part markers entirely when citations are excluded', async () => {
+      const message = createExportView([
+        toolSearchPart([{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com', content: 'snippet' }]),
+        { type: 'text', text: 'Prices rose 3%. [cite:3f2a1b9c-1]' }
+      ])
+
+      const markdown = await messageToMarkdown(message, true)
+
+      expect(markdown).not.toContain('[cite:')
+      expect(markdown).not.toContain('example.com')
+      expect(markdown).toContain('Prices rose 3%.')
+    })
+
+    it('should drop a marker whose id resolves to nothing', async () => {
+      const message = createExportView([{ type: 'text', text: 'Unbacked claim. [cite:3f2a1b9c-9]' }])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).not.toContain('[cite:')
+      expect(markdown).toContain('Unbacked claim.')
     })
   })
 

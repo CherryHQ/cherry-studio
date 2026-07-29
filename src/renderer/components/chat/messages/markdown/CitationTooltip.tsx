@@ -12,7 +12,9 @@ import { WebCitationHoverContent } from '../../citations/WebCitation'
  */
 export const CitationSchema = z.object({
   type: z.string().optional(),
-  url: z.union([z.url(), z.literal('')]).optional(),
+  // Not `z.url()`: migrated v1 knowledge citations store a bare file path (or the literal
+  // `note`) here, and rejecting those drops the whole citation — and with it the hover card.
+  url: z.string().optional(),
   title: z.string().optional(),
   content: z.string().optional()
 })

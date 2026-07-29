@@ -5,10 +5,13 @@
  * building. Pure — no Redux, no DataApi, no v1 block shapes. Parts are the
  * single source of truth.
  */
+import type { Citation } from '@renderer/types/message'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+
+import { toExportableCitations } from './citations'
 
 function getParts(message: ExportableMessage): CherryMessagePart[] {
   return message.parts ?? []
@@ -107,4 +110,36 @@ export const getCitationContent = (message: ExportableMessage): string => {
     }
   }
   return lines.join('\n\n')
+}
+
+const formatCitationLines = (citations: Citation[]): string =>
+  citations
+    .map((citation) => {
+      const title = citation.title || citation.url || ''
+      // Knowledge-base citations have no URL — list the document title on its own
+      // rather than emitting an empty link.
+      return citation.url
+        ? `[${citation.number}] [${title}](${citation.url.slice(0, 1999)})`
+        : `[${citation.number}] ${title}`
+    })
+    .join('\n\n')
+
+/**
+ * Export / copy view of a message whose citations come from its own tool results.
+ *
+ * These carry no `providerMetadata.cherry.references`: the model writes `[cite:id]`
+ * markers straight into the text (see `./citations`). Both halves therefore have to
+ * be derived here — the text with each marker rewritten to a plain `[N]`, and the
+ * matching sources list, which {@link getCitationContent} cannot produce.
+ */
+export const getToolCitationExport = (
+  message: ExportableMessage,
+  content: string
+): { content: string; citation: string } => {
+  // Legacy reference metadata wins, mirroring MainTextBlock: those messages number
+  // their `[N]` markers from the stored references, so resolving them here would
+  // renumber the text by first appearance and drift from that sources list.
+  if (getCitationContent(message)) return { content, citation: '' }
+  const { content: exported, cited } = toExportableCitations(content, getParts(message))
+  return { content: exported, citation: formatCitationLines(cited) }
 }

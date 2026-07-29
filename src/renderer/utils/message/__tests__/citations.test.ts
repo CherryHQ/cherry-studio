@@ -1,7 +1,7 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { resolveMessageCitations, withToolCitationTags } from '../messageCitations'
+import { resolveMessageCitations, toExportableCitations, withToolCitationTags } from '../citations'
 
 const webResults = (prefix: string) => [
   { id: `${prefix}-1`, title: 'First', url: 'https://a.com/x', content: 'alpha *bold*' },
@@ -174,6 +174,53 @@ describe('resolveMessageCitations', () => {
     expect(mc.byId.get('rrr-1')).toBe(mc.byId.get('sss-1'))
   })
 
+  it('keeps same-path documents from different bases apart', () => {
+    // conceptId is a base-relative path, so two bases can each hold a `README.md`.
+    // Deduping on it alone aliased the second base's hit onto the first document.
+    const mc = resolveMessageCitations([
+      kbToolPart([
+        { id: 'kkk-1', baseId: 'base-a', conceptId: 'README.md', title: 'README', content: 'from A', score: 0.9 },
+        { id: 'kkk-2', baseId: 'base-b', conceptId: 'README.md', title: 'README', content: 'from B', score: 0.8 }
+      ])
+    ])
+    expect(mc.all).toHaveLength(2)
+    expect(mc.byId.get('kkk-1')).not.toBe(mc.byId.get('kkk-2'))
+    expect(mc.all.map((citation) => citation.content)).toEqual(['from A', 'from B'])
+  })
+
+  it('still dedupes one base’s document across a search and a read', () => {
+    const mc = resolveMessageCitations([
+      kbToolPart([
+        { id: 'kkk-1', baseId: 'base-a', conceptId: 'README.md', title: 'README', content: 'chunk', score: 0.9 }
+      ]),
+      kbReadPart(kbReadOutput('rrr-1', { baseId: 'base-a', conceptId: 'README.md' }))
+    ])
+    expect(mc.all).toHaveLength(1)
+    expect(mc.byId.get('rrr-1')).toBe(mc.byId.get('kkk-1'))
+  })
+
+  it('dedupes on conceptId alone for results persisted before baseId existed', () => {
+    const mc = resolveMessageCitations([
+      kbToolPart([
+        { id: 'kkk-1', conceptId: 'README.md', title: 'README', content: 'first', score: 0.9 },
+        { id: 'kkk-2', conceptId: 'README.md', title: 'README', content: 'second', score: 0.8 }
+      ])
+    ])
+    expect(mc.all).toHaveLength(1)
+  })
+
+  it('drops a later result whose id collides with an earlier one', () => {
+    // Citation ids carry 32 bits of per-call entropy so this effectively cannot happen;
+    // pin the resolution anyway so a collision degrades predictably (first id wins)
+    // rather than silently re-pointing an already-rendered badge.
+    const mc = resolveMessageCitations([
+      webToolPart([{ id: 'dup-1', title: 'First', url: 'https://a.com/x', content: 'alpha' }]),
+      webToolPart([{ id: 'dup-1', title: 'Second', url: 'https://b.com/y', content: 'beta' }])
+    ])
+    expect(mc.all).toHaveLength(1)
+    expect(mc.byId.get('dup-1')?.url).toBe('https://a.com/x')
+  })
+
   it('skips kb_read results persisted before citation ids existed', () => {
     const mc = resolveMessageCitations([kbReadPart(kbReadOutput(undefined))])
     expect(mc.all).toHaveLength(0)
@@ -278,5 +325,55 @@ describe('withToolCitationTags', () => {
     const { content } = withToolCitationTags('Fact. [cite:abc-1]', mc)
     expect(content).toContain('alpha bold')
     expect(content).not.toContain('alpha *bold*')
+  })
+})
+
+describe('toExportableCitations', () => {
+  it('rewrites markers to plain [N] and reports the cited sources', () => {
+    const parts = [webToolPart(webResults('abc'))]
+    const { content, cited } = toExportableCitations('First [cite:abc-1] then [cite:abc-2].', parts)
+
+    expect(content).toBe('First [1] then [2].')
+    expect(cited.map((c) => c.url)).toEqual(['https://a.com/x', 'https://b.com/y'])
+  })
+
+  it('numbers by first appearance, matching the rendered badges', () => {
+    const parts = [webToolPart(webResults('abc'))]
+    const { content, cited } = toExportableCitations('Later first [cite:abc-2] then [cite:abc-1].', parts)
+
+    expect(content).toBe('Later first [1] then [2].')
+    expect(cited.map((c) => c.url)).toEqual(['https://b.com/y', 'https://a.com/x'])
+  })
+
+  it('drops a marker whose id resolves to nothing', () => {
+    // An internal id must never reach an exported document or the clipboard.
+    const { content, cited } = toExportableCitations('Claim [cite:gone-9].', [webToolPart(webResults('abc'))])
+
+    expect(content).toBe('Claim .')
+    expect(cited).toEqual([])
+  })
+
+  it('strips markers even when the message carries no tool results', () => {
+    const { content } = toExportableCitations('Claim [cite:abc-1].', [textPart('hi')])
+    expect(content).toBe('Claim .')
+  })
+
+  it('collapses repeat markers the way the rendered badges do', () => {
+    const parts = [
+      kbToolPart([
+        { id: 'sss-1', baseId: 'b', conceptId: 'doc/one.md', title: 'One.md', content: 'first', score: 0.9 },
+        { id: 'sss-2', baseId: 'b', conceptId: 'doc/one.md', title: 'One.md', content: 'second', score: 0.8 }
+      ])
+    ]
+    const { content, cited } = toExportableCitations('KB fact. [cite:sss-1][cite:sss-2]', parts)
+
+    expect(content).toBe('KB fact. [1]')
+    expect(cited).toHaveLength(1)
+  })
+
+  it('leaves a message without markers untouched', () => {
+    const { content, cited } = toExportableCitations('Plain answer.', [webToolPart(webResults('abc'))])
+    expect(content).toBe('Plain answer.')
+    expect(cited).toEqual([])
   })
 })

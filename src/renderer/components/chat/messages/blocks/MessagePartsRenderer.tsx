@@ -20,6 +20,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
+import { type MessageCitations, resolveMessageCitations } from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
@@ -48,7 +49,6 @@ import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
-import { type MessageCitations, resolveMessageCitations } from './messageCitations'
 import {
   findOpenTextTailIndex,
   isHiddenPart,

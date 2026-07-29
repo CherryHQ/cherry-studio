@@ -181,10 +181,14 @@ export function convertReferencesToCitations(references: ContentReference[]): Ci
         ...knowledge.map((item) => {
           const number = item.id > 0 && !usedNumbers.has(item.id) ? item.id : 0
           if (number > 0) usedNumbers.add(number)
+          // v1 stored a file source as the whole markdown link `[name](http://file/x)`, so the
+          // raw value is neither a linkable URL nor a readable title. Unwrap it the way v1's own
+          // renderer did; the main process routes `http://file/` back to the stored file.
+          const fileMatch = item.sourceUrl?.match(/\[(.*?)]\(http:\/\/file\/(.*?)\)/)
           return {
             number,
-            url: item.sourceUrl || '',
-            title: item.sourceUrl || '',
+            url: fileMatch ? `http://file/${fileMatch[2]}` : item.sourceUrl || '',
+            title: fileMatch ? fileMatch[1] : item.sourceUrl || '',
             content: item.content,
             showFavicon: true,
             type: 'knowledge'
