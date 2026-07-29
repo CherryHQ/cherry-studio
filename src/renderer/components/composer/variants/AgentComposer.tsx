@@ -701,6 +701,7 @@ const AgentComposerInner = ({
     agentId: string
     value: ThinkingOption
     version: number
+    canonicalAtMutationStart?: ThinkingOption
   } | null>(null)
   const reasoningMutationVersionRef = useRef(0)
   const pendingReasoningEditRef = useRef<{
@@ -708,8 +709,25 @@ const AgentComposerInner = ({
     version: number
     effort: ThinkingOption
   } | null>(null)
-  const reasoningEffort =
-    reasoningOverride && reasoningOverride.agentId === agent?.id ? reasoningOverride.value : canonicalReasoningEffort
+  const activeReasoningOverride =
+    reasoningOverride &&
+    reasoningOverride.agentId === agent?.id &&
+    (reasoningOverride.canonicalAtMutationStart === undefined ||
+      reasoningOverride.canonicalAtMutationStart === canonicalReasoningEffort)
+      ? reasoningOverride
+      : null
+  useEffect(() => {
+    if (
+      !reasoningOverride ||
+      reasoningOverride.agentId !== agent?.id ||
+      reasoningOverride.canonicalAtMutationStart === undefined ||
+      reasoningOverride.canonicalAtMutationStart === canonicalReasoningEffort
+    ) {
+      return
+    }
+    setReasoningOverride((current) => (current === reasoningOverride ? null : current))
+  }, [agent?.id, canonicalReasoningEffort, reasoningOverride])
+  const reasoningEffort = activeReasoningOverride?.value ?? canonicalReasoningEffort
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraftRef.current?.tokens ?? []).map(getSkillFromCachedToken)
   )
@@ -972,6 +990,7 @@ const AgentComposerInner = ({
       const pendingReasoningEdit =
         pendingReasoningEditRef.current?.agentId === agent.id ? pendingReasoningEditRef.current : null
       const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
+      const previousReasoningOverride = activeReasoningOverride
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
         agentId: agent.id,
@@ -983,8 +1002,21 @@ const AgentComposerInner = ({
         { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
         { showSuccessToast: false }
       )
+      if (!updatedAgent) {
+        setReasoningOverride((current) => {
+          if (current?.agentId !== agent.id || current.version !== version) return current
+          if (!previousReasoningOverride) return null
+
+          const previousEditStillPending =
+            pendingReasoningEditRef.current?.agentId === previousReasoningOverride.agentId &&
+            pendingReasoningEditRef.current.version === previousReasoningOverride.version
+          return previousEditStillPending || previousReasoningOverride.canonicalAtMutationStart !== undefined
+            ? previousReasoningOverride
+            : { ...previousReasoningOverride, canonicalAtMutationStart: canonicalReasoningEffort }
+        })
+        return
+      }
       if (
-        updatedAgent &&
         pendingReasoningEdit &&
         pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
         pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
@@ -993,7 +1025,7 @@ const AgentComposerInner = ({
       }
       setReasoningOverride((current) => (current?.agentId === agent.id && current.version === version ? null : current))
     },
-    [agent, canChangeModel, model?.id, reasoningEffort, updateModel]
+    [activeReasoningOverride, agent, canChangeModel, canonicalReasoningEffort, model?.id, reasoningEffort, updateModel]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -1025,6 +1057,7 @@ const AgentComposerInner = ({
     (option: ThinkingOption) => {
       if (!agent) return
 
+      const canonicalAtMutationStart = canonicalReasoningEffort
       const version = ++reasoningMutationVersionRef.current
       pendingReasoningEditRef.current = { agentId: agent.id, version, effort: option }
       setReasoningOverride({
@@ -1040,19 +1073,26 @@ const AgentComposerInner = ({
         },
         { showSuccessToast: false }
       ).then((updatedAgent) => {
+        if (!updatedAgent) return
+
         if (
-          updatedAgent &&
           pendingReasoningEditRef.current?.agentId === agent.id &&
           pendingReasoningEditRef.current.version === version
         ) {
           pendingReasoningEditRef.current = null
         }
         setReasoningOverride((current) =>
-          current?.agentId === agent.id && current.version === version ? null : current
+          current?.agentId === agent.id && current.version === version
+            ? {
+                ...current,
+                value: updatedAgent.configuration?.reasoning_effort ?? 'default',
+                canonicalAtMutationStart
+              }
+            : current
         )
       })
     },
-    [agent, updateAgent]
+    [agent, canonicalReasoningEffort, updateAgent]
   )
 
   const reasoningContext = useMemo(
