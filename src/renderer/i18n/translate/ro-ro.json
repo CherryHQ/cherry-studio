@@ -441,6 +441,12 @@
       "list": {
         "title": "Sarcini"
       },
+      "model_switch_confirm": {
+        "confirm": "Schimbă modelul",
+        "description": "Modelele diferite pot înțelege și procesa contextul în mod diferit. Schimbarea poate afecta continuitatea sau calitatea răspunsurilor ulterioare. Doriți să continuați?",
+        "skip_for_app_run": "Nu mai întreba până când închid aplicația",
+        "title": "Treci la \"{{model}}\"?"
+      },
       "new": "Sarcină nouă",
       "pin": {
         "title": "Fixează sarcina"
@@ -1633,17 +1639,17 @@
       "token_details": {
         "cache_read": "Citire din cache",
         "cache_write": "Scriere în cache",
-        "cost": "[to be translated]:Cost",
-        "cost_billed": "[to be translated]:Billed by provider",
-        "cost_estimated": "[to be translated]:Estimated",
-        "end_to_end_throughput": "[to be translated]:End-to-end throughput",
+        "cost": "Cost",
+        "cost_billed": "Facturat de furnizor",
+        "cost_estimated": "Estimat",
+        "end_to_end_throughput": "Debit capăt-la-capăt",
         "input": "Intrare",
         "input_breakdown": "Descompunere intrare",
-        "lane_approval": "[to be translated]:Approval",
-        "lane_model": "[to be translated]:Model",
-        "lane_other": "[to be translated]:Other",
-        "lane_tool": "[to be translated]:Tool",
-        "model_throughput": "[to be translated]:Model generation TPS",
+        "lane_approval": "Aprobare",
+        "lane_model": "Model",
+        "lane_other": "Altele",
+        "lane_tool": "Instrument",
+        "model_throughput": "Generare model TPS",
         "output": "Ieșire",
         "reasoning": "Raționament",
         "reasoning_time": "Raționament",
@@ -1652,7 +1658,7 @@
         "text_output": "Ieșire text",
         "tokens": "{{value}} Jetoane",
         "tokens_per_second_value": "{{value}} Tokeni/s",
-        "total_duration": "[to be translated]:End-to-end duration",
+        "total_duration": "Durată de la capăt la capăt",
         "uncached": "Necached/Necacheuit",
         "usage": "Utilizare token-uri",
         "waiting_first_token": "Așteptare"
@@ -2320,7 +2326,7 @@
     "open_in": "Deschide în {{name}}",
     "open_in_new_tab": "Deschide în filă nouă",
     "open_sidebar": "Deschide bara laterală",
-    "other": "[to be translated]:Other",
+    "other": "Altele",
     "placeholders": {
       "select": {
         "model": "Selectează un model"
@@ -4323,7 +4329,7 @@
     },
     "pinned": "Fixat",
     "price": {
-      "cache_read": "[to be translated]:Cache Read Price",
+      "cache_read": "Preț Citire Cache",
       "cost": "Cost",
       "currency": "Monedă",
       "custom": "Personalizat",
@@ -5220,6 +5226,7 @@
       "label": "Ești sigur că vrei să restaurezi datele?"
     },
     "content": "Operațiunea de restaurare va suprascrie toate datele actuale ale aplicației cu datele din backup. Te rugăm să reții că procesul de restaurare poate dura ceva timp, îți mulțumim pentru răbdare.",
+    "messages_paused": "O restaurare din copie de rezervă este în desfășurare; mesajele noi sunt întrerupte până la finalizarea acesteia.",
     "progress": {
       "completed": "Restaurare finalizată",
       "copying_files": "Se copiază fișierele... {{progress}}%",
@@ -8118,104 +8125,104 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "cacheHitRate": "[to be translated]:Cache hit rate",
-        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
-        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
-        "dailyAverage": "[to be translated]:Daily average",
-        "explicitApiKey": "[to be translated]:Selected key",
-        "lastPeriod": "[to be translated]:vs last period",
-        "matchedApiKey": "[to be translated]:Matched override",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "providerAuth": "[to be translated]:Provider auth",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalRequests": "[to be translated]:Requests",
-        "totalTokens": "[to be translated]:Total tokens",
-        "unattributedApiKey": "[to be translated]:Unattributed request",
-        "unattributedSource": "[to be translated]:Unattributed source"
+        "activeDays": "Zile active",
+        "cacheHitRate": "Rată de acces cache reușit",
+        "cacheObservedTokens": "Intrare observabilă: {{tokens}}",
+        "cacheStartsWithNewRequests": "Începe cu cereri noi",
+        "dailyAverage": "Medie zilnică",
+        "explicitApiKey": "Cheie selectată",
+        "lastPeriod": "față de perioada anterioară",
+        "matchedApiKey": "Suprascriere corespunzătoare",
+        "none": "N/A",
+        "peakDay": "Zi de vârf",
+        "providerAuth": "Autentificare furnizor",
+        "streak": "Cea mai lungă serie: {{days}} zile",
+        "topModel": "Model de top",
+        "totalCost": "Cost total",
+        "totalRequests": "Cereri",
+        "totalTokens": "Tokeni totali",
+        "unattributedApiKey": "Cerere neatribuită",
+        "unattributedSource": "Sursă neatribuită"
       },
       "chart": {
-        "bar": "[to be translated]:Bar",
-        "line": "[to be translated]:Line",
-        "pie": "[to be translated]:Pie",
-        "stack": "[to be translated]:Stack"
+        "bar": "Bar",
+        "line": "Linie",
+        "pie": "Plăcintă",
+        "stack": "Stivă"
       },
-      "currency": "[to be translated]:Currency",
+      "currency": "Monedă",
       "empty": {
-        "description": "[to be translated]:Usage appears after supported AI requests create usage records.",
-        "title": "[to be translated]:No usage yet"
+        "description": "Utilizarea apare după ce cererile AI acceptate creează înregistrări de utilizare.",
+        "title": "Nicio utilizare încă"
       },
       "explore": {
-        "analysis": "[to be translated]:Analysis",
-        "chart": "[to be translated]:Chart",
-        "clearDate": "[to be translated]:Clear date filter",
-        "drilldownTitle": "[to be translated]:{{date}} drilldown",
-        "entries": "[to be translated]:Requests",
-        "groupBy": "[to be translated]:Group by",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "metric": "[to be translated]:Metric",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "rollup": "[to be translated]:Rollup",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "shareLabel": "[to be translated]:Share",
-        "title": "[to be translated]:Explore",
-        "top": "[to be translated]:Top",
-        "totalEntries_one": "[to be translated]:{{count}} entry",
-        "totalEntries_other": "[to be translated]:{{count}} entries"
+        "analysis": "Analiză",
+        "chart": "Grafic",
+        "clearDate": "Eliminați filtrul de dată",
+        "drilldownTitle": "Detaliere {{date}}",
+        "entries": "Cereri",
+        "groupBy": "Grupați după",
+        "loadMore": "Încarcă mai mult",
+        "loading": "Se încarcă...",
+        "metric": "Metrică",
+        "noBreakdown": "Date de defalcare indisponibile",
+        "noBreakdownDescription": "Încercați o fereastră mai largă sau un alt furnizor.",
+        "noEntries": "Nicio intrare",
+        "noEntriesDescription": "Încercați o fereastră mai largă sau un alt furnizor.",
+        "rollup": "Rollup",
+        "selectedDate": "Data selectată: {{date}}",
+        "shareLabel": "Distribuie",
+        "title": "Explorează",
+        "top": "Vârf",
+        "totalEntries_one": "{{count}} intrare",
+        "totalEntries_other": "{{count}} intrări"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "source": "[to be translated]:Assistant / Agent"
+        "apiKey": "Cheie API",
+        "model": "Model",
+        "provider": "Furnizor",
+        "source": "Asistent / Agent"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "Utilizare în data de {{date}}",
+        "title": "Activitate zilnică"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "requests": "[to be translated]:Requests",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "Cost",
+        "requests": "Cereri",
+        "tokens": "Token-uri"
       },
       "overview": {
-        "title": "[to be translated]:Overview"
+        "title": "Prezentare generală"
       },
       "rollup": {
-        "daily": "[to be translated]:Daily",
-        "monthly": "[to be translated]:Monthly",
-        "total": "[to be translated]:Total",
-        "weekly": "[to be translated]:Weekly"
+        "daily": "Zilnic",
+        "monthly": "Lunar",
+        "total": "Total",
+        "weekly": "Săptămânal"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "summary": "{{window}} / {{tokens}} tokenuri / {{requests}} cereri",
       "table": {
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "model": "[to be translated]:Model",
-        "source": "[to be translated]:Source",
-        "tokens": "[to be translated]:Tokens",
-        "tps": "[to be translated]:TPS",
-        "tpsValue": "[to be translated]:{{value}} tok/s",
-        "ttft": "[to be translated]:TTFT"
+        "cost": "Cost",
+        "date": "Data",
+        "model": "Model",
+        "source": "Sursă",
+        "tokens": "Token-uri",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
       },
-      "title": "[to be translated]:Usage Analytics",
+      "title": "Analiza utilizării",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests_one": "[to be translated]:{{count}} request",
-        "requests_other": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "Cost {{value}}",
+        "requests_one": "{{count}} cerere",
+        "requests_other": "{{count}} cereri",
+        "tokens": "{{value}} jetoane"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days"
+        "30d": "Ultimele 30 de zile",
+        "365d": "Anul trecut",
+        "90d": "Ultimele 90 de zile"
       }
     },
     "use_system_title_bar": {
@@ -8393,6 +8400,7 @@
         "placeholder": "Caută istoricul traducerilor"
       },
       "source": "Sursă",
+      "star": "Preferat",
       "success": {
         "add": "Salvat în istoric",
         "clear": "Istoric șters",
