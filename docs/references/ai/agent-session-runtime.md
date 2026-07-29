@@ -168,8 +168,11 @@ The driver converts Claude SDK messages into runtime events:
   `assistant` messages are a whole-snapshot usage candidate when the terminal
   delta omits usage. Gateway-owned connections do not emit this record input;
 - `system/init` -> `resume-token`;
-- `result` -> flush pending per-request usage, then `resume-token`, a cumulative
-  usage metadata `chunk` for live UI, `context-usage`, and `turn-complete`;
+- a foreground-owned `result` -> flush pending per-request usage, then `resume-token`, a cumulative
+  usage metadata `chunk` for live UI, `context-usage`, and `turn-complete`. The driver stamps each
+  foreground SDK input with its Cherry message id and human origin; results with a different input
+  UUID or a non-human origin are logged and dropped without closing the active turn. Human-origin
+  results without an input UUID remain valid for local slash commands;
 - a `PreToolUse` steer injection (armed by `redirect()`) -> `steer-boundary`
   before the post-steer assistant message; a steer the turn never injected
   -> `steer-undelivered`;

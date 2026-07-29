@@ -9,6 +9,7 @@ import {
   type SDKMessage,
   type SDKPartialAssistantMessage,
   type SDKResultMessage,
+  type SDKResultSuccess,
   type SDKStatusMessage,
   type SDKSystemMessage,
   type SDKUserMessage
@@ -87,6 +88,11 @@ type InvocationTiming = {
   ttftMs?: number
   thinkingStartedAt?: number
   thinkingDurationMs?: number
+}
+
+type ActiveForegroundTurn = {
+  userMessageUuid: string
+  sawTopLevelActivity: boolean
 }
 
 type PendingInvocationUsage = {
@@ -311,6 +317,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly abortController = new AbortController()
   private query?: Query
   private adapter?: ClaudeCodeStreamAdapter
+  private activeForegroundTurn?: ActiveForegroundTurn
   private adapterModelId?: string
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
@@ -416,18 +423,22 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
-    this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
+    // Materializing attachments performs async I/O. Do it before admitting the foreground adapter so
+    // a late result from a previous/background SDK turn cannot claim this turn during that window.
+    const sdkInput = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+      supportsImages: resolveModelImageSupport(this.input.modelId)
+    })
+    if (this.abortController.signal.aborted || !this.query) {
+      throw new Error('Claude Code runtime connection closed while preparing user input')
+    }
 
+    this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
+    this.activeForegroundTurn = { userMessageUuid: input.message.id, sawTopLevelActivity: false }
     if (this.pendingInitMessage) {
       this.adapter.handleMessage(this.pendingInitMessage)
       this.pendingInitMessage = undefined
     }
-
-    this.sdkInputQueue.push(
-      await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-        supportsImages: resolveModelImageSupport(this.input.modelId)
-      })
-    )
+    this.sdkInputQueue.push(sdkInput)
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -529,6 +540,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   close(): void {
     this.settlePendingInvocations()
+    this.clearActiveTurn()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
@@ -631,6 +643,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
         if (message.type === 'stream_event') this.captureStreamInvocation(message, 'current-turn')
         if (message.type === 'assistant') this.captureAssistantInvocation(message, 'current-turn')
+        if ((message.type === 'stream_event' || message.type === 'assistant') && message.parent_tool_use_id == null) {
+          this.activeForegroundTurn!.sawTopLevelActivity = true
+        }
+
+        if (message.type === 'result' && !this.resultBelongsToActiveTurn(message)) {
+          this.updateResumeToken(message.session_id)
+          continue
+        }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
         try {
@@ -651,7 +671,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // the chunk shape identical to `attachUsageObserver` (AI SDK runtime).
           this.emitUsageMetadata(result.message.usage)
           void this.emitContextUsage()
-          this.adapter = undefined
+          this.clearActiveTurn()
           // NOTE: do NOT dispose the approval emitter here. It is session-scoped — it lives across
           // turns on the warm connection and is torn down only on close/error (below). Disposing it
           // per turn evicted the session emitter, so the next turn's `canUseTool` resolved no emitter
@@ -676,7 +696,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           error
         })
       }
-      this.adapter = undefined
+      this.clearActiveTurn()
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.
       this.emitPendingSteersAsUndelivered()
@@ -684,9 +704,59 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
     } finally {
       this.settlePendingInvocations()
+      this.clearActiveTurn()
       this.query = undefined
       this.eventQueue.close()
     }
+  }
+
+  private clearActiveTurn(): void {
+    this.adapter = undefined
+    this.activeForegroundTurn = undefined
+  }
+
+  private resultBelongsToActiveTurn(message: SDKResultMessage): boolean {
+    const activeTurn = this.activeForegroundTurn
+    if (!activeTurn) return false
+
+    const resultOrigin = message.origin?.kind
+    const userMessageUuid = message.subtype === 'success' ? message.user_message_uuid : undefined
+    let rejection: 'non-human-origin' | 'uuid-mismatch' | 'unattributed-empty-success' | undefined
+    if (resultOrigin && resultOrigin !== 'human') {
+      rejection = 'non-human-origin'
+    } else if (userMessageUuid !== undefined && userMessageUuid !== activeTurn.userMessageUuid) {
+      rejection = 'uuid-mismatch'
+    } else if (message.subtype === 'success' && this.isDangerousUnattributedSuccess(message, activeTurn)) {
+      rejection = 'unattributed-empty-success'
+    }
+
+    if (!rejection) return true
+
+    logger.warn('Rejected Claude SDK result that does not belong to the active foreground turn', {
+      sessionId: this.input.sessionId,
+      activeUserMessageUuid: activeTurn.userMessageUuid,
+      resultUserMessageUuid: userMessageUuid,
+      resultOrigin,
+      resultSubtype: message.subtype,
+      sawTopLevelActivity: activeTurn.sawTopLevelActivity,
+      resultUuid: message.uuid,
+      hasResultOutput: message.subtype === 'success' && Boolean(message.result?.trim()),
+      hasStructuredOutput: message.subtype === 'success' && message.structured_output !== undefined,
+      totalCostUsd: message.total_cost_usd,
+      durationMs: message.duration_ms,
+      inputTokens: message.usage?.input_tokens,
+      outputTokens: message.usage?.output_tokens,
+      rejection
+    })
+    return false
+  }
+
+  private isDangerousUnattributedSuccess(message: SDKResultSuccess, activeTurn: ActiveForegroundTurn): boolean {
+    if (message.user_message_uuid !== undefined || message.origin !== undefined || activeTurn.sawTopLevelActivity)
+      return false
+    if (message.result?.trim() || message.structured_output !== undefined || (message.total_cost_usd ?? 0) !== 0)
+      return false
+    return !Object.values(message.usage ?? {}).some((value) => typeof value === 'number' && value !== 0)
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {
@@ -1034,6 +1104,8 @@ async function toSdkUserMessage(
 
   return {
     type: 'user',
+    uuid: message.id as SDKUserMessage['uuid'],
+    origin: { kind: 'human' },
     message: { role: 'user', content },
     parent_tool_use_id: null,
     session_id: resumeToken ?? ''
