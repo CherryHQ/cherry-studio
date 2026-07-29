@@ -734,6 +734,11 @@ the UI.
   window, including the Main window that hosts Data Settings), schema validation,
   `IpcError` mapping, and delegation to `BackupService`. Backup has no dedicated window.
   See [IPC Reference](../ipc/README.md).
+- **Error boundary is path-free.** What crosses to the renderer is a fixed code, a fixed
+  sentence chosen at the boundary, and whitelisted numbers/closed enums — never an
+  underlying message, an absolute path, an archive-controlled name, or a journal read
+  report. An unpredicted fault becomes a detail-free `INTERNAL`. Originals stay in the
+  main log, which is where a diagnosis happens.
 - **Path scopes** ([§4](#4-path--filesystem-policy)) gate every filesystem effect:
   `feature.*` targets only, `external.*` never mutated.
 - **Capability reset** ([§3.1](#31-sanitation--materialization-policy)) ensures a restored

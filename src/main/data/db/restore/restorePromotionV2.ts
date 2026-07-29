@@ -86,7 +86,7 @@ export async function runRestorePromotionV2(): Promise<void> {
     // which DB/resource moves landed. Quarantining and deleting staging can
     // destroy the only recovery source even when the live DB still exists, so
     // preserve every artifact and fail closed for manual/compatible recovery.
-    throw new Error(`Restore journal is unreadable — refusing to discard recovery evidence: ${read.error}`)
+    throw new Error(`Restore journal is unreadable (${read.reason}) — refusing to discard recovery evidence`)
   }
   const journal = read.journal
   switch (journal.state) {
