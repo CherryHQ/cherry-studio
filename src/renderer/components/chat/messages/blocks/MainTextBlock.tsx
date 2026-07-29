@@ -338,9 +338,9 @@ const MainTextBlock: React.FC<Props> = ({
       {mentions && mentions.length > 0 && (
         <Flex className="mb-2.5 flex-wrap gap-2">
           {mentions.map((m) => (
-            <span key={createUniqueModelId(m.provider, m.id)} className="text-primary">
-              <bdi>{'@' + m.name}</bdi>
-            </span>
+            <bdi key={createUniqueModelId(m.provider, m.id)} className="text-primary">
+              {'@' + m.name}
+            </bdi>
           ))}
         </Flex>
       )}
