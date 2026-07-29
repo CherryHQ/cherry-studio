@@ -751,6 +751,22 @@ describe('BackupV2Settings', () => {
       expect(requestMock).toHaveBeenCalledWith('backup.cancel_operation')
     })
 
+    it.each(['arm-restore', 'rollback-restore'] as const)(
+      'keeps %s non-cancellable when restoring main-owned status',
+      async (operation) => {
+        requestMock.mockImplementation(async (route: string) => {
+          if (route === 'backup.get_status') return { operation, restore: { kind: 'none' } }
+          return undefined
+        })
+
+        await renderSettings()
+
+        expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: EXPORT_BUTTON })).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'settings.general.restore.button' })).toBeDisabled()
+      }
+    )
+
     it('reports a cancelled operation with silence, not a success or a failure', async () => {
       const stalled = stall('backup.export')
       await renderSettings()

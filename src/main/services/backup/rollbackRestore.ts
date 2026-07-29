@@ -21,7 +21,7 @@ const logger = loggerService.withContext('backupRollbackRestore')
  * rollback intent behind after telling the user the request failed would make an
  * unrelated later restart discard the restored state without fresh consent.
  */
-export async function armRestoreRollback(setShutdownOwned: (owned: boolean) => void = () => {}): Promise<void> {
+export async function armRestoreRollback(): Promise<void> {
   const hold = await acquireProfileQuiescence({ reason: 'backup restore: arm rollback' })
   let releaseHold = true
   try {
@@ -84,19 +84,15 @@ export async function armRestoreRollback(setShutdownOwned: (owned: boolean) => v
         committed.journal.state === 'rollback-armed'
       ) {
         releaseHold = false
-        setShutdownOwned(true)
         await exitForRestoreJournalRecovery(error)
       }
       throw error
     }
 
     releaseHold = false
-    setShutdownOwned(true)
-    logger.info('Restore rollback armed; requesting lifecycle shutdown and relaunch', {
-      restoreId: journal.restoreId
-    })
+    logger.info('Restore rollback armed; requesting relaunch', { restoreId: journal.restoreId })
     try {
-      await application.relaunchAfterShutdown()
+      application.relaunch()
     } catch (error) {
       try {
         writeRestoreJournalV2(journal)
@@ -104,7 +100,6 @@ export async function armRestoreRollback(setShutdownOwned: (owned: boolean) => v
         await exitForRestoreJournalRecovery(rollbackError)
       }
       releaseHold = true
-      setShutdownOwned(false)
       logger.error('Rollback relaunch failed; the completed restore was left unchanged', error as Error)
       throw new RestoreStateError('relaunch-failed', 'failed to relaunch for restore rollback')
     }
