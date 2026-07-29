@@ -15,9 +15,12 @@ import {
 
 const logger = loggerService.withContext('paintings/PaintingSkeletonSurface')
 
-const CELL_SIZE = 14
-const CELL_GAP = 14
-const CELL_PITCH = CELL_SIZE + CELL_GAP
+const DEFAULT_CELL_SIZE = 14
+const DEFAULT_CELL_GAP = 14
+const COMPACT_CELL_SIZE = 6
+const COMPACT_CELL_GAP = 6
+const COMPACT_SURFACE_MAX_SIZE = 64
+const MAX_GRID_CELLS = 256
 const CELL_RADIUS = 3
 const BLINK_DURATION_MS = 2000
 const CELL_FILL_DURATION = 0.5
@@ -26,7 +29,14 @@ const CELL_FADE_DELAY_MAX_MS = 300
 const IMAGE_REVEAL_DURATION = 0.9
 
 type Grid = {
+  cellGap: number
+  cellSize: number
   cols: number
+  layoutKey: string
+  offsetX: number
+  offsetY: number
+  pitch: number
+  radius: number
   rows: number
 }
 
@@ -49,7 +59,39 @@ function cellNoise(index: number, salt: number): number {
   return value - Math.floor(value)
 }
 
-async function downsampleCellColors(src: string, grid: Grid): Promise<string[] | null> {
+function createGrid(width: number, height: number): Grid {
+  const compact = Math.min(width, height) <= COMPACT_SURFACE_MAX_SIZE
+  const cellSize = compact ? COMPACT_CELL_SIZE : DEFAULT_CELL_SIZE
+  const baseGap = compact ? COMPACT_CELL_GAP : DEFAULT_CELL_GAP
+  let pitch = cellSize + baseGap
+  let cols = Math.max(1, Math.ceil(width / pitch))
+  let rows = Math.max(1, Math.ceil(height / pitch))
+
+  while (cols * rows > MAX_GRID_CELLS) {
+    pitch += 1
+    cols = Math.max(1, Math.ceil(width / pitch))
+    rows = Math.max(1, Math.ceil(height / pitch))
+  }
+
+  const cellGap = pitch - cellSize
+  const offsetX = (width - ((cols - 1) * pitch + cellSize)) / 2
+  const offsetY = (height - ((rows - 1) * pitch + cellSize)) / 2
+  const radius = compact ? 2 : CELL_RADIUS
+
+  return {
+    cellGap,
+    cellSize,
+    cols,
+    layoutKey: `${cols}x${rows}:${cellSize}:${pitch}:${offsetX}:${offsetY}`,
+    offsetX,
+    offsetY,
+    pitch,
+    radius,
+    rows
+  }
+}
+
+async function downsampleCellColors(src: string, grid: Pick<Grid, 'cols' | 'rows'>): Promise<string[] | null> {
   let bitmap: ImageBitmap | null = null
   try {
     const blob = await getImageBlobFromSource(src)
@@ -82,19 +124,20 @@ const Cell: FC<{
   cell: GridCell
   color?: string
   fading: boolean
+  grid: Grid
   ready: boolean
   reduceMotion: boolean
-}> = memo(({ cell, color, fading, ready, reduceMotion }) => {
+}> = memo(({ cell, color, fading, grid, ready, reduceMotion }) => {
   const style: CSSProperties = ready
     ? {
         animationName: 'none',
         backgroundColor: color ?? 'var(--muted-foreground)',
-        borderRadius: CELL_RADIUS,
-        height: CELL_PITCH,
-        left: cell.x - CELL_GAP / 2,
+        borderRadius: grid.radius,
+        height: grid.pitch,
+        left: cell.x - grid.cellGap / 2,
         opacity: fading ? 0 : 1,
         position: 'absolute',
-        top: cell.y - CELL_GAP / 2,
+        top: cell.y - grid.cellGap / 2,
         transition: fading
           ? `opacity ${CELL_FADE_DURATION_MS}ms ease`
           : [
@@ -106,7 +149,7 @@ const Cell: FC<{
               `width ${CELL_FILL_DURATION}s ease`
             ].join(', '),
         transitionDelay: fading ? `${cell.fadeDelayMs}ms` : '0ms',
-        width: CELL_PITCH
+        width: grid.pitch
       }
     : {
         animationDelay: `${cell.blinkDelayMs}ms`,
@@ -117,13 +160,13 @@ const Cell: FC<{
         animationName: reduceMotion ? 'none' : 'painting-skeleton-cell-blink',
         animationTimingFunction: 'ease-in-out',
         backgroundColor: 'var(--muted-foreground)',
-        borderRadius: CELL_RADIUS,
-        height: CELL_SIZE,
+        borderRadius: grid.radius,
+        height: grid.cellSize,
         left: cell.x,
         opacity: reduceMotion ? 0.24 : cell.initialOpacity,
         position: 'absolute',
         top: cell.y,
-        width: CELL_SIZE
+        width: grid.cellSize
       }
 
   return (
@@ -154,11 +197,8 @@ const PaintingSkeletonSurface: FC<{ imageUrl?: string; onRevealReady?: () => voi
       const { height, width } = root.getBoundingClientRect()
       if (height <= 0 || width <= 0) return
 
-      const next = {
-        cols: Math.ceil(width / CELL_PITCH) + 2,
-        rows: Math.ceil(height / CELL_PITCH) + 2
-      }
-      setGrid((current) => (current?.cols === next.cols && current.rows === next.rows ? current : next))
+      const next = createGrid(width, height)
+      setGrid((current) => (current?.layoutKey === next.layoutKey ? current : next))
     }
 
     measure()
@@ -178,21 +218,23 @@ const PaintingSkeletonSurface: FC<{ imageUrl?: string; onRevealReady?: () => voi
         fadeDelayMs: Math.round(cellNoise(index, 2) * CELL_FADE_DELAY_MAX_MS),
         id: `${row}-${column}`,
         initialOpacity: 0.16 + cellNoise(index, 3) * 0.36,
-        x: (column - 1) * CELL_PITCH,
-        y: (row - 1) * CELL_PITCH
+        x: grid.offsetX + column * grid.pitch,
+        y: grid.offsetY + row * grid.pitch
       }
     })
   }, [grid])
 
-  const sampleKey = imageUrl && grid ? `${imageUrl}\u0000${grid.cols}x${grid.rows}` : null
+  const sampleCols = grid?.cols
+  const sampleRows = grid?.rows
+  const sampleKey = imageUrl && sampleCols && sampleRows ? `${imageUrl}\u0000${sampleCols}x${sampleRows}` : null
   const colorsReady = Boolean(sampleKey && sampledColors?.key === sampleKey)
   const fading = Boolean(sampleKey && fadingKey === sampleKey)
 
   useEffect(() => {
-    if (!imageUrl || !grid || !sampleKey || reduceMotion) return
+    if (!imageUrl || !sampleCols || !sampleRows || !sampleKey || reduceMotion) return
 
     let active = true
-    void downsampleCellColors(imageUrl, grid).then((colors) => {
+    void downsampleCellColors(imageUrl, { cols: sampleCols, rows: sampleRows }).then((colors) => {
       if (active) {
         setSampledColors({ colors: colors ?? [], key: sampleKey })
       }
@@ -200,7 +242,7 @@ const PaintingSkeletonSurface: FC<{ imageUrl?: string; onRevealReady?: () => voi
     return () => {
       active = false
     }
-  }, [grid, imageUrl, reduceMotion, sampleKey])
+  }, [imageUrl, reduceMotion, sampleCols, sampleKey, sampleRows])
 
   useEffect(() => {
     if (!colorsReady || !sampleKey || reduceMotion) return
@@ -249,6 +291,7 @@ const PaintingSkeletonSurface: FC<{ imageUrl?: string; onRevealReady?: () => voi
               cell={cell}
               color={colorsReady ? sampledColors?.colors[index] : undefined}
               fading={fading}
+              grid={grid}
               ready={colorsReady}
               reduceMotion={reduceMotion}
             />

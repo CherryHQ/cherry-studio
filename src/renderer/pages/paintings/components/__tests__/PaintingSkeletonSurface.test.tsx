@@ -121,7 +121,7 @@ describe('PaintingSkeletonSurface', () => {
     const cells = grid.querySelectorAll<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')
 
     expect(surface).toHaveClass('bg-background')
-    expect(cells).toHaveLength(12 * 12)
+    expect(cells).toHaveLength(10 * 10)
     expect(cells[0].dataset.phase).toBe('loading')
     expect(cells[0].style.width).toBe('14px')
     expect(cells[0].style.height).toBe('14px')
@@ -133,19 +133,61 @@ describe('PaintingSkeletonSurface', () => {
     expect(getSlot(container, 'painting-skeleton-reveal')).toBeNull()
   })
 
-  it('remeasures the dense grid without inflating the cell size', () => {
+  it('uses a centered compact grid inside a history thumbnail', () => {
+    size = { width: 44, height: 44 }
+    const { container } = render(<PaintingSkeletonSurface />)
+    const grid = getSlot(container, 'painting-skeleton-grid')!
+    const cells = grid.querySelectorAll<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')
+
+    expect(cells).toHaveLength(4 * 4)
+    expect(cells[0].style.width).toBe('6px')
+    expect(cells[0].style.height).toBe('6px')
+    expect(cells[0].style.left).toBe('1px')
+    expect(cells[0].style.top).toBe('1px')
+    expect(cells[15].style.left).toBe('37px')
+    expect(cells[15].style.top).toBe('37px')
+  })
+
+  it('remeasures the grid when its surface size changes', () => {
     const { container } = render(<PaintingSkeletonSurface />)
     const initialGrid = getSlot(container, 'painting-skeleton-grid')!
     const initialCell = initialGrid.querySelector('[data-slot="painting-skeleton-grid-cell"]')
 
-    size = { width: 56, height: 56 }
+    size = { width: 44, height: 44 }
     act(() => resizeCallback?.([], {} as ResizeObserver))
 
     const resizedGrid = getSlot(container, 'painting-skeleton-grid')!
     const resizedCells = resizedGrid.querySelectorAll<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')
     expect(resizedCells).toHaveLength(4 * 4)
     expect(resizedCells[0]).not.toBe(initialCell)
-    expect(resizedCells[0].style.width).toBe('14px')
+    expect(resizedCells[0].style.width).toBe('6px')
+  })
+
+  it('recenters the same grid topology without remounting cells or resampling the image', async () => {
+    const { container } = render(<PaintingSkeletonSurface imageUrl="file:///tmp/real.png" />)
+
+    await waitFor(() => expect(getSlot(container, 'painting-skeleton-reveal')).not.toBeNull())
+    const initialCell = container.querySelector<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')!
+    expect(initialCell.style.left).toBe('0px')
+    expect(mockGetImageBlobFromSource).toHaveBeenCalledOnce()
+
+    size = { width: 278, height: 278 }
+    act(() => resizeCallback?.([], {} as ResizeObserver))
+
+    const recenteredCell = container.querySelector<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')!
+    expect(recenteredCell).toBe(initialCell)
+    expect(recenteredCell.style.left).toBe('-1px')
+    expect(mockGetImageBlobFromSource).toHaveBeenCalledOnce()
+  })
+
+  it('caps very large surfaces at 256 cells without enlarging the waiting dots', () => {
+    size = { width: 2000, height: 2000 }
+    const { container } = render(<PaintingSkeletonSurface />)
+    const cells = container.querySelectorAll<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')
+
+    expect(cells).toHaveLength(256)
+    expect(cells[0].style.width).toBe('14px')
+    expect(cells[0].style.height).toBe('14px')
   })
 
   it('samples image colors, fills the grid gaps, and gradually fades in the image', async () => {
@@ -159,8 +201,8 @@ describe('PaintingSkeletonSurface', () => {
     const firstCell = container.querySelector<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')!
     const reveal = getSlot(container, 'painting-skeleton-reveal')!
 
-    expect(drawImageMock).toHaveBeenCalledWith(expect.anything(), 0, 0, 12, 12)
-    expect(getImageDataMock).toHaveBeenCalledWith(0, 0, 12, 12)
+    expect(drawImageMock).toHaveBeenCalledWith(expect.anything(), 0, 0, 10, 10)
+    expect(getImageDataMock).toHaveBeenCalledWith(0, 0, 10, 10)
     expect(firstCell.style.backgroundColor).toBe('rgb(10, 20, 30)')
     expect(firstCell.style.width).toBe('28px')
     expect(firstCell.style.height).toBe('28px')
