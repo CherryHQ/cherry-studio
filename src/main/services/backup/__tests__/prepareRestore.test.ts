@@ -509,10 +509,10 @@ describe('restore preparation', () => {
     it.each([
       [
         'armed',
-        () => {
+        async () => {
           const read = readRestoreJournalV2()
           if (read.kind !== 'ok') throw new Error('expected a journal')
-          armPreparedRestore(read.journal.restoreId)
+          await armPreparedRestore(read.journal.restoreId)
         }
       ],
       [
@@ -525,7 +525,7 @@ describe('restore preparation', () => {
       ]
     ])('refuses to prepare over a %s restore', async (_label, advance) => {
       await prepareRestore({ archivePath })
-      advance()
+      await advance()
 
       // A confirmed or finished restore owns the rollback material; a silent
       // overwrite would leave the previous database unreferenced on disk.
@@ -554,7 +554,7 @@ describe('restore preparation', () => {
 
     it('refuses to cancel a restore the user already confirmed', async () => {
       const preview = await prepareRestore({ archivePath })
-      armPreparedRestore(preview.restoreId)
+      await armPreparedRestore(preview.restoreId)
 
       expect(() => cancelPreparedRestore()).toThrow(/only a prepared restore/i)
       expect(readRestoreJournalV2().kind).toBe('ok')
@@ -574,12 +574,12 @@ describe('restore preparation', () => {
     it('writes armed durably before relaunch is initiated', async () => {
       const preview = await prepareFullForArm()
       let stateAtRelaunch: string | undefined
-      vi.mocked(application.relaunch).mockImplementation(() => {
+      vi.mocked(application.relaunchAfterShutdown).mockImplementation(async () => {
         const read = readRestoreJournalV2()
         stateAtRelaunch = read.kind === 'ok' ? read.journal.state : read.kind
       })
 
-      armPreparedRestore(preview.restoreId)
+      await armPreparedRestore(preview.restoreId)
 
       // The marker is what the preboot gate acts on; a relaunch that outran it
       // would boot into an unarmed preparation and expire it.
@@ -595,7 +595,7 @@ describe('restore preparation', () => {
       expect(knowledge.hadLive).toBe(true)
       rmSync(join(userData, ...knowledge.live.split('/')), { recursive: true })
 
-      armPreparedRestore(preview.restoreId)
+      await armPreparedRestore(preview.restoreId)
 
       const armed = readRestoreJournalV2()
       expect(armed).toMatchObject({ kind: 'ok', journal: { state: 'armed' } })
@@ -618,7 +618,7 @@ describe('restore preparation', () => {
       )
       mkdirSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1'), { recursive: true })
 
-      armPreparedRestore(preview.restoreId)
+      await armPreparedRestore(preview.restoreId)
 
       prepared = readRestoreJournalV2()
       if (prepared.kind !== 'ok') throw new Error('expected armed restore')
@@ -634,9 +634,9 @@ describe('restore preparation', () => {
       const unit = prepared.journal.resourceInstalls[prepared.journal.resourceInstalls.length - 1]
       rmSync(join(userData, ...unit.staging.split('/')), { recursive: true })
 
-      expect(() => armPreparedRestore(preview.restoreId)).toThrow(/staged-missing/)
+      await expect(armPreparedRestore(preview.restoreId)).rejects.toThrow(/staged-missing/)
       expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
-      expect(application.relaunch).not.toHaveBeenCalled()
+      expect(application.relaunchAfterShutdown).not.toHaveBeenCalled()
     })
 
     it('refuses arm when a live target became a symlink', async () => {
@@ -649,9 +649,9 @@ describe('restore preparation', () => {
       mkdirSync(join(userData, 'outside'), { recursive: true })
       symlinkSync(join(userData, 'outside'), join(userData, ...unit.live.split('/')))
 
-      expect(() => armPreparedRestore(preview.restoreId)).toThrow(/target-not-installable/)
+      await expect(armPreparedRestore(preview.restoreId)).rejects.toThrow(/target-not-installable/)
       expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
-      expect(application.relaunch).not.toHaveBeenCalled()
+      expect(application.relaunchAfterShutdown).not.toHaveBeenCalled()
     })
 
     it('refuses arm when an aside slot is already occupied', async () => {
@@ -661,18 +661,18 @@ describe('restore preparation', () => {
       const unit = prepared.journal.resourceInstalls[prepared.journal.resourceInstalls.length - 1]
       mkdirSync(join(userData, ...unit.aside.split('/')), { recursive: true })
 
-      expect(() => armPreparedRestore(preview.restoreId)).toThrow(/aside-occupied/)
+      await expect(armPreparedRestore(preview.restoreId)).rejects.toThrow(/aside-occupied/)
       expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
-      expect(application.relaunch).not.toHaveBeenCalled()
+      expect(application.relaunchAfterShutdown).not.toHaveBeenCalled()
     })
 
     it('rolls the arm back to prepared when relaunch initiation fails', async () => {
       const preview = await prepareRestore({ archivePath })
-      vi.mocked(application.relaunch).mockImplementation(() => {
+      vi.mocked(application.relaunchAfterShutdown).mockImplementation(async () => {
         throw new Error('relaunch refused')
       })
 
-      expect(() => armPreparedRestore(preview.restoreId)).toThrow(/relaunch refused/)
+      await expect(armPreparedRestore(preview.restoreId)).rejects.toThrow(/relaunch refused/)
 
       const read = readRestoreJournalV2()
       expect(read.kind).toBe('ok')
@@ -682,23 +682,23 @@ describe('restore preparation', () => {
       expect(read.journal.state).toBe('prepared')
     })
 
-    it('refuses to arm when nothing is prepared', () => {
+    it('refuses to arm when nothing is prepared', async () => {
       cancelPreparedRestore()
 
-      expect(() => armPreparedRestore('missing')).toThrow(/no prepared restore/i)
+      await expect(armPreparedRestore('missing')).rejects.toThrow(/no prepared restore/i)
     })
 
     it('refuses a stale preview after another preparation replaced it', async () => {
       const stale = await prepareRestore({ archivePath })
       const current = await prepareRestore({ archivePath })
 
-      expect(() => armPreparedRestore(stale.restoreId)).toThrow(/no longer matches/)
+      await expect(armPreparedRestore(stale.restoreId)).rejects.toThrow(/no longer matches/)
 
       const read = readRestoreJournalV2()
       expect(read.kind).toBe('ok')
       if (read.kind !== 'ok') return
       expect(read.journal).toMatchObject({ state: 'prepared', restoreId: current.restoreId })
-      expect(application.relaunch).not.toHaveBeenCalled()
+      expect(application.relaunchAfterShutdown).not.toHaveBeenCalled()
     })
   })
 })
