@@ -17,6 +17,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { findCrossDeviceEndpoint, findUnsafeAncestor } from '@data/db/restore/pathSafety'
 import type { SealedResourceInstallEntry } from '@data/db/restore/restoreJournalV2'
 
 import type { AdmittedResource } from '../admission/verify'
@@ -60,38 +61,6 @@ function lstatTargetState(absolute: string): TargetState {
 }
 
 /**
- * Every EXISTING ancestor between userData and the target must be a real
- * directory. A symlinked ancestor would make the install land wherever it points
- * — outside every registered root and possibly outside the app entirely — while
- * still looking contained to a string check.
- */
-function ancestorsSafe(userDataPath: string, livePath: string): boolean {
-  const segments = livePath.split('/')
-  segments.pop()
-  let current = userDataPath
-  for (const segment of segments) {
-    current = path.join(current, segment)
-    const state = lstatTargetState(current)
-    if (state === 'absent') return true // nothing below it exists either
-    if (state !== 'directory') return false
-  }
-  return true
-}
-
-/** The closest existing directory on the way to the target; where a rename would actually land. */
-function nearestExistingAncestor(userDataPath: string, livePath: string): string {
-  const segments = livePath.split('/')
-  segments.pop()
-  let current = userDataPath
-  for (const segment of segments) {
-    const next = path.join(current, segment)
-    if (!fs.existsSync(next)) return current
-    current = next
-  }
-  return current
-}
-
-/**
  * Containment in a registered `feature.*` root — the trust boundary for anything
  * this code may replace (§4). The root ITSELF is allowed because one unit (the
  * managed Notes tree) is the root, but nothing above a root ever is.
@@ -109,25 +78,42 @@ function containedInKindRoot(roots: ResourceRoots, kind: string, absolute: strin
  * a parked node was.
  */
 function asideRelPath(restoreId: string, index: number, livePath: string): string {
-  return `restore-aside/${restoreId}/${index}-${livePath.split('/').pop()}`
+  return `${resourceAsideRoot(restoreId)}/${index}-${livePath.split('/').pop()}`
+}
+
+/**
+ * The one tree this restore's resource park slots live in. Exported because
+ * acknowledgement releases those slots and must prove each one belongs to the
+ * restore it is ending, rather than trusting the journal's own strings.
+ */
+export function resourceAsideRoot(restoreId: string): string {
+  return `restore-aside/${restoreId}`
 }
 
 export function planResourceInstalls(input: PlanInstallsInput): ResourceInstallPlan {
   const { resources, userDataPath, roots, restoreId, stagingRelDir, platform } = input
 
-  // The rename destination for the parked target and for the payload are both
-  // under userData, so one device comparison covers install AND park.
-  const userDataDevice = fs.statSync(userDataPath).dev
+  // Every slot preboot will rename between, planned once and then proven — and
+  // written into the journal — as one unit. Proving only the live target would
+  // leave the two ends the pass moves FROM and TO unexamined: a staging tree or
+  // an aside root on another filesystem fails with `EXDEV` mid-pass, after the
+  // previous unit has already moved.
+  const slots = resources.map((resource, index) => ({
+    staging: `${stagingRelDir}/${resource.livePath}`,
+    live: resource.livePath,
+    aside: asideRelPath(restoreId, index, resource.livePath)
+  }))
 
-  const candidates: ResourcePathCandidate[] = resources.map((resource) => {
+  const candidates: ResourcePathCandidate[] = resources.map((resource, index) => {
     const absolute = path.resolve(userDataPath, ...resource.livePath.split('/'))
+    const unit = [slots[index].staging, slots[index].live, slots[index].aside]
     return {
       livePath: resource.livePath,
       resourceType: resource.resourceType,
       targetState: lstatTargetState(absolute),
-      ancestorsSafe: ancestorsSafe(userDataPath, resource.livePath),
+      ancestorsSafe: unit.every((relative) => findUnsafeAncestor(userDataPath, relative) === null),
       containedInRegisteredRoot: containedInKindRoot(roots, resource.kind, absolute, platform),
-      sameFilesystemAsRoot: fs.statSync(nearestExistingAncestor(userDataPath, resource.livePath)).dev === userDataDevice
+      sameFilesystemAsRoot: findCrossDeviceEndpoint(userDataPath, unit) === null
     }
   })
 
@@ -142,9 +128,7 @@ export function planResourceInstalls(input: PlanInstallsInput): ResourceInstallP
 
   const entries: SealedResourceInstallEntry[] = resources.map((resource, index) => ({
     resourceType: resource.resourceType,
-    staging: `${stagingRelDir}/${resource.livePath}`,
-    live: resource.livePath,
-    aside: asideRelPath(restoreId, index, resource.livePath),
+    ...slots[index],
     // Same index as its candidate by construction (one map over `resources`),
     // and the validator above already refused every state but these two — so
     // this is the target's proven state, not an inference from it.

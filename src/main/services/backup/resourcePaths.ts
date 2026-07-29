@@ -49,11 +49,11 @@ export interface ResourcePathCandidate {
   readonly resourceType: 'file' | 'directory'
   /** Trusted `lstat` of the existing live path (the node to be replaced/created). */
   readonly targetState: TargetState
-  /** Trusted: every EXISTING ancestor directory of the live path is a real directory (no symlink/special). */
+  /** Trusted: every EXISTING ancestor directory of every rename slot (staging, live, aside) is a real directory (no symlink/special). */
   readonly ancestorsSafe: boolean
   /** Trusted: the resolved live path is contained in an allowed registered root. */
   readonly containedInRegisteredRoot: boolean
-  /** Trusted: staged source and live target are on the same filesystem (rename-eligible). */
+  /** Trusted: every rename slot (staging, live, aside) is on userData's filesystem (rename-eligible). */
   readonly sameFilesystemAsRoot: boolean
 }
 

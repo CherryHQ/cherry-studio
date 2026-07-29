@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 
+import { findCrossDeviceEndpoint, findUnsafeAncestor } from './pathSafety'
 import type { ResourceInstallEntry } from './restoreJournalV2'
 import { decideRecoveryAction, type RecoveryPhase } from './restoreRecovery'
 
@@ -129,21 +130,28 @@ function assertRecoverySource(resourceType: ResourceUnit['resourceType'], source
 }
 
 /**
- * Every EXISTING ancestor of the target, below userData, must still be a real
- * directory. A symlinked ancestor would silently redirect the install outside
- * every registered root while the relative path still looked contained.
+ * Prove — for EVERY unit, before the first one moves — that each of the three
+ * slots a pass may rename between is still somewhere this operation may act:
+ * no ancestor below userData has become a symlink or a non-directory, and every
+ * slot's rename lands on userData's own filesystem.
+ *
+ * Both proofs cover all three slots together and run as one pre-pass, because
+ * the frozen contract's promise is to fail BEFORE any mutation. Checking a unit
+ * as it is reached would discover a bind-mounted staging tree only after the
+ * previous unit's target had already been parked aside — recoverable, but a
+ * mutation the contract says never happens.
  */
-function assertAncestorsSafe(userData: string, relativePath: string): void {
-  const segments = relativePath.split('/')
-  segments.pop()
-  let current = userData
-  for (const segment of segments) {
-    current = path.join(current, segment)
-    const stats = lstatOrNull(current)
-    if (stats === null) return
-    if (!stats.isDirectory() || stats.isSymbolicLink()) {
-      throw new ResourceInstallError('unsafe-ancestor', `${relativePath} passes through ${segment}`)
+function assertRenameSlotsSafe(entries: readonly ResourceInstallEntry[], userData: string): void {
+  const slots = entries.flatMap((entry) => [entry.staging, entry.live, entry.aside])
+  for (const relativePath of slots) {
+    const unsafe = findUnsafeAncestor(userData, relativePath)
+    if (unsafe !== null) {
+      throw new ResourceInstallError('unsafe-ancestor', `${relativePath} passes through ${unsafe}`)
     }
+  }
+  const crossed = findCrossDeviceEndpoint(userData, slots)
+  if (crossed !== null) {
+    throw new ResourceInstallError('cross-filesystem', `${crossed} is not on the userData filesystem`)
   }
 }
 
@@ -226,6 +234,7 @@ class DirBatch {
  */
 export function installResourceUnits(entries: readonly ResourceInstallEntry[], userData: string): void {
   if (entries.length === 0) return
+  assertRenameSlotsSafe(entries, userData)
   const batch = new DirBatch()
 
   for (const entry of entries) {
@@ -239,9 +248,6 @@ export function installResourceUnits(entries: readonly ResourceInstallEntry[], u
       throw new ResourceInstallError('staged-missing', unit.liveRel)
     }
 
-    assertAncestorsSafe(userData, entry.staging)
-    assertAncestorsSafe(userData, entry.live)
-    assertAncestorsSafe(userData, entry.aside)
     assertRecoverySource(unit.resourceType, unit.staged, `${unit.liveRel} staging`)
     assertTargetInstallable(unit)
 
@@ -274,16 +280,14 @@ export function recoverResourceUnits(
   phase: RecoveryPhase
 ): void {
   if (entries.length === 0) return
+  // Explicit rollback can run long after installation, so re-prove every rename
+  // slot. A newly symlinked ancestor must not redirect recovery outside userData
+  // while the journal's relative paths still look contained.
+  assertRenameSlotsSafe(entries, userData)
   const batch = new DirBatch()
 
   for (const entry of entries) {
     const unit = resolveUnit(userData, entry)
-    // Explicit rollback can run long after installation, so re-prove every
-    // rename parent. A newly symlinked ancestor must not redirect recovery
-    // outside userData while the journal's relative paths still look contained.
-    assertAncestorsSafe(userData, entry.staging)
-    assertAncestorsSafe(userData, entry.live)
-    assertAncestorsSafe(userData, entry.aside)
     const facts = probe(unit)
     const action = decideRecoveryAction({ phase, ...facts })
 

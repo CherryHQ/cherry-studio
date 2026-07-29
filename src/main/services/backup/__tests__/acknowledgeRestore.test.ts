@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -24,6 +24,7 @@ vi.mock('@application', () => ({
     getPath: vi.fn((key: string) => {
       const bases: Record<string, string> = {
         'app.userdata': userData,
+        'app.database.file': join(userData, 'cherrystudio.sqlite'),
         'feature.backup.restore.file': join(userData, 'restore-journal.json'),
         'feature.backup.restore.staging': join(userData, 'restore-staging')
       }
@@ -111,8 +112,8 @@ describe('acknowledgeRestore', () => {
   })
 
   it('removes resource asides and the forensic park alongside the database aside', () => {
-    mkdirSync(join(userData, 'restore-aside'), { recursive: true })
-    writeFileSync(join(userData, 'restore-aside', 'blob-1'), 'OLD-BLOB')
+    mkdirSync(join(userData, 'restore-aside', RID), { recursive: true })
+    writeFileSync(join(userData, 'restore-aside', RID, 'blob-1'), 'OLD-BLOB')
     writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
     // Left by a post-commit revert; nothing else knows this restoreId.
     writeFileSync(join(userData, `restore-failed-${RID}.sqlite`), 'REJECTED-DB')
@@ -124,7 +125,7 @@ describe('acknowledgeRestore', () => {
             resourceType: 'file',
             staging: `restore-staging/${RID}/files/blob-1`,
             live: 'Data/Files/blob-1',
-            aside: 'restore-aside/blob-1'
+            aside: `restore-aside/${RID}/blob-1`
           }
         ]
       })
@@ -133,7 +134,7 @@ describe('acknowledgeRestore', () => {
     const result = acknowledgeRestore()
 
     expect(result.removed).toBe(3)
-    expect(existsSync(join(userData, 'restore-aside', 'blob-1'))).toBe(false)
+    expect(existsSync(join(userData, 'restore-aside', RID, 'blob-1'))).toBe(false)
     expect(existsSync(join(userData, `restore-failed-${RID}.sqlite`))).toBe(false)
   })
 
@@ -182,8 +183,8 @@ describe('acknowledgeRestore', () => {
 
   it('refuses to release asides a rollback could not put back yet', () => {
     writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
-    mkdirSync(join(userData, 'restore-aside'), { recursive: true })
-    writeFileSync(join(userData, 'restore-aside', 'blob-1'), 'ORIGINAL-BLOB')
+    mkdirSync(join(userData, 'restore-aside', RID), { recursive: true })
+    writeFileSync(join(userData, 'restore-aside', RID, 'blob-1'), 'ORIGINAL-BLOB')
     writeRestoreJournalV2(
       journal({
         state: 'failed',
@@ -196,7 +197,7 @@ describe('acknowledgeRestore', () => {
             resourceType: 'file',
             staging: `restore-staging/${RID}/files/blob-1`,
             live: 'Data/Files/blob-1',
-            aside: 'restore-aside/blob-1'
+            aside: `restore-aside/${RID}/blob-1`
           }
         ]
       })
@@ -207,14 +208,14 @@ describe('acknowledgeRestore', () => {
     // and clears the marker.
     expect(() => acknowledgeRestore()).toThrow(/could not put every file back/)
     expect(existsSync(join(userData, asideRel))).toBe(true)
-    expect(existsSync(join(userData, 'restore-aside', 'blob-1'))).toBe(true)
+    expect(existsSync(join(userData, 'restore-aside', RID, 'blob-1'))).toBe(true)
     expect(hasPendingRestore()).toBe(true)
   })
 
   it('refuses to release a unit a completed restore has not put in place yet', () => {
     writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
-    mkdirSync(join(userData, 'restore-aside'), { recursive: true })
-    writeFileSync(join(userData, 'restore-aside', 'blob-1'), 'ORIGINAL-BLOB')
+    mkdirSync(join(userData, 'restore-aside', RID), { recursive: true })
+    writeFileSync(join(userData, 'restore-aside', RID, 'blob-1'), 'ORIGINAL-BLOB')
     mkdirSync(join(userData, 'restore-staging', RID, 'files'), {
       recursive: true
     })
@@ -228,7 +229,7 @@ describe('acknowledgeRestore', () => {
             resourceType: 'file',
             staging: `restore-staging/${RID}/files/blob-1`,
             live: 'Data/Files/blob-1',
-            aside: 'restore-aside/blob-1'
+            aside: `restore-aside/${RID}/blob-1`
           }
         ]
       })
@@ -238,7 +239,7 @@ describe('acknowledgeRestore', () => {
     // its aside — the two things acknowledgement deletes. Releasing them would
     // leave the user with neither copy.
     expect(() => acknowledgeRestore()).toThrow(/could not put every file in place/)
-    expect(existsSync(join(userData, 'restore-aside', 'blob-1'))).toBe(true)
+    expect(existsSync(join(userData, 'restore-aside', RID, 'blob-1'))).toBe(true)
     expect(existsSync(join(userData, 'restore-staging', RID, 'files', 'blob-1'))).toBe(true)
     expect(hasPendingRestore()).toBe(true)
   })
@@ -272,6 +273,95 @@ describe('acknowledgeRestore', () => {
     })
     expect(acknowledgeRestore().acknowledged).toBe(true)
     expect(existsSync(join(userData, asideRel))).toBe(false)
+  })
+
+  /**
+   * Acknowledgement is a recursive delete driven by a file that outlives the app
+   * process, so it re-proves the path it is about to follow at the moment it
+   * follows it. Each case puts the interloper on the LAST artifact: the earlier
+   * ones are already gone by then, which is precisely the state the retry has to
+   * survive.
+   */
+  describe('release safety', () => {
+    /** Something outside userData that must still be there afterwards. */
+    function outside(): string {
+      const target = mkdtempSync(join(tmpdir(), 'cs-ack-outside-'))
+      writeFileSync(join(target, 'someone-elses.txt'), 'NOT OURS')
+      return target
+    }
+
+    it('refuses to follow a symlinked ancestor into another tree, and finishes on retry', () => {
+      const external = outside()
+      mkdirSync(join(external, RID), { recursive: true })
+      writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
+      symlinkSync(external, join(userData, 'restore-staging'))
+      writeRestoreJournalV2(journal())
+
+      expect(() => acknowledgeRestore()).toThrow(/no longer where this restore left it/)
+      // The refusal came last: the database aside was already released, and the
+      // journal — the retry's only anchor — is still there.
+      expect(existsSync(join(external, 'someone-elses.txt'))).toBe(true)
+      expect(existsSync(join(external, RID))).toBe(true)
+      expect(existsSync(join(userData, asideRel))).toBe(false)
+      expect(hasPendingRestore()).toBe(true)
+
+      rmSync(join(userData, 'restore-staging'))
+      expect(acknowledgeRestore()).toMatchObject({ acknowledged: true })
+      expect(readRestoreJournalV2().kind).toBe('none')
+      rmSync(external, { recursive: true, force: true })
+    })
+
+    it('refuses when an artifact itself has become a symlink', () => {
+      const external = outside()
+      writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
+      symlinkSync(join(external, 'someone-elses.txt'), join(userData, `restore-failed-${RID}.sqlite`))
+      writeRestoreJournalV2(journal())
+
+      expect(() => acknowledgeRestore()).toThrow(/no longer where this restore left it/)
+      expect(existsSync(join(external, 'someone-elses.txt'))).toBe(true)
+      expect(hasPendingRestore()).toBe(true)
+      rmSync(external, { recursive: true, force: true })
+    })
+
+    it('refuses a journal whose park slots belong to some other restore', () => {
+      writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
+      writeRestoreJournalV2(
+        journal({
+          preset: 'full',
+          resourceInstalls: [
+            {
+              resourceType: 'file',
+              staging: `restore-staging/${RID}/files/blob-1`,
+              live: 'Data/Files/blob-2',
+              aside: 'Data/Files/blob-1'
+            }
+          ]
+        })
+      )
+
+      // Nothing is deleted: ownership is proven for the whole set before the
+      // first unlink, so a journal pointing at live data cannot delete any of it.
+      expect(() => acknowledgeRestore()).toThrow(/does not belong to this restore/)
+      expect(existsSync(join(userData, asideRel))).toBe(true)
+      expect(hasPendingRestore()).toBe(true)
+    })
+
+    it('refuses a journal whose database park slot is not the one this device would use', () => {
+      writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
+      writeRestoreJournalV2(journal({ db: { ...journal().db, aside: 'cherrystudio.sqlite' } }))
+
+      expect(() => acknowledgeRestore()).toThrow(/park slot/)
+      expect(hasPendingRestore()).toBe(true)
+    })
+
+    it('refuses to acknowledge a restore that is still reverting', () => {
+      writeFileSync(join(userData, asideRel), 'PREVIOUS-DB')
+      writeRestoreJournalV2(journal({ state: 'reverting', summary: undefined, reason: 'db-corrupt' }))
+
+      expect(() => acknowledgeRestore()).toThrow(/has not finished/)
+      expect(existsSync(join(userData, asideRel))).toBe(true)
+      expect(hasPendingRestore()).toBe(true)
+    })
   })
 
   it('refuses to guess at an unreadable journal', () => {

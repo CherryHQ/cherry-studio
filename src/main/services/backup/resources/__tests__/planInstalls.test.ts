@@ -1,9 +1,25 @@
 import { execFileSync } from 'node:child_process'
+import type * as nodeFs from 'node:fs'
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+type NodeFs = typeof nodeFs
+
+/** A second filesystem, which a temp directory will not provide on demand. */
+const { foreign } = vi.hoisted(() => ({ foreign: { segment: '' } }))
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<NodeFs & { default: NodeFs }>()
+  const statSync = ((target: never, options: never) => {
+    const stats = actual.statSync(target, options)
+    if (foreign.segment === '' || !String(target).includes(foreign.segment)) return stats
+    return Object.assign(Object.create(Object.getPrototypeOf(stats)), stats, { dev: stats.dev + 1 })
+  }) as NodeFs['statSync']
+  return { ...actual, statSync, default: { ...actual.default, statSync } }
+})
 
 import type { AdmittedResource } from '../../admission/verify'
 import type { ResourceRoots } from '../adapters'
@@ -69,6 +85,7 @@ describe('planResourceInstalls', () => {
   })
 
   afterEach(() => {
+    foreign.segment = ''
     rmSync(userData, { recursive: true, force: true })
   })
 
@@ -150,6 +167,42 @@ describe('planResourceInstalls', () => {
     writeFileSync(join(userData, 'Data', 'KnowledgeBase', 'base-1'), 'a file where a base belongs')
 
     expect(() => plan([resource('Data/KnowledgeBase/base-1')])).toThrow(/target-type-mismatch/)
+  })
+
+  /**
+   * The target is only one of the three slots preboot renames between. A staging
+   * tree or an aside root on another filesystem, or reached through a symlink,
+   * fails the pass halfway — after the previous unit has already moved — which is
+   * exactly what planning exists to prevent.
+   */
+  describe('every rename slot, not just the target', () => {
+    it('refuses when the staging tree lives on another filesystem', () => {
+      mkdirSync(join(userData, ...STAGING_REL.split('/')), { recursive: true })
+      foreign.segment = 'restore-staging'
+
+      expect(() => plan([resource('Data/KnowledgeBase/base-1')])).toThrow(/cross-filesystem/)
+    })
+
+    it('refuses when the aside root lives on another filesystem', () => {
+      mkdirSync(join(userData, 'restore-aside', RID), { recursive: true })
+      foreign.segment = 'restore-aside'
+
+      expect(() => plan([resource('Data/KnowledgeBase/base-1')])).toThrow(/cross-filesystem/)
+    })
+
+    it('refuses when the staging tree is reached through a symlinked ancestor', () => {
+      mkdirSync(join(userData, 'elsewhere'), { recursive: true })
+      symlinkSync(join(userData, 'elsewhere'), join(userData, 'restore-staging'))
+
+      expect(() => plan([resource('Data/KnowledgeBase/base-1')])).toThrow(/unsafe-ancestor/)
+    })
+
+    it('plans normally when all three slots share userData filesystem', () => {
+      mkdirSync(join(userData, ...STAGING_REL.split('/')), { recursive: true })
+      foreign.segment = 'no-such-directory'
+
+      expect(plan([resource('Data/KnowledgeBase/base-1')]).entries).toHaveLength(1)
+    })
   })
 
   it.skipIf(process.platform === 'win32')('refuses a special file standing where the target belongs', () => {
