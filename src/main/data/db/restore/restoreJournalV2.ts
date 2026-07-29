@@ -2,10 +2,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { portableCollisionKey, RelativeSubpathSchema } from '@main/utils/relativePath'
 import * as z from 'zod'
 
 import { MAX_JOURNAL_DEGRADATIONS, MAX_RESOURCE_INSTALL_ENTRIES } from './restoreLimits'
+
+const logger = loggerService.withContext('RestoreJournalV2')
 
 /**
  * Restore-promotion journal v2 — the crash-safe contract for the Backup v2
@@ -355,9 +358,25 @@ export function readRestoreJournalFormatVersion(): RestoreJournalFormatVersion {
   }
 }
 
+/**
+ * WHY the journal could not be read, as a closed set.
+ *
+ * The underlying errno string and the schema's own report name the journal's
+ * absolute path and quote its contents, and this result travels all the way to a
+ * status the renderer receives. The reason is what a caller can act on; the
+ * detail is logged here, once, where it is still diagnostic.
+ */
+export type JournalReadFailure =
+  /** The file exists but could not be read (permissions, I/O, a directory in its place). */
+  | 'unreadable-file'
+  /** The bytes are not JSON at all. */
+  | 'invalid-json'
+  /** Valid JSON that no v2 journal shape accepts — including a v1 or a future-version journal. */
+  | 'invalid-shape'
+
 export type ReadJournalV2FileResult =
   | { readonly kind: 'none' }
-  | { readonly kind: 'corrupt'; readonly error: string }
+  | { readonly kind: 'corrupt'; readonly reason: JournalReadFailure }
   | { readonly kind: 'ok'; readonly journal: RestoreJournalV2 }
 
 /**
@@ -375,18 +394,24 @@ export function readRestoreJournalV2(): ReadJournalV2FileResult {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return { kind: 'none' }
     }
-    return { kind: 'corrupt', error: String(error) }
+    return corrupt('unreadable-file', String(error))
   }
 
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch (error) {
-    return { kind: 'corrupt', error: String(error) }
+    return corrupt('invalid-json', String(error))
   }
 
   const result = parseRestoreJournalV2(parsed)
-  return result.kind === 'ok' ? { kind: 'ok', journal: result.journal } : { kind: 'corrupt', error: result.error }
+  return result.kind === 'ok' ? { kind: 'ok', journal: result.journal } : corrupt('invalid-shape', result.error)
+}
+
+/** Keep the detail where it is useful — the main log — and pass on only the reason. */
+function corrupt(reason: JournalReadFailure, detail: string): ReadJournalV2FileResult {
+  logger.error('Restore journal could not be read', { reason, detail })
+  return { kind: 'corrupt', reason }
 }
 
 /**

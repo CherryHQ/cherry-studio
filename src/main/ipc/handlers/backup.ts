@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import {
   ArchiveAdmissionError,
@@ -25,7 +26,7 @@ import {
   BackupFormatCompatibilityDiagnosticSchema,
   BackupMigrationCompatibilityDiagnosticSchema
 } from '@shared/ipc/errors/backup'
-import { IpcError } from '@shared/ipc/errors/IpcError'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import type { backupRequestSchemas } from '@shared/ipc/schemas/backup'
 import type { IpcContext, IpcHandlersFor } from '@shared/ipc/types'
 import { app, type BrowserWindow, dialog } from 'electron'
@@ -39,6 +40,8 @@ import { app, type BrowserWindow, dialog } from 'electron'
  * with filters this module fixes, and only the chosen path comes back out for
  * display.
  */
+
+const logger = loggerService.withContext('IpcBackupHandlers')
 
 const ARCHIVE_EXTENSION = 'cherrybackup'
 
@@ -72,9 +75,40 @@ function migrationTipForIpc(tip: { readonly folderMillis: number; readonly hash:
   }
 }
 
+/**
+ * What the renderer is told, per code. FIXED strings, chosen once here.
+ *
+ * Every underlying message this module used to forward was written for a main
+ * log: they carry absolute paths, archive-controlled names, and free prose. The
+ * renderer never renders them — it branches on `code` and looks up its own
+ * translation — so forwarding them only published the user's directory layout
+ * across the IPC boundary. The original error keeps its detail in the main log,
+ * where it is diagnostic rather than exposure.
+ */
+const IPC_MESSAGE: Record<string, string> = {
+  [backupErrorCodes.BUSY]: 'another backup operation is already running',
+  [backupErrorCodes.ARCHIVE_REJECTED]: 'backup archive was rejected',
+  [backupErrorCodes.RESTORE_REQUIRES_NEWER_APP]: 'the backup needs a newer version of this app',
+  [backupErrorCodes.RESTORE_LINEAGE_INCOMPATIBLE]: 'the backup came from an incompatible app lineage',
+  [backupErrorCodes.FORMAT_UNSUPPORTED]: 'the backup format is not supported by this app version',
+  [backupErrorCodes.RESTORE_STATE]: 'the restore is not in a state that allows this action',
+  [backupErrorCodes.JOURNAL_UNREADABLE]: 'the restore journal cannot be read',
+  [backupErrorCodes.ARM_FAILED]: 'the app could not restart to carry out the restore',
+  [backupErrorCodes.ROLLBACK_UNAVAILABLE]: 'this restore can no longer be rolled back',
+  [backupErrorCodes.RECOVERY_INCOMPLETE]: 'the last restore has not finished putting files back',
+  [backupErrorCodes.STORAGE_UNAVAILABLE]: 'there is not enough usable space to finish this operation',
+  [backupErrorCodes.EXPORT_SOURCE]: 'a file this backup needed could not be read safely',
+  [backupErrorCodes.EXPORT_DESTINATION]: 'the chosen destination cannot be written',
+  [backupErrorCodes.RESTORE_RESOURCES]: 'the backup files cannot be installed on this device'
+}
+
+function ipcError(code: string, data?: unknown): IpcError {
+  return new IpcError(code, IPC_MESSAGE[code], data)
+}
+
 function toIpcError(error: unknown): unknown {
   if (error instanceof BackupBusyError) {
-    return new IpcError(backupErrorCodes.BUSY, error.message, { running: error.running })
+    return ipcError(backupErrorCodes.BUSY, { running: error.running })
   }
   if (error instanceof BackupMigrationCompatibilityError) {
     const { diagnostic } = error
@@ -98,11 +132,10 @@ function toIpcError(error: unknown): unknown {
           }
         : { ...common, kind: diagnostic.kind, firstDivergentIndex: diagnostic.firstDivergentIndex }
     )
-    return new IpcError(
+    return ipcError(
       diagnostic.kind === 'source-ahead'
         ? backupErrorCodes.RESTORE_REQUIRES_NEWER_APP
         : backupErrorCodes.RESTORE_LINEAGE_INCOMPATIBLE,
-      error.message,
       data
     )
   }
@@ -116,32 +149,32 @@ function toIpcError(error: unknown): unknown {
       currentAppVersion: app.getVersion(),
       currentBuildType: currentBuildType()
     })
-    return new IpcError(backupErrorCodes.FORMAT_UNSUPPORTED, error.message, data)
+    return ipcError(backupErrorCodes.FORMAT_UNSUPPORTED, data)
   }
   if (error instanceof ArchiveAdmissionError) {
     // Admission detail can contain bounded archive-controlled names. Keep it in
     // main logs/tests; neither `message` nor `data` may serialize it to renderer.
-    return new IpcError(backupErrorCodes.ARCHIVE_REJECTED, 'backup archive was rejected', {
-      reason: error.reason
-    })
+    return ipcError(backupErrorCodes.ARCHIVE_REJECTED, { reason: error.reason })
   }
   if (error instanceof RestoreStateError) {
     if (error.code === 'unreadable') {
-      return new IpcError(backupErrorCodes.JOURNAL_UNREADABLE, error.message)
+      return ipcError(backupErrorCodes.JOURNAL_UNREADABLE)
     }
     if (error.code === 'relaunch-failed') {
-      return new IpcError(backupErrorCodes.ARM_FAILED, error.message)
+      return ipcError(backupErrorCodes.ARM_FAILED)
     }
     if (error.code === 'rollback-unavailable') {
-      return new IpcError(backupErrorCodes.ROLLBACK_UNAVAILABLE, error.message)
+      return ipcError(backupErrorCodes.ROLLBACK_UNAVAILABLE)
     }
     if (error.code === 'recovery-incomplete') {
-      return new IpcError(backupErrorCodes.RECOVERY_INCOMPLETE, error.message)
+      return ipcError(backupErrorCodes.RECOVERY_INCOMPLETE)
     }
-    return new IpcError(backupErrorCodes.RESTORE_STATE, error.message)
+    // `code` is a closed enum, and it is the one thing that distinguishes these
+    // refusals from each other once the prose is gone.
+    return ipcError(backupErrorCodes.RESTORE_STATE, { reason: error.code })
   }
   if (error instanceof InsufficientDiskSpaceError || error instanceof DiskFullError) {
-    return new IpcError(backupErrorCodes.STORAGE_UNAVAILABLE, error.message)
+    return ipcError(backupErrorCodes.STORAGE_UNAVAILABLE)
   }
   if (
     error instanceof SourceDriftError ||
@@ -149,15 +182,21 @@ function toIpcError(error: unknown): unknown {
     error instanceof UnportableSourceError ||
     error instanceof CeilingExceededError
   ) {
-    return new IpcError(backupErrorCodes.EXPORT_SOURCE, error.message)
+    return ipcError(backupErrorCodes.EXPORT_SOURCE)
   }
   if (error instanceof OutputPathExistsError || error instanceof HardLinkUnsupportedError) {
-    return new IpcError(backupErrorCodes.EXPORT_DESTINATION, error.message)
+    return ipcError(backupErrorCodes.EXPORT_DESTINATION)
   }
   if (error instanceof ResourceInstallPlanError) {
-    return new IpcError(backupErrorCodes.RESTORE_RESOURCES, error.message, { reason: error.code })
+    return ipcError(backupErrorCodes.RESTORE_RESOURCES, { reason: error.code })
   }
-  return error
+  if (error instanceof IpcError) return error
+  // An unpredicted fault is the most dangerous one to forward: a raw `ENOENT`
+  // carries the user's absolute path, and `IpcError.from()` would publish it
+  // verbatim. Log it here — the only place that still has it — and hand the
+  // renderer a fault with no detail at all.
+  logger.error('Unexpected backup failure', error as Error)
+  return new IpcError(IpcErrorCode.INTERNAL, 'the backup operation failed unexpectedly')
 }
 
 async function mapped<T>(work: () => Promise<T> | T): Promise<T> {

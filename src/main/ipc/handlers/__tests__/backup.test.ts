@@ -36,7 +36,9 @@ import {
   BackupCancelledError,
   BackupFormatCompatibilityError,
   BackupMigrationCompatibilityError,
+  HardLinkUnsupportedError,
   InsufficientDiskSpaceError,
+  OutputPathExistsError,
   ResourceInstallPlanError,
   RestoreStateError,
   SourceDriftError
@@ -408,6 +410,97 @@ describe('backupHandlers', () => {
     })
   })
 
+  /**
+   * The boundary's job is to say WHICH failure happened and nothing else. Every
+   * class below is thrown twice, from two different absolute paths with two
+   * different underlying sentences, and the assertion is that the two serialized
+   * payloads are byte-identical — a substring search for one leaked path would
+   * pass for a message that leaks a different one.
+   */
+  describe('error hygiene', () => {
+    async function payload(fault: unknown) {
+      service.acknowledgeRestore.mockImplementationOnce(() => {
+        throw fault
+      })
+      const error = await backupHandlers['backup.acknowledge_restore']({ knowledgeRebuild: 'abandon' }, ctx).catch(
+        (cause) => cause
+      )
+      expect(error).toBeInstanceOf(IpcError)
+      return (error as IpcError).toJSON()
+    }
+
+    it.each([
+      [
+        'storage',
+        backupErrorCodes.STORAGE_UNAVAILABLE,
+        [
+          new InsufficientDiskSpaceError({ needed: 10, available: 1, path: '/Users/ann/Library/CherryStudio' }),
+          new InsufficientDiskSpaceError({ needed: 77, available: 3, path: 'D:\\profiles\\bob\\cherry' })
+        ]
+      ],
+      [
+        'export source',
+        backupErrorCodes.EXPORT_SOURCE,
+        [
+          new SourceDriftError('/Users/ann/Notes/secret plan.md', 'mtime'),
+          new SourceDriftError('/home/bob/kb/private.pdf', 'size')
+        ]
+      ],
+      [
+        'export destination',
+        backupErrorCodes.EXPORT_DESTINATION,
+        [
+          new OutputPathExistsError('/Users/ann/Desktop/a.cherrybackup'),
+          new HardLinkUnsupportedError('/mnt/n/b.cherrybackup')
+        ]
+      ],
+      [
+        'journal',
+        backupErrorCodes.JOURNAL_UNREADABLE,
+        [
+          new RestoreStateError('unreadable', 'ENOENT /Users/ann/Library/CherryStudio/restore-journal.json'),
+          new RestoreStateError('unreadable', 'invalid json at /home/bob/.config/cherry/restore-journal.json')
+        ]
+      ]
+    ])('says only which %s failure happened', async (_label, code, [first, second]) => {
+      const one = await payload(first)
+      const two = await payload(second)
+
+      expect(one).toEqual({ code, message: expect.any(String) })
+      expect(two).toEqual(one)
+    })
+
+    it('keeps a resource refusal distinguishable by its closed reason alone', async () => {
+      expect(
+        await payload(new ResourceInstallPlanError('cross-filesystem', '/Users/ann/Library/CherryStudio/kb'))
+      ).toEqual({
+        code: backupErrorCodes.RESTORE_RESOURCES,
+        message: 'the backup files cannot be installed on this device',
+        data: { reason: 'cross-filesystem' }
+      })
+    })
+
+    it('keeps a restore-state refusal distinguishable by its closed reason alone', async () => {
+      expect(await payload(new RestoreStateError('unsafe-artifact', 'symlink at /Users/ann/restore-staging'))).toEqual({
+        code: backupErrorCodes.RESTORE_STATE,
+        message: 'the restore is not in a state that allows this action',
+        data: { reason: 'unsafe-artifact' }
+      })
+    })
+
+    it('reports an unreadable journal in the status without any detail', async () => {
+      service.getStatus.mockReturnValue({
+        busy: false,
+        operation: null,
+        restore: { kind: 'unreadable' }
+      })
+
+      await expect(backupHandlers['backup.get_status'](undefined, ctx)).resolves.toMatchObject({
+        restore: { kind: 'unreadable' }
+      })
+    })
+  })
+
   describe('restore lifecycle', () => {
     it.each([
       ['wrong-state' as const, backupErrorCodes.RESTORE_STATE],
@@ -453,9 +546,11 @@ describe('backupHandlers', () => {
       expect(service.acknowledgeRestore).toHaveBeenCalledWith('abandon')
     })
 
-    it('lets an unpredicted fault through as itself rather than inventing a code', async () => {
+    it('strips an unpredicted fault down to a detail-free internal error', async () => {
+      // The dangerous case: nobody wrote this message for a renderer, so it can
+      // carry anything — here, the user's home directory.
       service.acknowledgeRestore.mockImplementation(() => {
-        throw new Error('EPERM')
+        throw new Error("EPERM: operation not permitted, unlink '/Users/someone/Library/App/cherrystudio.sqlite'")
       })
 
       const error = await backupHandlers['backup.acknowledge_restore'](
@@ -463,8 +558,11 @@ describe('backupHandlers', () => {
         ctx
       ).catch((e) => e)
 
-      expect(error).not.toBeInstanceOf(IpcError)
-      expect((error as Error).message).toBe('EPERM')
+      expect(error).toBeInstanceOf(IpcError)
+      expect((error as IpcError).toJSON()).toEqual({
+        code: 'INTERNAL',
+        message: 'the backup operation failed unexpectedly'
+      })
     })
   })
 })
