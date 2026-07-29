@@ -106,6 +106,7 @@ vi.mock('@cherrystudio/ui', () => {
     DialogTitle: passthrough('h2'),
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Label: passthrough('label'),
     Select: ({ children, onValueChange }: { children?: React.ReactNode; onValueChange?: (value: string) => void }) => (
       <SelectContext value={{ onValueChange }}>{children}</SelectContext>
     ),
@@ -187,6 +188,23 @@ describe('ChannelDetail', () => {
         on: vi.fn(() => () => {})
       }
     } as never
+  })
+
+  it('creates new channels inactive so empty default credentials pass server validation', async () => {
+    channelMocks.createChannel.mockResolvedValue({ id: 'channel-2' })
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    fireEvent.click(screen.getByText('agent.channels.add'))
+
+    await waitFor(() => {
+      expect(channelMocks.createChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'telegram',
+          config: channelDef.defaultConfig,
+          isActive: false
+        })
+      )
+    })
   })
 
   it('sends null permissionMode when clearing an existing override to inherit', async () => {

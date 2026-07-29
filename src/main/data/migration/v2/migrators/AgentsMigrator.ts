@@ -1,19 +1,39 @@
+import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import type { MessageData, MessageRole, MessageStatus } from '@shared/data/types/message'
-import { sql } from 'drizzle-orm'
+import type {
+  MessageData,
+  MessageRole,
+  MessageSnapshot,
+  MessageStats,
+  MessageStatus,
+  ModelSnapshot
+} from '@shared/data/types/message'
+import { eq, sql } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
+import * as z from 'zod'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
+import {
+  type AgentFileSessionPlan,
+  copyLegacyClaudeConfig,
+  copyLegacyClaudeSessionData,
+  isManagedLegacyAgentWorkspace,
+  legacyAgentWorkspacePath,
+  stageLegacyAgentFiles
+} from './agentsFilesystemMigration'
 import { BaseMigrator } from './BaseMigrator'
 import {
   AGENTS_TABLE_MIGRATION_SPECS,
@@ -24,8 +44,17 @@ import {
   getTotalAgentsRowCount,
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
-import { type ChatMappingDeps, normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
-import { AGENT_TABLES, remapAgentPrefixIds } from './remapAgentPrefixIds'
+import {
+  type ChatMappingDeps,
+  estimateLegacyRequestCount,
+  mergeStats,
+  normalizeStatus,
+  transformBlocksToParts
+} from './mappings/ChatMappings'
+import { AGENT_TABLES, type AgentPrefixIdRemap, remapAgentPrefixIds } from './remapAgentPrefixIds'
+import { type LegacyModelRef, legacyModelToUniqueId } from './transformers/ModelTransformers'
+
+const DERIVED_SESSION_WORKSPACES_KEY = 'agentsMigrator.derivedSessionWorkspaces'
 
 type V1ScheduledTaskRow = {
   id: string
@@ -52,7 +81,7 @@ const logger = loggerService.withContext('AgentsMigrator')
 export class AgentsMigrator extends BaseMigrator {
   readonly id = 'agents'
   readonly name = 'Agents'
-  readonly description = 'Migrate legacy agents.db data into the main SQLite database'
+  readonly description = 'Migrate legacy Agent data and Claude config into v2 storage'
   readonly order = 2.5
 
   private sourceCounts: AgentsTableRowCounts = this.createEmptyCounts()
@@ -100,6 +129,11 @@ export class AgentsMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
+    const copiedLegacyClaudeConfig = await copyLegacyClaudeConfig(
+      ctx.paths.legacyClaudeConfigDir,
+      ctx.paths.claudeConfigDir
+    )
+
     const reader = this.createReader(ctx)
     const dbPath = this.resolveSourceDbPath(reader)
 
@@ -139,11 +173,18 @@ export class AgentsMigrator extends BaseMigrator {
     try {
       ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
       isAttached = true
+      const derivedSessionWorkspaces = await deriveSessionWorkspaces(ctx, this.sourceSchemaInfo)
+      const preparedSessionMessages = await prepareLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
+        db: ctx.db,
+        filesDataDir: ctx.paths.filesDataDir
+      })
+      ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, derivedSessionWorkspaces)
+
       // Foreign keys are already OFF for the whole migration (MigrationDbService sets the
       // PRAGMA once on its single connection), so no per-call toggle here.
       ctx.db.run(sql.raw('BEGIN'))
 
-      stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
+      insertSessionWorkspaces(ctx.db, derivedSessionWorkspaces)
 
       for (const statement of importStatements) {
         logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
@@ -160,11 +201,8 @@ export class AgentsMigrator extends BaseMigrator {
       //   2. importLegacySessionMessages — generates UUID message ids instead
       //      of preserving legacy integer row ids, and writes final `data.parts`.
       backfillAgentOrderKeys(ctx.db)
-      await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
-        db: ctx.db,
-        filesDataDir: ctx.paths.filesDataDir
-      })
-      await migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
+      insertPreparedLegacySessionMessages(ctx.db, preparedSessionMessages)
+      migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
 
       ctx.db.run(sql.raw('COMMIT'))
       committed = true
@@ -180,8 +218,29 @@ export class AgentsMigrator extends BaseMigrator {
       // Prefix-id remap runs AFTER the outer COMMIT because it opens its own
       // BEGIN/COMMIT (nested SQLite transactions are not supported). It is
       // idempotent, so a retry after a partial failure is safe.
-      await remapAgentPrefixIds(ctx.db)
-
+      const legacyAgentIds = ctx.db
+        .all<{ id: string }>(sql.raw('SELECT id FROM agent ORDER BY id'))
+        .map((row) => row.id)
+      const idRemap = remapAgentPrefixIds(ctx.db)
+      const finalSessionWorkspaces = finalizeSessionWorkspaces(ctx, derivedSessionWorkspaces, idRemap)
+      ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, finalSessionWorkspaces)
+      const fileSessionPlans = toAgentFileSessionPlans(finalSessionWorkspaces, preparedSessionMessages)
+      await stageLegacyAgentFiles({
+        agentsDataRoot: ctx.paths.agentsDataDir,
+        agents: legacyAgentIds.map((sourceAgentId) => ({
+          sourceAgentId,
+          finalAgentId: idRemap.agentIds.get(sourceAgentId) ?? sourceAgentId
+        })),
+        sessions: fileSessionPlans
+      })
+      await copyLegacyClaudeSessionData({
+        agentsDataRoot: ctx.paths.agentsDataDir,
+        sourceProjectsDirectories: copiedLegacyClaudeConfig
+          ? [ctx.paths.legacyClaudeProjectsDir]
+          : [ctx.paths.legacyClaudeProjectsDir, ctx.paths.claudeProjectsDir],
+        destinationProjectsDirectory: ctx.paths.claudeProjectsDir,
+        sessions: fileSessionPlans
+      })
       // Self-check agent-domain referential integrity after import + remap. FK is OFF for
       // the whole migration, so violations only surface here (and at the engine's final
       // verifyForeignKeys). foreign_key_check is read-only and stays on this connection, so
@@ -257,7 +316,9 @@ export class AgentsMigrator extends BaseMigrator {
     try {
       // v1 has no workspace table. v2 agent_workspace rows are derived from
       // session/agent accessible paths, or a generated default path per session.
-      const derivedWorkspaces = deriveSessionWorkspaces(ctx, this.sourceSchemaInfo)
+      const derivedWorkspaces =
+        (ctx.sharedData.get(DERIVED_SESSION_WORKSPACES_KEY) as DerivedSessionWorkspaces | undefined) ??
+        (await deriveSessionWorkspaces(ctx, this.sourceSchemaInfo))
       const workspaceRows = ctx.db.all<{ count: number }>(sql.raw('SELECT COUNT(*) AS count FROM agent_workspace'))
       const workspaceTargetCount = Number(workspaceRows[0]?.count ?? 0)
       const workspaceExpectedCount = derivedWorkspaces.workspaces.length
@@ -592,7 +653,14 @@ type DerivedWorkspace = {
 
 type DerivedSessionWorkspaceMap = {
   sessionId: string
+  agentId: string
+  finalSessionId?: string
+  finalAgentId?: string
   workspaceId: string
+  sourceWorkspacePath: string
+  isManagedDefault: boolean
+  createdAt: number
+  updatedAt: number
 }
 
 type DerivedSessionWorkspaces = {
@@ -615,6 +683,22 @@ type NormalizedLegacySessionMessage = {
   data: MessageData
   status: MessageStatus
   modelId: string | null
+  modelSnapshot: ModelSnapshot | null
+  stats: MessageStats | null
+}
+
+type PreparedLegacySessionMessage = {
+  id: string
+  sessionId: string
+  role: MessageRole
+  data: MessageData
+  status: MessageStatus
+  modelId: string | null
+  modelSnapshot: ModelSnapshot | null
+  stats: MessageStats | null
+  runtimeResumeToken: string | null
+  createdAt: number
+  updatedAt: number
 }
 
 function selectLegacySessionColumn(
@@ -706,17 +790,18 @@ function legacyTimestampToMs(value: string | number | null, fallback: number): n
     return value > 0 && value < 10_000_000_000 ? value * 1000 : value
   }
   if (typeof value === 'string') {
-    const parsed = Date.parse(value)
+    const trimmed = value.trim()
+    if (!trimmed) return fallback
+    const numericValue = Number(trimmed)
+    if (Number.isFinite(numericValue)) {
+      return numericValue > 0 && numericValue < 10_000_000_000 ? numericValue * 1000 : numericValue
+    }
+    const parsed = Date.parse(trimmed)
     if (Number.isFinite(parsed)) {
       return parsed
     }
   }
   return fallback
-}
-
-function defaultWorkspacePathForSession(agentWorkspacesDir: string, sessionId: string): string {
-  const safeSessionId = sessionId.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || uuidv4()
-  return path.join(agentWorkspacesDir, `session-${safeSessionId}`)
 }
 
 function countExpectedSessionWorkspacePaths(derived: DerivedSessionWorkspaces): Map<string, number> {
@@ -730,23 +815,32 @@ function countExpectedSessionWorkspacePaths(derived: DerivedSessionWorkspaces): 
   return counts
 }
 
-function deriveSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaInfo): DerivedSessionWorkspaces {
+async function deriveSessionWorkspaces(
+  ctx: MigrationContext,
+  schemaInfo: AgentsSchemaInfo
+): Promise<DerivedSessionWorkspaces> {
   const rows = selectSessionWorkspaceSourceRows(ctx.db, schemaInfo)
   const byPath = new Map<string, DerivedWorkspace>()
   const mappings: DerivedSessionWorkspaceMap[] = []
-  const now = Date.now()
-  const agentWorkspacesDir = ctx.paths.agentWorkspacesDir
+  const migrationStartedAtMs = Date.now()
+  const agentsDataDir = ctx.paths.agentsDataDir
+  const systemWorkspacesDir = ctx.paths.agentSystemWorkspacesDir
 
   for (const row of rows) {
     const explicitWorkspacePath =
       extractPrimaryWorkspacePath(row.session_accessible_paths, 'session') ??
       extractPrimaryWorkspacePath(row.agent_accessible_paths, 'agent')
-    const workspacePath = explicitWorkspacePath ?? defaultWorkspacePathForSession(agentWorkspacesDir, row.session_id)
-    const workspaceType = explicitWorkspacePath ? 'user' : 'system'
+    const sourceWorkspacePath = explicitWorkspacePath ?? legacyAgentWorkspacePath(agentsDataDir, row.agent_id)
+    const isManagedDefault = await isManagedLegacyAgentWorkspace(agentsDataDir, row.agent_id, sourceWorkspacePath)
+    const createdAt = legacyTimestampToMs(row.created_at, migrationStartedAtMs)
+    const updatedAt = legacyTimestampToMs(row.updated_at, createdAt)
+    const workspacePath = isManagedDefault
+      ? agentWorkspaceService.buildSystemWorkspacePath(systemWorkspacesDir, row.session_id, createdAt)
+      : sourceWorkspacePath
+    const workspaceType = isManagedDefault ? 'system' : 'user'
 
     let workspace = byPath.get(workspacePath)
     if (!workspace) {
-      const createdAt = legacyTimestampToMs(row.created_at, now)
       workspace = {
         id: uuidv4(),
         name: workspaceNameFromPath(workspacePath),
@@ -754,12 +848,20 @@ function deriveSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchema
         type: workspaceType,
         orderKey: '',
         createdAt,
-        updatedAt: legacyTimestampToMs(row.updated_at, createdAt)
+        updatedAt
       }
       byPath.set(workspacePath, workspace)
     }
 
-    mappings.push({ sessionId: row.session_id, workspaceId: workspace.id })
+    mappings.push({
+      sessionId: row.session_id,
+      agentId: row.agent_id,
+      workspaceId: workspace.id,
+      sourceWorkspacePath,
+      isManagedDefault,
+      createdAt,
+      updatedAt
+    })
   }
 
   const workspaces = assignOrderKeysInSequence(Array.from(byPath.values()))
@@ -767,14 +869,12 @@ function deriveSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchema
   return { workspaces, mappings }
 }
 
-function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaInfo): number {
-  const db = ctx.db
+function insertSessionWorkspaces(db: DbType, derived: DerivedSessionWorkspaces): void {
   db.run(
     sql.raw('CREATE TEMP TABLE IF NOT EXISTS session_workspace_map (session_id TEXT PRIMARY KEY, workspace_id TEXT)')
   )
   db.run(sql.raw('DELETE FROM session_workspace_map'))
 
-  const derived = deriveSessionWorkspaces(ctx, schemaInfo)
   for (const workspace of derived.workspaces) {
     db.run(
       sql`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
@@ -791,7 +891,75 @@ function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaI
     workspaces: derived.workspaces.length,
     mappedSessions: derived.mappings.length
   })
-  return derived.workspaces.length
+}
+
+function finalizeSessionWorkspaces(
+  ctx: MigrationContext,
+  derived: DerivedSessionWorkspaces,
+  idRemap: AgentPrefixIdRemap
+): DerivedSessionWorkspaces {
+  const workspacesById = new Map(derived.workspaces.map((workspace) => [workspace.id, { ...workspace }]))
+  const mappings = derived.mappings.map((mapping) => {
+    const finalSessionId = idRemap.sessionIds.get(mapping.sessionId) ?? mapping.sessionId
+    const finalAgentId = idRemap.agentIds.get(mapping.agentId) ?? mapping.agentId
+    const workspace = workspacesById.get(mapping.workspaceId)
+    if (workspace?.type === 'system') {
+      const workspacePath = agentWorkspaceService.buildSystemWorkspacePath(
+        ctx.paths.agentSystemWorkspacesDir,
+        finalSessionId,
+        mapping.createdAt
+      )
+      workspace.path = workspacePath
+      workspace.name = workspaceNameFromPath(workspacePath)
+      ctx.db.run(
+        sql`UPDATE ${agentWorkspaceTable}
+            SET path = ${workspace.path}, name = ${workspace.name}
+            WHERE ${agentWorkspaceTable.id} = ${workspace.id}`
+      )
+    }
+    return {
+      ...mapping,
+      finalSessionId,
+      finalAgentId
+    }
+  })
+
+  return { workspaces: Array.from(workspacesById.values()), mappings }
+}
+
+function toAgentFileSessionPlans(
+  derived: DerivedSessionWorkspaces,
+  preparedSessionMessages: PreparedLegacySessionMessage[]
+): AgentFileSessionPlan[] {
+  const workspacesById = new Map(derived.workspaces.map((workspace) => [workspace.id, workspace]))
+  const runtimeResumeTokensBySessionId = new Map<string, Set<string>>()
+  const latestRuntimeResumeTokenBySessionId = new Map<string, string>()
+  for (const message of preparedSessionMessages) {
+    if (message.runtimeResumeToken) {
+      const runtimeResumeTokens = runtimeResumeTokensBySessionId.get(message.sessionId) ?? new Set<string>()
+      runtimeResumeTokens.add(message.runtimeResumeToken)
+      runtimeResumeTokensBySessionId.set(message.sessionId, runtimeResumeTokens)
+      latestRuntimeResumeTokenBySessionId.set(message.sessionId, message.runtimeResumeToken)
+    }
+  }
+
+  return derived.mappings.map((mapping) => {
+    const workspace = workspacesById.get(mapping.workspaceId)
+    if (!workspace) throw new Error(`Missing derived workspace for session ${mapping.sessionId}`)
+    return {
+      sourceSessionId: mapping.sessionId,
+      finalSessionId: mapping.finalSessionId ?? mapping.sessionId,
+      sourceAgentId: mapping.agentId,
+      finalAgentId: mapping.finalAgentId ?? mapping.agentId,
+      sourceWorkspacePath: mapping.sourceWorkspacePath,
+      isManagedDefault: mapping.isManagedDefault,
+      systemWorkspacePath: workspace.type === 'system' ? workspace.path : undefined,
+      latestRuntimeResumeToken: latestRuntimeResumeTokenBySessionId.get(mapping.sessionId),
+      runtimeResumeTokens: Array.from(runtimeResumeTokensBySessionId.get(mapping.sessionId) ?? []).sort(),
+      createdAt: mapping.createdAt,
+      updatedAt: mapping.updatedAt
+    }
+  })
 }
 
 function selectLegacyMessageColumn(
@@ -807,6 +975,38 @@ function normalizeLegacyRole(value: string | null): MessageRole {
   return value === 'user' || value === 'assistant' || value === 'system' ? value : 'assistant'
 }
 
+// Legacy v1 model blobs are untrusted JSON. `.catch(undefined)` keeps a
+// malformed optional field from failing the whole parse (we still want id +
+// provider even if `name`/`group` are junk), matching the old lenient narrowing.
+const LegacyModelRefSchema = z.object({
+  id: z.string().optional().catch(undefined),
+  provider: z.string().optional().catch(undefined)
+})
+const LegacyModelSnapshotSchema = LegacyModelRefSchema.extend({
+  name: z.string().optional().catch(undefined),
+  group: z.string().optional().catch(undefined)
+})
+
+function asLegacyModelRef(value: unknown): LegacyModelRef | null {
+  const parsed = LegacyModelRefSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
+}
+
+function buildModelSnapshot(value: unknown): ModelSnapshot | null {
+  const parsed = LegacyModelSnapshotSchema.safeParse(value)
+  if (!parsed.success) return null
+
+  const { id, provider, name, group } = parsed.data
+  if (!id?.trim() || !provider?.trim()) return null
+
+  return {
+    id,
+    name: name?.trim() ? name : id,
+    provider,
+    group
+  }
+}
+
 async function normalizeLegacySessionMessage(
   content: unknown,
   fallbackRole: string | null,
@@ -819,7 +1019,9 @@ async function normalizeLegacySessionMessage(
       role: normalizeLegacyRole(fallbackRole),
       data: { parts: directParts },
       status: 'success',
-      modelId: null
+      modelId: null,
+      modelSnapshot: null,
+      stats: null
     }
   }
 
@@ -830,18 +1032,61 @@ async function normalizeLegacySessionMessage(
       role: normalizeLegacyRole(fallbackRole),
       data: { parts: [] },
       status: 'success',
-      modelId: null
+      modelId: null,
+      modelSnapshot: null,
+      stats: null
     }
   }
 
   const transformed = blocks.length > 0 ? await transformBlocksToParts(blocks, deps) : null
   const parts = transformed?.parts ?? (Array.isArray(message.data?.parts) ? message.data.parts : [])
+  const rawModelId = typeof message.modelId === 'string' && message.modelId.length > 0 ? message.modelId : null
+  const modelRef = asLegacyModelRef(message.model)
   return {
     role: normalizeLegacyRole(typeof message.role === 'string' ? message.role : fallbackRole),
     data: { parts },
     status: normalizeStatus(message.status),
-    modelId: typeof message.modelId === 'string' && message.modelId.length > 0 ? message.modelId : null
+    modelId: legacyModelToUniqueId(modelRef, rawModelId) ?? rawModelId,
+    modelSnapshot: buildModelSnapshot(message.model),
+    stats: mergeStats(
+      message.usage,
+      message.metrics,
+      normalizeLegacyRole(typeof message.role === 'string' ? message.role : fallbackRole) === 'assistant'
+        ? estimateLegacyRequestCount(blocks)
+        : undefined
+    )
   }
+}
+
+/** The producing author of a session message — the owning agent, model excluded. */
+type SessionAuthor = Omit<MessageSnapshot, 'model'>
+
+/**
+ * Author identity per migrated session, so each imported message can freeze the same
+ * {@link MessageSnapshot} the runtime writer persists (author with the model nested).
+ * Sessions whose agent is missing get no author, hence no snapshot.
+ */
+function readSessionAuthors(db: DbType): Map<string, SessionAuthor> {
+  const rows = db
+    .select({
+      sessionId: agentSessionTable.id,
+      agentId: agentTable.id,
+      name: agentTable.name,
+      configuration: agentTable.configuration
+    })
+    .from(agentSessionTable)
+    .innerJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
+    .all()
+
+  return new Map(
+    rows.map((row): [string, SessionAuthor] => {
+      const avatar = row.configuration?.avatar
+      return [
+        row.sessionId,
+        { id: row.agentId, name: row.name, emoji: typeof avatar === 'string' && avatar ? avatar : undefined }
+      ]
+    })
+  )
 }
 
 function resolveUserModelId(db: DbType, cache: Map<string, string | null>, rawModelId: string | null): string | null {
@@ -856,12 +1101,20 @@ function resolveUserModelId(db: DbType, cache: Map<string, string | null>, rawMo
   return resolved
 }
 
-export async function importLegacySessionMessages(
+async function prepareLegacySessionMessages(
   db: DbType,
   schemaInfo: AgentsSchemaInfo,
   deps?: ChatMappingDeps
-): Promise<number> {
-  if (!schemaInfo.session_messages.exists) return 0
+): Promise<PreparedLegacySessionMessage[]> {
+  if (
+    !schemaInfo.session_messages.exists ||
+    !schemaInfo.session_messages.columns.has('session_id') ||
+    !schemaInfo.sessions.exists ||
+    !schemaInfo.sessions.columns.has('agent_id') ||
+    !schemaInfo.agents.exists
+  ) {
+    return []
+  }
 
   const selectColumns = [
     selectLegacyMessageColumn(schemaInfo, 'id', 'legacyId', 'NULL'),
@@ -883,12 +1136,16 @@ export async function importLegacySessionMessages(
     sql.raw(
       `SELECT ${selectColumns.join(', ')}
        FROM agents_legacy.session_messages
-       WHERE session_id IN (SELECT id FROM agent_session)
+       WHERE session_id IN (
+         SELECT sessions.id
+         FROM agents_legacy.sessions AS sessions
+         WHERE sessions.agent_id IN (SELECT id FROM agents_legacy.agents)
+       )
        ${orderBy ? `ORDER BY ${orderBy}` : ''}`
     )
   )
   const modelCache = new Map<string, string | null>()
-  let imported = 0
+  const prepared: PreparedLegacySessionMessage[] = []
 
   for (const row of rows) {
     if (!row.sessionId) continue
@@ -900,7 +1157,9 @@ export async function importLegacySessionMessages(
         role: normalizeLegacyRole(row.role),
         data: { parts: [] },
         status: 'error',
-        modelId: null
+        modelId: null,
+        modelSnapshot: null,
+        stats: null
       }
       logger.warn('Failed to normalize legacy agent session message', {
         legacyId: row.legacyId,
@@ -912,22 +1171,46 @@ export async function importLegacySessionMessages(
     const now = Date.now()
     const createdAt = legacyTimestampToMs(row.createdAt, now)
     const updatedAt = row.updatedAt == null ? createdAt : legacyTimestampToMs(row.updatedAt, createdAt)
-    await db.insert(agentSessionMessageTable).values({
+    prepared.push({
       id: uuidv7(),
       sessionId: row.sessionId,
       role: normalized.role,
       data: normalized.data,
       status: normalized.status,
       modelId: resolveUserModelId(db, modelCache, normalized.modelId),
+      modelSnapshot: normalized.modelSnapshot,
+      stats: normalized.stats,
       runtimeResumeToken: row.agentSessionId,
       createdAt,
       updatedAt
     })
-    imported++
   }
 
-  logger.info('Imported legacy agent session messages with UUID ids', { imported })
-  return imported
+  return prepared
+}
+
+function insertPreparedLegacySessionMessages(db: DbType, prepared: PreparedLegacySessionMessage[]): number {
+  const sessionAuthors = readSessionAuthors(db)
+  for (const { modelSnapshot, stats, ...message } of prepared) {
+    // Resolve authors only after the target agent/session rows have been inserted.
+    // Message normalization remains outside the transaction, while the immutable
+    // author+model snapshot is assembled synchronously inside it.
+    const author = sessionAuthors.get(message.sessionId)
+    const messageSnapshot = author && modelSnapshot ? { ...author, model: modelSnapshot } : undefined
+    db.insert(agentSessionMessageTable)
+      .values({ ...message, messageSnapshot, stats: stats ?? undefined })
+      .run()
+  }
+  logger.info('Imported legacy agent session messages with UUID ids', { imported: prepared.length })
+  return prepared.length
+}
+
+export async function importLegacySessionMessages(
+  db: DbType,
+  schemaInfo: AgentsSchemaInfo,
+  deps?: ChatMappingDeps
+): Promise<number> {
+  return insertPreparedLegacySessionMessages(db, await prepareLegacySessionMessages(db, schemaInfo, deps))
 }
 
 /**
@@ -939,7 +1222,7 @@ export async function importLegacySessionMessages(
  * attached and BEFORE remapAgentPrefixIds — the inserted `agentId` is the
  * legacy agent id, which that step rewrites alongside `agent.id`.
  */
-export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, string> | undefined): Promise<void> {
+export function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, string> | undefined): void {
   const rows = db.all<{ agentId: string; oldMcpId: string }>(
     sql.raw(
       `SELECT DISTINCT a.id AS agentId, je.value AS oldMcpId
@@ -972,7 +1255,7 @@ export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<strin
   )
 
   if (values.length === 0) return
-  await db.insert(agentMcpServerTable).values(values).onConflictDoNothing()
+  db.insert(agentMcpServerTable).values(values).onConflictDoNothing().run()
   const dropped = rows.length - values.length
   const summary = { rows: values.length, dropped }
   // A non-zero `dropped` count is FK-mandated data loss (legacy refs to MCP

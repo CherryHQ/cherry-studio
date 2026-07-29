@@ -39,12 +39,28 @@ import {
   REASONING_FORMAT_PROFILES
 } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
-import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
-import { createUniqueModelId } from '@shared/data/types/model'
-import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
+import type {
+  Currency,
+  ImageGenerationSupport,
+  Model,
+  RuntimeModelPricing,
+  RuntimeParameterSupport,
+  RuntimeReasoning
+} from '@shared/data/types/model'
+import { createUniqueModelId, CURRENCY } from '@shared/data/types/model'
+import type {
+  ApiFeatures,
+  EndpointConfig,
+  Provider,
+  ProviderWebsites,
+  RuntimeApiFeatures
+} from '@shared/data/types/provider'
+import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 
@@ -59,10 +75,45 @@ export interface ProviderDisplayMetadata {
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
   authOptional?: boolean
+  /** Registry-owned currency for provider-reported cost amounts. */
+  reportedCostCurrency?: Currency
+  /** Registry default API feature flags — the delta baseline under row overrides. */
+  apiFeatures?: ApiFeatures
+  /** Registry default chat endpoint, used when the row stores no override. */
+  defaultChatEndpoint?: EndpointType
+}
+
+/**
+ * The effective apiFeatures baseline for a preset: registry declarations
+ * layered over the app defaults. Rows store only deltas from this.
+ */
+export function buildApiFeaturesBaseline(presetApiFeatures: ApiFeatures | null | undefined): RuntimeApiFeatures {
+  return { ...DEFAULT_API_FEATURES, ...presetApiFeatures }
+}
+
+/**
+ * Reduce a (possibly full-snapshot) apiFeatures object to the delta against
+ * its baseline — key absence means "use the baseline". Returns null when
+ * nothing differs, so a renderer echoing the merged runtime snapshot
+ * degrades to a clean delta instead of freezing the baseline into the row.
+ */
+export function diffApiFeatures(
+  merged: ApiFeatures | null | undefined,
+  baseline: Readonly<ApiFeatures>
+): ApiFeatures | null {
+  if (!merged) return null
+  const delta: Record<string, boolean> = {}
+  for (const [key, value] of Object.entries(merged)) {
+    if (value !== undefined && value !== baseline[key as keyof ApiFeatures]) {
+      delta[key] = value
+    }
+  }
+  return Object.keys(delta).length > 0 ? (delta as ApiFeatures) : null
 }
 
 export interface ListProviderRegistryModelsOptions {
   providerId?: string
+  presetProviderId?: string | null
   disabled?: boolean
 }
 
@@ -97,7 +148,58 @@ export interface ResolvedReasoningProfile {
   support?: ProtoReasoningSupport
 }
 
-export type ReasoningProviderContext = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
+export interface ReasoningProviderContext {
+  id: Provider['id']
+  presetProviderId?: Provider['presetProviderId'] | null
+  defaultChatEndpoint?: Provider['defaultChatEndpoint']
+}
+
+function isEmptyPricingEcho(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const pricing = value as Partial<RuntimeModelPricing>
+  const isEmptyTier = (tier: RuntimeModelPricing['input'] | undefined) =>
+    tier != null && (tier.perMillionTokens === 0 || tier.perMillionTokens === null)
+  return (
+    isEmptyTier(pricing.input) &&
+    isEmptyTier(pricing.output) &&
+    !pricing.cacheRead &&
+    !pricing.cacheWrite &&
+    !pricing.perImage &&
+    !pricing.perMinute
+  )
+}
+
+function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeModelPricing {
+  const normalizeTier = (tier: RuntimeModelPricing['input']): RuntimeModelPricing['input'] => ({
+    perMillionTokens: tier.perMillionTokens,
+    currency: tier.currency ?? CURRENCY.USD
+  })
+
+  return {
+    input: normalizeTier(pricing.input),
+    output: normalizeTier(pricing.output),
+    ...(pricing.cacheRead ? { cacheRead: normalizeTier(pricing.cacheRead) } : {}),
+    ...(pricing.cacheWrite ? { cacheWrite: normalizeTier(pricing.cacheWrite) } : {}),
+    ...(pricing.perImage ? { perImage: pricing.perImage } : {}),
+    ...(pricing.perMinute ? { perMinute: pricing.perMinute } : {})
+  }
+}
+
+/**
+ * Compare user-visible pricing with a registry baseline. The v1 editor
+ * materialized an absent price as 0/0, so that empty echo is baseline-equal
+ * when the registry has no price.
+ */
+export function matchesModelPricingBaseline(value: unknown, baseline: unknown): boolean {
+  if (baseline === undefined && isEmptyPricingEcho(value)) return true
+  if (value && baseline) {
+    return isEqual(
+      normalizePricingForComparison(value as RuntimeModelPricing),
+      normalizePricingForComparison(baseline as RuntimeModelPricing)
+    )
+  }
+  return isEqual(value, baseline)
+}
 
 /** Resolve profile data without consulting model/provider ids or regexes. */
 export function resolveReasoningProfileFromRegistry(input: {
@@ -248,6 +350,7 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
     inputModalities: override.inputModalities,
     outputModalities: override.outputModalities,
     pricing: override.pricing as ProtoModelConfig['pricing'],
+    parameterSupport: override.parameterSupport as ProtoModelConfig['parameterSupport'],
     imageGeneration: override.imageGeneration
   }
 }
@@ -255,8 +358,8 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
 /**
  * Two-layer merge: preset → override. No user data involved.
  *
- * Used by `resolveModels` and (via composition with `applyUserOverlay` in ModelService)
- * by `ModelService.create` and the migrator.
+ * Used by registry resolution, ModelService delta comparison/read hydration,
+ * and the v2 migrator.
  */
 export function mergePresetModel(
   presetModel: ProtoModelConfig,
@@ -276,6 +379,7 @@ export function mergePresetModel(
     maxOutputTokens,
     maxInputTokens,
     pricing,
+    parameterSupport,
     replaceWith
   } = applyPresetAndOverride(presetModel, catalogOverride)
 
@@ -301,6 +405,7 @@ export function mergePresetModel(
     endpointTypes,
     supportsStreaming: true,
     reasoning,
+    parameterSupport: parameterSupport as RuntimeParameterSupport | undefined,
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
     isHidden: false,
@@ -322,36 +427,46 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
     ? [...presetModel.outputModalities]
     : undefined
   let endpointTypes: EndpointType[] | undefined = undefined
-  const name = presetModel.name ?? presetModel.id
+  const name = catalogOverride?.name ?? presetModel.name ?? presetModel.id
   const description = presetModel.description
   let contextWindow = presetModel.contextWindow
   let maxOutputTokens = presetModel.maxOutputTokens
   let maxInputTokens = presetModel.maxInputTokens
+  const mergedPricing = presetModel.pricing
+    ? { ...presetModel.pricing, ...catalogOverride?.pricing }
+    : catalogOverride?.pricing
   let pricing: RuntimeModelPricing | undefined
+  const parameterSupport = presetModel.parameterSupport
+    ? { ...presetModel.parameterSupport, ...catalogOverride?.parameterSupport }
+    : catalogOverride?.parameterSupport
   let replaceWith: string | undefined
 
-  if (presetModel.pricing) {
+  if (mergedPricing?.input && mergedPricing.output) {
     pricing = {
       input: {
-        perMillionTokens: presetModel.pricing.input?.perMillionTokens ?? null,
-        currency: presetModel.pricing.input?.currency
+        perMillionTokens: mergedPricing.input.perMillionTokens ?? null,
+        currency: mergedPricing.input.currency
       },
       output: {
-        perMillionTokens: presetModel.pricing.output?.perMillionTokens ?? null,
-        currency: presetModel.pricing.output?.currency
+        perMillionTokens: mergedPricing.output.perMillionTokens ?? null,
+        currency: mergedPricing.output.currency
       },
-      cacheRead: presetModel.pricing.cacheRead
+      cacheRead: mergedPricing.cacheRead
         ? {
-            perMillionTokens: presetModel.pricing.cacheRead.perMillionTokens ?? null,
-            currency: presetModel.pricing.cacheRead.currency
+            perMillionTokens: mergedPricing.cacheRead.perMillionTokens ?? null,
+            currency: mergedPricing.cacheRead.currency
           }
         : undefined,
-      cacheWrite: presetModel.pricing.cacheWrite
+      cacheWrite: mergedPricing.cacheWrite
         ? {
-            perMillionTokens: presetModel.pricing.cacheWrite.perMillionTokens ?? null,
-            currency: presetModel.pricing.cacheWrite.currency
+            perMillionTokens: mergedPricing.cacheWrite.perMillionTokens ?? null,
+            currency: mergedPricing.cacheWrite.currency
           }
-        : undefined
+        : undefined,
+      perImage: mergedPricing.perImage
+        ? { price: mergedPricing.perImage.price, unit: mergedPricing.perImage.unit }
+        : undefined,
+      perMinute: mergedPricing.perMinute ? { price: mergedPricing.perMinute.price } : undefined
     }
   }
 
@@ -377,6 +492,7 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
     maxOutputTokens,
     maxInputTokens,
     pricing,
+    parameterSupport,
     replaceWith
   }
 }
@@ -494,13 +610,18 @@ class ProviderRegistryService {
     presetProviderId?: string | null,
     lookupPersistedPreset = true
   ): ProtoProviderConfig | null {
+    // A persisted null is authoritative provenance for a fully custom
+    // provider. Do not let a future registry entry with the same id silently
+    // reclassify the row as a preset.
+    if (presetProviderId === null) return null
+
     const direct = this.findRegistryProvider(providerId)
     if (direct) return direct
 
-    let fallbackId = presetProviderId
-    if (!fallbackId && lookupPersistedPreset) {
+    let fallbackId: string | null | undefined = presetProviderId
+    if (fallbackId === undefined && lookupPersistedPreset) {
       try {
-        fallbackId = getDataService('ProviderService').getByProviderId(providerId).presetProviderId
+        fallbackId = getDataService('ProviderService').getByProviderId(providerId).presetProviderId ?? null
       } catch (error) {
         if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
           return null
@@ -509,31 +630,8 @@ class ProviderRegistryService {
       }
     }
 
+    if (fallbackId === null) return null
     return fallbackId ? (this.findRegistryProvider(fallbackId) ?? null) : null
-  }
-
-  resolveAdapterFamilies(
-    endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | null | undefined,
-    presetProviderId?: string | null
-  ): Partial<Record<EndpointType, EndpointConfig>> | null {
-    if (!endpointConfigs || Object.keys(endpointConfigs).length === 0) return null
-
-    const presetProvider = presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined
-    const presetConfigs = presetProvider
-      ? (buildPersistedEndpointConfigs(presetProvider.endpointConfigs) as Partial<
-          Record<EndpointType, EndpointConfig>
-        > | null)
-      : null
-
-    const result: Partial<Record<EndpointType, EndpointConfig>> = {}
-    for (const [key, config] of Object.entries(endpointConfigs)) {
-      if (!config) continue
-      const ep = key as EndpointType
-      result[ep] = config.adapterFamily
-        ? config
-        : { ...config, adapterFamily: presetConfigs?.[ep]?.adapterFamily ?? inferAdapterFamily(ep) }
-    }
-    return result
   }
 
   /**
@@ -553,7 +651,7 @@ class ProviderRegistryService {
     }
   }
 
-  getProviderDisplayMetadata(providerId: string, presetProviderId?: string): ProviderDisplayMetadata {
+  getProviderDisplayMetadata(providerId: string, presetProviderId?: string | null): ProviderDisplayMetadata {
     try {
       const provider = this.resolveProviderPreset(providerId, presetProviderId, false)
 
@@ -562,11 +660,69 @@ class ProviderRegistryService {
         websites: provider?.metadata?.website,
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
-        authOptional: provider?.authOptional
+        authOptional: provider?.authOptional,
+        reportedCostCurrency: provider?.reportedCostCurrency,
+        apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
+        defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })
       return {}
+    }
+  }
+
+  /**
+   * Merge persisted endpoint configs with the CURRENT registry at read time
+   * (#17096). The seeder is insert-only, so a row's endpoint set freezes at
+   * first seed — registry additions (new endpoint types, changed
+   * adapterFamily/modelsApiUrls) would otherwise never reach existing rows.
+   *
+   * Ownership per field: `adapterFamily` / `modelsApiUrls` are registry-owned
+   * (registry wins, row is a legacy fallback); `baseUrl` is user-owned (row
+   * wins). The key set is the union of registry and row keys, so a registry
+   * that gains an endpoint type surfaces it with zero data migration.
+   *
+   * Custom providers (no registry preset) keep their row configs, with
+   * `adapterFamily` inferred from the endpoint type when absent — mirroring
+   * the historical write-path backfill. Outputs are rebuilt field by field,
+   * so legacy registry-only row fields (e.g. `reasoningFormatType`) never
+   * cross into runtime state.
+   */
+  mergeEndpointConfigs(
+    rowConfigs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> | null | undefined,
+    providerId: string,
+    presetProviderId?: string | null
+  ): Partial<Record<EndpointType, EndpointConfig>> | null {
+    try {
+      // lookupPersistedPreset=false — called from rowToRuntimeProvider; a DB
+      // read-back here would recurse (same guard as getProviderDisplayMetadata).
+      const preset = this.resolveProviderPreset(providerId, presetProviderId, false)
+      const presetConfigs = preset
+        ? (buildPersistedEndpointConfigs(preset.endpointConfigs) as Partial<
+            Record<EndpointType, EndpointConfig>
+          > | null)
+        : null
+
+      if (!rowConfigs && !presetConfigs) return null
+
+      const keys = new Set([...Object.keys(presetConfigs ?? {}), ...Object.keys(rowConfigs ?? {})]) as Set<EndpointType>
+      const merged: Partial<Record<EndpointType, EndpointConfig>> = {}
+      for (const ep of keys) {
+        const presetConfig = presetConfigs?.[ep]
+        const rowConfig = rowConfigs?.[ep]
+        if (!presetConfig && !rowConfig) continue
+        const config: EndpointConfig = {
+          adapterFamily: presetConfig?.adapterFamily ?? rowConfig?.adapterFamily ?? inferAdapterFamily(ep)
+        }
+        const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
+        if (baseUrl !== undefined) config.baseUrl = baseUrl
+        if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
+        merged[ep] = config
+      }
+      return Object.keys(merged).length > 0 ? merged : null
+    } catch (error) {
+      logger.warn('Failed to merge registry endpoint configs', { providerId, presetProviderId, error })
+      return rowConfigs ?? null
     }
   }
 
@@ -577,7 +733,7 @@ class ProviderRegistryService {
   getProviderPreset(
     providerId: string,
     fields: readonly ProviderPresetField[],
-    presetProviderId?: string
+    presetProviderId?: string | null
   ): ProviderPreset {
     const presetProvider = this.resolveProviderPreset(providerId, presetProviderId, false)
     const result: ProviderPreset = {}
@@ -601,10 +757,13 @@ class ProviderRegistryService {
     const registryProvider = this.findRegistryProvider(providerId)
     try {
       const provider = getDataService('ProviderService').getByProviderId(providerId)
+      const presetProviderId = provider.presetProviderId ?? null
       return {
         id: provider.id,
-        presetProviderId: provider.presetProviderId,
-        defaultChatEndpoint: provider.defaultChatEndpoint ?? registryProvider?.defaultChatEndpoint ?? undefined
+        presetProviderId,
+        defaultChatEndpoint:
+          provider.defaultChatEndpoint ??
+          (presetProviderId === null ? undefined : (registryProvider?.defaultChatEndpoint ?? undefined))
       }
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
@@ -619,7 +778,8 @@ class ProviderRegistryService {
     }
   }
 
-  private findProfileProvider(context: Pick<Provider, 'id' | 'presetProviderId'>) {
+  private findProfileProvider(context: Pick<ReasoningProviderContext, 'id' | 'presetProviderId'>) {
+    if (context.presetProviderId === null) return undefined
     return (
       this.findRegistryProvider(context.id) ??
       (context.presetProviderId ? this.findRegistryProvider(context.presetProviderId) : undefined)
@@ -735,20 +895,13 @@ class ProviderRegistryService {
     reasoningProfile: ResolvedReasoningProfile
   } {
     const loader = this.getLoader()
-    const presetProvider = this.resolveProviderPreset(providerId)
-    const registryProviderId = presetProvider?.id ?? providerId
-    const registryOverride = loader.findOverride(registryProviderId, modelId)
+    const providerContext = providerContextCache?.get(providerId) ?? this.getEffectiveProviderContext(providerId)
+    providerContextCache?.set(providerId, providerContext)
+    const presetProvider = this.resolveProviderPreset(providerId, providerContext.presetProviderId, false)
+    const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
     const presetModel =
       loader.findModel(registryOverride?.modelId ?? modelId) ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
-    // Provider context reads the provider row from the DB; when an
-    // optional cache is supplied (batch enrichment in `ModelService.list`),
-    // resolve it once per provider instead of once per model.
-    let providerContext = providerContextCache?.get(providerId)
-    if (!providerContext) {
-      providerContext = this.getEffectiveProviderContext(providerId)
-      providerContextCache?.set(providerId, providerContext)
-    }
 
     return {
       presetModel,
@@ -776,9 +929,8 @@ class ProviderRegistryService {
    */
   resolveModels(providerId: string, modelIds: string[]): Model[] {
     const loader = this.getLoader()
-    const presetProvider = this.resolveProviderPreset(providerId)
-    const registryProviderId = presetProvider?.id ?? providerId
     const providerContext = this.getEffectiveProviderContext(providerId)
+    const presetProvider = this.resolveProviderPreset(providerId, providerContext.presetProviderId, false)
 
     const results: Model[] = []
     const seen = new Set<string>()
@@ -788,7 +940,7 @@ class ProviderRegistryService {
       seen.add(modelId)
 
       // O(1) lookup with exact match + normalized fallback
-      const registryOverride = loader.findOverride(registryProviderId, modelId)
+      const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
       const presetModel =
         loader.findModel(registryOverride?.modelId ?? modelId) ??
         (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
@@ -865,7 +1017,11 @@ class ProviderRegistryService {
     const includeDisabled = options.disabled ?? false
 
     if (options.providerId) {
-      const presetProvider = this.resolveProviderPreset(options.providerId)
+      const presetProvider = this.resolveProviderPreset(
+        options.providerId,
+        options.presetProviderId,
+        options.presetProviderId === undefined
+      )
       return presetProvider ? this.listProviderPresetModels(options.providerId, presetProvider, includeDisabled) : []
     }
 

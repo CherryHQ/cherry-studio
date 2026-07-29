@@ -378,6 +378,11 @@
         "label": "Vorab autorisierte Tools",
         "placeholder": "Vorab autorisierte Tools auswählen"
       },
+      "api_retry": {
+        "reason": "Anfrage fehlgeschlagen ({{error}}, HTTP {{status}}) — wird wiederholt",
+        "retrying": "Wiederholung {{attempt}}/{{max}}…",
+        "retrying_in": "Wiederholung {{attempt}}/{{max}} in {{seconds}}s"
+      },
       "auto_rename": "Aufgabenname generieren",
       "create": {
         "error": {
@@ -435,6 +440,12 @@
       "label_other": "Sitzungen",
       "list": {
         "title": "Aufgaben"
+      },
+      "model_switch_confirm": {
+        "confirm": "Modell wechseln",
+        "description": "Verschiedene Modelle können den Kontext unterschiedlich verstehen und verarbeiten. Ein Wechsel kann die Kontinuität oder Qualität nachfolgender Antworten beeinträchtigen. Möchten Sie fortfahren?",
+        "skip_for_app_run": "Nicht erneut fragen, bis ich die App beende",
+        "title": "Zu „{{model}}“ wechseln?"
       },
       "new": "Neue Aufgabe",
       "pin": {
@@ -678,6 +689,7 @@
         "deleteFailed": "Fehler beim Löschen der Aufgabe",
         "loadFailed": "Aufgaben konnten nicht geladen werden",
         "runFailed": "Aufgabe konnte nicht ausgeführt werden",
+        "triggerInvalid": "Ungültiger Zeitplan: Überprüfen Sie den Ausdruck, die Zeitzone oder den Intervallbereich",
         "updateFailed": "Aktualisierung der Aufgabe fehlgeschlagen"
       },
       "frequency": {
@@ -720,6 +732,38 @@
       "run": "Ausführen",
       "runTriggered": "Aufgabe ausgelöst",
       "save": "Speichern",
+      "schedule": {
+        "custom": "Benutzerdefinierter Zeitplan",
+        "daily": "Täglich",
+        "hour": "Stunde",
+        "hourly": "Stündlich",
+        "interval": "Benutzerdefiniertes Intervall",
+        "intervalMinutes": "Intervall",
+        "invalid": "Geben Sie eine gültige Ausführungshäufigkeit ein.",
+        "minute": "Minute",
+        "once": "Einmal",
+        "runAt": "Ausführen bei",
+        "summary": {
+          "daily": "Täglich um {{time}}",
+          "hourly": "Zu Beginn jeder Stunde",
+          "interval": "Alle {{count}} Minuten",
+          "weekdays": "Wochentags um {{time}}",
+          "weekly": "Jeden {{weekday}} um {{time}}"
+        },
+        "time": "Zeit",
+        "weekday": "Wochentag",
+        "weekdays": {
+          "friday": "Freitag",
+          "monday": "Montag",
+          "saturday": "Samstag",
+          "sunday": "Sonntag",
+          "thursday": "Donnerstag",
+          "tuesday": "Dienstag",
+          "wednesday": "Mittwoch"
+        },
+        "weekdaysOnly": "Wochentage",
+        "weekly": "Wöchentlich"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Intervall",
@@ -869,7 +913,7 @@
       "expired": "Abgelaufen",
       "inputPreview": "Vorschau der Werkzeugeingabe",
       "pending": "Ausstehend ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Ausstehend",
       "permissionExpired": "Berechtigungsanfrage abgelaufen. Warte auf neue Anweisungen...",
       "requiresElevatedPermissions": "Dieses Tool erfordert erhöhte Berechtigungen.",
       "suggestion": {
@@ -997,7 +1041,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Kopieren",
       "regenerate": "Neu generieren",
       "restart": {
         "button": "Neustarten",
@@ -1009,8 +1052,6 @@
     "authHeader": {
       "title": "Autorisierungs-Header"
     },
-    "authHeaderText": "Im Autorisierungs-Header verwenden:",
-    "configuration": "Konfiguration",
     "description": "Stellen Sie die KI-Funktionen von Cherry Studio über eine OpenAI-kompatible HTTP-API bereit",
     "documentation": {
       "title": "API-Dokumentation"
@@ -1018,13 +1059,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "API-Schlüssel kopieren",
-        "description": "Sicherheits-Token für API-Zugriff",
         "label": "API-Schlüssel",
         "placeholder": "API-Schlüssel wird automatisch generiert"
       },
       "port": {
-        "description": "TCP-Portnummer des HTTP-Servers (1000-65535)",
-        "helpText": "Server stoppen, um Port zu ändern",
         "label": "Port"
       },
       "url": {
@@ -1033,7 +1071,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "API-Schlüssel in die Zwischenablage kopiert",
       "apiKeyRegenerated": "API-Schlüssel wurde neu generiert",
       "notEnabled": "API server is not enabled.",
       "operationFailed": "API-Server-Operation fehlgeschlagen:",
@@ -1043,8 +1080,7 @@
       "startError": "API-Server starten fehlgeschlagen:",
       "startSuccess": "API-Server erfolgreich gestartet",
       "stopError": "API-Server stoppen fehlgeschlagen:",
-      "stopSuccess": "API-Server erfolgreich gestoppt",
-      "urlCopied": "Server-URL in die Zwischenablage kopiert"
+      "stopSuccess": "API-Server erfolgreich gestoppt"
     },
     "status": {
       "running": "Läuft",
@@ -1427,21 +1463,21 @@
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Fehler beim Laden der referenzierten Konversation",
+        "no_room": "Nicht genug Platz in der Nachricht, um diese Konversation hinzuzufügen",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Keine Sitzungen entsprechen Ihrer Suche",
+            "label": "Keine Sitzungen gefunden"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Sessions"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Keine Themen entsprechen Ihrer Suche",
+            "label": "Keine Themen gefunden"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Themen"
         }
       },
       "resize_height": "Eingabehöhe ändern",
@@ -1603,8 +1639,17 @@
       "token_details": {
         "cache_read": "Cache-Lesevorgang",
         "cache_write": "Cache-Schreiben",
+        "cost": "Kosten",
+        "cost_billed": "Abgerechnet durch Anbieter",
+        "cost_estimated": "Geschätzt",
+        "end_to_end_throughput": "End-to-End-Durchsatz",
         "input": "Eingabe",
         "input_breakdown": "Eingabeaufschlüsselung",
+        "lane_approval": "Genehmigung",
+        "lane_model": "Modell",
+        "lane_other": "Andere",
+        "lane_tool": "Werkzeug",
+        "model_throughput": "Modellgenerierung TPS",
         "output": "Ausgabe",
         "reasoning": "Schlussfolgerung",
         "reasoning_time": "Schlussfolgerung",
@@ -1613,6 +1658,7 @@
         "text_output": "Textausgabe",
         "tokens": "{{value}} Tokens",
         "tokens_per_second_value": "{{value}} Token/s",
+        "total_duration": "Gesamtdauer",
         "uncached": "Nicht zwischengespeichert",
         "usage": "Token-Nutzung",
         "waiting_first_token": "Wartend"
@@ -2140,7 +2186,7 @@
     "terminal": "Terminal",
     "terminal_hint": "Wählen Sie, in welchem Terminal die CLI ausgeführt werden soll",
     "terminal_placeholder": "Terminal-Anwendung auswählen",
-    "title": "Code-Tools",
+    "title": "Code Mate",
     "tool_parameters": "Parametereinstellungen",
     "up_to_date": "Aktuell",
     "update_options": "Update-Optionen",
@@ -2280,6 +2326,7 @@
     "open_in": "In {{name}} öffnen",
     "open_in_new_tab": "In neuem Tab öffnen",
     "open_sidebar": "Seitenleiste öffnen",
+    "other": "Andere",
     "placeholders": {
       "select": {
         "model": "Modell auswählen"
@@ -2293,7 +2340,7 @@
     "provider": "Anbieter",
     "reasoning_content": "Tiefgehend nachgedacht",
     "refresh": "Aktualisieren",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Die Liste konnte nicht aktualisiert werden. Es wird die zuletzt geladene Version angezeigt.",
     "regenerate": "Neu generieren",
     "remove_image": "Bild entfernen",
     "rename": "Umbenennen",
@@ -2609,7 +2656,7 @@
     "empty": {
       "no_match_description": "Keine Dateien entsprechen den aktuellen Filtern",
       "no_match_title": "Keine passenden Dateien gefunden",
-      "title": "[to be translated]:No files yet"
+      "title": "Noch keine Dateien"
     },
     "empty_trash": "Papierkorb leeren",
     "error": {
@@ -3007,6 +3054,7 @@
     "embedding_model": "Einbettungsmodell",
     "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
     "empty": "Keine Wissensdatenbanken",
+    "empty_action": "Wissensbasis erstellen",
     "empty_description": "Sie haben noch keine Wissensdatenbanken. Erstellen Sie eine, um Ihre Dokumente zu organisieren und durchzusuchen.",
     "error": {
       "directory_not_migrated": "Ordnermigration fehlgeschlagen. Bitte löschen Sie ihn und laden Sie ihn erneut hoch.",
@@ -3781,6 +3829,8 @@
         "title": "Löschen bestätigen"
       },
       "failed": "Löschen fehlgeschlagen",
+      "first_turn_not_supported": "Die erste Benutzernachricht kann nicht gelöscht werden.",
+      "root_unavailable": "Nachrichten werden noch geladen und können noch nicht gelöscht werden.",
       "success": "Erfolgreich gelöscht"
     },
     "dialog": {
@@ -4279,6 +4329,7 @@
     },
     "pinned": "Angeheftet",
     "price": {
+      "cache_read": "Cache-Lesepreis",
       "cost": "Kosten",
       "currency": "Währung",
       "custom": "Benutzerdefiniert",
@@ -4894,6 +4945,11 @@
     "seed_random": "Zufällig",
     "seed_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren",
     "select_model": "Modell auswählen",
+    "showcase": {
+      "caption": "Wähle eine Vorlage aus und passe anschließend den Prompt unten an.",
+      "styles_label": "Prompt-Vorlagen",
+      "title": "Raum für dein nächstes Meisterwerk."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Auto",
@@ -5170,6 +5226,7 @@
       "label": "Möchten Sie die Daten wirklich wiederherstellen?"
     },
     "content": "Der Wiederherstellungsvorgang überschreibt alle aktuellen Anwendungsdaten mit den Backup-Daten. Bitte beachten Sie, dass der Wiederherstellungsprozess einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld",
+    "messages_paused": "Eine Wiederherstellung aus dem Backup läuft; neue Nachrichten sind bis zum Abschluss pausiert.",
     "progress": {
       "completed": "Wiederherstellung abgeschlossen",
       "copying_files": "Dateien kopieren... {{progress}}%",
@@ -5755,8 +5812,7 @@
       },
       "backup": {
         "skip_file_data_help": "Bilder und Wissensdatenbank-Dateien beim Backup überspringen, nur Chat-Verlauf und Einstellungen sichern. Spart Speicher und beschleunigt Backup",
-        "skip_file_data_title": "Kompaktes Backup",
-        "v2_unavailable": "Backup & Restore V2 ist noch nicht verfügbar. Bald erhältlich."
+        "skip_file_data_title": "Kompaktes Backup"
       },
       "clear_cache": {
         "button": "Cache löschen",
@@ -6400,6 +6456,7 @@
       "viewErrorDetails": "Details anzeigen"
     },
     "developer": {
+      "client_id": "Client-ID",
       "enable_developer_mode": "Entwicklermodus aktivieren",
       "help": "Nach Aktivierung des Entwicklermodus kann die Aufrufkette zur Ansicht des Datenflusses verwendet werden.",
       "title": "Entwicklermodus"
@@ -6582,7 +6639,9 @@
       "active": "Aktivieren",
       "addError": "Server hinzufügen fehlgeschlagen",
       "addServer": {
+        "advanced": "Erweitert",
         "create": "Schnell erstellen",
+        "createDescription": "Geben Sie die Verbindungsdetails ein, um den Server zu erstellen; alles andere kann später angepasst werden.",
         "importFrom": {
           "connectionFailed": "Verbindung fehlgeschlagen",
           "dxt": "DXT-Paket importieren",
@@ -6662,7 +6721,11 @@
         "success": "MCP-Server erfolgreich abgerufen"
       },
       "filter": {
-        "label": "Filter"
+        "allStatuses": "Alle Status",
+        "allTypes": "Alle Typen",
+        "builtinOnly": "Nur integriert",
+        "status": "Nach Status filtern",
+        "type": "Nach Typ filtern"
       },
       "findMore": "Mehr MCP",
       "headers": "Request-Header",
@@ -6719,6 +6782,7 @@
         "usage": "Verwendung",
         "version": "Version"
       },
+      "pageDescription": "MCP-Server verwalten. Nach der Aktivierung können Agenten die bereitgestellten Tools und Ressourcen aufrufen.",
       "prompts": {
         "arguments": "Parameter",
         "availablePrompts": "Verfügbare Prompts",
@@ -7682,12 +7746,39 @@
       "titlePlaceholder": "Bitte geben Sie den Titel der Phrase ein"
     },
     "scheduledTasks": {
+      "agentCreate": "Erstellen mit Agent",
+      "allAgents": "Alle Agenten",
+      "allStatuses": "Alle Status",
+      "clearFilters": "Filter löschen",
+      "createDescription": "Legen Sie fest, was der Agent tun soll und wann er ausgeführt werden soll.",
+      "createTitle": "Neue geplante Aufgabe",
       "description": "Verwalten Sie geplante Aufgaben über alle Agents hinweg. Aufgaben werden automatisch nach dem konfigurierten Zeitplan ausgeführt.",
+      "editDescription": "Aktualisieren Sie, was der Agent tun soll und wann er ausgeführt werden soll.",
+      "editTitle": "Geplante Aufgabe bearbeiten",
+      "filterAgent": "Nach Agent filtern",
+      "filterStatus": "Nach Status filtern",
+      "manualCreate": "Manuell erstellen",
+      "newTask": "Neu",
       "noAgents": "Keine Agenten gefunden. Erstellen Sie zuerst einen Agenten, um geplante Aufgaben hinzuzufügen.",
       "noAgentsTip": "Tipp: Sie können Ihren Agenten auch bitten, per Chat geplante Aufgaben zu erstellen.",
+      "noAgentsTitle": "Keine Agenten",
+      "noMatches": "Versuchen Sie eine andere Suche oder einen anderen Filter.",
+      "noMatchesTitle": "Keine passenden Aufgaben gefunden",
       "noTasks": "Keine geplanten Aufgaben. Klicken Sie auf „+ Hinzufügen“, um eine für einen Agenten zu erstellen.",
+      "noTasksTitle": "Keine geplanten Aufgaben",
+      "notFoundDescription": "Diese Aufgabe wurde möglicherweise gelöscht oder der Link ist ungültig.",
+      "notFoundTitle": "Aufgabe nicht gefunden",
+      "paginationLabel": "Geplante Aufgaben-Paginierung",
+      "paginationStatus": "Seite {{page}} von {{pageCount}} · {{total}} Aufgaben",
+      "search": "Geplante Aufgaben suchen",
+      "searchPlaceholder": "Aufgaben oder Agenten suchen",
       "selectTask": "Wählen Sie eine Aufgabe aus, um Details anzuzeigen",
-      "title": "Geplante Aufgaben"
+      "title": "Geplante Aufgaben",
+      "validation": {
+        "agent": "Wählen Sie einen Agenten aus.",
+        "name": "Geben Sie einen Aufgabennamen ein.",
+        "prompt": "Geben Sie eine Aufgabenaufforderung ein."
+      }
     },
     "shortcuts": {
       "action": "Aktionen",
@@ -7776,6 +7867,7 @@
       "noInstalled": "Keine Fähigkeiten installiert",
       "noResults": "Keine Fähigkeiten gefunden",
       "noSkillFile": "Keine SKILL.md gefunden",
+      "pageDescription": "Verwalten Sie installierte Skills. Skills erweitern die Fähigkeiten Ihrer Agenten und werden bei Bedarf aufgerufen.",
       "searchPlaceholder": "Weitere Fähigkeiten entdecken...",
       "searchRegistryTitle": "Durchsuche Fähigkeitsregister online",
       "searchTitle": "Suchfähigkeiten",
@@ -8031,6 +8123,108 @@
       "show": "Tray-Symbol anzeigen",
       "title": "Tray"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "Aktive Tage",
+        "cacheHitRate": "Cache-Trefferrate",
+        "cacheObservedTokens": "Beobachtbare Eingabe: {{tokens}}",
+        "cacheStartsWithNewRequests": "Beginnt mit neuen Anfragen",
+        "dailyAverage": "Tagesdurchschnitt",
+        "explicitApiKey": "Ausgewählter Schlüssel",
+        "lastPeriod": "gegen den letzten Zeitraum",
+        "matchedApiKey": "Übereinstimmende Überschreibung",
+        "none": "N/A",
+        "peakDay": "Höchsttag",
+        "providerAuth": "Anbieter-Authentifizierung",
+        "streak": "Längste Serie: {{days}} Tage",
+        "topModel": "Top-Model",
+        "totalCost": "Gesamtkosten",
+        "totalRequests": "Anfragen",
+        "totalTokens": "Gesamtzahl der Token",
+        "unattributedApiKey": "Nicht zugeordnete Anfrage",
+        "unattributedSource": "Unzugeordnete Quelle"
+      },
+      "chart": {
+        "bar": "Bar",
+        "line": "Zeile",
+        "pie": "Kuchen",
+        "stack": "Stapel"
+      },
+      "currency": "Währung",
+      "empty": {
+        "description": "Die Nutzung erscheint, nachdem unterstützte KI-Anfragen Nutzungsdatensätze erstellt haben.",
+        "title": "Noch keine Nutzung"
+      },
+      "explore": {
+        "analysis": "Analyse",
+        "chart": "Diagramm",
+        "clearDate": "Datumsfilter löschen",
+        "drilldownTitle": "{{date}} Drilldown",
+        "entries": "Anfragen",
+        "groupBy": "Gruppieren nach",
+        "loadMore": "Mehr laden",
+        "loading": "Wird geladen...",
+        "metric": "Metrisch",
+        "noBreakdown": "Keine Aufschlüsselung der Daten",
+        "noBreakdownDescription": "Versuchen Sie ein breiteres Fenster oder einen anderen Anbieter.",
+        "noEntries": "Keine Einträge",
+        "noEntriesDescription": "Probieren Sie ein breiteres Fenster oder einen anderen Anbieter aus.",
+        "rollup": "Rollup",
+        "selectedDate": "Ausgewähltes Datum: {{date}}",
+        "shareLabel": "Teilen",
+        "title": "Erkunden",
+        "top": "Spitze",
+        "totalEntries_one": "{{count}} Eintrag",
+        "totalEntries_other": "{{count}} Einträge"
+      },
+      "groupBy": {
+        "apiKey": "API-Schlüssel",
+        "model": "Modell",
+        "provider": "Anbieter",
+        "source": "Assistent / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "Verwendung am {{date}}",
+        "title": "Tägliche Aktivität"
+      },
+      "metric": {
+        "cost": "Kosten",
+        "requests": "Anfragen",
+        "tokens": "Tokens"
+      },
+      "overview": {
+        "title": "Übersicht"
+      },
+      "rollup": {
+        "daily": "Täglich",
+        "monthly": "Monatlich",
+        "total": "Gesamt",
+        "weekly": "Wöchentlich"
+      },
+      "summary": "{{window}} / {{tokens}} Token / {{requests}} Anfragen",
+      "table": {
+        "cost": "Kosten",
+        "date": "Datum",
+        "model": "Modell",
+        "source": "Quelle",
+        "tokens": "Token",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Nutzungsanalysen",
+      "tooltip": {
+        "cost": "Kosten {{value}}",
+        "requests_one": "{{count}} Anfrage",
+        "requests_other": "{{count}} Anfragen",
+        "tokens": "{{value}} Token"
+      },
+      "window": {
+        "30d": "Letzte 30 Tage",
+        "365d": "Letztes Jahr",
+        "90d": "Letzte 90 Tage"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Das Ändern des Titelleistenstils erfordert einen Neustart der App, damit die Änderung wirksam wird. Möchten Sie jetzt neu starten?",
@@ -8061,7 +8255,7 @@
   "title": {
     "apps": "Mini-Apps",
     "chat": "Chat",
-    "code": "Code",
+    "code": "Code Mate",
     "files": "Datei",
     "home": "Startseite",
     "knowledge": "Wissensdatenbank",
@@ -8206,6 +8400,7 @@
         "placeholder": "Übersetzungsverlauf durchsuchen"
       },
       "source": "Quelle",
+      "star": "Lieblings-",
       "success": {
         "add": "In der Historie gespeichert",
         "clear": "Verlauf gelöscht",

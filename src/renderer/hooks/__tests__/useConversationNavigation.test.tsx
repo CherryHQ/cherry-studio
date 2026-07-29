@@ -51,7 +51,7 @@ describe('useConversationNavigation', () => {
       title: 'Session 1',
       metadata: { instanceAppId: 'agents', instanceKey: 's1' }
     })
-    expect(tabsMock.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'new-agent-tab' })
+    expect(tabsMock.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
   it('openConversationTab opens a new tab even when one exists', () => {
@@ -67,7 +67,7 @@ describe('useConversationNavigation', () => {
       title: 'Session 1',
       metadata: { instanceAppId: 'agents', instanceKey: 's1' }
     })
-    expect(tabsMock.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'new-agent-tab' })
+    expect(tabsMock.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
   it('openConversationTab can force opening a duplicate tab even when one exists', () => {
@@ -83,7 +83,7 @@ describe('useConversationNavigation', () => {
       title: 'Session 1',
       metadata: { instanceAppId: 'agents', instanceKey: 's1' }
     })
-    expect(tabsMock.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'duplicate-agent-tab' })
+    expect(tabsMock.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
   it('openConversationTab opens a forceNew tab after metadata-aware lookup misses', () => {

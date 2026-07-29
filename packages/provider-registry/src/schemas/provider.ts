@@ -5,7 +5,7 @@
 
 import * as z from 'zod'
 
-import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
+import { MetadataSchema, ProviderIdSchema, VersionSchema, ZodCurrencySchema } from './common'
 import { ENDPOINT_TYPE, type EndpointType, objectValues } from './enums'
 import { ReasoningWireProfileSchema } from './reasoningWire'
 
@@ -32,7 +32,12 @@ export const ApiFeaturesSchema = z.object({
   /** Whether the provider supports service tier selection (OpenAI/Groq-specific) */
   serviceTier: z.boolean().default(false),
   /** Whether the provider supports verbosity settings (OpenAI-specific) */
-  verbosity: z.boolean().default(false)
+  verbosity: z.boolean().default(false),
+
+  // --- Response feature flags ---
+
+  /** Whether the provider returns the actual billed cost in its usage response */
+  reportsActualCost: z.boolean().default(false)
 })
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -160,6 +165,12 @@ export const ProviderConfigSchema = z
     authOptional: z.boolean().default(false),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
+    /**
+     * Registry-owned currency for provider-reported costs whose wire payload
+     * carries an amount but no currency. Absent means the amount stays
+     * unpriced; consumers must not infer a default currency.
+     */
+    reportedCostCurrency: ZodCurrencySchema,
     /** Additional metadata including website URLs */
     metadata: MetadataSchema.and(ProviderWebsiteSchema)
   })

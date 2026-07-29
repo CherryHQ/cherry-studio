@@ -276,13 +276,15 @@ describe('cherryBuiltinTools', () => {
     expect(kbSearch).not.toHaveBeenCalledWith('b2', 'topic')
   })
 
-  it('rejects a direct kb_* call when the agent has no bound knowledge base', async () => {
+  it('rejects a direct kb_* call when the effective knowledge scope is empty', async () => {
     const result = await callCherryBuiltinTool('kb_search', { query: 'topic', baseIds: ['b1'] }, signal, [])
 
     expect(result.isError).toBe(true)
-    expect(textOf(result)).toContain('no knowledge base bound')
+    // "in scope", not "bound": an empty scope means no binding AND no composer selection, so naming
+    // only the binding would send the model after the wrong remedy.
+    expect(textOf(result)).toContain('no knowledge base in scope')
     expect(kbSearch).not.toHaveBeenCalled()
-    expect(loggerWarn).toHaveBeenCalledWith('Rejected direct knowledge tool call without a bound knowledge base', {
+    expect(loggerWarn).toHaveBeenCalledWith('Rejected direct knowledge tool call with an empty knowledge scope', {
       tool: 'kb_search'
     })
   })
@@ -702,6 +704,23 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     expect(names).not.toContain('kb_read')
     expect(names).not.toContain('kb_list')
     expect(names).not.toContain('kb_manage')
+  })
+
+  it('exposes CLI management to normal agents and omits it for the built-in Assistant', async () => {
+    const normal = new CherryBuiltinToolsServer(agentContext)
+    const assistant = new CherryBuiltinToolsServer({ ...agentContext, canManageCli: false })
+    const normalHandlers = (normal.mcpServer.server as any)._requestHandlers
+    const assistantHandlers = (assistant.mcpServer.server as any)._requestHandlers
+
+    const normalNames = (await normalHandlers.get('tools/list')({ method: 'tools/list', params: {} }, {})).tools.map(
+      (tool: any) => tool.name
+    )
+    const assistantNames = (
+      await assistantHandlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    ).tools.map((tool: any) => tool.name)
+
+    expect(normalNames).toEqual(expect.arrayContaining(['cli_list', 'cli_search', 'cli_install']))
+    expect(assistantNames).not.toEqual(expect.arrayContaining(['cli_list', 'cli_search', 'cli_install']))
   })
 
   it('rejects a previously bound base after the live scope narrows', async () => {

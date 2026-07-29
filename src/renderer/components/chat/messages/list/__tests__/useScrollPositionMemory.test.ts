@@ -25,7 +25,7 @@ describe('computeScrollAnchor', () => {
     ).toBeNull()
   })
 
-  it('returns null when the top-most item is the spacer / out of range', () => {
+  it('returns null when the top-most item is out of range', () => {
     expect(
       computeScrollAnchor({
         atBottom: false,
@@ -105,7 +105,6 @@ describe('useScrollPositionMemory', () => {
     scrollToIndex: ReturnType<typeof vi.fn>
   }
   let atBottom: boolean
-  let releaseAnchor: ReturnType<typeof vi.fn>
   let notifyProgrammaticStick: ReturnType<typeof vi.fn>
   let keysByIndex: Record<number, string>
 
@@ -122,7 +121,6 @@ describe('useScrollPositionMemory', () => {
     },
     isAtBottom: () => atBottom,
     notifyProgrammaticStick,
-    releaseAnchor,
     isAnimating: () => false,
     ...overrides
   })
@@ -140,7 +138,6 @@ describe('useScrollPositionMemory', () => {
     scroller = { scrollTop: 0, scrollHeight: 1000, clientHeight: 400 }
     handle = { findItemIndex: vi.fn(), getItemOffset: vi.fn(), scrollToIndex: vi.fn() }
     atBottom = false
-    releaseAnchor = vi.fn()
     notifyProgrammaticStick = vi.fn()
     keysByIndex = { 0: 'g0', 1: 'g1', 2: 'g2' }
   })
@@ -155,7 +152,6 @@ describe('useScrollPositionMemory', () => {
     renderHook(() => useScrollPositionMemory(buildInputs()))
     flushRaf()
 
-    expect(releaseAnchor).toHaveBeenCalledTimes(1)
     expect(handle.scrollToIndex).toHaveBeenCalledWith(2, { align: 'start', offset: 80 })
     expect(notifyProgrammaticStick).not.toHaveBeenCalled()
   })
@@ -168,14 +164,6 @@ describe('useScrollPositionMemory', () => {
     expect(handle.scrollToIndex).toHaveBeenCalledWith(2, { align: 'end', offset: 24 })
     expect(notifyProgrammaticStick).toHaveBeenCalledTimes(1)
     expect(scroller.scrollTop).toBe(0) // not touched directly while the handle exists
-  })
-
-  it('restores newest message without enabling bottom-follow when suppressed', () => {
-    renderHook(() => useScrollPositionMemory(buildInputs({ suppressBottomFollow: () => true })))
-    flushRaf()
-
-    expect(handle.scrollToIndex).toHaveBeenCalledWith(2, { align: 'end', offset: 24 })
-    expect(notifyProgrammaticStick).not.toHaveBeenCalled()
   })
 
   it('falls back to scrollTop when no virtua handle is available', () => {

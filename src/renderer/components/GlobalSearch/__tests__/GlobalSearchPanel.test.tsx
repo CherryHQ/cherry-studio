@@ -60,6 +60,7 @@ const mocks = vi.hoisted(() => ({
   dataApiPut: vi.fn(),
   invalidateCache: vi.fn(),
   eventEmit: vi.fn(),
+  emitResourceListReveal: vi.fn(),
   virtualListScrollToIndex: vi.fn(),
   loggerError: vi.fn(),
   activeTab: {
@@ -423,6 +424,10 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: { emit: mocks.eventEmit }
 }))
 
+vi.mock('@renderer/services/resourceListRevealEvents', () => ({
+  emitResourceListReveal: mocks.emitResourceListReveal
+}))
+
 vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
@@ -672,6 +677,21 @@ describe('GlobalSearchPanel', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')).toHaveFocus()
     })
+  })
+
+  it('keeps the search input focused after clearing the query', async () => {
+    const user = userEvent.setup()
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const searchInput = screen.getByRole('combobox', {
+      name: 'Search conversations, tasks, assistants, agents, and knowledge...'
+    })
+    await user.type(searchInput, 'needle')
+    await user.click(screen.getByRole('button', { name: 'Clear search' }))
+
+    expect(searchInput).toHaveFocus()
+    await user.keyboard('second query')
+    expect(searchInput).toHaveValue('second query')
   })
 
   it('links the search input to the visible recent listbox', async () => {
@@ -979,8 +999,82 @@ describe('GlobalSearchPanel', () => {
       forceNew: true,
       metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1' }
     })
+    expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
     expect(mocks.eventEmit).not.toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_TOPIC', expect.anything())
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('reveals the assistant resource list when opening a topic result', async () => {
+    const user = userEvent.setup()
+    mocks.recentItems = []
+    mocks.dataApiGet.mockResolvedValueOnce({
+      id: 'topic-1',
+      name: 'Topic A',
+      assistantId: 'assistant-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as never)
+    mocks.queryResult = {
+      query: 'topic',
+      groups: [
+        {
+          type: 'topic',
+          items: [
+            {
+              type: 'topic',
+              id: 'topic-1',
+              title: 'Topic A',
+              target: { topicId: 'topic-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.type(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'), 'topic')
+    await user.click(await screen.findByRole('option', { name: /Topic A/ }))
+
+    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({
+      source: 'assistants',
+      tabId: 'opened-chat-tab'
+    })
+  })
+
+  it('reveals the agent resource list when opening a session result', async () => {
+    const user = userEvent.setup()
+    mocks.recentItems = []
+    mocks.queryResult = {
+      query: 'session',
+      groups: [
+        {
+          type: 'session',
+          items: [
+            {
+              type: 'session',
+              id: 'session-1',
+              title: 'Session A',
+              target: { sessionId: 'session-1', agentId: 'agent-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.type(
+      screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'),
+      'session'
+    )
+    await user.click(await screen.findByRole('option', { name: /Session A/ }))
+
+    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({
+      source: 'agents',
+      tabId: 'opened-agent-tab'
+    })
   })
 
   it('caps topic and work groups in all search and expands them on demand', async () => {

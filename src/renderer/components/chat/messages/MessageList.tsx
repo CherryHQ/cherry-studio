@@ -229,6 +229,10 @@ const MessageList = () => {
     messageListRef.current?.scrollToBottom('instant')
   }, [])
 
+  const captureLocalSendScrollEligibility = useCallback(() => {
+    messageListRef.current?.captureLocalSendScrollEligibility()
+  }, [])
+
   // Navigation buttons scroll through the virtua-aware runtime handle (smooth,
   // remeasure-safe) rather than a raw scrollTo on the virtualized scroller.
   const navigateToTop = useCallback(() => {
@@ -273,7 +277,7 @@ const MessageList = () => {
         messageElements.current.delete(messageId)
         continue
       }
-      if (message.role !== 'assistant' || message.type === 'clear') continue
+      if (message.role !== 'assistant' || message.isContextBoundary) continue
 
       if (!element.isConnected || !scrollElement.contains(element)) {
         messageElements.current.delete(messageId)
@@ -408,8 +412,18 @@ const MessageList = () => {
     },
     [data.isInitialLoading, enqueueTopicImageCaptureAction, topic.id]
   )
-  const runtimeActionsRef = useRef({ scrollToBottom, scrollToMessageById, runTopicImageAction })
-  runtimeActionsRef.current = { scrollToBottom, scrollToMessageById, runTopicImageAction }
+  const runtimeActionsRef = useRef({
+    scrollToBottom,
+    captureLocalSendScrollEligibility,
+    scrollToMessageById,
+    runTopicImageAction
+  })
+  runtimeActionsRef.current = {
+    scrollToBottom,
+    captureLocalSendScrollEligibility,
+    scrollToMessageById,
+    runTopicImageAction
+  }
 
   const flushPendingTopicImageAction = useCallback(() => {
     if (data.isInitialLoading || !scrollContainerRef.current) return
@@ -513,6 +527,7 @@ const MessageList = () => {
   useEffect(() => {
     return bindRuntime?.({
       scrollToBottom: () => runtimeActionsRef.current.scrollToBottom(),
+      captureLocalSendScrollEligibility: () => runtimeActionsRef.current.captureLocalSendScrollEligibility(),
       locateMessage: (messageId) => runtimeActionsRef.current.scrollToMessageById(messageId),
       copyTopicImage: () => runtimeActionsRef.current.runTopicImageAction('copy'),
       exportTopicImage: () => runtimeActionsRef.current.runTopicImageAction('export')
@@ -526,21 +541,17 @@ const MessageList = () => {
   const activeOutlineMessage = activeOutline
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
-  const latestUserMessage = messages.findLast((message) => message.role === 'user' && message.type !== 'clear')
   const latestAssistantGroupMessages = latestAssistantGroupKey
     ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
     : undefined
-  const preserveScrollAnchor =
+  const shouldKeepLatestAssistantGroupMounted =
     latestAssistantGroupMessages?.some(
       (message) =>
         message.role === 'assistant' &&
         (messageUi.getMessageActivityState?.(message).isProcessing ?? message.status === 'pending')
     ) ?? false
-  const keepMountedKeys = preserveScrollAnchor && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
-  // The runtime now treats this key as the group to scroll to the viewport
-  // top (rather than scrolling to the absolute bottom). User-message groups
-  // are keyed by `user${msgId}` — see stableGroupedMessages.
-  const forceScrollToBottomKey = latestUserMessage ? `user${latestUserMessage.id}` : undefined
+  const keepMountedKeys =
+    shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   const defaultBottomPadding = isMultiSelectMode
     ? MULTI_SELECT_BOTTOM_PADDING_PX
     : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX
@@ -572,8 +583,7 @@ const MessageList = () => {
             overscan={data.overscan}
             topPadding={topPadding}
             bottomPadding={bottomPadding}
-            forceScrollToBottomKey={forceScrollToBottomKey}
-            preserveScrollAnchor={preserveScrollAnchor}
+            localSendGeneration={data.localSendGeneration}
             keepMountedKeys={keepMountedKeys}
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}

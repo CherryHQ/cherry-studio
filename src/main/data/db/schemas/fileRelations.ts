@@ -88,10 +88,11 @@ export const paintingFileRefTable = sqliteTable(
  *
  * These model a single-file slot and are the **single source of truth** for an
  * owner's uploaded logo — the owner row keeps only `logo_key` (preset / URL
- * refs), never a duplicate `logo_file_id`. Writes go through the `logoRef`
- * helpers (`reconcileLogoSlotTx` / `clearSingleFileRefTx`); reads look the file
- * id back up via `getLogoFileId` (one indexed lookup on the unique `(sourceId)`
- * index). `sourceId` carries a **FK to the owner** (`onDelete: 'cascade'`) and
+ * refs), never a duplicate `logo_file_id`. Writes go through the
+ * `singleFileRef` helpers (`reconcileLogoSlotTx` / `clearSingleFileRefTx`),
+ * each owner passing its own table; reads look the file id back up via
+ * `getSingleFileRefId` (one indexed lookup on the unique `(sourceId)` index).
+ * `sourceId` carries a **FK to the owner** (`onDelete: 'cascade'`) and
  * `fileEntryId` a FK to the file (`onDelete: 'cascade'`), matching the
  * collection ref tables (`chat_message`, `painting`): dropping a provider /
  * mini-app or its file drops the ref row, so orphan-counting stays exact.
@@ -133,11 +134,29 @@ export const miniAppLogoFileRefTable = sqliteTable(
   },
   (t) => [index('malfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('malfr_source_id_idx').on(t.sourceId)]
 )
+/** The roleless single-file (logo) slot source types. */
+export type SingleFileRefSourceType = typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType
+
+/**
+ * Single-file slot tables by source type — the `sourceType → table` bridge for
+ * callers that carry a source type they cannot resolve statically (the v1
+ * migrator). Service write paths pass their own table directly instead, which
+ * is what keeps a service from reaching another owner's slot.
+ */
+export const singleFileRefTablesBySourceType = {
+  [providerLogoRef.sourceType]: providerLogoFileRefTable,
+  [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable
+} as const satisfies Record<SingleFileRefSourceType, typeof providerLogoFileRefTable | typeof miniAppLogoFileRefTable>
+
+/**
+ * Every persistent source type has an association table. Intentionally has NO
+ * runtime consumer — the `satisfies` below is a compile-time completeness
+ * assertion: adding a source type without its table fails typecheck right here.
+ */
 export const persistentFileRefTablesBySourceType = {
   [chatMessageSourceType]: chatMessageFileRefTable,
   [paintingSourceType]: paintingFileRefTable,
-  [providerLogoRef.sourceType]: providerLogoFileRefTable,
-  [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable
+  ...singleFileRefTablesBySourceType
 } as const satisfies Record<
   PersistentFileRefSourceType,
   | typeof chatMessageFileRefTable
