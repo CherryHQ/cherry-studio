@@ -89,13 +89,13 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
             </div>
           ) : isStreaming && hasContent ? (
             <>
-              <div className="m-4 overflow-hidden rounded-md bg-muted font-mono dark:bg-neutral-900">
-                <div className="min-h-20 bg-muted p-3 text-[13px] text-foreground leading-relaxed dark:bg-neutral-900 dark:text-neutral-300">
+              <div className="m-4 overflow-hidden rounded-md bg-muted font-mono">
+                <div className="min-h-20 bg-muted p-3 text-[13px] text-foreground leading-relaxed">
                   <div className="flex items-start gap-2">
-                    <span className="shrink-0 font-bold text-green-700 dark:text-green-400">$</span>
-                    <span className="wrap-break-word flex-1 whitespace-pre-wrap bg-transparent text-foreground dark:text-neutral-300">
+                    <span className="shrink-0 font-bold text-success">$</span>
+                    <span className="wrap-break-word flex-1 whitespace-pre-wrap bg-transparent text-foreground">
                       {htmlContent.trim().split('\n').slice(-3).join('\n')}
-                      <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-green-700 dark:bg-green-400" />
+                      <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-success" />
                     </span>
                   </div>
                 </div>
