@@ -17,6 +17,7 @@ export const appLanguageOptions: ReadonlyArray<{
   { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
   { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
   { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
+  { value: 'tr-TR', label: 'Türkçe', flag: '🇹🇷' }
 ]
 
 export function isAppLanguage(value: string | null | undefined): value is LanguageVarious {
