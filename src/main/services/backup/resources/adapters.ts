@@ -29,6 +29,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
 import type { DbOrTx } from '@data/db/types'
+import { DISCONNECTED_AGENT_WORKSPACE_DIRECTORY } from '@main/ai/agents/portableProfilePolicy'
 import { isAgentRuntimeConfigCaptureExcluded, isWorkspaceManagedSkillProjection } from '@main/ai/skills/capturePolicy'
 import { collectKnowledgeRequiredMaterial, isKnowledgeCaptureExcluded } from '@main/features/knowledge'
 import { toInternalBlobFileName } from '@main/services/file'
@@ -400,11 +401,18 @@ const agentWorkspaceAdapter: BackupResourceAdapter = {
   collectRequirements(ctx) {
     const rows = ctx.db.select({ path: agentWorkspaceTable.path }).from(agentWorkspaceTable).all()
 
+    const disconnected = path.join(ctx.roots.systemWorkspaces, DISCONNECTED_AGENT_WORKSPACE_DIRECTORY)
+
     const requirements: ResourceRequirement[] = []
     let unverifiable = 0
     for (const row of rows) {
       const livePath = managedLivePath(ctx, ctx.roots.systemWorkspaces, row.path)
-      if (livePath === null) {
+      // A placeholder is inside the root but names nothing: a previous restore
+      // put it there for a binding it could not carry over, and never created
+      // it on disk. It is the same reference the producing device counted as
+      // unverifiable, so it stays unverifiable here rather than becoming a
+      // requirement no archive could ever satisfy.
+      if (livePath === null || isPathContainedIn(disconnected, row.path, ctx.platform)) {
         unverifiable++
         continue
       }
