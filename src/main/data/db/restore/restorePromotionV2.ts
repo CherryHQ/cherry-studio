@@ -220,13 +220,20 @@ export function markRestoreFailedAfterCrashV2(): void {
  * terminal marker. The preboot shell must fail fast on an escaped error in this
  * state: booting with only some resource units reversed would expose a mixed
  * database/filesystem state.
+ *
+ * `armed` counts. This is only ever consulted after the promotion escaped, and
+ * a journal still armed at that point means the gate could not record ANY
+ * outcome for a restore the user consented to — including the terminal write
+ * itself failing. Booting on would leave that consent standing for the next
+ * launch to act on with no record of what this one already did.
  */
 export function isRestoreRecoveryPendingV2(): boolean {
   const read = readRestoreJournalV2()
   if (read.kind === 'corrupt') return true
   return (
     read.kind === 'ok' &&
-    (read.journal.state === 'promoting' ||
+    (read.journal.state === 'armed' ||
+      read.journal.state === 'promoting' ||
       read.journal.state === 'reverting' ||
       read.journal.state === 'rollback-armed' ||
       (read.journal.state === 'completed' && read.journal.resourcesIncomplete === true) ||
@@ -265,21 +272,24 @@ export function isLiveDbStrandedV2(): boolean {
 /**
  * A preparation this boot found unarmed. The user never confirmed it (or
  * confirmed and the relaunch never happened), so the only safe reading is that
- * they walked away: drop the staging tree and freeze the journal to `expired`.
+ * they walked away: freeze the journal to `expired` and drop the staging tree.
  *
- * Staging tree first, journal last — while the journal exists the tree is
- * protected (§6.5), so clearing the journal first would orphan it.
+ * Terminal state first, tree second, like every other terminal outcome (§6.5):
+ * the tree's protection keys on the journal EXISTING and this rewrites rather
+ * than clears it, so the tree is covered throughout — while the reverse order
+ * deletes a tree the on-disk journal still describes as preparable, and a write
+ * that then fails leaves a `prepared` journal pointing at nothing.
  */
 function expirePrepared(journal: PreparedJournal): void {
   logger.info('Found an unarmed preparation at boot — expiring it', {
     restoreId: journal.restoreId
   })
-  removeStagingTree(journal.restoreId)
   writeRestoreJournalV2({
     ...journal,
     state: 'expired',
     reason: 'the preparation was never armed; an unrelated restart expired it'
   })
+  removeStagingTree(journal.restoreId)
 }
 
 // ─── armed: admission gate, then forward execution ───
@@ -287,13 +297,9 @@ function expirePrepared(journal: PreparedJournal): void {
 async function promoteArmed(journal: ArmedJournal): Promise<void> {
   const ctx = buildContext(journal)
 
-  try {
-    assertPromotable(ctx)
-    if (!chainIsBundledPrefix(journal.db.chain)) {
-      return expire(ctx, 'journal chain is not a prefix of the bundled migration chain (fork or ahead-of-code DB)')
-    }
-  } catch (error) {
-    return expire(ctx, `admission gate failed: ${(error as Error).message}`)
+  const refusal = admissionRefusal(ctx)
+  if (refusal !== null) {
+    return expire(ctx, refusal)
   }
 
   logger.info('Restore admission gate passed, promoting', {
@@ -301,6 +307,23 @@ async function promoteArmed(journal: ArmedJournal): Promise<void> {
   })
   const promoting = markStep({ ...journal, state: 'promoting', step: 'gate-passed' }, 'gate-passed')
   await executeForward(ctx, promoting, PROMOTION_STEP_ORDER_V2.indexOf('gate-passed') + 1)
+}
+
+/**
+ * Why this restore may not proceed, or `null` if it may. Reported rather than
+ * thrown so the refusal is separate from expiring on it: {@link expire} itself
+ * throws when its terminal journal will not persist, and a thrown refusal would
+ * catch that and try to expire a second time.
+ */
+function admissionRefusal(ctx: PromotionContext): string | null {
+  try {
+    assertPromotable(ctx)
+    return chainIsBundledPrefix(ctx.journal.db.chain)
+      ? null
+      : 'journal chain is not a prefix of the bundled migration chain (fork or ahead-of-code DB)'
+  } catch (error) {
+    return `admission gate failed: ${(error as Error).message}`
+  }
 }
 
 /**
@@ -626,9 +649,7 @@ function finishPostCommitRevert(journal: RevertingJournal): void {
     throw new Error(`integrity_check on the reverted database failed: ${result}`)
   }
 
-  if (!finalize(ctx, 'failed', journal.reason)) {
-    throw new Error('post-commit revert terminal journal is not durable')
-  }
+  finalize(ctx, 'failed', journal.reason)
 }
 
 /**
@@ -799,31 +820,38 @@ function failClosed(ctx: PromotionContext): never {
  * backup, so the next boot would take the user's own file back out. A crash in
  * the window this order opens instead leaves an orphan tree, which the
  * acknowledgement sweep collects.
+ *
+ * A terminal state that will not persist is not a terminal state. Every
+ * filesystem move this outcome needed has already landed, but the journal on
+ * disk still describes the restore as in flight, so the process must not go on
+ * to boot: it would run with an active journal claiming a direction this boot
+ * already carried out. The throw reaches the preboot gate's fail-closed path,
+ * which keeps the app shut while the journal, the staging tree, and both
+ * database copies stay exactly as they are — the next boot re-decides from the
+ * same evidence and retries the same terminal write.
  */
 function finalize(
   ctx: PromotionContext,
   state: 'failed' | 'expired',
   reason: string,
   recoveryIncomplete = false
-): boolean {
+): void {
   if (!writeTerminal(ctx, state, reason, recoveryIncomplete)) {
-    // The terminal state never reached the disk, so the journal on disk still
-    // describes a promotion in flight. Dropping the tree now would leave exactly
-    // the triple this ordering exists to avoid — see above — and the next boot
-    // would take the user's own files back out. Keeping it makes the terminal
-    // write retryable instead.
+    // Nothing may be deleted on the strength of a state that was never
+    // recorded: dropping the tree here would leave exactly the triple this
+    // ordering exists to avoid — see above — and the next boot would take the
+    // user's own files back out.
     logger.error('Keeping the staging tree: the terminal journal is not on disk', {
       restoreId: ctx.journal.restoreId
     })
-    return false
+    throw new Error(`terminal '${state}' journal is not durable — refusing to boot on an unrecorded restore outcome`)
   }
   if (recoveryIncomplete) {
     // The wedged units' archive copies still need somewhere to go when the
     // rollback is retried at the next boot.
-    return true
+    return
   }
   removeStagingTree(ctx.journal.restoreId)
-  return true
 }
 
 /** The database and every resource are live; record success, then clean staging. */
@@ -848,10 +876,9 @@ function finalizeCompleted(ctx: PromotionContext, step: PromotionStepV2): void {
 /**
  * Write the terminal journal, reporting whether it is durably on disk.
  *
- * The failure is NOT escaped — the filesystem work is already done and correct,
- * and escaping would send the shell into its last-resort net for no reason. But
- * it is not swallowed either: the caller decides what may still be deleted, and
- * nothing may be deleted on the strength of a state that was never recorded.
+ * Reported rather than thrown from here so the decision stays with
+ * {@link finalize}: what may still be deleted, and what the failure means for
+ * this boot, depends on the outcome being recorded — not on the write.
  */
 function writeTerminal(
   ctx: PromotionContext,
