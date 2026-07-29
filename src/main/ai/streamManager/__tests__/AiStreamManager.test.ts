@@ -238,6 +238,19 @@ describe('AiStreamManager', () => {
       expect(mockStreamText).toHaveBeenCalledOnce()
     })
 
+    it('reports whether any stream can still persist turn state', () => {
+      expect(mgr.hasLiveStreams()).toBe(false)
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      expect(mgr.hasLiveStreams()).toBe(true)
+    })
+
     it('throws on duplicate modelId within a single send call', () => {
       const request = req('a')
       expect(() =>
@@ -780,6 +793,58 @@ describe('AiStreamManager', () => {
       mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
 
       expect(l.chunks).toHaveLength(0)
+    })
+  })
+
+  describe('deferred tool output lookup', () => {
+    it('retains only outputs large enough to have been stripped on the way out', () => {
+      const topicId = 'agent-session:session-1'
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'assistant-1' },
+        listeners: [new FakeListener('l:a')]
+      })
+      const large = { content: 'x'.repeat(64 * 1024) }
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'call-large',
+        output: large
+      } as UIMessageChunk)
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'call-small',
+        output: { content: 'tiny' }
+      } as UIMessageChunk)
+
+      expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toEqual({ found: true, output: large })
+      // A small output travelled inline, so nothing needs to be resolvable for it.
+      expect(mgr.getDeferredToolOutput(topicId, 'call-small')).toEqual({ found: false })
+      expect(mgr.getDeferredToolOutput(topicId, 'missing')).toEqual({ found: false })
+    })
+
+    it('evicts the oldest retained output instead of growing without bound', () => {
+      const topicId = 'agent-session:session-1'
+      const cappedMgr = createManager({ maxDeferredOutputs: 2 })
+      startSingle(cappedMgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'assistant-1' },
+        listeners: [new FakeListener('l:a')]
+      })
+      const large = (tag: string) => ({ content: tag.repeat(64 * 1024) })
+      for (const tag of ['a', 'b', 'c']) {
+        cappedMgr.onChunk(topicId, 'provider-a::model-a', {
+          type: 'tool-output-available',
+          toolCallId: `call-${tag}`,
+          output: large(tag)
+        } as UIMessageChunk)
+      }
+
+      // The evicted one is not lost — it resolves from SQLite once the message is persisted.
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-a')).toEqual({ found: false })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-b')).toEqual({ found: true, output: large('b') })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-c')).toEqual({ found: true, output: large('c') })
     })
   })
 

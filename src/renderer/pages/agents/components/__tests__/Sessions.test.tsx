@@ -540,7 +540,8 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.show_more': 'Expand display',
         'agent.session.group.this_week': 'This week',
         'agent.session.group.today': 'Today',
-        'agent.session.group.unknown_agent': 'Unknown agent',
+        'agent.session.group.unknown_agent': 'Unlinked Agent',
+        'agent.session.group.unknown_agent_tip': 'Historical sessions without an agent',
         'agent.session.group.yesterday': 'Yesterday',
         'agent.session.list.title': 'Tasks',
         'agent.session.new': 'New task',
@@ -880,6 +881,19 @@ describe('Sessions', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps the sortable session list mounted and preserves scroll position during refresh', () => {
+    const view = render(<SessionsForTest />)
+    const listbox = screen.getByRole('listbox')
+    listbox.scrollTop = 640
+
+    setupSessions({ isValidating: true })
+    view.rerender(<SessionsForTest />)
+
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+    expect(screen.getByRole('listbox')).toBe(listbox)
+    expect(listbox.scrollTop).toBe(640)
+  })
+
   it('defaults workspace display groups to collapsed before the user changes expansion', () => {
     setSessionGroupExpansionCache({
       ...createExpandedSessionGroupExpansionFixture(),
@@ -1167,6 +1181,19 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain(SESSION_PINNED_SECTION_ID)
     expect(getSessionGroupExpansionCache().agent).not.toContain(SESSION_AGENT_SECTION_ID)
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
+  })
+
+  it('renders orphan sessions under the unlinked agent group without a virtual agent icon', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions({
+      sessions: [createSession({ id: 'session-orphan', name: 'Orphan session', agentId: null })]
+    })
+
+    render(<SessionsForTest />)
+
+    const unlinkedAgentGroup = screen.getByRole('button', { name: 'Unlinked Agent' })
+    expect(unlinkedAgentGroup.querySelector('[data-resource-list-leading-slot="true"]')).not.toBeInTheDocument()
+    expect(unlinkedAgentGroup.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
   })
 
   it('defaults agent display groups to collapsed before the user changes expansion', () => {
@@ -2959,7 +2986,7 @@ describe('Sessions', () => {
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
     expect(agentGroup).not.toBeNull()
     expect(agentGroup).toHaveClass('border', 'border-transparent')
-    expect(agentGroup).toHaveAttribute('title', 'Drag to reorder. Drag tasks to adjust display and hidden groups.')
+    expect(agentGroup?.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
     expect(within(agentGroup as HTMLElement).getByRole('button', { name: 'New task' })).toBeInTheDocument()
 
     const moreButton = within(agentGroup as HTMLElement).getByRole('button', { name: 'More' })

@@ -1,4 +1,4 @@
-import '@xyflow/react/dist/style.css'
+import '@renderer/assets/styles/vendor/xyflow.css'
 
 import { cn } from '@renderer/utils/style'
 import {
@@ -47,6 +47,7 @@ const proOptions: ReactFlowProps<TopicMessageFlowNodeModel, TopicMessageFlowEdge
 function getMiniMapNodeColor(node: TopicMessageFlowNodeModel) {
   const data = node.data
 
+  if (data.isContextBoundary) return 'var(--muted)'
   if (data.role === 'user') return 'var(--success)'
   if (data.role === 'assistant') return 'var(--info)'
   return 'var(--muted)'

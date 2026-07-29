@@ -16,7 +16,6 @@ import type {
   SDKTaskProgressMessage,
   SDKTaskStartedMessage,
   SDKTaskUpdatedMessage,
-  SDKThinkingTokensMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
@@ -32,7 +31,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
-import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
+import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
@@ -49,13 +48,31 @@ const MAX_DELTA_CALC_SIZE = 10_000
 // ── Internal types ──────────────────────────────────────────────────
 
 type BetaUsage = SDKResultMessage['usage']
-type SDKParentToolUseId = SDKAssistantMessage['parent_tool_use_id']
-type SDKTaskSystemMessage =
+type SdkParentToolUseId = SDKAssistantMessage['parent_tool_use_id']
+type SdkTaskSystemMessage =
   | SDKTaskNotificationMessage
   | SDKTaskProgressMessage
   | SDKTaskStartedMessage
   | SDKTaskUpdatedMessage
-type SDKTaskStatus = SDKTaskNotificationMessage['status'] | SDKTaskUpdatedMessage['patch']['status'] | undefined
+type SdkThinkingTokensMessage = {
+  type: 'system'
+  subtype: 'thinking_tokens'
+  estimated_tokens: number
+  estimated_tokens_delta?: number
+  uuid: string
+  session_id: string
+}
+type SdkCommandsChangedMessage = {
+  type: 'system'
+  subtype: 'commands_changed'
+  uuid: string
+  session_id: string
+}
+type SdkRuntimeSystemMessage =
+  | Extract<SDKMessage, { type: 'system' }>
+  | SdkThinkingTokensMessage
+  | SdkCommandsChangedMessage
+type SdkTaskStatus = SDKTaskNotificationMessage['status'] | SDKTaskUpdatedMessage['patch']['status'] | undefined
 type ClaudeToolUseBlock = BetaToolUseBlock | BetaServerToolUseBlock | BetaMCPToolUseBlock
 type ClaudeToolResultBlock = Extract<BetaContentBlock | BetaContentBlockParam, { tool_use_id: string }>
 
@@ -224,6 +241,44 @@ export function convertClaudeCodeUsage(usage: BetaUsage): LanguageModelV3Usage {
   }
 }
 
+/** Drop `undefined`-valued keys; return `undefined` when nothing is left. */
+function compactDetails<T extends Record<string, number | undefined>>(obj: T): { [K in keyof T]?: number } | undefined {
+  const out: Record<string, number> = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'number') out[key] = value
+  }
+  return Object.keys(out).length > 0 ? (out as { [K in keyof T]?: number }) : undefined
+}
+
+/**
+ * Project a `LanguageModelV3Usage` into the live `MessageStats` token shape
+ * carried by stream metadata (AI SDK v6 names). Top-level `inputTokens`
+ * follows the v6 semantic of TOTAL input (cache reads and writes included) —
+ * matching the SDK's own `asLanguageModelUsage` projection; the cache
+ * breakdown lives in `inputTokenDetails`, and `totalTokens` is the all-in
+ * figure. Persistent usage and cost come from per-invocation records instead.
+ */
+export function v3UsageToStats(usage: LanguageModelV3Usage): MessageStats {
+  const inputTotal = usage.inputTokens.total ?? 0
+  const outputTotal = usage.outputTokens.total ?? 0
+  const inputTokenDetails = compactDetails({
+    noCacheTokens: usage.inputTokens.noCache,
+    cacheReadTokens: usage.inputTokens.cacheRead,
+    cacheWriteTokens: usage.inputTokens.cacheWrite
+  })
+  const outputTokenDetails = compactDetails({
+    textTokens: usage.outputTokens.text,
+    reasoningTokens: usage.outputTokens.reasoning
+  })
+  return {
+    inputTokens: inputTotal,
+    outputTokens: outputTotal,
+    totalTokens: inputTotal + outputTotal,
+    ...(inputTokenDetails ? { inputTokenDetails } : {}),
+    ...(outputTokenDetails ? { outputTokenDetails } : {})
+  }
+}
+
 function mapClaudeCodeFinishReason(subtype?: string, stopReason?: string | null): LanguageModelV3FinishReason {
   if (stopReason != null) {
     switch (stopReason) {
@@ -253,7 +308,7 @@ function mapClaudeCodeFinishReason(subtype?: string, stopReason?: string | null)
   }
 }
 
-function mapTaskStatus(status: SDKTaskStatus): AgentTaskEventPartData['status'] | undefined {
+function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] | undefined {
   switch (status) {
     case 'pending':
       return 'pending'
@@ -376,7 +431,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleContentBlockStart(
     event: BetaRawContentBlockStartEvent,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     ctx.hasReceivedStreamEvents = true
@@ -409,7 +464,7 @@ export class ClaudeCodeStreamAdapter {
   private handleToolUseBlockStart(
     toolBlock: ClaudeToolUseBlock,
     blockIndex: number,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     const toolId = toolBlock.id
@@ -456,7 +511,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleTextBlockStart(
     event: BetaRawContentBlockStartEvent,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     const partId = generateId()
@@ -472,7 +527,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleThinkingBlockStart(
     event: BetaRawContentBlockStartEvent,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     this.closeActiveTextPart(ctx)
@@ -637,7 +692,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleAssistantToolUse(
     tool: ClaudeToolUseBlock,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     const toolId = tool.id
@@ -697,7 +752,7 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleAssistantText(text: string, sdkParentToolUseId: SDKParentToolUseId, ctx: StreamContext): void {
+  private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
     if (ctx.hasReceivedStreamEvents) {
       const newTextStart = ctx.streamedTextLength
@@ -743,7 +798,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleToolResult(
     result: ClaudeToolResultBlock,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     if (ctx.toolResultsEmitted.has(result.tool_use_id)) return
@@ -767,7 +822,7 @@ export class ClaudeCodeStreamAdapter {
     state.name = toolName
 
     const normalizedResult = this.normalizeToolResult(result.content)
-    const rawResult =
+    const errorText =
       typeof result.content === 'string'
         ? result.content
         : (() => {
@@ -781,9 +836,7 @@ export class ClaudeCodeStreamAdapter {
     this.emitToolCall(result.tool_use_id, state, ctx)
     if (isSubagentToolName(toolName)) ctx.activeTaskTools.delete(result.tool_use_id)
 
-    const providerMetadata = this.buildToolProviderMetadata(state, {
-      rawResult
-    })
+    const providerMetadata = this.buildToolProviderMetadata(state)
     const isError = this.isToolResultError(result)
     if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
       // The chunk schema is strict — `toolCallId` is the only accepted field, so the rejection
@@ -793,7 +846,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({
         type: 'tool-output-error',
         toolCallId: result.tool_use_id,
-        errorText: rawResult,
+        errorText,
         dynamic: true,
         providerExecuted: true,
         providerMetadata
@@ -816,11 +869,25 @@ export class ClaudeCodeStreamAdapter {
       `Stream completed - Session: ${message.session_id}, Cost: $${message.total_cost_usd?.toFixed(4) ?? 'N/A'}, Duration: ${message.duration_ms ?? 'N/A'}ms`
     )
 
-    ctx.usage = convertClaudeCodeUsage(message.usage)
+    const finalUsage = convertClaudeCodeUsage(message.usage)
+    ctx.usage = {
+      ...finalUsage,
+      outputTokens: {
+        ...finalUsage.outputTokens,
+        reasoning: ctx.usage.outputTokens.reasoning
+      }
+    }
     const finishReason = mapClaudeCodeFinishReason(message.subtype, message.stop_reason)
     this.setSessionId(message.session_id)
 
     if (message.subtype !== 'success') {
+      // Error results still carry token totals useful to the live message. The driver only calls
+      // `emitUsageMetadata` when `handleMessage` returns normally, so emit the final UI snapshot
+      // BEFORE throwing. Per-invocation records are captured independently by the driver.
+      ctx.sink.enqueue({
+        type: 'message-metadata',
+        messageMetadata: this.buildMessageMetadata(ctx.usage)
+      })
       const errorMsg = message.errors.join('; ') || `Claude Code error: ${message.subtype}`
       throw Object.assign(new Error(errorMsg), { exitCode: 1, subtype: message.subtype })
     }
@@ -855,7 +922,7 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>, ctx: StreamContext): void {
+  private handleSystemMessage(message: SdkRuntimeSystemMessage, ctx: StreamContext): void {
     switch (message.subtype) {
       case 'init':
         this.handleInitSystemMessage(message, ctx)
@@ -924,7 +991,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
   }
 
-  private handleTaskSystemMessage(message: SDKTaskSystemMessage, ctx: StreamContext): void {
+  private handleTaskSystemMessage(message: SdkTaskSystemMessage, ctx: StreamContext): void {
     const eventData = this.toTaskEventPartData(message)
 
     ctx.sink.enqueue({
@@ -948,16 +1015,21 @@ export class ClaudeCodeStreamAdapter {
     // compact_boundary before this adapter, so no assistant stream chunk is emitted here.
   }
 
-  private handleThinkingTokensSystemMessage(message: SDKThinkingTokensMessage, ctx: StreamContext): void {
+  private handleThinkingTokensSystemMessage(message: SdkThinkingTokensMessage, ctx: StreamContext): void {
+    ctx.usage = {
+      ...ctx.usage,
+      outputTokens: {
+        ...ctx.usage.outputTokens,
+        reasoning: message.estimated_tokens
+      }
+    }
     ctx.sink.enqueue({
       type: 'message-metadata',
-      messageMetadata: {
-        thoughtsTokens: message.estimated_tokens
-      }
+      messageMetadata: this.buildMessageMetadata(ctx.usage)
     })
   }
 
-  private toTaskEventPartData(message: SDKTaskSystemMessage): AgentTaskEventPartData {
+  private toTaskEventPartData(message: SdkTaskSystemMessage): AgentTaskEventPartData {
     const base = {
       taskId: message.task_id,
       toolUseId: 'tool_use_id' in message ? message.tool_use_id : undefined
@@ -1186,7 +1258,7 @@ export class ClaudeCodeStreamAdapter {
     return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${toolName}` : undefined
   }
 
-  private buildParentProviderMetadata(sdkParentToolUseId: SDKParentToolUseId): Record<string, JSONObject> | undefined {
+  private buildParentProviderMetadata(sdkParentToolUseId: SdkParentToolUseId): Record<string, JSONObject> | undefined {
     if (!sdkParentToolUseId) return undefined
     return {
       'claude-code': {
@@ -1198,18 +1270,12 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private buildToolProviderMetadata(
-    state: ToolStreamState,
-    extra: Record<string, JSONValue | undefined> = {}
-  ): Record<string, JSONObject> {
+  private buildToolProviderMetadata(state: ToolStreamState): Record<string, JSONObject> {
     const claudeCode: JSONObject = {
       parentToolCallId: state.parentToolCallId ?? null,
       ...(state.sdkBlockType ? { sdkBlockType: state.sdkBlockType } : {}),
       ...(state.serverName ? { serverName: state.serverName } : {}),
       ...(state.serverId ? { serverId: state.serverId } : {})
-    }
-    for (const [key, value] of Object.entries(extra)) {
-      if (value !== undefined) claudeCode[key] = value
     }
 
     return {
@@ -1338,7 +1404,7 @@ export class ClaudeCodeStreamAdapter {
       providerExecuted: true,
       dynamic: true,
       title: this.getToolTitle(state),
-      providerMetadata: this.buildToolProviderMetadata(state, { rawInput: serializedInput })
+      providerMetadata: this.buildToolProviderMetadata(state)
     })
     state.inputStarted = true
     state.inputClosed = true
@@ -1357,21 +1423,14 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private buildMessageMetadata(usage: LanguageModelV3Usage): CherryUIMessageMetadata {
-    const promptTokens = usage.inputTokens.total ?? 0
-    const completionTokens = usage.outputTokens.total ?? 0
-    const thoughtsTokens = usage.outputTokens.reasoning
-    const noCacheTokens = usage.inputTokens.noCache
-    const cacheReadTokens = usage.inputTokens.cacheRead
-    const cacheWriteTokens = usage.inputTokens.cacheWrite
+    // Full cumulative snapshot (Claude Code reports final usage once). Provider
+    // cost (`total_cost_usd`) is deliberately NOT used here — it is unreliable
+    // (session-cumulative / subscription-equivalent). Direct Agent SDK
+    // invocations are priced from their frozen model snapshot when their
+    // immutable usage record is captured.
     return {
       modelId: this.modelId,
-      totalTokens: promptTokens + completionTokens,
-      promptTokens,
-      completionTokens,
-      ...(thoughtsTokens !== undefined ? { thoughtsTokens } : {}),
-      ...(noCacheTokens !== undefined ? { noCacheTokens } : {}),
-      ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
-      ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {})
+      stats: v3UsageToStats(usage)
     }
   }
 }

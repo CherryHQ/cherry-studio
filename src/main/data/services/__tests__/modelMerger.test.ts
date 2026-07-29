@@ -101,9 +101,11 @@ describe('mergePresetModel', () => {
     const override = {
       providerId: 'openai',
       modelId: 'gpt-4o',
+      name: 'Provider GPT-4o',
       capabilities: { add: [CAPABILITY.REASONING] }
     } as any
     const model = mergePresetModel(presetModel, override, 'openai')
+    expect(model.name).toBe('Provider GPT-4o')
     expect(model.capabilities).toEqual([CAPABILITY.IMAGE_RECOGNITION, CAPABILITY.FUNCTION_CALL, CAPABILITY.REASONING])
   })
 

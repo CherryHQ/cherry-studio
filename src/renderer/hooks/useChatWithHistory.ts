@@ -66,7 +66,7 @@ export function useChatWithHistory(
 
   const stop = useCallback(async () => {
     if (enabled) {
-      void ipcApi.request('ai.stream_abort', { topicId }).catch((err) => {
+      void ipcApi.request('ai.stream.abort', { topicId }).catch((err) => {
         logger.warn('streamAbort failed', { topicId, err })
       })
     }

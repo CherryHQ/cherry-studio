@@ -183,6 +183,18 @@ describe('ResourceCatalogView', () => {
     resourceCatalogControllerMock.mockReturnValue(createController())
   })
 
+  it('keeps the Skill settings surface transparent without changing other catalogs', () => {
+    const { container, rerender } = render(<ResourceCatalogView resourceType="skill" />)
+
+    expect(container.firstElementChild).toHaveClass('bg-transparent')
+    expect(container.firstElementChild).not.toHaveClass('bg-background')
+
+    rerender(<ResourceCatalogView resourceType="assistant" />)
+
+    expect(container.firstElementChild).toHaveClass('bg-background')
+    expect(container.firstElementChild).not.toHaveClass('bg-transparent')
+  })
+
   it('loads dialog implementations only after activation and keeps the dialog host mounted', async () => {
     const inactiveController = createController()
     resourceCatalogControllerMock.mockReturnValue(inactiveController)

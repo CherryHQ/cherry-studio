@@ -12,7 +12,7 @@
  */
 
 import type { EndpointType } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
+import { CURRENCY, ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
 // ─── Schemas formerly from provider-registry/schemas ─────────────────────────
@@ -25,7 +25,8 @@ const CatalogApiFeaturesSchema = z.object({
   streamOptions: z.boolean().optional(),
   developerRole: z.boolean().optional(),
   serviceTier: z.boolean().optional(),
-  verbosity: z.boolean().optional()
+  verbosity: z.boolean().optional(),
+  reportsActualCost: z.boolean().optional()
 })
 
 /** Provider website schema (type used for catalog ProviderWebsite type) */
@@ -239,6 +240,20 @@ export const EndpointConfigSchema = z.object({
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
 
+/**
+ * The row-persisted subset of {@link EndpointConfigSchema} — only fields the
+ * user explicitly owns. Registry-owned fields (`modelsApiUrls`,
+ * `adapterFamily`) resolve from the registry at read time; persisting them
+ * through the renderer write contract would freeze a snapshot that goes stale
+ * (#17096).
+ */
+export const EndpointConfigOverrideSchema = z.object({
+  /** User-owned base URL override for this endpoint type's API */
+  baseUrl: z.string().optional()
+})
+
+export type EndpointConfigOverride = z.infer<typeof EndpointConfigOverrideSchema>
+
 export const ProviderSchema = z.object({
   /** Provider ID */
   id: z.string(),
@@ -290,6 +305,11 @@ export const ProviderSchema = z.object({
    * from the registry; absent ⇒ false.
    */
   authOptional: z.boolean().optional(),
+  /**
+   * Registry-owned currency for provider-reported costs that omit currency
+   * from the wire payload. Never inferred for custom providers.
+   */
+  reportedCostCurrency: z.enum(objectValues(CURRENCY)).optional(),
   /** API Keys (without actual key values) */
   apiKeys: z.array(RuntimeApiKeySchema),
   /** Authentication type (no sensitive data) */
@@ -309,7 +329,8 @@ export const DEFAULT_API_FEATURES: RuntimeApiFeatures = {
   streamOptions: true,
   developerRole: false,
   serviceTier: false,
-  verbosity: false
+  verbosity: false,
+  reportsActualCost: false
 }
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {}

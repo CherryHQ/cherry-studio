@@ -49,6 +49,13 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 }
 
 export class AgentTaskService {
+  getTaskById(taskId: string): ScheduledTaskEntity | null {
+    const snapshot = jobScheduleService.getById(taskId)
+    if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
+    if (!normalizeAgentTaskTemplate(snapshot.jobInputTemplate)) return null
+    return this.toScheduledTaskEntity(snapshot)
+  }
+
   /**
    * Fetch one task, guarding identity in a single lookup: the row must exist,
    * be an `agent.task` schedule, and belong to `agentId` — the three failure
@@ -56,23 +63,37 @@ export class AgentTaskService {
    * on this as the ownership/type guard for every by-id command.
    */
   getTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
-    const snapshot = jobScheduleService.getById(taskId)
-    if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
-    const template = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
-    if (!template || template.agentId !== agentId) return null
-    return this.toScheduledTaskEntity(snapshot)
+    const task = this.getTaskById(taskId)
+    if (!task || task.agentId !== agentId) return null
+    return task
   }
 
   listTasks(
     agentId: string,
     options: ListOptions & { includeHeartbeat?: boolean } = {}
   ): { tasks: ScheduledTaskEntity[]; total: number } {
-    const { includeHeartbeat = false, limit, offset } = options
+    return this.queryTasks({ ...options, agentId })
+  }
+
+  /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
+  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean } = {}): {
+    tasks: ScheduledTaskEntity[]
+    total: number
+  } {
+    return this.queryTasks(options)
+  }
+
+  private queryTasks(options: ListOptions & { includeHeartbeat?: boolean; agentId?: string }): {
+    tasks: ScheduledTaskEntity[]
+    total: number
+  } {
+    const { agentId, includeHeartbeat = false, limit, offset } = options
     const all = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
 
     const filtered = all.filter((s) => {
       const template = normalizeAgentTaskTemplate(s.jobInputTemplate)
-      if (!template || template.agentId !== agentId) return false
+      if (!template) return false
+      if (agentId !== undefined && template.agentId !== agentId) return false
       if (!includeHeartbeat && s.name === HEARTBEAT_TASK_NAME) return false
       return true
     })

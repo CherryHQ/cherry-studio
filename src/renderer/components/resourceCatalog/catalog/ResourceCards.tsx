@@ -42,10 +42,12 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
   const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
   const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
+  const skillVersion = r.type === 'skill' ? r.raw.version?.trim() : undefined
 
   return (
     <div
       className="group relative cursor-pointer rounded-lg border border-border-subtle bg-card transition-[border-color,box-shadow] hover:border-border-muted hover:shadow-sm"
+      style={r.type === 'skill' ? { backgroundColor: 'var(--settings-group-background, var(--card))' } : undefined}
       role="button"
       tabIndex={0}
       aria-label={r.name}
@@ -60,7 +62,16 @@ export function ResourceCard({ resource: r, allGroups, onDelete, onDuplicate, on
             {useTypedAvatarBg ? <TypeIcon size={20} aria-hidden /> : r.avatar}
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="truncate font-medium text-foreground text-sm leading-5">{r.name}</h4>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <h4 className="min-w-0 truncate font-medium text-foreground text-sm leading-5">{r.name}</h4>
+              {skillVersion && (
+                <Badge
+                  variant="secondary"
+                  className="shrink-0 border-0 bg-secondary px-1.5 py-px font-normal text-foreground-secondary text-xs">
+                  {skillVersion}
+                </Badge>
+              )}
+            </div>
             <p className="mt-0.5 truncate text-foreground-secondary text-xs leading-4">{r.description}</p>
             {visibleGroup && (
               <div className="mt-1.5 flex min-w-0 items-center gap-1">

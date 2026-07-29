@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
@@ -19,12 +20,15 @@ import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
 import {
   KnowledgeDialogBody,
   KnowledgeDialogField,
   KnowledgeDialogFooter,
   KnowledgeDialogHeader
 } from './KnowledgeDialogLayout'
+import { isEmbeddingModel, KnowledgeModelSelect } from './KnowledgeModelSelect'
+import LocalEmbeddingDownloadButton from './LocalEmbeddingDownloadButton'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
@@ -36,16 +40,20 @@ interface CreateKnowledgeBaseDialogProps {
   onCreated: (base: KnowledgeBase) => void
 }
 
-// Embedding is configured later in RAG settings, so this dialog only submits name + group.
-type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
-type CreateKnowledgeBaseFormValues = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
+// The embedding model is optional: omitting it creates a BM25-only base that can be
+// upgraded later in RAG settings. Picking one here also submits its probed dimensions.
+type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
+type CreateKnowledgeBaseFormValues = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'> & {
+  embeddingModelId: string | null
+}
 
 // Radix Select forbids an empty option value, so represent the default (ungrouped) group with a sentinel.
 const DEFAULT_GROUP_OPTION_VALUE = '__default__'
 
 const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => ({
   name: '',
-  groupId
+  groupId,
+  embeddingModelId: null
 })
 
 const CreateKnowledgeBaseDialogHeader = ({ title }: { title: string }) => {
@@ -106,6 +114,8 @@ const CreateKnowledgeBaseDialogRoot = ({
   )
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
+  const handleSettingsNavigate = useCloseBeforeAction(onOpenChange)
 
   useEffect(() => {
     if (!open) {
@@ -125,6 +135,11 @@ const CreateKnowledgeBaseDialogRoot = ({
     })
   }, [groupIds])
 
+  const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
+    setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
+    setSubmitError(null)
+  }
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setHasAttemptedSubmit(true)
@@ -140,6 +155,19 @@ const CreateKnowledgeBaseDialogRoot = ({
 
     if (values.groupId && groupIds.has(values.groupId)) {
       createInput.groupId = values.groupId
+    }
+
+    // The schema requires the embedding model and its dimensions together, so probe
+    // the picked model before creating. Without a model the base stays BM25-only.
+    if (values.embeddingModelId) {
+      try {
+        createInput.dimensions = await fetchDimensions(values.embeddingModelId)
+      } catch (error) {
+        setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+        return
+      }
+
+      createInput.embeddingModelId = values.embeddingModelId
     }
 
     let createdBase: KnowledgeBase
@@ -168,11 +196,35 @@ const CreateKnowledgeBaseDialogRoot = ({
                 id="knowledge-create-name"
                 value={values.name}
                 aria-invalid={hasAttemptedSubmit && !values.name.trim()}
+                placeholder={t('common.name')}
                 onChange={(event) => setValues((currentValues) => ({ ...currentValues, name: event.target.value }))}
               />
               {hasAttemptedSubmit && !values.name.trim() ? (
                 <FieldError>{t('knowledge.name_required')}</FieldError>
               ) : null}
+            </KnowledgeDialogField>
+
+            <KnowledgeDialogField>
+              <Label>{t('knowledge.embedding_model')}</Label>
+              <div className="flex items-center gap-2">
+                {/* The local model is absent from every picker until it is downloaded,
+                    so without this button it would be unreachable when creating a base. */}
+                {values.embeddingModelId === null ? (
+                  <LocalEmbeddingDownloadButton onSelected={handleEmbeddingModelChange} />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <KnowledgeModelSelect
+                    aria-label={t('knowledge.embedding_model')}
+                    value={values.embeddingModelId}
+                    placeholder={t('knowledge.not_set')}
+                    filter={isEmbeddingModel}
+                    allowClear
+                    clearAriaLabel={t('common.clear')}
+                    onSettingsNavigate={handleSettingsNavigate}
+                    onChange={handleEmbeddingModelChange}
+                  />
+                </div>
+              </div>
             </KnowledgeDialogField>
 
             {groups.length > 0 ? (
@@ -205,7 +257,7 @@ const CreateKnowledgeBaseDialogRoot = ({
           </KnowledgeDialogBody>
 
           <CreateKnowledgeBaseDialog.Actions
-            isCreating={isCreating}
+            isCreating={isCreating || isFetchingDimensions}
             onCancel={() => onOpenChange(false)}
             cancelLabel={t('common.cancel')}
             submitLabel={t('knowledge.add.submit')}
