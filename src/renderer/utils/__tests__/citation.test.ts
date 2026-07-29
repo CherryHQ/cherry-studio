@@ -521,7 +521,9 @@ Numbered list:
       expect(result).toContain('Example Title')
     })
 
-    it('should generate citation tag without URL when invalid', () => {
+    // A non-http URL is not linkable, so the marker must be a bare <sup>: an empty-href
+    // markdown link gets rewritten by rehype-harden into "<span>… [blocked]</span>".
+    it('should emit a bare sup (no link wrapper) when the URL is invalid', () => {
       const citation: Citation = {
         number: 2,
         url: 'invalid-url',
@@ -530,12 +532,13 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      expect(result).toContain('[<sup data-citation=')
-      expect(result).toContain('2</sup>]()')
-      expect(result).not.toContain('](invalid-url)')
+      expect(result).toMatch(/^<sup data-citation=/)
+      expect(result).toContain('2</sup>')
+      expect(result).not.toContain('](')
+      expect(result).not.toContain('()')
     })
 
-    it('should handle citation without URL', () => {
+    it('should emit a bare sup when the citation has no URL', () => {
       const citation: Citation = {
         number: 3,
         url: '',
@@ -544,8 +547,9 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      expect(result).toContain('[<sup data-citation=')
-      expect(result).toContain('3</sup>]()')
+      expect(result).toMatch(/^<sup data-citation=/)
+      expect(result).toContain('3</sup>')
+      expect(result).not.toContain('](')
     })
 
     it('should use hostname when title is missing', () => {
@@ -571,8 +575,9 @@ Numbered list:
 
       const result = generateCitationTag(citation)
 
-      expect(result).toContain('[<sup data-citation=')
-      expect(result).toContain('6</sup>]()')
+      expect(result).toMatch(/^<sup data-citation=/)
+      expect(result).toContain('6</sup>')
+      expect(result).not.toContain('](')
     })
 
     it('should escape pipe characters in title to prevent GFM table cell breakage', () => {

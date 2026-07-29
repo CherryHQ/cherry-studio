@@ -120,8 +120,11 @@ describe('withToolCitationTags', () => {
   it('maps [cite:id] markers to sup tags and reports the cited subset in order', () => {
     const mc = resolveMessageCitations([webToolPart(webResults('abc')), kbToolPart(kbResults('kzz'))])
     const { content, cited } = withToolCitationTags('B fact. [cite:abc-2] KB fact. [cite:kzz-1] Again [cite:abc-2]', mc)
+    // Web citations link out; the URL-less KB citation must stay a bare <sup> so rehype-harden
+    // does not rewrite an empty-href anchor into "<span>… [blocked]</span>".
     expect(content).toContain('2</sup>](https://b.com/y)')
-    expect(content).toContain('3</sup>]()')
+    expect(content).toContain('3</sup>')
+    expect(content).not.toContain('3</sup>]()')
     expect(cited.map((c) => c.number)).toEqual([2, 3])
   })
 

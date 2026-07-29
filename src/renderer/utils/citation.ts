@@ -198,8 +198,16 @@ export function generateCitationTag(citation: Citation): string {
   // don't treat it as a column separator inside table cells
   const citationJson = encodeHTML(JSON.stringify(supData)).replace(/\|/g, '&#124;')
 
+  const supTag = `<sup data-citation='${citationJson}'>${citation.number}</sup>`
   const isLink = citation.url && citation.url.startsWith('http')
-  const safeUrl = isLink && citation.url ? citation.url.replace(/\|/g, '%7C') : ''
+  if (!isLink) {
+    // Knowledge-base and memory citations have no URL. Wrapping them in `[...]()` yields an empty
+    // href, which rehype-harden rewrites into `<span>…<sup/> [blocked]</span>` — that both defaces
+    // the marker and drops the tooltip, since the tooltip only mounts on `<a>`. Emit the bare
+    // `<sup>` instead; `components.sup` (CitationSup) mounts the tooltip for this case.
+    return supTag
+  }
 
-  return `[<sup data-citation='${citationJson}'>${citation.number}</sup>]` + (isLink ? `(${safeUrl})` : '()')
+  const safeUrl = citation.url.replace(/\|/g, '%7C')
+  return `[${supTag}](${safeUrl})`
 }

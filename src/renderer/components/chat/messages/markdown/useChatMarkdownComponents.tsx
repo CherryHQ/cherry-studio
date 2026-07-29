@@ -3,6 +3,7 @@
  *
  * Encapsulates everything that makes chat markdown look like chat markdown:
  *   - `<a>`   → Link with citation routing (CitationTooltip vs Hyperlink card)
+ *   - `<sup>` → CitationSup: tooltip for URL-less citations (knowledge/memory)
  *   - `<code>`→ CodeBlock with file-path detection + save action
  *   - `<table>`→ Table with copy/Excel export actions
  *   - `<img>` → ImageViewer with modal preview
@@ -22,6 +23,7 @@ import { useMemo } from 'react'
 import type { Components } from 'streamdown'
 
 import type { InlineHtmlPreviewMode } from './ChatMarkdown'
+import CitationSup from './CitationSup'
 import CodeBlock from './CodeBlock'
 import Link from './Link'
 import MarkdownSvgRenderer from './MarkdownSvgRenderer'
@@ -46,6 +48,7 @@ export function useChatMarkdownComponents({
   return useMemo(() => {
     const result: Partial<Components> = {
       a: (props: any) => <Link {...props} />,
+      sup: (props: any) => <CitationSup {...props} />,
       code: (props: any) => (
         <CodeBlock
           {...props}

@@ -275,9 +275,18 @@
   vertical-align: baseline;
 }
 
+/*
+ * Citation badge. `inline-flex` + `min-width: 1.5em` keeps a single digit a
+ * true circle; multi-digit numbers grow into a pill instead of the squashed
+ * ellipse a bare `border-radius: 50%` produced.
+ */
 .markdown sup {
   top: -0.5em;
-  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5em;
+  border-radius: 999px;
   background-color: var(--reference);
   color: var(--reference-foreground);
   padding: 2px 5px;
