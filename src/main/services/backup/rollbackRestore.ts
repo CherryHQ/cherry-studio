@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 
 import { application } from '@application'
+import { findRollbackBlocker } from '@data/db/restore/resourceInstallV2'
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 
@@ -43,6 +44,20 @@ export function armRestoreRollback(): void {
   const asidePath = application.getPath('app.userdata', journal.db.aside)
   const asideStats = fs.existsSync(asidePath) ? fs.lstatSync(asidePath) : null
   if (!asideStats?.isFile() || asideStats.isSymbolicLink()) {
+    throw new RestoreStateError(
+      'rollback-unavailable',
+      'the data from before this restore has already been released or changed and cannot be rolled back'
+    )
+  }
+  // The database is one unit of the reversal; the resource units are the rest,
+  // and preboot will move them with no chance to reconsider. Prove all of them
+  // now, including that the journal is new enough to say what each one replaced.
+  const blocker = findRollbackBlocker(journal.resourceInstalls, application.getPath('app.userdata'))
+  if (blocker !== null) {
+    logger.warn('Refusing to arm a rollback whose resource units are not where completion left them', {
+      restoreId: journal.restoreId,
+      blocker
+    })
     throw new RestoreStateError(
       'rollback-unavailable',
       'the data from before this restore has already been released or changed and cannot be rolled back'

@@ -75,13 +75,24 @@ function pathsPairwiseDistinct(paths: readonly string[]): boolean {
  * be pairwise distinct under the same collision policy the resource-path
  * validator uses — an entry whose staging and aside (say) alias to one file on
  * a case-insensitive FS would corrupt its own rename sequence.
+ *
+ * `hadLive` records whether the target existed when the plan was sealed, and it
+ * is what makes the aside's ABSENCE readable. Without it, "live present, nothing
+ * staged, no aside" has two readings — the target was originally absent (so the
+ * node in `live` is the archive's, remove it) or the aside that held the user's
+ * original is gone (so removing `live` destroys the only copy left) — and the
+ * recovery table had to guess the first. Optional only for journals written by
+ * an earlier pre-release: every writer since must supply it (see
+ * {@link SealedResourceInstallEntry}), and readers treat its absence as "cannot
+ * prove", never as `false`.
  */
 const ResourceInstallEntrySchema = z
   .strictObject({
     resourceType: z.enum(['file', 'directory']),
     staging: RelativeSubpathSchema,
     live: RelativeSubpathSchema,
-    aside: RelativeSubpathSchema
+    aside: RelativeSubpathSchema,
+    hadLive: z.boolean().optional()
   })
   .refine((entry) => pathsPairwiseDistinct([entry.staging, entry.live, entry.aside]), {
     message: 'resource-install staging/live/aside paths must be pairwise distinct'
@@ -254,6 +265,12 @@ export const RestoreJournalV2Schema = z
 export type RestoreJournalV2 = z.infer<typeof RestoreJournalV2Schema>
 export type RestoreJournalV2State = RestoreJournalV2['state']
 export type ResourceInstallEntry = z.infer<typeof ResourceInstallEntrySchema>
+/**
+ * What a producer must seal: `hadLive` is optional on the READ side only, so the
+ * type every planner and journal writer flows through makes it mandatory. An
+ * entry that reaches the disk without it disables rollback for the whole restore.
+ */
+export type SealedResourceInstallEntry = ResourceInstallEntry & { readonly hadLive: boolean }
 export type JournalDegradation = z.infer<typeof JournalDegradationSchema>
 export type RestoreSummary = z.infer<typeof RestoreSummarySchema>
 

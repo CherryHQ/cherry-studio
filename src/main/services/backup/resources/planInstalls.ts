@@ -17,7 +17,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import type { ResourceInstallEntry } from '@data/db/restore/restoreJournalV2'
+import type { SealedResourceInstallEntry } from '@data/db/restore/restoreJournalV2'
 
 import type { AdmittedResource } from '../admission/verify'
 import { ResourceInstallPlanError } from '../errors'
@@ -38,7 +38,7 @@ export interface PlanInstallsInput {
 }
 
 export interface ResourceInstallPlan {
-  readonly entries: readonly ResourceInstallEntry[]
+  readonly entries: readonly SealedResourceInstallEntry[]
   /** Units whose target does not exist yet — a plain install. */
   readonly install: number
   /** Units whose target exists and will be parked aside first (§6.3). */
@@ -140,12 +140,16 @@ export function planResourceInstalls(input: PlanInstallsInput): ResourceInstallP
     )
   }
 
-  const entries = resources.map((resource, index) => ({
+  const entries: SealedResourceInstallEntry[] = resources.map((resource, index) => ({
     resourceType: resource.resourceType,
     staging: `${stagingRelDir}/${resource.livePath}`,
     live: resource.livePath,
-    aside: asideRelPath(restoreId, index, resource.livePath)
+    aside: asideRelPath(restoreId, index, resource.livePath),
+    // Same index as its candidate by construction (one map over `resources`),
+    // and the validator above already refused every state but these two — so
+    // this is the target's proven state, not an inference from it.
+    hadLive: candidates[index].targetState !== 'absent'
   }))
-  const replace = candidates.filter((candidate) => candidate.targetState !== 'absent').length
+  const replace = entries.filter((entry) => entry.hadLive).length
   return { entries, install: entries.length - replace, replace }
 }

@@ -504,7 +504,7 @@ state. Existence alone is insufficient — `(present, absent, present)` is ambig
 | pre-commit | present | present | absent | Target present, install next → **rollback** (pre-commit always rolls back): leave target; discard staged. |
 | pre-commit | present | absent | present | **Ambiguous** — "target parked, install next" vs "backup removed during rollback, restore aside next". Pre-commit selects **rollback**: rename aside→live, discard staged. |
 | pre-commit | absent | present | present | Backup already moved into live during a prior forward step → **rollback**: move live→staged (or discard), restore aside→live. |
-| pre-commit | absent | present | absent | Install completed for this unit but pre-commit overall → **rollback** the unit recursively: move installed backup out of live, restore aside when present. |
+| pre-commit | absent | present | absent | Install completed for this unit but pre-commit overall → **rollback** the unit recursively: move installed backup out of live, restore aside when present. Only when the entry's `hadLive` says the target was absent — see below. |
 | committed | present | absent | present | Committed branch, target parked, install pending → **forward**: rename staged→live. |
 | committed | absent | present | present | Committed, installed, aside retained for GC → **forward-complete**: keep live, retain aside until acknowledgement. |
 | committed | absent | present | absent | Fully installed, no aside (target was absent) → **forward-complete**: done. |
@@ -523,6 +523,20 @@ state. Existence alone is insufficient — `(present, absent, present)` is ambig
   Every other `staged`+`live` state (pre-commit `SLA`, committed `SL-`/`SLA`) cannot prove
   whether `live` is an installed backup or a target-only file, so the recovery **aborts
   inconsistent** rather than overwrite or discard a possibly target-only node.
+
+- **A missing aside is not proof that nothing was replaced.** Each journal entry records
+  `hadLive`: whether preparation found a node in the target slot. Pre-commit `-L-` reads as
+  "remove the installed backup" only when `hadLive` is `false`; with `hadLive` `true` the
+  aside that held the user's original is gone, `live` is the last copy of anything the unit
+  has, and recovery **fails closed** instead of moving it out. Entries written before this
+  field existed keep the original reading, and the two paths that must not act on a guess
+  refuse them outright: an explicit rollback cannot be armed, and an already-armed reverse
+  direction (`rollback-armed`, `reverting`) refuses to boot.
+- **An explicit rollback proves the whole topology before it is armed.** Every completed
+  entry must still show `live` present, nothing staged, and an aside whose presence matches
+  `hadLive` exactly. Arming is the last point a rollback can be refused for free; past it
+  preboot must carry the reverse pass out, and a missing aside would surface with earlier
+  units already moved. A refusal leaves the completed restore fully intact.
 
 The table MUST be **total** over every reachable `(direction/step, staged, live, aside)`
 state and must reject overlapping/symlink/EXDEV states before mutation.

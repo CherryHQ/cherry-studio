@@ -618,6 +618,7 @@ function beginPostCommitRevert(journal: PromotingJournal, reason: string): void 
  * preboot shell refuses to start normal services.
  */
 function finishPostCommitRevert(journal: RevertingJournal): void {
+  assertReverseIsProvable(journal)
   const ctx = buildContext(journal)
   const parked = rolledForwardDbPath(ctx)
 
@@ -653,6 +654,31 @@ function finishPostCommitRevert(journal: RevertingJournal): void {
 }
 
 /**
+ * Refuse to carry out a reverse direction whose units cannot say what they
+ * replaced.
+ *
+ * Both reverse paths take units OUT of their live slots, and the one triple
+ * that makes that safe — `-L-`, "no aside because the target was originally
+ * absent" — is exactly the one an entry without `hadLive` cannot distinguish
+ * from "the aside holding the user's original is gone". Boot rather than guess:
+ * an armed reverse this old can only come from a pre-release build, and the
+ * journal plus every artifact stays untouched for a build that understands it.
+ *
+ * Forward promotion is deliberately not gated the same way. It never removes a
+ * live node it did not itself install, so an unprovable entry costs it nothing.
+ */
+function assertReverseIsProvable(journal: RevertingJournal | RollbackArmedJournal): void {
+  if (journal.resourceInstalls.every((entry) => entry.hadLive !== undefined)) return
+  logger.error('Refusing a reverse direction from a journal that predates the aside-origin record', {
+    restoreId: journal.restoreId,
+    state: journal.state
+  })
+  throw new Error(
+    `restore journal ${journal.restoreId} was written by an earlier build that did not record what each resource replaced — refusing to reverse it`
+  )
+}
+
+/**
  * Reverse a completed restore after explicit user consent.
  *
  * Resources move first and the database moves last, mirroring forward promotion:
@@ -663,6 +689,7 @@ function finishPostCommitRevert(journal: RevertingJournal): void {
  * acknowledgement releases them after the terminal marker is durable.
  */
 function rollbackCompletedRestore(journal: RollbackArmedJournal): void {
+  assertReverseIsProvable(journal)
   const ctx = buildContext(journal)
   const parked = rolledForwardDbPath(ctx)
   const live = fs.existsSync(ctx.livePath)

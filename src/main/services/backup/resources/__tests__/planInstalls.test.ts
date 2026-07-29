@@ -80,13 +80,15 @@ describe('planResourceInstalls', () => {
         resourceType: 'directory',
         staging: `${STAGING_REL}/Data/KnowledgeBase/base-1`,
         live: 'Data/KnowledgeBase/base-1',
-        aside: `restore-aside/${RID}/0-base-1`
+        aside: `restore-aside/${RID}/0-base-1`,
+        hadLive: false
       },
       {
         resourceType: 'directory',
         staging: `${STAGING_REL}/Data/KnowledgeBase/base-2`,
         live: 'Data/KnowledgeBase/base-2',
-        aside: `restore-aside/${RID}/1-base-2`
+        aside: `restore-aside/${RID}/1-base-2`,
+        hadLive: false
       }
     ])
   })
@@ -97,6 +99,9 @@ describe('planResourceInstalls', () => {
     const result = plan([resource('Data/KnowledgeBase/base-1'), resource('Data/KnowledgeBase/base-2')])
 
     expect(result).toMatchObject({ install: 1, replace: 1 })
+    // The same fact the counters summarize, sealed per entry so recovery can
+    // read the absence of an aside as proof rather than as a guess.
+    expect(result.entries.map((entry) => entry.hadLive)).toEqual([true, false])
   })
 
   it('gives units that share a basename distinct aside slots', () => {
