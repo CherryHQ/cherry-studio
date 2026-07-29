@@ -4950,6 +4950,11 @@
     "seed_random": "隨機",
     "seed_tip": "相同的種子和提示詞可以產生相似的圖片",
     "select_model": "選擇模型",
+    "showcase": {
+      "caption": "選擇範本開始創作，再於下方依照你的想法調整提示詞。",
+      "styles_label": "提示詞範本",
+      "title": "下一件傑作，從這裡開始。"
+    },
     "style_options": {
       "anime": "動漫",
       "auto": "自動",
@@ -5811,8 +5816,7 @@
       },
       "backup": {
         "skip_file_data_help": "備份時跳過圖片、知識庫等資料檔案，只備份聊天記錄與設定。可減少空間佔用並加快備份速度",
-        "skip_file_data_title": "精簡備份",
-        "v2_unavailable": "V2 備份還原尚未上線，敬請期待"
+        "skip_file_data_title": "精簡備份"
       },
       "clear_cache": {
         "button": "清除快取",

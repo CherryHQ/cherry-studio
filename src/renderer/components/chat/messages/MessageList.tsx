@@ -278,7 +278,7 @@ const MessageList = () => {
         messageElements.current.delete(messageId)
         continue
       }
-      if (message.role !== 'assistant' || message.type === 'clear') continue
+      if (message.role !== 'assistant' || message.isContextBoundary) continue
 
       if (!element.isConnected || !scrollElement.contains(element)) {
         messageElements.current.delete(messageId)

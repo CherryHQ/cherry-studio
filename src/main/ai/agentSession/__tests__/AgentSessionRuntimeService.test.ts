@@ -285,8 +285,10 @@ describe('AgentSessionRuntimeService', () => {
     it('is false with no entry and true while a turn is live', () => {
       const service = new AgentSessionRuntimeService()
       expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.hasBusySessions()).toBe(false)
       service.beginTurn(baseTurnInput)
       expect(service.isSessionBusy('session-1')).toBe(true)
+      expect(service.hasBusySessions()).toBe(true)
     })
 
     it('is false once a turn settles with no queued follow-ups', () => {
@@ -294,6 +296,7 @@ describe('AgentSessionRuntimeService', () => {
       service.beginTurn(baseTurnInput)
       service.markTurnTerminal('session-1', 'success')
       expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.hasBusySessions()).toBe(false)
     })
 
     it('stays busy throughout the next-turn drain, closing the clobber window', async () => {

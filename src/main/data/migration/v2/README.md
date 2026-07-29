@@ -39,7 +39,9 @@ paths with `path.join()` from scratch inside migration code.
 | `ctx.paths.userData` | `app.getPath('userData')` |
 | `ctx.paths.databaseFile` | `path.join(app.getPath('userData'), 'Data', 'cherrystudio.sqlite')` |
 | `ctx.paths.legacyClaudeConfigDir` | `path.join(ctx.paths.userData, '.claude')` |
+| `ctx.paths.legacyClaudeProjectsDir` | `path.join(ctx.paths.userData, '.claude', 'projects')` |
 | `ctx.paths.claudeConfigDir` | `path.join(ctx.paths.userData, 'Data', 'Agents', '.claude')` |
+| `ctx.paths.claudeProjectsDir` | `path.join(ctx.paths.userData, 'Data', 'Agents', '.claude', 'projects')` |
 | `ctx.paths.knowledgeBaseDir` | `path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')` |
 | `ctx.paths.legacyConfigFile` | `path.join(os.homedir(), '.cherrystudio', 'config', 'config.json')` |
 | `new Store({ cwd: ctx.paths.userData })` | `new Store()` |

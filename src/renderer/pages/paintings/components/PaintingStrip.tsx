@@ -9,7 +9,7 @@ import type { PaintingStripEntry } from '../hooks/usePaintingHistory'
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../paintingPrimitives'
 import { getPaintingFileUrl } from '../utils/paintingFileUrl'
-import PaintingSkeletonGrid from './PaintingSkeletonGrid'
+import PaintingSkeletonSurface from './PaintingSkeletonSurface'
 
 interface PaintingStripProps {
   selectedPaintingId?: string
@@ -46,8 +46,8 @@ const PaintingStripItem: FC<{
           {previewUrl ? (
             <img src={previewUrl} alt="" className="h-full w-full object-cover" />
           ) : loading ? (
-            <div className="size-full bg-muted">
-              <PaintingSkeletonGrid />
+            <div className="size-full bg-background">
+              <PaintingSkeletonSurface />
             </div>
           ) : (
             <span className="block size-full bg-muted/60" aria-hidden />

@@ -7,6 +7,7 @@
  */
 
 import { application } from '@application'
+import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
 import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/schemas/userProvider'
@@ -15,20 +16,18 @@ import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { buildApiFeaturesBaseline, diffApiFeatures } from '@data/services/ProviderRegistryService'
+import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import {
   clearSingleFileRefTx,
-  getLogoFileId,
+  getSingleFileRefId,
   type LogoBindInput,
   reconcileLogoSlotTx
-} from '@data/services/utils/logoRef'
-import { resolveLogoSrc } from '@data/services/utils/logoSrc'
-import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
+} from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
-import { providerLogoRef } from '@shared/data/types/file'
 import type { EndpointType } from '@shared/data/types/model'
 import type {
   ApiKeyEntry,
@@ -231,16 +230,20 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     ...(row.providerSettings as Partial<ProviderSettings> | null)
   }
 
+  // An uploaded logo's file id lives in the ref table (single source of truth);
+  // resolve it main-side so the renderer never reconstructs a disk path. Empty
+  // slot → no lookup. A present id is never dangling (the ref row's
+  // `file_entry_id` FK is `on delete cascade`), so letting `getUrl` throw
+  // surfaces a real invariant break instead of swallowing it.
+  const logoFileId = getSingleFileRefId(providerLogoFileRefTable, row.providerId)
+
   return {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
-    // Preset icon key stays on `logo`; an uploaded logo's file id lives in the
-    // ref table (single source of truth) and resolves main-side to a ready
-    // `file://` URL on `logoSrc` (mutually exclusive with `logo`) so the
-    // renderer never reconstructs a disk path.
+    // Preset icon key stays on `logo`, an uploaded one on `logoSrc` — mutually exclusive.
     logo: row.logoKey ?? undefined,
-    logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(row.providerId))),
+    logoSrc: logoFileId ? application.get('FileManager').getUrl(logoFileId) : undefined,
     description: presetMetadata.description,
     websites: presetMetadata.websites,
     // Registry-owned connection facts (adapterFamily, modelsApiUrls, the
@@ -267,11 +270,6 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
 /** Internal cache key holding the rotation pointer (id of the key last handed out). */
 function rotationCacheKey(providerId: string): string {
   return `settings.provider.${providerId}.last_used_key_id`
-}
-
-/** The provider logo slot for a given providerId. */
-function logoSlot(providerId: string) {
-  return { sourceType: providerLogoRef.sourceType, sourceId: providerId }
 }
 
 class ProviderService {
@@ -348,7 +346,7 @@ class ProviderService {
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
-          const logoCols = reconcileLogoSlotTx(tx, logoSlot(dto.providerId), dto.logo) ?? {
+          const logoCols = reconcileLogoSlotTx(tx, providerLogoFileRefTable, dto.providerId, dto.logo) ?? {
             logoKey: null
           }
           const values: NewUserProviderInput = {
@@ -417,7 +415,7 @@ class ProviderService {
 
       if (dto.name !== undefined) updates.name = dto.name
       // DB-only logo reconcile: replace the slot's file_ref + set the logo key.
-      const logoCols = reconcileLogoSlotTx(tx, logoSlot(providerId), dto.logo)
+      const logoCols = reconcileLogoSlotTx(tx, providerLogoFileRefTable, providerId, dto.logo)
       if (logoCols) {
         updates.logoKey = logoCols.logoKey
       }
@@ -852,7 +850,7 @@ class ProviderService {
       // DB-only: drop the logo slot's ref (the file is preserved per the
       // file layer's policy). The FK cascade would also clear it on row delete;
       // the explicit clear keeps the intent local to this flow.
-      clearSingleFileRefTx(tx, logoSlot(providerId))
+      clearSingleFileRefTx(tx, providerLogoFileRefTable, providerId)
 
       const deleted = tx
         .delete(userProviderTable)

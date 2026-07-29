@@ -201,7 +201,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
           const parts = partsMap?.[message.id]
           const content = parts ? getTextFromParts(parts) : ''
 
-          if (message.type === 'clear') return null
+          if (message.isContextBoundary) return null
 
           return (
             <MessageItem

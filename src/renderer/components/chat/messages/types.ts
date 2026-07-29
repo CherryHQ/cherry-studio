@@ -203,7 +203,8 @@ export interface MessageListItem {
     provider: string
     group?: string
   }>
-  type?: 'clear'
+  /** Derived from the message's hidden `data-clear` part. */
+  isContextBoundary?: boolean
 }
 
 export interface MessageRenderConfig {
