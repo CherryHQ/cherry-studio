@@ -1,6 +1,6 @@
 import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
 import { SkillDetailDialog } from '@renderer/components/resourceCatalog/dialogs/detail'
-import { AgentEditDialog, AssistantEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { ResourceEditDialogHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { ImportAssistantDialog } from '@renderer/components/resourceCatalog/dialogs/import'
 import {
   ImportSkillDialog,
@@ -64,24 +64,12 @@ export function ResourceCatalogDialogs({
         onOpenChange={dialogs.handleCreateDialogOpenChange}
         onSubmit={dialogs.handleSubmitCreateResource}
       />
-      {dialogs.editDialog?.kind === 'assistant' ? (
-        <AssistantEditDialog
-          open={dialogs.editDialogOpen}
-          resource={dialogs.editDialog.resource}
-          modelFilter={isSelectableAssistantModel}
-          onOpenChange={dialogs.handleEditDialogOpenChange}
-          onSaved={dialogs.handleEditSaved}
-        />
-      ) : null}
-      {dialogs.editDialog?.kind === 'agent' ? (
-        <AgentEditDialog
-          open={dialogs.editDialogOpen}
-          resource={dialogs.editDialog.resource}
-          modelFilter={agentModelFilter}
-          onOpenChange={dialogs.handleEditDialogOpenChange}
-          onSaved={dialogs.handleEditSaved}
-        />
-      ) : null}
+      <ResourceEditDialogHost
+        target={dialogs.editDialogTarget}
+        onOpenChange={(open) => {
+          if (!open) dialogs.setEditDialogTarget(null)
+        }}
+      />
     </>
   )
 }

@@ -3844,15 +3844,47 @@
       "providerId": "claude-code"
     },
     {
+      "apiModelId": "claude-opus-4-6",
       "modelId": "claude-opus-4-6",
       "providerId": "claude-code"
     },
     {
+      "apiModelId": "claude-opus-4-6[1m]",
+      "modelId": "claude-opus-4-6",
+      "name": "Claude Opus 4.6 (1M context)",
+      "providerId": "claude-code"
+    },
+    {
+      "apiModelId": "claude-opus-4-7",
       "modelId": "claude-opus-4-7",
       "providerId": "claude-code"
     },
     {
+      "apiModelId": "claude-opus-4-7[1m]",
+      "modelId": "claude-opus-4-7",
+      "name": "Claude Opus 4.7 (1M context)",
+      "providerId": "claude-code"
+    },
+    {
+      "apiModelId": "claude-opus-4-8",
       "modelId": "claude-opus-4-8",
+      "providerId": "claude-code"
+    },
+    {
+      "apiModelId": "claude-opus-4-8[1m]",
+      "modelId": "claude-opus-4-8",
+      "name": "Claude Opus 4.8 (1M context)",
+      "providerId": "claude-code"
+    },
+    {
+      "apiModelId": "claude-opus-5",
+      "modelId": "claude-opus-5",
+      "providerId": "claude-code"
+    },
+    {
+      "apiModelId": "claude-opus-5[1m]",
+      "modelId": "claude-opus-5",
+      "name": "Claude Opus 5 (1M context)",
       "providerId": "claude-code"
     },
     {
@@ -3860,7 +3892,18 @@
       "providerId": "claude-code"
     },
     {
+      "apiModelId": "claude-sonnet-4-6",
       "modelId": "claude-sonnet-4-6",
+      "providerId": "claude-code"
+    },
+    {
+      "apiModelId": "claude-sonnet-4-6[1m]",
+      "modelId": "claude-sonnet-4-6",
+      "name": "Claude Sonnet 4.6 (1M context)",
+      "providerId": "claude-code"
+    },
+    {
+      "modelId": "claude-sonnet-5",
       "providerId": "claude-code"
     },
     {
@@ -36849,5 +36892,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "ed415ec2d6bb9c38"
+  "version": "e502d077898c487e"
 }

@@ -10,6 +10,8 @@ const runtimeMockState = vi.hoisted(() => ({
   takeUserControl: vi.fn(),
   scrollToBottom: vi.fn(),
   markUserInput: vi.fn(),
+  beginScrollbarDrag: vi.fn(),
+  endScrollbarDrag: vi.fn(),
   onWheel: vi.fn(),
   shift: false,
   scrollerRef: { current: null as HTMLDivElement | null }
@@ -87,6 +89,8 @@ vi.mock('../chatVirtualizerRuntime', async () => {
       takeUserControl: runtimeMockState.takeUserControl,
       scrollToBottom: runtimeMockState.scrollToBottom,
       markUserInput: runtimeMockState.markUserInput,
+      beginScrollbarDrag: runtimeMockState.beginScrollbarDrag,
+      endScrollbarDrag: runtimeMockState.endScrollbarDrag,
       shift: runtimeMockState.shift,
       wrappedItems: items,
       wrappedRenderItem: (item: unknown, index: number) =>
@@ -102,6 +106,8 @@ describe('MessageVirtualList', () => {
     runtimeMockState.takeUserControl.mockClear()
     runtimeMockState.scrollToBottom.mockClear()
     runtimeMockState.markUserInput.mockClear()
+    runtimeMockState.beginScrollbarDrag.mockClear()
+    runtimeMockState.endScrollbarDrag.mockClear()
     runtimeMockState.onWheel.mockClear()
     runtimeMockState.shift = false
     runtimeMockState.scrollerRef.current = null
@@ -292,6 +298,24 @@ describe('MessageVirtualList', () => {
     fireEvent.pointerUp(document)
     fireEvent.pointerMove(scroller, { buttons: 1 })
     expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps native scrollbar drag ownership until the pointer is released', () => {
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={(item) => <span>{item}</span>}
+      />
+    )
+
+    const scroller = document.querySelector('[data-message-virtual-list-scroller]') as HTMLElement
+    fireEvent.pointerDown(scroller)
+    expect(runtimeMockState.beginScrollbarDrag).toHaveBeenCalledTimes(1)
+    expect(runtimeMockState.endScrollbarDrag).not.toHaveBeenCalled()
+
+    fireEvent.pointerUp(document)
+    expect(runtimeMockState.endScrollbarDrag).toHaveBeenCalledTimes(1)
   })
 
   it('separates direct takeover from actual scroll-intent signals and removes the listeners on unmount', () => {
