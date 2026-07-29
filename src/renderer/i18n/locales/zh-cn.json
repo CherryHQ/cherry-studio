@@ -6650,9 +6650,6 @@
           "dxtFile": "DXT 包文件",
           "dxtHelp": "选择包含 MCP 服务器的 .dxt 文件",
           "dxtProcessFailed": "处理 DXT 文件失败",
-          "error": {
-            "multipleServers": "不能从多个服务器导入"
-          },
           "invalid": "无效输入，请检查 JSON 格式",
           "json": "从 JSON 导入",
           "mcpb": "导入 MCPB 包",
