@@ -45,6 +45,7 @@ describe('prepareWindow', () => {
 
     await prepareWindow({ preference: ['app.language'] })
 
+    // The locale id is the `<html lang>` tag verbatim; stylesheets reach it via :lang(ar).
     expect(document.documentElement).toHaveAttribute('lang', 'ar-YE')
     expect(document.documentElement).toHaveAttribute('dir', 'rtl')
   })

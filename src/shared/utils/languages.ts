@@ -4,32 +4,38 @@ export type LanguageDirection = 'ltr' | 'rtl'
 
 export interface AppLocaleDefinition {
   englishName: string
-  htmlLanguage: string
   direction: LanguageDirection
+  /**
+   * Extra BCP 47 tags that resolve to this locale. Only needed where the tag
+   * differs from the locale id's own language subtag (script/region variants);
+   * the bare subtag alias is what lets a system locale like `ar-SA` land here.
+   */
   aliases?: readonly string[]
 }
 
+/**
+ * The locale id doubles as the `<html lang>` tag, so stylesheets select these
+ * with `:lang(ar)`, which matches the whole `ar-*` subtree rather than one id.
+ */
 export const appLocaleDefinitions = {
-  'ar-YE': { englishName: 'Arabic', htmlLanguage: 'ar', direction: 'rtl', aliases: ['ar'] },
-  'de-DE': { englishName: 'German', htmlLanguage: 'de-DE', direction: 'ltr', aliases: ['de'] },
-  'el-GR': { englishName: 'Greek', htmlLanguage: 'el-GR', direction: 'ltr', aliases: ['el'] },
-  'en-US': { englishName: 'English', htmlLanguage: 'en-US', direction: 'ltr', aliases: ['en'] },
-  'es-ES': { englishName: 'Spanish', htmlLanguage: 'es-ES', direction: 'ltr', aliases: ['es'] },
-  'fr-FR': { englishName: 'French', htmlLanguage: 'fr-FR', direction: 'ltr', aliases: ['fr'] },
-  'ja-JP': { englishName: 'Japanese', htmlLanguage: 'ja-JP', direction: 'ltr', aliases: ['ja'] },
-  'pt-PT': { englishName: 'Portuguese', htmlLanguage: 'pt-PT', direction: 'ltr', aliases: ['pt'] },
-  'ro-RO': { englishName: 'Romanian', htmlLanguage: 'ro-RO', direction: 'ltr', aliases: ['ro'] },
-  'ru-RU': { englishName: 'Russian', htmlLanguage: 'ru-RU', direction: 'ltr', aliases: ['ru'] },
-  'vi-VN': { englishName: 'Vietnamese', htmlLanguage: 'vi-VN', direction: 'ltr', aliases: ['vi'] },
+  'ar-YE': { englishName: 'Arabic', direction: 'rtl', aliases: ['ar'] },
+  'de-DE': { englishName: 'German', direction: 'ltr', aliases: ['de'] },
+  'el-GR': { englishName: 'Greek', direction: 'ltr', aliases: ['el'] },
+  'en-US': { englishName: 'English', direction: 'ltr', aliases: ['en'] },
+  'es-ES': { englishName: 'Spanish', direction: 'ltr', aliases: ['es'] },
+  'fr-FR': { englishName: 'French', direction: 'ltr', aliases: ['fr'] },
+  'ja-JP': { englishName: 'Japanese', direction: 'ltr', aliases: ['ja'] },
+  'pt-PT': { englishName: 'Portuguese', direction: 'ltr', aliases: ['pt'] },
+  'ro-RO': { englishName: 'Romanian', direction: 'ltr', aliases: ['ro'] },
+  'ru-RU': { englishName: 'Russian', direction: 'ltr', aliases: ['ru'] },
+  'vi-VN': { englishName: 'Vietnamese', direction: 'ltr', aliases: ['vi'] },
   'zh-CN': {
     englishName: 'Chinese (Simplified)',
-    htmlLanguage: 'zh-CN',
     direction: 'ltr',
     aliases: ['zh', 'zh-hans', 'zh-sg']
   },
   'zh-TW': {
     englishName: 'Chinese (Traditional)',
-    htmlLanguage: 'zh-TW',
     direction: 'ltr',
     aliases: ['zh-hant', 'zh-hk', 'zh-mo']
   }
@@ -66,10 +72,6 @@ export function resolveAppLanguage(language: string | null | undefined): Languag
   return baseMatches.length === 1 ? baseMatches[0] : defaultLanguage
 }
 
-export function getAppLocaleDefinition(language: LanguageVarious): AppLocaleDefinition {
-  return appLocaleDefinitions[language]
-}
-
 export function getLanguageDirection(language: LanguageVarious): LanguageDirection {
-  return getAppLocaleDefinition(language).direction
+  return appLocaleDefinitions[language].direction
 }

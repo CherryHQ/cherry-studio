@@ -1,5 +1,5 @@
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import { getAppLocaleDefinition } from '@shared/utils/languages'
+import { getLanguageDirection } from '@shared/utils/languages'
 
 export const appLanguageOptions: ReadonlyArray<{
   value: LanguageVarious
@@ -27,7 +27,6 @@ export function isAppLanguage(value: string | null | undefined): value is Langua
 
 export function syncDocumentLanguage(language: LanguageVarious): void {
   const root = document.documentElement
-  const locale = getAppLocaleDefinition(language)
-  root.lang = locale.htmlLanguage
-  root.dir = locale.direction
+  root.lang = language
+  root.dir = getLanguageDirection(language)
 }

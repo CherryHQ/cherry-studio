@@ -47,7 +47,7 @@ describe('LanguageDirectionProvider', () => {
     )
 
     expect(screen.getByText('content')).toHaveAttribute('data-direction', 'rtl')
-    expect(document.documentElement).toHaveAttribute('lang', 'ar')
+    expect(document.documentElement).toHaveAttribute('lang', 'ar-YE')
     expect(document.documentElement).toHaveAttribute('dir', 'rtl')
   })
 })

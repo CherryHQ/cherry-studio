@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getAppLocaleDefinition, getLanguageDirection, resolveAppLanguage } from '../languages'
+import { getLanguageDirection, resolveAppLanguage } from '../languages'
 
 describe('app language resolution', () => {
   it('normalizes exact locale casing and separators', () => {
@@ -25,12 +25,5 @@ describe('app language resolution', () => {
   it('exposes reading direction for supported locales', () => {
     expect(getLanguageDirection('ar-YE')).toBe('rtl')
     expect(getLanguageDirection('en-US')).toBe('ltr')
-  })
-
-  it('keeps the translation resource id separate from the HTML language tag', () => {
-    expect(getAppLocaleDefinition('ar-YE')).toMatchObject({
-      htmlLanguage: 'ar',
-      direction: 'rtl'
-    })
   })
 })
