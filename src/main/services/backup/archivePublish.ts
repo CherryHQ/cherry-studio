@@ -8,7 +8,7 @@ import { ZipArchive } from 'archiver'
 
 import { archiveDurability } from './archiveDurability'
 import { DB_ENTRY, MANIFEST_ENTRY, RESOURCES_PREFIX } from './archiveLayout'
-import { BACKUP_CEILINGS } from './ceilings'
+import { BACKUP_CEILINGS, FIXED_ARCHIVE_ENTRIES } from './ceilings'
 import { type DirScanLimits, scanDirectoryUnit } from './dirScan'
 import {
   BackupCancelledError,
@@ -24,9 +24,6 @@ import { ResourceCoverageIndex } from './resourceCoverageIndex'
 import { validateResourcePathSet } from './resourcePaths'
 
 const logger = loggerService.withContext('backup/archivePublish')
-
-/** Fixed non-resource archive entries the ceilings must reserve: `manifest.json` + `backup.sqlite`. */
-const FIXED_ARCHIVE_ENTRIES = 2
 
 /**
  * The producer ceilings `publishArchive` enforces. Defaults to the frozen

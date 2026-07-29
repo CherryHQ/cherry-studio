@@ -124,6 +124,13 @@ describe('armRestoreRollback', () => {
    * a unit whose aside vanished is discovered with earlier units already moved.
    */
   describe('resource topology', () => {
+    /** A journal unit as an older build wrote it: without the field it never recorded. */
+    function withoutHadLive<T extends object>(unit: T): Omit<T, 'hadLive'> {
+      const copy = { ...unit } as Record<string, unknown>
+      delete copy.hadLive
+      return copy as Omit<T, 'hadLive'>
+    }
+
     /** Two replaced units, exactly as a completed restore leaves them. */
     function replacedUnits(): RestoreJournalV2['resourceInstalls'] {
       return [0, 1].map((index) => ({
@@ -194,7 +201,7 @@ describe('armRestoreRollback', () => {
     })
 
     it('refuses a journal from a build that never recorded what each unit replaced', () => {
-      const units = replacedUnits().map(({ hadLive: _hadLive, ...rest }) => rest)
+      const units = replacedUnits().map(withoutHadLive)
       arrangeCompleted(units)
 
       // The app still starts and the restore stays usable — only this one
