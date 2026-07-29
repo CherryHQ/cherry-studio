@@ -87,8 +87,20 @@ function ready(service: InstanceType<typeof BackupService>): void {
   ;(service as unknown as { onReady: () => void }).onReady()
 }
 
-function allReady(service: InstanceType<typeof BackupService>): void {
+function scheduleAllReady(service: InstanceType<typeof BackupService>): void {
   ;(service as unknown as { onAllReady: () => void }).onAllReady()
+}
+
+/**
+ * `onAllReady` only schedules the pass — the framework does not await that hook,
+ * so it yields a quiet window to cold-start IO first. Tests that want the pass
+ * itself have to spend that window.
+ */
+function allReady(service: InstanceType<typeof BackupService>): void {
+  scheduleAllReady(service)
+  // To the timer rather than by a duration: the window's length is the
+  // service's tuning knob, and nothing here should have an opinion on it.
+  vi.advanceTimersToNextTimer()
 }
 
 function stop(service: InstanceType<typeof BackupService>): Promise<void> {
@@ -218,6 +230,37 @@ describe('BackupService', () => {
   })
 
   describe('post-promotion work', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('leaves the boot alone until the quiet window has passed', async () => {
+      // `onAllReady` is a supplement the framework never awaits, so running the
+      // pass inside it would put database and Knowledge work on top of
+      // cold-start IO (docs/references/lifecycle/lifecycle-usage.md).
+      postPromotionMock.mockResolvedValue({ ran: true, enqueuedBaseIds: [], pending: false })
+      scheduleAllReady(service)
+
+      expect(postPromotionMock).not.toHaveBeenCalled()
+
+      vi.advanceTimersToNextTimer()
+      expect(postPromotionMock).toHaveBeenCalledOnce()
+    })
+
+    it('never starts a pass when shutdown lands inside the quiet window', async () => {
+      postPromotionMock.mockResolvedValue({ ran: true, enqueuedBaseIds: [], pending: false })
+      scheduleAllReady(service)
+
+      await stop(service)
+      vi.advanceTimersByTime(60_000)
+
+      expect(postPromotionMock).not.toHaveBeenCalled()
+    })
+
     it('starts the rebuild once everything is ready and joins it on stop', async () => {
       // Un-joined, the rebuild would enqueue into a job manager that is already
       // tearing down — the shutdown has to wait for it to notice.
