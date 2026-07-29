@@ -12,6 +12,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
+import { DISCONNECTED_AGENT_WORKSPACE_DIRECTORY } from '@main/ai/agents/portableProfilePolicy'
 
 import type { ResourceRoots } from '../adapters'
 import { collectResourceRequirements } from '../collectRequirements'
@@ -290,6 +291,29 @@ describe('collectResourceRequirements', () => {
       dbh.db
         .insert(agentWorkspaceTable)
         .values({ id: 'w-3', name: 'root', path: ROOTS.systemWorkspaces, type: 'system', orderKey: 'a' })
+        .run()
+
+      const inventory = collect()
+
+      expect(livePathsOf('agent-workspace', inventory)).toEqual([])
+      expect(inventory.unverifiableByKind['agent-workspace']).toBe(1)
+    })
+
+    it('never requires a disconnected placeholder, which names no material at all', () => {
+      // A restore rewrites every workspace it could not rebase to a placeholder
+      // under the managed root (materializeDatabase, DISCONNECTED_AGENT_WORKSPACE_DIRECTORY)
+      // and never creates it on disk. Counting it as a requirement would demand
+      // a payload the producing device could not possibly have declared — which
+      // is exactly what the requirement-set authority check then refuses.
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'w-5',
+          name: 'gone',
+          path: `${ROOTS.systemWorkspaces}/${DISCONNECTED_AGENT_WORKSPACE_DIRECTORY}/ws-w-5`,
+          type: 'user',
+          orderKey: 'a'
+        })
         .run()
 
       const inventory = collect()
