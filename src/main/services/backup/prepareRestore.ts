@@ -167,7 +167,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
     const userDataPath = application.getPath('app.userdata')
     const roots = resolveResourceRoots()
     const inventory = collectResourceRequirements({ dbPath: admitted.db.path, roots, userDataPath })
-    const resources = reconcileRestoreResources(admitted.manifest, inventory.requirements, admitted.resources)
+    const resources = reconcileRestoreResources(admitted.manifest, inventory, admitted.resources)
     const { coverage } = measureResourceCoverage({ inventory, userDataPath })
 
     // Decide the whole install plan BEFORE moving anything: a unit that cannot
