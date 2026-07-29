@@ -332,7 +332,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                 <TabsTrigger
                   key={tabDef.id}
                   value={tabDef.id}
-                  className="flex h-8 flex-none items-center gap-1.5 rounded-md border-0 bg-transparent px-3 text-muted-foreground text-xs shadow-none hover:bg-accent hover:text-foreground data-[state=active]:bg-secondary data-[state=active]:text-foreground data-[state=active]:shadow-none">
+                  className="flex h-8 flex-none items-center gap-1.5 rounded-md border-0 bg-transparent px-3 text-muted-foreground text-xs shadow-none hover:bg-accent hover:text-foreground data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground data-[state=active]:shadow-none">
                   <Icon size={12} />
                   <span>{tabDef.label}</span>
                 </TabsTrigger>

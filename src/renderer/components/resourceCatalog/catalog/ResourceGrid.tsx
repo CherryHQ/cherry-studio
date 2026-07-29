@@ -414,7 +414,7 @@ export const ResourceGrid: FC<Props> = ({
                       onClick={() => onGroupFilter(activeGroupId === group.id ? null : group.id)}
                       className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
                         activeGroupId === group.id
-                          ? 'border-border-selected bg-secondary text-foreground hover:text-foreground'
+                          ? 'border-border-selected bg-secondary text-secondary-foreground hover:text-secondary-foreground'
                           : 'border-border-subtle text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground'
                       }`}>
                       <span>{group.name}</span>
