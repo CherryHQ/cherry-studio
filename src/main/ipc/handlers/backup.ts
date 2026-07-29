@@ -21,13 +21,13 @@ import {
   SourceDriftError,
   UnportableSourceError
 } from '@main/services/backup'
-import {
-  backupErrorCodes,
-  BackupFormatCompatibilityDiagnosticSchema,
-  BackupMigrationCompatibilityDiagnosticSchema
-} from '@shared/ipc/errors/backup'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
-import type { backupRequestSchemas } from '@shared/ipc/schemas/backup'
+import {
+  BackupFormatCompatibilityDiagnosticSchema,
+  BackupMigrationCompatibilityDiagnosticSchema,
+  type backupRequestSchemas
+} from '@shared/ipc/schemas/backup'
 import type { IpcContext, IpcHandlersFor } from '@shared/ipc/types'
 import { app, type BrowserWindow, dialog } from 'electron'
 
