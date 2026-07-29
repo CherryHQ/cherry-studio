@@ -16,6 +16,58 @@ import { defineRoute } from '../define'
  * back out are for display only.
  */
 
+// ── Error payloads: what an `IpcError.data` carries for the compatibility codes ──
+// Here rather than in `errors/backup.ts` because these are zod values, and that
+// module stays zod-free so the renderer may value-import its code map.
+
+const VersionDiagnosticSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[0-9A-Za-z][0-9A-Za-z.+-]*$/)
+
+const MigrationTipDiagnosticSchema = z.strictObject({
+  folderMillis: z.number().int().safe().nonnegative(),
+  hashPrefix: z.union([z.string().regex(/^[0-9a-f]{12}$/), z.literal('unavailable')])
+})
+
+const CompatibilityCommonSchema = z.object({
+  archiveAppVersion: VersionDiagnosticSchema,
+  archiveBuildType: z.enum(['packaged', 'development', 'unknown']),
+  currentAppVersion: VersionDiagnosticSchema,
+  currentBuildType: z.enum(['packaged', 'development']),
+  sourceMigrationCount: z.number().int().safe().positive(),
+  targetMigrationCount: z.number().int().safe().positive(),
+  sourceTip: MigrationTipDiagnosticSchema,
+  targetTip: MigrationTipDiagnosticSchema
+})
+
+export const BackupMigrationCompatibilityDiagnosticSchema = z.discriminatedUnion('kind', [
+  CompatibilityCommonSchema.extend({
+    kind: z.literal('source-ahead'),
+    missingMigrationCount: z.number().int().safe().positive(),
+    firstExtraIndex: z.number().int().safe().positive()
+  }).strict(),
+  CompatibilityCommonSchema.extend({
+    kind: z.literal('lineage-fork'),
+    firstDivergentIndex: z.number().int().safe().positive()
+  }).strict()
+])
+
+export type BackupMigrationCompatibilityDiagnostic = z.infer<typeof BackupMigrationCompatibilityDiagnosticSchema>
+
+export const BackupFormatCompatibilityDiagnosticSchema = z.strictObject({
+  kind: z.enum(['archive-newer', 'archive-legacy']),
+  archiveFormatVersion: z.number().int().safe().nonnegative(),
+  currentFormatVersion: z.number().int().safe().nonnegative(),
+  archiveAppVersion: VersionDiagnosticSchema.optional(),
+  archiveBuildType: z.enum(['packaged', 'development', 'unknown']),
+  currentAppVersion: VersionDiagnosticSchema,
+  currentBuildType: z.enum(['packaged', 'development'])
+})
+
+export type BackupFormatCompatibilityDiagnostic = z.infer<typeof BackupFormatCompatibilityDiagnosticSchema>
+
 export const BACKUP_DEGRADATION_CODES = [
   'capability-malformed',
   'external-file-dropped',

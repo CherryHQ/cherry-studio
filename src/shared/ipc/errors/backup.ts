@@ -1,59 +1,16 @@
-import * as z from 'zod'
-
-const VersionDiagnosticSchema = z
-  .string()
-  .min(1)
-  .max(64)
-  .regex(/^[0-9A-Za-z][0-9A-Za-z.+-]*$/)
-
-const MigrationTipDiagnosticSchema = z.strictObject({
-  folderMillis: z.number().int().safe().nonnegative(),
-  hashPrefix: z.union([z.string().regex(/^[0-9a-f]{12}$/), z.literal('unavailable')])
-})
-
-const CompatibilityCommonSchema = z.object({
-  archiveAppVersion: VersionDiagnosticSchema,
-  archiveBuildType: z.enum(['packaged', 'development', 'unknown']),
-  currentAppVersion: VersionDiagnosticSchema,
-  currentBuildType: z.enum(['packaged', 'development']),
-  sourceMigrationCount: z.number().int().safe().positive(),
-  targetMigrationCount: z.number().int().safe().positive(),
-  sourceTip: MigrationTipDiagnosticSchema,
-  targetTip: MigrationTipDiagnosticSchema
-})
-
-export const BackupMigrationCompatibilityDiagnosticSchema = z.discriminatedUnion('kind', [
-  CompatibilityCommonSchema.extend({
-    kind: z.literal('source-ahead'),
-    missingMigrationCount: z.number().int().safe().positive(),
-    firstExtraIndex: z.number().int().safe().positive()
-  }).strict(),
-  CompatibilityCommonSchema.extend({
-    kind: z.literal('lineage-fork'),
-    firstDivergentIndex: z.number().int().safe().positive()
-  }).strict()
-])
-
-export type BackupMigrationCompatibilityDiagnostic = z.infer<typeof BackupMigrationCompatibilityDiagnosticSchema>
-
-export const BackupFormatCompatibilityDiagnosticSchema = z.strictObject({
-  kind: z.enum(['archive-newer', 'archive-legacy']),
-  archiveFormatVersion: z.number().int().safe().nonnegative(),
-  currentFormatVersion: z.number().int().safe().nonnegative(),
-  archiveAppVersion: VersionDiagnosticSchema.optional(),
-  archiveBuildType: z.enum(['packaged', 'development', 'unknown']),
-  currentAppVersion: VersionDiagnosticSchema,
-  currentBuildType: z.enum(['packaged', 'development'])
-})
-
-export type BackupFormatCompatibilityDiagnostic = z.infer<typeof BackupFormatCompatibilityDiagnosticSchema>
-
 /**
  * Backup-domain IpcApi error codes. Import directly from this module on both
  * sides.
  *
  * The set is the closed list of failures the restore UI must say something
  * specific about; everything else is an unexpected fault and stays `INTERNAL`.
+ *
+ * ZOD-FREE, DELIBERATELY. `errors/` is value-importable from the renderer only
+ * because it carries no zod (docs/references/ipc/ipc-overview.md, "Domain codes
+ * — where they live"); the guard that keeps zod out of the renderer bundle is
+ * scoped to `@shared/ipc/schemas`, so nothing would catch a schema added here.
+ * The diagnostics these codes carry in `error.data` therefore live beside the
+ * rest of the contract, in `@shared/ipc/schemas/backup`.
  */
 export const backupErrorCodes = {
   /** Another export or restore preparation holds the service. */

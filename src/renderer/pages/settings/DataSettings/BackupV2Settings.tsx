@@ -13,14 +13,12 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { BACKUP_RESTORE_NOTICE_KEY } from '@renderer/utils/backupRestoreNotice'
-import {
-  backupErrorCodes,
-  type BackupFormatCompatibilityDiagnostic,
-  BackupFormatCompatibilityDiagnosticSchema,
-  type BackupMigrationCompatibilityDiagnostic,
-  BackupMigrationCompatibilityDiagnosticSchema
-} from '@shared/ipc/errors/backup'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type {
+  BackupFormatCompatibilityDiagnostic,
+  BackupMigrationCompatibilityDiagnostic
+} from '@shared/ipc/schemas/backup'
 import type { OutputFor } from '@shared/ipc/types'
 import { Copy, FolderOpen, SaveIcon } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -159,6 +157,54 @@ function canOfferUpdate(diagnostic: CompatibilityDiagnostic): boolean {
   )
 }
 
+function isCount(value: unknown): boolean {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isMigrationTip(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && isCount((value as { folderMillis?: unknown }).folderMillis)
+}
+
+/**
+ * Read back the diagnostic main attached to a compatibility refusal, keeping
+ * only the kinds that belong to the code that carried it.
+ *
+ * Checked by hand rather than with the zod schema, which stays in
+ * `@shared/ipc/schemas` — a module the renderer bundle deliberately never
+ * value-imports (docs/references/ipc/ipc-overview.md). Main already `.parse()`s
+ * this payload before sending it, so what remains for this side is the narrowing
+ * a cast cannot do on its own: refuse anything whose rendered fields are not the
+ * shape the panel below reads, rather than print whatever arrived.
+ */
+function compatibilityDiagnostic(
+  data: unknown,
+  kinds: readonly CompatibilityDiagnostic['kind'][]
+): CompatibilityDiagnostic | undefined {
+  if (typeof data !== 'object' || data === null) return undefined
+  const value = data as Record<string, unknown>
+  if (!kinds.some((allowed) => allowed === value.kind)) return undefined
+  if (typeof value.currentAppVersion !== 'string') return undefined
+  if (value.archiveAppVersion !== undefined && typeof value.archiveAppVersion !== 'string') return undefined
+  // Looked up in BUILD_TYPE_KEYS, so an unlisted value is a missing translation.
+  // `hasOwn`, not `in`: `in` would accept every name on Object's prototype.
+  if (typeof value.archiveBuildType !== 'string' || !Object.hasOwn(BUILD_TYPE_KEYS, value.archiveBuildType)) {
+    return undefined
+  }
+  if (value.currentBuildType !== 'packaged' && value.currentBuildType !== 'development') return undefined
+
+  const detailed =
+    value.kind === 'archive-newer' || value.kind === 'archive-legacy'
+      ? isCount(value.archiveFormatVersion) && isCount(value.currentFormatVersion)
+      : isCount(value.sourceMigrationCount) &&
+        isCount(value.targetMigrationCount) &&
+        isMigrationTip(value.sourceTip) &&
+        isMigrationTip(value.targetTip) &&
+        (value.kind === 'source-ahead'
+          ? isCount(value.missingMigrationCount) && isCount(value.firstExtraIndex)
+          : isCount(value.firstDivergentIndex))
+  return detailed ? (value as CompatibilityDiagnostic) : undefined
+}
+
 const CompatibilityDetails: FC<{
   diagnostic: CompatibilityDiagnostic
   description: string
@@ -270,11 +316,9 @@ const BackupV2Settings: FC = () => {
         error.code === backupErrorCodes.RESTORE_REQUIRES_NEWER_APP ||
         error.code === backupErrorCodes.RESTORE_LINEAGE_INCOMPATIBLE
       ) {
-        const parsed = BackupMigrationCompatibilityDiagnosticSchema.safeParse(error.data)
-        if (parsed.success) diagnostic = parsed.data
+        diagnostic = compatibilityDiagnostic(error.data, ['source-ahead', 'lineage-fork'])
       } else if (error.code === backupErrorCodes.FORMAT_UNSUPPORTED) {
-        const parsed = BackupFormatCompatibilityDiagnosticSchema.safeParse(error.data)
-        if (parsed.success) diagnostic = parsed.data
+        diagnostic = compatibilityDiagnostic(error.data, ['archive-newer', 'archive-legacy'])
       }
 
       if (diagnostic) {

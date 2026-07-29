@@ -2,8 +2,9 @@ import '@testing-library/jest-dom/vitest'
 
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { backupErrorCodes, type BackupFormatCompatibilityDiagnostic } from '@shared/ipc/errors/backup'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { BackupFormatCompatibilityDiagnostic } from '@shared/ipc/schemas/backup'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
