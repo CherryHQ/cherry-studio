@@ -82,7 +82,7 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.TeamDelete]: { icon: <Bot size={14} /> },
   [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
   [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
-  [AgentToolsType.Workflow]: { icon: <WorkflowIcon size={14} /> },
+  [AgentToolsType.Workflow]: { icon: <WorkflowIcon size={14} />, labelKey: 'message.tools.labels.workflow' },
   [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' }
 }
 
@@ -384,6 +384,11 @@ export function getReadableToolActivity(
         label: labels.handle,
         description:
           getStringArg(args, 'description') ?? getStringArg(args, 'prompt') ?? t('message.tools.activity.assistantTask')
+      }
+    case AgentToolsType.Workflow:
+      return {
+        label: active ? t('message.tools.workflow.orchestrating') : t('message.tools.workflow.started'),
+        description: getStringArg(args, 'name') ?? t('message.tools.workflow.workflow')
       }
     case AgentToolsType.TaskCreate:
       return {

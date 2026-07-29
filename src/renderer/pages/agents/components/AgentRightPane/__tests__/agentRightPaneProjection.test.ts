@@ -259,6 +259,19 @@ describe('agent right pane projections', () => {
       {
         type: 'data-agent-task-event',
         data: {
+          event: 'progress',
+          taskId: 'task-1',
+          status: 'in_progress',
+          title: 'Inspecting task state',
+          activeText: 'Reading renderer state',
+          summary: 'Reviewing renderer files',
+          lastToolName: 'Read',
+          usage: { totalTokens: 800, toolUses: 3, durationMs: 6000 }
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
           event: 'notification',
           taskId: 'task-1',
           status: 'completed',
@@ -280,11 +293,13 @@ describe('agent right pane projections', () => {
         id: 'task-1',
         toolUseId: 'tool-use-1',
         title: 'Inspect task state',
-        activeText: 'Inspecting task state',
+        activeText: 'Reading renderer state',
         status: 'completed',
         taskType: 'subagent',
         subagentType: 'code-reviewer',
         workflowName: undefined,
+        summary: 'Inspect task state',
+        lastToolName: 'Read',
         outputFile: '/tmp/task-1.md',
         usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
       }

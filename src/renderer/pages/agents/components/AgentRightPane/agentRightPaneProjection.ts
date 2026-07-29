@@ -67,6 +67,8 @@ export interface AgentRunTask {
   taskType?: string
   subagentType?: string
   workflowName?: string
+  summary?: string
+  lastToolName?: string
   outputFile?: string
   usage?: AgentTaskEventPartData['usage']
 }
@@ -413,7 +415,7 @@ function applyAgentTaskEvent(
 ): void {
   const existing = runTaskMap.get(data.taskId)
   // A completion's summary is prose, not a name — it must never become the row title.
-  const title = data.title?.trim() || data.description?.trim() || existing?.title
+  const title = existing?.title || data.title?.trim() || data.description?.trim()
   if (!title) return
 
   // Events reach this map from two orderings (message parts, then the late-event cache), so a stale
@@ -433,6 +435,8 @@ function applyAgentTaskEvent(
     taskType: data.taskType ?? existing?.taskType,
     subagentType: data.subagentType ?? existing?.subagentType,
     workflowName: data.workflowName ?? existing?.workflowName,
+    summary: data.summary ?? existing?.summary,
+    lastToolName: data.lastToolName ?? existing?.lastToolName,
     outputFile: data.outputFile ?? existing?.outputFile,
     usage: data.usage ?? existing?.usage
   })

@@ -2,6 +2,7 @@ import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const loggerMocks = vi.hoisted(() => ({
+  silly: vi.fn(),
   debug: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
@@ -84,6 +85,41 @@ function successResult(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ClaudeCodeStreamAdapter', () => {
+  it('logs every SDK envelope with correlation ids but without text or tool input', () => {
+    const { adapter } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: 'workflow-agent-1',
+      uuid: 'message-1',
+      session_id: 'sdk-1',
+      message: {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'sensitive response' },
+          {
+            type: 'tool_use',
+            id: 'tool-1',
+            name: 'Read',
+            input: { file_path: '/sensitive/path' }
+          }
+        ]
+      }
+    } as any)
+
+    expect(loggerMocks.silly).toHaveBeenCalledWith('Received Claude Code SDK event', {
+      sessionId: 'session-1',
+      event: {
+        type: 'assistant',
+        uuid: 'message-1',
+        sdkSessionId: 'sdk-1',
+        parent_tool_use_id: 'workflow-agent-1',
+        contentBlocks: [{ type: 'text' }, { type: 'tool_use', id: 'tool-1', name: 'Read' }]
+      }
+    })
+    expect(JSON.stringify(loggerMocks.silly.mock.calls)).not.toContain('sensitive')
+  })
+
   it('maps system init to response metadata and captures session id', () => {
     const { adapter, parts, sessionIds } = createAdapter()
 
@@ -426,6 +462,45 @@ describe('ClaudeCodeStreamAdapter', () => {
       providerMetadata: {
         'claude-code': {
           parentToolCallId: 'parent-tool'
+        }
+      }
+    })
+  })
+
+  it('keeps nested Agent tools under the SDK parent while top-level Agent tools remain roots', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      ...streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 'nested-agent', name: 'Agent', input: {} }
+      }),
+      parent_tool_use_id: 'workflow-root'
+    })
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 1,
+        content_block: { type: 'tool_use', id: 'top-level-agent', name: 'Agent', input: {} }
+      })
+    )
+
+    expect(parts[0]).toMatchObject({
+      type: 'tool-input-start',
+      toolCallId: 'nested-agent',
+      providerMetadata: {
+        'claude-code': {
+          parentToolCallId: 'workflow-root'
+        }
+      }
+    })
+    expect(parts[1]).toMatchObject({
+      type: 'tool-input-start',
+      toolCallId: 'top-level-agent',
+      providerMetadata: {
+        'claude-code': {
+          parentToolCallId: null
         }
       }
     })
@@ -1190,6 +1265,67 @@ describe('ClaudeCodeStreamAdapter', () => {
       ])
     })
 
+    it('enriches a local workflow task from its launch receipt without handling remote agents', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_use',
+              id: 'workflow-tool-use',
+              name: 'Workflow',
+              input: { name: 'review-pr' }
+            }
+          ]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'workflow-1', task_type: 'local_workflow', description: 'review-pr' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'workflow-tool-use',
+              content: JSON.stringify({
+                status: 'async_launched',
+                taskId: 'workflow-1',
+                taskType: 'local_workflow',
+                workflowName: 'review-pr'
+              }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+
+      expect(statusEvents.filter((event) => event.type === 'background-tasks').at(-1)).toEqual({
+        type: 'background-tasks',
+        tasks: [
+          {
+            id: 'workflow-1',
+            type: 'local_workflow',
+            description: 'review-pr',
+            toolCallId: 'workflow-tool-use'
+          }
+        ]
+      })
+    })
+
     it('uses subagent edges only to enrich navigation without changing authoritative membership', () => {
       const { adapter, statusEvents } = createAdapter()
 
@@ -1234,6 +1370,46 @@ describe('ClaudeCodeStreamAdapter', () => {
               type: 'subagent',
               description: 'Current task B',
               toolCallId: 'tool-use-b'
+            }
+          ]
+        }
+      ])
+    })
+
+    it('uses local workflow task starts to enrich navigation without changing authoritative membership', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks: [{ task_id: 'workflow-1', task_type: 'local_workflow', description: 'Review the pull request' }]
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'workflow-1',
+        tool_use_id: 'workflow-tool-use',
+        description: 'Review the pull request',
+        task_type: 'local_workflow'
+      } as any)
+
+      expect(statusEvents.filter((event) => event.type === 'background-tasks')).toEqual([
+        {
+          type: 'background-tasks',
+          tasks: [{ id: 'workflow-1', type: 'local_workflow', description: 'Review the pull request' }]
+        },
+        {
+          type: 'background-tasks',
+          tasks: [
+            {
+              id: 'workflow-1',
+              type: 'local_workflow',
+              description: 'Review the pull request',
+              toolCallId: 'workflow-tool-use'
             }
           ]
         }

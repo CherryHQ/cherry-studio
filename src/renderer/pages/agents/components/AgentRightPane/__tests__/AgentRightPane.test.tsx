@@ -979,6 +979,55 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
   })
 
+  it('renders local Workflow progress separately without offering a root FlowTab fallback', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'workflow-1',
+          toolUseId: 'workflow-tool',
+          status: 'in_progress',
+          title: 'Review PR',
+          taskType: 'local_workflow',
+          workflowName: 'review-pr'
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'progress',
+          taskId: 'workflow-1',
+          toolUseId: 'workflow-tool',
+          status: 'in_progress',
+          title: 'Reviewing renderer',
+          activeText: 'Checking citation rendering',
+          summary: 'Reviewing renderer files',
+          lastToolName: 'Read',
+          usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    expect(screen.getByText('agent.right_pane.info.workflows')).toBeInTheDocument()
+    expect(screen.queryByText('agent.right_pane.info.subagents')).toBeNull()
+    expect(screen.getByText('review-pr')).toBeInTheDocument()
+    expect(screen.getByText('Reviewing renderer files')).toBeInTheDocument()
+    expect(screen.getByText('Checking citation rendering')).toBeInTheDocument()
+    expect(screen.getByText(/Read · 1.2k · agent.right_pane.status.tool_uses · 9s/)).toBeInTheDocument()
+    expect(screen.getByText('review-pr').closest('button')).toBeNull()
+    expect(screen.queryByTestId('workflow-dag-panel')).toBeNull()
+  })
+
   it('restores the stop button and reports an error when the runtime cannot stop the task', async () => {
     ipcRequestMock.mockResolvedValue(false)
     renderStatusTasks([{ id: 'subagent-1', status: 'in_progress', title: 'Inspect task state' }])

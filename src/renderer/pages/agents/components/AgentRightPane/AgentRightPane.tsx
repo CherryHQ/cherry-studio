@@ -64,7 +64,8 @@ import {
   Loader2,
   Package,
   Terminal,
-  Waypoints
+  Waypoints,
+  Workflow
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { createContext, memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -798,6 +799,10 @@ function isSubagentRunTask(task: AgentRunTask): boolean {
   return task.taskType === 'subagent' || task.taskType === 'local_agent' || Boolean(task.subagentType)
 }
 
+function isLocalWorkflowRunTask(task: AgentRunTask): boolean {
+  return task.taskType === 'local_workflow'
+}
+
 function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: string }) {
   const actions = useAgentRightPaneActions()
 
@@ -844,12 +849,55 @@ function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: 
   )
 }
 
-function formatRunTaskUsage(usage: AgentRunTask['usage']): string | undefined {
+function WorkflowRunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: string }) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="space-y-1.5">
+      {tasks.map((task) => {
+        const activity = task.status === 'in_progress' ? task.activeText : undefined
+        const usage = formatRunTaskUsage(task.usage, (count) => t('agent.right_pane.status.tool_uses', { count }))
+        const metadata = [task.lastToolName, usage].filter(Boolean).join(' · ')
+
+        return (
+          <div
+            key={task.id}
+            className="flex min-w-0 items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
+            <TaskStatusIcon status={task.status} />
+            <div className="min-w-0 flex-1">
+              <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
+                {task.workflowName ?? task.title}
+              </div>
+              {task.summary && task.summary !== task.workflowName && task.summary !== task.title ? (
+                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-foreground-secondary leading-4">
+                  {task.summary}
+                </div>
+              ) : null}
+              {activity && activity !== task.title && activity !== task.summary ? (
+                <div className="wrap-break-word mt-0.5 line-clamp-2 text-[11px] text-foreground-secondary leading-4">
+                  {activity}
+                </div>
+              ) : null}
+              {metadata ? <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{metadata}</div> : null}
+            </div>
+            {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function formatRunTaskUsage(
+  usage: AgentRunTask['usage'],
+  formatToolUses?: (count: number) => string
+): string | undefined {
   if (!usage) return undefined
   const parts: string[] = []
   if (typeof usage.totalTokens === 'number') {
     parts.push(usage.totalTokens >= 1000 ? `${(usage.totalTokens / 1000).toFixed(1)}k` : String(usage.totalTokens))
   }
+  if (typeof usage.toolUses === 'number' && formatToolUses) parts.push(formatToolUses(usage.toolUses))
   if (typeof usage.durationMs === 'number') parts.push(`${Math.round(usage.durationMs / 1000)}s`)
   return parts.length > 0 ? parts.join(' · ') : undefined
 }
@@ -1086,7 +1134,8 @@ function AgentRightPaneHighlights({
   const { t } = useTranslation()
   const meta = useAgentRightPaneMeta()
   const shellRunTasks = status.runTasks.filter(isShellRunTask)
-  const agentRunTasks = status.runTasks.filter((task) => !isShellRunTask(task))
+  const workflowRunTasks = status.runTasks.filter(isLocalWorkflowRunTask)
+  const agentRunTasks = status.runTasks.filter((task) => !isShellRunTask(task) && !isLocalWorkflowRunTask(task))
   const tasks = includeTasks ? status.tasks : []
   const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
   const hasHighlights = tasks.length > 0 || status.runTasks.length > 0 || artifacts.length > 0
@@ -1114,6 +1163,15 @@ function AgentRightPaneHighlights({
               </li>
             ))}
           </ul>
+        </AgentRightPaneHighlightSection>
+      )}
+
+      {workflowRunTasks.length > 0 && (
+        <AgentRightPaneHighlightSection
+          title={t('agent.right_pane.info.workflows')}
+          icon={<Workflow size={14} className="text-muted-foreground" />}
+          compact={compact}>
+          <WorkflowRunTaskList tasks={workflowRunTasks} sessionId={meta.sessionId} />
         </AgentRightPaneHighlightSection>
       )}
 

@@ -306,6 +306,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
     expect(settings.systemPrompt as string).toContain('"/workspace/project"')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+    expect(settings.forwardSubagentText).toBe(true)
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {

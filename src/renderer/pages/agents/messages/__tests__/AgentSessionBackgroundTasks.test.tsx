@@ -73,4 +73,16 @@ describe('AgentSessionBackgroundTasks', () => {
 
     expect(container).toBeEmptyDOMElement()
   })
+
+  it('renders a local Workflow chip without offering an empty root FlowTab', () => {
+    mocks.backgroundTasks = [
+      { id: 'workflow-1', type: 'local_workflow', description: 'Review PR', toolCallId: 'workflow-tool' }
+    ]
+
+    render(<AgentSessionBackgroundTasks sessionId="session-1" />)
+
+    expect(screen.getByText('Review PR')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Review PR' })).toBeNull()
+    expect(mocks.openAgentToolFlow).not.toHaveBeenCalled()
+  })
 })

@@ -2,7 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { useMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Workflow } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -25,10 +25,15 @@ export default function AgentSessionBackgroundTasks({ sessionId }: Props) {
         gap="4px"
         classNames={{ content: 'items-center pr-8' }}>
         {backgroundTasks.map((task) => {
-          const toolCallId = task.toolCallId
+          const isWorkflow = task.type === 'local_workflow'
+          const toolCallId = isWorkflow ? undefined : task.toolCallId
           const content = (
             <>
-              <Loader2 aria-hidden="true" size={12} className="shrink-0 animate-spin" />
+              {isWorkflow ? (
+                <Workflow aria-hidden="true" size={12} className="shrink-0" />
+              ) : (
+                <Loader2 aria-hidden="true" size={12} className="shrink-0 animate-spin" />
+              )}
               <span className="max-w-60 truncate">{task.description}</span>
             </>
           )

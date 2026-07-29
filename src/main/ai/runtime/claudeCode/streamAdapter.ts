@@ -183,6 +183,15 @@ function isSubagentToolName(toolName: string): boolean {
   return toolName === 'Task' || toolName === 'Agent'
 }
 
+function getToolParentId(
+  toolName: string,
+  sdkParentToolUseId: SdkParentToolUseId,
+  fallbackParentToolCallId: string | null
+): string | null {
+  if (sdkParentToolUseId) return sdkParentToolUseId
+  return isSubagentToolName(toolName) ? null : fallbackParentToolCallId
+}
+
 function getLaunchedBackgroundTaskId(result: unknown): string | undefined {
   if (!isRecord(result) || (result.status !== 'async_launched' && result.status !== 'remote_launched')) {
     return undefined
@@ -193,6 +202,74 @@ function getLaunchedBackgroundTaskId(result: unknown): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function summarizeSdkContentBlock(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) return { type: typeof value }
+
+  const summary: Record<string, unknown> = {
+    type: typeof value.type === 'string' ? value.type : 'unknown'
+  }
+  for (const key of ['id', 'name', 'tool_use_id', 'server_name', 'server_tool_use_id'] as const) {
+    if (typeof value[key] === 'string') summary[key] = value[key]
+  }
+  if (typeof value.is_error === 'boolean') summary.is_error = value.is_error
+  return summary
+}
+
+/**
+ * Keep the SDK wire log useful for parent/child correlation without persisting user text, prompts,
+ * tool inputs or streamed deltas. In particular, Workflow debugging needs every envelope and stable
+ * id, not the potentially sensitive payload carried by that envelope.
+ */
+function summarizeSdkMessage(message: SDKMessage): Record<string, unknown> {
+  const raw = message as unknown as Record<string, unknown>
+  const summary: Record<string, unknown> = {
+    type: message.type,
+    uuid: raw.uuid,
+    sdkSessionId: raw.session_id
+  }
+
+  for (const key of [
+    'subtype',
+    'parent_tool_use_id',
+    'tool_use_id',
+    'tool_name',
+    'task_id',
+    'task_type',
+    'workflow_name',
+    'agent_id',
+    'subagent_type',
+    'state',
+    'status'
+  ] as const) {
+    const value = raw[key]
+    if (typeof value === 'string' || value === null) summary[key] = value
+  }
+
+  if (message.type === 'stream_event') {
+    const event = message.event as unknown as Record<string, unknown>
+    summary.streamEvent = {
+      type: event.type,
+      index: event.index,
+      contentBlock: summarizeSdkContentBlock(event.content_block),
+      deltaType: isRecord(event.delta) ? event.delta.type : undefined
+    }
+  } else if (message.type === 'assistant' || message.type === 'user') {
+    const sdkMessage = raw.message
+    const content = isRecord(sdkMessage) && Array.isArray(sdkMessage.content) ? sdkMessage.content : []
+    summary.contentBlocks = content.map(summarizeSdkContentBlock)
+  } else if (message.type === 'system' && Array.isArray(raw.tasks)) {
+    summary.tasks = raw.tasks.map((task) => {
+      if (!isRecord(task)) return { type: typeof task }
+      return {
+        taskId: task.task_id,
+        taskType: task.task_type
+      }
+    })
+  }
+
+  return summary
 }
 
 function stringifyJsonValue(value: unknown): string {
@@ -443,6 +520,10 @@ export class ClaudeCodeStreamAdapter {
   }
 
   handleMessage(message: SDKMessage): ClaudeCodeStreamAdapterResult {
+    logger.silly('Received Claude Code SDK event', {
+      sessionId: this.sessionId,
+      event: summarizeSdkMessage(message)
+    })
     const parentToolUseId = 'parent_tool_use_id' in message ? message.parent_tool_use_id : undefined
     if (
       parentToolUseId != null &&
@@ -650,9 +731,7 @@ export class ClaudeCodeStreamAdapter {
 
     let state = ctx.toolStates.get(toolId)
     if (!state) {
-      const currentParentId = isSubagentToolName(toolName)
-        ? null
-        : (sdkParentToolUseId ?? this.getFallbackParentId(ctx))
+      const currentParentId = getToolParentId(toolName, sdkParentToolUseId, this.getFallbackParentId(ctx))
       state = {
         name: toolName,
         inputStarted: false,
@@ -870,9 +949,7 @@ export class ClaudeCodeStreamAdapter {
     const toolId = tool.id
     let state = ctx.toolStates.get(toolId)
     if (!state) {
-      const currentParentId = isSubagentToolName(tool.name)
-        ? null
-        : (sdkParentToolUseId ?? this.getFallbackParentId(ctx))
+      const currentParentId = getToolParentId(tool.name, sdkParentToolUseId, this.getFallbackParentId(ctx))
       state = {
         name: tool.name,
         inputStarted: false,
@@ -882,7 +959,7 @@ export class ClaudeCodeStreamAdapter {
         ...this.getToolUseMetadata(tool)
       }
       ctx.toolStates.set(toolId, state)
-    } else if (!state.parentToolCallId && sdkParentToolUseId && !isSubagentToolName(tool.name)) {
+    } else if (!state.parentToolCallId && sdkParentToolUseId) {
       state.parentToolCallId = sdkParentToolUseId
     }
     state.name = tool.name
@@ -979,9 +1056,7 @@ export class ClaudeCodeStreamAdapter {
     const toolName = state?.name ?? this.getToolNameFromResultType(result.type) ?? UNKNOWN_TOOL_NAME
 
     if (!state) {
-      const resolvedParentId = isSubagentToolName(toolName)
-        ? null
-        : (sdkParentToolUseId ?? this.getFallbackParentId(ctx))
+      const resolvedParentId = getToolParentId(toolName, sdkParentToolUseId, this.getFallbackParentId(ctx))
       state = {
         name: toolName,
         inputStarted: false,
@@ -1010,7 +1085,9 @@ export class ClaudeCodeStreamAdapter {
 
     const providerMetadata = this.buildToolProviderMetadata(state)
     const isError = this.isToolResultError(result)
-    if (!isError && isSubagentToolName(toolName)) {
+    const isLocalWorkflowLaunch =
+      toolName === 'Workflow' && isRecord(normalizedResult) && normalizedResult.taskType === 'local_workflow'
+    if (!isError && (isSubagentToolName(toolName) || isLocalWorkflowLaunch)) {
       const taskId = getLaunchedBackgroundTaskId(normalizedResult)
       if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id)
     }
@@ -1242,7 +1319,10 @@ export class ClaudeCodeStreamAdapter {
     // navigation only; missing/reordered edges therefore delay the button but never add/hide a chip.
     if (
       eventData.toolUseId &&
-      (eventData.taskType === 'subagent' || eventData.taskType === 'local_agent' || eventData.subagentType)
+      (eventData.taskType === 'subagent' ||
+        eventData.taskType === 'local_agent' ||
+        eventData.taskType === 'local_workflow' ||
+        eventData.subagentType)
     ) {
       this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId)
     }
