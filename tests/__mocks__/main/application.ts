@@ -171,7 +171,6 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     isReady: vi.fn(() => true),
     shutdown: vi.fn().mockResolvedValue(undefined),
     relaunch: vi.fn(),
-    relaunchAfterShutdown: vi.fn().mockResolvedValue(undefined),
     forceExit: vi.fn(),
     // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
     quit: vi.fn(),

@@ -6,6 +6,14 @@ import type { RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { armPreparedRestore, cancelPreparedRestore, prepareRestore } from '../prepareRestore'
+
+interface PrepareRestoreModule {
+  armPreparedRestore: typeof armPreparedRestore
+  cancelPreparedRestore: typeof cancelPreparedRestore
+  prepareRestore: typeof prepareRestore
+}
+
 /**
  * The service is driven directly here, exactly the way the Phase 4 IPC layer
  * will: the handlers add sender policy and error mapping, nothing else, so the
@@ -22,10 +30,8 @@ const {
 } = vi.hoisted(() => ({
   acknowledgeMock: vi.fn(() => ({ acknowledged: true, restoreId: 'restore-1', removed: 1 })),
   abandonMock: vi.fn(() => ({ restoreId: 'restore-1', pendingBaseIds: ['kb-1'] })),
-  armPreparedMock: vi.fn<(restoreId: string, setShutdownOwned: (owned: boolean) => void) => Promise<void>>(
-    async () => undefined
-  ),
-  armRollbackMock: vi.fn<(setShutdownOwned: (owned: boolean) => void) => Promise<void>>(async () => undefined),
+  armPreparedMock: vi.fn<(restoreId: string) => Promise<void>>(async () => undefined),
+  armRollbackMock: vi.fn<() => Promise<void>>(async () => undefined),
   cancelRebuildMock: vi.fn(async () => undefined),
   loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   postPromotionMock: vi.fn<
@@ -42,7 +48,7 @@ vi.mock('../acknowledgeRestore', () => ({
   abandonKnowledgeRebuild: abandonMock
 }))
 vi.mock('../prepareRestore', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../prepareRestore')>()),
+  ...(await importOriginal<PrepareRestoreModule>()),
   armPreparedRestore: armPreparedMock
 }))
 vi.mock('../rollbackRestore', () => ({ armRestoreRollback: armRollbackMock }))
@@ -485,24 +491,46 @@ describe('BackupService', () => {
       await arming
     })
 
-    it('does not self-join after a durable arm hands process lifetime to shutdown', async () => {
+    it('does not cancel an irreversible rollback transition', async () => {
       let finish = (): void => {}
-      let operationFinished = false
-      armPreparedMock.mockImplementationOnce(async (_restoreId, setShutdownOwned) => {
-        setShutdownOwned(true)
-        await new Promise<void>((resolve) => {
-          finish = resolve
-        })
-        operationFinished = true
-      })
-      const arming = service.armRestore(RESTORE_ID)
-      await vi.waitFor(() => expect(service.getStatus().operation).toBe('arm-restore'))
+      armRollbackMock.mockImplementationOnce(
+        async () =>
+          new Promise<void>((resolve) => {
+            finish = resolve
+          })
+      )
+      const rollback = service.rollbackRestore()
+      await vi.waitFor(() => expect(armRollbackMock).toHaveBeenCalledOnce())
 
-      await expect(stop(service)).resolves.toBeUndefined()
-      expect(operationFinished).toBe(false)
+      expect(service.cancelOperation()).toBe(false)
 
       finish()
-      await arming
+      await rollback
+    })
+
+    it('joins an irreversible arm during service shutdown without aborting it', async () => {
+      let finish = (): void => {}
+      armPreparedMock.mockImplementationOnce(
+        async () =>
+          new Promise<void>((resolve) => {
+            finish = resolve
+          })
+      )
+      const arming = service.armRestore(RESTORE_ID)
+      await vi.waitFor(() => expect(armPreparedMock).toHaveBeenCalledOnce())
+
+      let stopped = false
+      const stopping = stop(service).then(() => {
+        stopped = true
+      })
+      await Promise.resolve()
+
+      expect(stopped).toBe(false)
+      expect(service.cancelOperation()).toBe(false)
+
+      finish()
+      await Promise.all([arming, stopping])
+      expect(stopped).toBe(true)
     })
 
     it('aborts and joins an in-flight operation during service shutdown', async () => {

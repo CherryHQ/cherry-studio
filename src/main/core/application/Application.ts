@@ -379,11 +379,9 @@ export class Application {
   }
 
   /**
-   * Schedule a packaged relaunch. Development builds cannot ask Electron to
-   * reconstruct the `pnpm dev` process, so they show the same manual-restart
-   * instruction and let the caller proceed to exit.
+   * Relaunch the app, with dev mode warning
    */
-  private scheduleRelaunch(options?: Electron.RelaunchOptions): void {
+  public relaunch(options?: Electron.RelaunchOptions): void {
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
       dialog.showMessageBoxSync({
@@ -393,6 +391,7 @@ export class Application {
         detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
         buttons: ['OK']
       })
+      app.exit(0)
       return
     }
 
@@ -411,37 +410,7 @@ export class Application {
     }
 
     app.relaunch(options)
-  }
-
-  /**
-   * Relaunch the app, with dev mode warning.
-   *
-   * Most legacy callers have already released what they own before reaching
-   * this point. Restore transitions use {@link relaunchAfterShutdown} instead
-   * because their writer holds must remain closed through lifecycle shutdown.
-   */
-  public relaunch(options?: Electron.RelaunchOptions): void {
-    this.scheduleRelaunch(options)
     app.exit(0)
-  }
-
-  /**
-   * Schedule the next packaged instance before stopping this one, then complete
-   * lifecycle shutdown before exiting. A scheduling error is deliberately
-   * thrown before shutdown starts so a journaled caller may roll back its
-   * transition and reopen admission.
-   */
-  public async relaunchAfterShutdown(options?: Electron.RelaunchOptions): Promise<void> {
-    this.scheduleRelaunch(options)
-    try {
-      await this.shutdown()
-    } catch (error) {
-      // The relaunch is already scheduled. Cleanup debt must not deny the
-      // durable transition or reopen writers in this process.
-      logger.error('Error during shutdown before relaunch', error as Error)
-    } finally {
-      app.exit(0)
-    }
   }
 
   /**
