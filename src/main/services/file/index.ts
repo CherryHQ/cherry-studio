@@ -71,6 +71,7 @@ export type {
 export { createDirectoryWatcher } from './watcher'
 
 // Projection helper: managed FileEntry → live on-disk FileInfo descriptor.
+export { toInternalBlobFileName } from './portableProfilePolicy'
 export { toFileInfo } from './toFileInfo'
 
 // Path-level system helpers. `safeOpen` is the public default-open primitive;

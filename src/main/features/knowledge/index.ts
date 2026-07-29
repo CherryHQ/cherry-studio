@@ -2,6 +2,11 @@
 export { isKnowledgeCaptureExcluded } from './capturePolicy'
 export { KnowledgeService } from './KnowledgeService'
 export {
+  collectKnowledgeRequiredMaterial,
+  type KnowledgeMaterialRow,
+  type KnowledgeRequiredMaterialByBase
+} from './portableProfilePolicy'
+export {
   createKnowledgeRestoreOwnerSummary,
   type KnowledgeRestoreSummary,
   type KnowledgeRestoreSummaryRead,

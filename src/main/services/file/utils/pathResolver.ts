@@ -2,6 +2,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
+import { toInternalBlobFileName } from '../portableProfilePolicy'
+
 const logger = loggerService.withContext('pathResolver')
 
 /**
@@ -13,13 +15,6 @@ const logger = loggerService.withContext('pathResolver')
 export type PathResolvableEntry =
   | { id: string; origin: 'internal'; ext: string | null }
   | { id: string; origin: 'external'; ext: string | null; externalPath: AbsoluteFilePath }
-
-/**
- * Get the file extension suffix (with dot) or empty string if null.
- */
-export function getExtSuffix(ext: string | null): string {
-  return ext ? `.${ext}` : ''
-}
 
 /**
  * Resolve the physical filesystem path for a FileEntry.
@@ -46,9 +41,7 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): AbsoluteFilePat
   }
 
   if (entry.origin === 'internal') {
-    return AbsoluteFilePathSchema.parse(
-      application.getPath('feature.files.data', `${entry.id}${getExtSuffix(entry.ext)}`)
-    )
+    return AbsoluteFilePathSchema.parse(application.getPath('feature.files.data', toInternalBlobFileName(entry)))
   }
 
   // entry.origin === 'external' — externalPath is already a canonical
