@@ -378,6 +378,11 @@
         "label": "Προεγκεκριμένα εργαλεία",
         "placeholder": "Επιλέξτε προεγκεκριμένα εργαλεία"
       },
+      "api_retry": {
+        "reason": "Η αίτηση απέτυχε ({{error}}, HTTP {{status}}) — επανάληψη",
+        "retrying": "Επανάληψη {{attempt}}/{{max}}…",
+        "retrying_in": "Επανάληψη {{attempt}}/{{max}} σε {{seconds}}δ"
+      },
       "auto_rename": "Δημιούργησε όνομα εργασίας",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Αποτυχία διαγραφής εργασίας",
         "loadFailed": "Αποτυχία φόρτωσης εργασιών",
         "runFailed": "Αποτυχία εκτέλεσης εργασίας",
+        "triggerInvalid": "Μη έγκυρο πρόγραμμα: ελέγξτε την έκφραση, τη ζώνη ώρας ή το εύρος διαστήματος",
         "updateFailed": "Αποτυχία ενημέρωσης εργασίας"
       },
       "frequency": {
@@ -720,6 +726,38 @@
       "run": "Εκτέλεση",
       "runTriggered": "Η εργασία ενεργοποιήθηκε",
       "save": "Αποθήκευση",
+      "schedule": {
+        "custom": "Προσαρμοσμένο πρόγραμμα",
+        "daily": "Καθημερινά",
+        "hour": "Ώρα",
+        "hourly": "Ωριαίος",
+        "interval": "Προσαρμοσμένο διάστημα",
+        "intervalMinutes": "Διάστημα",
+        "invalid": "Εισάγετε μια έγκυρη συχνότητα εκτέλεσης.",
+        "minute": "Λεπτό",
+        "once": "Μία φορά",
+        "runAt": "Εκτέλεση σε",
+        "summary": {
+          "daily": "Καθημερινά στις {{time}}",
+          "hourly": "Στην αρχή κάθε ώρας",
+          "interval": "Κάθε {{count}} λεπτά",
+          "weekdays": "Καθημερινά στις {{time}}",
+          "weekly": "Κάθε {{weekday}} στις {{time}}"
+        },
+        "time": "Χρόνος",
+        "weekday": "Ημέρα της εβδομάδας",
+        "weekdays": {
+          "friday": "Παρασκευή",
+          "monday": "Δευτέρα",
+          "saturday": "Σάββατο",
+          "sunday": "Κυριακή",
+          "thursday": "Πέμπτη",
+          "tuesday": "Τρίτη",
+          "wednesday": "Τετάρτη"
+        },
+        "weekdaysOnly": "Καθημερινές",
+        "weekly": "Εβδομαδιαία"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "Διάστημα",
@@ -869,7 +907,7 @@
       "expired": "Ληγμένο",
       "inputPreview": "Προεπισκόπηση εισόδου εργαλείου",
       "pending": "Εκκρεμεί ({{seconds}}δ)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Εκκρεμής",
       "permissionExpired": "Το αίτημα άδειας έληξε. Αναμονή για νέες οδηγίες...",
       "requiresElevatedPermissions": "Αυτό το εργαλείο απαιτεί αυξημένα δικαιώματα.",
       "suggestion": {
@@ -997,7 +1035,6 @@
   },
   "apiGateway": {
     "actions": {
-      "copy": "Αντιγραφή",
       "regenerate": "Αναδημιουργία",
       "restart": {
         "button": "Επανεκκίνηση",
@@ -1009,8 +1046,6 @@
     "authHeader": {
       "title": "Επικεφαλίδα εξουσιοδότησης"
     },
-    "authHeaderText": "Χρήση στην κεφαλίδα εξουσιοδότησης:",
-    "configuration": "Διαμόρφωση",
     "description": "Εκθέτει τις δυνατότητες AI του Cherry Studio μέσω API HTTP συμβατών με OpenAI",
     "documentation": {
       "title": "Τεκμηρίωση API"
@@ -1018,13 +1053,10 @@
     "fields": {
       "apiKey": {
         "copyTooltip": "Αντιγραφή Κλειδιού API",
-        "description": "Διακριτικό ασφαλούς πιστοποίησης για πρόσβαση στο API",
         "label": "Κλειδί API",
         "placeholder": "Το κλειδί API θα δημιουργηθεί αυτόματα"
       },
       "port": {
-        "description": "Ο αριθμός θύρας TCP για τον εξυπηρετητή HTTP (1000-65535)",
-        "helpText": "Σταματήστε τον διακομιστή για να αλλάξετε τη θύρα",
         "label": "Θύρα"
       },
       "url": {
@@ -1033,7 +1065,6 @@
       }
     },
     "messages": {
-      "apiKeyCopied": "Το κλειδί API αντιγράφηκε στο πρόχειρο",
       "apiKeyRegenerated": "Το κλειδί API αναδημιουργήθηκε",
       "notEnabled": "Ο διακομιστής API δεν είναι ενεργοποιημένος.",
       "operationFailed": "Η λειτουργία του Διακομιστή API απέτυχε: ",
@@ -1043,8 +1074,7 @@
       "startError": "Αποτυχία εκκίνησης του Διακομιστή API: ",
       "startSuccess": "Ο διακομιστής API ξεκίνησε επιτυχώς",
       "stopError": "Αποτυχία διακοπής του Διακομιστή API: ",
-      "stopSuccess": "Ο διακομιστής API σταμάτησε επιτυχώς",
-      "urlCopied": "Το URL του διακομιστή αντιγράφηκε στο πρόχειρο"
+      "stopSuccess": "Ο διακομιστής API σταμάτησε επιτυχώς"
     },
     "status": {
       "running": "Εκτελείται",
@@ -1427,21 +1457,21 @@
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Αποτυχία φόρτωσης της αναφοράς συνομιλίας",
+        "no_room": "Δεν υπάρχει αρκετός χώρος στο μήνυμα για να προσθέσετε αυτή τη συνομιλία",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Δεν υπάρχουν συνεδρίες που να ταιριάζουν με την αναζήτησή σας",
+            "label": "Δεν Βρέθηκαν Συνεδρίες"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Συνεδρίες"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Δεν βρέθηκαν θέματα που να ταιριάζουν με την αναζήτησή σας",
+            "label": "Δεν βρέθηκαν θέματα"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Θέματα"
         }
       },
       "resize_height": "Αλλαγή ύψους εισόδου",
@@ -1603,8 +1633,17 @@
       "token_details": {
         "cache_read": "Ανάγνωση προσωρινής μνήμης",
         "cache_write": "Εγγραφή κρυφής μνήμης",
+        "cost": "[to be translated]:Cost",
+        "cost_billed": "[to be translated]:Billed by provider",
+        "cost_estimated": "[to be translated]:Estimated",
+        "end_to_end_throughput": "[to be translated]:End-to-end throughput",
         "input": "Είσοδος",
         "input_breakdown": "Ανάλυση εισόδου",
+        "lane_approval": "[to be translated]:Approval",
+        "lane_model": "[to be translated]:Model",
+        "lane_other": "[to be translated]:Other",
+        "lane_tool": "[to be translated]:Tool",
+        "model_throughput": "[to be translated]:Model generation TPS",
         "output": "Έξοδος",
         "reasoning": "Συλλογισμός",
         "reasoning_time": "Αιτιολόγηση",
@@ -1613,6 +1652,7 @@
         "text_output": "Έξοδος κειμένου",
         "tokens": "Μάρκες {{value}}",
         "tokens_per_second_value": "{{value}} Tokens/s",
+        "total_duration": "[to be translated]:End-to-end duration",
         "uncached": "Uncached",
         "usage": "Χρήση token",
         "waiting_first_token": "Αναμονή"
@@ -2140,7 +2180,7 @@
     "terminal": "τερματικό",
     "terminal_hint": "Επιλέξτε σε ποιο τερματικό θα εκτελέσετε τη γραμμή εντολών",
     "terminal_placeholder": "Επιλέξτε εφαρμογή τερματικού",
-    "title": "Εργαλεία κώδικα",
+    "title": "Code Mate",
     "tool_parameters": "Ρυθμίσεις Παραμέτρων",
     "up_to_date": "Ενημερωμένο",
     "update_options": "Ενημέρωση επιλογών",
@@ -2280,6 +2320,7 @@
     "open_in": "Άνοιγμα στο {{name}}",
     "open_in_new_tab": "Άνοιγμα σε νέα καρτέλα",
     "open_sidebar": "Άνοιγμα πλαϊνής γραμμής",
+    "other": "[to be translated]:Other",
     "placeholders": {
       "select": {
         "model": "Επιλέξτε μοντέλο"
@@ -2293,7 +2334,7 @@
     "provider": "Παρέχων",
     "reasoning_content": "Έχει σκεφτεί πολύ καλά",
     "refresh": "Ανανέωση",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Αδυναμία ανανέωσης της λίστας. Εμφανίζεται η τελευταία φορτωμένη έκδοση.",
     "regenerate": "Ξαναπαραγωγή",
     "remove_image": "Αφαίρεση εικόνας",
     "rename": "Μετονομασία",
@@ -2609,7 +2650,7 @@
     "empty": {
       "no_match_description": "Κανένα αρχείο δεν ταιριάζει με τα τρέχοντα φίλτρα",
       "no_match_title": "Δεν βρέθηκαν αρχεία που να ταιριάζουν",
-      "title": "[to be translated]:No files yet"
+      "title": "Δεν υπάρχουν ακόμα αρχεία"
     },
     "empty_trash": "Άδειασμα κάδου απορριμμάτων",
     "error": {
@@ -3007,6 +3048,7 @@
     "embedding_model": "Μοντέλο Ενσωμάτωσης",
     "embedding_model_required": "Απαιτείται μοντέλο ενσωμάτωσης βάσης γνώσης",
     "empty": "Καμία βάση γνώσεων",
+    "empty_action": "Δημιουργία Βάσης Γνώσης",
     "empty_description": "Δεν έχετε ακόμα καμία βάση γνώσεων. Δημιουργήστε μία για να αρχίσετε να οργανώνετε και να αναζητάτε τα έγγραφά σας.",
     "error": {
       "directory_not_migrated": "Η μεταφορά του φακέλου απέτυχε. Παρακαλώ διαγράψτε τον και ανεβάστε τον ξανά.",
@@ -3781,6 +3823,8 @@
         "title": "Επιβεβαίωση Διαγραφής"
       },
       "failed": "Η διαγραφή απέτυχε",
+      "first_turn_not_supported": "Το πρώτο μήνυμα χρήστη δεν μπορεί να διαγραφεί.",
+      "root_unavailable": "Τα μηνύματα εξακολουθούν να φορτώνονται και δεν μπορούν ακόμα να διαγραφούν.",
       "success": "Η διαγραφή ήταν επιτυχής"
     },
     "dialog": {
@@ -4279,6 +4323,7 @@
     },
     "pinned": "Κατακερματισμένο",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Κόστος",
       "currency": "Νόμισμα",
       "custom": "Προσαρμογή",
@@ -4894,6 +4939,11 @@
     "seed_random": "Τυχαίο",
     "seed_tip": "Η χρήση του ίδιου παραγόντα και του σχολίου μπορεί να δημιουργήσει παρόμοιες εικόνες",
     "select_model": "Επιλέξτε μοντέλο",
+    "showcase": {
+      "caption": "Επιλέξτε ένα πρότυπο για να ξεκινήσετε και προσαρμόστε την παρακάτω προτροπή όπως θέλετε.",
+      "styles_label": "Πρότυπα προτροπών",
+      "title": "Ένας χώρος για το επόμενο αριστούργημά σας."
+    },
     "style_options": {
       "anime": "Anime",
       "auto": "Αυτόματο",
@@ -5755,8 +5805,7 @@
       },
       "backup": {
         "skip_file_data_help": "Κατά τη δημιουργία αντιγράφων ασφαλείας, παραλείψτε τις εικόνες, τις βάσεις γνώσεων και άλλα αρχεία δεδομένων. Δημιουργήστε αντίγραφα μόνο για το ιστορικό συνομιλιών και τις ρυθμίσεις. Αυτό θα μειώσει τη χρήση χώρου και θα επιταχύνει την ταχύτητα δημιουργίας αντιγράφων.",
-        "skip_file_data_title": "Συμπυκνωμένο αντίγραφο ασφαλείας",
-        "v2_unavailable": "Η δημιουργία αντιγράφων ασφαλείας και η επαναφορά V2 δεν είναι ακόμη διαθέσιμες. Έρχονται σύντομα."
+        "skip_file_data_title": "Συμπυκνωμένο αντίγραφο ασφαλείας"
       },
       "clear_cache": {
         "button": "Καθαρισμός Μνήμης",
@@ -6400,6 +6449,7 @@
       "viewErrorDetails": "Δείτε λεπτομέρειες"
     },
     "developer": {
+      "client_id": "Αναγνωριστικό Πελάτη",
       "enable_developer_mode": "Ενεργοποίηση λειτουργίας προγραμματιστή",
       "help": "Μετά την ενεργοποίηση της λειτουργίας προγραμματιστή, θα μπορείτε να χρησιμοποιήσετε τη λειτουργία αλυσίδας κλήσης για να δείτε τη ροή δεδομένων της διαδικασίας κλήσης του μοντέλου.",
       "title": "Λειτουργία Προγραμματιστή"
@@ -6582,7 +6632,9 @@
       "active": "Ενεργοποίηση",
       "addError": "Αποτυχία προσθήκης διακομιστή",
       "addServer": {
+        "advanced": "Προχωρημένο",
         "create": "Γρήγορη Δημιουργία",
+        "createDescription": "Συμπληρώστε τα στοιχεία σύνδεσης για να δημιουργήσετε τον διακομιστή· όλα τα υπόλοιπα μπορούν να προσαρμοστούν αργότερα.",
         "importFrom": {
           "connectionFailed": "Αποτυχία Σύνδεσης",
           "dxt": "Εισαγωγή Πακέτου DXT",
@@ -6662,7 +6714,11 @@
         "success": "Επιτυχής ανάκτηση διακομιστών MCP"
       },
       "filter": {
-        "label": "Φίλτρο"
+        "allStatuses": "Όλες οι καταστάσεις",
+        "allTypes": "Όλοι οι τύποι",
+        "builtinOnly": "Ενσωματωμένο μόνο",
+        "status": "Φιλτράρισμα κατά κατάσταση",
+        "type": "Φιλτράρισμα κατά τύπο"
       },
       "findMore": "Περισσότεροι διακομιστές MCP",
       "headers": "Κεφαλίδες",
@@ -6719,6 +6775,7 @@
         "usage": "Χρήση",
         "version": "Έκδοση"
       },
+      "pageDescription": "Διαχείριση διακομιστών MCP. Μόλις ενεργοποιηθούν, οι πράκτορες μπορούν να καλούν τα εργαλεία και τους πόρους που παρέχουν.",
       "prompts": {
         "arguments": "Ορίσματα",
         "availablePrompts": "Διαθέσιμες Υποδείξεις",
@@ -7682,12 +7739,39 @@
       "titlePlaceholder": "Παρακαλώ εισάγετε τον τίτλο της φράσης"
     },
     "scheduledTasks": {
+      "agentCreate": "Δημιουργήστε με Πράκτορα",
+      "allAgents": "Όλοι οι Πράκτορες",
+      "allStatuses": "Όλες οι καταστάσεις",
+      "clearFilters": "Καθαρισμός φίλτρων",
+      "createDescription": "Ρυθμίστε τι πρέπει να κάνει ο Πράκτορας και πότε πρέπει να εκτελείται.",
+      "createTitle": "Νέα προγραμματισμένη εργασία",
       "description": "Διαχειριστείτε προγραμματισμένες εργασίες σε όλους τους πράκτορες. Οι εργασίες εκτελούνται αυτόματα σύμφωνα με το διαμορφωμένο πρόγραμμα.",
+      "editDescription": "Ενημερώστε τι πρέπει να κάνει ο Πράκτορας και πότε πρέπει να εκτελείται.",
+      "editTitle": "Επεξεργασία προγραμματισμένης εργασίας",
+      "filterAgent": "Φιλτράρισμα ανά Πράκτορα",
+      "filterStatus": "Φιλτράρισμα κατά κατάσταση",
+      "manualCreate": "Δημιουργήστε χειροκίνητα",
+      "newTask": "Νέο",
       "noAgents": "Δεν βρέθηκαν πράκτορες. Δημιουργήστε πρώτα έναν πράκτορα για να προσθέσετε προγραμματισμένες εργασίες.",
       "noAgentsTip": "Συμβουλή: Μπορείτε επίσης να ζητήσετε από τον παράγοντά σας να δημιουργήσει προγραμματισμένες εργασίες μέσω συνομιλίας.",
+      "noAgentsTitle": "Χωρίς Πράκτορες",
+      "noMatches": "Δοκιμάστε διαφορετική αναζήτηση ή φίλτρο.",
+      "noMatchesTitle": "Δεν υπάρχουν αντίστοιχες εργασίες",
       "noTasks": "Κανένα προγραμματισμένο task. Κάντε κλικ στο \"+ Προσθήκη\" για να δημιουργήσετε ένα για έναν πράκτορα.",
+      "noTasksTitle": "Δεν υπάρχουν προγραμματισμένες εργασίες",
+      "notFoundDescription": "Αυτή η εργασία μπορεί να έχει διαγραφεί ή ο σύνδεσμος είναι άκυρος.",
+      "notFoundTitle": "Η εργασία δεν βρέθηκε",
+      "paginationLabel": "Σελιδοποίηση προγραμματισμένων εργασιών",
+      "paginationStatus": "Σελίδα {{page}} από {{pageCount}} · {{total}} εργασίες",
+      "search": "Αναζήτηση προγραμματισμένων εργασιών",
+      "searchPlaceholder": "Αναζήτηση εργασιών ή Πρακτόρων",
       "selectTask": "Επιλέξτε μια εργασία για να δείτε λεπτομέρειες",
-      "title": "Προγραμματισμένες Εργασίες"
+      "title": "Προγραμματισμένες Εργασίες",
+      "validation": {
+        "agent": "Επιλέξτε έναν Πράκτορα.",
+        "name": "Εισαγάγετε ένα όνομα εργασίας.",
+        "prompt": "Εισάγετε μια προτροπή εργασίας."
+      }
     },
     "shortcuts": {
       "action": "Ενέργεια",
@@ -7776,6 +7860,7 @@
       "noInstalled": "Δεν έχουν εγκατασταθεί δεξιότητες",
       "noResults": "Δεν βρέθηκαν δεξιότητες",
       "noSkillFile": "Δεν βρέθηκε SKILL.md",
+      "pageDescription": "Διαχειριστείτε τις εγκατεστημένες δεξιότητες. Οι δεξιότητες επεκτείνουν τι μπορούν να κάνουν οι πράκτορές σας και ενεργοποιούνται κατά παραγγελία.",
       "searchPlaceholder": "Ανακαλύψτε περισσότερες δεξιότητες...",
       "searchRegistryTitle": "Αναζητήστε μητρώα δεξιοτήτων στο διαδίκτυο",
       "searchTitle": "Δεξιότητες Αναζήτησης",
@@ -8031,6 +8116,108 @@
       "show": "Εμφάνιση εικονιδίου συνδρομής",
       "title": "Συνδρομή"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "[to be translated]:Active days",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "dailyAverage": "[to be translated]:Daily average",
+        "explicitApiKey": "[to be translated]:Selected key",
+        "lastPeriod": "[to be translated]:vs last period",
+        "matchedApiKey": "[to be translated]:Matched override",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "currency": "[to be translated]:Currency",
+      "empty": {
+        "description": "[to be translated]:Usage appears after supported AI requests create usage records.",
+        "title": "[to be translated]:No usage yet"
+      },
+      "explore": {
+        "analysis": "[to be translated]:Analysis",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "[to be translated]:Clear date filter",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "[to be translated]:Requests",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "rollup": "[to be translated]:Rollup",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "[to be translated]:Explore",
+        "top": "[to be translated]:Top",
+        "totalEntries_one": "[to be translated]:{{count}} entry",
+        "totalEntries_other": "[to be translated]:{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "source": "[to be translated]:Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "title": "[to be translated]:Daily activity"
+      },
+      "metric": {
+        "cost": "[to be translated]:Cost",
+        "requests": "[to be translated]:Requests",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "rollup": {
+        "daily": "[to be translated]:Daily",
+        "monthly": "[to be translated]:Monthly",
+        "total": "[to be translated]:Total",
+        "weekly": "[to be translated]:Weekly"
+      },
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "model": "[to be translated]:Model",
+        "source": "[to be translated]:Source",
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
+      },
+      "title": "[to be translated]:Usage Analytics",
+      "tooltip": {
+        "cost": "[to be translated]:Cost {{value}}",
+        "requests_one": "[to be translated]:{{count}} request",
+        "requests_other": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
+      },
+      "window": {
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Η αλλαγή του στυλ της γραμμής τίτλου απαιτεί επανεκκίνηση της εφαρμογής για να τεθεί σε ισχύ. Θέλετε να γίνει επανεκκίνηση τώρα;",
@@ -8061,7 +8248,7 @@
   "title": {
     "apps": "Εφαρμογές",
     "chat": "Συνομιλία",
-    "code": "Κώδικας",
+    "code": "Code Mate",
     "files": "Αρχεία",
     "home": "Αρχική Σελίδα",
     "knowledge": "Βάση Γνώσης",

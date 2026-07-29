@@ -115,7 +115,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
         </DialogHeader>
 
         <SettingContainer theme={theme} style={{ background: 'transparent' }} className="gap-5 p-0">
-          <SettingGroup theme={theme} className="border-t-0 pt-0">
+          <SettingGroup theme={theme} variant="plain" className="border-t-0 pt-0">
             <div className="mb-2.5 flex min-w-0 items-center justify-between gap-3">
               <SettingTitle className="mb-0 min-w-0">{t('code.model_selection')}</SettingTitle>
               {isClaudeTool && (
@@ -133,13 +133,13 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
             {modelSectionSlot}
           </SettingGroup>
           {toolFields && (
-            <SettingGroup theme={theme} className="border-t-0 pt-0">
+            <SettingGroup theme={theme} variant="plain" className="border-t-0 pt-0">
               <SettingTitle className="mb-2.5">{t('code.tool_parameters')}</SettingTitle>
               {toolFields}
             </SettingGroup>
           )}
           {hasAdvancedSection && (
-            <SettingGroup theme={theme} className="border-t-0 pt-0">
+            <SettingGroup theme={theme} variant="plain" className="border-t-0 pt-0">
               <AdvancedConfigToggle open={advancedOpen} onToggle={onAdvancedToggle}>
                 <div className="space-y-5">
                   {advancedFields}

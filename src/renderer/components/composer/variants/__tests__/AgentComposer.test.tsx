@@ -2,13 +2,14 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LocalSkill } from '@shared/types/skill'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,8 +25,13 @@ const mocks = vi.hoisted(() => ({
   draftText: 'hello',
   draftTokens: undefined as ComposerSerializedToken[] | undefined,
   files: [] as FileMetadata[],
+  selectedKnowledgeBases: [] as KnowledgeBase[],
+  knowledgeBases: [] as KnowledgeBase[],
+  agentKnowledgeBaseIds: [] as string[],
   agentLookupId: undefined as string | null | undefined,
   modelLookupId: undefined as UniqueModelId | null | undefined,
+  modelResult: undefined as Model | undefined,
+  modelLoading: false,
   sendMessage: vi.fn(),
   stop: vi.fn(),
   isDirectory: vi.fn(),
@@ -41,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
+  setSelectedKnowledgeBases: vi.fn(),
   inputAdapterFocus: vi.fn(),
   quickPanelOpen: vi.fn(),
   pinnedToolIds: ['composer:new-session', 'thinking', 'skills'] as string[],
@@ -59,7 +66,9 @@ const mocks = vi.hoisted(() => ({
   contextUsagePercentage: null as number | null,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   getDraft: vi.fn(),
-  derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
+  derivedToolState: undefined as
+    | { couldAddImageFile: boolean; extensions: string[]; selectableKnowledgeBases?: KnowledgeBase[] }
+    | undefined,
   shortcutHandlers: new Map<string, () => void>(),
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
@@ -86,6 +95,15 @@ let restoreRequestAnimationFrame: (() => void) | undefined
 const seedInputHistory = (items: string[]) => {
   MockUseCacheUtils.setPersistCacheValue('ui.composer.input_history', items)
 }
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
   targets: Set<Element>
@@ -125,6 +143,17 @@ const reviewSkill = {
   description: 'Review changed files',
   filename: 'review-fast'
 } satisfies LocalSkill
+const knowledgeBaseOne = { id: 'kb-1', name: 'Knowledge One' } as KnowledgeBase
+const knowledgeBaseTwo = { id: 'kb-2', name: 'Knowledge Two' } as KnowledgeBase
+
+const knowledgeBaseToken = (base: KnowledgeBase): ComposerSerializedToken => ({
+  id: `knowledge:${base.id}`,
+  kind: 'knowledge',
+  label: base.name,
+  payload: base,
+  index: 0,
+  textOffset: 0
+})
 
 const pdfSkillToken = {
   id: 'skill:pdf',
@@ -255,7 +284,22 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
 })
 
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
-  ComposerToolRuntimeProvider: ({ children }: { children: ReactNode }) => {
+  ComposerToolRuntimeProvider: ({
+    children,
+    initialState
+  }: {
+    children: ReactNode
+    initialState?: { selectedKnowledgeBases?: KnowledgeBase[] }
+  }) => {
+    // The real provider seeds its selection state from `initialState` before children render, which is
+    // what lets a cached knowledge chip survive the surface's managed-token sync. Mirror that here or
+    // the seed is invisible to these tests. An EMPTY seed has to reset too — the real `useState` does,
+    // and treating it as a no-op would let one agent's selection survive a switch to another.
+    const seededRef = useRef(false)
+    if (!seededRef.current) {
+      seededRef.current = true
+      mocks.selectedKnowledgeBases = initialState?.selectedKnowledgeBases ?? []
+    }
     useEffect(() => {
       mocks.runtimeProviderMounts += 1
       return () => {
@@ -267,13 +311,15 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   ComposerToolDerivedStateProvider: ({
     children,
     couldAddImageFile,
-    extensions
+    extensions,
+    selectableKnowledgeBases
   }: {
     children: ReactNode
     couldAddImageFile: boolean
     extensions: string[]
+    selectableKnowledgeBases?: KnowledgeBase[]
   }) => {
-    mocks.derivedToolState = { couldAddImageFile, extensions }
+    mocks.derivedToolState = { couldAddImageFile, extensions, selectableKnowledgeBases }
     return <>{children}</>
   },
   ComposerToolRuntimeHost: (props: {
@@ -294,13 +340,14 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolState: () => ({
     files: mocks.files,
     mentionedModels: [],
-    selectedKnowledgeBases: [],
+    selectedKnowledgeBases: mocks.selectedKnowledgeBases,
     isExpanded: false,
     couldAddImageFile: false,
     extensions: []
   }),
   useComposerToolDispatch: () => ({
     setFiles: mocks.setFiles,
+    setSelectedKnowledgeBases: mocks.setSelectedKnowledgeBases,
     setIsExpanded: vi.fn(),
     addNewTopic: vi.fn(),
     onTextChange: vi.fn(),
@@ -338,6 +385,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
         model: 'anthropic::claude-sonnet-4-5',
         modelName: 'Claude Sonnet 4.5',
         instructions: 'Follow instructions',
+        knowledgeBaseIds: mocks.agentKnowledgeBaseIds,
         configuration: {}
       }
     }
@@ -401,8 +449,12 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
 vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: (id: UniqueModelId | null) => {
     mocks.modelLookupId = id
-    return { model }
+    return { model: mocks.modelResult, isLoading: mocks.modelLoading }
   }
+}))
+
+vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
+  useKnowledgeBases: () => ({ bases: mocks.knowledgeBases, isLoading: false })
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
@@ -646,8 +698,13 @@ describe('AgentComposer', () => {
     mocks.draftText = 'hello'
     mocks.draftTokens = undefined
     mocks.files = []
+    mocks.selectedKnowledgeBases = []
+    mocks.knowledgeBases = []
+    mocks.agentKnowledgeBaseIds = []
     mocks.agentLookupId = undefined
     mocks.modelLookupId = undefined
+    mocks.modelResult = model
+    mocks.modelLoading = false
     mocks.sendMessage.mockReset()
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
@@ -700,6 +757,7 @@ describe('AgentComposer', () => {
     mocks.updateModel.mockResolvedValue({})
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
+    mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
     mocks.quickPanelOpen.mockReset()
     mocks.pinnedToolIds = ['composer:new-session', 'thinking', 'skills']
@@ -708,6 +766,9 @@ describe('AgentComposer', () => {
     mocks.toolLaunchersVersion = 0
     mocks.setFiles.mockImplementation((value) => {
       mocks.files = typeof value === 'function' ? value(mocks.files) : value
+    })
+    mocks.setSelectedKnowledgeBases.mockImplementation((value) => {
+      mocks.selectedKnowledgeBases = typeof value === 'function' ? value(mocks.selectedKnowledgeBases) : value
     })
     mocks.insertToken.mockReset()
     mocks.replaceDraft.mockReset()
@@ -767,7 +828,169 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
-    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
+    expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
+  })
+
+  it('limits Session knowledge choices to the Agent static binding', () => {
+    mocks.knowledgeBases = [knowledgeBaseOne, knowledgeBaseTwo]
+    mocks.agentKnowledgeBaseIds = [knowledgeBaseOne.id]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.derivedToolState?.selectableKnowledgeBases).toEqual([knowledgeBaseOne])
+    expect(mocks.runtimeHostProps?.session).toMatchObject({ knowledgeBaseIds: [knowledgeBaseOne.id] })
+    expect(mocks.surfaceProps?.resolveKnowledgeBaseMarker?.(knowledgeBaseOne.name)).toMatchObject({
+      id: `knowledge:${knowledgeBaseOne.id}`,
+      kind: 'knowledge'
+    })
+    expect(mocks.surfaceProps?.resolveKnowledgeBaseMarker?.(knowledgeBaseTwo.name)).toBeNull()
+  })
+
+  it('sends the selected knowledge scope on consecutive Agent turns without clearing it', async () => {
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseOne]))
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    mocks.draftTokens = [knowledgeBaseToken(knowledgeBaseOne)]
+
+    fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+    expect(mocks.sendMessage.mock.calls[0][1].body.userMessageParts).toContainEqual({
+      type: 'data-knowledge-scope',
+      data: { baseIds: [knowledgeBaseOne.id] }
+    })
+
+    mocks.draftText = 'second question'
+    fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(2))
+    expect(mocks.sendMessage.mock.calls[1][1].body.userMessageParts).toContainEqual({
+      type: 'data-knowledge-scope',
+      data: { baseIds: [knowledgeBaseOne.id] }
+    })
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
+  })
+
+  it('omits the Agent scope part after the knowledge selection is cleared', async () => {
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseOne]))
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    void act(() => mocks.setSelectedKnowledgeBases([]))
+    mocks.draftTokens = []
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce())
+    expect(mocks.sendMessage.mock.calls[0][1].body.userMessageParts).not.toContainEqual(
+      expect.objectContaining({ type: 'data-knowledge-scope' })
+    )
+  })
+
+  it('restores a queued Agent message knowledge scope when editing it', async () => {
+    mocks.knowledgeBases = [knowledgeBaseOne, knowledgeBaseTwo]
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseOne]))
+    mocks.draftTokens = [knowledgeBaseToken(knowledgeBaseOne)]
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    fireEvent.click(screen.getByText('send'))
+    const queued = mocks.surfaceProps?.queueContent as any
+    expect(queued.props.items[0].payload.userMessageParts).toContainEqual({
+      type: 'data-knowledge-scope',
+      data: { baseIds: [knowledgeBaseOne.id] }
+    })
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseTwo]))
+    await act(async () => queued.props.onEdit(queued.props.items[0].id))
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
+  })
+
+  it('blocks the send button with a model-required prompt when the agent has no configured model', async () => {
+    mocks.modelResult = undefined
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
   it('uses page-resolved context without subscribing to agent and model data again', () => {
@@ -828,7 +1051,7 @@ describe('AgentComposer', () => {
 
     await notifyComposerBottomToolbarWidth(420)
 
-    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
+    expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
     expect(document.querySelector('.lucide-bot')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-sparkles')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')
@@ -1359,6 +1582,46 @@ describe('AgentComposer', () => {
     })
   })
 
+  it('strips the knowledge sentence from input history but keeps a skill sentence', async () => {
+    // Input history is the one composer path backed by localStorage, so it is the only place a
+    // knowledge token's prompt text could outlive its `data-knowledge-scope` part across a restart —
+    // replayed as prose it would claim a base the kb_* tools were never authorized for. A skill's
+    // sentence needs no accompanying part, so it must survive verbatim.
+    const knowledgePrompt = `The user attached knowledge base "${knowledgeBaseOne.name}" (id: ${knowledgeBaseOne.id}).`
+    mocks.sendMessage.mockResolvedValue(undefined)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: `summarize ${knowledgePrompt} ${pdfSkillToken.promptText} now`,
+        tokens: [
+          { ...knowledgeBaseToken(knowledgeBaseOne), promptText: knowledgePrompt, textOffset: 'summarize '.length },
+          {
+            ...pdfSkillToken,
+            index: 1,
+            textOffset: `summarize ${knowledgePrompt} `.length
+          } as ComposerSerializedToken
+        ]
+      })
+    })
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    const [saved = ''] = MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history') ?? []
+    expect(saved).not.toContain(knowledgeBaseOne.id)
+    expect(saved).not.toContain(knowledgePrompt)
+    expect(saved).toContain(pdfSkillToken.promptText)
+    expect(saved).toContain('summarize')
+  })
+
   it('resets input history navigation after a successful agent send, so a subsequent ArrowDown does not restore the recalled draft', async () => {
     // Regression: clearCurrentDraft must also drop useInputHistory's nav state.
     // Without that, recalling a history item, sending it, then pressing ArrowDown
@@ -1614,6 +1877,50 @@ describe('AgentComposer', () => {
     expect(mocks.files).toEqual([file])
     expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ id: 'file:source-file-1' })])
   })
+  it('parks the knowledge selection while previewing plain-text history and restores it on exit', async () => {
+    // A history entry is stored as plain text with the knowledge sentence already folded in. Leaving
+    // the pick selected would re-insert its chip on top of that sentence and send the claim twice —
+    // skills and files already step aside for exactly this reason.
+    seedInputHistory(['history entry'])
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: mocks.surfaceProps?.tokens.map((token, index) => ({ ...token, index, textOffset: 0 })) ?? []
+    }))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    void act(() => mocks.setSelectedKnowledgeBases([knowledgeBaseOne]))
+    act(() => {
+      mocks.surfaceProps?.onTextChange('agent draft')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('agent draft'))
+    expect(mocks.surfaceProps?.tokens).toEqual([
+      expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}`, kind: 'knowledge' })
+    ])
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(mocks.surfaceProps?.tokens).toEqual([])
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('agent draft'))
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
+  })
+
   it('passes attachment capabilities through the provider without effect mirroring', () => {
     render(
       <AgentComposer
@@ -1629,7 +1936,8 @@ describe('AgentComposer', () => {
     // own tools, so every file type is attachable on any model (modality is irrelevant).
     expect(mocks.derivedToolState).toEqual({
       couldAddImageFile: true,
-      extensions: mocks.surfaceProps?.supportedExts
+      extensions: mocks.surfaceProps?.supportedExts,
+      selectableKnowledgeBases: []
     })
   })
 
@@ -2111,7 +2419,7 @@ describe('AgentComposer', () => {
 
     render(<div data-testid="skill-panel-icon">{skillItem?.icon}</div>)
     expect(screen.getByTestId('skill-panel-icon').querySelector('.lucide-tool-case')).toBeInTheDocument()
-    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])
+    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'knowledge', 'skill'])
 
     mocks.availableSkillsRefresh.mockClear()
     mocks.surfaceProps?.onRootPanelOpen?.()
@@ -2299,6 +2607,82 @@ describe('AgentComposer', () => {
         textOffset: 0
       }
     ])
+  })
+
+  it('restores a cached knowledge chip together with the selection its prompt text needs', () => {
+    // The cached text carries the sentence the chip contributed. The pick has to come back with it —
+    // seeded synchronously from the token payload — or the surface's managed-token sync drops the chip
+    // as unselected and the sentence survives as prose claiming a base that nothing scopes.
+    mocks.knowledgeBases = [knowledgeBaseOne]
+    const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
+    vi.mocked(cacheService.getCasual).mockReturnValue({
+      text: 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.',
+      tokens: [cachedToken]
+    })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.draftTokens).toEqual([cachedToken])
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
+    expect(mocks.surfaceProps?.tokens).toContainEqual(
+      expect.objectContaining({ id: `knowledge:${knowledgeBaseOne.id}`, kind: 'knowledge' })
+    )
+  })
+
+  it('persists a knowledge chip into the agent draft cache alongside its sentence', () => {
+    // The write side of the round-trip: the text handed to the cache already contains the sentence the
+    // chip contributed, so persisting the text while dropping the token is what strands it as prose.
+    mocks.knowledgeBases = [knowledgeBaseOne]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
+    act(() => {
+      mocks.surfaceProps?.onTokensChange?.([cachedToken])
+    })
+
+    expect(cacheService.setCasual).toHaveBeenLastCalledWith(
+      'agent-session-draft-agent-1',
+      expect.objectContaining({ tokens: [cachedToken] }),
+      expect.any(Number)
+    )
+  })
+
+  it('drops a cached knowledge pick the agent no longer configures', () => {
+    mocks.knowledgeBases = [knowledgeBaseOne, knowledgeBaseTwo]
+    mocks.agentKnowledgeBaseIds = [knowledgeBaseTwo.id]
+    vi.mocked(cacheService.getCasual).mockReturnValue({
+      text: 'cached',
+      tokens: [knowledgeBaseToken(knowledgeBaseOne)]
+    })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.selectedKnowledgeBases).toEqual([])
   })
 
   it('removes selected skill state when the skill token is deleted', async () => {
@@ -2573,6 +2957,62 @@ describe('AgentComposer', () => {
         }
       }
     )
+  })
+
+  it('captures scroll eligibility before clearing a long draft or awaiting workspace attachment metadata', async () => {
+    const workspaceFile = {
+      id: 'workspace-file-1',
+      fileTokenSourceId: 'source-workspace-file-1',
+      name: 'notes.md',
+      origin_name: 'notes.md',
+      path: '/workspace/docs/notes.md'
+    } as FileMetadata
+    const metadata = createDeferred<Record<string, { kind: string; mime: string; size: number; mtime: number }>>()
+    const captureLocalSendScrollEligibility = vi.fn()
+    mocks.draftText = 'long line\n'.repeat(80)
+    mocks.files = [workspaceFile]
+    mocks.draftTokens = [
+      {
+        id: `file:${workspaceFile.fileTokenSourceId}`,
+        kind: 'file',
+        label: workspaceFile.name,
+        payload: workspaceFile,
+        index: 0,
+        textOffset: mocks.draftText.length
+      } as ComposerSerializedToken
+    ]
+    mocks.ipcApiRequest.mockReturnValueOnce(metadata.promise)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
+      />
+    )
+    mocks.setFiles.mockClear()
+
+    fireEvent.click(screen.getByText('send'))
+
+    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.setFiles.mock.invocationCallOrder[0]
+    )
+    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.ipcApiRequest.mock.invocationCallOrder[0]
+    )
+
+    await act(async () => {
+      metadata.resolve({
+        '/workspace/docs/notes.md': { kind: 'file', mime: 'text/markdown', size: 1, mtime: 0 }
+      })
+    })
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce())
   })
 
   it('batches workspace attachment metadata while preserving attachment order', async () => {

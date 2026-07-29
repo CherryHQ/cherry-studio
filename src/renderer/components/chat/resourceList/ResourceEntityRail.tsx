@@ -25,6 +25,7 @@ export type ResourceEntityRailItem = {
   id: string
   name: string
   icon?: ReactNode
+  tooltip?: string
   orderKey?: string
   reorderable?: boolean
   /**
@@ -219,7 +220,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       // the list's selectItem action → onSelectItem (handleSelectItemById → handleItemClick), so
       // every path stays consistent and fires exactly once.
       const row = (
-        <ResourceList.Item item={item} data-testid="resource-entity-rail-row">
+        <ResourceList.Item item={item} data-testid="resource-entity-rail-row" tooltip={item.tooltip}>
           {item.icon && (
             <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
               {item.icon}
@@ -227,7 +228,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           )}
           <ResourceList.ItemTitle
             className={cn(ENTITY_RAIL_TITLE_CLASS, 'transition-[padding]', trailingActionPaddingClassName)}
-            title={item.name}>
+            title={item.tooltip ? undefined : item.name}>
             {item.name}
           </ResourceList.ItemTitle>
           {(hasTrailingAction || hasVisibleMenuActions) && (

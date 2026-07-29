@@ -55,8 +55,10 @@ describe('AssistantDataService', () => {
         id: createUniqueModelId('openai', 'gpt-4'),
         providerId: 'openai',
         modelId: 'gpt-4',
-        presetModelId: 'gpt-4',
+        presetModelId: null,
         name: 'GPT-4',
+        capabilities: [],
+        supportsStreaming: true,
         isEnabled: true,
         isHidden: false,
         orderKey: gpt4Key
@@ -65,8 +67,10 @@ describe('AssistantDataService', () => {
         id: createUniqueModelId('anthropic', 'claude-3'),
         providerId: 'anthropic',
         modelId: 'claude-3',
-        presetModelId: 'claude-3',
+        presetModelId: null,
         name: 'Claude 3',
+        capabilities: [],
+        supportsStreaming: true,
         isEnabled: true,
         isHidden: false,
         orderKey: claude3Key
@@ -75,8 +79,10 @@ describe('AssistantDataService', () => {
         id: createUniqueModelId('openai', 'text-embedding-3-large'),
         providerId: 'openai',
         modelId: 'text-embedding-3-large',
-        presetModelId: 'text-embedding-3-large',
+        presetModelId: null,
         name: 'text-embedding-3-large',
+        capabilities: [],
+        supportsStreaming: true,
         isEnabled: true,
         isHidden: false,
         orderKey: embeddingKey
@@ -455,7 +461,7 @@ describe('AssistantDataService', () => {
       expect(byId.get('ast-2')?.groupId).toBeNull()
     })
 
-    it('should embed modelName via user_model JOIN', async () => {
+    it('should embed modelName via ModelService resolution', async () => {
       await seedAssistantRow([
         { id: 'ast-1', name: 'bound', modelId: 'openai::gpt-4', createdAt: 100 },
         { id: 'ast-2', name: 'unset', createdAt: 200 }
@@ -476,7 +482,7 @@ describe('AssistantDataService', () => {
       const assistants = Array.from({ length: rowCount }, (_, i) => ({
         id: `ast-${String(i).padStart(3, '0')}`,
         name: `assistant-${i}`,
-        // Alternate bound/unbound so both JOIN branches are exercised.
+        // Alternate bound/unbound so both name-resolution branches are exercised.
         modelId: i % 2 === 0 ? 'openai::gpt-4' : null,
         groupId: i % 3 === 0 ? groupId : null,
         createdAt: i

@@ -32,6 +32,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }
 
   return (
     <i
+      data-ui="chat.composer.action.send"
       className="iconfont icon-ic_send"
       onClick={handleClick}
       onKeyDown={handleKeyDown}
