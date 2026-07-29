@@ -293,6 +293,37 @@ export function dbAsideRelPathV2(restoreId: string): string {
 }
 
 /**
+ * The one tree this restore's resource park slots live in — the resource-side
+ * counterpart to {@link dbAsideRelPathV2}, and here for the same reason:
+ * preparation fills those slots while acknowledgement releases them, and only
+ * one of the two may define where they are.
+ *
+ * The root segment is read back from the path registry rather than written out,
+ * so the tree has exactly one definition (src/main/core/paths/README.md). Only
+ * its basename is used: everything below here is userData-relative on purpose,
+ * so relocating the profile cannot strand a plan (§6.6).
+ */
+export function resourceAsideRootRelPathV2(restoreId: string): string {
+  return `${path.basename(application.getPath('feature.backup.restore.aside'))}/${restoreId}`
+}
+
+/**
+ * Where a post-commit revert parks the rejected database, named per restore and
+ * owned here for the same reason as {@link dbAsideRelPathV2}: the promotion that
+ * creates it and the acknowledgement that releases it are in different modules,
+ * and only one of them may define the name.
+ *
+ * It sits beside the live database rather than in a restore-owned tree: the
+ * restore that would have cleaned it up is the one that failed, so its last
+ * sweeper is a data reset — and a reset clears the database's own directory.
+ */
+export function parkedFailedDbRelPathV2(restoreId: string): string {
+  const userData = application.getPath('app.userdata')
+  const dbDir = path.dirname(application.getPath('app.database.file'))
+  return path.relative(userData, path.join(dbDir, `restore-failed-${restoreId}.sqlite`))
+}
+
+/**
  * The prefix every park slot shares. A function, not a constant: resolving it at
  * import time would read the path registry before preboot freezes it.
  */

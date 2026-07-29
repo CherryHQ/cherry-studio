@@ -40,6 +40,7 @@ let userData = ''
 
 const RID = '11111111-2222-4333-8444-555555555555'
 const STAGING_REL = `restore-staging/${RID}/resources`
+const ASIDE_REL = `restore-aside/${RID}`
 
 function roots(): ResourceRoots {
   return {
@@ -72,8 +73,8 @@ function plan(resources: AdmittedResource[]) {
     resources,
     userDataPath: userData,
     roots: roots(),
-    restoreId: RID,
     stagingRelDir: STAGING_REL,
+    asideRelDir: ASIDE_REL,
     platform: process.platform === 'win32' ? 'win32' : 'darwin'
   })
 }
