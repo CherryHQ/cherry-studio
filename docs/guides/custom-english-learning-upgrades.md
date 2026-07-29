@@ -82,3 +82,14 @@ Keep future custom work in small Conventional Commits. A useful order is:
 
 This ordering makes individual patches easier to replay, diagnose, or drop when upstream gains an equivalent capability.
 
+## Baseline rehearsal
+
+The 2026-07-29 rehearsal used official `upstream/main` at `e988675`. The fork was 126 upstream commits behind and had 15 custom commits to replay.
+
+The first conflicts were all in documented integration seams:
+
+- `c5d9d9e` conflicted in `TemporaryChatService.ts` and `useTopic.test.ts`;
+- `159782b` conflicted in the selection service and action-component tests;
+- `593e2e8` conflicted in `TemporaryChatService.ts` and its tests.
+
+Upstream had added temporary-chat usage projections, selection-window pool lifecycle behavior, and related tests in the same locations. The correct future upgrade is therefore to adapt the custom topic-promotion and history contracts to those newer abstractions. The rehearsal was intentionally aborted in its temporary worktree; the production customization branch was not rebased.
