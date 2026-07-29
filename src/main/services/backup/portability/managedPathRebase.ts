@@ -319,6 +319,26 @@ function joinAbsolute(root: SplitAbsolutePath, suffixSegments: readonly string[]
 }
 
 /**
+ * Build an absolute path under a paired TARGET managed root from segments the
+ * CALLER owns — no archive string reaches it.
+ *
+ * This is how an owner replaces a stored value it refuses to honour with one that
+ * is provably local to this device. `null` means the root is not paired (the
+ * archive never declared it) or the segments would escape it, and the caller must
+ * fail closed rather than fall back to the value it was replacing.
+ */
+export function targetLocalPath(
+  table: ManagedRootRebaseTable,
+  key: RebasableManagedRootKey,
+  segments: readonly string[]
+): string | null {
+  const pairing = table.pairings.find((candidate) => candidate.key === key)
+  if (!pairing) return null
+  const path = joinAbsolute(pairing.target, segments)
+  return isPathContainedIn(pairing.targetPath, path, table.targetPlatform) ? path : null
+}
+
+/**
  * Classify one absolute path stored in the archive's database.
  *
  * The rebased path is built by CONSTRUCTION from the trusted target root plus a

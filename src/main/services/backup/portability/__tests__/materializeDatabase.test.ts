@@ -24,7 +24,7 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { prepareManagedRootRebase } from '../managedPathRebase'
+import { isPathContainedIn, prepareManagedRootRebase } from '../managedPathRebase'
 import {
   type MaterializeMode,
   materializePortableDatabase,
@@ -61,6 +61,11 @@ function restoreMode(overrides?: { readonly notes?: string; readonly workspaces?
 }
 
 const EXPORT_MODE: MaterializeMode = { kind: 'export' }
+
+/** Where a workspace binding this device will not honour is parked. */
+function disconnectedPath(workspaceId: string, workspacesRoot = TARGET_WORKSPACES): string {
+  return `${workspacesRoot}/disconnected-workspaces/ws-${workspaceId}`
+}
 
 describe('materializePortableDatabase', () => {
   const dbh = setupTestDatabase()
@@ -461,7 +466,7 @@ describe('materializePortableDatabase', () => {
   })
 
   describe('managed-path rebasing', () => {
-    it('rebases managed roots onto target roots and leaves external paths inert', async () => {
+    it('rebases managed roots onto target roots, leaving note roots inert and workspaces disconnected', async () => {
       dbh.db
         .insert(noteTable)
         .values([
@@ -477,7 +482,9 @@ describe('materializePortableDatabase', () => {
 
       expect(result.summary.pathsRebased).toBe(2)
       expect(result.summary.pathsExternal).toBe(2)
-      expect(result.summary.degradations).toEqual([])
+      expect(result.summary.degradations).toEqual([
+        { table: 'agent_workspace', rowId: 'w-user', reason: 'workspace-disconnected', detail: undefined }
+      ])
 
       const state = inspect(dbPath, (db) => ({
         notes: db
@@ -496,7 +503,7 @@ describe('materializePortableDatabase', () => {
       ])
       expect(state.workspaces.sort((a, b) => a.id.localeCompare(b.id))).toEqual([
         { id: 'w-system', path: `${TARGET_WORKSPACES}/session-1` },
-        { id: 'w-user', path: '/producer/code/project' }
+        { id: 'w-user', path: disconnectedPath('w-user') }
       ])
     })
 
@@ -549,7 +556,7 @@ describe('materializePortableDatabase', () => {
       expect(rows).toEqual([{ rootPath: `${PRODUCER_NOTES}/../../etc` }])
     })
 
-    it('keeps a colliding workspace inert rather than cascading its sessions away', async () => {
+    it('disconnects a colliding workspace rather than cascading its sessions away', async () => {
       // Crafted archive: an external USER workspace already sits exactly where the
       // SYSTEM workspace would land on this target.
       insertWorkspace('w-a-system', `${PRODUCER_WORKSPACES}/session-1`, 'system')
@@ -571,7 +578,9 @@ describe('materializePortableDatabase', () => {
 
       expect(result.summary.pathsRebased).toBe(0)
       expect(result.summary.degradations).toEqual([
-        { table: 'agent_workspace', rowId: 'w-a-system', reason: 'path-collision', detail: undefined }
+        { table: 'agent_workspace', rowId: 'w-a-system', reason: 'path-collision', detail: undefined },
+        { table: 'agent_workspace', rowId: 'w-a-system', reason: 'workspace-disconnected', detail: undefined },
+        { table: 'agent_workspace', rowId: 'w-b-user', reason: 'workspace-disconnected', detail: undefined }
       ])
       const state = inspect(dbPath, (db) => ({
         workspaces: db
@@ -582,10 +591,116 @@ describe('materializePortableDatabase', () => {
       }))
       // Both rows survive with distinct paths; the session is untouched.
       expect(state.workspaces.sort((a, b) => a.id.localeCompare(b.id))).toEqual([
-        { id: 'w-a-system', path: `${PRODUCER_WORKSPACES}/session-1` },
-        { id: 'w-b-user', path: `${TARGET_WORKSPACES}/session-1` }
+        { id: 'w-a-system', path: disconnectedPath('w-a-system') },
+        { id: 'w-b-user', path: disconnectedPath('w-b-user') }
       ])
       expect(state.sessions).toEqual([{ id: 'sess-1' }])
+    })
+  })
+
+  /**
+   * The Agents page stats `agent_workspace.path` the moment it mounts, so after a
+   * restore no row may still hold a string the archive chose. These tests are the
+   * proof of that invariant, not of any particular placeholder spelling.
+   */
+  describe('disconnected agent workspaces', () => {
+    /** Every path the restored database still stores in the workspace table. */
+    function storedPaths(dbPath: string): string[] {
+      return inspect(dbPath, (db) => db.select({ path: agentWorkspaceTable.path }).from(agentWorkspaceTable).all())
+        .map((row) => row.path)
+        .sort()
+    }
+
+    it('gives every non-managed binding its own local placeholder', async () => {
+      insertWorkspace('w-posix', '/producer/code/project', 'user')
+      insertWorkspace('w-unc', '\\\\attacker\\share\\loot', 'user')
+      insertWorkspace('w-relative', 'not/absolute', 'user')
+      insertWorkspace('w-escape', `${PRODUCER_WORKSPACES}/../../../etc`, 'system')
+      insertWorkspace('w-decoy', `${PRODUCER_WORKSPACES}x/session-1`, 'system')
+      insertWorkspace('w-managed', `${PRODUCER_WORKSPACES}/session-1`, 'system')
+
+      const dbPath = snapshot()
+      const result = await materializePortableDatabase({ dbPath, mode: restoreMode() })
+
+      expect(storedPaths(dbPath)).toEqual(
+        [
+          `${TARGET_WORKSPACES}/session-1`,
+          disconnectedPath('w-decoy'),
+          disconnectedPath('w-escape'),
+          disconnectedPath('w-posix'),
+          disconnectedPath('w-relative'),
+          disconnectedPath('w-unc')
+        ].sort()
+      )
+      expect(
+        result.summary.degradations.filter((degradation) => degradation.reason === 'workspace-disconnected').length
+      ).toBe(5)
+    })
+
+    it('leaves no trace of the producer strings anywhere in the restored database', async () => {
+      const secrets = ['\\\\attacker\\share\\loot', '/producer/private/notebook']
+      insertWorkspace('w-unc', secrets[0], 'user')
+      insertWorkspace('w-home', secrets[1], 'user')
+
+      const dbPath = snapshot()
+      await materializePortableDatabase({ dbPath, mode: restoreMode() })
+
+      // Scan every readable column of every ordinary table, not just the one the
+      // policy edits: a copy surviving anywhere is a string the UI could pick up.
+      // (Freed pages may still hold the old bytes; only reachable values matter.)
+      const hits = inspect(dbPath, (_db, sqlite) => {
+        const tables = sqlite
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND sql LIKE 'CREATE TABLE%'")
+          .all() as { name: string }[]
+        return tables.flatMap(({ name }) =>
+          (sqlite.prepare(`PRAGMA table_info("${name}")`).all() as { name: string }[])
+            .filter(
+              (column) =>
+                (
+                  sqlite
+                    .prepare(
+                      `SELECT count(*) AS n FROM "${name}" WHERE ${secrets.map(() => `instr(CAST("${column.name}" AS TEXT), ?) > 0`).join(' OR ')}`
+                    )
+                    .get(...secrets) as { n: number }
+                ).n > 0
+            )
+            .map((column) => `${name}.${column.name}`)
+        )
+      })
+      expect(hits).toEqual([])
+    })
+
+    it('keeps placeholders unique when the archive squats on one', async () => {
+      // Crafted archive: a row already stores the placeholder the next row needs.
+      insertWorkspace('w-a', disconnectedPath('w-b'), 'user')
+      insertWorkspace('w-b', '/producer/code/project', 'user')
+
+      const dbPath = snapshot()
+      await materializePortableDatabase({ dbPath, mode: restoreMode() })
+
+      expect(storedPaths(dbPath)).toEqual([disconnectedPath('w-a'), `${disconnectedPath('w-b')}-1`])
+    })
+
+    it('never touches workspace paths on the export side', async () => {
+      insertWorkspace('w-user', '/producer/code/project', 'user')
+
+      const dbPath = snapshot()
+      const result = await materializePortableDatabase({ dbPath, mode: EXPORT_MODE })
+
+      expect(storedPaths(dbPath)).toEqual(['/producer/code/project'])
+      expect(result.summary.degradations).toEqual([])
+    })
+
+    it('parks every placeholder inside this device workspaces root', async () => {
+      insertWorkspace('w-../escape', '/producer/code/project', 'user')
+      insertWorkspace('w-CON', '/producer/other', 'user')
+
+      const dbPath = snapshot()
+      await materializePortableDatabase({ dbPath, mode: restoreMode() })
+
+      for (const path of storedPaths(dbPath)) {
+        expect(isPathContainedIn(TARGET_WORKSPACES, path, 'linux')).toBe(true)
+      }
     })
   })
 

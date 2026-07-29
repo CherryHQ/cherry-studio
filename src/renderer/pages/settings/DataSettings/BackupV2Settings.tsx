@@ -64,6 +64,7 @@ const DEGRADATION_KEYS: Record<PresentedDegradation['code'], string> = {
   'resource-changed': 'settings.data.backup_v2.outcome.degradation.resource_changed',
   'resource-nonportable': 'settings.data.backup_v2.outcome.degradation.resource_nonportable',
   'resource-limit': 'settings.data.backup_v2.outcome.degradation.resource_limit',
+  'workspace-disconnected': 'settings.data.backup_v2.outcome.degradation.workspace_disconnected',
   unknown: 'settings.data.backup_v2.outcome.degradation.unknown'
 }
 

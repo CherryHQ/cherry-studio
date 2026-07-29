@@ -52,9 +52,10 @@ function classifyDegradation(
     return { code: resourceDegradationCode(degradation.reason), count: 1 }
   }
 
-  const parsed = /^(capability-malformed|external-file-dropped|path-unportable|path-collision) \((\d+) rows?\)$/.exec(
-    degradation.reason
-  )
+  const parsed =
+    /^(capability-malformed|external-file-dropped|path-unportable|path-collision|workspace-disconnected) \((\d+) rows?\)$/.exec(
+      degradation.reason
+    )
   if (!parsed) return { code: 'unknown', count: 1 }
 
   const parsedCount = Number(parsed[2])
