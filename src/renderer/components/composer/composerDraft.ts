@@ -20,6 +20,7 @@ export const COMPOSER_INPUT_MAX_LENGTH = 40000
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
 const RESTORABLE_COMPOSER_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
   'skill',
+  'link',
   'file',
   'folder',
   'command',

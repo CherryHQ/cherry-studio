@@ -48,6 +48,15 @@ const fileToken: ComposerSerializedToken = {
   textOffset: 0
 }
 
+const linkToken: ComposerSerializedToken = {
+  id: 'link-token-1',
+  kind: 'link',
+  label: 'example.com/docs',
+  promptText: 'https://example.com/docs',
+  index: 3,
+  textOffset: 0
+}
+
 describe('agentDraftCache', () => {
   beforeEach(() => {
     vi.mocked(cacheService.getCasual).mockReset()
@@ -57,13 +66,17 @@ describe('agentDraftCache', () => {
   it('round-trips knowledge tokens so their prompt text keeps its chip', () => {
     // Dropping the token while persisting the text would strand the sentence as chip-less prose that
     // tells the model a base is attached while the send path scopes nothing.
-    writeAgentDraftCache(getAgentDraftCacheKey('agent-1'), 'text', [skillToken, knowledgeToken, fileToken])
+    writeAgentDraftCache(getAgentDraftCacheKey('agent-1'), 'text', [skillToken, knowledgeToken, fileToken, linkToken])
 
     const written = vi.mocked(cacheService.setCasual).mock.calls[0][1]
-    expect(written).toEqual({ text: 'text', tokens: [skillToken, knowledgeToken] })
+    expect(written).toEqual({ text: 'text', tokens: [skillToken, knowledgeToken, linkToken] })
 
     vi.mocked(cacheService.getCasual).mockReturnValue(written)
-    expect(readAgentDraftCache(getAgentDraftCacheKey('agent-1')).tokens).toEqual([skillToken, knowledgeToken])
+    expect(readAgentDraftCache(getAgentDraftCacheKey('agent-1')).tokens).toEqual([
+      skillToken,
+      knowledgeToken,
+      linkToken
+    ])
   })
 
   it('rebuilds the knowledge selection from the cached token payload', () => {

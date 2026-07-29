@@ -47,6 +47,7 @@ const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>([
   'file',
   'folder',
   'knowledge',
+  'link',
   'quote',
   'reference',
   'skill'

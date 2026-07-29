@@ -9,6 +9,7 @@ import {
   createComposerTokenContent,
   createComposerTokenMarkerInlineContent
 } from './composerTokenMarkers'
+import { createComposerLinkToken } from './linkToken'
 import { createPromptVariableMarkerRule } from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
 
@@ -109,6 +110,7 @@ function resolvePrivateClipboardToken(
   }
 
   if (
+    token.kind === 'link' ||
     token.kind === 'folder' ||
     token.kind === 'reference' ||
     token.kind === 'quote' ||
@@ -179,12 +181,28 @@ function createPlainTextPasteMarkerRules(options: ComposerPlainTextPasteOptions)
   return rules
 }
 
+function createComposerLinkPasteContent(text: string): JSONContent[] | null {
+  const url = text.trim()
+  const token = createComposerLinkToken(url)
+  if (!token) return null
+
+  const start = text.indexOf(url)
+  return [
+    ...createComposerPlainTextContent(text.slice(0, start)),
+    createComposerTokenContent(token),
+    ...createComposerPlainTextContent(text.slice(start + url.length))
+  ]
+}
+
 export function getComposerPlainTextPasteOverride(text: string, options: ComposerPlainTextPasteOptions) {
   if (!text) return null
 
   if (text.length > LONG_TEXT_PASTE_THRESHOLD) {
     return null
   }
+
+  const linkContent = createComposerLinkPasteContent(text)
+  if (linkContent) return linkContent
 
   const markedTextContent = createComposerTokenMarkerInlineContent(text, createPlainTextPasteMarkerRules(options))
   if (markedTextContent.hasToken) return markedTextContent.content

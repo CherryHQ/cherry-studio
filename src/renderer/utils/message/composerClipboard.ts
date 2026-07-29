@@ -22,6 +22,7 @@ const COMPOSER_CLIPBOARD_FRAGMENT_VERSION = 1
 const COMPOSER_CLIPBOARD_FRAGMENT_MAX_LENGTH = 250_000
 const COMPOSER_CLIPBOARD_TOKEN_KINDS = [
   'skill',
+  'link',
   'file',
   'folder',
   'knowledge',
@@ -118,6 +119,7 @@ interface ComposerClipboardDraft {
 
 const COMPOSER_CLIPBOARD_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
   'skill',
+  'link',
   'file',
   'folder',
   'knowledge',
@@ -272,6 +274,7 @@ function isComposerClipboardTokenKind(value: unknown): value is ComposerClipboar
 // send. We trust these only when the fragment carries a session-private nonce proving
 // this renderer wrote it; otherwise they degrade to their visible fallback text.
 const COMPOSER_CLIPBOARD_PROMPT_RESTORATION_KINDS = new Set<ComposerClipboardTokenKind>([
+  'link',
   'folder',
   'reference',
   'quote',

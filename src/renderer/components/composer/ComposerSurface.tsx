@@ -352,12 +352,13 @@ function getComposerUnifiedPanelSearchText(
 }
 
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
+const LOCALLY_MANAGED_TOKEN_KINDS = new Set<ComposerDraftToken['kind']>(['link'])
 const getManagedTokenSignature = (
   tokens: readonly ComposerSerializedToken[],
   managedTokenKindSet: ReadonlySet<ComposerDraftToken['kind']>
 ) =>
   tokens
-    .filter((token) => managedTokenKindSet.has(token.kind))
+    .filter((token) => managedTokenKindSet.has(token.kind) || LOCALLY_MANAGED_TOKEN_KINDS.has(token.kind))
     .map((token) => `${token.kind}:${token.id}:${token.index}:${token.textOffset}`)
     .join('\n')
 

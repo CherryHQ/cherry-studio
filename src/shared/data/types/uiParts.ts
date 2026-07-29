@@ -229,7 +229,7 @@ const ComposerMessageFileTokenPayloadSchema: z.ZodType<ComposerMessageFileTokenP
 
 const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
   id: z.string(),
-  kind: z.enum(['skill', 'file', 'folder', 'command', 'knowledge', 'reference', 'quote']),
+  kind: z.enum(['skill', 'link', 'file', 'folder', 'command', 'knowledge', 'reference', 'quote']),
   label: z.string(),
   icon: z.string().optional(),
   description: z.string().optional(),
@@ -356,7 +356,15 @@ export function getKnowledgeBaseIdsFromParts(parts: readonly CherryMessagePart[]
 // Accessors — single read/write boundary for providerMetadata.cherry
 // ============================================================================
 
-export type ComposerMessageTokenKind = 'skill' | 'file' | 'folder' | 'command' | 'knowledge' | 'reference' | 'quote'
+export type ComposerMessageTokenKind =
+  | 'skill'
+  | 'link'
+  | 'file'
+  | 'folder'
+  | 'command'
+  | 'knowledge'
+  | 'reference'
+  | 'quote'
 
 export interface ComposerMessageFileTokenPayload {
   type?: FileType

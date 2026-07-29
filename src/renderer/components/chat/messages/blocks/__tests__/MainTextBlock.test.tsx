@@ -357,6 +357,31 @@ describe('MainTextBlock', () => {
       expect(markdown.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument()
     })
 
+    it('should preserve link token rendering in sent user messages', () => {
+      const url = 'https://www.example.com/docs'
+      renderMainTextBlock({
+        content: url,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'link-token-1',
+              kind: 'link',
+              label: 'example.com/docs',
+              index: 0,
+              textOffset: 0,
+              promptText: url
+            }
+          ]
+        }
+      })
+
+      expect(screen.getByRole('link', { name: url })).toHaveTextContent('example.com/docs')
+      expect(document.querySelector('[data-composer-link-favicon]')).toHaveClass('size-[1em]', 'overflow-hidden')
+      expect(getRenderedPlainText()).not.toHaveTextContent(url)
+    })
+
     it('should keep quote token tooltip content in markdown-rendered user messages', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = true
       renderMainTextBlock({

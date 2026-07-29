@@ -71,12 +71,12 @@ export function getCachedKnowledgeBases(draft: AgentComposerDraftCache): Knowled
 }
 
 /**
- * The token kinds that ride the cached draft. Both fold a `promptText` into the draft text, so
+ * The token kinds that ride the cached draft. All fold a `promptText` into the draft text, so
  * persisting the text while dropping the token would strand that sentence as chip-less prose —
  * for a knowledge pick, prose telling the model a base is attached that nothing scopes.
  */
 export function getCacheableDraftTokens(tokens: readonly ComposerSerializedToken[]) {
-  return tokens.filter((token) => token.kind === 'skill' || token.kind === 'knowledge')
+  return tokens.filter((token) => token.kind === 'skill' || token.kind === 'knowledge' || token.kind === 'link')
 }
 
 export function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {

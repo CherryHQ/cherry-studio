@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 export const CHAT_INPUT_TOKEN_KINDS = [
   'skill',
+  'link',
   'file',
   'folder',
   'knowledge',

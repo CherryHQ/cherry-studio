@@ -4,6 +4,7 @@ import { type ComposerMessageSnapshot, type ComposerMessageToken, readCherryMeta
 
 const RENDERABLE_COMPOSER_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
   'command',
+  'link',
   'file',
   'folder',
   'knowledge',
@@ -57,6 +58,9 @@ export function getComposerTokenClipboardText(token: ComposerMessageToken): stri
     return `#${marker}#`
   }
   if (token.kind === 'folder') {
+    return token.promptText ?? token.label
+  }
+  if (token.kind === 'link') {
     return token.promptText ?? token.label
   }
   return token.label
