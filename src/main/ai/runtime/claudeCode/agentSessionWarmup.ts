@@ -695,9 +695,7 @@ function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   return resolveEffectiveEndpoint(ref.provider, ref.model).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
 }
 
-async function resolveApiGatewayRuntime(
-  sessionId: string
-): Promise<{
+async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   baseUrl: string
   apiKey: string
   usageHeaders: Record<string, string>

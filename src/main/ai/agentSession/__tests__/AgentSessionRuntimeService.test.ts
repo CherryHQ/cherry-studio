@@ -2502,7 +2502,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(redirect).not.toHaveBeenCalled()
       expect(getEntry(service).pendingTurns).toEqual([
-        { message: changedScopeMessage, reasoningEffort: 'default', knowledgeBaseIds: ['kb-2'] }
+        { message: changedScopeMessage, reasoningEffort: 'default', fastMode: false, knowledgeBaseIds: ['kb-2'] }
       ])
       service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
