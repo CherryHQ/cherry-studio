@@ -120,6 +120,10 @@ const WORKSPACE_PATH_FIELDS = {
 
 const toolApprovalEmitters = new Map<string, ToolApprovalEmitterHolder>()
 
+function runAgentProfileWrite<T>(label: string, operation: () => T | Promise<T>): Promise<T> {
+  return application.get('ProfileWriteBarrierService').runWrite(`agent:${label}`, operation)
+}
+
 function getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
   let holder = toolApprovalEmitters.get(sessionId)
   if (!holder) {
@@ -293,8 +297,10 @@ export async function buildClaudeCodeSessionSettings(
 
   // 1. Working directory (session-bound)
   const cwd = session.workspace.path
-  await prepareClaudeCodeWorkspaceDirectory(session)
-  const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
+  const agentDataPath = await runAgentProfileWrite(`session-materialize:${session.id}`, async () => {
+    await prepareClaudeCodeWorkspaceDirectory(session)
+    return ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
+  })
 
   // 2. Environment variables
   const env = await buildEnvironment(provider, agent)
@@ -450,7 +456,9 @@ export async function prepareClaudeCodeWorkspaceDirectory(session: AgentSessionE
     case AGENT_WORKSPACE_TYPE.SYSTEM:
       // System workspaces are app-owned session directories; user workspaces
       // must already exist, so auto-creating them would mask a bad user path.
-      await ensureSystemWorkspaceDirectory(workspace.path)
+      await runAgentProfileWrite(`workspace-materialize:${session.id}`, () =>
+        ensureSystemWorkspaceDirectory(workspace.path)
+      )
       break
     case AGENT_WORKSPACE_TYPE.USER:
       break
@@ -1124,7 +1132,12 @@ export async function buildSystemPrompt(
 
   // Provision builtin agent workspace resources independently from prompt resolution.
   if (builtinRole && cwd && !isProvisioned(cwd)) {
-    await provisionBuiltinAgent(cwd, builtinRole)
+    const provision = () => provisionBuiltinAgent(cwd, builtinRole)
+    if (session.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
+      await runAgentProfileWrite(`workspace-provision:${session.id}`, provision)
+    } else {
+      await provision()
+    }
   }
 
   // Channel security (still scoped per session — channels link to a session)

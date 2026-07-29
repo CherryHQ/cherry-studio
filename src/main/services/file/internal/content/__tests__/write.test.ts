@@ -234,6 +234,38 @@ describe('internal/content/write', () => {
   })
 
   describe('createWriteStream post-commit metadata sync', () => {
+    it('settles only after post-commit metadata sync completes', async () => {
+      const { createWriteStream } = await import('../write')
+      const fsModule = await import('@main/utils/file')
+      const e = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([0x01]),
+        name: 'settle-order',
+        ext: 'bin'
+      })
+      let resolveStat!: (value: Awaited<ReturnType<typeof fsModule.stat>>) => void
+      const pendingStat = new Promise<Awaited<ReturnType<typeof fsModule.stat>>>((resolve) => {
+        resolveStat = resolve
+      })
+      vi.spyOn(fsModule, 'stat').mockReturnValueOnce(pendingStat)
+      const onSettled = vi.fn()
+
+      const stream = createWriteStream(deps, e.id, onSettled)
+      stream.end(Buffer.from([0x10, 0x20, 0x30]))
+      await new Promise<void>((resolve, reject) => {
+        stream.once('finish', resolve)
+        stream.once('error', reject)
+      })
+
+      expect(onSettled).not.toHaveBeenCalled()
+      resolveStat({ size: 3, createdAt: 1, modifiedAt: 2, isDirectory: false })
+      await vi.waitFor(() => expect(onSettled).toHaveBeenCalledOnce())
+      const refreshed = fileEntryService.getById(e.id)
+      if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
+      expect(refreshed.size).toBe(3)
+      expect(cacheStore.get(e.id)).toEqual({ mtime: 2, size: 3 })
+    })
+
     it('updates DB size and version cache after the stream finishes (internal)', async () => {
       const { createWriteStream } = await import('../write')
       const e = await createInternal(deps, {

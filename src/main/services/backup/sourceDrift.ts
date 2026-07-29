@@ -1,12 +1,19 @@
 import { createHash } from 'node:crypto'
 import { constants as fsConstants, createReadStream, createWriteStream } from 'node:fs'
-import { lstat, mkdir, open, rm } from 'node:fs/promises'
+import { lstat, mkdir, open, readlink, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import { BACKUP_CEILINGS } from './ceilings'
-import { type DirScanResult, type FsIdentity, fsIdentityOf, identitiesEqual, scanDirectoryUnit } from './dirScan'
+import {
+  type CapturePolicy,
+  type DirScanResult,
+  type FsIdentity,
+  fsIdentityOf,
+  identitiesEqual,
+  scanDirectoryUnit
+} from './dirScan'
 import {
   BackupCancelledError,
   CeilingExceededError,
@@ -80,6 +87,10 @@ export const driftHooks = {
   async beforeAncestorVerify(sourceDir: string, fileRel: string): Promise<void> {
     void sourceDir
     void fileRel
+  },
+  async afterAncestorVerify(sourceDir: string, fileRel: string): Promise<void> {
+    void sourceDir
+    void fileRel
   }
 }
 
@@ -146,7 +157,7 @@ export async function stageFileWithDriftCheck(args: {
       throw new SourceDriftError(sourcePath, 'source identity changed between lstat and open')
     }
 
-    await mkdir(path.dirname(stagingPath), { recursive: true })
+    await mkdir(path.dirname(stagingPath), { recursive: true, mode: 0o700 })
     // Exclusive create for OWNERSHIP: O_EXCL throws EEXIST on a pre-existing
     // (foreign) staging file BEFORE `ownedStaging` is set, so cleanup never
     // touches a file we did not create.
@@ -199,15 +210,52 @@ export interface StagedDirectoryFile extends StagedFile {
 
 export function scansEqual(a: DirScanResult, b: DirScanResult): boolean {
   if (!identitiesEqual(a.rootId, b.rootId)) return false
-  if (a.dirs.length !== b.dirs.length || a.entries.length !== b.entries.length) return false
+  if (a.entryCount !== b.entryCount || a.totalBytes !== b.totalBytes) return false
+  if (
+    a.dirs.length !== b.dirs.length ||
+    a.entries.length !== b.entries.length ||
+    a.links.length !== b.links.length ||
+    a.omissions.length !== b.omissions.length
+  )
+    return false
   for (let i = 0; i < a.dirs.length; i++) {
-    if (a.dirs[i].relPath !== b.dirs[i].relPath || !identitiesEqual(a.dirs[i].id, b.dirs[i].id)) return false
+    if (
+      a.dirs[i].relPath !== b.dirs[i].relPath ||
+      a.dirs[i].sourceRelPath !== b.dirs[i].sourceRelPath ||
+      !identitiesEqual(a.dirs[i].id, b.dirs[i].id)
+    )
+      return false
   }
   for (let i = 0; i < a.entries.length; i++) {
     if (
       a.entries[i].relPath !== b.entries[i].relPath ||
+      a.entries[i].sourceRelPath !== b.entries[i].sourceRelPath ||
+      a.entries[i].size !== b.entries[i].size ||
       a.entries[i].executable !== b.entries[i].executable ||
       !identitiesEqual(a.entries[i].id, b.entries[i].id)
+    )
+      return false
+  }
+  for (let i = 0; i < a.links.length; i++) {
+    if (
+      a.links[i].relPath !== b.links[i].relPath ||
+      a.links[i].sourceRelPath !== b.links[i].sourceRelPath ||
+      a.links[i].linkTarget !== b.links[i].linkTarget ||
+      a.links[i].targetRelPath !== b.links[i].targetRelPath ||
+      !identitiesEqual(a.links[i].id, b.links[i].id)
+    )
+      return false
+  }
+  for (let i = 0; i < a.omissions.length; i++) {
+    const left = a.omissions[i]
+    const right = b.omissions[i]
+    if (
+      left.relPath !== right.relPath ||
+      left.sourceRelPath !== right.sourceRelPath ||
+      left.reason !== right.reason ||
+      left.linkTarget !== right.linkTarget ||
+      (left.id === undefined) !== (right.id === undefined) ||
+      (left.id !== undefined && right.id !== undefined && !identitiesEqual(left.id, right.id))
     )
       return false
   }
@@ -236,12 +284,12 @@ function ancestorRelPaths(fileRel: string): string[] {
  */
 async function assertAncestorsUnchanged(
   sourceDir: string,
-  fileRel: string,
+  sourceRelPath: string,
   rootId: FsIdentity,
   dirById: ReadonlyMap<string, FsIdentity>
 ): Promise<void> {
-  await driftHooks.beforeAncestorVerify(sourceDir, fileRel)
-  for (const anc of ancestorRelPaths(fileRel)) {
+  await driftHooks.beforeAncestorVerify(sourceDir, sourceRelPath)
+  for (const anc of ancestorRelPaths(sourceRelPath)) {
     const expected = anc === '' ? rootId : dirById.get(anc)
     if (!expected) throw new SourceDriftError(sourceDir, `ancestor '${anc}' vanished during staging`)
     const absAnc = anc === '' ? sourceDir : path.join(sourceDir, ...anc.split('/'))
@@ -263,6 +311,43 @@ async function assertAncestorsUnchanged(
   }
 }
 
+async function assertReferenceProofsUnchanged(sourceDir: string, scan: DirScanResult): Promise<void> {
+  for (const reference of [...scan.links, ...scan.omissions]) {
+    if (!reference.id) continue
+    const sourcePath = path.join(sourceDir, ...reference.sourceRelPath.split('/'))
+    let st: Awaited<ReturnType<typeof lstat>>
+    try {
+      st = await lstat(sourcePath, { bigint: true })
+    } catch (error) {
+      if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+        throw new SourceDriftError(sourcePath, 'captured reference disappeared during staging')
+      }
+      throw error
+    }
+    const kind: FsIdentity['kind'] = st.isSymbolicLink()
+      ? 'symlink'
+      : st.isFile()
+        ? 'file'
+        : st.isDirectory()
+          ? 'dir'
+          : 'special'
+    if (!identitiesEqual(reference.id, fsIdentityOf(st, kind))) {
+      throw new SourceDriftError(sourcePath, 'captured reference identity changed during staging')
+    }
+    if (reference.id.kind === 'symlink') {
+      let currentTarget: string
+      try {
+        currentTarget = await readlink(sourcePath)
+      } catch {
+        throw new SourceDriftError(sourcePath, 'captured link is no longer readable during staging')
+      }
+      if (currentTarget !== reference.linkTarget) {
+        throw new SourceDriftError(sourcePath, 'captured link target changed during staging')
+      }
+    }
+  }
+}
+
 /**
  * Stage a directory unit to `stagingDir` with a defence-in-depth drift guard: a
  * deterministic initial scan (shared {@link scanDirectoryUnit} — symlink/special
@@ -279,14 +364,14 @@ export async function stageDirectoryWithDriftCheck(args: {
   /** Tree identity captured at the database snapshot boundary, when available. */
   expectedScan?: DirScanResult
   signal?: AbortSignal
-  excludeKnowledgeDerivedIndex?: boolean
+  capturePolicy?: CapturePolicy
 }): Promise<{ files: readonly StagedDirectoryFile[] }> {
-  const { sourceDir, stagingDir, signal, excludeKnowledgeDerivedIndex } = args
+  const { sourceDir, stagingDir, signal, capturePolicy } = args
   throwIfAborted(signal)
 
   // Exclusive root creation: EEXIST ⇒ we do NOT own it ⇒ never remove it.
   try {
-    await mkdir(stagingDir)
+    await mkdir(stagingDir, { mode: 0o700 })
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
       throw new Error(`stageDirectoryWithDriftCheck: staging dir already exists (ambiguous ownership): ${stagingDir}`)
@@ -297,7 +382,11 @@ export async function stageDirectoryWithDriftCheck(args: {
   try {
     let initial: DirScanResult
     try {
-      initial = await scanDirectoryUnit(sourceDir, { signal, excludeKnowledgeDerivedIndex })
+      initial = await scanDirectoryUnit(sourceDir, {
+        signal,
+        capturePolicy,
+        mode: capturePolicy ? 'capture' : 'strict'
+      })
     } catch (error) {
       if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
         throw new SourceDriftError(sourceDir, 'source disappeared after the database snapshot boundary')
@@ -307,21 +396,24 @@ export async function stageDirectoryWithDriftCheck(args: {
     if (args.expectedScan && !scansEqual(args.expectedScan, initial)) {
       throw new SourceDriftError(sourceDir, 'directory tree changed since the database snapshot boundary')
     }
-    const dirById = new Map(initial.dirs.map((d) => [d.relPath, d.id]))
+    const dirById = new Map(initial.dirs.map((d) => [d.sourceRelPath, d.id]))
+    await assertReferenceProofsUnchanged(sourceDir, initial)
     // Directory entries are authoritative too: create them before copying files
     // so nested empty folders survive the archive round trip.
     for (const dir of initial.dirs) {
       throwIfAborted(signal)
-      await mkdir(path.join(stagingDir, ...dir.relPath.split('/')), { recursive: true })
+      await mkdir(path.join(stagingDir, ...dir.relPath.split('/')), { recursive: true, mode: 0o700 })
     }
 
     const files: StagedDirectoryFile[] = []
     for (const entry of initial.entries) {
       throwIfAborted(signal)
-      await assertAncestorsUnchanged(sourceDir, entry.relPath, initial.rootId, dirById)
+      await assertAncestorsUnchanged(sourceDir, entry.sourceRelPath, initial.rootId, dirById)
+      await driftHooks.afterAncestorVerify(sourceDir, entry.relPath)
       const staged = await stageFileWithDriftCheck({
-        sourcePath: path.join(sourceDir, ...entry.relPath.split('/')),
+        sourcePath: path.join(sourceDir, ...entry.sourceRelPath.split('/')),
         stagingPath: path.join(stagingDir, ...entry.relPath.split('/')),
+        expectedIdentity: entry.id,
         signal
       })
       files.push({ relPath: entry.relPath, ...staged })
@@ -329,7 +421,11 @@ export async function stageDirectoryWithDriftCheck(args: {
 
     let final: DirScanResult
     try {
-      final = await scanDirectoryUnit(sourceDir, { signal, excludeKnowledgeDerivedIndex })
+      final = await scanDirectoryUnit(sourceDir, {
+        signal,
+        capturePolicy,
+        mode: capturePolicy ? 'capture' : 'strict'
+      })
     } catch (error) {
       if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
         throw new SourceDriftError(sourceDir, 'source disappeared during staging')

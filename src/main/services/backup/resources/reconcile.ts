@@ -77,11 +77,11 @@ export function reconcileRestoreResources(
   const degraded = new Set(
     manifest.degradations
       .filter((entry) => entry.livePath !== undefined && entry.kind.startsWith('resource:'))
-      .map((entry) => degradationIdentity(entry.kind.slice('resource:'.length), entry.livePath!))
+      .map((entry) => degradationIdentity(entry.kind, entry.livePath!))
   )
   for (const requirement of authoritative) {
     if (payloads.has(identity(requirement))) continue
-    if (!degraded.has(degradationIdentity(requirement.kind, requirement.livePath))) {
+    if (!degraded.has(degradationIdentity(`resource:${requirement.kind}`, requirement.livePath))) {
       throw new ResourceAuthorityError('payload-missing', 'a required resource has neither payload nor degradation')
     }
   }

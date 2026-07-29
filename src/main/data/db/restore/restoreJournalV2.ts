@@ -289,7 +289,12 @@ export type RestoreSummary = z.infer<typeof RestoreSummarySchema>
  * no aside at all.
  */
 export function dbAsideRelPathV2(restoreId: string): string {
-  return `${dbAsidePrefix()}${restoreId}`
+  const userData = application.getPath('app.userdata')
+  const dbDir = path.dirname(application.getPath('app.database.file'))
+  return path
+    .relative(userData, path.join(dbDir, `${dbAsidePrefix()}${restoreId}`))
+    .split(path.sep)
+    .join('/')
 }
 
 /**

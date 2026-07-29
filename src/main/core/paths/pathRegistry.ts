@@ -106,7 +106,9 @@ export function buildPathRegistry() {
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
     'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
     // MCP memory server's knowledge-graph JSON for the built-in MCP server
-    'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
+    'feature.mcp.memory_file': path.join(appUserDataData, 'Mcp', 'memory.json'),
+    // Read-only source for additive adoption into the active profile.
+    'feature.mcp.memory_legacy_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
 
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
@@ -228,6 +230,7 @@ const NO_ENSURE = [
   'feature.provider_registry.data',
   'feature.agents.builtin',
   'feature.agents.skills.builtin',
+  'feature.mcp.memory_legacy_file',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces'

@@ -4,7 +4,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ChannelMessageEvent } from '../ChannelAdapter'
+import { ChannelAdapter, type ChannelMessageEvent } from '../ChannelAdapter'
 import { ChannelManager } from '../ChannelManager'
 import { ChannelMessageHandler, channelMessageHandler } from '../ChannelMessageHandler'
 
@@ -136,6 +136,34 @@ function pendingAdmissionCount(handler: ChannelMessageHandler): number {
   return (handler as unknown as { pendingAdmissions: Map<string, Promise<void>> }).pendingAdmissions.size
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
+class RuntimeTestAdapter extends ChannelAdapter {
+  constructor(channelId: string) {
+    super({
+      agentId: 'agent-1',
+      channelId,
+      channelType: 'telegram',
+      channelConfig: {} as never
+    })
+  }
+
+  runTracked<T>(label: string, work: () => Promise<T>): Promise<T> {
+    return this.runRuntimeWork(label, work)
+  }
+
+  protected async performConnect(): Promise<void> {}
+  protected async performDisconnect(): Promise<void> {}
+  async sendMessage(): Promise<void> {}
+  async sendTypingIndicator(): Promise<void> {}
+}
+
 // Delegate coverage below constructs the manager directly, like ChannelManager.test.ts —
 // BaseService's singleton guard allows one instance per module registry.
 const channelManager = new ChannelManager()
@@ -192,32 +220,56 @@ describe('ChannelMessageHandler write quiesce', () => {
     h2.dispose()
   })
 
-  it('handleIncoming while quiesced resolves (not rejects) and creates no batch', async () => {
+  it('handleIncoming while quiesced waits, then admits the message after resume', async () => {
     const adapter = createMockAdapter()
+    vi.mocked(agentSessionService.create).mockReturnValue(SESSION as any)
+    simulateStream([{ type: 'text-delta', delta: 'OK' }])
     const hold = handler.pause()
 
-    await expect(handler.handleIncoming(adapter, msg('dropped'))).resolves.toBeUndefined()
+    const turn = handler.handleIncoming(adapter, msg('deferred'))
+    let settled = false
+    void turn.finally(() => {
+      settled = true
+    })
+    await Promise.resolve()
 
     expect(pendingBatchCount(handler)).toBe(0)
     expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+    expect(settled).toBe(false)
+
     hold.dispose()
+    await Promise.resolve()
+    expect(pendingBatchCount(handler)).toBe(1)
+
+    await vi.advanceTimersByTimeAsync(8000)
+    await turn
+    expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
   })
 
-  it('handleCommand while quiesced is dropped without side effects', async () => {
+  it('handleCommand while quiesced waits, then runs after resume', async () => {
     const adapter = createMockAdapter()
+    vi.mocked(agentSessionService.create).mockReturnValue(SESSION as any)
     const hold = handler.pause()
 
-    await handler.handleCommand(adapter, {
+    const command = handler.handleCommand(adapter, {
       chatId: 'chat-1',
       userId: 'user-1',
       userName: 'User',
       command: 'new'
     })
+    await Promise.resolve()
 
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(channelService.updateChannel).not.toHaveBeenCalled()
     expect(adapter.sendMessage).not.toHaveBeenCalled()
+
     hold.dispose()
+    await command
+    expect(agentSessionService.create).toHaveBeenCalledTimes(1)
+    expect(channelService.updateChannel).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.', {
+      replyToMessageId: undefined
+    })
   })
 
   it('drainInFlight resolves at turn admission, not at turn completion', async () => {
@@ -365,5 +417,48 @@ describe('ChannelManager write-quiesce delegates', () => {
     }
 
     expect(channelMessageHandler.isWriteQuiesced).toBe(false)
+  })
+
+  it('drains adapter runtime work admitted before pause', async () => {
+    const adapter = new RuntimeTestAdapter('runtime-1')
+    const active = deferred<void>()
+    const operation = adapter.runTracked('poll', () => active.promise)
+    ;(channelManager as any).adapters.set('agent-1:runtime-1', adapter)
+    const hold = channelManager.pauseAdapterRuntime('backup')
+
+    const drain = channelManager.drainAdapterRuntimeInFlight({ timeoutMs: 5_000 })
+    expect(channelManager.listActiveAdapterWork()).toEqual([
+      {
+        id: 'adapter:runtime-1:poll',
+        summary: 'channel adapter runtime work in flight'
+      }
+    ])
+
+    active.resolve(undefined)
+    await operation
+    await expect(drain).resolves.toEqual({ stragglerIds: [] })
+
+    hold.dispose()
+    ;(channelManager as any).adapters.delete('agent-1:runtime-1')
+  })
+
+  it('keeps runtime work queued during pause outside the drain wait-set', async () => {
+    const adapter = new RuntimeTestAdapter('runtime-2')
+    const work = vi.fn().mockResolvedValue('done')
+    ;(channelManager as any).adapters.set('agent-1:runtime-2', adapter)
+    const hold = channelManager.pauseAdapterRuntime('backup')
+
+    const operation = adapter.runTracked('credential-write', work)
+    await Promise.resolve()
+
+    expect(work).not.toHaveBeenCalled()
+    expect(channelManager.listActiveAdapterWork()).toEqual([])
+    await expect(channelManager.drainAdapterRuntimeInFlight({ timeoutMs: 100 })).resolves.toEqual({
+      stragglerIds: []
+    })
+
+    hold.dispose()
+    await expect(operation).resolves.toBe('done')
+    ;(channelManager as any).adapters.delete('agent-1:runtime-2')
   })
 })

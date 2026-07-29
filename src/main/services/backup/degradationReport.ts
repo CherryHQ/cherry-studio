@@ -24,10 +24,18 @@ function parseDegradationCode(value: string): BackupDegradationCode | undefined 
 }
 
 function resourceDegradationCode(reason: string): BackupDegradationCode {
+  if (reason === 'external-reference') return 'external-reference'
+  if (reason === 'dangling-reference') return 'dangling-reference'
+  if (reason === 'cyclic-reference') return 'cyclic-reference'
+  if (reason === 'unclassified-reference') return 'unclassified-reference'
   if (reason === 'changed-after-snapshot') return 'resource-changed'
   if (reason === 'non-regular-source' || reason === 'unportable-source') return 'resource-nonportable'
   if (reason === 'resource-ceiling-exceeded') return 'resource-limit'
   return 'resource-unavailable'
+}
+
+function isResourceDegradationKind(kind: string): boolean {
+  return kind.startsWith('resource:') || kind.startsWith('resource-entry:')
 }
 
 function parseJournalReportCount(reason: string): number | undefined {
@@ -48,7 +56,7 @@ function classifyDegradation(
     const code = parseDegradationCode(degradation.kind.slice(JOURNAL_REPORT_SAMPLE_KIND_PREFIX.length)) ?? 'unknown'
     return { code, count: 0 }
   }
-  if (degradation.kind.startsWith('resource:')) {
+  if (isResourceDegradationKind(degradation.kind)) {
     return { code: resourceDegradationCode(degradation.reason), count: 1 }
   }
 
@@ -82,7 +90,7 @@ function aggregateDegradations(
     const nextCount = entry.count + classified.count
     entry.count = Number.isSafeInteger(nextCount) ? nextCount : Number.MAX_SAFE_INTEGER
     const mayPresentPath =
-      degradation.kind.startsWith('resource:') ||
+      isResourceDegradationKind(degradation.kind) ||
       (parseJournalReport && degradation.kind.startsWith(JOURNAL_REPORT_SAMPLE_KIND_PREFIX))
     const sample = mayPresentPath ? safeSamplePath(degradation) : undefined
     if (sample && !entry.paths.includes(sample) && entry.paths.length < RESOURCE_DIAGNOSTIC_SAMPLE_LIMIT) {

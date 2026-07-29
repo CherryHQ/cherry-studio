@@ -1,3 +1,8 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+import { application } from '@application'
+import { MockMainProfileWriteBarrierServiceUtils } from '@test-mocks/main/ProfileWriteBarrierService'
 import { dialog, shell } from 'electron'
 import * as fs from 'fs'
 import iconv from 'iconv-lite'
@@ -16,10 +21,54 @@ const event = {} as Electron.IpcMainInvokeEvent
 describe('FileStorage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockMainProfileWriteBarrierServiceUtils.resetMocks()
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  describe('legacy write ownership', () => {
+    it('remains outside the lifecycle registry while v2 FileManager owns file writes', () => {
+      const registrySource = readFileSync(resolve(__dirname, '../../core/application/serviceRegistry.ts'), 'utf8')
+
+      expect(registrySource).not.toContain("import { FileStorage } from '@main/services/FileStorage'")
+      expect(registrySource).not.toMatch(/^ {2}FileStorage,$/m)
+    })
+
+    it('runs managed pasted-image mutations through the profile write barrier', async () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+      vi.spyOn(fs.promises, 'writeFile').mockResolvedValue()
+      vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 3 } as fs.Stats)
+
+      await fileStorage.savePastedImage(event, Buffer.from('img'), '.png')
+
+      expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
+        'file-storage:save-pasted-image',
+        expect.any(Function)
+      )
+    })
+
+    it('does not start a legacy path mutation until write admission resumes', async () => {
+      let resume!: () => void
+      const admission = new Promise<void>((resolveAdmission) => {
+        resume = resolveAdmission
+      })
+      const runWrite = vi.mocked(application.get('ProfileWriteBarrierService').runWrite)
+      runWrite.mockImplementation(async (_label, operation) => {
+        await admission
+        return operation()
+      })
+      const writeFile = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue()
+
+      const writing = fileStorage.writeFile(event, '/profile/notes/note.md', 'content')
+      await Promise.resolve()
+
+      expect(writeFile).not.toHaveBeenCalled()
+      resume()
+      await writing
+      expect(writeFile).toHaveBeenCalledWith('/profile/notes/note.md', 'content')
+    })
   })
 
   describe('save', () => {

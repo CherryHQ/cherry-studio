@@ -88,32 +88,54 @@ export async function writeIfUnchanged(
   }
 }
 
-export function createWriteStream(deps: FileManagerDeps, id: FileEntryId): AtomicWriteStream {
+export function createWriteStream(
+  deps: FileManagerDeps,
+  id: FileEntryId,
+  // The owner uses this to release its profile-write lease. Success settles
+  // after post-commit DB/cache sync; abort/destroy/error settle after `close`,
+  // when AtomicWriteStream has finished best-effort tmp cleanup.
+  onSettled: () => void = () => undefined
+): AtomicWriteStream {
   const entry = deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry)
   const stream = createAtomicWriteStream(physical)
-  stream.once('finish', async () => {
-    try {
-      const s = await fsStat(physical)
-      const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
-      if (entry.origin === 'internal') {
-        deps.fileEntryService.update(id, { size: version.size })
+  let committed = false
+  let settled = false
+  const settle = () => {
+    if (settled) return
+    settled = true
+    onSettled()
+  }
+  stream.once('finish', () => {
+    committed = true
+    void (async () => {
+      try {
+        const s = await fsStat(physical)
+        const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
+        if (entry.origin === 'internal') {
+          deps.fileEntryService.update(id, { size: version.size })
+        }
+        deps.versionCache.set(id, version)
+      } catch (err) {
+        // The file is committed on disk but the metadata sync (re-stat + DB
+        // size update + versionCache.set) failed. This silently desyncs
+        // `file_entry.size` and any cached `FileVersion` from disk, which the
+        // module-level JSDoc explicitly warns against — surface it at `error`
+        // with a stable code so Sentry can group these for follow-up. The
+        // stream itself does NOT re-throw because the consumer has already
+        // observed `'finish'`; the only mitigation is observability.
+        logger.error('createWriteStream: post-commit metadata sync failed', {
+          code: 'WRITE_STREAM_DB_DESYNC',
+          id,
+          err
+        })
+      } finally {
+        settle()
       }
-      deps.versionCache.set(id, version)
-    } catch (err) {
-      // The file is committed on disk but the metadata sync (re-stat + DB
-      // size update + versionCache.set) failed. This silently desyncs
-      // `file_entry.size` and any cached `FileVersion` from disk, which the
-      // module-level JSDoc explicitly warns against — surface it at `error`
-      // with a stable code so Sentry can group these for follow-up. The
-      // stream itself does NOT re-throw because the consumer has already
-      // observed `'finish'`; the only mitigation is observability.
-      logger.error('createWriteStream: post-commit metadata sync failed', {
-        code: 'WRITE_STREAM_DB_DESYNC',
-        id,
-        err
-      })
-    }
+    })()
+  })
+  stream.once('close', () => {
+    if (!committed) settle()
   })
   return stream
 }

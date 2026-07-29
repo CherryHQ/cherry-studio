@@ -1,11 +1,25 @@
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { access, appendFile, chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import {
+  access,
+  appendFile,
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  symlink,
+  writeFile
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { isKnowledgeCaptureExcluded } from '@main/features/knowledge'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { scanDirectoryUnit } from '../dirScan'
 import { driftHooks, stageDirectoryWithDriftCheck, stageFileWithDriftCheck } from '../sourceDrift'
 
 let dir: string
@@ -22,6 +36,7 @@ afterEach(async () => {
   driftHooks.afterStagePreVerify = async () => {}
   driftHooks.afterInitialLstat = async () => {}
   driftHooks.beforeAncestorVerify = async () => {}
+  driftHooks.afterAncestorVerify = async () => {}
   await rm(dir, { recursive: true, force: true })
 })
 
@@ -178,7 +193,7 @@ describe('stageDirectoryWithDriftCheck', () => {
     const excluded = await stageDirectoryWithDriftCheck({
       sourceDir: srcDir,
       stagingDir: stage2,
-      excludeKnowledgeDerivedIndex: true
+      capturePolicy: { excludeRelativePath: isKnowledgeCaptureExcluded }
     })
     expect(excluded.files.map((f) => f.relPath)).toEqual(['doc.md'])
     expect(existsSync(path.join(stage2, '.cherry/index.sqlite'))).toBe(false)
@@ -197,6 +212,28 @@ describe('stageDirectoryWithDriftCheck', () => {
     }
     await expect(stageDirectoryWithDriftCheck({ sourceDir: srcDir, stagingDir: stageDir })).rejects.toThrow(/ancestor/)
     await expect(access(stageDir)).rejects.toThrow() // owned staging removed
+  })
+
+  it('rejects a file swapped after the tree baseline even when the original inode is restored before final rescan', async () => {
+    const source = await src('a.txt', 'OLD')
+    const original = path.join(dir, 'original.txt')
+    const replacement = path.join(dir, 'replacement.txt')
+    await writeFile(replacement, 'NEW')
+
+    driftHooks.afterAncestorVerify = async (_sourceDir, fileRel) => {
+      if (fileRel !== 'a.txt') return
+      await rename(source, original)
+      await rename(replacement, source)
+    }
+    driftHooks.afterStagePreVerify = async (stagedSource) => {
+      await rm(stagedSource)
+      await rename(original, stagedSource)
+    }
+
+    await expect(stageDirectoryWithDriftCheck({ sourceDir: srcDir, stagingDir: stageDir })).rejects.toThrow(
+      /changed since the database snapshot boundary/
+    )
+    await expect(access(stageDir)).rejects.toThrow()
   })
 
   it('classifies an ancestor removed before its file copy as source drift', async () => {
@@ -218,6 +255,79 @@ describe('stageDirectoryWithDriftCheck', () => {
     await expect(stageDirectoryWithDriftCheck({ sourceDir: srcDir, stagingDir: stageDir })).rejects.toThrow(
       /symlink or special/
     )
+  })
+
+  it('materializes an internal link as a regular staged file', async () => {
+    await src('targets/source.txt', 'inside')
+    await symlink('targets/source.txt', path.join(srcDir, 'alias.txt'))
+
+    const { files } = await stageDirectoryWithDriftCheck({
+      sourceDir: srcDir,
+      stagingDir: stageDir,
+      capturePolicy: {}
+    })
+
+    expect(files.map((file) => file.relPath)).toEqual(['alias.txt', 'targets/source.txt'])
+    expect((await lstat(path.join(stageDir, 'alias.txt'))).isFile()).toBe(true)
+    expect((await lstat(path.join(stageDir, 'alias.txt'))).isSymbolicLink()).toBe(false)
+    expect(await readFile(path.join(stageDir, 'alias.txt'), 'utf8')).toBe('inside')
+  })
+
+  it('omits an external link while staging ordinary siblings', async () => {
+    const external = path.join(dir, 'external.txt')
+    await writeFile(external, 'outside')
+    await src('kept.txt', 'inside')
+    await symlink(external, path.join(srcDir, 'external-link.txt'))
+
+    const { files } = await stageDirectoryWithDriftCheck({
+      sourceDir: srcDir,
+      stagingDir: stageDir,
+      capturePolicy: {}
+    })
+
+    expect(files.map((file) => file.relPath)).toEqual(['kept.txt'])
+    expect(existsSync(path.join(stageDir, 'external-link.txt'))).toBe(false)
+  })
+
+  it('fails when an omitted link changes after the sealed baseline', async () => {
+    const externalA = path.join(dir, 'external-a.txt')
+    const externalB = path.join(dir, 'external-b.txt')
+    await writeFile(externalA, 'A')
+    await writeFile(externalB, 'B')
+    const link = path.join(srcDir, 'external-link.txt')
+    await symlink(externalA, link)
+    const expectedScan = await scanDirectoryUnit(srcDir, { mode: 'capture', capturePolicy: {} })
+
+    await rm(link)
+    await symlink(externalB, link)
+
+    await expect(
+      stageDirectoryWithDriftCheck({
+        sourceDir: srcDir,
+        stagingDir: stageDir,
+        expectedScan,
+        capturePolicy: {}
+      })
+    ).rejects.toThrow(/changed since the database snapshot boundary/)
+    await expect(access(stageDir)).rejects.toThrow()
+  })
+
+  it('does not treat changes to an omitted external target as source drift', async () => {
+    const external = path.join(dir, 'external.txt')
+    await writeFile(external, 'before')
+    await src('kept.txt', 'inside')
+    await symlink(external, path.join(srcDir, 'external-link.txt'))
+    const expectedScan = await scanDirectoryUnit(srcDir, { mode: 'capture', capturePolicy: {} })
+
+    await writeFile(external, 'after-target-change')
+
+    const { files } = await stageDirectoryWithDriftCheck({
+      sourceDir: srcDir,
+      stagingDir: stageDir,
+      expectedScan,
+      capturePolicy: {}
+    })
+    expect(files.map((file) => file.relPath)).toEqual(['kept.txt'])
   })
 
   it('rejects a symlinked source root', async () => {

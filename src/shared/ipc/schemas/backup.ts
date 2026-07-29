@@ -68,6 +68,62 @@ export const BackupFormatCompatibilityDiagnosticSchema = z.strictObject({
 
 export type BackupFormatCompatibilityDiagnostic = z.infer<typeof BackupFormatCompatibilityDiagnosticSchema>
 
+const DRIVE_PREFIX = /^[a-zA-Z]:/
+
+function hasControlChar(value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index)
+    if (code <= 0x1f || code === 0x7f) return true
+  }
+  return false
+}
+
+export const BackupDiagnosticPathSchema = z
+  .string()
+  .min(1)
+  .max(1024)
+  .refine((value) => {
+    if (hasControlChar(value)) return false
+    if (value.startsWith('/') || value.includes('\\') || DRIVE_PREFIX.test(value)) return false
+    return value.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
+  })
+
+/**
+ * Bounded, presentation-only detail for `BACKUP_EXPORT_SOURCE`.
+ *
+ * Paths are userData-relative display values, never filesystem inputs. Main
+ * omits a path it cannot prove belongs to the active profile.
+ */
+export const BackupExportSourceDiagnosticSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('quiesce-timeout'),
+    phase: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9-]+$/)
+  }),
+  z.strictObject({
+    kind: z.literal('source-changed'),
+    path: BackupDiagnosticPathSchema.optional()
+  }),
+  z.strictObject({
+    kind: z.literal('non-regular'),
+    path: BackupDiagnosticPathSchema.optional()
+  }),
+  z.strictObject({
+    kind: z.literal('unportable-path'),
+    reason: z.enum(['invalid-path', 'name-collision']),
+    path: BackupDiagnosticPathSchema.optional()
+  }),
+  z.strictObject({
+    kind: z.literal('limit-exceeded'),
+    limit: z.enum(['entry-count', 'resource-entries', 'entry-bytes', 'total-bytes', 'manifest-bytes', 'unknown'])
+  })
+])
+
+export type BackupExportSourceDiagnostic = z.infer<typeof BackupExportSourceDiagnosticSchema>
+
 export const BACKUP_DEGRADATION_CODES = [
   'capability-malformed',
   'external-file-dropped',
@@ -78,6 +134,10 @@ export const BACKUP_DEGRADATION_CODES = [
   'resource-changed',
   'resource-nonportable',
   'resource-limit',
+  'external-reference',
+  'dangling-reference',
+  'cyclic-reference',
+  'unclassified-reference',
   'unknown'
 ] as const
 

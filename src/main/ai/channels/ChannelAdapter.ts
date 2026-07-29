@@ -1,4 +1,7 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
+
 import { loggerService } from '@logger'
+import type { Disposable } from '@main/core/lifecycle'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentChannelEntity, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import { EventEmitter } from 'events'
@@ -82,6 +85,10 @@ export abstract class ChannelAdapter extends EventEmitter {
 
   private connectAbort: AbortController | null = null
   private _connected = false
+  private readonly runtimePauseHolds = new Set<symbol>()
+  private readonly runtimeResumeWaiters = new Set<() => void>()
+  private readonly runtimeAdmission = new AsyncLocalStorage<boolean>()
+  private readonly inFlightRuntimeWork = new Map<Promise<unknown>, string>()
 
   /**
    * Dual-destination logger: writes to the file logger AND emits to the UI log panel.
@@ -116,6 +123,91 @@ export abstract class ChannelAdapter extends EventEmitter {
   /** Whether the adapter has completed performConnect successfully and not since disconnected. */
   get connected(): boolean {
     return this._connected
+  }
+
+  get isRuntimeQuiesced(): boolean {
+    return this.runtimePauseHolds.size > 0
+  }
+
+  pauseRuntime(reason?: string): Disposable {
+    const token = Symbol(reason ?? 'channel-adapter-runtime-pause')
+    this.runtimePauseHolds.add(token)
+    this.log.info('Adapter runtime paused', { reason: reason ?? null, holds: this.runtimePauseHolds.size })
+    return {
+      dispose: () => {
+        if (!this.runtimePauseHolds.delete(token)) return
+        this.log.info('Adapter runtime pause hold released', {
+          reason: reason ?? null,
+          holds: this.runtimePauseHolds.size
+        })
+        if (this.runtimePauseHolds.size > 0) return
+        const waiters = [...this.runtimeResumeWaiters]
+        this.runtimeResumeWaiters.clear()
+        for (const resume of waiters) resume()
+      }
+    }
+  }
+
+  async drainRuntimeInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
+    const seen = new WeakSet<Promise<unknown>>()
+    const pending = new Map<Promise<unknown>, string>()
+    const collect = (): void => {
+      for (const [operation, label] of this.inFlightRuntimeWork) {
+        if (seen.has(operation)) continue
+        seen.add(operation)
+        pending.set(operation, label)
+        const remove = () => pending.delete(operation)
+        operation.then(remove, remove)
+      }
+    }
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
+    })
+    try {
+      for (;;) {
+        collect()
+        if (pending.size === 0) return { stragglerIds: [] }
+        const winner = await Promise.race([
+          Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
+          timeout
+        ])
+        if (winner === 'timeout') return { stragglerIds: [...new Set(pending.values())] }
+      }
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    }
+  }
+
+  listActiveRuntimeWork(): Array<{ id: string; summary: string }> {
+    return [...new Set(this.inFlightRuntimeWork.values())].map((label) => ({
+      id: label,
+      summary: 'channel adapter runtime work in flight'
+    }))
+  }
+
+  protected runRuntimeWork<T>(label: string, work: () => Promise<T>): Promise<T> {
+    if (this.runtimeAdmission.getStore()) return work()
+
+    if (this.isRuntimeQuiesced) {
+      return new Promise<void>((resolve) => {
+        this.runtimeResumeWaiters.add(resolve)
+      }).then(() => this.runRuntimeWork(label, work))
+    }
+
+    const operation = this.runtimeAdmission.run(true, () => Promise.resolve().then(work))
+    this.inFlightRuntimeWork.set(operation, label)
+    void operation.then(
+      () => this.inFlightRuntimeWork.delete(operation),
+      () => this.inFlightRuntimeWork.delete(operation)
+    )
+    return operation
+  }
+
+  /** Detach long-lived polling loops from a one-shot connect admission. */
+  protected runOutsideRuntimeAdmission<T>(work: () => T): T {
+    return this.runtimeAdmission.exit(work)
   }
 
   /**
@@ -158,11 +250,15 @@ export abstract class ChannelAdapter extends EventEmitter {
     this.connectAbort = new AbortController()
     const signal = this.connectAbort.signal
 
-    const ready = await this.checkReady()
-    if (ready) {
+    const ready = await this.runRuntimeWork('connect-readiness', () => this.checkReady())
+    const connection = this.runRuntimeWork('connect', async () => {
+      if (signal.aborted) return
       await this.performConnect(signal)
+    })
+    if (ready) {
+      await connection
     } else {
-      this.performConnect(signal).catch((err) => {
+      connection.catch((err) => {
         if (!signal.aborted) {
           this.markDisconnected(err instanceof Error ? err.message : String(err))
         }

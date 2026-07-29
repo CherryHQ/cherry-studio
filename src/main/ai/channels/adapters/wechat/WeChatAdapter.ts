@@ -41,7 +41,11 @@ class WeChatAdapter extends ChannelAdapter {
       onQrUrl: (url) => {
         this.emit('qr', url)
         this.sendQrToRenderer(url, 'pending')
-      }
+      },
+      runWrite: (label, work) =>
+        this.runRuntimeWork(`wechat:${label}`, () =>
+          application.get('ProfileWriteBarrierService').runWrite(`channel:wechat:${this.channelId}:${label}`, work)
+        )
     })
     this.bot = bot
 
@@ -57,7 +61,7 @@ class WeChatAdapter extends ChannelAdapter {
     this.log.info('WeChat bot logged in and polling started', { userId: credentials.userId })
 
     // Start long-polling (fire-and-forget)
-    bot.run().catch((err) => {
+    this.runOutsideRuntimeAdmission(() => bot.run()).catch((err) => {
       if (!signal.aborted) {
         const msg = err instanceof Error ? err.message : String(err)
         this.markDisconnected(msg)

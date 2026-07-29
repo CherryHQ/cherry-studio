@@ -30,7 +30,9 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   },
   'file.write_if_unchanged': async ({ path, data, expectedVersion }) => {
     try {
-      return await writeIfUnchangedByPath(path, data, expectedVersion)
+      return await application
+        .get('ProfileWriteBarrierService')
+        .runWrite('file-manager:path-write-if-unchanged', () => writeIfUnchangedByPath(path, data, expectedVersion))
     } catch (error) {
       if (error instanceof PathStaleVersionError) {
         throw new IpcError(fileErrorCodes.STALE_VERSION, error.message, {

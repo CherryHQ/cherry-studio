@@ -23,22 +23,3 @@ export const DB_ENTRY = 'backup.sqlite'
 
 /** Prefix under which every Full resource payload lives. */
 export const RESOURCES_PREFIX = 'resources/'
-
-/**
- * A Knowledge resource unit is a single `{baseId}` directory whose ONLY excluded
- * artifact is its rebuildable index at the unit ROOT: `.cherry/index.sqlite`,
- * `.cherry/index.sqlite-wal`, `.cherry/index.sqlite-shm` (docs §6.7). This
- * predicate matches ONLY those exact unit-root-relative paths — a nested
- * `sub/.cherry/index.sqlite` (or any other `.cherry` content) is authoritative
- * and is NEVER dropped. It is applied only when a caller opts into
- * `excludeKnowledgeDerivedIndex` (the Knowledge adapter), never generically.
- */
-const KNOWLEDGE_ROOT_DERIVED_INDEX = new Set([
-  '.cherry/index.sqlite',
-  '.cherry/index.sqlite-wal',
-  '.cherry/index.sqlite-shm'
-])
-
-export function isKnowledgeDerivedIndexPath(relPath: string): boolean {
-  return KNOWLEDGE_ROOT_DERIVED_INDEX.has(relPath)
-}

@@ -2,6 +2,7 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { ProfileWriteBarrierService } from '@data/ProfileWriteBarrierService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
@@ -78,6 +79,7 @@ export const services = {
   MainNetworkDevtoolsService,
   WindowManager,
   DbService,
+  ProfileWriteBarrierService,
   CacheService,
   DataApiService,
   IpcApiService,

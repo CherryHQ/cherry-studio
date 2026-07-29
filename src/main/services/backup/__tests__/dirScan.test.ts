@@ -53,6 +53,104 @@ describe('scanDirectoryUnit — safe portable scan', () => {
     await expect(scanDirectoryUnit(linkRoot)).rejects.toThrow(/symlink or special/)
   })
 
+  it('materializes an internal file link into the virtual archive tree', async () => {
+    await write('targets/source.txt', 'inside')
+    await symlink('targets/source.txt', path.join(dir, 'alias.txt'))
+
+    const scan = await scanDirectoryUnit(dir, { mode: 'capture', capturePolicy: {} })
+
+    expect(scan.entries.map(({ relPath, sourceRelPath }) => ({ relPath, sourceRelPath }))).toEqual([
+      { relPath: 'alias.txt', sourceRelPath: 'targets/source.txt' },
+      { relPath: 'targets/source.txt', sourceRelPath: 'targets/source.txt' }
+    ])
+    expect(scan.links).toMatchObject([
+      {
+        relPath: 'alias.txt',
+        sourceRelPath: 'alias.txt',
+        linkTarget: 'targets/source.txt',
+        targetRelPath: 'targets/source.txt'
+      }
+    ])
+    expect(scan.omissions).toEqual([])
+  })
+
+  it('expands an acyclic internal link chain', async () => {
+    await write('target.txt', 'inside')
+    await symlink('target.txt', path.join(dir, 'inner.txt'))
+    await symlink('inner.txt', path.join(dir, 'outer.txt'))
+
+    const scan = await scanDirectoryUnit(dir, { mode: 'capture', capturePolicy: {} })
+
+    expect(scan.entries.map(({ relPath, sourceRelPath }) => ({ relPath, sourceRelPath }))).toEqual([
+      { relPath: 'inner.txt', sourceRelPath: 'target.txt' },
+      { relPath: 'outer.txt', sourceRelPath: 'target.txt' },
+      { relPath: 'target.txt', sourceRelPath: 'target.txt' }
+    ])
+    expect(scan.omissions).toEqual([])
+  })
+
+  it('materializes an internal directory link and keeps its virtual descendants', async () => {
+    await write('targets/nested/source.txt', 'inside')
+    await symlink('targets', path.join(dir, 'alias'))
+
+    const scan = await scanDirectoryUnit(dir, { mode: 'capture', capturePolicy: {} })
+
+    expect(scan.entries.map(({ relPath, sourceRelPath }) => ({ relPath, sourceRelPath }))).toContainEqual({
+      relPath: 'alias/nested/source.txt',
+      sourceRelPath: 'targets/nested/source.txt'
+    })
+    expect(scan.dirs.map(({ relPath, sourceRelPath }) => ({ relPath, sourceRelPath }))).toContainEqual({
+      relPath: 'alias',
+      sourceRelPath: 'targets'
+    })
+    expect(scan.links.map((link) => link.relPath)).toContain('alias')
+  })
+
+  it('omits an external link without losing ordinary siblings', async () => {
+    const external = path.join(path.dirname(dir), `${path.basename(dir)}-external.txt`)
+    await writeFile(external, 'outside')
+    await write('kept.txt', 'inside')
+    await symlink(external, path.join(dir, 'external.txt'))
+
+    try {
+      const scan = await scanDirectoryUnit(dir, { mode: 'capture', capturePolicy: {} })
+
+      expect(scan.entries.map((entry) => entry.relPath)).toEqual(['kept.txt'])
+      expect(scan.omissions).toMatchObject([
+        { relPath: 'external.txt', sourceRelPath: 'external.txt', reason: 'external-reference' }
+      ])
+    } finally {
+      await rm(external, { force: true })
+    }
+  })
+
+  it('stops at an external intermediate link instead of resolving its missing target', async () => {
+    const missingExternalDir = path.join(path.dirname(dir), `${path.basename(dir)}-missing`)
+    await symlink(missingExternalDir, path.join(dir, 'escape'))
+    await symlink('escape/secret.txt', path.join(dir, 'through-escape.txt'))
+
+    const scan = await scanDirectoryUnit(dir, { mode: 'capture', capturePolicy: {} })
+
+    expect(scan.omissions.map(({ relPath, reason }) => ({ relPath, reason }))).toEqual([
+      { relPath: 'escape', reason: 'external-reference' },
+      { relPath: 'through-escape.txt', reason: 'external-reference' }
+    ])
+  })
+
+  it('classifies dangling and cyclic link edges without rejecting the tree', async () => {
+    await mkdir(path.join(dir, 'nested'))
+    await symlink('missing.txt', path.join(dir, 'dangling.txt'))
+    await symlink('..', path.join(dir, 'nested', 'back'))
+
+    const scan = await scanDirectoryUnit(dir, { mode: 'capture', capturePolicy: {} })
+
+    expect(scan.omissions.map(({ relPath, reason }) => ({ relPath, reason }))).toEqual([
+      { relPath: 'dangling.txt', reason: 'dangling-reference' },
+      { relPath: 'nested/back', reason: 'cyclic-reference' }
+    ])
+    expect(scan.dirs.map((entry) => entry.relPath)).toEqual(['nested'])
+  })
+
   it('enforces the entry-count ceiling incrementally', async () => {
     await write('a.txt', 'a')
     await write('b.txt', 'b')

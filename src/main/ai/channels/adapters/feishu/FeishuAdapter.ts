@@ -390,7 +390,7 @@ class FeishuAdapter extends ChannelAdapter {
       // markConnected via .then(), but we override that below: checkReady()
       // returned false, so we explicitly mark as NOT connected. The adapter
       // will be recreated by syncChannel once credentials arrive.
-      this.startRegistrationInBackground(signal)
+      await this.startRegistrationInBackground(signal)
       return
     }
 
@@ -442,7 +442,7 @@ class FeishuAdapter extends ChannelAdapter {
    * Emits the QR URL immediately via 'qr' event and IPC, then polls
    * asynchronously.  Does NOT block the caller.
    */
-  private startRegistrationInBackground(signal: AbortSignal): void {
+  private startRegistrationInBackground(signal: AbortSignal): Promise<void> {
     this.log.info('Starting Feishu app registration flow (background)', {
       domain: this.domain
     })
@@ -450,7 +450,7 @@ class FeishuAdapter extends ChannelAdapter {
     this.sendQrToRenderer('', 'pending')
 
     // Fire-and-forget — errors are logged, not thrown
-    registrationBegin(this.domain)
+    return registrationBegin(this.domain)
       .then(({ deviceCode, verificationUri, interval, expiresIn }) => {
         if (signal.aborted) return
 

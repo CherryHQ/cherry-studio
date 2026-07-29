@@ -182,7 +182,7 @@ class SkillsServer {
     // rejecting a path that escapes the clone root. The tool never builds the identifier itself.
     const installed = await skillService.install({ installSource })
     // Enable the freshly-installed skill for the CURRENT agent only; enablement is per-agent.
-    const enabled = skillService.toggle({
+    const enabled = await skillService.toggle({
       skillId: installed.id,
       agentId: this.agentId,
       isEnabled: true

@@ -57,6 +57,16 @@ async function ensureAdapterLoaded(type: AgentChannelType): Promise<void> {
 @DependsOn(['WindowManager'])
 export class ChannelManager extends BaseService {
   private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
+  private readonly adapterRuntimeHolds = new Map<
+    symbol,
+    { reason?: string; adapterHolds: Map<ChannelAdapter, Disposable> }
+  >()
+  private readonly adapterRuntimeResumeWaiters = new Set<{
+    resolve: () => void
+    reject: (error: Error) => void
+  }>()
+  private readonly inFlightAdapterManagerWork = new Map<Promise<unknown>, string>()
+  private stopping = false
   private readonly qrWaiters = new Map<
     string,
     { resolve: (url: string) => void; timer: ReturnType<typeof setTimeout> }
@@ -65,10 +75,15 @@ export class ChannelManager extends BaseService {
   private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
 
   protected async onReady(): Promise<void> {
+    this.stopping = false
     await this.start()
   }
 
   protected async onStop(): Promise<void> {
+    this.stopping = true
+    const waiters = [...this.adapterRuntimeResumeWaiters]
+    this.adapterRuntimeResumeWaiters.clear()
+    for (const waiter of waiters) waiter.reject(new Error('ChannelManager is stopping'))
     await this.stop()
   }
 
@@ -90,6 +105,59 @@ export class ChannelManager extends BaseService {
   /** Advisory pre-flight enumeration for the restore orchestrator. */
   listActiveWork(): Array<{ id: string; summary: string }> {
     return channelMessageHandler.listActiveWork()
+  }
+
+  /** Pause adapter lifecycle and profile-write work after channel intake has drained. */
+  pauseAdapterRuntime(reason?: string): Disposable {
+    const token = Symbol(reason ?? 'channel-adapter-runtime-pause')
+    const adapterHolds = new Map<ChannelAdapter, Disposable>()
+    for (const adapter of this.adapters.values()) {
+      adapterHolds.set(adapter, adapter.pauseRuntime(reason))
+    }
+    this.adapterRuntimeHolds.set(token, { reason, adapterHolds })
+    logger.info('Channel adapter runtime paused', { reason: reason ?? null, holds: this.adapterRuntimeHolds.size })
+
+    return {
+      dispose: () => {
+        const hold = this.adapterRuntimeHolds.get(token)
+        if (!hold) return
+        this.adapterRuntimeHolds.delete(token)
+        for (const adapterHold of hold.adapterHolds.values()) adapterHold.dispose()
+        logger.info('Channel adapter runtime pause hold released', {
+          reason: reason ?? null,
+          holds: this.adapterRuntimeHolds.size
+        })
+        if (this.adapterRuntimeHolds.size > 0 || this.stopping) return
+        const waiters = [...this.adapterRuntimeResumeWaiters]
+        this.adapterRuntimeResumeWaiters.clear()
+        for (const waiter of waiters) waiter.resolve()
+      }
+    }
+  }
+
+  async drainAdapterRuntimeInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
+    const startedAt = Date.now()
+    const managerDrain = this.drainManagerRuntimeWork(opts)
+    const adapterDrains = [...this.adapters.values()].map(async (adapter) => {
+      const elapsed = Date.now() - startedAt
+      const verdict = await adapter.drainRuntimeInFlight({ timeoutMs: Math.max(0, opts.timeoutMs - elapsed) })
+      return verdict.stragglerIds.map((id) => `adapter:${adapter.channelId}:${id}`)
+    })
+    const [managerVerdict, ...adapterVerdicts] = await Promise.all([managerDrain, ...adapterDrains])
+    return { stragglerIds: [...managerVerdict.stragglerIds, ...adapterVerdicts.flat()] }
+  }
+
+  listActiveAdapterWork(): Array<{ id: string; summary: string }> {
+    const work: Array<{ id: string; summary: string }> = []
+    for (const label of new Set(this.inFlightAdapterManagerWork.values())) {
+      work.push({ id: label, summary: 'channel manager runtime work in flight' })
+    }
+    for (const adapter of this.adapters.values()) {
+      for (const item of adapter.listActiveRuntimeWork()) {
+        work.push({ id: `adapter:${adapter.channelId}:${item.id}`, summary: item.summary })
+      }
+    }
+    return work
   }
 
   async start(): Promise<void> {
@@ -197,6 +265,52 @@ export class ChannelManager extends BaseService {
     application.get('IpcApiService').broadcastToType(WindowType.Main, event, data)
   }
 
+  private runAdapterManagerWork<T>(label: string, work: () => Promise<T> | T): Promise<T> {
+    if (this.adapterRuntimeHolds.size > 0) {
+      return this.waitForAdapterRuntimeResume().then(() => this.runAdapterManagerWork(label, work))
+    }
+
+    const operation = Promise.resolve().then(work)
+    this.inFlightAdapterManagerWork.set(operation, label)
+    void operation.then(
+      () => this.inFlightAdapterManagerWork.delete(operation),
+      () => this.inFlightAdapterManagerWork.delete(operation)
+    )
+    return operation
+  }
+
+  private waitForAdapterRuntimeResume(): Promise<void> {
+    if (this.stopping) return Promise.reject(new Error('ChannelManager is stopping'))
+    if (this.adapterRuntimeHolds.size === 0) return Promise.resolve()
+    return new Promise<void>((resolve, reject) => {
+      this.adapterRuntimeResumeWaiters.add({ resolve, reject })
+    })
+  }
+
+  private async drainManagerRuntimeWork(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
+    const snapshot = [...this.inFlightAdapterManagerWork.entries()]
+    if (snapshot.length === 0) return { stragglerIds: [] }
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
+    })
+    try {
+      const winner = await Promise.race([
+        Promise.allSettled(snapshot.map(([operation]) => operation)).then(() => 'done' as const),
+        timeout
+      ])
+      if (winner === 'done') return { stragglerIds: [] }
+      return {
+        stragglerIds: snapshot
+          .filter(([operation]) => this.inFlightAdapterManagerWork.has(operation))
+          .map(([, label]) => label)
+      }
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    }
+  }
+
   /** Disconnect the adapter for a single channel without reconnecting. */
   async disconnectChannel(channelId: string, options: { suppressErrors?: boolean } = {}): Promise<void> {
     const { suppressErrors = true } = options
@@ -228,6 +342,7 @@ export class ChannelManager extends BaseService {
     channelId: string,
     options: { awaitConnect?: boolean; strictDisconnect?: boolean } = {}
   ): Promise<void> {
+    await this.waitForAdapterRuntimeResume()
     const { awaitConnect = false, strictDisconnect = false } = options
     await this.disconnectChannel(channelId, { suppressErrors: !strictDisconnect })
 
@@ -273,15 +388,22 @@ export class ChannelManager extends BaseService {
     channelId: string,
     creds: { appId: string; appSecret: string }
   ): Promise<void> {
-    const channel = channelService.getChannel(channelId)
-    if (!channel) return
+    const updated = await this.runAdapterManagerWork(`credentials:${channelId}`, () =>
+      application.get('ProfileWriteBarrierService').runWrite(`channel:credentials:${channelId}`, () => {
+        const channel = channelService.getChannel(channelId)
+        if (!channel) return false
 
-    const config = channel.config as ChannelConfig & Record<string, unknown>
-    channelService.updateChannel(channelId, {
-      config: { ...config, app_id: creds.appId, app_secret: creds.appSecret } as ChannelConfig
-    })
+        const config = channel.config as ChannelConfig & Record<string, unknown>
+        channelService.updateChannel(channelId, {
+          config: { ...config, app_id: creds.appId, app_secret: creds.appSecret } as ChannelConfig
+        })
+        return true
+      })
+    )
+    if (!updated) return
 
     logger.info('Saved QR registration credentials, reconnecting', { agentId, channelId })
+    await this.waitForAdapterRuntimeResume()
     await this.syncChannel(channelId)
   }
 
@@ -298,6 +420,9 @@ export class ChannelManager extends BaseService {
     const key = `${agentId}:${row.id}`
     try {
       const adapter = factory(row, agentId)
+      for (const hold of this.adapterRuntimeHolds.values()) {
+        hold.adapterHolds.set(adapter, adapter.pauseRuntime(hold.reason))
+      }
 
       // Seed notifyChatIds from DB-persisted activeChatIds (when allowed_chat_ids is empty)
       const hasAllowedIds = adapter.notifyChatIds.length > 0
@@ -306,12 +431,15 @@ export class ChannelManager extends BaseService {
         adapter.notifyChatIds = [...dbChatIds]
       }
 
-      const trackChatId = (chatId: string) => {
+      const trackChatId = async (chatId: string): Promise<void> => {
         if (hasAllowedIds) return
         if (adapter.notifyChatIds.includes(chatId)) return
-        adapter.notifyChatIds.push(chatId)
         try {
-          channelService.addActiveChatId(row.id, chatId)
+          await application.get('ProfileWriteBarrierService').runWrite(`channel:active-chat:${row.id}`, () => {
+            if (adapter.notifyChatIds.includes(chatId)) return
+            channelService.addActiveChatId(row.id, chatId)
+            adapter.notifyChatIds.push(chatId)
+          })
         } catch (err) {
           logger.warn('Failed to persist activeChatId', {
             channelId: row.id,
@@ -322,41 +450,42 @@ export class ChannelManager extends BaseService {
       }
 
       adapter.on('message', (msg) => {
-        // Write-quiesce intake gate — also skips trackChatId's `activeChatIds` DB write. The
-        // handler's own gate is defense in depth; this one stops the config write too.
-        if (channelMessageHandler.isWriteQuiesced) {
-          logger.warn('Channel message dropped: intake is write-quiesced', { agentId, channelId: row.id })
-          return
-        }
-        trackChatId(msg.chatId)
-        channelMessageHandler.handleIncoming(adapter, msg).catch((err) => {
-          logger.error('Unhandled error in message handler', {
-            agentId,
-            channelId: row.id,
-            error: err instanceof Error ? err.message : String(err)
+        // Defer the activeChatIds write and message admission together. The
+        // intake drain joins this callback and the profile barrier owns the
+        // direct DB mutation, so neither can straddle the snapshot gate.
+        channelMessageHandler
+          .runWhenResumed(async () => {
+            await trackChatId(msg.chatId)
+            return channelMessageHandler.handleIncoming(adapter, msg)
           })
-          adapter
-            .sendMessage(msg.chatId, '⚠️ An error occurred while processing your message. Please try again later.')
-            .catch(() => {})
-        })
+          .catch((err) => {
+            logger.error('Unhandled error in message handler', {
+              agentId,
+              channelId: row.id,
+              error: err instanceof Error ? err.message : String(err)
+            })
+            adapter
+              .sendMessage(msg.chatId, '⚠️ An error occurred while processing your message. Please try again later.')
+              .catch(() => {})
+          })
       })
 
       adapter.on('command', (cmd) => {
-        if (channelMessageHandler.isWriteQuiesced) {
-          logger.warn('Channel command dropped: intake is write-quiesced', { agentId, channelId: row.id })
-          return
-        }
-        trackChatId(cmd.chatId)
-        channelMessageHandler.handleCommand(adapter, cmd).catch((err) => {
-          logger.error('Unhandled error in command handler', {
-            agentId,
-            channelId: row.id,
-            error: err instanceof Error ? err.message : String(err)
+        channelMessageHandler
+          .runWhenResumed(async () => {
+            await trackChatId(cmd.chatId)
+            return channelMessageHandler.handleCommand(adapter, cmd)
           })
-          adapter
-            .sendMessage(cmd.chatId, '⚠️ An error occurred while processing the command. Please try again later.')
-            .catch(() => {})
-        })
+          .catch((err) => {
+            logger.error('Unhandled error in command handler', {
+              agentId,
+              channelId: row.id,
+              error: err instanceof Error ? err.message : String(err)
+            })
+            adapter
+              .sendMessage(cmd.chatId, '⚠️ An error occurred while processing the command. Please try again later.')
+              .catch(() => {})
+          })
       })
 
       // Forward QR events to any pending waiters

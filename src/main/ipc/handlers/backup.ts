@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
@@ -8,6 +10,7 @@ import {
   BackupCancelledError,
   BackupFormatCompatibilityError,
   BackupMigrationCompatibilityError,
+  BackupQuiesceError,
   CeilingExceededError,
   DiskFullError,
   HardLinkUnsupportedError,
@@ -24,6 +27,9 @@ import {
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import {
+  BackupDiagnosticPathSchema,
+  type BackupExportSourceDiagnostic,
+  BackupExportSourceDiagnosticSchema,
   BackupFormatCompatibilityDiagnosticSchema,
   BackupMigrationCompatibilityDiagnosticSchema,
   type backupRequestSchemas
@@ -106,6 +112,67 @@ function ipcError(code: string, data?: unknown): IpcError {
   return new IpcError(code, IPC_MESSAGE[code], data)
 }
 
+function profileRelativePath(sourcePath: string): string | undefined {
+  const userDataPath = path.resolve(application.getPath('app.userdata'))
+  const relative = path.relative(userDataPath, path.resolve(sourcePath)).split(path.sep).join('/')
+  const parsed = BackupDiagnosticPathSchema.safeParse(relative)
+  return parsed.success ? parsed.data : undefined
+}
+
+function unportableDiagnosticPath(error: UnportableSourceError): string | undefined {
+  if (!error.sourceRoot) return undefined
+  const root = profileRelativePath(error.sourceRoot)
+  if (!root) return undefined
+  const parsed = BackupDiagnosticPathSchema.safeParse(`${root}/${error.relPath}`)
+  return parsed.success ? parsed.data : undefined
+}
+
+function limitDiagnostic(kind: string): BackupExportSourceDiagnostic {
+  const candidate = BackupExportSourceDiagnosticSchema.safeParse({
+    kind: 'limit-exceeded',
+    limit: kind
+  })
+  return candidate.success ? candidate.data : { kind: 'limit-exceeded', limit: 'unknown' }
+}
+
+function exportSourceIpcError(error: unknown): IpcError | undefined {
+  let diagnostic: BackupExportSourceDiagnostic | undefined
+  let message: string | undefined
+
+  if (error instanceof SourceDriftError) {
+    const sourcePath = profileRelativePath(error.sourcePath)
+    diagnostic = {
+      kind: 'source-changed',
+      ...(sourcePath ? { path: sourcePath } : {})
+    }
+    message = 'backup source changed during export'
+  } else if (error instanceof BackupQuiesceError) {
+    const phase = /^[a-z0-9-]{1,64}$/.test(error.phase) ? error.phase : 'unknown'
+    diagnostic = { kind: 'quiesce-timeout', phase }
+    message = 'backup export could not reach a sealed profile view'
+  } else if (error instanceof NonRegularSourceError) {
+    const sourcePath = profileRelativePath(error.sourcePath)
+    diagnostic = { kind: 'non-regular', ...(sourcePath ? { path: sourcePath } : {}) }
+    message = 'backup source contains a symlink or special file'
+  } else if (error instanceof UnportableSourceError) {
+    const sourcePath = unportableDiagnosticPath(error)
+    diagnostic = {
+      kind: 'unportable-path',
+      reason: error.reason,
+      ...(sourcePath ? { path: sourcePath } : {})
+    }
+    message = 'backup source path is not portable'
+  } else if (error instanceof CeilingExceededError) {
+    diagnostic = limitDiagnostic(error.kind)
+    message = 'backup source exceeds an export limit'
+  }
+
+  if (!diagnostic || !message) return undefined
+  const validated = BackupExportSourceDiagnosticSchema.parse(diagnostic)
+  logger.warn('Backup export source rejected', { diagnostic: validated, error })
+  return ipcError(backupErrorCodes.EXPORT_SOURCE, validated)
+}
+
 function toIpcError(error: unknown): unknown {
   if (error instanceof BackupBusyError) {
     return ipcError(backupErrorCodes.BUSY, { running: error.running })
@@ -176,14 +243,8 @@ function toIpcError(error: unknown): unknown {
   if (error instanceof InsufficientDiskSpaceError || error instanceof DiskFullError) {
     return ipcError(backupErrorCodes.STORAGE_UNAVAILABLE)
   }
-  if (
-    error instanceof SourceDriftError ||
-    error instanceof NonRegularSourceError ||
-    error instanceof UnportableSourceError ||
-    error instanceof CeilingExceededError
-  ) {
-    return ipcError(backupErrorCodes.EXPORT_SOURCE)
-  }
+  const exportSourceError = exportSourceIpcError(error)
+  if (exportSourceError) return exportSourceError
   if (error instanceof OutputPathExistsError || error instanceof HardLinkUnsupportedError) {
     return ipcError(backupErrorCodes.EXPORT_DESTINATION)
   }

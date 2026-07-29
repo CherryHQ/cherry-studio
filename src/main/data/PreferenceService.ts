@@ -196,7 +196,7 @@ type ResolvedPreferenceKey =
  */
 @Injectable('PreferenceService')
 @ServicePhase(Phase.BeforeReady)
-@DependsOn(['DbService'])
+@DependsOn(['DbService', 'ProfileWriteBarrierService'])
 export class PreferenceService extends BaseService {
   private windowSubscriptions = new Map<number, Set<string>>() // windowId -> Set<keys>
   private cache: PreferenceDefaultScopeType = DefaultPreferences.default
@@ -387,21 +387,23 @@ export class PreferenceService extends BaseService {
         return
       }
 
-      application
-        .get('DbService')
-        .getDb()
-        .update(preferenceTable)
-        .set({
-          value: value as any
-        })
-        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, cacheKey)))
-        .run()
+      await application.get('ProfileWriteBarrierService').runWrite(`preference:set:${cacheKey}`, async () => {
+        application
+          .get('DbService')
+          .getDb()
+          .update(preferenceTable)
+          .set({
+            value: value as any
+          })
+          .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, cacheKey)))
+          .run()
 
-      // Update memory cache immediately — safe after resolveKey + cache key check
-      ;(this.cache as Record<string, unknown>)[cacheKey] = value
+        // Update memory cache immediately — safe after resolveKey + cache key check
+        ;(this.cache as Record<string, unknown>)[cacheKey] = value
 
-      // Unified notification to both main and renderer processes
-      await this.notifyChange(key, value, oldValue)
+        // Unified notification to both main and renderer processes
+        await this.notifyChange(key, value, oldValue)
+      })
     } catch (error) {
       logger.error(`Failed to set preference ${key}:`, error as Error)
       throw error
@@ -472,16 +474,16 @@ export class PreferenceService extends BaseService {
       // Collect all changes for unified notification at the end
       const allChanges: Array<[string, unknown, unknown]> = []
 
-      // Handle BootConfig updates
+      // Collect BootConfig changes without mutating yet. A mixed batch enters
+      // the SQLite write barrier before either backing store is changed.
       let bootConfigKeyCount = 0
+      const bootConfigChanges: Array<[string, BootConfigKey, unknown, unknown]> = []
       for (const { key, value, route } of items) {
         if (route.store !== 'bootConfig') continue
         bootConfigKeyCount++
         const oldValue = bootConfigService.get(route.key)
         if (!isEqual(oldValue, value)) {
-          // TS cannot correlate UnifiedPreferenceType with BootConfigSchema via prefix stripping
-          bootConfigService.set(route.key, value as any)
-          allChanges.push([key, value, oldValue])
+          bootConfigChanges.push([key, route.key, value, oldValue])
         }
       }
 
@@ -508,38 +510,53 @@ export class PreferenceService extends BaseService {
         }
       }
 
-      // Write changed preference values to DB
-      if (Object.keys(actualUpdates).length > 0) {
-        application.get('DbService').withWriteTx((tx) => {
+      const actualUpdateCount = Object.keys(actualUpdates).length
+      const applyUpdates = async (): Promise<void> => {
+        for (const [key, bootConfigKey, value, oldValue] of bootConfigChanges) {
+          // TS cannot correlate UnifiedPreferenceType with BootConfigSchema via prefix stripping
+          bootConfigService.set(bootConfigKey, value as any)
+          allChanges.push([key, value, oldValue])
+        }
+
+        // Write changed preference values to DB
+        if (actualUpdateCount > 0) {
+          application.get('DbService').withWriteTx((tx) => {
+            for (const [key, value] of Object.entries(actualUpdates)) {
+              tx.update(preferenceTable)
+                .set({
+                  value
+                })
+                .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+                .run()
+            }
+          })
+
+          // Update memory cache for changed keys only
           for (const [key, value] of Object.entries(actualUpdates)) {
-            tx.update(preferenceTable)
-              .set({
-                value
-              })
-              .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
-              .run()
+            if (key in this.cache) {
+              ;(this.cache as Record<string, unknown>)[key] = value
+            }
           }
-        })
 
-        // Update memory cache for changed keys only
-        for (const [key, value] of Object.entries(actualUpdates)) {
-          if (key in this.cache) {
-            ;(this.cache as Record<string, unknown>)[key] = value
+          // Collect preference changes for notification
+          for (const [key, value] of Object.entries(actualUpdates)) {
+            allChanges.push([key, value, oldValues[key]])
           }
         }
 
-        // Collect preference changes for notification
-        for (const [key, value] of Object.entries(actualUpdates)) {
-          allChanges.push([key, value, oldValues[key]])
+        // Unified notification for all changes (BootConfig + Preference)
+        if (allChanges.length > 0) {
+          await Promise.all(allChanges.map(([key, value, oldValue]) => this.notifyChange(key, value, oldValue)))
         }
       }
 
-      // Unified notification for all changes (BootConfig + Preference)
-      if (allChanges.length > 0) {
-        await Promise.all(allChanges.map(([key, value, oldValue]) => this.notifyChange(key, value, oldValue)))
+      if (actualUpdateCount > 0) {
+        await application.get('ProfileWriteBarrierService').runWrite('preference:set-multiple', applyUpdates)
+      } else {
+        await applyUpdates()
       }
 
-      if (Object.keys(actualUpdates).length === 0 && bootConfigKeyCount === 0) {
+      if (actualUpdateCount === 0 && bootConfigKeyCount === 0) {
         logger.debug(`All ${Object.keys(updates).length} preference values unchanged, skipping batch update`)
       } else {
         logger.debug(

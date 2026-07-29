@@ -16,6 +16,7 @@ import { BACKUP_RESTORE_NOTICE_KEY } from '@renderer/utils/backupRestoreNotice'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type {
+  BackupExportSourceDiagnostic,
   BackupFormatCompatibilityDiagnostic,
   BackupMigrationCompatibilityDiagnostic
 } from '@shared/ipc/schemas/backup'
@@ -63,6 +64,10 @@ const DEGRADATION_KEYS: Record<PresentedDegradation['code'], string> = {
   'resource-nonportable': 'settings.data.backup_v2.outcome.degradation.resource_nonportable',
   'resource-limit': 'settings.data.backup_v2.outcome.degradation.resource_limit',
   'workspace-disconnected': 'settings.data.backup_v2.outcome.degradation.workspace_disconnected',
+  'external-reference': 'settings.data.backup_v2.outcome.degradation.external_reference',
+  'dangling-reference': 'settings.data.backup_v2.outcome.degradation.dangling_reference',
+  'cyclic-reference': 'settings.data.backup_v2.outcome.degradation.cyclic_reference',
+  'unclassified-reference': 'settings.data.backup_v2.outcome.degradation.unclassified_reference',
   unknown: 'settings.data.backup_v2.outcome.degradation.unknown'
 }
 
@@ -203,6 +208,88 @@ function compatibilityDiagnostic(
           ? isCount(value.missingMigrationCount) && isCount(value.firstExtraIndex)
           : isCount(value.firstDivergentIndex))
   return detailed ? (value as CompatibilityDiagnostic) : undefined
+}
+
+interface ExportSourceMessage {
+  readonly key: string
+  readonly path?: string
+}
+
+function isDiagnosticPath(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 1024) return false
+  if (value.startsWith('/') || value.includes('\\') || /^[a-zA-Z]:/.test(value)) return false
+  return value.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
+}
+
+function exportSourceDiagnostic(data: unknown): BackupExportSourceDiagnostic | undefined {
+  if (typeof data !== 'object' || data === null) return undefined
+  const value = data as Record<string, unknown>
+  if (value.path !== undefined && !isDiagnosticPath(value.path)) return undefined
+
+  switch (value.kind) {
+    case 'quiesce-timeout':
+      return typeof value.phase === 'string' && /^[a-z0-9-]{1,64}$/.test(value.phase)
+        ? (value as BackupExportSourceDiagnostic)
+        : undefined
+    case 'source-changed':
+    case 'non-regular':
+      return value.path === undefined || isDiagnosticPath(value.path)
+        ? (value as BackupExportSourceDiagnostic)
+        : undefined
+    case 'unportable-path':
+      return value.reason === 'invalid-path' || value.reason === 'name-collision'
+        ? (value as BackupExportSourceDiagnostic)
+        : undefined
+    case 'limit-exceeded':
+      return ['entry-count', 'resource-entries', 'entry-bytes', 'total-bytes', 'manifest-bytes', 'unknown'].includes(
+        String(value.limit)
+      )
+        ? (value as BackupExportSourceDiagnostic)
+        : undefined
+    default:
+      return undefined
+  }
+}
+
+function exportSourceMessage(data: unknown): ExportSourceMessage {
+  const diagnostic = exportSourceDiagnostic(data)
+  if (!diagnostic) return { key: 'settings.data.backup_v2.error.export_source' }
+
+  switch (diagnostic.kind) {
+    case 'quiesce-timeout':
+      return { key: 'settings.data.backup_v2.error.export_quiesce' }
+    case 'source-changed':
+      return diagnostic.path
+        ? { key: 'settings.data.backup_v2.error.export_source_changed_path', path: diagnostic.path }
+        : { key: 'settings.data.backup_v2.error.export_source_changed' }
+    case 'non-regular':
+      return diagnostic.path
+        ? { key: 'settings.data.backup_v2.error.export_source_non_regular_path', path: diagnostic.path }
+        : { key: 'settings.data.backup_v2.error.export_source_non_regular' }
+    case 'unportable-path':
+      if (diagnostic.reason === 'name-collision') {
+        return diagnostic.path
+          ? { key: 'settings.data.backup_v2.error.export_source_collision_path', path: diagnostic.path }
+          : { key: 'settings.data.backup_v2.error.export_source_collision' }
+      }
+      return diagnostic.path
+        ? { key: 'settings.data.backup_v2.error.export_source_unportable_path', path: diagnostic.path }
+        : { key: 'settings.data.backup_v2.error.export_source_unportable' }
+    case 'limit-exceeded':
+      switch (diagnostic.limit) {
+        case 'entry-count':
+        case 'resource-entries':
+          return { key: 'settings.data.backup_v2.error.export_source_limit_count' }
+        case 'entry-bytes':
+          return { key: 'settings.data.backup_v2.error.export_source_limit_entry' }
+        case 'total-bytes':
+          return { key: 'settings.data.backup_v2.error.export_source_limit_total' }
+        case 'manifest-bytes':
+          return { key: 'settings.data.backup_v2.error.export_source_limit_manifest' }
+        case 'unknown':
+          return { key: 'settings.data.backup_v2.error.export_source_limit' }
+      }
+  }
 }
 
 const CompatibilityDetails: FC<{
@@ -389,8 +476,10 @@ const BackupV2Settings: FC = () => {
           return toast.error(t('settings.data.backup_v2.error.recovery_incomplete'))
         case backupErrorCodes.STORAGE_UNAVAILABLE:
           return toast.error(t('settings.data.backup_v2.error.storage_unavailable'))
-        case backupErrorCodes.EXPORT_SOURCE:
-          return toast.error(t('settings.data.backup_v2.error.export_source'))
+        case backupErrorCodes.EXPORT_SOURCE: {
+          const message = exportSourceMessage(error.data)
+          return toast.error(message.path ? t(message.key, { path: message.path }) : t(message.key))
+        }
         case backupErrorCodes.EXPORT_DESTINATION:
           return toast.error(t('settings.data.backup_v2.error.export_destination'))
         case backupErrorCodes.RESTORE_RESOURCES:

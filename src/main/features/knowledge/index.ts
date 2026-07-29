@@ -1,4 +1,5 @@
 // Runtime service API.
+export { isKnowledgeCaptureExcluded } from './capturePolicy'
 export { KnowledgeService } from './KnowledgeService'
 export { KnowledgeVectorStoreService } from './vectorstore/KnowledgeVectorStoreService'
 

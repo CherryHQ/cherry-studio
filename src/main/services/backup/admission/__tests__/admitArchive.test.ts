@@ -136,6 +136,13 @@ describe('admitArchive', () => {
       expect(existsSync(r.stagedPath)).toBe(true)
       expect(r.stagedPath.startsWith(admitted.stagingDir)).toBe(true)
     }
+    if (process.platform !== 'win32') {
+      expect((await stat(admitted.stagingDir)).mode & 0o777).toBe(0o700)
+      const directory = admitted.resources.find((resource) => resource.resourceType === 'directory')
+      expect(directory).toBeDefined()
+      expect((await stat(directory!.stagedPath)).mode & 0o777).toBe(0o700)
+      expect((await stat(path.join(directory!.stagedPath, 'a.txt'))).mode & 0o777).toBe(0o600)
+    }
     await admitted.cleanup()
   })
 

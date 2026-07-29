@@ -17,6 +17,7 @@ import { BaseService } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { MockMainProfileWriteBarrierServiceUtils } from '@test-mocks/main/ProfileWriteBarrierService'
 import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,6 +37,7 @@ describe('FileManager v2 IPC handler registration', () => {
 
   beforeEach(async () => {
     MockMainDbServiceUtils.setDb(dbh.db)
+    MockMainProfileWriteBarrierServiceUtils.resetMocks()
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-ipc-v2-'))
     internalRoot = path.join(tmp, 'files-internal')
     await mkdir(internalRoot, { recursive: true })
@@ -240,6 +242,10 @@ describe('FileManager v2 IPC handler registration', () => {
       .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDelete)?.[1]
     await expect(deleteHandler!({} as never, { kind: 'path', path: orphan })).resolves.toBeUndefined()
     await expect(access(orphan)).rejects.toThrow()
+    expect(application.get('ProfileWriteBarrierService').runWrite).toHaveBeenCalledWith(
+      'file-manager:path-permanent-delete',
+      expect.any(Function)
+    )
   })
 
   it('permanentDelete rejects malformed handles at the schema boundary', async () => {
