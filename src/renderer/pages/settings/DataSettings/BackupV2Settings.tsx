@@ -735,24 +735,18 @@ const AbortableAction: FC<{
  * purpose stated as an estimate: a file can still appear or vanish before the
  * restart that performs the restore, and the preboot state machine owns the
  * final answer.
+ *
+ * The `coverage` buckets (available / rebuildable / missing / unverifiable) are
+ * deliberately NOT shown: they are the pipeline's own taxonomy, and none of them
+ * changes what the user can do here — the decision in front of them is the whole
+ * archive, taken or not. Main still measures and journals them, so a support
+ * question is answered from the log rather than from the user's screen.
  */
 const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
   const { t } = useTranslation()
-  const { coverage } = preview
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3">
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.backup_v2.preview.coverage')}</SettingRowTitle>
-        <span>
-          {t('settings.data.backup_v2.preview.coverage_counts', {
-            available: coverage.available,
-            rebuildable: coverage.rebuildable,
-            missing: coverage.missing,
-            unverifiable: coverage.unverifiable
-          })}
-        </span>
-      </SettingRow>
       <SettingRow>
         <SettingRowTitle>{t('settings.data.backup_v2.preview.resources')}</SettingRowTitle>
         <span>
