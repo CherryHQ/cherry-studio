@@ -23,6 +23,7 @@ export default defineProvider({
   },
   overrides: [
     { modelId: 'claude-fable-5' },
+    { modelId: 'claude-opus-5' },
     { modelId: 'claude-opus-4-8' },
     { modelId: 'claude-opus-4-7' },
     { modelId: 'claude-opus-4-6' },

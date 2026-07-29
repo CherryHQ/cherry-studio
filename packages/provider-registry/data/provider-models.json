@@ -3856,6 +3856,10 @@
       "providerId": "claude-code"
     },
     {
+      "modelId": "claude-opus-5",
+      "providerId": "claude-code"
+    },
+    {
       "modelId": "claude-sonnet-4-5",
       "providerId": "claude-code"
     },
