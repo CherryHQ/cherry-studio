@@ -362,6 +362,7 @@ function FilterBar({ className, ref, ...props }: FilterBarProps) {
 type ItemProps<T extends ResourceListItemBase> = ComponentProps<'div'> & {
   item: T
   ref?: Ref<HTMLDivElement>
+  tooltip?: ReactNode
 }
 
 function Item<T extends ResourceListItemBase>({
@@ -374,6 +375,7 @@ function Item<T extends ResourceListItemBase>({
   onMouseEnter,
   onMouseLeave,
   tabIndex,
+  tooltip,
   ...props
 }: ItemProps<T>) {
   const actions = useResourceListActions()
@@ -381,7 +383,7 @@ function Item<T extends ResourceListItemBase>({
   const id = getItemId(item)
   const rowState = useResourceListRowState(id)
 
-  return (
+  const content = (
     <div
       ref={ref}
       id={elementId ?? getResourceListOptionDomId(id)}
@@ -422,6 +424,14 @@ function Item<T extends ResourceListItemBase>({
       }}
       {...props}
     />
+  )
+
+  if (!tooltip) return content
+
+  return (
+    <Tooltip content={tooltip} placement="right" sideOffset={4} delay={500} fullWidthTrigger>
+      {content}
+    </Tooltip>
   )
 }
 

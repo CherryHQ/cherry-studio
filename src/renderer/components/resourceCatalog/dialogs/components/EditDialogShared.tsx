@@ -52,10 +52,9 @@ const logger = loggerService.withContext('EditDialogShared')
 export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId'
 export type ModelLabels = Record<ModelLabelKey, string | null>
 
-export type EditDialogBaseProps<TResource> = {
+export type EditDialogBaseProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSaved: (resource: TResource) => Promise<void> | void
   modelFilter?: (model: Model) => boolean
   /** Leaf tab id to open on first render (e.g. `tools.mcp`, `tools.skills`); falls back to `basic`. */
   initialTab?: string

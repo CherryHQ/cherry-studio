@@ -9,7 +9,12 @@
  */
 
 import { application } from '@application'
-import type { EndpointType, ProtoModelConfig, ProtoProviderConfig } from '@cherrystudio/provider-registry'
+import {
+  ENDPOINT_TYPE,
+  type EndpointType,
+  type ProtoModelConfig,
+  type ProtoProviderConfig
+} from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
@@ -60,6 +65,17 @@ const V1_CUSTOM_PROVIDER_API_FEATURES_BASELINE = {
   streamOptions: true,
   developerRole: false
 } satisfies ApiFeatures
+
+function inferCherryInEndpointTypes(modelId: string): EndpointType[] {
+  const normalizedModelId = modelId.trim().toLowerCase()
+  if (normalizedModelId.startsWith('anthropic/')) {
+    return [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+  }
+  if (normalizedModelId.startsWith('google/')) {
+    return [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+  }
+  return [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+}
 
 const PROVIDER_MODEL_MIGRATION_ERROR_IDS = {
   prepare: 'provider_model_prepare_failed',
@@ -319,12 +335,14 @@ export class ProviderModelMigrator extends BaseMigrator {
     const presetProvider = this.resolveEffectivePresetProvider(providerRow)
     if (!presetProvider) return row
 
+    const endpointTypes =
+      row.endpointTypes ?? (presetProvider.id === 'cherryin' ? inferCherryInEndpointTypes(row.modelId) : null)
     const loader = this.getLoader()
     const registryOverride = loader.findOverride(presetProvider.id, row.modelId)
     const presetModel: ProtoModelConfig | null =
       loader.findModel(registryOverride?.modelId ?? row.modelId) ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
-    if (!presetModel) return row
+    if (!presetModel) return endpointTypes === row.endpointTypes ? row : { ...row, endpointTypes }
 
     const v1Model = V1_PROVIDER_MODEL_BASELINE.providers[presetProvider.id]?.models[row.modelId]
     const v1Row = v1Model
@@ -340,6 +358,8 @@ export class ProviderModelMigrator extends BaseMigrator {
       : null
     const hasExplicitCapabilitySelection =
       legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
+    const endpointTypesAreV1Delta = v1Row ? !isEqual(endpointTypes, v1Row.endpointTypes) : false
+    const endpointTypesNeedFallback = endpointTypes !== null && !isEqual(endpointTypes, registryOverride?.endpointTypes)
 
     return {
       ...row,
@@ -350,7 +370,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       capabilities: hasExplicitCapabilitySelection ? row.capabilities : null,
       inputModalities: null,
       outputModalities: null,
-      endpointTypes: v1Row && !isEqual(row.endpointTypes, v1Row.endpointTypes) ? row.endpointTypes : null,
+      endpointTypes: endpointTypesAreV1Delta || endpointTypesNeedFallback ? endpointTypes : null,
       contextWindow: null,
       maxInputTokens: null,
       maxOutputTokens: null,

@@ -293,7 +293,7 @@ const HistoryRow: FC<{
           e.stopPropagation()
           void handleStar()
         }}
-        aria-label={t('translate.history.filter.starred')}
+        aria-label={t('translate.history.star')}
         aria-pressed={!!item.star}
         className={cn(
           'absolute top-2 right-2',
@@ -376,7 +376,7 @@ const HistoryDetail: FC<{
             tone="star"
             active={!!item.star}
             onClick={() => void handleStar()}
-            aria-label={t('translate.history.filter.starred')}
+            aria-label={t('translate.history.star')}
             aria-pressed={!!item.star}>
             <Star size={11} className={cn(item.star && 'fill-amber-500')} />
           </IconButton>

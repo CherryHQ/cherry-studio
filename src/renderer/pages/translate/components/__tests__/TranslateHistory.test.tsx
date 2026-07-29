@@ -198,18 +198,46 @@ describe('TranslateHistory', () => {
 
     const row = screen.getByText('hello').closest('[role="button"]')
     expect(row).toBeTruthy()
-    const rowStarButton = within(row as HTMLElement).getByRole('button', { name: 'translate.history.filter.starred' })
+    const rowStarButton = within(row as HTMLElement).getByRole('button', { name: 'translate.history.star' })
     fireEvent.click(rowStarButton)
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledWith('1', { star: true }))
+  })
+
+  // The row star toggles that row's favourite state, so its name must stay the action's name
+  // (not the list filter's) and stay stable across states — the state itself is `aria-pressed`.
+  it('names the row star action after the favourite action and exposes its state via aria-pressed', () => {
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    const unstarredRow = screen.getByText('hello').closest('[role="button"]') as HTMLElement
+    expect(within(unstarredRow).getByRole('button', { name: 'translate.history.star' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+
+    const starredRow = screen.getByText('bye').closest('[role="button"]') as HTMLElement
+    expect(within(starredRow).getByRole('button', { name: 'translate.history.star' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
+
+  it('names the detail star action after the favourite action and exposes its state via aria-pressed', () => {
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('hello'))
+    expect(screen.getByRole('button', { name: 'translate.history.star' })).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(screen.getByText('translate.history.back'))
+    fireEvent.click(screen.getByText('bye'))
+    expect(screen.getByRole('button', { name: 'translate.history.star' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('supports star toggle inside detail panel', async () => {
     render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByText('hello'))
-    const detailButtons = screen.getAllByRole('button', { name: 'translate.history.filter.starred' })
-    fireEvent.click(detailButtons[detailButtons.length - 1])
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.star' }))
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledWith('1', { star: true }))
   })
@@ -221,7 +249,7 @@ describe('TranslateHistory', () => {
     const actionLabels = screen
       .getAllByRole('button')
       .map((button) => button.getAttribute('aria-label') ?? button.textContent)
-    const detailStarIndex = actionLabels.lastIndexOf('translate.history.filter.starred')
+    const detailStarIndex = actionLabels.indexOf('translate.history.star')
     expect(actionLabels.indexOf('translate.history.delete')).toBeLessThan(detailStarIndex)
     const copyTargetButton = screen.getByRole('button', { name: 'translate.history.copy_target' })
     expect(copyTargetButton).toHaveClass('text-primary-foreground')
@@ -334,7 +362,7 @@ describe('TranslateHistory', () => {
 
     render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
 
-    const filterButton = screen.getAllByRole('button', { name: 'translate.history.filter.starred' })[0]
+    const filterButton = screen.getByRole('button', { name: 'translate.history.filter.starred' })
     fireEvent.click(filterButton)
 
     // Filter button must stay so the user can cancel the empty starred view; otherwise they are trapped.

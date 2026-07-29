@@ -142,7 +142,7 @@ export function MessageVirtualList<T>({
     keepMountedKeys
   })
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
-  const { scrollToBottom, markUserInput, takeUserControl } = runtime
+  const { beginScrollbarDrag, endScrollbarDrag, scrollToBottom, markUserInput, takeUserControl } = runtime
   const { onWheel } = runtime.scrollerProps
   // Latch the captured node like TabRouter does: a background tab detaches the
   // ref (element === null) while its DOM node lives on, and clearing this state
@@ -178,7 +178,7 @@ export function MessageVirtualList<T>({
   // Direct interactions hand the user the viewport immediately, but only an
   // actual scroll signal seeds a scroll gesture. Keeping those concepts separate
   // prevents a click-triggered reflow from being mistaken for user scrolling,
-  // while pointer drags keep long scrollbar gestures live until scrollend.
+  // while native scrollbar drags stay live until the pointer is actually released.
   // Only drags that PRESSED inside the scroller count: a drag entering from
   // outside (text selection started in the composer) carries no scroll intent,
   // and marking it would let a concurrent virtua remeasure jump read as a user
@@ -189,7 +189,7 @@ export function MessageVirtualList<T>({
     const ownerDocument = scrollerElement.ownerDocument
     const onPointerDown = (event: PointerEvent) => {
       pointerDownInsideScrollerRef.current = true
-      if (event.target === scrollerElement) markUserInput()
+      if (event.target === scrollerElement) beginScrollbarDrag()
       takeUserControl(event.target instanceof Element ? event.target : null)
     }
     const onPointerMove = (event: PointerEvent) => {
@@ -199,6 +199,7 @@ export function MessageVirtualList<T>({
     // gesture flag resets at the document level.
     const onPointerEnd = () => {
       pointerDownInsideScrollerRef.current = false
+      endScrollbarDrag()
     }
     const onKeyDown = (event: KeyboardEvent) => {
       takeUserControl(event.target instanceof Element ? event.target : null)
@@ -216,7 +217,7 @@ export function MessageVirtualList<T>({
       ownerDocument.removeEventListener('pointercancel', onPointerEnd)
       scrollerElement.removeEventListener('keydown', onKeyDown)
     }
-  }, [markUserInput, scrollerElement, takeUserControl])
+  }, [beginScrollbarDrag, endScrollbarDrag, markUserInput, scrollerElement, takeUserControl])
 
   const handleScrollToBottom = useCallback(() => {
     scrollToBottom('smooth')
