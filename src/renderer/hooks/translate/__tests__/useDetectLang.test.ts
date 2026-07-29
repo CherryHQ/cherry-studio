@@ -87,6 +87,17 @@ describe('detectLanguageByLLM', () => {
     await expect(detectLanguageByLLM('Hello', [lang('en-us'), lang('zh-cn')], TEST_MODEL)).resolves.toBe('en-us')
   })
 
+  it('interpolates every prompt placeholder once and preserves replacement tokens in input', async () => {
+    const input = "$$E=mc^2$$ | $& | $` | $' | {{list_lang}}"
+
+    await expect(detectLanguageByLLM(input, [lang('en-us'), lang('zh-cn')], TEST_MODEL)).resolves.toBe('en-us')
+
+    const systemPrompt = generateTextMock.mock.lastCall?.[0].system
+    expect(systemPrompt).toContain('predefined list ["en-us","zh-cn"]')
+    expect(systemPrompt).toContain('not found in the ["en-us","zh-cn"] list')
+    expect(systemPrompt).toContain(`<text>\n${input}\n</text>`)
+  })
+
   it('throws when no model is supplied', async () => {
     await expect(detectLanguageByLLM('Hello', [lang('en-us')], undefined)).rejects.toThrow(/model/i)
   })
