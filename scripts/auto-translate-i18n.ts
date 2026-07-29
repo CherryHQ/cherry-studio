@@ -143,7 +143,6 @@ class ConcurrencyController {
 const concurrencyController = new ConcurrencyController(SCRIPT_CONFIG.MAX_CONCURRENT_TRANSLATIONS)
 
 const languageMap = {
-  'ar-ye': 'Arabic',
   'zh-cn': 'Simplified Chinese',
   'en-us': 'English',
   'ja-jp': 'Japanese',
@@ -155,7 +154,8 @@ const languageMap = {
   'pt-pt': 'Portuguese',
   'de-de': 'German',
   'ro-ro': 'Romanian',
-  'vi-vn': 'Vietnamese'
+  'vi-vn': 'Vietnamese',
+  'ar-ye': 'Arabic'
 }
 
 const PROMPT = `
