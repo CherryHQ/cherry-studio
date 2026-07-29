@@ -6803,6 +6803,15 @@
       "providers": "提供商",
       "registry": "包管理源",
       "registryDefault": "默认",
+      "registryOptions": {
+        "custom": "自定义",
+        "npmTaobao": "淘宝 NPM Mirror",
+        "pipAliyun": "阿里云",
+        "pipHuawei": "华为云",
+        "pipTencent": "腾讯云",
+        "pipTsinghua": "清华大学",
+        "pipUstc": "中国科学技术大学"
+      },
       "registryTooltip": "选择用于安装包的源，以解决默认源的网络问题",
       "requiresConfig": "需要配置",
       "resources": {

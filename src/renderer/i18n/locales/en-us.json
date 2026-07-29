@@ -6803,6 +6803,15 @@
       "providers": "Providers",
       "registry": "Package Registry",
       "registryDefault": "Default",
+      "registryOptions": {
+        "custom": "Custom",
+        "npmTaobao": "Taobao NPM Mirror",
+        "pipAliyun": "Aliyun",
+        "pipHuawei": "Huawei Cloud",
+        "pipTencent": "Tencent Cloud",
+        "pipTsinghua": "Tsinghua",
+        "pipUstc": "USTC"
+      },
       "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
       "requiresConfig": "Requires Configuration",
       "resources": {
