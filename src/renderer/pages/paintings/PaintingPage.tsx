@@ -62,7 +62,6 @@ const PaintingTemplateShowcaseStage: FC<PaintingTemplateShowcaseStageProps> = ({
 }
 
 const PaintingPage: FC = () => {
-  const { t } = useTranslation()
   const providerOptions = usePaintingProviderOptions()
   const { initialProviderId } = usePaintingInitialProvider(providerOptions)
 

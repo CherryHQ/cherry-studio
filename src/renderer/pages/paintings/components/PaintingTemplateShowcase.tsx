@@ -56,8 +56,8 @@ function getCyclicWindow(templates: readonly PaintingTemplatePreset[], activeInd
   const window: { preset: PaintingTemplatePreset; originalIndex: number }[] = []
 
   for (let offset = -half; offset <= half; offset++) {
-    const index = ((activeIndex + offset) % count + count) % count
-    window.push({ preset: templates[index]!, originalIndex: index })
+    const index = (((activeIndex + offset) % count) + count) % count
+    window.push({ preset: templates[index], originalIndex: index })
   }
 
   return window

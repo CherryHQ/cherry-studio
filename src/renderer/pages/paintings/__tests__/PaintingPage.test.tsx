@@ -42,7 +42,7 @@ vi.mock('../hooks/usePaintingTemplateCatalog', () => ({
 vi.mock('../components/Artboard', () => ({
   default: ({ painting }: { painting: { files: unknown[] } }) => {
     // Read files.length to simulate the real component's behavior and catch regressions
-    const _len = painting.files.length
+    void painting.files.length
     return <div data-testid="painting-artboard" />
   }
 }))
