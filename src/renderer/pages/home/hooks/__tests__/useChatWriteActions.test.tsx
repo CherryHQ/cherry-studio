@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { invalidateMessages, streamOpen } = vi.hoisted(() => ({
@@ -28,33 +28,43 @@ function makeCache() {
   return {
     branchWithoutIds: vi.fn((prev: unknown) => prev),
     seedOptimisticBranch: vi.fn(async () => {}),
+    seedReservedMessages: vi.fn(async () => {}),
     patchMessageInBranch: vi.fn(),
     rollbackBranch: vi.fn(async () => {}),
     clearBranchCache: vi.fn(async () => {}),
     deleteMessageTrigger: vi.fn(async () => ({ deletedIds: [] })),
     patchMessageTrigger: vi.fn(async () => {}),
     createSiblingTrigger: vi.fn(async () => ({})),
+    createMessageTrigger: vi.fn(async () => ({})),
     setActiveNodeTrigger: vi.fn(async () => ({})),
     clearTopicMessagesTrigger: vi.fn(async () => ({ deletedIds: [] }))
   } as unknown as Parameters<typeof useChatWriteActions>[0]['cache']
 }
 
-const uiMsg = (id: string, role: string, parentId: string | null): any => ({
+const uiMsg = (id: string, role: string, parentId: string | null, isContextBoundary = false): any => ({
   id,
   role,
-  parts: [],
+  parts: isContextBoundary ? [{ type: 'data-clear', data: {} }] : [],
   metadata: { parentId }
 })
 
-function renderActions(rootId: string | null, uiMessages: ReturnType<typeof uiMsg>[], cache = makeCache()) {
+function renderActions(
+  rootId: string | null,
+  uiMessages: ReturnType<typeof uiMsg>[],
+  cache = makeCache(),
+  activeNodeId = uiMessages.at(-1)?.id ?? null,
+  startNewContextBlocked = false
+) {
   const captureLocalSendScrollEligibility = vi.fn()
   const onLocalSendStarted = vi.fn()
+  const scrollToBottom = vi.fn()
   const regenerate = vi.fn(async () => {})
   const setMessages = vi.fn()
   const { result } = renderHook(() =>
     useChatWriteActions({
       topic: { id: 't1' } as Topic,
       uiMessages,
+      activeNodeId,
       rootId,
       regenerate,
       setMessages,
@@ -63,17 +73,193 @@ function renderActions(rootId: string | null, uiMessages: ReturnType<typeof uiMs
       cache,
       seedReservedMessages: vi.fn(async () => {}),
       captureLocalSendScrollEligibility,
-      onLocalSendStarted
+      onLocalSendStarted,
+      scrollToBottom,
+      startNewContextBlocked
     })
   )
   return {
     actions: result.current.actions,
+    result,
     cache,
     captureLocalSendScrollEligibility,
     onLocalSendStarted,
+    scrollToBottom,
     regenerate
   }
 }
+
+function clearMessage() {
+  return {
+    id: 'clear-1',
+    topicId: 't1',
+    parentId: 'u1',
+    role: 'user',
+    data: { parts: [{ type: 'data-clear', data: {} }] },
+    searchableText: '',
+    status: 'success',
+    siblingsGroupId: 0,
+    modelId: null,
+    messageSnapshot: null,
+    stats: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  }
+}
+
+describe('useChatWriteActions — clear context', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('does nothing when the topic has no active message', async () => {
+    const { actions, cache, scrollToBottom } = renderActions('vroot', [], makeCache(), null)
+
+    expect(actions.canStartNewContext).toBe(false)
+    await actions.startNewContext()
+
+    expect(cache.createMessageTrigger).not.toHaveBeenCalled()
+    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+    expect(scrollToBottom).not.toHaveBeenCalled()
+  })
+
+  it('creates a clear marker under the active message without publishing it as a streaming live node', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createMessageTrigger).mockResolvedValueOnce(clearMessage() as never)
+    const seedReservedMessages = vi.fn(async () => {})
+    const scrollToBottom = vi.fn()
+    const { result } = renderHook(() =>
+      useChatWriteActions({
+        topic: { id: 't1' } as Topic,
+        uiMessages: [uiMsg('u1', 'user', 'vroot')],
+        activeNodeId: 'u1',
+        rootId: 'vroot',
+        regenerate: vi.fn(async () => {}),
+        setMessages: vi.fn(),
+        stop: vi.fn(async () => {}),
+        refresh: vi.fn(async () => []),
+        cache,
+        seedReservedMessages,
+        captureLocalSendScrollEligibility: vi.fn(),
+        onLocalSendStarted: vi.fn(),
+        scrollToBottom,
+        startNewContextBlocked: false
+      })
+    )
+
+    await act(async () => {
+      await result.current.actions.startNewContext()
+    })
+
+    expect(cache.createMessageTrigger).toHaveBeenCalledWith({
+      params: { topicId: 't1' },
+      body: {
+        parentId: 'u1',
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'data-clear', data: {} }] }
+      }
+    })
+    expect(cache.seedReservedMessages).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 'clear-1',
+        role: 'user',
+        parts: [{ type: 'data-clear', data: {} }],
+        metadata: expect.objectContaining({ parentId: 'u1', status: 'success' })
+      })
+    ])
+    expect(seedReservedMessages).not.toHaveBeenCalled()
+    expect(scrollToBottom).toHaveBeenCalledOnce()
+  })
+
+  it('does not start while the shared write gate is blocked', async () => {
+    const { actions, cache } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], makeCache(), 'u1', true)
+
+    expect(actions.canStartNewContext).toBe(false)
+    await act(async () => {
+      await actions.startNewContext()
+    })
+
+    expect(cache.createMessageTrigger).not.toHaveBeenCalled()
+    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+  })
+
+  it('removes the active clear marker without cascading and rolls the cache forward immediately', async () => {
+    const { actions, cache, scrollToBottom } = renderActions('vroot', [
+      uiMsg('u1', 'user', 'vroot'),
+      uiMsg('clear-1', 'user', 'u1', true)
+    ])
+
+    await act(async () => {
+      await actions.startNewContext()
+    })
+
+    expect(cache.seedOptimisticBranch).toHaveBeenCalledOnce()
+    expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({
+      params: { id: 'clear-1' },
+      query: { cascade: false }
+    })
+    expect(scrollToBottom).toHaveBeenCalledOnce()
+  })
+
+  it('rolls back a failed create and leaves the viewport unchanged', async () => {
+    const cache = makeCache()
+    const error = new Error('create failed')
+    vi.mocked(cache.createMessageTrigger).mockRejectedValueOnce(error)
+    const { actions, scrollToBottom } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], cache)
+
+    await act(async () => {
+      await expect(actions.startNewContext()).rejects.toBe(error)
+    })
+
+    expect(cache.rollbackBranch).toHaveBeenCalledOnce()
+    expect(scrollToBottom).not.toHaveBeenCalled()
+  })
+
+  it('rolls back a failed undo', async () => {
+    const cache = makeCache()
+    const error = new Error('delete failed')
+    vi.mocked(cache.deleteMessageTrigger).mockRejectedValueOnce(error)
+    const { actions } = renderActions(
+      'vroot',
+      [uiMsg('u1', 'user', 'vroot'), uiMsg('clear-1', 'user', 'u1', true)],
+      cache
+    )
+
+    await act(async () => {
+      await expect(actions.startNewContext()).rejects.toBe(error)
+    })
+
+    expect(cache.rollbackBranch).toHaveBeenCalledOnce()
+  })
+
+  it('shares one in-flight operation across repeated clicks', async () => {
+    const cache = makeCache()
+    let resolveCreate!: (value: ReturnType<typeof clearMessage>) => void
+    vi.mocked(cache.createMessageTrigger).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve as typeof resolveCreate
+        }) as never
+    )
+    const { actions, result } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], cache)
+
+    expect(result.current.actions.canStartNewContext).toBe(true)
+    let first!: Promise<void>
+    act(() => {
+      first = actions.startNewContext()
+    })
+    const second = actions.startNewContext()
+
+    expect(first).toBe(second)
+    expect(cache.createMessageTrigger).toHaveBeenCalledOnce()
+    expect(result.current.actions.canStartNewContext).toBe(false)
+
+    await act(async () => {
+      resolveCreate(clearMessage())
+      await first
+    })
+    expect(result.current.actions.canStartNewContext).toBe(true)
+  })
+})
 
 describe('useChatWriteActions — first-turn delete', () => {
   beforeEach(() => vi.clearAllMocks())

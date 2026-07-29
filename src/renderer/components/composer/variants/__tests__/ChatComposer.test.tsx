@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   getDraft: vi.fn(),
   reconcileTokens: vi.fn(),
   commandHandlers: new Map<string, () => void>(),
+  commandOptions: new Map<string, { enabled?: boolean }>(),
   eventListeners: new Map<string, (payload: unknown) => void>(),
   eventEmit: vi.fn(),
   eventOn: vi.fn(),
@@ -47,6 +48,7 @@ const mocks = vi.hoisted(() => ({
   selectedModel: undefined as Model | undefined,
   modelSelectorProps: [] as any[],
   topicPending: false,
+  awaitingApproval: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   toolLaunchers: [] as any[],
@@ -447,7 +449,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
-  useChatWrite: () => mocks.chatWrite ?? { pause: vi.fn() }
+  useChatWrite: () => mocks.chatWrite ?? { pause: vi.fn(), startNewContext: vi.fn() }
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -484,9 +486,14 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
-  useCommandHandler: (command: string, handler: () => void) => {
+  useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
     mocks.commandHandlers.set(command, handler)
+    mocks.commandOptions.set(command, options ?? {})
   }
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useIsActiveTab: () => true
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -501,7 +508,7 @@ vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicAwaitingApproval: () => false,
+  useTopicAwaitingApproval: () => mocks.awaitingApproval,
   useTopicStreamStatus: () => ({ isPending: mocks.topicPending, isFulfilled: false, markSeen: () => {} })
 }))
 
@@ -669,6 +676,7 @@ describe('ChatComposer', () => {
       })
     })
     mocks.commandHandlers.clear()
+    mocks.commandOptions.clear()
     mocks.eventListeners.clear()
     mocks.eventEmit.mockReset()
     mocks.eventOn.mockReset()
@@ -695,6 +703,7 @@ describe('ChatComposer', () => {
     mocks.selectedModel = undefined
     mocks.modelSelectorProps = []
     mocks.topicPending = false
+    mocks.awaitingApproval = false
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.toolLaunchers = []
@@ -927,6 +936,163 @@ describe('ChatComposer', () => {
 
     fireEvent.click(mcpButton)
     expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
+  })
+
+  it('keeps clear context hidden by default but available in the QuickPanel and toolbar customization', () => {
+    const startNewContext = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), startNewContext }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const leftControls = screen.getByTestId('composer-left-controls')
+    expect(within(leftControls).queryByRole('button', { name: 'chat.input.new.context' })).not.toBeInTheDocument()
+    expect(mocks.commandOptions.get('chat.context.toggle_new')).toEqual({ enabled: true })
+
+    const clearContextQuickPanelItem = mocks.surfaceProps?.rootPanelAdditionalItems?.find(
+      (item) => item.id === 'composer:clear-context'
+    )
+    expect(clearContextQuickPanelItem).toMatchObject({
+      label: 'chat.input.new.context',
+      disabled: false,
+      searchAliases: ['clear context']
+    })
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual([
+      'composer:customize-toolbar',
+      'composer:clear-context'
+    ])
+
+    act(() => {
+      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+    })
+
+    const clearContextSwitch = screen.getByRole('switch', { name: 'chat.input.new.context' })
+    expect(clearContextSwitch).not.toBeChecked()
+    expect(clearContextSwitch).toBeEnabled()
+  })
+
+  it('runs clear context from the QuickPanel while the toolbar button is hidden', async () => {
+    const startNewContext = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), startNewContext }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const clearContextQuickPanelItem = mocks.surfaceProps?.rootPanelAdditionalItems?.find(
+      (item) => item.id === 'composer:clear-context'
+    )
+    act(() => {
+      clearContextQuickPanelItem?.action?.({} as any)
+    })
+
+    await waitFor(() => expect(startNewContext).toHaveBeenCalledOnce())
+    expect(mocks.focusComposer).toHaveBeenCalledWith('end')
+  })
+
+  it('runs clear context from the toolbar when the user pins it without changing the draft', async () => {
+    const startNewContext = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), startNewContext }
+    mocks.pinnedToolIds = ['composer:new-conversation', 'composer:clear-context', 'thinking', 'web-search']
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const clearContextButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
+      name: 'chat.input.new.context'
+    })
+    expect(clearContextButton.querySelector('.lucide-eraser')).toBeInTheDocument()
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual(['composer:customize-toolbar'])
+    const draftBefore = mocks.surfaceProps?.text
+
+    fireEvent.click(clearContextButton)
+
+    await waitFor(() => expect(startNewContext).toHaveBeenCalledOnce())
+    expect(mocks.focusComposer).toHaveBeenCalledWith('end')
+    expect(mocks.surfaceProps?.text).toBe(draftBefore)
+  })
+
+  it('runs clear context before a model is configured', async () => {
+    const startNewContext = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), startNewContext }
+    mocks.pinnedToolIds = ['composer:clear-context']
+    mocks.model = undefined
+    mocks.modelMissing = true
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    fireEvent.click(
+      within(screen.getByTestId('composer-left-controls')).getByRole('button', {
+        name: 'chat.input.new.context'
+      })
+    )
+
+    await waitFor(() => expect(startNewContext).toHaveBeenCalledOnce())
+    expect(toast.error).not.toHaveBeenCalledWith('code.model_required')
+  })
+
+  it.each([
+    ['streaming', true, false],
+    ['awaiting approval', false, true]
+  ])('disables clear context while %s', (_label, pending, awaitingApproval) => {
+    const startNewContext = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), startNewContext }
+    mocks.pinnedToolIds = ['composer:clear-context']
+    mocks.topicPending = pending
+    mocks.awaitingApproval = awaitingApproval
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const clearContextButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
+      name: 'chat.input.new.context'
+    })
+    expect(clearContextButton).toBeDisabled()
+    expect(mocks.commandOptions.get('chat.context.toggle_new')).toEqual({ enabled: false })
+
+    fireEvent.click(clearContextButton)
+    expect(startNewContext).not.toHaveBeenCalled()
+  })
+
+  it('reflects a clear-context operation started outside the composer', () => {
+    const startNewContext = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), startNewContext, canStartNewContext: false }
+    mocks.pinnedToolIds = ['composer:clear-context']
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const clearContextButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
+      name: 'chat.input.new.context'
+    })
+    expect(clearContextButton).toBeDisabled()
+    expect(mocks.commandOptions.get('chat.context.toggle_new')).toEqual({ enabled: false })
+  })
+
+  it('keeps clear context disabled until its write finishes', async () => {
+    const deferred = createDeferred<void>()
+    const startNewContext = vi.fn(() => deferred.promise)
+    mocks.chatWrite = { pause: vi.fn(), startNewContext }
+    mocks.pinnedToolIds = ['composer:clear-context']
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const clearContextButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
+      name: 'chat.input.new.context'
+    })
+    fireEvent.click(clearContextButton)
+
+    await waitFor(() => expect(clearContextButton).toBeDisabled())
+    expect(mocks.commandOptions.get('chat.context.toggle_new')).toEqual({ enabled: false })
+
+    await act(async () => deferred.resolve())
+    await waitFor(() => expect(clearContextButton).toBeEnabled())
+  })
+
+  it('runs clear context from Cmd/Ctrl+K command registration', async () => {
+    const startNewContext = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), startNewContext }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => mocks.commandHandlers.get('chat.context.toggle_new')?.())
+
+    await waitFor(() => expect(startNewContext).toHaveBeenCalledOnce())
+    expect(mocks.focusComposer).toHaveBeenCalledWith('end')
   })
 
   it('keeps the home composer narrow even when chat wide layout is enabled', () => {
@@ -1280,7 +1446,7 @@ describe('ChatComposer', () => {
     expect(newConversationIcon).toHaveAttribute('height', '18')
     expect(newConversationIcon).toHaveAttribute('viewBox', '0 0 24 24')
     expect(newConversationIcon).toHaveAttribute('stroke', 'currentColor')
-    expect(newConversationIcon).toHaveAttribute('stroke-width', '2')
+    expect(newConversationIcon).toHaveAttribute('stroke-width', '1.8')
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
@@ -1326,9 +1492,7 @@ describe('ChatComposer', () => {
         name: 'chat.conversation.new'
       })
     ).not.toBeInTheDocument()
-    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([
-      expect.objectContaining({ id: 'composer:new-conversation' })
-    ])
+    expect(mocks.surfaceProps?.rootPanelLeadingItems?.map((item) => item.id)).toEqual(['composer:new-conversation'])
 
     act(() => {
       mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)

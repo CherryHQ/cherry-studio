@@ -191,7 +191,7 @@ src/main/ai/streamManager/
 │   └── SseListener.ts                 UIMessageChunk → SSE response (API server)
 │
 └── persistence/
-    ├── PersistenceBackend.ts          strategy interface + statsFromTerminal projection
+    ├── PersistenceBackend.ts          strategy interface + runtime-only stats input
     └── backends/
         ├── MessageServiceBackend.ts   finalize a SQLite pending placeholder
         ├── TemporaryChatBackend.ts    append to in-memory topic
@@ -267,7 +267,7 @@ interface PersistenceBackend {
     finalMessage?: CherryUIMessage
     status: 'success' | 'paused' | 'error'
     modelId?: UniqueModelId
-    stats?: MessageStats
+    runtimeStats?: MessageRuntimeStatsInput
   }): Promise<void>
   afterPersist?(finalMessage: CherryUIMessage): Promise<void>
 }
@@ -328,8 +328,6 @@ interface StreamExecution {
   loopPromise: Promise<void>     // awaited by onStop for graceful shutdown
 
   // Transport-side timings owned by the execution loop — chunk-shape-agnostic.
-  // Semantic timings (firstTextAt / reasoning*) live on the listener
-  // that cares; see "Stats composition" below.
   timings: TransportTimings
 
   // OTel root span set as active context around runExecutionLoop so
@@ -342,11 +340,6 @@ interface TransportTimings {
   completedAt?: number         // execution loop exit (both try and catch paths)
 }
 
-interface SemanticTimings {
-  firstTextAt?: number           // first text-delta chunk (TTFT endpoint)
-  reasoningStartedAt?: number    // first reasoning-* chunk
-  reasoningEndedAt?: number      // first non-reasoning chunk after reasoning
-}
 ```
 
 Topic-level status is derived from executions, with `'pending'` as the
@@ -362,49 +355,45 @@ initial pre-first-chunk window:
 `pending → streaming` is a one-time transition (first chunk anywhere).
 The terminal status is derived once when the last execution terminates.
 
-### Stats composition — tokens + timings → MessageStats
+### Runtime timing persistence
 
-**Ownership** (key invariant: manager does not peek at chunk payloads):
+**Ownership** (key invariant: persistence cannot write record-owned fields):
 
 | Source field | Owner | Collected at |
 |---|---|---|
-| `TransportTimings.startedAt` | `AiStreamManager` | `createAndLaunchExecution` |
-| `TransportTimings.completedAt` | `AiStreamManager` | `pipeStreamLoop`'s `broadcastCompletedAt` |
-| `SemanticTimings.firstTextAt` | `PersistenceListener` | own `onChunk`, first `text-delta` |
-| `SemanticTimings.reasoning*` | `PersistenceListener` | own `onChunk`, observing `reasoning-*` boundaries |
-| Token metadata | `agentLoop` usage observer | `finish` chunk projects AI SDK `LanguageModelUsage` → `CherryUIMessageMetadata` |
+| `MessageRuntimeTiming.startedAt/completedAt` | execution timing collector | execution start and terminal event |
+| tool spans | AI SDK tool hooks / Agent SDK hooks | exact tool execute interval |
+| approval spans | execution timing collector | request to approve, deny, abort, or error |
+| usage, cost, request count, provider performance | AI usage record projector | successful provider invocation insertion |
 
-The manager is chunk-shape-agnostic — multicast, reconnect, abort,
-steer queue/continuation, persistence-triggering, never "what is text /
-what is reasoning". AI SDK chunk type changes (vNext renames) only touch
-`PersistenceListener`; the manager stays stable.
-
-**Final projection.** The listener first terminalizes interrupted parts so
-their stabilized reasoning duration is available, then calls
-`statsFromTerminal(finalMessage, mergedTimings)`. It merges its
-`SemanticTimings` with `result.timings` (transport) before calling it:
+`AiStreamManager` creates and owns the timing collector for an execution.
+The context provider supplies `runtimeTimingSeed` when a continuation must
+resume persisted timing; the manager consumes that seed without loading chat
+or agent tables itself. The listener is chunk-shape-agnostic and carries only
+the collector snapshot to persistence:
 
 ```typescript
-// inside PersistenceListener
 const parts = finalizeInterruptedParts(finalMessage.parts, status)
 const finalMessageForPersistence = { ...finalMessage, parts }
-const mergedTimings = { ...result.timings, ...this.semanticTimings }
-const stats = statsFromTerminal(finalMessageForPersistence, mergedTimings)
-await this.opts.backend.persistAssistant({ finalMessage: finalMessageForPersistence, status, modelId, stats })
+await this.opts.backend.persistAssistant({
+  finalMessage: finalMessageForPersistence,
+  status,
+  modelId,
+  runtimeStats: result.runtimeTiming
+    ? { runtimeTiming: result.runtimeTiming }
+    : undefined
+})
 ```
 
-Projected `MessageStats` fields:
-
-| Field | Source |
-|---|---|
-| `totalTokens / promptTokens / completionTokens / thoughtsTokens` | `finalMessage.metadata.*` |
-| `timeFirstTokenMs` | `round(firstTextAt - startedAt)` |
-| `timeCompletionMs` | `round(completedAt - startedAt)` |
-| `timeThinkingMs` | Sum of stabilized `providerMetadata.cherry.thinkingMs` values from persisted reasoning parts; does not use the reasoning wall-clock, which can include interleaved tool execution |
-
-Backends never terminalize parts or derive stats themselves; they write the
-listener-normalized `finalMessage` and `input.stats`. One projection path, four
-backends, no duplication.
+New messages write only `runtimeTiming`; the legacy scalar
+`timeFirstTokenMs` / `timeCompletionMs` / `timeThinkingMs` fields are read
+only for historical rows without a runtime timeline. Backends never derive
+message stats themselves. Data-layer merge helpers accept only
+`MessageRuntimeStatsInput`, preserve the record-owned projection, and remove
+legacy scalar timing once a runtime timeline exists. Temporary chat append
+reads the current projection internally, and promotion only rebuilds it; no
+persistence path creates or repairs a usage record. See
+[AI Usage Records](./ai-usage-records.md).
 
 ## Public API
 
@@ -457,6 +446,12 @@ class AiStreamManager {
 
   // ── Inspection (read-only snapshot) ───────────────────────────────
   inspect(topicId: string): TopicSnapshot | undefined
+
+  // ── Write quiesce (backup restore) — see the dedicated section ────
+  get isWriteQuiesced(): boolean
+  pause(reason?: string): Disposable
+  drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }>
+  listActiveWork(): Array<{ id: string; summary: string }>
 }
 ```
 
@@ -539,6 +534,55 @@ unhandledRejection.
 | `signal.aborted` + `exec.status === 'aborted'` | `onExecutionPaused` | (Possibly partial) finalMessage persisted as `paused` |
 | `streamErrorText` (in-stream `error` chunk) | `onExecutionError` | Error part folded into finalMessage, persisted as `error` |
 | Pre-stream or broadcast throw | `onExecutionError` | Same — error part folded, persisted |
+
+## Write quiesce (pause / drainInFlight)
+
+Serves backup restore (#16849, same contract as JobManager's — see
+[job overview](../job-and-scheduler/overview.md#pause-and-drain-write-quiesce)): after
+the restore snapshot is staged, any main-side write to the old live DB fails the
+fingerprint re-check and wastes the whole restore attempt. Three AI-side writers carry
+the contract — `AiStreamManager`, `AgentSessionRuntimeService`, and channel intake
+(`ChannelManager` → `ChannelMessageHandler`) — each exposing
+`pause(reason?): Disposable` + `drainInFlight({ timeoutMs }) → { stragglerIds }`
+(empty = clean) + an advisory read-only `listActiveWork()`.
+
+Orchestration order (grandfather-free, per #16850) — the channel step MUST fully complete
+before the AI writers are paused:
+
+1. `ChannelManager.pause()` — gate new adapter messages/commands and immediately flush the
+   buffered debounce batches (never cancel: adapters ack at the transport layer on receipt,
+   so the in-memory buffer is the only copy).
+2. `await ChannelManager.drainInFlight()` — flush only *schedules* each batch's admission (its
+   `processIncoming` runs on the per-chat queue microtask), so `pause()` returning does NOT
+   mean the batches admitted. This await is the flush-to-admission barrier: it resolves once
+   every flushed batch passed agent-turn *admission* (not turn completion — the flushed turns
+   land in the AI in-flight set, covered from there by the AI drains).
+3. **only then** pause AI + JobManager (any order) → joint drain → verdict → snapshot.
+
+Why the barrier is load-bearing: if the AI writers are paused while a flushed batch is still
+between flush and `startAgentSessionRun`, the batch hits the closed AI gate and is rejected.
+Because the adapter already ACKed it, it cannot be recovered by aborting the restore. The
+channel-drain-before-AI-pause ordering is therefore a correctness precondition, not merely a
+performance optimization. On any drain timeout the orchestrator aborts the attempt (dispose
+all holds); the happy path never disposes — the holds stand until relaunch, and a lost hold
+fails closed.
+
+AiStreamManager specifics:
+
+| Rule | Detail |
+|---|---|
+| Gate = dispatch admission | Checked inside the `withDispatchLock` callback (post-mutex re-check), BEFORE `prepareDispatch` writes the user/pending-assistant rows. `dispatch()` returns `{ mode: 'blocked', reason: 'paused' }`; `startAgentSessionRun` throws. Unlike JobManager, the AI gate rejects by design — a new turn is an execution start, not data at rest. |
+| Steer continuations suppressed, not rejected | `startNextChatTurn` returns before consuming the steer queue and records the topic; the last hold's disposal re-kicks it. The `steer-continuation` trigger is exempt from the `dispatch()` gate (it only originates from the gated `startNextChatTurn`; a grandfathered launch is drained via `inFlightChatContinuations`). |
+| Not gated | `send()` / `startRuntimeTurn()` (a continuation past its upstream gate must reach them), `streamPrompt()` (renderer-driven callers are covered by the restore UI block; chunks-only prompt streams write nothing), and `AiService.embedMany` (never routes through this manager) — knowledge indexing keeps working while quiesced. |
+| Drain wait-set | Gate-admitted `dispatchStreamRequest` promises until `manager.send()` hands them off to the stream registry; this covers async `prepareDispatch` work such as agent-session `validateSession()`. Then executions of streams carrying a `persistence:*` listener — listener-derived, not lifecycle-derived: chunks-only prompt streams (API gateway, orphan translate) are excluded, while a translate-with-persist carries a `TranslationBackend` persistence listener and IS drained. Plus in-flight steer-continuation launches and `TopicNamingService.inFlightWrites()` — the summary renames are spawned detached (`void backend.afterPersist(...)`), so a loopPromise settles before their DB write lands; the registry closes that gap. The set can grow while draining (an admission opens a stream, a settling loop spawns a naming write, or a grandfathered continuation opens a stream), so the drain is a fixed point over promise identities, bounded by `timeoutMs`. |
+| Timeout | Never rejects; stragglers are not aborted (the orchestrator decides — see the job overview for why an abort would poison the snapshot). |
+
+`AgentSessionRuntimeService` gates its two autonomous turn starters (`startNextTurn` /
+`startContinuationTurn`) before they consume queue/roll state or write the assistant
+placeholder — suppressed starts stay queued (`isSessionBusy` holds) and are re-kicked on
+release; its drain awaits `inFlightTurnStarts` (a launch admitted pre-pause through its
+placeholder write + `startRuntimeTurn` handoff). See
+[agent-session-runtime.md](./agent-session-runtime.md#write-quiesce).
 
 ## Lifecycle strategy — chat vs prompt
 

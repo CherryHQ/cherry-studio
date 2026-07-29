@@ -11,6 +11,7 @@ import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import { v7 as uuidv7 } from 'uuid'
 
 import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
@@ -98,23 +99,24 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       parts: m.data.parts ?? []
     }))
 
+    const messageId = uuidv7()
     const listeners: StreamListener[] = [
       subscriber,
       new PersistenceListener({
         topicId: req.topicId,
         modelId: model.id,
-        backend: new TemporaryChatBackend({ topicId: req.topicId, modelId: model.id, messageSnapshot }),
+        backend: new TemporaryChatBackend({ topicId: req.topicId, messageId, modelId: model.id, messageSnapshot }),
         onPersistFailed: (error) =>
           void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
       })
     ]
 
-    // No pre-allocated `messageId`: AI SDK generates one for the UI; the service generates its own on append.
     const streamRequest: AiStreamRequest = {
       chatId: req.topicId,
       trigger: 'submit-message',
       assistantId,
       uniqueModelId: model.id,
+      messageId,
       messages: history,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
       reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined

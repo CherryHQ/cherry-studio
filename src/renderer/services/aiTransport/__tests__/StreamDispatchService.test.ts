@@ -1,3 +1,4 @@
+import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -107,6 +108,18 @@ describe('StreamDispatchService', () => {
     await flush()
 
     expect(toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
+  })
+
+  it('localizes paused dispatch failures from their reason', async () => {
+    streamOpen.mockResolvedValue({
+      mode: 'blocked',
+      reason: 'paused'
+    } satisfies AiStreamOpenResponse)
+
+    streamDispatchService.dispatch(TOPIC, req)
+    await flush()
+
+    expect(toast.error).toHaveBeenCalledWith(i18n.t('restore.messages_paused'))
   })
 
   it('unsubscribe stops further delivery', async () => {

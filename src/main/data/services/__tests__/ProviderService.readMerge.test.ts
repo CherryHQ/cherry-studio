@@ -29,7 +29,8 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
           },
           defaultChatEndpoint: 'openai-chat-completions',
-          apiFeatures: { serviceTier: false }
+          apiFeatures: { serviceTier: false },
+          reportedCostCurrency: 'USD'
         },
         {
           id: 'my-relay',
@@ -145,7 +146,7 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     })
   })
 
-  it('resolves apiFeatures and defaultChatEndpoint from the registry when the row stores no delta', async () => {
+  it('resolves registry-owned request metadata when the row stores no delta', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'cherryin',
       presetProviderId: 'cherryin',
@@ -158,6 +159,7 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     // Registry baseline over app defaults; nothing frozen in the row.
     expect(provider.apiFeatures.serviceTier).toBe(false)
     expect(provider.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(provider.reportedCostCurrency).toBe('USD')
   })
 
   it('persists apiFeatures as a delta: single-key PATCH merges, baseline echoes vanish', async () => {
