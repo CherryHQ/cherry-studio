@@ -275,20 +275,29 @@
   vertical-align: baseline;
 }
 
+/*
+ * Citation badge. Sized from a square (`min-width` == `height`) so one- and
+ * two-digit numbers both render as circles; only three digits or more widen
+ * into a pill, which `999px` keeps rounded (`50%` resolves per-axis and would
+ * squash it into an ellipse). `line-height: 1` is required: the shared rule
+ * above sets `line-height: 0`, which is harmless on an inline box but
+ * collapses a flex container to its padding.
+ */
 .markdown sup {
   top: -0.5em;
-  /*
-   * 999px, not 50%: the browser clamps it to half the shorter side, so a
-   * single digit stays circular while a two-digit number becomes a pill.
-   * `50%` resolves per-axis and turns any wider-than-tall badge into a
-   * squashed ellipse. Keep `display` inline — the shared rule above sets
-   * `line-height: 0`, which collapses the box to its padding the moment
-   * this becomes a flex or block container.
-   */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 1.7em;
+  height: 1.7em;
+  padding: 0 0.3em;
+  /* Separates back-to-back markers, e.g. a statement supported by two sources. */
+  margin: 0 0.15em;
+  line-height: 1;
   border-radius: 999px;
   background-color: var(--reference);
   color: var(--reference-foreground);
-  padding: 2px 5px;
   zoom: 0.8;
 }
 
