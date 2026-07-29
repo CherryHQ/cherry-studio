@@ -338,9 +338,10 @@ with:
 --link
 ```
 
-Foreground roles use solid providers so their resolved contrast is independent of the surface beneath them.
-`--link` is independent from `--primary` and uses the mode-aware product defaults `--cs-blue-600` in light mode
-and `--cs-blue-400` in dark mode.
+Foreground roles use solid providers so their resolved foreground color does not change with the surface beneath
+them. Contrast still depends on the foreground/background pair and must be validated on every supported surface.
+`--link` is independent from `--primary` and uses the mode-aware product defaults `--cs-blue-600` in light mode and
+`--cs-blue-400` in dark mode.
 
 The feedback intents are:
 

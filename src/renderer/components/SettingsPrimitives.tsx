@@ -65,7 +65,7 @@ export const SettingSubtitle = ({
 )
 
 export const SettingDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2.5 text-foreground-tertiary text-xs', className)} {...props} />
+  <div className={cn('mt-2.5 text-muted-foreground text-xs', className)} {...props} />
 )
 
 export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -84,7 +84,7 @@ export const SettingHelpTextRow = ({ className, ...props }: React.ComponentProps
 )
 
 export const SettingHelpText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('text-[11px] text-foreground-tertiary', className)} {...props} />
+  <div className={cn('text-[11px] text-muted-foreground', className)} {...props} />
 )
 
 export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (

@@ -185,6 +185,14 @@ describe('FileList', () => {
     expect(onSelect).toHaveBeenCalledWith(file.id)
   })
 
+  it('uses the selected border only for the checked checkbox state', () => {
+    render(<FileList {...fileListProps(null)} />)
+
+    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
+    expect(checkbox).toHaveClass('border-border', 'data-[state=checked]:border-border-selected')
+    expect(checkbox).not.toHaveClass('border-border-selected')
+  })
+
   it('opens files through the existing action', () => {
     const onOpen = vi.fn()
 
