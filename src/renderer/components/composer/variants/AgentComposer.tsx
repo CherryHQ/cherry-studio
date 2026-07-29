@@ -715,12 +715,12 @@ const AgentComposerInner = ({
   }, [model])
 
   const setText = useCallback(
-    (nextText: string, options: { persist?: boolean } = {}) => {
+    (nextText: string, options: { persist?: boolean; tokens?: readonly ComposerSerializedToken[] } = {}) => {
       clearTimeoutTimer('agentComposerSendMessage')
       textRef.current = nextText
       setTextState(nextText)
       if (options.persist ?? true) {
-        writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
+        writeAgentDraftCache(draftCacheKey, nextText, options.tokens ?? draftTokensRef.current)
       }
     },
     [clearTimeoutTimer, draftCacheKey]
@@ -769,9 +769,11 @@ const AgentComposerInner = ({
     (nextText: string) => {
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
-      setText(nextText)
+      // Controlled token sync updates text without firing onTokensChange, so this editor-originated
+      // path must persist the live token snapshot rather than the potentially stale draftTokensRef.
+      setText(nextText, { tokens: actionsRef.current.getDraft().tokens })
     },
-    [resetHistoryIndex, setText]
+    [actionsRef, resetHistoryIndex, setText]
   )
   const handleInputHistoryNavigate = useCallback(
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),

@@ -2703,16 +2703,19 @@ describe('AgentComposer', () => {
     const knowledgePrompt =
       'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
     const text = `${knowledgePrompt} ${pdfSkillToken.promptText} keep this`
-    act(() => {
-      mocks.surfaceProps?.onTextChange(text)
-      mocks.surfaceProps?.onTokensChange?.([
+    mocks.getDraft.mockReturnValue({
+      text,
+      tokens: [
         { ...knowledgeBaseToken(knowledgeBaseOne), promptText: knowledgePrompt },
         {
           ...pdfSkillToken,
           index: 1,
           textOffset: knowledgePrompt.length + 1
         }
-      ])
+      ]
+    })
+    act(() => {
+      mocks.surfaceProps?.onTextChange(text)
     })
 
     view.rerender(
