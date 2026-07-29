@@ -1,7 +1,12 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { application } from '@application'
-import { readRestoreJournalFormatVersion } from '@data/db/restore/restoreJournalV2'
+import {
+  readRestoreJournalFormatVersion,
+  readRestoreJournalV2,
+  type RestoreOwnerSummary
+} from '@data/db/restore/restoreJournalV2'
 import {
   isLiveDbStrandedV2,
   isRestoreRecoveryPendingV2,
@@ -49,7 +54,7 @@ export async function runBackupRestoreGate(): Promise<void> {
   }
 
   try {
-    await runRestorePromotionV2()
+    await runRestorePromotionV2({ legacyOwnerSummary: deriveLegacyRestoreOwnerSummary() })
   } catch (error) {
     logger.error('Restore promotion crashed unexpectedly — attempting last-resort recovery', error as Error)
     try {
@@ -64,6 +69,41 @@ export async function runBackupRestoreGate(): Promise<void> {
     }
     if (isRestoreRecoveryPendingV2()) {
       throw new Error('Restore recovery is incomplete — refusing to boot into a mixed restore state')
+    }
+  }
+}
+
+/**
+ * Compatibility-only projection for an active v2 journal written before owner
+ * readiness was sealed at preparation time.
+ *
+ * New writers never use this path. Keeping the inference in this backup-specific
+ * shell prevents the generic data promotion layer from learning Knowledge
+ * directory semantics while allowing an already-armed pre-release restore to
+ * finish.
+ */
+function deriveLegacyRestoreOwnerSummary(): RestoreOwnerSummary | undefined {
+  const read = readRestoreJournalV2()
+  if (read.kind !== 'ok' || read.journal.ownerSummary !== undefined) return undefined
+  if (read.journal.state !== 'armed' && read.journal.state !== 'promoting') return undefined
+
+  const userData = application.getPath('app.userdata')
+  const knowledgeRoot = path.resolve(application.getPath('feature.knowledgebase.data'))
+  const baseIds: string[] = []
+  const seen = new Set<string>()
+  for (const entry of read.journal.resourceInstalls) {
+    if (entry.resourceType !== 'directory') continue
+    const absolute = path.resolve(userData, ...entry.live.split('/'))
+    if (path.dirname(absolute) !== knowledgeRoot) continue
+    const baseId = path.basename(absolute)
+    if (seen.has(baseId)) continue
+    seen.add(baseId)
+    baseIds.push(baseId)
+  }
+  return {
+    knowledge: {
+      baseIds,
+      requiresRebuild: baseIds.length > 0
     }
   }
 }

@@ -216,6 +216,10 @@ interface JournalOverrides {
 
 function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
   const resourceInstalls = overrides.resourceInstalls ?? []
+  const knowledgeBaseIds = resourceInstalls.flatMap((entry) => {
+    const match = /^Data\/KnowledgeBase\/([^/]+)$/.exec(entry.live)
+    return entry.resourceType === 'directory' && match ? [match[1]] : []
+  })
   const base = {
     version: 2 as const,
     restoreId: RID,
@@ -226,7 +230,13 @@ function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
       aside: asideRel,
       chain: overrides.chain ?? chainOf(stagedPath())
     },
-    resourceInstalls
+    resourceInstalls,
+    ownerSummary: {
+      knowledge: {
+        baseIds: knowledgeBaseIds,
+        requiresRebuild: knowledgeBaseIds.length > 0
+      }
+    }
   }
   const state = overrides.state ?? 'armed'
   if (state === 'promoting') return { ...base, state, step: overrides.step ?? 'gate-passed' }
@@ -234,7 +244,7 @@ function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
     return { ...base, state, step: overrides.step ?? 'db-promoted', reason: 'integrity check failed' }
   }
   if (state === 'completed' || state === 'rollback-armed' || state === 'rolled-back') {
-    return { ...base, state, summary: { knowledgeBaseIds: [] } }
+    return { ...base, state }
   }
   return { ...base, state } as RestoreJournalV2
 }
@@ -242,6 +252,13 @@ function buildJournal(overrides: JournalOverrides = {}): RestoreJournalV2 {
 function journalState(): string {
   const read = readRestoreJournalV2()
   return read.kind === 'ok' ? read.journal.state : read.kind
+}
+
+function completedOwnerSummary(): Readonly<Record<string, unknown>> {
+  const read = readRestoreJournalV2()
+  if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error(`not completed: ${journalState()}`)
+  if (read.journal.ownerSummary === undefined) throw new Error('completed journal has no owner summary')
+  return read.journal.ownerSummary
 }
 
 /** Every file under `dir` as relative path → bytes, for byte-for-byte comparison. */
@@ -519,6 +536,34 @@ describe('restore promotion v2', () => {
   })
 
   describe('armed promotion', () => {
+    it('refuses a missing owner summary before any mutation when called without the preboot compatibility shell', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const { ownerSummary: _ownerSummary, ...legacyJournal } = buildJournal()
+      writeRestoreJournalV2(legacyJournal)
+
+      await expect(runRestorePromotionV2()).rejects.toThrow(/owner readiness summary is missing/)
+
+      expect(readMarker(livePath())).toBe('old')
+      expect(existsSync(stagedPath())).toBe(true)
+      expect(existsSync(asidePath())).toBe(false)
+    })
+
+    it('lets the preboot shell finish an already-armed pre-release journal through its compatibility projection', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const { ownerSummary: _ownerSummary, ...legacyJournal } = buildJournal()
+      writeRestoreJournalV2(legacyJournal)
+
+      await runBackupRestoreGate()
+
+      expect(journalState()).toBe('completed')
+      expect(readMarker(livePath())).toBe('new')
+      expect(completedOwnerSummary()).toEqual({
+        knowledge: { baseIds: [], requiresRebuild: false }
+      })
+    })
+
     it('replaces the live database and parks the previous one aside', async () => {
       makeDb(livePath(), 'old')
       makeStagedDb()
@@ -940,9 +985,9 @@ describe('restore promotion v2', () => {
     }
 
     function completedSummary(): string[] {
-      const read = readRestoreJournalV2()
-      if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error(`not completed: ${journalState()}`)
-      return [...read.journal.summary.knowledgeBaseIds]
+      const knowledge = completedOwnerSummary().knowledge as { baseIds?: unknown } | undefined
+      if (!Array.isArray(knowledge?.baseIds)) throw new Error('completed journal has no Knowledge owner summary')
+      return knowledge.baseIds.map(String)
     }
 
     it('installs the archive resources and records what it installed', async () => {
