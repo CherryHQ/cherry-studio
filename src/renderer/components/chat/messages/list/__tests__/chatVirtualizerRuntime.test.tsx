@@ -1907,6 +1907,65 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('keeps native scrollbar ownership while the held thumb reverses direction', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 1200
+      let naturalScrollHeight = 2000
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => {
+        const slack = Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')
+        return naturalScrollHeight + slack
+      })
+      runtime!.vlistHandleRef.current = createHandle()
+
+      act(() => {
+        runtime!.beginScrollbarDrag()
+        runtime!.takeUserControl()
+        scrollTop = 600
+        runtime!.scrollerProps.onScroll(600)
+      })
+
+      // Measuring the newly visited rows changes virtua's natural extent. It
+      // must not be converted into freeze slack while the thumb is held.
+      naturalScrollHeight = 1500
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')).toBe(0)
+
+      // virtua may report scroll-end during the pause before the user reverses.
+      act(() => runtime!.scrollerProps.onScrollEnd())
+      act(() => {
+        scrollTop = 900
+        runtime!.scrollerProps.onScroll(900)
+      })
+
+      expect(scrollTop).toBe(900)
+      expect(Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')).toBe(0)
+
+      act(() => runtime!.endScrollbarDrag())
+
+      // Once released, ordinary resting-position protection is active again.
+      naturalScrollHeight = 1400
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(runtime!.freezeSpacerRef.current).toHaveStyle({ height: '100px' })
+      expect(scrollTop).toBe(900)
+    } finally {
+      restoreResizeObserver()
+    }
+  })
+
   it('uses the interacted DOM element to survive reflow inside one virtual item', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)

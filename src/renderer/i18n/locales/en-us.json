@@ -6661,9 +6661,6 @@
           "dxtFile": "DXT Package File",
           "dxtHelp": "Select a .dxt file containing an MCP server package",
           "dxtProcessFailed": "Failed to process DXT file",
-          "error": {
-            "multipleServers": "Cannot import from multiple servers"
-          },
           "invalid": "Invalid input, please check JSON format",
           "json": "Import from JSON",
           "mcpb": "Import MCPB Bundle",
