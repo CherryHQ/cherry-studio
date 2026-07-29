@@ -18,6 +18,11 @@
  *   the archive could no longer prove which version it holds. That judgement
  *   lives in `sourceDrift.ts`; this module records the bounded exclusion and
  *   continues with other units.
+ * - **Present but not rebuildable** — the unit exists, yet lacks the source
+ *   material its own database rows declare, so the derived state the archive
+ *   excludes could never be reproduced on the target. Shipping it would be a
+ *   silent loss disguised as a payload, so the whole unit is degraded out with
+ *   `unrebuildable-content` (§5.4).
  *
  * A payload's `archivePath` is its `livePath` under `resources/`, so the archive
  * mirrors the layout it will be installed into and payload distinctness follows
@@ -50,6 +55,7 @@ import {
 } from '../manifest'
 import { validateResourcePathSet } from '../resourcePaths'
 import { stageDirectoryWithDriftCheck, stageFileWithDriftCheck } from '../sourceDrift'
+import type { UnitContentRequirement } from './adapters'
 
 const logger = loggerService.withContext('backupStageResources')
 
@@ -72,6 +78,12 @@ export interface StageResourcesInput {
   readonly resourcesDir: string
   /** Unit identities captured right after the database snapshot; staging is checked against them. */
   readonly baseline?: ResourceStageBaseline
+  /**
+   * Per-unit source material the database says the payload must carry, from
+   * `collectRequirements`. A unit that cannot supply it is excluded whole rather
+   * than shipped as content no device could rebuild — see the module header.
+   */
+  readonly requiredContent?: ReadonlyMap<string, UnitContentRequirement>
   readonly signal?: AbortSignal
 }
 
@@ -126,6 +138,19 @@ function inspectSource(sourcePath: string, requirement: ResourceRequirement): So
   return { kind: 'excluded', reason: 'type-mismatch-at-snapshot' }
 }
 
+/**
+ * Whether a scanned unit carries every file its database rows say it must, so a
+ * restoring device can rebuild the derived state the archive excludes (§5.4).
+ * A unit with nothing to declare passes; one whose declaration is unsatisfiable
+ * (`null`) never can.
+ */
+function carriesRequiredContent(scan: DirScanResult, required: UnitContentRequirement | undefined): boolean {
+  if (required === undefined) return true
+  if (required === null) return false
+  const present = new Set(scan.entries.map((entry) => entry.relPath))
+  return required.every((relPath) => present.has(relPath))
+}
+
 function assertRequirementSet(requirements: readonly ResourceRequirement[]): void {
   if (requirements.length > BACKUP_CEILINGS.maxResourceInstallEntries) {
     // Producing it would produce an archive no device could restore: the journal
@@ -152,7 +177,7 @@ function assertRequirementSet(requirements: readonly ResourceRequirement[]): voi
 export async function captureResourceStageBaseline(
   input: Omit<StageResourcesInput, 'resourcesDir' | 'baseline'>
 ): Promise<ResourceStageBaseline> {
-  const { requirements, userDataPath, signal } = input
+  const { requirements, userDataPath, requiredContent, signal } = input
   throwIfAborted(signal)
   assertRequirementSet(requirements)
 
@@ -206,6 +231,13 @@ export async function captureResourceStageBaseline(
         }
         throw error
       }
+      // The proof reuses THIS baseline's own scan rather than stat-ing the
+      // material again: a second pass would reopen the window between "proven"
+      // and "captured" that the baseline exists to close.
+      if (!carriesRequiredContent(scan, requiredContent?.get(requirement.livePath))) {
+        units.set(requirement.livePath, { kind: 'excluded', reason: 'unrebuildable-content' })
+        continue
+      }
       total += scan.totalBytes
       units.set(requirement.livePath, { kind: 'directory', scan })
     }
@@ -223,10 +255,11 @@ export async function measureResourceStageBytes(
 }
 
 export async function stageResources(input: StageResourcesInput): Promise<StagedResources> {
-  const { requirements, userDataPath, resourcesDir, signal } = input
+  const { requirements, userDataPath, resourcesDir, requiredContent, signal } = input
   throwIfAborted(signal)
   assertRequirementSet(requirements)
-  const baseline = input.baseline ?? (await captureResourceStageBaseline({ requirements, userDataPath, signal }))
+  const baseline =
+    input.baseline ?? (await captureResourceStageBaseline({ requirements, userDataPath, requiredContent, signal }))
 
   const payloads: ResourcePayload[] = []
   const degradations: BackupManifestDegradation[] = []

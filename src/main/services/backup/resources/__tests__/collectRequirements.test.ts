@@ -7,7 +7,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
 import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -74,6 +74,20 @@ describe('collectResourceRequirements', () => {
     dbh.db
       .insert(knowledgeBaseTable)
       .values({ id, name: id, status: 'completed', chunkSize: 512, chunkOverlap: 32 })
+      .run()
+  }
+
+  function insertItem(
+    baseId: string,
+    id: string,
+    type: 'file' | 'url' | 'note' | 'directory',
+    data: Record<string, unknown>,
+    groupId?: string,
+    status: 'completed' | 'idle' = 'completed'
+  ): void {
+    dbh.db
+      .insert(knowledgeItemTable)
+      .values({ id, baseId, type, data: data as never, status, ...(groupId ? { groupId } : {}) })
       .run()
   }
 
@@ -311,9 +325,80 @@ describe('collectResourceRequirements', () => {
     })
   })
 
+  describe('knowledge material a payload must carry', () => {
+    function materialsOf(baseId: string, inventory: ReturnType<typeof collect>) {
+      return inventory.requiredContent.get(`Data/KnowledgeBase/${baseId}`)
+    }
+
+    it('names the raw material of every completed leaf, indexed artifact first', () => {
+      insertKnowledgeBase('kb-1')
+      insertItem('kb-1', 'i-file', 'file', { source: 'a.pdf', relativePath: 'a.pdf' })
+      insertItem('kb-1', 'i-processed', 'file', {
+        source: 'b.docx',
+        relativePath: 'b.docx',
+        indexedRelativePath: 'b.md'
+      })
+      insertItem('kb-1', 'i-url', 'url', { source: 'https://x', url: 'https://x', relativePath: 'x.md' })
+      insertItem('kb-1', 'i-note', 'note', { source: 'n', content: 'n', relativePath: 'n.md' })
+
+      expect(materialsOf('kb-1', collect())?.slice().sort()).toEqual(['raw/a.pdf', 'raw/b.md', 'raw/n.md', 'raw/x.md'])
+    })
+
+    it('names a directory container child but not the container itself', () => {
+      insertKnowledgeBase('kb-2')
+      insertItem('kb-2', 'i-dir', 'directory', { source: '/tmp/docs', relativePath: 'docs' })
+      insertItem('kb-2', 'i-child', 'file', { source: '/tmp/docs/c.md', relativePath: 'docs/c.md' }, 'i-dir')
+
+      expect(materialsOf('kb-2', collect())).toEqual(['raw/docs/c.md'])
+    })
+
+    it('ignores leaves that were never indexed', () => {
+      insertKnowledgeBase('kb-3')
+      insertItem('kb-3', 'i-idle', 'file', { source: 'a.pdf', relativePath: 'a.pdf' }, undefined, 'idle')
+
+      expect(materialsOf('kb-3', collect())).toEqual([])
+    })
+
+    it('marks a base unprovable when a completed leaf names no material at all', () => {
+      // What a v1→v2 upgrade leaves behind: indexed content whose bytes were
+      // never copied under `raw/`, so no device could ever rebuild the index.
+      insertKnowledgeBase('kb-4')
+      insertItem('kb-4', 'i-file', 'file', { source: 'a.pdf', relativePath: 'a.pdf' })
+      insertItem('kb-4', 'i-virtual', 'url', { source: 'https://x', url: 'https://x' })
+
+      expect(materialsOf('kb-4', collect())).toBeNull()
+    })
+
+    it('survives an archive whose item payload is not even JSON', () => {
+      insertKnowledgeBase('kb-6')
+      insertItem('kb-6', 'i-ok', 'file', { source: 'a.pdf', relativePath: 'a.pdf' })
+      // A restoring device runs this over bytes an attacker chose; a parse
+      // failure must make the base unprovable, never abort the whole inventory.
+      dbh.sqlite
+        .prepare(
+          `INSERT INTO knowledge_item (id, base_id, type, data, status, created_at, updated_at)
+           VALUES ('i-broken', 'kb-6', 'file', 'not json', 'completed', 0, 0)`
+        )
+        .run()
+
+      const inventory = collect()
+
+      expect(materialsOf('kb-6', inventory)).toBeNull()
+      expect(livePathsOf('knowledge-base', inventory)).toEqual(['Data/KnowledgeBase/kb-6'])
+    })
+
+    it('declares the requirement only for kinds that ship their whole content elsewhere', () => {
+      insertKnowledgeBase('kb-5')
+      insertInternalFile('66666666-6666-4666-8666-666666666666', 'pdf')
+
+      expect([...collect().requiredContent.keys()]).toEqual(['Data/KnowledgeBase/kb-5'])
+    })
+  })
+
   it('never touches the filesystem to decide a requirement', async () => {
     insertInternalFile('55555555-5555-4555-8555-555555555555', 'pdf')
     insertKnowledgeBase('kb-probe')
+    insertItem('kb-probe', 'i-probe', 'file', { source: 'a.pdf', relativePath: 'a.pdf' })
     dbh.db.insert(noteTable).values({ id: 'n-probe', rootPath: ROOTS.notes, path: 'a.md', isStarred: true }).run()
 
     const dbPath = join(workDir, 'purity.sqlite')

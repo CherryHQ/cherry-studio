@@ -31,7 +31,8 @@ export const RESOURCE_DEGRADATION_REASONS = [
   'changed-after-snapshot',
   'non-regular-source',
   'unportable-source',
-  'resource-ceiling-exceeded'
+  'resource-ceiling-exceeded',
+  'unrebuildable-content'
 ] as const
 export type ResourceDegradationReason = (typeof RESOURCE_DEGRADATION_REASONS)[number]
 

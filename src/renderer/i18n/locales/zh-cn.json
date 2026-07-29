@@ -5928,7 +5928,7 @@
         },
         "preview": {
           "coverage": "该备份需要的文件",
-          "coverage_counts": "{{available}} 项可用，{{missing}} 项缺失，{{unverifiable}} 项在应用之外",
+          "coverage_counts": "{{available}} 项可用，{{rebuildable}} 项将在恢复后重建，{{missing}} 项缺失，{{unverifiable}} 项在应用之外",
           "degradations": "创建该备份时有 {{count}} 项未被包含。",
           "destructive": "恢复会替换当前数据库并重启应用。一旦确认保留，将无法撤销。",
           "migrated_forward": "该备份由较旧版本创建，已在准备阶段升级。",

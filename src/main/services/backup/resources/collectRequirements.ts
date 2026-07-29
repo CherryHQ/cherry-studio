@@ -17,7 +17,13 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 import type { ResourceRequirement } from '../manifest'
 import { currentBackupPlatform } from '../platform'
-import { BACKUP_RESOURCE_KINDS, type BackupResourceKind, RESOURCE_ADAPTERS, type ResourceRoots } from './adapters'
+import {
+  BACKUP_RESOURCE_KINDS,
+  type BackupResourceKind,
+  RESOURCE_ADAPTERS,
+  type ResourceRoots,
+  type UnitContentRequirement
+} from './adapters'
 
 const logger = loggerService.withContext('backupResourceInventory')
 
@@ -30,6 +36,12 @@ export interface ResourceInventory {
    * express. Counts only; see {@link AdapterInventory} for why no path is kept.
    */
   readonly unverifiableByKind: Readonly<Record<BackupResourceKind, number>>
+  /**
+   * Keyed by `livePath`, for the units that must prove they carry their own
+   * source material before the archive may ship them (§5.4). Derived from rows
+   * alone, like everything else here — the proof itself belongs to staging.
+   */
+  readonly requiredContent: ReadonlyMap<string, UnitContentRequirement>
 }
 
 export interface CollectRequirementsInput {
@@ -82,6 +94,7 @@ export function collectResourceRequirementsFrom(
     }
 
     const requirements: ResourceRequirement[] = []
+    const requiredContent = new Map<string, UnitContentRequirement>()
     const seen = new Set<string>()
     const unverifiableByKind = Object.fromEntries(BACKUP_RESOURCE_KINDS.map((kind) => [kind, 0])) as Record<
       BackupResourceKind,
@@ -97,6 +110,8 @@ export function collectResourceRequirementsFrom(
         if (seen.has(requirement.livePath)) continue
         seen.add(requirement.livePath)
         requirements.push(requirement)
+        const content = inventory.requiredContent?.get(requirement.livePath)
+        if (content !== undefined) requiredContent.set(requirement.livePath, content)
       }
     }
 
@@ -108,6 +123,6 @@ export function collectResourceRequirementsFrom(
       })
     }
 
-    return { requirements, unverifiableByKind }
+    return { requirements, unverifiableByKind, requiredContent }
   }
 }

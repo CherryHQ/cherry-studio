@@ -16,7 +16,7 @@ import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/re
 import { snapshotTo } from '@data/db/restore/snapshot'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
@@ -24,6 +24,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { presentDegradations } from '../degradationReport'
 import { exportArchive } from '../exportArchive'
 import { armPreparedRestore, cancelPreparedRestore, prepareRestore } from '../prepareRestore'
 import { restoreStagingDurability } from '../stagingDurability'
@@ -147,16 +148,20 @@ describe('restore preparation', () => {
 
       const preview = await prepareRestore({ archivePath })
 
-      expect(preview.coverage).toEqual({ available: 4, missing: 0, unverifiable: 0 })
+      // The Knowledge base is present but ships without its index, so it is
+      // reported as rebuildable — never as plain available, and never twice.
+      expect(preview.coverage).toEqual({ available: 3, rebuildable: 1, missing: 0, unverifiable: 0 })
     })
 
     it('reports resources missing on an empty device without creating any of them', async () => {
       const preview = await prepareRestore({ archivePath })
 
-      expect(preview.coverage).toEqual({ available: 0, missing: 4, unverifiable: 0 })
-      // Diagnostic only: a coverage probe must never conjure the content it
-      // failed to find.
-      expect(existsSync(join(userData, 'Data'))).toBe(false)
+      expect(preview.coverage).toEqual({ available: 0, rebuildable: 0, missing: 4, unverifiable: 0 })
+      // Diagnostic only: a coverage probe must never conjure the managed
+      // resource roots it failed to find. Data itself still owns the live DB.
+      for (const resourceRoot of ['Files', 'KnowledgeBase', 'Notes', 'Agents', 'Skills']) {
+        expect(existsSync(join(userData, 'Data', resourceRoot))).toBe(false)
+      }
     })
 
     it('counts a wrong-typed target as missing rather than available', async () => {
@@ -167,7 +172,59 @@ describe('restore preparation', () => {
 
       const preview = await prepareRestore({ archivePath })
 
-      expect(preview.coverage).toEqual({ available: 3, missing: 1, unverifiable: 0 })
+      expect(preview.coverage).toEqual({ available: 3, rebuildable: 0, missing: 1, unverifiable: 0 })
+    })
+
+    it('partitions every requirement into exactly one coverage bucket', async () => {
+      createTargetResources()
+
+      const preview = await prepareRestore({ archivePath })
+      const { available, rebuildable, missing } = preview.coverage
+
+      // Four requirements, whatever this device happens to hold; `unverifiable`
+      // counts references that are not requirements and stays out of the sum.
+      expect(available + rebuildable + missing).toBe(4)
+      expect(rebuildable).toBeGreaterThan(0)
+    })
+
+    it('accepts an archive that informedly excluded an unrebuildable Knowledge base', async () => {
+      // Re-export with a completed leaf whose material was never copied under
+      // `raw/`: the producer must degrade the base out, and this side must
+      // accept that archive rather than read it as a missing payload.
+      dbh.db
+        .insert(knowledgeItemTable)
+        .values({
+          id: 'i-virtual',
+          baseId: 'kb-1',
+          type: 'file',
+          data: { source: 'virtual.pdf', relativePath: 'virtual.pdf' } as never,
+          status: 'completed'
+        })
+        .run()
+      // Everything else is on disk, so the base is the ONLY thing degraded.
+      createTargetResources()
+      mkdirSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1', 'raw'), { recursive: true })
+      writeFileSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1', 'raw', 'other.txt'), 'OTHER')
+      const degradedArchive = join(workDir, 'out', 'degraded.cherrybackup')
+      await exportArchive({ outPath: degradedArchive })
+
+      const preview = await prepareRestore({ archivePath: degradedArchive })
+
+      expect(preview.degradations).toEqual([
+        { kind: 'resource:knowledge-base', livePath: 'Data/KnowledgeBase/kb-1', reason: 'unrebuildable-content' }
+      ])
+      // What the renderer is allowed to see: the closed code, never the reason.
+      expect(presentDegradations(preview.degradations)).toEqual([
+        { code: 'resource-unavailable', count: 1, paths: ['Data/KnowledgeBase/kb-1'] }
+      ])
+      // The disclosure survives the relaunch the restore needs.
+      const read = readRestoreJournalV2()
+      expect(read.kind).toBe('ok')
+      if (read.kind !== 'ok') return
+      expect(read.journal.degradations).toContainEqual({
+        kind: 'report:resource-unavailable',
+        reason: 'count:1'
+      })
     })
 
     it('refuses to write prepared when staged bytes cannot be made durable', async () => {

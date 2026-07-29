@@ -39,9 +39,15 @@ const DegradationSchema = z.strictObject({
   paths: z.array(z.string().min(1).max(1024)).max(3).optional()
 })
 
-/** Does THIS device have the files the restored database will point at (§2)? */
+/**
+ * Does THIS device have the files the restored database will point at (§2)?
+ * `available` + `rebuildable` + `missing` partition the requirements;
+ * `unverifiable` counts references that are not requirements at all.
+ */
 const CoverageSchema = z.strictObject({
   available: z.number().int().nonnegative(),
+  /** Present as source material; its owner rebuilds the derived state after restore. */
+  rebuildable: z.number().int().nonnegative(),
   missing: z.number().int().nonnegative(),
   unverifiable: z.number().int().nonnegative()
 })
