@@ -29,7 +29,12 @@ import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
-import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
+import {
+  type ChatContextProvider,
+  type DispatchContext,
+  type PreparedDispatch,
+  withGreetingContext
+} from './ChatContextProvider'
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
@@ -153,6 +158,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   ): Promise<PreparedDispatch> {
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
+    const topicWasEmpty = !topic?.activeNodeId
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
@@ -301,7 +307,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const history = this.buildHistory(userMessage.id)
+      const history = withGreetingContext(
+        this.buildHistory(userMessage.id),
+        shouldAutoNameInitialTurn && topicWasEmpty && req.trigger === 'submit-message' ? req.greetingContext : undefined
+      )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,

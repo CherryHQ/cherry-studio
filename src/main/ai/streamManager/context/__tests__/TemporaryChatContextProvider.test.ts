@@ -185,7 +185,9 @@ describe('TemporaryChatContextProvider', () => {
   it('appends the user message, then returns a PreparedDispatch with a TemporaryChatBackend listener', async () => {
     const subscriber = makeSubscriber()
 
-    const prepared = await provider.prepareDispatch(subscriber, openReq(), { hasLiveStream: false })
+    const prepared = await provider.prepareDispatch(subscriber, openReq({ greetingContext: '   ' }), {
+      hasLiveStream: false
+    })
 
     expect(prepared.topicId).toBe('1')
     expect(prepared.isMultiModel).toBe(false)
@@ -215,6 +217,7 @@ describe('TemporaryChatContextProvider', () => {
     expect(request.messages).toBeDefined()
     expect(request.messages!).toHaveLength(1)
     expect(request.messages![0].role).toBe('user')
+    expect(listMessagesMock).toHaveBeenCalledTimes(1)
     // The stream and temporary backend share one stable message id so
     // invocation records can link to it before later promotion rebuilds the
     // same message projection.
@@ -234,5 +237,63 @@ describe('TemporaryChatContextProvider', () => {
     )
 
     expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-1', 'kb-2'])
+  })
+
+  it('adds greeting context only to the first model request without appending it', async () => {
+    const greetingContext = '周末愉快，要来玩个游戏吗？'
+    const firstUser = {
+      id: 'msg-u-1',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: '好' }] }
+    }
+    listMessagesMock.mockReset().mockReturnValueOnce([]).mockReturnValueOnce([firstUser])
+
+    const first = await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({ greetingContext, userMessageParts: [{ type: 'text', text: '好' }] }),
+      { hasLiveStream: false }
+    )
+
+    expect(first.models[0].request.messages).toEqual([
+      {
+        id: 'conversation-greeting-context',
+        role: 'assistant',
+        parts: [{ type: 'text', text: greetingContext }]
+      },
+      { id: 'msg-u-1', role: 'user', parts: [{ type: 'text', text: '好' }] }
+    ])
+    expect(listMessagesMock).toHaveBeenCalledTimes(2)
+    expect(appendMessageMock.mock.calls[0]?.[1]).toEqual({
+      role: 'user',
+      data: { parts: [{ type: 'text', text: '好' }] },
+      status: 'success',
+      modelId: 'openai::gpt-4o'
+    })
+
+    const existingAssistant = {
+      id: 'msg-a-1',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: '来猜谜吧' }] }
+    }
+    const laterUser = {
+      id: 'msg-u-2',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: '继续' }] }
+    }
+    listMessagesMock
+      .mockReset()
+      .mockReturnValueOnce([firstUser, existingAssistant])
+      .mockReturnValueOnce([firstUser, existingAssistant, laterUser])
+
+    const later = await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({ greetingContext, userMessageParts: [{ type: 'text', text: '继续' }] }),
+      { hasLiveStream: false }
+    )
+
+    expect(listMessagesMock).toHaveBeenCalledTimes(2)
+    expect(later.models[0].request.messages?.some((message) => message.id === 'conversation-greeting-context')).toBe(
+      false
+    )
   })
 })

@@ -21,7 +21,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatComposerSlot from './ChatComposerSlot'
@@ -163,6 +163,21 @@ const ChatContentInner: FC<InnerProps> = ({
   const { t } = useTranslation()
   const assistant = assistantContext?.assistant
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
+  const greetingContextRef = useRef<{ topicId: string; text: string } | null>(null)
+  const handleGreetingChange = useCallback(
+    (greeting: string | null) => {
+      if (greeting) {
+        greetingContextRef.current = { topicId: topic.id, text: greeting }
+      } else if (greetingContextRef.current?.topicId === topic.id) {
+        greetingContextRef.current = null
+      }
+    },
+    [topic.id]
+  )
+  const getGreetingContext = useCallback(() => {
+    const current = greetingContextRef.current
+    return current?.topicId === topic.id ? current.text : undefined
+  }, [topic.id])
   const runtime = useChatRuntimeState({
     topic,
     isHistoryLoading,
@@ -175,7 +190,8 @@ const ChatContentInner: FC<InnerProps> = ({
     assistant,
     onBranchLiveStateChange,
     clearBranchDraft,
-    getBranchDraftAnchorId
+    getBranchDraftAnchorId,
+    getGreetingContext
   })
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
 
@@ -217,6 +233,8 @@ const ChatContentInner: FC<InnerProps> = ({
           <ConversationGreeting
             avatar={assistant?.emoji}
             conversationId={topic.id}
+            mode="chat"
+            onGreetingChange={handleGreetingChange}
             title={t('chat.home.welcome_title')}
           />
         </div>

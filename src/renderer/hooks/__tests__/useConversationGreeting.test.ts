@@ -33,7 +33,7 @@ describe('useConversationGreeting', () => {
       return Promise.reject(new Error(`Unexpected route: ${route}`))
     })
 
-    const { result } = renderHook(() => useConversationGreeting('今天想聊点什么？'))
+    const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？'))
 
     expect(result.current).toBe('今天想聊点什么？')
     await waitFor(() => expect(result.current).toBe('晚上好，Siin！想聊点什么？'))
@@ -54,6 +54,39 @@ describe('useConversationGreeting', () => {
     expect(generateRequest.system).toContain('"fallbackGreeting": "今天想聊点什么？"')
   })
 
+  it('uses casual guidance for Chat and task-oriented guidance for Agent', async () => {
+    let generationCount = 0
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'system.get_ip_country') {
+        return Promise.resolve('CN')
+      }
+      if (route === 'ai.text.generate') {
+        generationCount += 1
+        return Promise.resolve({
+          text: generationCount === 1 ? '想随便聊聊什么？' : '我可以帮你规划并完成一个具体任务。'
+        })
+      }
+      return Promise.reject(new Error(`Unexpected route: ${route}`))
+    })
+
+    const chatRender = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'chat-conversation'))
+    await waitFor(() => expect(chatRender.result.current).toBe('想随便聊聊什么？'))
+    chatRender.unmount()
+
+    const agentRender = renderHook(() => useConversationGreeting('agent', '今天想做点什么？', 'agent-conversation'))
+    await waitFor(() => expect(agentRender.result.current).toBe('我可以帮你规划并完成一个具体任务。'))
+
+    const generationRequests = mocks.request.mock.calls.filter(([route]) => route === 'ai.text.generate')
+    const chatSystem = generationRequests[0]?.[1].system
+    const agentSystem = generationRequests[1]?.[1].system
+    expect(chatSystem).toContain('This is Chat mode')
+    expect(chatSystem).toContain('casual and conversational')
+    expect(agentSystem).toContain('This is Agent mode')
+    expect(agentSystem).toContain('task-oriented')
+    expect(agentSystem).toContain('concrete task')
+    expect(agentSystem).not.toBe(chatSystem)
+  })
+
   it('keeps the localized fallback when generation fails', async () => {
     mocks.request.mockImplementation((route: string) => {
       if (route === 'system.get_ip_country') {
@@ -62,7 +95,7 @@ describe('useConversationGreeting', () => {
       return Promise.reject(new Error('CherryAI unavailable'))
     })
 
-    const { result } = renderHook(() => useConversationGreeting('今天想聊点什么？'))
+    const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？'))
 
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('ai.text.generate', expect.any(Object)))
     expect(result.current).toBe('今天想聊点什么？')
@@ -79,11 +112,39 @@ describe('useConversationGreeting', () => {
       return Promise.reject(new Error(`Unexpected route: ${route}`))
     })
 
-    const { result } = renderHook(() => useConversationGreeting('今天想聊点什么？'))
+    const { result } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？'))
 
     await waitFor(() => expect(result.current).toBe('周末愉快，要来玩个游戏吗？'))
     const generateRequest = mocks.request.mock.calls.find(([route]) => route === 'ai.text.generate')?.[1]
     expect(generateRequest.system).toContain('"countryOrRegion": "CN"')
+  })
+
+  it('does not generate after unmounting while region detection is pending', async () => {
+    let resolveCountry: (country: string) => void = () => undefined
+    const pendingCountry = new Promise<string>((resolve) => {
+      resolveCountry = resolve
+    })
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'system.get_ip_country') {
+        return pendingCountry
+      }
+      if (route === 'ai.text.generate') {
+        return Promise.resolve({ text: '不应生成的问候' })
+      }
+      return Promise.reject(new Error(`Unexpected route: ${route}`))
+    })
+
+    const { unmount } = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'cancelled-conversation'))
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('system.get_ip_country'))
+
+    unmount()
+    await act(async () => {
+      resolveCountry('CN')
+      await pendingCountry
+      await Promise.resolve()
+    })
+
+    expect(mocks.request).not.toHaveBeenCalledWith('ai.text.generate', expect.any(Object))
   })
 
   it('regenerates for a new conversation and ignores the previous result', async () => {
@@ -104,7 +165,7 @@ describe('useConversationGreeting', () => {
     })
 
     const { rerender, result } = renderHook(
-      ({ conversationId }) => useConversationGreeting('今天想聊点什么？', conversationId),
+      ({ conversationId }) => useConversationGreeting('chat', '今天想聊点什么？', conversationId),
       { initialProps: { conversationId: 'conversation-1' } }
     )
     await waitFor(() => expect(generationCount).toBe(1))
@@ -135,11 +196,11 @@ describe('useConversationGreeting', () => {
       return Promise.reject(new Error(`Unexpected route: ${route}`))
     })
 
-    const firstRender = renderHook(() => useConversationGreeting('今天想聊点什么？', 'conversation-1'))
+    const firstRender = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'conversation-1'))
     await waitFor(() => expect(firstRender.result.current).toBe('晚上好，想聊点什么？'))
     firstRender.unmount()
 
-    const refreshedRender = renderHook(() => useConversationGreeting('今天想聊点什么？', 'conversation-1'))
+    const refreshedRender = renderHook(() => useConversationGreeting('chat', '今天想聊点什么？', 'conversation-1'))
     await waitFor(() => expect(refreshedRender.result.current).toBe('周末愉快，要来玩个游戏吗？'))
 
     const generationRequests = mocks.request.mock.calls.filter(([route]) => route === 'ai.text.generate')

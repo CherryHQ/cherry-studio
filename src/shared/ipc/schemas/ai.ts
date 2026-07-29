@@ -175,7 +175,8 @@ export const aiRequestSchemas = {
   // Requests are R→M; the produced chunk/done/error events ride the AiEventSchemas block below.
   'ai.stream.open': defineRoute({
     // Discriminated by `trigger`, mirroring AiStreamOpenRequest. `userMessageParts` is opaque
-    // pass-through (main persists it), so its items are `z.custom<CherryMessagePart>()`.
+    // pass-through (main persists it), so its items use `z.custom`; `greetingContext` is submit-only
+    // ephemeral context.
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
@@ -186,12 +187,14 @@ export const aiRequestSchemas = {
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
+          greetingContext: z.string().optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),
           parentAnchorId: z.string().min(1),
+          greetingContext: z.never().optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         })

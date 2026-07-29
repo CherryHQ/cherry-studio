@@ -15,6 +15,27 @@ import type { StreamLifecycle } from '../lifecycle/StreamLifecycle'
 import type { StreamListener } from '../types'
 import type { MainDispatchRequest } from './dispatch'
 
+const CONVERSATION_GREETING_CONTEXT_MESSAGE_ID = 'conversation-greeting-context'
+
+/**
+ * Prepend the greeting displayed on an empty conversation to the model-facing history only.
+ * The caller must first prove this is the conversation's initial turn.
+ */
+export function withGreetingContext(
+  messages: CherryUIMessage[],
+  greetingContext: string | undefined
+): CherryUIMessage[] {
+  if (!greetingContext?.trim()) return messages
+  return [
+    {
+      id: CONVERSATION_GREETING_CONTEXT_MESSAGE_ID,
+      role: 'assistant',
+      parts: [{ type: 'text', text: greetingContext }]
+    },
+    ...messages
+  ]
+}
+
 export interface PreparedDispatch {
   topicId: string
   models: ReadonlyArray<{

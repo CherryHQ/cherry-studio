@@ -126,6 +126,44 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
+  it('adds greeting context only to an empty topic model history without persisting it', async () => {
+    const emptyTopic = topicService.create({ name: 'Empty topic' })
+    const greetingContext = '晚上好，想聊点什么？'
+    const first = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: emptyTopic.id,
+        greetingContext,
+        userMessageParts: [{ type: 'text', text: '好' }]
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(flatten(first.models[0].request.messages!)).toEqual([
+      { role: 'assistant', text: greetingContext },
+      { role: 'user', text: '好' }
+    ])
+    expect(first.reservedMessages?.map((message) => message.role)).toEqual(['user', 'assistant'])
+    expect(messageService.getById(first.userMessageId!).data.parts).toEqual([{ type: 'text', text: '好' }])
+
+    const later = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: emptyTopic.id,
+        greetingContext,
+        userMessageParts: [{ type: 'text', text: '继续' }]
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(later.models[0].request.messages?.[0]?.role).toBe('user')
+    expect(later.models[0].request.messages?.some((message) => message.id === 'conversation-greeting-context')).toBe(
+      false
+    )
+  })
+
   it('sends only messages after the latest clear marker on the selected branch', async () => {
     await dbh.db.insert(messageTable).values([
       {

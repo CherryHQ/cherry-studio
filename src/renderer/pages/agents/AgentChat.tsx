@@ -219,11 +219,29 @@ const AgentChat = ({
         (!!activeSession && activeSessionSource === 'none'))
   )
   const sessionMessagesEnabled = Boolean(sessionSnapshot && activeSession && activeSession.id === sessionSnapshot.id)
+  const greetingContextRef = useRef<{ sessionId: string; text: string } | null>(null)
+  const handleGreetingChange = useCallback(
+    (greeting: string | null) => {
+      const sessionId = sessionSnapshot?.id
+      if (!sessionId) return
+      if (greeting) {
+        greetingContextRef.current = { sessionId, text: greeting }
+      } else if (greetingContextRef.current?.sessionId === sessionId) {
+        greetingContextRef.current = null
+      }
+    },
+    [sessionSnapshot?.id]
+  )
+  const getGreetingContext = useCallback(() => {
+    const current = greetingContextRef.current
+    return current && current.sessionId === sessionSnapshot?.id ? current.text : undefined
+  }, [sessionSnapshot?.id])
   const runtime = useAgentChatRuntimeState({
     sessionId: sessionSnapshot?.id ?? '',
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
-    reservedMessages: EMPTY_MESSAGES
+    reservedMessages: EMPTY_MESSAGES,
+    getGreetingContext
   })
   const {
     hasOlder: runtimeHasOlder,
@@ -445,6 +463,7 @@ const AgentChat = ({
         sessionMessagesEnabled={sessionMessagesEnabled}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
+        onGreetingChange={handleGreetingChange}
       />
     )
   }
@@ -539,6 +558,7 @@ interface AgentChatSessionCenterProps {
   sessionMessagesEnabled: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onCreateEmptySession?: () => void | Promise<unknown>
+  onGreetingChange: (greeting: string | null) => void
 }
 
 const AgentChatSessionCenter = ({
@@ -554,7 +574,8 @@ const AgentChatSessionCenter = ({
   isMultiSelectMode,
   sessionMessagesEnabled,
   onOpenCitationsPanel,
-  onCreateEmptySession
+  onCreateEmptySession,
+  onGreetingChange
 }: AgentChatSessionCenterProps) => {
   const composer = (
     <AgentComposerSlot
@@ -581,6 +602,8 @@ const AgentChatSessionCenter = ({
           <ConversationGreeting
             avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
             conversationId={session.id}
+            mode="agent"
+            onGreetingChange={onGreetingChange}
             title={homeWelcomeText ?? ''}
           />
         </div>
