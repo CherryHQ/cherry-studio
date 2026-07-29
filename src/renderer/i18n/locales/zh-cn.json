@@ -6734,6 +6734,19 @@
       "installError": "安装依赖项失败",
       "installHelp": "获取安装帮助",
       "installSuccess": "依赖项安装成功",
+      "interaction": {
+        "elicitation": {
+          "title": "MCP 服务器请求输入"
+        },
+        "roots": {
+          "description": "MCP 服务器请求访问下方列出的工作区根目录。",
+          "title": "允许 MCP 访问工作区？"
+        },
+        "sampling": {
+          "description": "MCP 服务器请求一次不含工具、非流式的受限模型生成。",
+          "title": "允许 MCP 使用当前模型采样？"
+        }
+      },
       "jsonFormatError": "JSON 格式化错误",
       "jsonModeHint": "编辑 MCP 服务器配置的 JSON 表示。保存前请确保格式正确",
       "jsonSaveError": "保存 JSON 配置失败",

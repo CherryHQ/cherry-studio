@@ -1,4 +1,3 @@
-import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { type AgentServerError, AgentServerErrorSchema } from '@renderer/types/agent'
 import type {
   AiSdkErrorUnion,
@@ -96,7 +95,7 @@ export const isAbortError = (error: any): boolean => {
 }
 
 // TODO: format
-export const formatMcpError = (error: McpError) => {
+export const formatMcpError = (error: { message: string }) => {
   return error.message
 }
 

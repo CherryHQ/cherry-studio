@@ -1,6 +1,8 @@
-import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js'
-import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js'
+import { ContentBlockSchema } from '@modelcontextprotocol/core'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import type * as z from 'zod'
+
+type ContentBlock = z.infer<typeof ContentBlockSchema>
 
 export const BuiltinMcpServerNames = {
   flomo: '@cherry/flomo',

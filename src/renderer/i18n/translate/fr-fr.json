@@ -6735,6 +6735,19 @@
       "installError": "Échec de l'installation des dépendances",
       "installHelp": "Получить помощь по установке",
       "installSuccess": "Dépendances installées avec succès",
+      "interaction": {
+        "elicitation": {
+          "title": "[to be translated]:MCP server requests input"
+        },
+        "roots": {
+          "description": "[to be translated]:The MCP server requests access to the listed workspace roots.",
+          "title": "[to be translated]:Allow MCP workspace access?"
+        },
+        "sampling": {
+          "description": "[to be translated]:The MCP server requests a restricted, non-streaming model generation without tools.",
+          "title": "[to be translated]:Allow MCP model sampling?"
+        }
+      },
       "jsonFormatError": "Erreur de format JSON",
       "jsonModeHint": "Modifier la représentation JSON de la configuration des serveurs MCP. Assurez-vous que le format est correct avant de sauvegarder.",
       "jsonSaveError": "Échec de la sauvegarde de la configuration JSON",

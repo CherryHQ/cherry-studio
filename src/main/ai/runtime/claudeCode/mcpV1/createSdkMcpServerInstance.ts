@@ -1,6 +1,8 @@
+// v1 compatibility island: this file may expose MCP SDK v1 objects only to the Claude Agent SDK.
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -78,7 +80,11 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
  *   round-trip heals a session that started on a cold cache — including servers whose
  *   connect outlives the session-build warm — with zero blocking anywhere.
  */
-export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpServerEntity): McpServer {
+export function createSdkMcpServerInstance(
+  mcpId: string,
+  serverSnapshot?: McpServerEntity,
+  interactionContext?: McpInteractionContext
+): McpServer {
   const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
   if (!serverConfig) {
     throw new Error(`MCP server not found: ${mcpId}`)
@@ -149,7 +155,8 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
       const result = await application.get('McpRuntimeService').callTool({
         serverId: serverConfig.id,
         name: request.params.name,
-        args: request.params.arguments
+        args: request.params.arguments,
+        interactionContext
       })
       return result as CallToolResult
     } catch (error) {

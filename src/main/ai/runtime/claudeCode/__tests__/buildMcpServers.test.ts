@@ -96,7 +96,7 @@ vi.mock('@main/ai/tools/knowledgeLookup', async (importOriginal) => ({
   listOrOutlineKnowledge: mockListOrOutlineKnowledge
 }))
 
-vi.mock('@main/ai/mcp/servers/agentMemory', () => ({
+vi.mock('@main/ai/runtime/claudeCode/mcpV1/agentMemory', () => ({
   default: class {
     mcpServer = {}
 

@@ -104,11 +104,11 @@ vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: vi.fn(() => ({ buildSystemPrompt: mocks.buildPrompt }))
 }))
 
-vi.mock('@main/ai/mcp/servers/assistant', () => ({
+vi.mock('@main/ai/runtime/claudeCode/mcpV1/assistant', () => ({
   default: vi.fn(() => ({ mcpServer: {} }))
 }))
 
-vi.mock('@main/ai/runtime/claudeCode/createSdkMcpServerInstance', () => ({
+vi.mock('@main/ai/runtime/claudeCode/mcpV1/createSdkMcpServerInstance', () => ({
   createSdkMcpServerInstance: mocks.createSdkMcpServerInstance
 }))
 
@@ -339,7 +339,11 @@ describe('buildClaudeCodeSessionSettings', () => {
       agent as never
     )
 
-    expect(mocks.createSdkMcpServerInstance).toHaveBeenCalledWith('mcp-1', materializedServer)
+    expect(mocks.createSdkMcpServerInstance).toHaveBeenCalledWith('mcp-1', materializedServer, {
+      model: 'anthropic::claude-sonnet',
+      roots: [{ name: undefined, uri: 'file:///workspace/project' }],
+      topicId: 'agent-session:session-1'
+    })
   })
 
   it('loads the user setting source so managed skills under CLAUDE_CONFIG_DIR can be discovered', async () => {

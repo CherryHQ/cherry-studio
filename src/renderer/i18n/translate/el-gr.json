@@ -6735,6 +6735,19 @@
       "installError": "Αποτυχία εγκατάστασης εξαρτήσεων",
       "installHelp": "Λήψη βοήθειας εγκατάστασης",
       "installSuccess": "Η εγκατάσταση των εξαρτήσεων ολοκληρώθηκε επιτυχώς",
+      "interaction": {
+        "elicitation": {
+          "title": "[to be translated]:MCP server requests input"
+        },
+        "roots": {
+          "description": "[to be translated]:The MCP server requests access to the listed workspace roots.",
+          "title": "[to be translated]:Allow MCP workspace access?"
+        },
+        "sampling": {
+          "description": "[to be translated]:The MCP server requests a restricted, non-streaming model generation without tools.",
+          "title": "[to be translated]:Allow MCP model sampling?"
+        }
+      },
       "jsonFormatError": "Σφάλμα στη μορφοποίηση JSON",
       "jsonModeHint": "Επεξεργασία της εκφώνησης JSON του διακομιστή MCP. Παρακαλώ εξασφαλίστε ότι το μορφοποίηση είναι σωστό πριν από την αποθήκευση.",
       "jsonSaveError": "Αποτυχία αποθήκευσης της διαμορφωτικής ρύθμισης JSON",

@@ -1,7 +1,9 @@
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import fs from 'fs/promises'
 import path from 'path'
 import * as z from 'zod'
 
+import { requireToolInputSchema } from '../../schema'
 import type { GrepMatch } from '../types'
 import { isBinaryFile, logger, MAX_GREP_MATCHES, MAX_LINE_LENGTH, runRipgrep, validatePath } from '../types'
 
@@ -29,11 +31,11 @@ export const grepToolDefinition = {
 - Common directories (node_modules, .git, dist) are excluded
 - The path parameter must resolve within the configured workspace root if specified
 - If path is not specified, defaults to the base directory`,
-  inputSchema: z.toJSONSchema(GrepToolSchema)
+  inputSchema: requireToolInputSchema(z.toJSONSchema(GrepToolSchema))
 }
 
 // Handler implementation
-export async function handleGrepTool(args: unknown, baseDir: string) {
+export async function handleGrepTool(args: unknown, baseDir: string): Promise<CallToolResult> {
   const parsed = GrepToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for grep: ${parsed.error}`)

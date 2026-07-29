@@ -8,7 +8,7 @@
  * reaches the approval policy itself, so it lives in main per the shared-layer boundary.
  */
 
-import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
+import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/runtime/claudeCode'
 import {
   CONFIG_TOOL_NAME,
   CRON_TOOL_NAME,

@@ -16,18 +16,6 @@ vi.mock('@application', async () => {
   } as Record<string, unknown>)
 })
 
-vi.mock('@application', async () => {
-  return {
-    application: {
-      get: (name: string) => {
-        if (name === 'McpCatalogService') return { listTools }
-        if (name === 'McpRuntimeService') return { callTool }
-        throw new Error(`unexpected service: ${name}`)
-      }
-    }
-  }
-})
-
 vi.mock('@main/data/services/McpServerService', () => ({
   mcpServerService: { list, getById }
 }))
@@ -62,6 +50,14 @@ async function registerToolExecute(reg: ToolRegistry) {
   return execute
 }
 
+function executionOptions(toolCallId: string) {
+  return {
+    toolCallId,
+    messages: [],
+    experimental_context: { requestId: 'request-1', topicId: 'topic-1' }
+  } as any
+}
+
 describe('mcpTools execute wrapper', () => {
   beforeEach(() => {
     listTools.mockReset()
@@ -78,7 +74,7 @@ describe('mcpTools execute wrapper', () => {
     // so resolveActiveServerById returns undefined and execute throws.
     getById.mockReturnValue({ id: 's1', name: 's1', isActive: false })
 
-    await expect(execute({}, { toolCallId: 'call-1' } as any)).rejects.toThrow(
+    await expect(execute({}, executionOptions('call-1'))).rejects.toThrow(
       'MCP server s1 is not active or no longer registered'
     )
     // Never reaches the runtime when the server is inactive.
@@ -95,7 +91,7 @@ describe('mcpTools execute wrapper', () => {
       content: [{ type: 'text', text: 'boom from server' }]
     } as McpCallToolResponse)
 
-    await expect(execute({ q: 'x' }, { toolCallId: 'call-2' } as any)).rejects.toThrow('boom from server')
+    await expect(execute({ q: 'x' }, executionOptions('call-2'))).rejects.toThrow('boom from server')
   })
 
   it('returns the runtime result plus mcp metadata on success', async () => {
@@ -109,11 +105,17 @@ describe('mcpTools execute wrapper', () => {
     } as McpCallToolResponse
     callTool.mockResolvedValue(runtimeResult)
 
-    const out = (await execute({ q: 'x' }, { toolCallId: 'call-3' } as any)) as McpCallToolResponse & {
+    const out = (await execute({ q: 'x' }, executionOptions('call-3'))) as McpCallToolResponse & {
       metadata: { serverId: string; serverName: string; type: string }
     }
 
-    expect(callTool).toHaveBeenCalledWith({ serverId: 's1', name: 't', args: { q: 'x' }, callId: 'call-3' })
+    expect(callTool).toHaveBeenCalledWith({
+      serverId: 's1',
+      name: 't',
+      args: { q: 'x' },
+      callId: 'call-3',
+      interactionContext: undefined
+    })
     expect(out.content).toEqual([{ type: 'text', text: 'ok' }])
     expect(out.metadata).toEqual({ serverName: 's1', serverId: 's1', type: 'mcp' })
   })

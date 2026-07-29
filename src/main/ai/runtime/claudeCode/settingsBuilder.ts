@@ -13,6 +13,7 @@ import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import type {
   CanUseTool,
@@ -37,11 +38,12 @@ import {
   provisionBuiltinAgent
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt'
-import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
-import AssistantServer from '@main/ai/mcp/servers/assistant'
-import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
-import SkillsServer from '@main/ai/mcp/servers/skills'
-import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
+import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
+import AgentMemoryServer from '@main/ai/runtime/claudeCode/mcpV1/agentMemory'
+import AssistantServer from '@main/ai/runtime/claudeCode/mcpV1/assistant'
+import CherryBuiltinToolsServer from '@main/ai/runtime/claudeCode/mcpV1/cherryBuiltinTools'
+import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/mcpV1/createSdkMcpServerInstance'
+import SkillsServer from '@main/ai/runtime/claudeCode/mcpV1/skills'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -1178,6 +1180,11 @@ export function buildMcpServers(
   selectedKnowledgeBaseIds: readonly string[] = []
 ): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
+  const interactionContext: McpInteractionContext = {
+    topicId: `agent-session:${session.id}`,
+    model: agent.model ?? undefined,
+    roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
+  }
 
   // 1. Agent-configured MCP servers (user-added via UI)
   const mcpIds = agent.mcps
@@ -1188,7 +1195,7 @@ export function buildMcpServers(
         if (mcpServerSnapshots && !serverSnapshot) {
           throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
         }
-        const sdkServer = createSdkMcpServerInstance(mcpId, serverSnapshot)
+        const sdkServer = createSdkMcpServerInstance(mcpId, serverSnapshot, interactionContext)
         mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
       } catch (error) {
         logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })

@@ -1,21 +1,13 @@
-import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { type ListToolsResult, Server } from '@modelcontextprotocol/server'
 
 import { CdpBrowserController } from './controller'
 import { toolDefinitions, toolHandlers } from './tools/registry'
 
 export class BrowserServer {
-  public mcpServer: McpServer
-  private controller = new CdpBrowserController()
+  private readonly controller = new CdpBrowserController()
 
-  /** Low-level Server instance (used by factory / InMemoryTransport) */
-  public get server(): Server {
-    return this.mcpServer.server
-  }
-
-  constructor() {
-    this.mcpServer = new McpServer(
+  public createServer(): Server {
+    const server = new Server(
       {
         name: '@cherry/browser',
         version: '0.1.0'
@@ -28,13 +20,13 @@ export class BrowserServer {
       }
     )
 
-    this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    server.setRequestHandler('tools/list', async (): Promise<ListToolsResult> => {
       return {
         tools: toolDefinitions
       }
     })
 
-    this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    server.setRequestHandler('tools/call', async (request) => {
       const { name, arguments: args } = request.params
       const handler = toolHandlers[name]
       if (!handler) {
@@ -43,11 +35,12 @@ export class BrowserServer {
       return handler(this.controller, args)
     })
 
-    // Clean up browser controller when the MCP server connection closes
-    // (triggered by McpRuntimeService.onStop() → client.close())
-    this.server.onclose = () => {
-      void this.controller.reset()
-    }
+    return server
+  }
+
+  /** Releases the activation-scoped browser controller on stop/restart/remove. */
+  public async close(): Promise<void> {
+    await this.controller.reset()
   }
 }
 

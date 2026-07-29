@@ -1,5 +1,6 @@
 export { ClaudeCodeRuntimeDriver } from './ClaudeCodeRuntimeDriver'
 export { ClaudeCodeWarmQueryManager } from './ClaudeCodeWarmQueryManager'
+export { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from './mcpV1/cherryCliTools'
 export { isAgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from './settingsBuilder'
 export type { ClaudeCodeStreamAdapterOptions, ClaudeCodeStreamAdapterResult } from './streamAdapter'
 export { ClaudeCodeStreamAdapter } from './streamAdapter'

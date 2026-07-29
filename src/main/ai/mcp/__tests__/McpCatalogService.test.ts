@@ -18,9 +18,7 @@ const cacheService = {
 
 const runtimeService = {
   getServerKey: vi.fn((server: { id: string }) => `server:${server.id}`),
-  withClient: vi.fn(async (_serverId: string, operation: (client: { listTools: typeof listTools }) => unknown) =>
-    operation({ listTools })
-  ),
+  listTools,
   setServerStatus: vi.fn(),
   onToolListChanged: vi.fn(() => ({ dispose: vi.fn() })),
   listResources: runtimeListResources,
@@ -71,19 +69,19 @@ describe('McpCatalogService', () => {
     cacheStore.clear()
     Object.values(cacheService).forEach((mock) => mock.mockClear())
     runtimeService.getServerKey.mockClear()
-    runtimeService.withClient.mockClear()
+    runtimeService.listTools.mockClear()
     runtimeService.setServerStatus.mockClear()
     runtimeService.onToolListChanged.mockClear()
   })
 
   it('refreshTools fetches live and writes the raw catalog to the shared cache', async () => {
     getById.mockReturnValue(server({ disabledTools: ['blocked'] }))
-    listTools.mockResolvedValue({ tools: [sdkTool('search'), sdkTool('blocked')] })
+    listTools.mockResolvedValue([sdkTool('search'), sdkTool('blocked')])
 
     const service = new McpCatalogService()
     await service.refreshTools('server-1')
 
-    expect(runtimeService.withClient).toHaveBeenCalled()
+    expect(runtimeService.listTools).toHaveBeenCalledWith('server-1', 'refresh')
     expect(cacheService.setShared).toHaveBeenCalledWith(
       'mcp.tools.server-1',
       expect.arrayContaining([
@@ -94,13 +92,38 @@ describe('McpCatalogService', () => {
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'connected')
   })
 
+  it('preserves 2020-12 and non-object output schemas in the application projection', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue([
+      {
+        ...sdkTool('array-output'),
+        inputSchema: {
+          $schema: 'https://json-schema.org/draft/2020-12/schema',
+          type: 'object',
+          properties: {}
+        },
+        outputSchema: { type: 'array', items: { type: 'string' } }
+      }
+    ])
+
+    const service = new McpCatalogService()
+    await service.refreshTools('server-1')
+
+    expect(cacheStore.get('mcp.tools.server-1')).toEqual([
+      expect.objectContaining({
+        inputSchema: expect.objectContaining({ $schema: 'https://json-schema.org/draft/2020-12/schema' }),
+        outputSchema: { type: 'array', items: { type: 'string' } }
+      })
+    ])
+  })
+
   it('refreshTools clears the shared tools cache for inactive servers', async () => {
     getById.mockReturnValue(server({ isActive: false }))
 
     const service = new McpCatalogService()
     await service.refreshTools('server-1')
 
-    expect(runtimeService.withClient).not.toHaveBeenCalled()
+    expect(runtimeService.listTools).not.toHaveBeenCalled()
     expect(cacheService.setShared).toHaveBeenCalledWith('mcp.tools.server-1', [])
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'disabled')
   })
@@ -119,13 +142,13 @@ describe('McpCatalogService', () => {
 
   it('prewarms active server tools into shared cache', async () => {
     listServers.mockReturnValue({ items: [server()], total: 1, page: 1 })
-    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+    listTools.mockResolvedValue([sdkTool('search')])
 
     const service = new McpCatalogService()
     await (service as unknown as { prewarmActiveServerTools(): Promise<void> }).prewarmActiveServerTools()
 
     expect(listServers).toHaveBeenCalledWith({ isActive: true })
-    expect(runtimeService.withClient).toHaveBeenCalled()
+    expect(runtimeService.listTools).toHaveBeenCalledWith('server-1', 'refresh')
     expect(cacheService.setShared).toHaveBeenCalledWith(
       'mcp.tools.server-1',
       expect.arrayContaining([expect.objectContaining({ name: 'search' })])
@@ -140,7 +163,7 @@ describe('McpCatalogService', () => {
     const tools = service.listTools('server-1')
 
     expect(tools.map((tool) => tool.name)).toEqual(['search'])
-    expect(runtimeService.withClient).not.toHaveBeenCalled()
+    expect(runtimeService.listTools).not.toHaveBeenCalled()
   })
 
   it('listTools returns disabled tools from cache when includeDisabled is true', async () => {
@@ -151,7 +174,7 @@ describe('McpCatalogService', () => {
 
     expect(tools.map((tool) => tool.name)).toEqual(['search', 'blocked'])
     expect(getById).not.toHaveBeenCalled()
-    expect(runtimeService.withClient).not.toHaveBeenCalled()
+    expect(runtimeService.listTools).not.toHaveBeenCalled()
   })
 
   it('listTools fires a one-shot refresh when the server was never warmed (cache undefined)', async () => {
@@ -164,7 +187,7 @@ describe('McpCatalogService', () => {
 
   it('listTools cold kick shares the warm single-flight instead of opening a second connection', async () => {
     getById.mockReturnValue(server())
-    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+    listTools.mockResolvedValue([sdkTool('search')])
 
     const service = new McpCatalogService()
     // A session warm and a cache-only read racing on the same cold server.
@@ -172,7 +195,7 @@ describe('McpCatalogService', () => {
     expect(service.listTools('server-1')).toEqual([])
     await warm
 
-    expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+    expect(runtimeService.listTools).toHaveBeenCalledTimes(1)
   })
 
   it('listTools does not refresh a warmed-but-empty (dead) server cache', async () => {
@@ -182,29 +205,29 @@ describe('McpCatalogService', () => {
 
     expect(service.listTools('server-1')).toEqual([])
     expect(refreshSpy).not.toHaveBeenCalled()
-    expect(runtimeService.withClient).not.toHaveBeenCalled()
+    expect(runtimeService.listTools).not.toHaveBeenCalled()
   })
 
   it('warmToolsCache awaits a refresh and fills the cache when it is cold (undefined)', async () => {
     getById.mockReturnValue(server())
-    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+    listTools.mockResolvedValue([sdkTool('search')])
 
     const service = new McpCatalogService()
     await service.warmToolsCache('server-1')
 
-    expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+    expect(runtimeService.listTools).toHaveBeenCalledTimes(1)
     expect((cacheStore.get('mcp.tools.server-1') as { name: string }[]).map((tool) => tool.name)).toEqual(['search'])
   })
 
   it('warmToolsCache re-probes a warmed-but-empty cache (dead-server recovery path)', async () => {
     cacheStore.set('mcp.tools.server-1', [])
     getById.mockReturnValue(server())
-    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+    listTools.mockResolvedValue([sdkTool('search')])
 
     const service = new McpCatalogService()
     await service.warmToolsCache('server-1')
 
-    expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+    expect(runtimeService.listTools).toHaveBeenCalledTimes(1)
     expect((cacheStore.get('mcp.tools.server-1') as { name: string }[]).map((tool) => tool.name)).toEqual(['search'])
   })
 
@@ -216,7 +239,7 @@ describe('McpCatalogService', () => {
     await service.warmToolsCache('server-1')
 
     expect(refreshSpy).not.toHaveBeenCalled()
-    expect(runtimeService.withClient).not.toHaveBeenCalled()
+    expect(runtimeService.listTools).not.toHaveBeenCalled()
   })
 
   it('warmToolsCache resolves and leaves a warmed-but-empty cache when the refresh fails', async () => {
@@ -230,17 +253,17 @@ describe('McpCatalogService', () => {
 
   it('warmToolsCache single-flights concurrent refreshes for the same server', async () => {
     getById.mockReturnValue(server())
-    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+    listTools.mockResolvedValue([sdkTool('search')])
 
     const service = new McpCatalogService()
     await Promise.all([service.warmToolsCache('server-1'), service.warmToolsCache('server-1')])
 
-    expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+    expect(runtimeService.listTools).toHaveBeenCalledTimes(1)
   })
 
   it('onToolsCacheUpdated fires when a refresh changes the cached tool list', async () => {
     getById.mockReturnValue(server())
-    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+    listTools.mockResolvedValue([sdkTool('search')])
 
     const service = new McpCatalogService()
     const listener = vi.fn()
@@ -252,7 +275,7 @@ describe('McpCatalogService', () => {
 
   it('onToolsCacheUpdated does not fire when a refresh rewrites identical content', async () => {
     getById.mockReturnValue(server())
-    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+    listTools.mockResolvedValue([sdkTool('search')])
 
     const service = new McpCatalogService()
     const listener = vi.fn()

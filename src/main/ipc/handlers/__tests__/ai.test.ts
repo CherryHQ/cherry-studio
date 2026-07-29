@@ -173,15 +173,15 @@ describe('aiHandlers', () => {
 
 describe('aiHandlers — streaming', () => {
   it('stream_open resolves the sender WebContents and dispatches to AiStreamManager', async () => {
-    const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] } as never
+    const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] }
     aiStreamManager.dispatch.mockResolvedValue({ mode: 'started' })
 
-    const result = await aiHandlers['ai.stream.open'](req, { senderId: 'w1' })
+    const result = await aiHandlers['ai.stream.open'](req as never, { senderId: 'w1' })
 
     expect(windowManager.getWindow).toHaveBeenCalledWith('w1')
     expect(aiStreamManager.dispatch).toHaveBeenCalledTimes(1)
     // Second arg is the parsed request; first is the freshly built WebContentsListener.
-    expect(aiStreamManager.dispatch.mock.calls[0][1]).toBe(req)
+    expect(aiStreamManager.dispatch.mock.calls[0][1]).toEqual({ ...req, interactionWindowId: 'w1' })
     expect(result).toEqual({ mode: 'started' })
   })
 

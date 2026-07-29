@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
-import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
+import type { Server } from '@modelcontextprotocol/server'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { type BuiltinMcpServerName, BuiltinMcpServerNames, isBuiltinMcpServer } from '@shared/utils/mcp'
 
 import BraveSearchServer from './braveSearch'
 import { BrowserServer } from './browser'
@@ -14,42 +15,88 @@ import ThinkingServer from './sequentialthinking'
 
 const logger = loggerService.withContext('McpFactory')
 
-export function createInMemoryMcpServer(
+export interface BuiltinMcpEndpoint {
+  createServer(): Server
+  close(): Promise<void>
+}
+
+const statelessEndpoint = (createServer: () => Server): BuiltinMcpEndpoint => ({
+  createServer,
+  close: async () => undefined
+})
+
+export function resolveBuiltinExternalMcpServer(server: McpServer): McpServer {
+  if (!isBuiltinMcpServer(server)) return server
+
+  switch (server.name) {
+    case BuiltinMcpServerNames.nowledgeMem:
+      return {
+        ...server,
+        type: 'streamableHttp',
+        baseUrl: 'http://127.0.0.1:14242/mcp',
+        headers: { ...server.headers, APP: 'Cherry Studio' }
+      }
+    case BuiltinMcpServerNames.flomo:
+      return {
+        ...server,
+        type: 'streamableHttp',
+        baseUrl: 'https://flomoapp.com/mcp',
+        headers: { ...server.headers, APP: 'Cherry Studio' }
+      }
+    default:
+      return server
+  }
+}
+
+export function createBuiltinMcpEndpoint(
   name: BuiltinMcpServerName,
   args: string[] = [],
   envs: Record<string, string> = {}
-): Server {
-  logger.debug(`[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(envs)}`)
+): BuiltinMcpEndpoint {
+  logger.debug(`[MCP] Creating builtin MCP endpoint: ${name}`, { args, envNames: Object.keys(envs) })
   switch (name) {
     case BuiltinMcpServerNames.memory: {
       const envPath = envs.MEMORY_FILE_PATH
-      return new MemoryServer(envPath).server
+      const server = new MemoryServer(envPath)
+      return {
+        createServer: () => server.createServer(),
+        close: async () => undefined
+      }
     }
     case BuiltinMcpServerNames.sequentialThinking: {
-      return new ThinkingServer().server
+      const server = new ThinkingServer()
+      return {
+        createServer: () => server.createServer(),
+        close: async () => undefined
+      }
     }
     case BuiltinMcpServerNames.braveSearch: {
-      return new BraveSearchServer(envs.BRAVE_API_KEY).server
+      return statelessEndpoint(() => new BraveSearchServer(envs.BRAVE_API_KEY).server)
     }
     case BuiltinMcpServerNames.fetch: {
-      return new FetchServer().server
+      const server = new FetchServer()
+      return statelessEndpoint(() => server.createServer())
     }
     case BuiltinMcpServerNames.filesystem: {
-      return new FileSystemServer(resolveFilesystemBaseDir(args, envs)).server
+      return statelessEndpoint(() => new FileSystemServer(resolveFilesystemBaseDir(args, envs)).server)
     }
     case BuiltinMcpServerNames.difyKnowledge: {
       const difyKey = envs.DIFY_KEY
-      return new DifyKnowledgeServer(difyKey, args).server
+      return statelessEndpoint(() => new DifyKnowledgeServer(difyKey, args).server)
     }
     case BuiltinMcpServerNames.python: {
-      return new PythonServer().server
+      return statelessEndpoint(() => new PythonServer().server)
     }
     case BuiltinMcpServerNames.didiMcp: {
       const apiKey = envs.DIDI_API_KEY
-      return new DiDiMcpServer(apiKey).server
+      return statelessEndpoint(() => new DiDiMcpServer(apiKey).server)
     }
     case BuiltinMcpServerNames.browser: {
-      return new BrowserServer().server
+      const server = new BrowserServer()
+      return {
+        createServer: () => server.createServer(),
+        close: () => server.close()
+      }
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

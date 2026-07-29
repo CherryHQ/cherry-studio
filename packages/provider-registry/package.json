@@ -63,7 +63,7 @@
     "tsdown": "^0.16.6",
     "typescript": "^5.9.3",
     "vitest": "^4.0.13",
-    "zod": "^4.1.12"
+    "zod": "^4.2.0"
   },
   "peerDependencies": {},
   "dependencies": {

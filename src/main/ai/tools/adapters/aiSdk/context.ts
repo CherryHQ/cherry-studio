@@ -1,6 +1,8 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { WindowId } from '@shared/ipc/types'
 import type { ModelMessage } from 'ai'
 
 /**
@@ -14,6 +16,9 @@ export interface RequestContext {
 
   /** Absent for synthetic / IPC-driven invocations. */
   readonly topicId?: string
+  readonly windowId?: WindowId
+  readonly model?: UniqueModelId
+  readonly roots?: ReadonlyArray<{ uri: string; name?: string }>
 
   /** Source of static config like `assistant.knowledgeBaseIds`. */
   readonly assistant?: Assistant

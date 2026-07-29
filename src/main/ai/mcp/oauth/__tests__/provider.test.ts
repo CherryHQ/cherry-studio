@@ -1,4 +1,4 @@
-import type { OAuthClientInformation, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
+import type { StoredOAuthClientInformation, StoredOAuthTokens } from '@modelcontextprotocol/client'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
@@ -11,11 +11,18 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({})
 })
+vi.mock('electron', () => ({
+  safeStorage: {
+    isEncryptionAvailable: () => true,
+    encryptString: (value: string) => Buffer.from(value),
+    decryptString: (value: Buffer) => value.toString()
+  }
+}))
 
 const { McpOAuthClientProvider } = await import('../provider')
 
-const CLIENT_INFO = { client_id: 'cid', client_secret: 'csecret' } as OAuthClientInformation
-const TOKENS = { access_token: 'at', token_type: 'Bearer', refresh_token: 'rt' } as OAuthTokens
+const CLIENT_INFO = { client_id: 'cid', client_secret: 'csecret' } as StoredOAuthClientInformation
+const TOKENS = { access_token: 'at', token_type: 'Bearer', refresh_token: 'rt' } as StoredOAuthTokens
 
 describe('McpOAuthClientProvider.invalidateCredentials', () => {
   let configDir: string
@@ -79,5 +86,15 @@ describe('McpOAuthClientProvider.invalidateCredentials', () => {
     expect(await provider.tokens()).toMatchObject({ access_token: 'at' })
     expect(await provider.clientInformation()).toMatchObject({ client_id: 'cid' })
     expect(await provider.codeVerifier()).toBe('verifier-xyz')
+  })
+
+  it('rejects a callback with a mismatched state and consumes the saved state', async () => {
+    const provider = makeProvider()
+    const state = await provider.state()
+
+    await expect(provider.validateCallbackState(new URLSearchParams({ state: `${state}-wrong` }))).rejects.toThrow(
+      /state mismatch/
+    )
+    await expect(provider.validateCallbackState(new URLSearchParams({ state }))).rejects.toThrow(/state mismatch/)
   })
 })

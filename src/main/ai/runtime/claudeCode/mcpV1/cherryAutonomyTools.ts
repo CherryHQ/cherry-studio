@@ -1,3 +1,4 @@
+// v1 compatibility island: these definitions back the Claude Agent SDK server only.
 /**
  * Agent autonomy tools (cron / notify / config) hosted by the in-process
  * `cherry-tools` MCP server (see `cherryBuiltinTools.ts`).

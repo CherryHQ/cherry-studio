@@ -665,10 +665,52 @@ export default defineConfig([
         {
           patterns: [
             {
+              group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
+              message:
+                'MCP SDK v1 is confined to src/main/ai/runtime/claudeCode/mcpV1. Renderer protocol schemas must come from @modelcontextprotocol/core.'
+            },
+            {
               group: ['@shared/ipc/schemas', '@shared/ipc/schemas/*'],
               allowTypeImports: true,
               message:
                 'Renderer may only `import type` from @shared/ipc/schemas — a value import pulls the entire zod schema set into the renderer bundle.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    // MCP SDK v1 is a Claude Agent SDK compatibility island. Generic main-process
+    // MCP code uses the v2 client/server packages; cross-process schemas use v2 core.
+    files: ['src/shared/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
+              message:
+                'MCP SDK v1 is main-only and confined to src/main/ai/runtime/claudeCode/mcpV1. Shared protocol schemas must come from @modelcontextprotocol/core.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    // Renderer tests are excluded from the bundle-value guard above, but they
+    // still must not acquire a second MCP v1 foothold.
+    files: ['src/renderer/**/*.test.*', 'src/renderer/**/__tests__/**', 'src/renderer/**/__mocks__/**'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
+              message: 'MCP SDK v1 is confined to src/main/ai/runtime/claudeCode/mcpV1.'
             }
           ]
         }
@@ -684,8 +726,51 @@ export default defineConfig([
     // main i18n catalog now lives in `src/main/i18n`, and tests that need renderer
     // catalog data read it from disk (fs) rather than importing it.
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
+    ignores: ['src/main/ai/runtime/claudeCode/mcpV1/**'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
+              message:
+                'MCP SDK v1 is confined to src/main/ai/runtime/claudeCode/mcpV1. Generic MCP code must use @modelcontextprotocol/client, @modelcontextprotocol/server, or @modelcontextprotocol/core.'
+            },
+            {
+              group: ['@renderer', '@renderer/**', '**/renderer/**'],
+              message:
+                'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    // The island still obeys the normal main→renderer boundary; only its MCP
+    // SDK v1 imports are exempted from the generic main-process rule above.
+    files: ['src/main/ai/runtime/claudeCode/mcpV1/**/*.{ts,tsx,js,jsx}'],
     rules: {
       '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
+    }
+  },
+  {
+    // Keep workspace packages and repository scripts from bypassing the v1
+    // island simply because they live outside src/.
+    files: ['packages/**/*.{ts,tsx}', 'scripts/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'v2-refactor-temp/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
+              message: 'MCP SDK v1 is confined to src/main/ai/runtime/claudeCode/mcpV1.'
+            }
+          ]
+        }
+      ]
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).

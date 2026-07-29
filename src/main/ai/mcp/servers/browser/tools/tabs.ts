@@ -1,3 +1,4 @@
+import type { Tool } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
@@ -22,7 +23,7 @@ export const listTabsToolDefinition = {
       }
     }
   }
-}
+} satisfies Tool
 
 export async function handleListTabs(controller: CdpBrowserController, args: unknown) {
   try {
@@ -59,7 +60,7 @@ export const switchTabToolDefinition = {
     },
     required: ['tabId']
   }
-}
+} satisfies Tool
 
 export async function handleSwitchTab(controller: CdpBrowserController, args: unknown) {
   try {
@@ -96,7 +97,7 @@ export const closeTabToolDefinition = {
     },
     required: ['tabId']
   }
-}
+} satisfies Tool
 
 export async function handleCloseTab(controller: CdpBrowserController, args: unknown) {
   try {

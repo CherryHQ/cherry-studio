@@ -55,7 +55,7 @@ vi.mock('@main/i18n', () => ({
   t: vi.fn((key: string) => key)
 }))
 
-vi.mock('@main/ai/mcp/servers/cherryBuiltinTools', () => ({
+vi.mock('@main/ai/runtime/claudeCode/mcpV1/cherryBuiltinTools', () => ({
   default: vi.fn(() => ({ mcpServer: { id: 'cherry-tools' } }))
 }))
 

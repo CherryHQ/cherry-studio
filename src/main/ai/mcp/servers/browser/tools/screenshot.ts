@@ -1,3 +1,4 @@
+import type { Tool } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
@@ -42,7 +43,7 @@ export const screenshotToolDefinition = {
       }
     }
   }
-}
+} satisfies Tool
 
 export async function handleScreenshot(controller: CdpBrowserController, args: unknown) {
   try {

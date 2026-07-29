@@ -193,7 +193,10 @@
     "@j178/prek": "^0.3.4",
     "@lezer/highlight": "1.2.3",
     "@mistralai/mistralai": "^1.7.5",
-    "@modelcontextprotocol/sdk": "1.27.1",
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/core": "2.0.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/server": "2.0.0",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",
     "@openrouter/ai-sdk-provider": "^2.10.0",
@@ -443,7 +446,7 @@
     "yjs": "^13.6.27",
     "youtubei.js": "^15.0.1",
     "zipread": "^1.3.3",
-    "zod": "^4.1.5"
+    "zod": "^4.2.0"
   },
   "packageManager": "pnpm@11.8.0+sha512.c1f5e7c4cb241c8f174b743851d82f42b802324afc8b0f116b96adb15aa06664948dde36960a3ba1079ba5b4b29dd0140135b94b5b5f5263592249d68e555f26",
   "optionalDependencies": {
