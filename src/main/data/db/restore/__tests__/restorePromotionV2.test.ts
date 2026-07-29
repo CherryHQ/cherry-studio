@@ -887,12 +887,16 @@ describe('restore promotion v2', () => {
     const BASE_REL = 'Data/KnowledgeBase/base-1'
 
     /** One Knowledge base unit, exactly as preparation seals it into the journal. */
-    function baseUnit(): RestoreJournalV2['resourceInstalls'][number] {
+    function baseUnit(hadLive = true): RestoreJournalV2['resourceInstalls'][number] {
       return {
         resourceType: 'directory',
         staging: `restore-staging/${RID}/resources/${BASE_REL}`,
         live: BASE_REL,
-        aside: `restore-aside/${RID}/0-base-1`
+        aside: `restore-aside/${RID}/0-base-1`,
+        // Whether preparation found a base to replace. Every arrangement below
+        // that creates `unit.live` up front is a replacement, so `true` is the
+        // default; the install-over-nothing cases pass `false`.
+        hadLive
       }
     }
 
@@ -1040,6 +1044,140 @@ describe('restore promotion v2', () => {
       expect(readMarker(livePath())).toBe('old')
       expect(readUnitDir(unit.live)).toBe('TARGET')
       expect(unitExists(unit.aside)).toBe(false)
+    })
+
+    /**
+     * `-L-` — live present, nothing staged, no aside — is the one triple whose
+     * meaning the filesystem cannot settle: either the target was originally
+     * absent (so `live` is the archive's copy and belongs back in staging), or
+     * the aside holding the user's original is gone (so `live` is all that is
+     * left of it). `hadLive` is what tells the two apart.
+     */
+    describe('what the missing aside means', () => {
+      it('takes the archive copy back out when the journal proves nothing was replaced', async () => {
+        makeDb(livePath(), 'old')
+        makeStagedDb()
+        const unit = baseUnit(false)
+        makeUnitDir(unit.live, 'ARCHIVE')
+        writeRestoreJournalV2(
+          buildJournal({ state: 'promoting', step: 'resources-installed', resourceInstalls: [unit] })
+        )
+
+        await runRestorePromotionV2()
+
+        expect(journalState()).toBe('failed')
+        // Out of the live slot and back into staging, which the terminal
+        // cleanup then collects along with the rest of the tree.
+        expect(unitExists(unit.live)).toBe(false)
+        expect(existsSync(stagingDir())).toBe(false)
+      })
+
+      it('refuses to remove the only copy left when the journal says a target was replaced', async () => {
+        makeDb(livePath(), 'old')
+        makeStagedDb()
+        const unit = baseUnit(true)
+        // The aside that held the user's base is gone — deleted by hand, lost to
+        // a sweep, whatever. Rolling the unit back out now would leave nothing.
+        makeUnitDir(unit.live, 'ARCHIVE')
+        writeRestoreJournalV2(
+          buildJournal({ state: 'promoting', step: 'resources-installed', resourceInstalls: [unit] })
+        )
+
+        await expect(runBackupRestoreGate()).rejects.toThrow(/mixed restore state/)
+
+        expect(readUnitDir(unit.live)).toBe('ARCHIVE')
+        expect(journalState()).toBe('promoting')
+      })
+
+      it('keeps the old reading for a journal that predates the record, so forward crashes still resolve', async () => {
+        makeDb(livePath(), 'old')
+        makeStagedDb()
+        const { hadLive: _hadLive, ...unit } = baseUnit(false)
+        makeUnitDir(unit.live, 'ARCHIVE')
+        writeRestoreJournalV2(
+          buildJournal({ state: 'promoting', step: 'resources-installed', resourceInstalls: [unit] })
+        )
+
+        await runRestorePromotionV2()
+
+        expect(journalState()).toBe('failed')
+        expect(readMarker(livePath())).toBe('old')
+      })
+    })
+
+    describe('a journal from a build that never recorded what it replaced', () => {
+      /** The same two-unit arrangement, minus the field the older build never wrote. */
+      function legacyUnits(): RestoreJournalV2['resourceInstalls'] {
+        const { hadLive: _hadLive, ...unit } = baseUnit()
+        return [unit]
+      }
+
+      it('boots normally on a completed restore and leaves it usable', async () => {
+        makeDb(livePath(), 'new')
+        makeDb(asidePath(), 'old')
+        const units = legacyUnits()
+        makeUnitDir(units[0].live, 'ARCHIVE')
+        makeUnitDir(units[0].aside, 'TARGET')
+        writeRestoreJournalV2(buildJournal({ state: 'completed', chain: chainOf(livePath()), resourceInstalls: units }))
+
+        // Only the rollback is withheld (armRestoreRollback refuses it); the
+        // restored profile itself is in no way suspect.
+        await expect(runBackupRestoreGate()).resolves.toBeUndefined()
+
+        expect(journalState()).toBe('completed')
+        expect(readMarker(livePath())).toBe('new')
+        expect(readUnitDir(units[0].live)).toBe('ARCHIVE')
+      })
+
+      it('refuses to boot an armed rollback rather than guess at the reverse pass', async () => {
+        makeDb(livePath(), 'new')
+        makeDb(asidePath(), 'old')
+        const units = legacyUnits()
+        makeUnitDir(units[0].live, 'ARCHIVE')
+        makeUnitDir(units[0].aside, 'TARGET')
+        writeRestoreJournalV2(
+          buildJournal({ state: 'rollback-armed', chain: chainOf(livePath()), resourceInstalls: units })
+        )
+
+        await expect(runBackupRestoreGate()).rejects.toThrow(/mixed restore state/)
+
+        expect(journalState()).toBe('rollback-armed')
+        expect(readMarker(livePath())).toBe('new')
+        expect(readMarker(asidePath())).toBe('old')
+        expect(readUnitDir(units[0].live)).toBe('ARCHIVE')
+        expect(readUnitDir(units[0].aside)).toBe('TARGET')
+      })
+    })
+
+    it('converges a crash that reversed one unit but not the next', async () => {
+      makeDb(livePath(), 'old')
+      makeStagedDb()
+      const done = baseUnit()
+      const pending: RestoreJournalV2['resourceInstalls'][number] = {
+        resourceType: 'directory',
+        staging: `restore-staging/${RID}/resources/Data/KnowledgeBase/base-2`,
+        live: 'Data/KnowledgeBase/base-2',
+        aside: `restore-aside/${RID}/1-base-2`,
+        hadLive: true
+      }
+      // The rollback pass got through the first unit and crashed: its original
+      // is back and the archive copy is parked in staging, while the second unit
+      // is still installed with its original in the aside.
+      makeUnitDir(done.live, 'TARGET')
+      makeUnitDir(done.staging, 'ARCHIVE')
+      makeUnitDir(pending.live, 'ARCHIVE')
+      makeUnitDir(pending.aside, 'TARGET')
+      writeRestoreJournalV2(
+        buildJournal({ state: 'promoting', step: 'resources-installed', resourceInstalls: [done, pending] })
+      )
+
+      await runRestorePromotionV2()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readUnitDir(done.live)).toBe('TARGET')
+      expect(readUnitDir(pending.live)).toBe('TARGET')
+      expect(unitExists(pending.aside)).toBe(false)
     })
 
     it('keeps the installed resources when the crash landed past the commit', async () => {

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -116,6 +116,95 @@ describe('armRestoreRollback', () => {
     )
     expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'completed' } })
     expect(relaunchMock).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Arming is the last moment a rollback can still be refused for free. Once the
+   * journal says `rollback-armed`, preboot must carry the reverse pass out, and
+   * a unit whose aside vanished is discovered with earlier units already moved.
+   */
+  describe('resource topology', () => {
+    /** Two replaced units, exactly as a completed restore leaves them. */
+    function replacedUnits(): RestoreJournalV2['resourceInstalls'] {
+      return [0, 1].map((index) => ({
+        resourceType: 'directory' as const,
+        staging: `restore-staging/${RESTORE_ID}/resources/Data/KnowledgeBase/base-${index}`,
+        live: `Data/KnowledgeBase/base-${index}`,
+        aside: `restore-aside/${RESTORE_ID}/${index}-base-${index}`,
+        hadLive: true
+      }))
+    }
+
+    function makeDir(relative: string): void {
+      mkdirSync(join(userData, ...relative.split('/')), { recursive: true })
+    }
+
+    function arrangeCompleted(units: RestoreJournalV2['resourceInstalls']): void {
+      for (const unit of units) {
+        makeDir(unit.live)
+        if (unit.hadLive) makeDir(unit.aside)
+      }
+      writeRestoreJournalV2(completedJournal({ resourceInstalls: units }))
+    }
+
+    it('arms when every unit is where completion left it', () => {
+      arrangeCompleted(replacedUnits())
+
+      armRestoreRollback()
+
+      expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'rollback-armed' } })
+    })
+
+    it('refuses when the LAST unit lost the aside holding its pre-restore copy', () => {
+      const units = replacedUnits()
+      arrangeCompleted(units)
+      rmSync(join(userData, ...units[1].aside.split('/')), { recursive: true })
+
+      expect(() => armRestoreRollback()).toThrowError(
+        expect.objectContaining<Partial<RestoreStateError>>({ code: 'rollback-unavailable' })
+      )
+      // Nothing was armed and nothing moved: the first unit, whose own aside is
+      // intact, is still untouched rather than half-reversed.
+      expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'completed' } })
+      expect(existsSync(join(userData, ...units[0].aside.split('/')))).toBe(true)
+      expect(existsSync(join(userData, ...units[0].live.split('/')))).toBe(true)
+      expect(relaunchMock).not.toHaveBeenCalled()
+    })
+
+    it('refuses when a unit that replaced nothing somehow has an aside', () => {
+      const units = replacedUnits().map((unit) => ({ ...unit, hadLive: false }))
+      arrangeCompleted(units)
+      makeDir(units[0].aside)
+
+      expect(() => armRestoreRollback()).toThrowError(
+        expect.objectContaining<Partial<RestoreStateError>>({ code: 'rollback-unavailable' })
+      )
+      expect(relaunchMock).not.toHaveBeenCalled()
+    })
+
+    it('refuses when the restored node is gone from its live slot', () => {
+      const units = replacedUnits()
+      arrangeCompleted(units)
+      rmSync(join(userData, ...units[0].live.split('/')), { recursive: true })
+
+      expect(() => armRestoreRollback()).toThrowError(
+        expect.objectContaining<Partial<RestoreStateError>>({ code: 'rollback-unavailable' })
+      )
+      expect(relaunchMock).not.toHaveBeenCalled()
+    })
+
+    it('refuses a journal from a build that never recorded what each unit replaced', () => {
+      const units = replacedUnits().map(({ hadLive: _hadLive, ...rest }) => rest)
+      arrangeCompleted(units)
+
+      // The app still starts and the restore stays usable — only this one
+      // irreversible action is withheld.
+      expect(() => armRestoreRollback()).toThrowError(
+        expect.objectContaining<Partial<RestoreStateError>>({ code: 'rollback-unavailable' })
+      )
+      expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'completed' } })
+      expect(relaunchMock).not.toHaveBeenCalled()
+    })
   })
 
   it('restores completed when relaunch initiation fails', () => {
