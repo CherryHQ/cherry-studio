@@ -11,6 +11,13 @@ import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { noteTable } from '@data/db/schemas/note'
 import { preferenceTable } from '@data/db/schemas/preference'
 import type { DbOrTx } from '@data/db/types'
+import {
+  DISCONNECTED_AGENT_WORKSPACE_DIRECTORY,
+  sanitizeAgentAutomation,
+  toDisconnectedAgentWorkspaceSegment
+} from '@main/ai/agents/portableProfilePolicy'
+import { sanitizeAgentChannelCapability } from '@main/ai/channelPortableProfilePolicy'
+import { sanitizeMcpServerCapability } from '@main/ai/mcp/portableProfilePolicy'
 import { ACTIVE_JOB_STATUSES, JobStatusAtomSchema } from '@shared/data/api/schemas/jobs'
 import { KNOWLEDGE_ITEM_STATUSES } from '@shared/data/types/knowledge'
 import Database from 'better-sqlite3'
@@ -21,7 +28,6 @@ import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { assertDbIntegrity, assertNoDbSidecars, sealDetachedDb } from '../dbSeal'
 import { BackupCancelledError } from '../errors'
 import { sha256FileCancellable } from '../hashing'
-import { sanitizeAgentAutomation, sanitizeAgentChannelCapability, sanitizeMcpServerCapability } from './capabilityReset'
 import { classifyManagedPath, type ManagedRootRebaseTable, targetLocalPath } from './managedPathRebase'
 import { CODE_CLI_CONFIGS_KEY, PREFERENCE_RESET_KEYS, sanitizeCodeCliConfigs } from './preferenceResetPolicy'
 import { JOB_SCHEDULE_AUTOMATION_PATCH, resetKnowledgeItemStatus } from './tablePolicy'
@@ -519,21 +525,6 @@ function noteKey(rootPath: string, path: string): string {
 }
 
 /**
- * Directory segment, under the target workspaces root, that holds the placeholder
- * of every workspace whose stored binding did not survive this restore. It is
- * never created on disk — only stored.
- */
-const DISCONNECTED_WORKSPACE_DIR = 'disconnected-workspaces'
-
-/** A row id reduced to one inert, ASCII-safe path segment (win32 reserved names excluded by the prefix). */
-function disconnectedSegment(id: string): string {
-  return `ws-${id
-    .replace(/[^A-Za-z0-9._-]/g, '_')
-    .slice(0, 64)
-    .replace(/\.+$/, '')}`
-}
-
-/**
  * Rebase `agent_workspace.path` (unique on `path`). A SYSTEM workspace is built
  * under the managed workspaces root, so it rebases; anything else — a
  * user-chosen location on the source device, an unportable value, or a rebase
@@ -594,7 +585,7 @@ function rebaseAgentWorkspaces(db: DbOrTx, table: ManagedRootRebaseTable, summar
  *
  * Every path in the table — the ones just rebased and the stored ones about to be
  * replaced — is taken as occupied, so a crafted archive that stores a path inside
- * {@link DISCONNECTED_WORKSPACE_DIR} can neither collide with a placeholder nor
+ * {@link DISCONNECTED_AGENT_WORKSPACE_DIRECTORY} can neither collide with a placeholder nor
  * make an intermediate `UPDATE` violate the unique index; it only pushes the
  * suffix along. Ids are processed in sorted order, so the same archive always
  * produces the same placeholders.
@@ -614,7 +605,10 @@ function disconnectAgentWorkspaces(
 
   const placeholder = (segment: string, attempt: number): string => {
     const unique = attempt === 0 ? segment : `${segment}-${attempt}`
-    const path = targetLocalPath(table, 'feature.agents.system_workspaces', [DISCONNECTED_WORKSPACE_DIR, unique])
+    const path = targetLocalPath(table, 'feature.agents.system_workspaces', [
+      DISCONNECTED_AGENT_WORKSPACE_DIRECTORY,
+      unique
+    ])
     if (path === null) {
       // The workspaces root is paired for every restore (prepareManagedRootRebase
       // fails closed otherwise) and these segments are ASCII by construction, so
@@ -626,7 +620,7 @@ function disconnectAgentWorkspaces(
   }
 
   for (const id of [...disconnect].sort()) {
-    const segment = disconnectedSegment(id)
+    const segment = toDisconnectedAgentWorkspaceSegment(id)
     let path = placeholder(segment, 0)
     for (let attempt = 1; taken.has(path); attempt++) path = placeholder(segment, attempt)
     taken.add(path)

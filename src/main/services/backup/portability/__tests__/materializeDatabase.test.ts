@@ -815,9 +815,9 @@ describe('materializePortableDatabase', () => {
       insertAgent('agent-1', { heartbeat_enabled: true })
 
       const dbPath = snapshot()
-      const capabilityReset = await import('../capabilityReset')
+      const agentPolicy = await import('@main/ai/agents/portableProfilePolicy')
       // Fail AFTER the job delete has already been issued inside the transaction.
-      vi.spyOn(capabilityReset, 'sanitizeAgentAutomation').mockImplementation(() => {
+      vi.spyOn(agentPolicy, 'sanitizeAgentAutomation').mockImplementation(() => {
         throw new Error('injected policy failure')
       })
 
