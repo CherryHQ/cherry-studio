@@ -106,6 +106,7 @@ export { canWrite, isNotEmptyDir, isPathInside, isSameOrInside, resolvePath } fr
 export {
   findCrossDeviceEndpoint,
   findUnsafeAncestor,
+  OwnedPathIdentityError,
   type PathIdentity,
   type PathNodeType,
   type PathProbe,

@@ -2,9 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { fsyncDirectorySync, renameOnlySync } from '@main/utils/file'
+import { findCrossDeviceEndpoint, findUnsafeAncestor, fsyncDirectorySync, renameOnlySync } from '@main/utils/file'
 
-import { findCrossDeviceEndpoint, findUnsafeAncestor } from './pathSafety'
 import type { ResourceInstallEntry, SealedResourceInstallEntry } from './restoreJournalV2'
 import { decideRecoveryAction, type RecoveryPhase } from './restoreRecovery'
 

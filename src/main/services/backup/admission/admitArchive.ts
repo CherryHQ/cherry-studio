@@ -1,6 +1,7 @@
-import { lstat, readFile, realpath, rm, stat } from 'node:fs/promises'
+import { readFile, realpath, stat } from 'node:fs/promises'
 
 import type { AppliedMigration } from '@data/db/restore/appliedChain'
+import { OwnedPathIdentityError, type PathIdentity, probePath, removeOwnedDirectory } from '@main/utils/file'
 
 import { BACKUP_CEILINGS } from '../ceilings'
 import type { DirScanLimits } from '../dirScan'
@@ -99,11 +100,6 @@ export interface AdmittedArchive {
   readonly cleanup: () => Promise<void>
 }
 
-interface OwnedIdentity {
-  readonly dev: bigint
-  readonly ino: bigint
-}
-
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new BackupCancelledError()
 }
@@ -142,24 +138,15 @@ async function resolveStagingParent(stagingParent: string): Promise<string> {
  * dependent state). Internal failure cleanup suppresses the throw to preserve the
  * original rejection.
  */
-async function safeRemoveOwned(stagingDir: string, identity: OwnedIdentity): Promise<void> {
-  let st: Awaited<ReturnType<typeof lstat>>
+async function safeRemoveOwned(stagingDir: string, identity: PathIdentity): Promise<void> {
   try {
-    st = await lstat(stagingDir, { bigint: true })
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
-    throw err
+    await removeOwnedDirectory(stagingDir, identity)
+  } catch (error) {
+    if (error instanceof OwnedPathIdentityError) {
+      throw new ArchiveAdmissionError('staging-escape', 'owned staging root was replaced; refusing to remove it')
+    }
+    throw error
   }
-  // Type FIRST, then identity. `(dev, ino)` alone is not proof of sameness: a
-  // freed directory inode can be recycled for whatever is created in its place,
-  // so a symlink swapped in immediately after an `rm` can inherit the exact
-  // numbers snapshotted at creation (observed on CI's Linux filesystem, never on
-  // APFS). The owned root was created as a real directory and nothing legitimate
-  // changes its type.
-  if (st.isSymbolicLink() || !st.isDirectory() || st.dev !== identity.dev || st.ino !== identity.ino) {
-    throw new ArchiveAdmissionError('staging-escape', 'owned staging root was replaced; refusing to remove it')
-  }
-  await rm(stagingDir, { recursive: true, force: true })
 }
 
 async function readAndParseManifest(stagingDir: string): Promise<BackupManifest> {
@@ -196,7 +183,7 @@ export async function admitArchive(inputs: AdmitArchiveInputs): Promise<Admitted
   const open = await openArchive(archivePath)
 
   let stagingDir: string | undefined
-  let ownedId: OwnedIdentity | undefined
+  let ownedId: PathIdentity | undefined
   try {
     // Pre-extraction: reject on metadata alone, before any staging exists.
     const shape = validateArchiveShape(open.entries, ceilings)
@@ -206,8 +193,11 @@ export async function admitArchive(inputs: AdmitArchiveInputs): Promise<Admitted
     await assertDiskHeadroom({ target: stagingParent, neededBytes: shape.declaredTotalBytes })
 
     stagingDir = await createStagingDir(stagingParent)
-    const owned = await stat(stagingDir, { bigint: true })
-    ownedId = { dev: owned.dev, ino: owned.ino }
+    const owned = await probePath(stagingDir)
+    if (owned.kind !== 'present' || owned.identity.nodeType !== 'directory') {
+      throw new ArchiveAdmissionError('staging-escape', 'owned staging root is not a directory')
+    }
+    ownedId = owned.identity
 
     const budget = new ExtractionBudget(ceilings.maxTotalUncompressedBytes)
 

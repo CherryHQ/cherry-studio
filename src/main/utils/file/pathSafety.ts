@@ -13,6 +13,13 @@ export interface PathIdentity {
 
 export type PathProbe = { readonly kind: 'missing' } | { readonly kind: 'present'; readonly identity: PathIdentity }
 
+export class OwnedPathIdentityError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'OwnedPathIdentityError'
+  }
+}
+
 function nodeTypeOf(stats: fs.Stats | fs.BigIntStats): PathNodeType {
   if (stats.isSymbolicLink()) return 'symlink'
   if (stats.isFile()) return 'file'
@@ -63,12 +70,12 @@ function identitiesEqual(left: PathIdentity, right: PathIdentity): boolean {
  */
 export async function removeOwnedDirectory(target: string, expectedIdentity: PathIdentity): Promise<boolean> {
   if (expectedIdentity.nodeType !== 'directory') {
-    throw new Error('owned path identity is not a directory')
+    throw new OwnedPathIdentityError('owned path identity is not a directory')
   }
   const current = await probePath(target)
   if (current.kind === 'missing') return false
   if (!identitiesEqual(current.identity, expectedIdentity)) {
-    throw new Error('owned directory identity changed')
+    throw new OwnedPathIdentityError('owned directory identity changed')
   }
   await rm(target, { recursive: true, force: true })
   return true
