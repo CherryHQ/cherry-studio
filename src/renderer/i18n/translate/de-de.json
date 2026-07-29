@@ -618,8 +618,8 @@
             "title": "Dateibearbeitungen automatisch akzeptieren"
           },
           "auto": {
-            "description": "[to be translated]:A model classifier approves routine actions and only asks you about risky ones.",
-            "title": "[to be translated]:Smart Auto Mode"
+            "description": "[to be translated]:Only asks about actions a model judges risky.",
+            "title": "[to be translated]:Approve for Me"
           },
           "bypassPermissions": {
             "description": "Alle Berechtigungsabfragen werden übersprungen. Bitte verwenden Sie diese Option mit Vorsicht.",
@@ -6654,9 +6654,6 @@
           "dxtFile": "DXT-Paket-Datei",
           "dxtHelp": "MCP-Server-Datei .dxt auswählen",
           "dxtProcessFailed": "DXT-Datei verarbeiten fehlgeschlagen",
-          "error": {
-            "multipleServers": "Import von mehreren Servern nicht möglich"
-          },
           "invalid": "Ungültige Eingabe, bitte JSON-Format überprüfen",
           "json": "Von JSON importieren",
           "mcpb": "MCPB-Bundle importieren",

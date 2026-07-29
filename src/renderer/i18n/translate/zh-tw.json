@@ -618,8 +618,8 @@
             "title": "自動接受檔案編輯"
           },
           "auto": {
-            "description": "[to be translated]:A model classifier approves routine actions and only asks you about risky ones.",
-            "title": "[to be translated]:Smart Auto Mode"
+            "description": "[to be translated]:Only asks about actions a model judges risky.",
+            "title": "[to be translated]:Approve for Me"
           },
           "bypassPermissions": {
             "description": "所有權限提示都會被略過，請務必謹慎使用。",
@@ -6654,9 +6654,6 @@
           "dxtFile": "DXT 套件檔案",
           "dxtHelp": "選擇包含 MCP 伺服器的 .dxt 檔案",
           "dxtProcessFailed": "處理 DXT 檔案失敗",
-          "error": {
-            "multipleServers": "不能從多個伺服器匯入"
-          },
           "invalid": "無效的輸入，請檢查 JSON 格式",
           "json": "從 JSON 匯入",
           "mcpb": "匯入 MCPB 套件",

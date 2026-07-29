@@ -618,8 +618,8 @@
             "title": "Αυτόματη αποδοχή επεξεργασιών αρχείων"
           },
           "auto": {
-            "description": "[to be translated]:A model classifier approves routine actions and only asks you about risky ones.",
-            "title": "[to be translated]:Smart Auto Mode"
+            "description": "[to be translated]:Only asks about actions a model judges risky.",
+            "title": "[to be translated]:Approve for Me"
           },
           "bypassPermissions": {
             "description": "Όλα τα αιτήματα άδειας παραλείπονται — χρησιμοποιήστε με προσοχή.",
@@ -6654,9 +6654,6 @@
           "dxtFile": "Αρχείο Πακέτου DXT",
           "dxtHelp": "Επιλέξτε ένα αρχείο .dxt που περιέχει διακομιστή MCP",
           "dxtProcessFailed": "Αποτυχία επεξεργασίας αρχείου DXT",
-          "error": {
-            "multipleServers": "Δεν είναι δυνατή η εισαγωγή από πολλαπλούς διακομιστές"
-          },
           "invalid": "Μη έγκυρη εισαγωγή, ελέγξτε τη μορφή JSON",
           "json": "Εισαγωγή από JSON",
           "mcpb": "Εισαγωγή Δέσμης MCPB",

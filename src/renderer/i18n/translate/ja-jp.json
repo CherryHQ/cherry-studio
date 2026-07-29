@@ -618,8 +618,8 @@
             "title": "ファイル編集を自動承認"
           },
           "auto": {
-            "description": "[to be translated]:A model classifier approves routine actions and only asks you about risky ones.",
-            "title": "[to be translated]:Smart Auto Mode"
+            "description": "[to be translated]:Only asks about actions a model judges risky.",
+            "title": "[to be translated]:Approve for Me"
           },
           "bypassPermissions": {
             "description": "すべての権限プロンプトはスキップされます — 注意して使用してください。",
@@ -6654,9 +6654,6 @@
           "dxtFile": "DXTパッケージファイル",
           "dxtHelp": "MCPサーバーパッケージを含む.dxtファイルを選択",
           "dxtProcessFailed": "DXTファイルの処理に失敗しました",
-          "error": {
-            "multipleServers": "複数のサーバーからインポートすることはできません"
-          },
           "invalid": "無効な入力です。JSON形式を確認してください。",
           "json": "JSONからインポート",
           "mcpb": "MCPBバンドルをインポート",

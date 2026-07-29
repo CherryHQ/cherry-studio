@@ -618,8 +618,8 @@
             "title": "Chế độ tự động chỉnh sửa"
           },
           "auto": {
-            "description": "[to be translated]:A model classifier approves routine actions and only asks you about risky ones.",
-            "title": "[to be translated]:Smart Auto Mode"
+            "description": "[to be translated]:Only asks about actions a model judges risky.",
+            "title": "[to be translated]:Approve for Me"
           },
           "bypassPermissions": {
             "description": "Có thể làm mọi thứ mà không cần hỏi. Dùng một cách thận trọng.",
@@ -6654,9 +6654,6 @@
           "dxtFile": "Tệp gói DXT",
           "dxtHelp": "Chọn một tệp .dxt chứa gói máy chủ MCP",
           "dxtProcessFailed": "Không thể xử lý tệp DXT",
-          "error": {
-            "multipleServers": "Không thể nhập từ nhiều máy chủ"
-          },
           "invalid": "Đầu vào không hợp lệ, vui lòng kiểm tra định dạng JSON",
           "json": "Nhập từ JSON",
           "mcpb": "Nhập gói MCPB",

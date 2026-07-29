@@ -618,8 +618,8 @@
             "title": "Aceptar automáticamente las ediciones de archivos"
           },
           "auto": {
-            "description": "[to be translated]:A model classifier approves routine actions and only asks you about risky ones.",
-            "title": "[to be translated]:Smart Auto Mode"
+            "description": "[to be translated]:Only asks about actions a model judges risky.",
+            "title": "[to be translated]:Approve for Me"
           },
           "bypassPermissions": {
             "description": "Todos los mensajes de permiso se omiten — úsalo con precaución.",
@@ -6654,9 +6654,6 @@
           "dxtFile": "Archivo de paquete DXT",
           "dxtHelp": "Selecciona un archivo .dxt que contenga un servidor MCP",
           "dxtProcessFailed": "Error al procesar el archivo DXT",
-          "error": {
-            "multipleServers": "No se puede importar desde múltiples servidores"
-          },
           "invalid": "Entrada no válida, verifica el formato JSON",
           "json": "Importar desde JSON",
           "mcpb": "Importar paquete MCPB",

@@ -45,41 +45,41 @@ export const permissionModeCards: PermissionModeCard[] = [
     mode: 'default',
     // t('agent.settings.tooling.permissionMode.default.title')
     titleKey: 'agent.settings.tooling.permissionMode.default.title',
-    titleFallback: 'Normal Mode',
+    titleFallback: 'Ask Before Acting',
     descriptionKey: 'agent.settings.tooling.permissionMode.default.description',
-    descriptionFallback: 'Can read files freely. Asks before editing or running commands.'
+    descriptionFallback: 'Reads files freely. Asks before editing files or running commands.'
   },
   {
     mode: 'plan',
     // t('agent.settings.tooling.permissionMode.plan.title')
     titleKey: 'agent.settings.tooling.permissionMode.plan.title',
-    titleFallback: 'Plan Mode',
+    titleFallback: 'Plan Only',
     descriptionKey: 'agent.settings.tooling.permissionMode.plan.description',
-    descriptionFallback: 'Can only read files and make plans. Cannot edit files or run commands.'
+    descriptionFallback: 'Reads and plans only. Cannot edit files or run commands.'
   },
   {
     mode: 'acceptEdits',
     // t('agent.settings.tooling.permissionMode.acceptEdits.title')
     titleKey: 'agent.settings.tooling.permissionMode.acceptEdits.title',
-    titleFallback: 'Auto-edit Mode',
+    titleFallback: 'Auto-accept Edits',
     descriptionKey: 'agent.settings.tooling.permissionMode.acceptEdits.description',
-    descriptionFallback: 'Can read and edit files freely. Asks before running commands.'
+    descriptionFallback: 'Reads and edits files freely. Asks before running commands.'
   },
   {
     mode: 'auto',
     // t('agent.settings.tooling.permissionMode.auto.title')
     titleKey: 'agent.settings.tooling.permissionMode.auto.title',
-    titleFallback: 'Smart Auto Mode',
+    titleFallback: 'Approve for Me',
     descriptionKey: 'agent.settings.tooling.permissionMode.auto.description',
-    descriptionFallback: 'A model classifier approves routine actions and only asks you about risky ones.'
+    descriptionFallback: 'Only asks about actions a model judges risky.'
   },
   {
     mode: 'bypassPermissions',
     // t('agent.settings.tooling.permissionMode.bypassPermissions.title')
     titleKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title',
-    titleFallback: 'Full Auto Mode',
+    titleFallback: 'Full Access',
     descriptionKey: 'agent.settings.tooling.permissionMode.bypassPermissions.description',
-    descriptionFallback: 'Can do everything without asking. Use with caution.',
+    descriptionFallback: 'Runs everything without asking, including deleting files and network access.',
     caution: true
   }
 ]

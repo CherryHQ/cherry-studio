@@ -618,8 +618,8 @@
             "title": "Acceptă automat editările de fișiere"
           },
           "auto": {
-            "description": "[to be translated]:A model classifier approves routine actions and only asks you about risky ones.",
-            "title": "[to be translated]:Smart Auto Mode"
+            "description": "[to be translated]:Only asks about actions a model judges risky.",
+            "title": "[to be translated]:Approve for Me"
           },
           "bypassPermissions": {
             "description": "Toate solicitările de permisiune sunt omise — folosește cu precauție.",
@@ -6654,9 +6654,6 @@
           "dxtFile": "Fișier pachet DXT",
           "dxtHelp": "Selectează un fișier .dxt care conține un pachet de server MCP",
           "dxtProcessFailed": "Procesarea fișierului DXT a eșuat",
-          "error": {
-            "multipleServers": "Nu se poate importa din mai multe servere"
-          },
           "invalid": "Intrare invalidă, te rugăm să verifici formatul JSON",
           "json": "Importă din JSON",
           "mcpb": "Importă pachetul MCPB",
