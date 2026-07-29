@@ -59,6 +59,7 @@ describe('restore preparation', () => {
       const base = pathFor(key)
       return filename ? join(base, filename) : base
     })
+    vi.mocked(application.relaunch).mockReset()
     snapshotMock().mockImplementation((target: string) => snapshotTo(dbh.sqlite, target))
 
     seedResources()
@@ -517,7 +518,7 @@ describe('restore preparation', () => {
       ],
       [
         'completed',
-        () => {
+        async () => {
           const read = readRestoreJournalV2()
           if (read.kind !== 'ok') throw new Error('expected a journal')
           writeRestoreJournalV2({ ...read.journal, state: 'completed', summary: { knowledgeBaseIds: [] } })
@@ -574,7 +575,7 @@ describe('restore preparation', () => {
     it('writes armed durably before relaunch is initiated', async () => {
       const preview = await prepareFullForArm()
       let stateAtRelaunch: string | undefined
-      vi.mocked(application.relaunchAfterShutdown).mockImplementation(async () => {
+      vi.mocked(application.relaunch).mockImplementation(() => {
         const read = readRestoreJournalV2()
         stateAtRelaunch = read.kind === 'ok' ? read.journal.state : read.kind
       })
@@ -636,7 +637,7 @@ describe('restore preparation', () => {
 
       await expect(armPreparedRestore(preview.restoreId)).rejects.toThrow(/staged-missing/)
       expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
-      expect(application.relaunchAfterShutdown).not.toHaveBeenCalled()
+      expect(application.relaunch).not.toHaveBeenCalled()
     })
 
     it('refuses arm when a live target became a symlink', async () => {
@@ -651,7 +652,7 @@ describe('restore preparation', () => {
 
       await expect(armPreparedRestore(preview.restoreId)).rejects.toThrow(/target-not-installable/)
       expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
-      expect(application.relaunchAfterShutdown).not.toHaveBeenCalled()
+      expect(application.relaunch).not.toHaveBeenCalled()
     })
 
     it('refuses arm when an aside slot is already occupied', async () => {
@@ -663,12 +664,12 @@ describe('restore preparation', () => {
 
       await expect(armPreparedRestore(preview.restoreId)).rejects.toThrow(/aside-occupied/)
       expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'prepared' } })
-      expect(application.relaunchAfterShutdown).not.toHaveBeenCalled()
+      expect(application.relaunch).not.toHaveBeenCalled()
     })
 
     it('rolls the arm back to prepared when relaunch initiation fails', async () => {
       const preview = await prepareRestore({ archivePath })
-      vi.mocked(application.relaunchAfterShutdown).mockImplementation(async () => {
+      vi.mocked(application.relaunch).mockImplementation(() => {
         throw new Error('relaunch refused')
       })
 
@@ -698,7 +699,7 @@ describe('restore preparation', () => {
       expect(read.kind).toBe('ok')
       if (read.kind !== 'ok') return
       expect(read.journal).toMatchObject({ state: 'prepared', restoreId: current.restoreId })
-      expect(application.relaunchAfterShutdown).not.toHaveBeenCalled()
+      expect(application.relaunch).not.toHaveBeenCalled()
     })
   })
 })

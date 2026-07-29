@@ -322,10 +322,7 @@ export function cancelPreparedRestore(): void {
  * on the user's next unrelated restart, turning a failed button press into a
  * surprise database replacement.
  */
-export async function armPreparedRestore(
-  expectedRestoreId: string,
-  setShutdownOwned: (owned: boolean) => void = () => {}
-): Promise<void> {
+export async function armPreparedRestore(expectedRestoreId: string): Promise<void> {
   const hold = await acquireProfileQuiescence({ reason: 'backup restore: arm prepared restore' })
   let releaseHold = true
   try {
@@ -357,7 +354,6 @@ export async function armPreparedRestore(
         committed.journal.state === 'armed'
       ) {
         releaseHold = false
-        setShutdownOwned(true)
         await exitForRestoreJournalRecovery(error)
       }
       throw error
@@ -366,10 +362,9 @@ export async function armPreparedRestore(
     // From this point on, reopening admission would permit writes against a
     // journal that already authorizes preboot promotion.
     releaseHold = false
-    setShutdownOwned(true)
-    logger.info('Restore armed; requesting lifecycle shutdown and relaunch', { restoreId: journal.restoreId })
+    logger.info('Restore armed; requesting relaunch', { restoreId: journal.restoreId })
     try {
-      await application.relaunchAfterShutdown()
+      application.relaunch()
     } catch (error) {
       try {
         writeRestoreJournalV2(journal)
@@ -377,7 +372,6 @@ export async function armPreparedRestore(
         await exitForRestoreJournalRecovery(rollbackError)
       }
       releaseHold = true
-      setShutdownOwned(false)
       logger.error('Relaunch failed; the arm was rolled back to prepared', error as Error)
       throw new RestoreStateError('relaunch-failed', (error as Error).message)
     }

@@ -45,7 +45,7 @@ export interface AcquireProfileQuiescenceInputs {
 
 /**
  * A fully drained profile writer boundary. The owner must either dispose it in
- * reverse order or hand process lifetime to shutdown without reopening writer
+ * reverse order or hand process lifetime to exit without reopening writer
  * admission.
  */
 export interface ProfileQuiescenceHold extends Disposable {

@@ -35,15 +35,6 @@ interface InFlightOperation {
   readonly controller: AbortController
   readonly cancellable: boolean
   readonly settled: Promise<void>
-  shutdownOwned: boolean
-}
-
-export interface BackupOperationControl {
-  /**
-   * Once a durable journal transition owns process shutdown, BackupService
-   * must not wait for that same operation from inside its own `onStop`.
-   */
-  setShutdownOwned(owned: boolean): void
 }
 
 /**
@@ -216,7 +207,7 @@ export class BackupService extends BaseService {
     const waits: Promise<unknown>[] = []
     if (this.inFlight) {
       if (this.inFlight.cancellable) this.inFlight.controller.abort()
-      if (!this.inFlight.shutdownOwned) waits.push(this.inFlight.settled)
+      waits.push(this.inFlight.settled)
     }
     if (this.postPromotionWork) waits.push(this.postPromotionWork)
     if (this.exportCleanupWork) waits.push(this.exportCleanupWork)
@@ -278,26 +269,12 @@ export class BackupService extends BaseService {
 
   /** Confirm exactly the prepared restore whose preview the user accepted. */
   public armRestore(restoreId: string): Promise<void> {
-    return this.runExclusive(
-      'arm-restore',
-      (_signal, control) =>
-        armPreparedRestore(restoreId, (owned) => {
-          control.setShutdownOwned(owned)
-        }),
-      { cancellable: false }
-    )
+    return this.runExclusive('arm-restore', () => armPreparedRestore(restoreId), { cancellable: false })
   }
 
   /** Restore the data retained before the last completed restore, then relaunch. */
   public rollbackRestore(): Promise<void> {
-    return this.runExclusive(
-      'rollback-restore',
-      (_signal, control) =>
-        armRestoreRollback((owned) => {
-          control.setShutdownOwned(owned)
-        }),
-      { cancellable: false }
-    )
+    return this.runExclusive('rollback-restore', () => armRestoreRollback(), { cancellable: false })
   }
 
   /**
@@ -353,7 +330,7 @@ export class BackupService extends BaseService {
    */
   public async runExclusive<T>(
     operation: BackupOperation,
-    work: (signal: AbortSignal, control: BackupOperationControl) => Promise<T>,
+    work: (signal: AbortSignal) => Promise<T>,
     options: { readonly cancellable?: boolean } = {}
   ): Promise<T> {
     if (this.shuttingDown) throw new BackupCancelledError('backup service is shutting down')
@@ -368,17 +345,11 @@ export class BackupService extends BaseService {
       cancellable: options.cancellable ?? true,
       settled: new Promise<void>((resolve) => {
         markSettled = resolve
-      }),
-      shutdownOwned: false
-    }
-    const control: BackupOperationControl = {
-      setShutdownOwned: (owned) => {
-        if (this.inFlight === claim) claim.shutdownOwned = owned
-      }
+      })
     }
     this.inFlight = claim
     try {
-      return await work(controller.signal, control)
+      return await work(controller.signal)
     } finally {
       if (this.inFlight === claim) this.inFlight = null
       markSettled()
