@@ -518,7 +518,6 @@ export function AssistantResourceList({
         onOpenChange={(open) => {
           if (!open) setEditDialogTarget(null)
         }}
-        onSaved={refreshAssistants}
       />
     </>
   )
