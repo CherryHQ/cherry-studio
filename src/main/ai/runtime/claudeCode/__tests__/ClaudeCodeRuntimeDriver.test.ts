@@ -268,11 +268,151 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(nextInput).resolves.toMatchObject({
       value: {
         type: 'user',
+        uuid: 'user-1',
+        origin: { kind: 'human' },
         session_id: 'resume-1',
         message: { role: 'user', content: 'hello' }
       },
       done: false
     })
+    void connection.close()
+  })
+
+  it('does not install an adapter if the connection closes while preparing user input', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+
+    const send = connection.send({ message: userMessage() })
+    void connection.close()
+    queryQueue.close()
+
+    await expect(send).rejects.toThrow('Claude Code runtime connection closed while preparing user input')
+    expect(mocks.adapterInstances).toHaveLength(0)
+  })
+
+  it('keeps the foreground turn when stale results fail ownership checks, then accepts its matching result', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    const handleMessage = vi.spyOn(mocks.adapterInstances[0], 'handleMessage')
+
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-mismatched',
+      user_message_uuid: 'previous-turn',
+      origin: { kind: 'human' },
+      usage: {}
+    })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: 'resume-mismatched' } })
+
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-nonhuman',
+      user_message_uuid: 'user-1',
+      origin: { kind: 'channel', server: 'team' },
+      usage: {}
+    })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: 'resume-nonhuman' } })
+    expect(handleMessage).not.toHaveBeenCalled()
+
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-matching',
+      user_message_uuid: 'user-1',
+      origin: { kind: 'human' },
+      usage: {}
+    })
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(handleMessage).toHaveBeenCalledOnce()
+    expect(seen).toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
+    void connection.close()
+  })
+
+  it('rejects an unattributed zero-output success before the foreground turn has SDK activity', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    const handleMessage = vi.spyOn(mocks.adapterInstances[0], 'handleMessage')
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-unattributed',
+      result: '',
+      total_cost_usd: 0,
+      usage: {
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0
+      }
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'resume-token', token: 'resume-unattributed' }
+    })
+    expect(handleMessage).not.toHaveBeenCalled()
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Rejected Claude SDK result that does not belong to the active foreground turn',
+      expect.objectContaining({ rejection: 'unattributed-empty-success', activeUserMessageUuid: 'user-1' })
+    )
+    void connection.close()
+  })
+
+  it('accepts a human-origin result without a UUID for local slash-command compatibility', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-local-command',
+      origin: { kind: 'human' },
+      result: '',
+      total_cost_usd: 0,
+      usage: {}
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen).toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
     void connection.close()
   })
 
@@ -2047,7 +2187,13 @@ describe('ClaudeCodeRuntimeDriver', () => {
     steerHolder.onInjected([{ message: userMessage() }])
 
     // Turn ends (result) with no following top-level message_start → no boundary, just a clean turn end.
-    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-result', usage: {} })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-result',
+      user_message_uuid: 'user-1',
+      usage: {}
+    })
 
     const seen: any[] = []
     for (;;) {
@@ -2165,7 +2311,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     // The query loop dies (failed result) → first teardown disposes the session-scoped state.
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     queryQueue.push({ type: 'result', subtype: 'error', session_id: 'resume-1' })
     let evt = await events.next()
     while (evt.value?.type !== 'error' && !evt.done) evt = await events.next()
