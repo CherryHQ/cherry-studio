@@ -1,9 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
-import { readRestoreJournalV2, restoreJournalIo, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
+import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
+import { durableFileIo } from '@main/utils/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -138,25 +139,20 @@ describe('restoreJournalV2 file I/O', () => {
       expect(() => JSON.parse(readFileSync(journalPath(), 'utf8'))).not.toThrow()
     })
 
-    it('loops until a sequence of short writes has persisted the complete journal', () => {
-      const realWrite = restoreJournalIo.writeSync
-      const shortWrite = vi
-        .spyOn(restoreJournalIo, 'writeSync')
-        .mockImplementation((fd, bytes, offset, length) => realWrite(fd, bytes, offset, Math.min(length, 17), null))
-
+    it('does not leave its fixed temporary sibling after a complete write', () => {
       writeRestoreJournalV2(preparedJournal())
 
-      expect(shortWrite.mock.calls.length).toBeGreaterThan(1)
-      expect(readRestoreJournalV2()).toEqual({ kind: 'ok', journal: preparedJournal() })
+      expect(existsSync(`${journalPath()}.tmp`)).toBe(false)
     })
 
-    it('does not replace the last valid journal when a short write stops making progress', () => {
+    it('preserves the last durable journal and removes tmp when the shared writer stalls', () => {
       writeRestoreJournalV2(preparedJournal())
-      vi.spyOn(restoreJournalIo, 'writeSync').mockReturnValue(0)
+      vi.spyOn(durableFileIo, 'writeSync').mockReturnValue(0)
       const armed: RestoreJournalV2 = { ...preparedJournal(), state: 'armed' }
 
       expect(() => writeRestoreJournalV2(armed)).toThrow(/made no progress/)
       expect(readRestoreJournalV2()).toEqual({ kind: 'ok', journal: preparedJournal() })
+      expect(existsSync(`${journalPath()}.tmp`)).toBe(false)
     })
   })
 })

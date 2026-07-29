@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import { chmod, lstat, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { chmod, lstat, mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-
-import { archiveDurability } from './archiveDurability'
+import { atomicWriteFile } from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('backup/exportOperation')
 const STAGING_PREFIX = 'export-'
@@ -84,15 +84,10 @@ async function identityOf(directory: string): Promise<OwnedIdentity> {
 }
 
 async function writeJsonAtomic(target: string, value: unknown): Promise<void> {
-  const tmp = `${target}.${randomUUID()}.tmp`
-  try {
-    await writeFile(tmp, `${JSON.stringify(value)}\n`, { flag: 'wx', mode: 0o600 })
-    await archiveDurability.fsyncFile(tmp)
-    await rename(tmp, target)
-    await archiveDurability.fsyncDir(path.dirname(target))
-  } finally {
-    await rm(tmp, { force: true }).catch(() => {})
-  }
+  await atomicWriteFile(AbsoluteFilePathSchema.parse(target), `${JSON.stringify(value)}\n`, {
+    mode: 0o600,
+    directorySync: 'required'
+  })
 }
 
 async function readJsonBounded(target: string): Promise<unknown> {

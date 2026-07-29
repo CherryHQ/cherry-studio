@@ -1,25 +1,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { fsyncDirectorySync, fsyncFileSync } from '@main/utils/file'
+
 /** Test seam for the two durability operations; production uses real fsync. */
 export const restoreStagingDurability = {
   syncFile(target: string): void {
-    const fd = fs.openSync(target, 'r')
-    try {
-      fs.fsyncSync(fd)
-    } finally {
-      fs.closeSync(fd)
-    }
+    fsyncFileSync(target)
   },
 
   syncDirectory(target: string): void {
-    if (process.platform === 'win32') return
-    const fd = fs.openSync(target, 'r')
-    try {
-      fs.fsyncSync(fd)
-    } finally {
-      fs.closeSync(fd)
-    }
+    fsyncDirectorySync(target)
   }
 }
 
