@@ -3757,7 +3757,7 @@
   "settings.data.backup_v2.outcome.title": "上次恢复",
   "settings.data.backup_v2.outcome.unreadable": "本机的恢复记录无法读取，下次启动时将被隔离。",
   "settings.data.backup_v2.preview.coverage": "该备份需要的文件",
-  "settings.data.backup_v2.preview.coverage_counts": "{{available}} 项可用，{{missing}} 项缺失，{{unverifiable}} 项在应用之外",
+  "settings.data.backup_v2.preview.coverage_counts": "{{available}} 项可用，{{rebuildable}} 项将在恢复后重建，{{missing}} 项缺失，{{unverifiable}} 项在应用之外",
   "settings.data.backup_v2.preview.degradations": "创建该备份时有 {{count}} 项未被包含。",
   "settings.data.backup_v2.preview.destructive": "恢复会替换当前数据库并重启应用。一旦确认保留，将无法撤销。",
   "settings.data.backup_v2.preview.migrated_forward": "该备份由较旧版本创建，已在准备阶段升级。",

@@ -83,9 +83,15 @@ Consequences that MUST be surfaced to the user and honored by code:
   may rebuild disposable derived files (e.g. Knowledge `{baseId}/.cherry/index.sqlite`) for
   existing resource directories.
 
-**Resource coverage inventory.** Restore reports *existence coverage* before relaunch —
-each requirement classified as `available`, `missing`, `external-unverifiable`, or
-`rebuildable`. It deliberately does not hash large target resources or claim content
+**Resource coverage inventory.** Restore reports *existence coverage* before relaunch.
+`available`, `rebuildable`, and `missing` **partition** the requirements — every
+requirement lands in exactly one, and they sum to the requirement count. `rebuildable`
+is the requirement whose payload carries only source material because its usable state
+is derived and excluded, so the target's owner rebuilds it after restore (today: a
+Knowledge base, which ships `raw/` without `.cherry/index.sqlite`, §6.7). The separate
+`external-unverifiable` count is *not* part of that partition: it counts database
+references that are not requirements at all (§4), so it can be non-zero with an empty
+inventory. Coverage deliberately does not hash large target resources or claim content
 equality; it is diagnostic and never copies or mutates files to repair coverage.
 
 ### 2.2 Full — fixed resource overlay
@@ -394,6 +400,16 @@ per-entry and total uncompressed bytes, compression ratio, and staging disk head
   operation-owned unit staging and let later units continue; aggregate ceilings, staging-volume
   errors, archive-owned corruption, and publication failures still fail closed.
 
+- **Rebuildability (units whose derived state is excluded):** because export drops a
+  Knowledge base's `.cherry/index.sqlite`, the `raw/` material is the only thing the
+  restoring device could rebuild that index from. The baseline therefore proves, from the
+  sealed database alone, that every completed indexable leaf has its material inside the
+  scan it just took — no second stat pass, so no window between proof and capture. A base
+  that cannot supply it (notably a v1→v2 upgraded directory child that only ever had a
+  virtual path) is degraded out WHOLE with `unrebuildable-content` rather than shipped as
+  an index-less shell. The cost is disclosed, not silent: such a base is not protected by
+  the backup, and carrying the index instead is a separate, negotiated change.
+
 A payload already missing or wrong-typed at snapshot time records `absent-at-snapshot` or
 `type-mismatch-at-snapshot`. A post-boundary unit that changes, disappears, contains a
 non-regular node, violates portability, or exceeds a per-unit ceiling is omitted atomically
@@ -643,7 +659,8 @@ restore-scoped job for a base remains active, later polls skip that base's full 
 scan and enqueue pass; they reconcile again only after those jobs settle. A durable user
 abandonment marker stops polling across restarts and cancels active restore-scoped jobs before
 rollback material is released. Export and directory payload hashing exclude only
-`{baseId}/.cherry/index.sqlite{,-wal,-shm}`.
+`{baseId}/.cherry/index.sqlite{,-wal,-shm}`, and export ships a base only after proving it
+carries the material that rebuild needs (§5.4).
 
 ---
 
@@ -701,8 +718,9 @@ target device.
 
 **Restore preview:**
 
-- Resource coverage on this device — available / missing / external-unverifiable /
-  rebuildable counts, with **no** content-equality claim.
+- Resource coverage on this device — available / rebuildable / missing counts (a
+  partition of the requirements) plus the separate external-unverifiable count, with
+  **no** content-equality claim.
 - A current estimate of resources to install or replace, plus unsupported external
   resources; the preboot state machine owns the final result.
 - Any degradation is shown by grouped cause and bounded safe relative path samples during

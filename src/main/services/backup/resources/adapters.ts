@@ -26,11 +26,11 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
 import type { DbOrTx } from '@data/db/types'
 import { isSafeRelativeSubpath } from '@main/utils/relativePath'
-import { isNull } from 'drizzle-orm'
+import { eq, isNull, sql } from 'drizzle-orm'
 
 import type { ResourceRequirement } from '../manifest'
 import { type BackupPlatform, isPathContainedIn } from '../portability/managedPathRebase'
@@ -108,7 +108,30 @@ export const RESOURCE_ROOT_BY_KIND = Object.freeze({
 export interface AdapterInventory {
   readonly requirements: readonly ResourceRequirement[]
   readonly unverifiable: number
+  /** Keyed by `livePath`; see {@link UnitContentRequirement}. Omitted by kinds that ship whole. */
+  readonly requiredContent?: ReadonlyMap<string, UnitContentRequirement>
 }
+
+/**
+ * Unit-relative paths a payload MUST carry for the restoring device to rebuild
+ * the derived state the archive deliberately does not ship (§2, §6.7).
+ *
+ * `null` means the unit can never satisfy that proof — a completed leaf names no
+ * material at all, which is what a v1→v2 upgrade leaves behind for a directory
+ * child that only ever had a virtual path. Either way the proof itself is taken
+ * later, against the staging baseline's own directory scan; this is a pure
+ * database statement of what to look for.
+ */
+export type UnitContentRequirement = readonly string[] | null
+
+/**
+ * Kinds whose payload carries SOURCE MATERIAL only, with the derived index left
+ * to the target's owner after restore (§2 coverage, §6.7). Their coverage bucket
+ * is `rebuildable` rather than `available`: the bytes are there, the usable state
+ * is not yet. Typed as `string` because a manifest `kind` is untrusted text
+ * until matched here.
+ */
+export const REBUILDABLE_RESOURCE_KINDS: ReadonlySet<string> = new Set<BackupResourceKind>(['knowledge-base'])
 
 export interface BackupResourceAdapter {
   readonly kind: BackupResourceKind
@@ -182,19 +205,87 @@ const fileBlobAdapter: BackupResourceAdapter = {
   }
 }
 
+/** Material root inside a Knowledge unit; every item path resolves under it. */
+const KNOWLEDGE_MATERIAL_ROOT = 'raw'
+
+/**
+ * The material path of one indexable leaf, mirroring the Knowledge owner's
+ * `toMaterialRelativePath` — except that this reads an UNTRUSTED database and so
+ * is total: anything that is not a usable path yields `null`, which makes the
+ * base unprovable rather than throwing mid-inventory.
+ */
+function materialRelativePath(row: { type: string; data: string }): string | null {
+  let parsed: unknown
+  try {
+    // Read as TEXT and parse here: an archive controls these bytes, and a
+    // malformed row must make its base unprovable, not abort the inventory.
+    parsed = JSON.parse(row.data)
+  } catch {
+    return null
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null
+  const data = parsed as { relativePath?: unknown; indexedRelativePath?: unknown }
+  const chosen =
+    row.type === 'file' && typeof data.indexedRelativePath === 'string' ? data.indexedRelativePath : data.relativePath
+  return typeof chosen === 'string' && chosen.length > 0 ? chosen : null
+}
+
+/**
+ * Per base id, the `raw/` material every COMPLETED indexable leaf needs for the
+ * target to rebuild the index this archive excludes.
+ *
+ * Only `completed` leaves count: an unfinished item has nothing indexed to
+ * reproduce. `directory` items are containers whose children are separate rows,
+ * and they are the rows that name material.
+ */
+function knowledgeMaterialsByBase(ctx: SnapshotReadContext): Map<string, UnitContentRequirement> {
+  const rows = ctx.db
+    .select({
+      baseId: knowledgeItemTable.baseId,
+      type: knowledgeItemTable.type,
+      data: sql<string>`${knowledgeItemTable.data}`
+    })
+    .from(knowledgeItemTable)
+    .where(eq(knowledgeItemTable.status, 'completed'))
+    .all()
+
+  const byBase = new Map<string, string[] | null>()
+  for (const row of rows) {
+    if (row.type === 'directory') continue
+    const collected = byBase.get(row.baseId)
+    if (collected === null) continue
+    const relative = materialRelativePath(row)
+    if (relative === null) {
+      byBase.set(row.baseId, null)
+      continue
+    }
+    const paths = collected ?? []
+    paths.push(`${KNOWLEDGE_MATERIAL_ROOT}/${relative}`)
+    byBase.set(row.baseId, paths)
+  }
+  return byBase
+}
+
 /**
  * Knowledge bases. The unit is the whole `{baseId}` directory: its raw sources
  * are only meaningful together, and overlaying two of them would produce a base
  * whose index describes files it does not contain. The rebuildable index inside
  * it is excluded when Phase 3 stages the bytes, not here — a requirement names
  * the unit, not its contents.
+ *
+ * Because the index is excluded, the raw material is the ONLY thing that makes a
+ * restored base recoverable, so each base also declares the material set staging
+ * must find. A base that cannot supply it is degraded out of the archive rather
+ * than shipped as an index-less shell that no device could ever rebuild.
  */
 const knowledgeBaseAdapter: BackupResourceAdapter = {
   kind: 'knowledge-base',
   collectRequirements(ctx) {
     const rows = ctx.db.select({ id: knowledgeBaseTable.id }).from(knowledgeBaseTable).all()
+    const materials = knowledgeMaterialsByBase(ctx)
 
     const requirements: ResourceRequirement[] = []
+    const requiredContent = new Map<string, UnitContentRequirement>()
     let unverifiable = 0
     for (const row of rows) {
       const livePath = managedLivePath(ctx, ctx.roots.knowledge, path.join(ctx.roots.knowledge, row.id))
@@ -203,8 +294,10 @@ const knowledgeBaseAdapter: BackupResourceAdapter = {
         continue
       }
       requirements.push({ kind: 'knowledge-base', resourceType: 'directory', livePath })
+      // `null` is a meaningful value here (unprovable), so `??` would erase it.
+      requiredContent.set(livePath, materials.has(row.id) ? materials.get(row.id)! : [])
     }
-    return { requirements, unverifiable }
+    return { requirements, unverifiable, requiredContent }
   }
 }
 

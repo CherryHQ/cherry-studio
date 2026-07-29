@@ -614,6 +614,7 @@ const RestorePreviewCard: FC<{ preview: RestorePreview }> = ({ preview }) => {
         <span>
           {t('settings.data.backup_v2.preview.coverage_counts', {
             available: coverage.available,
+            rebuildable: coverage.rebuildable,
             missing: coverage.missing,
             unverifiable: coverage.unverifiable
           })}
