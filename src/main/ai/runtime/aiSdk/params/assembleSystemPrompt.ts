@@ -3,7 +3,12 @@
  */
 
 import { replacePromptVariables } from '@main/utils/prompt'
-import { KB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
@@ -14,7 +19,12 @@ import { CITATIONS_SYSTEM_PROMPT } from '../prompts/citations'
 import { getDeferredToolsSystemPrompt } from '../prompts/deferredTools'
 
 /** Lookup tools whose results carry citation ids — their presence turns on the citation guidance. */
-const CITE_TOOL_NAMES: ReadonlySet<string> = new Set([WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME, KB_SEARCH_TOOL_NAME])
+const CITE_TOOL_NAMES: ReadonlySet<string> = new Set([
+  WEB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  KB_READ_TOOL_NAME
+])
 
 export interface AssembleSystemPromptInput {
   assistant?: Assistant

@@ -8,11 +8,17 @@
  */
 
 import { toCherryBuiltinRuntimeName } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
-import { KB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from '@shared/ai/builtinTools'
 
 export const CHERRY_WEB_SEARCH_RUNTIME_NAME = toCherryBuiltinRuntimeName(WEB_SEARCH_TOOL_NAME)
 export const CHERRY_WEB_FETCH_RUNTIME_NAME = toCherryBuiltinRuntimeName(WEB_FETCH_TOOL_NAME)
 export const CHERRY_KB_SEARCH_RUNTIME_NAME = toCherryBuiltinRuntimeName(KB_SEARCH_TOOL_NAME)
+export const CHERRY_KB_READ_RUNTIME_NAME = toCherryBuiltinRuntimeName(KB_READ_TOOL_NAME)
 
 export interface CitationsGuidanceOptions {
   web: boolean
@@ -23,7 +29,7 @@ export function buildCitationsGuidance({ web, kb }: CitationsGuidanceOptions): s
   if (!web && !kb) return undefined
   const tools = [
     ...(web ? [`\`${CHERRY_WEB_SEARCH_RUNTIME_NAME}\` / \`${CHERRY_WEB_FETCH_RUNTIME_NAME}\``] : []),
-    ...(kb ? [`\`${CHERRY_KB_SEARCH_RUNTIME_NAME}\``] : [])
+    ...(kb ? [`\`${CHERRY_KB_SEARCH_RUNTIME_NAME}\` / \`${CHERRY_KB_READ_RUNTIME_NAME}\``] : [])
   ].join(' and ')
   return `## Citations
 

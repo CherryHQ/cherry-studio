@@ -91,7 +91,9 @@ export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document
 
 Pass the \`conceptId\` and \`baseId\` from a kb_search hit (or a kb_list outline). Two modes, selected by \`pattern\`:
 - Omit \`pattern\` to read the document text: kb_search returns short matching chunks, kb_read returns the whole document (or a slice) so you can quote it accurately and read the surrounding context. Long documents come back in capped slices — when \`totalChars\` exceeds the returned \`charEnd\`, call again with \`charStart\` set to that \`charEnd\` to page on.
-- Pass a \`pattern\` (a regular expression) to grep instead: locate exact text — a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet. For meaning-based search across documents, use kb_search.`
+- Pass a \`pattern\` (a regular expression) to grep instead: locate exact text — a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet. For meaning-based search across documents, use kb_search.
+
+Cite: append [cite:id] immediately after each statement this document supports, using the result's exact \`id\` field.`
 
 export const KNOWLEDGE_MANAGE_DESCRIPTION = `Modify a knowledge base: add a new source, or delete / re-index existing documents. Destructive — every call modifies the base and is gated behind user approval.
 
@@ -243,6 +245,8 @@ async function readConcept(
   try {
     const result = await application.get('KnowledgeService').readConcept(baseId, conceptId, range)
     return {
+      // One slice, one source — index 0 yields the call's only cite id.
+      id: citeId(newCitePrefix(), 0),
       conceptId: result.conceptId,
       title: result.title,
       type: result.itemType,
@@ -294,6 +298,8 @@ async function grepConcept(
   try {
     const result = await application.get('KnowledgeService').grepConcept(baseId, conceptId, options)
     return {
+      // Every match is in this one document, so the call yields a single cite id.
+      id: citeId(newCitePrefix(), 0),
       conceptId: result.conceptId,
       title: result.title,
       type: result.itemType,

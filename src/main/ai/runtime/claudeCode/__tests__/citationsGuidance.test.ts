@@ -15,9 +15,10 @@ describe('buildCitationsGuidance', () => {
     expect(out).toContain('[cite:ID]')
   })
 
-  it('mentions only kb_search when web is disabled', () => {
+  it('mentions only the kb tools when web is disabled', () => {
     const out = buildCitationsGuidance({ web: false, kb: true })
     expect(out).toContain('mcp__cherry-tools__kb_search')
+    expect(out).toContain('mcp__cherry-tools__kb_read')
     expect(out).not.toContain('web_search')
   })
 

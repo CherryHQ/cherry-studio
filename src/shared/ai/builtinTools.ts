@@ -261,6 +261,10 @@ export const kbReadStrictInputSchema = z.object({
 })
 
 export const kbReadOutputSchema = z.object({
+  // Citation id the model echoes back as `[cite:id]`. One id per call: a read returns one
+  // document slice, so the whole result is a single source. Optional because results persisted
+  // before kb_read joined the citation pipeline carry no id — those simply aren't citable.
+  id: z.string().optional(),
   conceptId: z.string(),
   title: z.string(),
   type: z.string(),
@@ -285,6 +289,9 @@ export const kbGrepMatchSchema = z.object({
 })
 
 export const kbGrepOutputSchema = z.object({
+  // One id for the whole result, not one per match: every match lives in the same document, so
+  // they resolve to a single source. Optional for the same back-compat reason as kb_read.
+  id: z.string().optional(),
   conceptId: z.string(),
   title: z.string(),
   type: z.string(),

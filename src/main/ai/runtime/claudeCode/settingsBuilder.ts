@@ -43,6 +43,7 @@ import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
 import {
   buildCitationsGuidance,
+  CHERRY_KB_READ_RUNTIME_NAME,
   CHERRY_KB_SEARCH_RUNTIME_NAME,
   CHERRY_WEB_FETCH_RUNTIME_NAME,
   CHERRY_WEB_SEARCH_RUNTIME_NAME
@@ -1237,7 +1238,9 @@ export async function buildSystemPrompt(
   const disabledTools = new Set(agent.disabledTools ?? [])
   const citationsGuidance = buildCitationsGuidance({
     web: !disabledTools.has(CHERRY_WEB_SEARCH_RUNTIME_NAME) || !disabledTools.has(CHERRY_WEB_FETCH_RUNTIME_NAME),
-    kb: (agent.knowledgeBaseIds?.length ?? 0) > 0 && !disabledTools.has(CHERRY_KB_SEARCH_RUNTIME_NAME)
+    kb:
+      (agent.knowledgeBaseIds?.length ?? 0) > 0 &&
+      (!disabledTools.has(CHERRY_KB_SEARCH_RUNTIME_NAME) || !disabledTools.has(CHERRY_KB_READ_RUNTIME_NAME))
   })
   const citationsBlock = citationsGuidance ? `\n\n${citationsGuidance}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`

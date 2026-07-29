@@ -337,6 +337,7 @@ describe('cherryBuiltinTools', () => {
     expect(kbReadConcept).toHaveBeenCalledWith('b1', 'docs/intro.md', { charStart: 0, charEnd: 11 })
     expect(result.isError).toBeFalsy()
     expect(JSON.parse(textOf(result))).toMatchObject({
+      id: expect.stringMatching(/^[a-z0-9]{3}-1$/),
       conceptId: 'docs/intro.md',
       type: 'file',
       content: 'hello world'
@@ -383,7 +384,12 @@ describe('cherryBuiltinTools', () => {
     })
     // read mode must NOT run when a pattern is present.
     expect(kbReadConcept).not.toHaveBeenCalled()
-    expect(JSON.parse(textOf(result))).toMatchObject({ conceptId: 'docs/intro.md', type: 'note', totalMatches: 1 })
+    expect(JSON.parse(textOf(result))).toMatchObject({
+      id: expect.stringMatching(/^[a-z0-9]{3}-1$/),
+      conceptId: 'docs/intro.md',
+      type: 'note',
+      totalMatches: 1
+    })
   })
 
   it('returns a no-matches hint (not an error) when kb_read grep mode finds nothing', async () => {

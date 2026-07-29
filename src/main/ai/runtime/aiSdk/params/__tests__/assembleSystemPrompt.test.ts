@@ -125,6 +125,15 @@ describe('assembleSystemPrompt', () => {
     expect(out).toContain('<citations>')
   })
 
+  it('appends citation guidance when kb_read is the only citable tool', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      tools: { kb_read: {} } as unknown as ToolSet
+    })
+    expect(out).toContain('<citations>')
+  })
+
   it('appends citation guidance when web tools are only available deferred', async () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: 'base' }),

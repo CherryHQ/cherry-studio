@@ -24,6 +24,40 @@ const kbToolPart = (results: unknown): CherryMessagePart =>
     output: results
   }) as never
 
+const kbReadPart = (output: unknown, toolCallId = 'c5'): CherryMessagePart =>
+  ({
+    type: 'tool-kb_read',
+    toolCallId,
+    state: 'output-available',
+    input: { baseId: 'b', conceptId: 'doc/two.md' },
+    output
+  }) as never
+
+const kbReadOutput = (id: string | undefined, overrides: Record<string, unknown> = {}) => ({
+  ...(id === undefined ? {} : { id }),
+  conceptId: 'doc/two.md',
+  title: 'Two.md',
+  type: 'file',
+  totalChars: 10,
+  charStart: 0,
+  charEnd: 10,
+  content: 'read slice',
+  truncated: false,
+  ...overrides
+})
+
+const kbGrepOutput = (id: string) => ({
+  id,
+  conceptId: 'doc/three.md',
+  title: 'Three.md',
+  type: 'file',
+  totalMatches: 2,
+  matches: [
+    { line: 3, charStart: 10, charEnd: 20, snippet: 'first hit' },
+    { line: 9, charStart: 40, charEnd: 50, snippet: 'second hit' }
+  ]
+})
+
 const dynamicMcpPart = (toolName: string, content: unknown): CherryMessagePart =>
   ({
     type: 'dynamic-tool',
@@ -108,6 +142,51 @@ describe('resolveMessageCitations', () => {
     const mc = resolveMessageCitations([first, second])
     expect(mc.all).toHaveLength(2)
     expect(mc.byId.get('zzz-1')).toBe(mc.byId.get('aaa-1'))
+  })
+
+  it('resolves a kb_read slice as one document-level citation', () => {
+    const mc = resolveMessageCitations([kbReadPart(kbReadOutput('rrr-1'))])
+    expect(mc.all).toHaveLength(1)
+    expect(mc.byId.get('rrr-1')).toMatchObject({ number: 1, title: 'Two.md', url: '', type: 'knowledge' })
+  })
+
+  it('resolves an MCP-wrapped kb_read slice from the agent path', () => {
+    const mc = resolveMessageCitations([dynamicMcpPart('mcp__cherry-tools__kb_read', kbReadOutput('rrr-1'))])
+    expect(mc.byId.get('rrr-1')).toMatchObject({ title: 'Two.md', content: 'read slice', type: 'knowledge' })
+  })
+
+  it('joins grep match snippets into the citation preview', () => {
+    const mc = resolveMessageCitations([kbReadPart(kbGrepOutput('ggg-1'))])
+    expect(mc.byId.get('ggg-1')).toMatchObject({ title: 'Three.md', content: 'first hit … second hit' })
+  })
+
+  it('truncates a long read slice to a tooltip-sized snippet', () => {
+    const mc = resolveMessageCitations([kbReadPart(kbReadOutput('rrr-1', { content: 'x'.repeat(2000) }))])
+    expect(mc.byId.get('rrr-1')?.content).toBe(`${'x'.repeat(300)}…`)
+  })
+
+  it('aliases a document to its existing citation when kb_search already returned it', () => {
+    const mc = resolveMessageCitations([
+      kbToolPart(kbResults('sss')),
+      kbReadPart(kbReadOutput('rrr-1', { conceptId: 'doc/one.md' }))
+    ])
+    expect(mc.all).toHaveLength(1)
+    expect(mc.byId.get('rrr-1')).toBe(mc.byId.get('sss-1'))
+  })
+
+  it('skips kb_read results persisted before citation ids existed', () => {
+    const mc = resolveMessageCitations([kbReadPart(kbReadOutput(undefined))])
+    expect(mc.all).toHaveLength(0)
+  })
+
+  it('skips kb_read error and no-match outputs', () => {
+    const mc = resolveMessageCitations([
+      // The assistant path persists the raw core result, the agent path the steer text.
+      kbReadPart({ error: 'Knowledge base "b" is not available to this assistant.' }),
+      kbReadPart({ ...kbGrepOutput('ggg-1'), totalMatches: 0, matches: [] }, 'c6'),
+      kbReadPart('No matches for that pattern in "doc/three.md".', 'c7')
+    ])
+    expect(mc.all).toHaveLength(0)
   })
 
   it('ignores tool parts that have not completed', () => {
