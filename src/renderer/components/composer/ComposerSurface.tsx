@@ -2170,7 +2170,7 @@ export default function ComposerSurface({
         belowControls ? 'mb-0.5' : 'mb-3',
         isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
         isDragging &&
-          "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
+          "border-2 border-success border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-success/[0.03] before:content-['']",
         isExpanded && 'expanded'
       )}>
       {!isCompact ? (
@@ -2195,7 +2195,7 @@ export default function ComposerSurface({
               <span
                 aria-hidden="true"
                 data-composer-expand-corner-line=""
-                className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-black/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/60"
+                className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-foreground/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0"
               />
               <Button
                 type="button"

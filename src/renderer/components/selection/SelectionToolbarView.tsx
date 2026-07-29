@@ -76,12 +76,12 @@ const ActionIcons: FC<{
           className={cn(
             'group m-0 flex h-full cursor-pointer! flex-row items-center justify-center gap-0.5 rounded-none border-0 bg-transparent px-2 py-0 shadow-none transition-colors duration-100 [-webkit-app-region:no-drag]',
             'last:rounded-r-[10px] last:py-0 last:pr-3 last:pl-2',
-            'hover:bg-black/[0.04] dark:hover:bg-[#333333]'
+            'hover:bg-accent'
           )}>
           <span
             className={cn(
               'relative flex size-4 items-center justify-center bg-transparent',
-              '[&_svg]:text-black dark:[&_svg]:text-[rgb(255_255_245_/_0.9)]',
+              '[&_svg]:text-card-foreground',
               'group-hover:[&_svg]:text-primary'
             )}>
             {action.id === 'copy' ? (
@@ -99,7 +99,7 @@ const ActionIcons: FC<{
           {!isCompact && (
             <span
               className={cn(
-                'btn-title m-0 max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap bg-transparent text-black text-sm leading-[1.1] transition-colors duration-100 dark:text-[rgb(255_255_245_/_0.9)]',
+                'btn-title m-0 max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap bg-transparent text-card-foreground text-sm leading-[1.1] transition-colors duration-100',
                 'group-hover:text-primary'
               )}>
               {displayName}

@@ -437,8 +437,7 @@ describe('ComposerToken', () => {
     expect(popoverContent).not.toHaveTextContent('PNG')
     expect(popoverContent).not.toHaveTextContent('2 KB')
     expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).toHaveClass(
-      'bg-neutral-100',
-      'dark:bg-neutral-800',
+      'bg-muted',
       'text-muted-foreground',
       'text-sm'
     )
@@ -490,9 +489,8 @@ describe('ComposerToken', () => {
     expect(removeButton).toHaveClass(
       'size-full',
       'rounded-[5px]',
-      'bg-neutral-100',
+      'bg-muted',
       'text-foreground',
-      'dark:bg-neutral-800',
       'opacity-0',
       'group-hover/composer-token:pointer-events-auto',
       'group-hover/composer-token:opacity-100'
@@ -587,11 +585,7 @@ describe('ComposerToken', () => {
     expect(token).not.toHaveClass('align-baseline')
     expect(token).not.toHaveClass('border-destructive', 'bg-error-subtle')
     expect(token?.querySelector('[data-file-token-icon="pdf"]')).not.toHaveClass('border-destructive', 'bg-background')
-    expect(token?.querySelector('[data-composer-token-remove]')).toHaveClass(
-      'bg-neutral-100',
-      'text-foreground',
-      'dark:bg-neutral-800'
-    )
+    expect(token?.querySelector('[data-composer-token-remove]')).toHaveClass('bg-muted', 'text-foreground')
     expect(token?.querySelector('[data-composer-token-remove]')).not.toHaveClass(
       'bg-transparent',
       'text-current',
@@ -736,13 +730,7 @@ describe('ComposerToken', () => {
     const removeButton = container.querySelector('[data-composer-token-remove]') as HTMLButtonElement
     expect(removeButton).toBeInTheDocument()
     expect(removeButton).toHaveAttribute('aria-label', '删除')
-    expect(removeButton).toHaveClass(
-      'size-full',
-      'rounded-[5px]',
-      'bg-neutral-100',
-      'text-foreground',
-      'dark:bg-neutral-800'
-    )
+    expect(removeButton).toHaveClass('size-full', 'rounded-[5px]', 'bg-muted', 'text-foreground')
     expect(removeButton).not.toHaveClass(
       'bg-transparent',
       'dark:text-black',

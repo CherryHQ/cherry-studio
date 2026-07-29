@@ -192,7 +192,7 @@ const TranslateLanguageBar: FC<Props> = ({
           type="button"
           disabled
           aria-label={`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}
-          className="h-8 max-w-70 justify-start gap-2 bg-zinc-50 px-3 text-foreground text-sm shadow-none disabled:opacity-100 dark:bg-zinc-900">
+          className="h-8 max-w-70 justify-start gap-2 bg-background-subtle px-3 text-foreground text-sm shadow-none disabled:opacity-100">
           <span className="sr-only">{`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}</span>
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="text-sm leading-none">{bidirectionalSource.emoji}</span>

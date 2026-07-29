@@ -323,7 +323,7 @@ const MessageTokenDetailsCard = ({
           <ModelAvatar
             model={model}
             size={32}
-            className="-outline-offset-1 shrink-0 outline outline-1 outline-black/10 dark:outline-white/10"
+            className="-outline-offset-1 shrink-0 outline outline-1 outline-border"
           />
         ) : null}
         <div className="min-w-0 flex-1">
