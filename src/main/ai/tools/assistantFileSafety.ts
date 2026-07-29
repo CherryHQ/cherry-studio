@@ -1,7 +1,7 @@
 import { isUtf8 } from 'node:buffer'
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import type { Stats } from 'node:fs'
+import type { BigIntStats } from 'node:fs'
 import { constants, type FileHandle, link, lstat, open, stat } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -14,6 +14,7 @@ const IO_CHUNK_BYTES = 64 * 1024
 const CLEANUP_CHILD_MAX_BUFFER_BYTES = 4 * 1024
 const CLEANUP_CHILD_TIMEOUT_MS = 2_000
 const HARD_LINK_FALLBACK_CODES = new Set(['EACCES', 'EMLINK', 'ENOSYS', 'ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'EXDEV'])
+const WINDOWS_INVALID_FILENAME_CHARACTERS = '<>:"|?*'
 const UNLINK_OWNED_PATH_SCRIPT = String.raw`
 'use strict'
 const fs = require('node:fs')
@@ -29,20 +30,20 @@ const invalidLeaf =
 if (invalidLeaf) process.exit(64)
 
 try {
-  const parent = fs.lstatSync('.')
+  const parent = fs.lstatSync('.', { bigint: true })
   if (
     !parent.isDirectory() ||
-    String(parent.dev) !== expectedParentDev ||
-    String(parent.ino) !== expectedParentIno
+    parent.dev.toString() !== expectedParentDev ||
+    parent.ino.toString() !== expectedParentIno
   ) {
     process.exit(65)
   }
 
-  const target = fs.lstatSync(leafName)
+  const target = fs.lstatSync(leafName, { bigint: true })
   if (
     !target.isFile() ||
-    String(target.dev) !== expectedFileDev ||
-    String(target.ino) !== expectedFileIno
+    target.dev.toString() !== expectedFileDev ||
+    target.ino.toString() !== expectedFileIno
   ) {
     process.exit(66)
   }
@@ -61,6 +62,17 @@ export function isErrno(error: unknown, code: string): boolean {
 
 export function relativeWorkspacePath(workspacePath: string, targetPath: string): string {
   return path.relative(workspacePath, targetPath).split(path.sep).join('/')
+}
+
+export function hasWindowsInvalidFilenameSegment(filePath: string): boolean {
+  const pathWithoutDriveRoot = /^[A-Za-z]:[\\/]/.test(filePath) ? filePath.slice(2) : filePath
+  return pathWithoutDriveRoot
+    .split(/[\\/]+/)
+    .some((segment) =>
+      Array.from(segment).some(
+        (character) => WINDOWS_INVALID_FILENAME_CHARACTERS.includes(character) || character.charCodeAt(0) <= 0x1f
+      )
+    )
 }
 
 export async function assertWorkspacePathUnchanged(
@@ -89,9 +101,10 @@ export async function readBoundedRegularFile(
   }
 
   options.signal?.throwIfAborted()
-  const initialPathStat = await lstat(target)
+  const maxBytes = BigInt(options.maxBytes)
+  const initialPathStat = await lstat(target, { bigint: true })
   if (!initialPathStat.isFile()) throw new Error(`Path is not a regular file: ${target}`)
-  if (initialPathStat.size > options.maxBytes) {
+  if (initialPathStat.size > maxBytes) {
     throw new Error(`File exceeds the ${options.maxBytes}-byte read limit: ${target}`)
   }
 
@@ -100,10 +113,10 @@ export async function readBoundedRegularFile(
   const handle = await open(target, constants.O_RDONLY | noFollow | nonBlock)
 
   try {
-    const openedStat = await handle.stat()
+    const openedStat = await handle.stat({ bigint: true })
     if (!openedStat.isFile()) throw new Error(`Path is not a regular file: ${target}`)
     if (!sameFileIdentity(openedStat, initialPathStat)) throw new Error(`Path changed while being opened: ${target}`)
-    if (openedStat.size > options.maxBytes) {
+    if (openedStat.size > maxBytes) {
       throw new Error(`File exceeds the ${options.maxBytes}-byte read limit: ${target}`)
     }
 
@@ -124,10 +137,10 @@ export async function readBoundedRegularFile(
     }
 
     options.signal?.throwIfAborted()
-    const finalOpenedStat = await handle.stat()
+    const finalOpenedStat = await handle.stat({ bigint: true })
     if (!sameStableFile(openedStat, finalOpenedStat)) throw new Error(`File changed while being read: ${target}`)
 
-    const finalPathStat = await lstat(target)
+    const finalPathStat = await lstat(target, { bigint: true })
     if (!finalPathStat.isFile() || !sameStableFile(finalOpenedStat, finalPathStat)) {
       throw new Error(`Path changed while being read: ${target}`)
     }
@@ -146,19 +159,19 @@ interface PublishFileNoClobberOptions {
   validateTarget?: () => Promise<void>
 }
 
-function sameFileIdentity(left: Pick<Stats, 'dev' | 'ino'>, right: Pick<Stats, 'dev' | 'ino'>): boolean {
+function sameFileIdentity(left: Pick<BigIntStats, 'dev' | 'ino'>, right: Pick<BigIntStats, 'dev' | 'ino'>): boolean {
   return left.dev === right.dev && left.ino === right.ino
 }
 
 function sameStableFile(
-  left: Pick<Stats, 'dev' | 'ino' | 'size' | 'mtimeMs' | 'ctimeMs'>,
-  right: Pick<Stats, 'dev' | 'ino' | 'size' | 'mtimeMs' | 'ctimeMs'>
+  left: Pick<BigIntStats, 'dev' | 'ino' | 'size' | 'mtimeNs' | 'ctimeNs'>,
+  right: Pick<BigIntStats, 'dev' | 'ino' | 'size' | 'mtimeNs' | 'ctimeNs'>
 ): boolean {
   return (
     sameFileIdentity(left, right) &&
     left.size === right.size &&
-    left.mtimeMs === right.mtimeMs &&
-    left.ctimeMs === right.ctimeMs
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
   )
 }
 
@@ -169,8 +182,8 @@ function shouldFallbackFromHardLink(error: unknown): boolean {
 function runUnlinkOwnedPathChild(
   parentPath: string,
   leafName: string,
-  parent: Stats,
-  file: Pick<Stats, 'dev' | 'ino'>
+  parent: BigIntStats,
+  file: Pick<BigIntStats, 'dev' | 'ino'>
 ): Promise<void> {
   const env: NodeJS.ProcessEnv = { ELECTRON_RUN_AS_NODE: '1' }
   if (process.platform === 'win32') {
@@ -186,10 +199,10 @@ function runUnlinkOwnedPathChild(
         UNLINK_OWNED_PATH_SCRIPT,
         '--',
         leafName,
-        String(parent.dev),
-        String(parent.ino),
-        String(file.dev),
-        String(file.ino)
+        parent.dev.toString(),
+        parent.ino.toString(),
+        file.dev.toString(),
+        file.ino.toString()
       ],
       {
         cwd: parentPath,
@@ -209,7 +222,7 @@ function runUnlinkOwnedPathChild(
 
 async function bestEffortUnlinkOwnedPath(
   target: AbsoluteFilePath,
-  expected: Pick<Stats, 'dev' | 'ino'>,
+  expected: Pick<BigIntStats, 'dev' | 'ino'>,
   operation: string
 ): Promise<void> {
   const parentPath = path.dirname(target)
@@ -227,7 +240,7 @@ async function bestEffortUnlinkOwnedPath(
   }
 
   try {
-    const parentStat = await stat(parentPath)
+    const parentStat = await stat(parentPath, { bigint: true })
     if (!parentStat.isDirectory()) throw new Error(`Cleanup parent is not a directory: ${parentPath}`)
     await runUnlinkOwnedPathChild(parentPath, leafName, parentStat, expected)
   } catch (error) {
@@ -271,8 +284,8 @@ async function copyFileHandles(source: FileHandle, destination: FileHandle, sign
   signal?.throwIfAborted()
 }
 
-async function assertPathIdentity(target: AbsoluteFilePath, expected: Pick<Stats, 'dev' | 'ino'>): Promise<void> {
-  const current = await lstat(target)
+async function assertPathIdentity(target: AbsoluteFilePath, expected: Pick<BigIntStats, 'dev' | 'ino'>): Promise<void> {
+  const current = await lstat(target, { bigint: true })
   if (!current.isFile() || !sameFileIdentity(current, expected)) {
     throw new Error(`Target path changed while being published: ${target}`)
   }
@@ -300,28 +313,29 @@ export async function publishFileNoClobber(
   options: PublishFileNoClobberOptions = {}
 ): Promise<void> {
   options.signal?.throwIfAborted()
-  const stagedPathStat = await lstat(staged)
+  const stagedPathStat = await lstat(staged, { bigint: true })
   if (!stagedPathStat.isFile()) throw new Error(`Staged path is not a regular file: ${staged}`)
 
   const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0
   const stagedHandle = await open(staged, constants.O_RDONLY | noFollow)
   let reservationHandle: FileHandle | undefined
   let reservationPath: AbsoluteFilePath | undefined
-  let reservationStat: Stats | undefined
+  let reservationStat: BigIntStats | undefined
   let destinationHandle: FileHandle | undefined
-  let destinationStat: Stats | undefined
+  let destinationStat: BigIntStats | undefined
   let targetReserved = false
   let committed = false
 
   try {
-    const openedStagedStat = await stagedHandle.stat()
+    const openedStagedStat = await stagedHandle.stat({ bigint: true })
     if (!openedStagedStat.isFile() || !sameFileIdentity(openedStagedStat, stagedPathStat)) {
       throw new Error(`Staged path changed while being opened: ${staged}`)
     }
 
     reservationPath = AbsoluteFilePathSchema.parse(`${staged}.publish-${randomUUID()}`)
-    reservationHandle = await open(reservationPath, 'wx+', stagedPathStat.mode & 0o777)
-    reservationStat = await reservationHandle.stat()
+    const stagedMode = Number(stagedPathStat.mode & 0o777n)
+    reservationHandle = await open(reservationPath, 'wx+', stagedMode)
+    reservationStat = await reservationHandle.stat({ bigint: true })
 
     options.signal?.throwIfAborted()
     try {
@@ -332,9 +346,9 @@ export async function publishFileNoClobber(
     } catch (error) {
       if (!shouldFallbackFromHardLink(error)) throw error
       options.signal?.throwIfAborted()
-      destinationHandle = await open(target, 'wx+', stagedPathStat.mode & 0o777)
+      destinationHandle = await open(target, 'wx+', stagedMode)
       targetReserved = true
-      destinationStat = await destinationHandle.stat()
+      destinationStat = await destinationHandle.stat({ bigint: true })
     }
 
     await assertPathIdentity(target, destinationStat)

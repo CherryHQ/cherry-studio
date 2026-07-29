@@ -55,6 +55,40 @@ describe('exportOfficeArtifact', () => {
     ).toBe(false)
   })
 
+  it('rejects Windows-invalid output segments without changing source path validation', () => {
+    for (const outputPath of [
+      'reports/report.docx:private',
+      'reports/quarter?/report.docx',
+      'reports/report\u0001.docx'
+    ]) {
+      const result = exportOfficeInputSchema.safeParse({
+        operation: 'markdown_to_docx',
+        source_path: 'report.md',
+        output_path: outputPath
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues.some(({ message }) => /invalid in Windows filenames/i.test(message))).toBe(true)
+      }
+    }
+
+    expect(
+      exportOfficeInputSchema.safeParse({
+        operation: 'markdown_to_docx',
+        source_path: 'draft:version.md',
+        output_path: 'report.docx'
+      }).success
+    ).toBe(true)
+    expect(
+      exportOfficeInputSchema.safeParse({
+        operation: 'markdown_to_docx',
+        source_path: 'report.md',
+        output_path: String.raw`C:\workspace\report.docx`
+      }).success
+    ).toBe(true)
+  })
+
   beforeEach(async () => {
     vi.clearAllMocks()
     workspacePath = await mkdtemp(path.join(tmpdir(), 'office-export-workspace-'))
@@ -193,6 +227,28 @@ describe('exportOfficeArtifact', () => {
     ])
   })
 
+  it('calculates CSV column widths without spreading hundreds of thousands of rows', async () => {
+    await writeFile(path.join(workspacePath, 'large.csv'), 'Value\nsample\n')
+    const repeatedRow: Array<string | number | boolean> = ['sample']
+    const rows = Array<Array<string | number | boolean>>(200_000).fill(repeatedRow)
+    rows.push(['x'.repeat(60)])
+    const sheetToJsonSpy = vi.spyOn(XLSX.utils, 'sheet_to_json').mockReturnValue(rows as never)
+
+    try {
+      await expect(
+        exportOfficeArtifact(
+          workspacePath,
+          { operation: 'csv_to_xlsx', source_path: 'large.csv', output_path: 'large.xlsx' },
+          signal
+        )
+      ).resolves.toEqual({ path: 'large.xlsx' })
+    } finally {
+      sheetToJsonSpy.mockRestore()
+    }
+
+    expect((await readFile(path.join(workspacePath, 'large.xlsx'))).subarray(0, 2).toString()).toBe('PK')
+  })
+
   it('removes a UTF-8 BOM before converting CSV headers to XLSX', async () => {
     await writeFile(path.join(workspacePath, 'sales.csv'), '\uFEFFRegion,Revenue\nNorth,120\n')
 
@@ -205,6 +261,42 @@ describe('exportOfficeArtifact', () => {
     const workbook = XLSX.read(await readFile(path.join(workspacePath, 'sales.xlsx')), { type: 'buffer' })
     const rows = XLSX.utils.sheet_to_json<string[]>(workbook.Sheets[workbook.SheetNames[0]], { header: 1 })
     expect(rows[0]).toEqual(['Region', 'Revenue'])
+  })
+
+  it('rejects XML 1.0-illegal control characters before rendering Office output', async () => {
+    for (const codePoint of [0x00, 0x01, 0x08, 0x0b, 0x0c, 0x0e, 0x1f]) {
+      const outputName = `invalid-${codePoint}.docx`
+      await writeFile(
+        path.join(workspacePath, 'invalid.md'),
+        `# Report\n\nInvalid${String.fromCharCode(codePoint)}text`
+      )
+
+      await expect(
+        exportOfficeArtifact(
+          workspacePath,
+          { operation: 'markdown_to_docx', source_path: 'invalid.md', output_path: outputName },
+          signal
+        )
+      ).rejects.toThrow(/XML 1\.0-illegal control characters/i)
+      await expect(readFile(path.join(workspacePath, outputName))).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+  })
+
+  it('preserves XML-valid tab, newline, and carriage-return characters', async () => {
+    await writeFile(path.join(workspacePath, 'valid-controls.md'), '# Report\r\n\r\nName\tValue\r\n')
+
+    await expect(
+      exportOfficeArtifact(
+        workspacePath,
+        {
+          operation: 'markdown_to_docx',
+          source_path: 'valid-controls.md',
+          output_path: 'valid-controls.docx'
+        },
+        signal
+      )
+    ).resolves.toEqual({ path: 'valid-controls.docx' })
+    expect((await readFile(path.join(workspacePath, 'valid-controls.docx'))).subarray(0, 2).toString()).toBe('PK')
   })
 
   it('rejects a non-UTF-8 CSV instead of exporting replacement characters', async () => {

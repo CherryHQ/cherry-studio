@@ -2,7 +2,7 @@ import type * as NodeChildProcess from 'node:child_process'
 import { execFile } from 'node:child_process'
 import { renameSync, symlinkSync } from 'node:fs'
 import type * as NodeFsPromises from 'node:fs/promises'
-import { link, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { link, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -17,7 +17,7 @@ vi.mock('node:child_process', async (importOriginal) => {
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFsPromises>()
-  return { ...actual, link: vi.fn(actual.link) }
+  return { ...actual, link: vi.fn(actual.link), stat: vi.fn(actual.stat) }
 })
 
 import { publishFileNoClobber, readBoundedRegularFile } from '../assistantFileSafety'
@@ -78,6 +78,7 @@ describe('publishFileNoClobber', () => {
   beforeEach(async () => {
     vi.mocked(execFile).mockClear()
     vi.mocked(link).mockClear()
+    vi.mocked(stat).mockClear()
     temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'assistant-file-safety-'))
   })
 
@@ -175,6 +176,30 @@ describe('publishFileNoClobber', () => {
 
     expect(await exists(target)).toBe(false)
     await expect(readFile(staged, 'utf8')).resolves.toBe('new content')
+  })
+
+  it('passes bigint parent identities to the cleanup child without precision loss', async () => {
+    const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
+    const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath
+    const parentStat = await stat(temporaryDirectory, { bigint: true })
+    const largeParentDev = 9_007_199_254_740_993n
+    const largeParentIno = 18_014_398_509_481_987n
+    const largeParentStat = Object.assign(Object.create(Object.getPrototypeOf(parentStat)), parentStat, {
+      dev: largeParentDev,
+      ino: largeParentIno
+    }) as typeof parentStat
+    vi.mocked(stat).mockResolvedValueOnce(largeParentStat as never)
+    await writeFile(staged, 'new content')
+
+    await publishFileNoClobber(staged, target)
+
+    const cleanupArguments = vi
+      .mocked(execFile)
+      .mock.calls.map((call) => call[1] as readonly string[] | undefined)
+      .find((args) => args?.includes(largeParentDev.toString()))
+    const targetStat = await lstat(target, { bigint: true })
+    expect(cleanupArguments?.slice(4, 6)).toEqual([largeParentDev.toString(), largeParentIno.toString()])
+    expect(cleanupArguments?.slice(6, 8)).toEqual([targetStat.dev.toString(), targetStat.ino.toString()])
   })
 
   it('does not delete an outside victim when the target parent changes before cleanup starts', async () => {

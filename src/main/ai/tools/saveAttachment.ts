@@ -11,6 +11,7 @@ import * as z from 'zod'
 
 import {
   assertWorkspacePathUnchanged,
+  hasWindowsInvalidFilenameSegment,
   isErrno,
   publishFileNoClobber,
   relativeWorkspacePath
@@ -35,6 +36,10 @@ export const saveAttachmentInputSchema = z.object({
     .refine(
       (value) => !value.split(/[\\/]+/).some((segment) => segment === '..'),
       'Output path must not traverse outside the workspace'
+    )
+    .refine(
+      (value) => !hasWindowsInvalidFilenameSegment(value),
+      'Output path contains characters invalid in Windows filenames'
     )
     .describe(
       'New workspace-relative file path. Its parent directory must exist and the destination must not already exist.'
