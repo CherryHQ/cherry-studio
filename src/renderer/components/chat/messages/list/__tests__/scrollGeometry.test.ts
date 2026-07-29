@@ -22,7 +22,7 @@ describe('scrollGeometry', () => {
     expect(getRealBottom(element, 100)).toBe(0)
   })
 
-  it('measures distance from the real bottom rather than the spacer bottom', () => {
+  it('measures distance from the real bottom rather than the temporary inset bottom', () => {
     const element = { clientHeight: 400, scrollHeight: 1200, scrollTop: 500 }
 
     expect(getDistanceToBottom(element, 200)).toBe(100)

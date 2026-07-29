@@ -145,8 +145,9 @@ const unsubscribe = ipcApi.on('window.maximized_changed', (p) => { /* ... */ })
 
 | Capability | Where the handler lives |
 |---|---|
-| Stateless (app info, font list) | Pure function directly in `handlers/` — no service needed |
-| Stateful (MCP / Knowledge / Window) | Handler in `handlers/`, delegating via `application.get('XxxService').method()`; business logic and resource lifecycle stay in the service |
+| Small stateless logic (app info, font list) | Pure function directly in `handlers/` — no service needed |
+| Lifecycle service (MCP / Knowledge / Window — registered in `serviceRegistry.ts`) | Handler in `handlers/`, delegating via `application.get('XxxService').method()`; business logic and resource lifecycle stay in the service |
+| Non-lifecycle module (file topic, `printService`, `regionService`) | Handler in `handlers/`, importing the module's curated entry (topic barrel or direct-import singleton) and delegating — no DI handle exists and none should be fabricated |
 
 The `handlers/` directory is the single audited list of every main capability the renderer can reach.
 

@@ -146,6 +146,8 @@ When a lifecycle service registers IPC handlers, it should use BaseService's bui
 | `this.ipcOn(channel, listener)` | `ipcMain.on()` | `ipcMain.removeListener()` | `Disposable` |
 | `this.registerInterval(callback, intervalMs)` | `setInterval()` + `unref()` | `clearInterval()` | `Disposable` |
 
+> Neither helper validates the sender: the sugar is deprecated (see the [IpcApi migration guide](../ipc/ipc-migration-guide.md)) and channels migrating to IpcApi get its `validateSender` gate instead. A channel that stays on the sugar and needs source trust must call `validateSender` (`src/main/core/security/validateSender.ts`) explicitly in its handler, as PreferenceService/CacheService do.
+
 > `ipcOnce()` is intentionally not provided — once-listeners fire once and auto-remove, so they do not need lifecycle tracking.
 
 > `registerTimeout()` is intentionally not provided — single-shot timers fire once and auto-clear, so they do not need lifecycle tracking.

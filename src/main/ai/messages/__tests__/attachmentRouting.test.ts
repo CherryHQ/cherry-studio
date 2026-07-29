@@ -20,7 +20,7 @@ vi.mock('@application', () => ({
 const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
 vi.mock('../fileProcessor', () => ({ materializeNativeFilePart: resolveMock }))
 
-const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string>>() }))
+const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string | null>>() }))
 vi.mock('../attachmentTextExtraction', () => ({
   extractDocumentText: extractMock,
   noExtractableTextNote: (name: string) => `No text in ${name}`
@@ -86,6 +86,22 @@ describe('prepareChatMessages — routing', () => {
     extractMock.mockResolvedValueOnce('word body')
     const [out] = await run([fileWithEntry('e1', 'a.docx', 'application/octet-stream')], ALL)
     expect(textOf(out.parts)[0]).toBe('Attached file "a.docx":\nword body')
+  })
+
+  it('inlines extracted text for an extensionless text file', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: null })
+    extractMock.mockResolvedValueOnce('license body')
+    const [out] = await run([fileWithEntry('e1', 'LICENSE', 'application/octet-stream')], NONE)
+    expect(textOf(out.parts)[0]).toBe('Attached file "LICENSE":\nlicense body')
+  })
+
+  it('keeps an extensionless binary file unsupported', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: null })
+    extractMock.mockResolvedValueOnce(null)
+    const [out] = await run([fileWithEntry('e1', 'payload', 'application/octet-stream')], NONE)
+    expect(textOf(out.parts)[0]).toBe(
+      'Attached file "payload":\nCannot read the attached file "payload" as text (unsupported file type).'
+    )
   })
 
   it('keeps a native PDF inline, extracts text for a non-native one', async () => {

@@ -14,30 +14,25 @@ export function useProviderOnboardingAutoEnable({ providerId, isOnboarding }: Us
   const { provider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const { updateProvider } = useProviderMutations(providerId)
-  const autoEnableDispatchedProviderIdRef = useRef<string | null>(null)
-  const hasServerApiKey = (apiKeysData?.keys?.some((item) => item.isEnabled && item.key.trim()) ?? false) === true
+  const previousHasServerApiKeyRef = useRef(new Map<string, boolean>())
+  const hasServerApiKey = apiKeysData
+    ? apiKeysData.keys.some((item) => item.isEnabled && item.key.trim().length > 0)
+    : undefined
 
   useEffect(() => {
-    if (provider?.isEnabled && autoEnableDispatchedProviderIdRef.current === provider.id) {
-      autoEnableDispatchedProviderIdRef.current = null
-    }
-
-    if (!isOnboarding || !provider || provider.isEnabled) {
+    if (!isOnboarding || !provider || hasServerApiKey === undefined) {
       return
     }
 
-    if (!hasServerApiKey) {
+    const previousHasServerApiKey = previousHasServerApiKeyRef.current.get(provider.id)
+    previousHasServerApiKeyRef.current.set(provider.id, hasServerApiKey)
+
+    if (provider.isEnabled || !hasServerApiKey || previousHasServerApiKey !== false) {
       return
     }
 
-    if (autoEnableDispatchedProviderIdRef.current === provider.id) {
-      return
-    }
-
-    autoEnableDispatchedProviderIdRef.current = provider.id
     void updateProvider({ isEnabled: true }).catch((error) => {
       logger.error('Failed to auto-enable onboarding provider', { providerId: provider.id, error })
-      autoEnableDispatchedProviderIdRef.current = null
     })
   }, [hasServerApiKey, isOnboarding, provider, updateProvider])
 }

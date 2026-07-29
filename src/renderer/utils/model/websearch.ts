@@ -2,7 +2,6 @@ import { getLowerBaseModelName } from '@renderer/utils/naming'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import {
-  isHunyuanSearchModel as sharedIsHunyuanSearchModel,
   isOpenAIWebSearchChatCompletionOnlyModel as sharedIsOpenAIWebSearchChatCompletionOnlyModel,
   isOpenAIWebSearchModel as sharedIsOpenAIWebSearchModel,
   isWebSearchModel as sharedIsWebSearchModel
@@ -17,8 +16,6 @@ export const isOpenAIWebSearchModel = (model: Model): boolean => sharedIsOpenAIW
 
 export const isOpenAIWebSearchChatCompletionOnlyModel = (model: Model): boolean =>
   sharedIsOpenAIWebSearchChatCompletionOnlyModel(model)
-
-export const isHunyuanSearchModel = (model?: Model): boolean => (model ? sharedIsHunyuanSearchModel(model) : false)
 
 /**
  * Web-search-capable model. Reads the `WEB_SEARCH` capability. v2

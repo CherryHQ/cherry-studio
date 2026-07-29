@@ -3,7 +3,13 @@ import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { buildCapabilityProviderOptions, extractAiSdkStandardParams, mergeCustomProviderParameters } from '../options'
+import {
+  buildCapabilityProviderOptions,
+  buildResolvedReasoningProviderOptions,
+  extractAiSdkStandardParams,
+  mergeCustomProviderParameters
+} from '../options'
+import type { ResolvedReasoningInvocation } from '../reasoningSerializers'
 
 describe('extractAiSdkStandardParams', () => {
   it('routes AI-SDK standard params to standardParams, others to providerParams', () => {
@@ -109,6 +115,28 @@ describe('mergeCustomProviderParameters', () => {
     expect((result['openai-compatible'] as Record<string, unknown>).reasoningEffort).toBe('low')
   })
 
+  it('normalizes reasoning_effort into a concrete provider namespace for an openai-compatible adapter', () => {
+    const result = mergeCustomProviderParameters(
+      { dashscope: {} } as Record<string, Record<string, never>>,
+      { dashscope: { reasoning_effort: 'high' } },
+      'dashscope',
+      'openai-compatible'
+    )
+
+    expect(result).toEqual({ dashscope: { reasoningEffort: 'high' } })
+  })
+
+  it('does not rewrite a nested extra_body reasoning_effort field', () => {
+    const result = mergeCustomProviderParameters(
+      { poe: {} } as Record<string, Record<string, never>>,
+      { extra_body: { reasoning_effort: 'high' } },
+      'poe',
+      'openai-compatible'
+    )
+
+    expect(result).toEqual({ poe: { extra_body: { reasoning_effort: 'high' } } })
+  })
+
   it('preserves unrelated providerOptions entries', () => {
     const initial = { google: { thinkingConfig: { mode: 'auto' as never } }, anthropic: { cacheControl: {} as never } }
     const result = mergeCustomProviderParameters(
@@ -138,8 +166,62 @@ describe('customParameters → providerOptions plugin contract', () => {
   })
 })
 
+describe('OpenAI-compatible reasoning normalization', () => {
+  it.each([
+    ['openai-compatible', 'relay'],
+    ['github-copilot-openai-compatible', 'copilot'],
+    ['google-vertex-maas', 'vertex'],
+    ['aihubmix', 'aihubmix'],
+    ['dmxapi', 'openai']
+  ] as const)('normalizes %s reasoning in both provider-options builders', (runtimeProviderId, providerOptionsKey) => {
+    const endpointType = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const reasoning: ResolvedReasoningInvocation = {
+      kind: 'effort',
+      selection: 'high',
+      effort: 'high',
+      emissions: [{ target: 'reasoning_effort', value: 'high' }]
+    }
+    const model = {
+      id: `${providerOptionsKey}::reasoner`,
+      providerId: providerOptionsKey,
+      name: 'reasoner',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    } as unknown as Model
+    const provider = {
+      id: providerOptionsKey,
+      name: providerOptionsKey,
+      settings: {},
+      apiFeatures: {}
+    } as Provider
+    const capabilityOptions = buildCapabilityProviderOptions(
+      { settings: {} } as Assistant,
+      model,
+      provider,
+      { enableReasoning: true, enableWebSearch: false, enableGenerateImage: false },
+      {
+        aiSdkProviderId: runtimeProviderId,
+        runtimeProviderId,
+        providerOptionsKey,
+        endpointType,
+        reasoning
+      }
+    )
+    const resolvedOptions = buildResolvedReasoningProviderOptions({
+      aiSdkProviderId: runtimeProviderId,
+      providerOptionsKey,
+      endpointType,
+      reasoning
+    })
+
+    for (const options of [capabilityOptions, resolvedOptions]) {
+      expect(options).toMatchObject({ [providerOptionsKey]: { reasoningEffort: 'high' } })
+      expect(options[providerOptionsKey].reasoning_effort).toBeUndefined()
+    }
+  })
+})
+
 describe('buildCapabilityProviderOptions', () => {
-  it('passes provider summaryText settings into OpenAI reasoning options', () => {
+  it('places resolved OpenAI reasoning emissions in the native namespace', () => {
     const assistant = {
       settings: {
         reasoning_effort: 'medium'
@@ -151,7 +233,8 @@ describe('buildCapabilityProviderOptions', () => {
       name: 'gpt-5',
       capabilities: [MODEL_CAPABILITY.REASONING],
       reasoning: {
-        supportedEfforts: ['low', 'medium', 'high']
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['low', 'medium', 'high']
       }
     } as unknown as Model
     const provider = {
@@ -163,6 +246,7 @@ describe('buildCapabilityProviderOptions', () => {
         developerRole: false,
         serviceTier: false,
         verbosity: false,
+        reportsActualCost: false,
         enableThinking: true
       },
       apiKeys: [],
@@ -177,12 +261,326 @@ describe('buildCapabilityProviderOptions', () => {
       isEnabled: true
     } as Provider
 
-    const result = buildCapabilityProviderOptions(assistant, model, provider, {
-      enableReasoning: true,
-      enableWebSearch: false,
-      enableGenerateImage: false
-    })
+    const result = buildCapabilityProviderOptions(
+      assistant,
+      model,
+      provider,
+      {
+        enableReasoning: true,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'openai',
+        runtimeProviderId: 'openai',
+        providerOptionsKey: 'openai',
+        endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        reasoning: {
+          kind: 'effort',
+          selection: 'medium',
+          effort: 'medium',
+          emissions: [
+            { target: 'reasoningEffort', value: 'medium' },
+            { target: 'reasoningSummary', value: 'detailed' }
+          ]
+        }
+      }
+    )
 
     expect(result.openai.reasoningSummary).toBe('detailed')
+    expect(result.openai.store).toBe(false)
+  })
+
+  it('places compatible wire fields in the concrete provider namespace', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: { reasoning_effort: 'auto' } } as Assistant,
+      {
+        id: 'minimax::minimax-m3',
+        providerId: 'minimax',
+        name: 'MiniMax-M3',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'toggle' }],
+          selectableEfforts: ['none', 'auto']
+        }
+      } as unknown as Model,
+      { id: 'minimax', name: 'MiniMax', settings: {} } as Provider,
+      {
+        enableReasoning: true,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'openai-compatible',
+        runtimeProviderId: 'openai-compatible',
+        providerOptionsKey: 'minimax',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: {
+          kind: 'auto',
+          selection: 'auto',
+          emissions: [{ target: 'thinking.type', value: 'adaptive' }]
+        }
+      }
+    )
+
+    expect(result).toMatchObject({ minimax: { thinking: { type: 'adaptive' } } })
+    expect(result['openai-compatible']).toBeUndefined()
+  })
+
+  it('normalizes compatible profile emissions in the concrete provider namespace', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: { reasoning_effort: 'high' } } as Assistant,
+      {
+        id: 'dashscope::qwen3-8-max-preview',
+        providerId: 'dashscope',
+        name: 'Qwen3.8 Max Preview',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'xhigh'] }],
+          selectableEfforts: ['low', 'medium', 'xhigh']
+        }
+      } as unknown as Model,
+      { id: 'dashscope', name: 'Bailian', settings: {} } as Provider,
+      {
+        enableReasoning: true,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'openai-compatible',
+        runtimeProviderId: 'openai-compatible',
+        providerOptionsKey: 'dashscope',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: {
+          kind: 'effort',
+          selection: 'high',
+          effort: 'xhigh',
+          emissions: [{ target: 'reasoning_effort', value: 'xhigh' }]
+        }
+      }
+    )
+
+    expect(result).toMatchObject({ dashscope: { reasoningEffort: 'xhigh' } })
+    expect(result.dashscope.reasoning_effort).toBeUndefined()
+  })
+
+  it('encodes GitHub Copilot reasoning into the copilot namespace (its model reads `name`, not the registration id)', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: {} } as Assistant,
+      {
+        id: 'copilot::gpt-5',
+        providerId: 'copilot',
+        name: 'GPT-5',
+        capabilities: [MODEL_CAPABILITY.REASONING]
+      } as unknown as Model,
+      { id: 'copilot', name: 'GitHub Copilot', settings: {} } as Provider,
+      { enableReasoning: true, enableWebSearch: false, enableGenerateImage: false },
+      {
+        // adapterFamily/runtime id is `github-copilot-openai-compatible`, but the language model's
+        // providerOptionsName is `copilot` (= actualProvider.id passed as `name`).
+        aiSdkProviderId: 'github-copilot-openai-compatible',
+        runtimeProviderId: 'github-copilot-openai-compatible',
+        providerOptionsKey: 'copilot',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: {
+          kind: 'effort',
+          selection: 'high',
+          effort: 'high',
+          emissions: [{ target: 'reasoning_effort', value: 'high' }]
+        }
+      }
+    )
+
+    // Lands in `copilot` (read namespace), snake→camel normalized, not the registration id.
+    expect(result).toMatchObject({ copilot: { reasoningEffort: 'high' } })
+    expect(result.copilot.reasoning_effort).toBeUndefined()
+    expect(result['github-copilot-openai-compatible']).toBeUndefined()
+  })
+
+  it.each([
+    ['qwen3.5-plus', 'dmxapi'],
+    ['gpt-5', 'openai']
+  ] as const)('encodes DMXAPI %s chat reasoning into the concrete model namespace %s', (apiModelId, key) => {
+    const result = buildCapabilityProviderOptions(
+      { settings: {} } as Assistant,
+      {
+        id: `dmxapi::${apiModelId}`,
+        apiModelId,
+        providerId: 'dmxapi',
+        name: apiModelId,
+        capabilities: [MODEL_CAPABILITY.REASONING]
+      } as unknown as Model,
+      { id: 'dmxapi', name: 'DMXAPI', settings: {} } as Provider,
+      { enableReasoning: true, enableWebSearch: false, enableGenerateImage: false },
+      {
+        aiSdkProviderId: 'dmxapi',
+        runtimeProviderId: 'dmxapi',
+        providerOptionsKey: key,
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: {
+          kind: 'effort',
+          selection: 'high',
+          effort: 'high',
+          emissions: [{ target: 'reasoning_effort', value: 'high' }]
+        }
+      }
+    )
+
+    expect(result).toMatchObject({ [key]: { reasoningEffort: 'high' } })
+    expect(result[key].reasoning_effort).toBeUndefined()
+  })
+
+  it('preserves an audited compatible-provider budget field in the concrete namespace', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: { reasoning_effort: 'high' } } as Assistant,
+      {
+        id: 'nvidia::nemotron-3-nano-omni-30b-a3b',
+        providerId: 'nvidia',
+        name: 'Nemotron 3 Nano Omni',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'budget', min: 0, max: 32_768 }],
+          selectableEfforts: ['low', 'medium', 'high'],
+          thinkingTokenLimits: { min: 0, max: 32_768 }
+        }
+      } as unknown as Model,
+      { id: 'nvidia', name: 'NVIDIA', settings: {} } as Provider,
+      {
+        enableReasoning: true,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'openai-compatible',
+        runtimeProviderId: 'openai-compatible',
+        providerOptionsKey: 'nvidia',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: {
+          kind: 'budget',
+          selection: 'high',
+          budgetTokens: 26_214,
+          emissions: [{ target: 'reasoning_budget', value: 26_214 }]
+        }
+      }
+    )
+
+    expect(result).toMatchObject({ nvidia: { reasoning_budget: 26_214 } })
+    expect(result['openai-compatible']).toBeUndefined()
+  })
+
+  it.each(['google-vertex', 'google-vertex-anthropic', 'google-vertex-maas'] as const)(
+    'delivers %s options through the Vertex runtime namespace',
+    (runtimeProviderId) => {
+      const endpointType =
+        runtimeProviderId === 'google-vertex-anthropic'
+          ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+          : runtimeProviderId === 'google-vertex-maas'
+            ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+            : ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      const result = buildCapabilityProviderOptions(
+        { settings: {} } as Assistant,
+        {
+          id: 'vertex::test-model',
+          providerId: 'vertex',
+          name: 'test-model',
+          capabilities: []
+        } as unknown as Model,
+        {
+          id: 'vertex',
+          settings: {},
+          apiFeatures: {}
+        } as Provider,
+        {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        },
+        {
+          aiSdkProviderId: runtimeProviderId,
+          runtimeProviderId,
+          providerOptionsKey: 'vertex',
+          endpointType,
+          reasoning: {
+            kind: 'omit',
+            selection: 'default',
+            emissions: []
+          }
+        }
+      )
+
+      expect(result).toHaveProperty('vertex')
+      expect(result).not.toHaveProperty(runtimeProviderId)
+    }
+  )
+
+  it('forwards the configured contextWindow as num_ctx for Ollama models', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: {} } as Assistant,
+      {
+        id: 'ollama::qwen3:32b',
+        providerId: 'ollama',
+        name: 'qwen3:32b',
+        capabilities: [],
+        contextWindow: 32_768
+      } as unknown as Model,
+      {
+        id: 'ollama',
+        settings: {},
+        apiFeatures: {}
+      } as Provider,
+      {
+        enableReasoning: false,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'ollama',
+        runtimeProviderId: 'ollama',
+        providerOptionsKey: 'ollama',
+        endpointType: undefined,
+        reasoning: {
+          kind: 'omit',
+          selection: 'default',
+          emissions: []
+        }
+      }
+    )
+
+    expect(result).toMatchObject({ ollama: { options: { num_ctx: 32_768 } } })
+  })
+
+  it('omits num_ctx for Ollama models without a configured contextWindow', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: {} } as Assistant,
+      {
+        id: 'ollama::qwen3:32b',
+        providerId: 'ollama',
+        name: 'qwen3:32b',
+        capabilities: []
+      } as unknown as Model,
+      {
+        id: 'ollama',
+        settings: {},
+        apiFeatures: {}
+      } as Provider,
+      {
+        enableReasoning: false,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      {
+        aiSdkProviderId: 'ollama',
+        runtimeProviderId: 'ollama',
+        providerOptionsKey: 'ollama',
+        endpointType: undefined,
+        reasoning: {
+          kind: 'omit',
+          selection: 'default',
+          emissions: []
+        }
+      }
+    )
+
+    expect(result.ollama).not.toHaveProperty('options')
   })
 })

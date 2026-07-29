@@ -1,3 +1,4 @@
+import { EmptyState } from '@cherrystudio/ui'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
@@ -116,7 +117,14 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   }
 
   if (hasNoModels) {
-    return null
+    return (
+      <EmptyState
+        compact
+        title={t('settings.models.empty')}
+        description={t('settings.models.empty_hint')}
+        className="min-h-40"
+      />
+    )
   }
 
   if (!hasVisibleModels) {

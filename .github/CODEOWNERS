@@ -1,31 +1,47 @@
-/migrations/ @0xfullex
+# Each block is: blanket rule, then opt-outs (a pattern with no owner clears ownership),
+# then re-assignments to other owners. The last matching pattern wins, so that order matters.
+# A newly added subdirectory has no opt-out line, so it falls back to the blanket rule
+# and requires review — that is intentional. Opt it out here once it is agreed on.
+
 /src/main/ @0xfullex
+/src/main/features/
+/src/main/i18n/
+/src/main/services/
+/src/main/utils/
+/src/main/ai/ @DeJeune
+/src/main/features/fileProcessing/ @eeee0717
+/src/main/features/knowledge/ @eeee0717
+
+/src/renderer/ @0xfullex
+/src/renderer/assets/
+/src/renderer/components/
+/src/renderer/hooks/
+/src/renderer/i18n/
+/src/renderer/pages/
+/src/renderer/routes/
+/src/renderer/services/
+/src/renderer/types/
+/src/renderer/utils/
+/src/renderer/workers/
+
+/src/shared/ @0xfullex
+/src/shared/types/
+/src/shared/utils/
+/src/shared/ai/ @DeJeune
+
 /src/preload/ @0xfullex
-/src/renderer/data/ @0xfullex
-/src/renderer/ipc/ @0xfullex
-/src/renderer/windows/ @0xfullex
-/src/shared/data/ @0xfullex
-/src/shared/ipc/ @0xfullex
+
+/packages/ui/ @kangfenmao
+
+/migrations/ @0xfullex
 /v2-refactor-temp/ @0xfullex
-/docs/references/data/ @0xfullex
-/docs/references/ipc/ @0xfullex
-/docs/references/job-and-scheduler/ @0xfullex
-/docs/references/naming-conventions.md @0xfullex
-/docs/references/lifecycle/ @0xfullex
-/docs/references/window-manager/ @0xfullex
+
 /docs/references/architecture-overview.md @0xfullex
 /docs/references/main-process-architecture.md @0xfullex
 /docs/references/renderer-architecture.md @0xfullex
 /docs/references/shared-layer-architecture.md @0xfullex
-/CLAUDE.md @0xfullex
-/package.json @0xfullex
-/eslint.config.mjs @0xfullex
-
-/src/main/ai/ @DeJeune
-/src/shared/ai/ @DeJeune
+/docs/references/naming-conventions.md @0xfullex
 /docs/references/ai/ @DeJeune
-/src/main/features/fileProcessing/ @eeeee0717
-/src/main/features/knowledge/ @eeeee0717
 
-/packages/ui/ @kangfenmao
-/app-upgrade-config.json @kangfenmao
+/CLAUDE.md @0xfullex
+/.github/CODEOWNERS @0xfullex

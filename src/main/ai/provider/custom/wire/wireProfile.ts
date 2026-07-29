@@ -76,6 +76,23 @@ export const AIHUBMIX_WIRE_PROFILE: WireProfile = {
   forward: [...(OPENAI_WIRE_PROFILE.forward ?? []), 'seed']
 }
 
+/** OpenRouter's native `/images` JSON body. `n`/`size`/`seed`/`aspectRatio` are
+ * supplied by the AI SDK's typed image options; these are the remaining model-
+ * advertised fields that must ride under `providerOptions.openrouter`. */
+export const OPENROUTER_WIRE_PROFILE: WireProfile = {
+  forward: ['resolution', 'quality', 'outputFormat', 'background'],
+  fields: {
+    outputCompression: {
+      contribute: (value, all): Record<string, JSONValue> => {
+        if (all.outputFormat === 'jpeg' || all.outputFormat === 'webp') {
+          return { output_compression: value as JSONValue }
+        }
+        return {}
+      }
+    }
+  }
+}
+
 /**
  * DashScope native image API (qwen-image / wanx / wan2.5 / qwen-mt-image …).
  * Reproduces the `dashscope` emitter: the mapped sampling fields under the
@@ -87,6 +104,22 @@ export const AIHUBMIX_WIRE_PROFILE: WireProfile = {
  */
 export const DASHSCOPE_WIRE_PROFILE: WireProfile = {
   forward: ['negativePrompt', 'seed', 'style']
+}
+
+/**
+ * Doubao (Volcengine Ark) via `@ai-sdk/bytedance`. That package's option schema is
+ * camelCase and does the vendor naming itself (`outputFormat` → `output_format`,
+ * `maxImages` → `sequential_image_generation_options.max_images`), so this profile only
+ * renames the two canonical keys whose Ark option name differs. Everything else rides
+ * verbatim via `passthrough` — which is also what keeps `sequentialImageGeneration:
+ * 'auto'` alive: {@link buildImageRequest}'s `skipValue` treats `'auto'` as "unset",
+ * but for Ark it is the value that ENABLES group images.
+ */
+export const DOUBAO_WIRE_PROFILE: WireProfile = {
+  fields: {
+    imageResolution: { to: 'size' },
+    addWatermark: { to: 'watermark' }
+  }
 }
 
 /** `aspectRatio` (normalized) → google `imageConfig.aspectRatio`. Shared by the
@@ -164,6 +197,15 @@ export const OLLAMA_WIRE_PROFILE: WireProfile = {
   }
 }
 
+/** MiniMax image API fields that differ from the canonical catalog names. */
+export const MINIMAX_WIRE_PROFILE: WireProfile = {
+  fields: {
+    addWatermark: { to: 'aigc_watermark' },
+    outputFormat: { to: 'response_format' },
+    promptEnhancement: { to: 'prompt_optimizer' }
+  }
+}
+
 /** A provider's engine registration: its body profile + delivery flags. */
 export interface WireRegistration {
   readonly profile: WireProfile
@@ -189,6 +231,7 @@ export interface WireRegistration {
  * migrated provider with bespoke delivery; the plain diffusion family needs no row.
  */
 export const WIRE_REGISTRY: Record<string, WireRegistration> = {
+  openrouter: { profile: OPENROUTER_WIRE_PROFILE },
   openai: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   'openai-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   azure: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
@@ -211,13 +254,17 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   // @ai-sdk/google-vertex image model reads), NOT the `google-vertex` provider id.
   'google-vertex': { profile: GOOGLE_WIRE_PROFILE, key: 'vertex' },
   dashscope: { profile: DASHSCOPE_WIRE_PROFILE, passthrough: true },
+  // `@ai-sdk/bytedance` reads `providerOptions.bytedance` — its own fixed key, independent
+  // of our `doubao` provider id — so the body is re-keyed, mirroring google-vertex → vertex.
+  doubao: { profile: DOUBAO_WIRE_PROFILE, key: 'bytedance', passthrough: true },
   // passthrough: forward the vendor bag (imageResolution / addWatermark /
   // sequentialImageGeneration / responseFormat …) under the `aihubmix` key, where
   // the per-backend custom model (Doubao Seedream / Qwen / Wan …) reads it. The
   // `openai` mirror stays clean (mapped fields only).
   aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
   dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] },
-  ollama: { profile: OLLAMA_WIRE_PROFILE }
+  ollama: { profile: OLLAMA_WIRE_PROFILE },
+  minimax: { profile: MINIMAX_WIRE_PROFILE }
 }
 
 /**

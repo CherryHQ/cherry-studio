@@ -24,6 +24,9 @@ export interface CodeCliSidebarProps {
 
 const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ status, isBusy }) => {
   const { t } = useTranslation()
+  if (status?.operation?.status === 'removing') {
+    return <Loader2 className="size-2.5 shrink-0 text-muted-foreground/60 motion-safe:animate-spin" />
+  }
   if (isBusy) {
     return (
       <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground/60">

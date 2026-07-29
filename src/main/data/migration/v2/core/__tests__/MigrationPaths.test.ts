@@ -194,6 +194,36 @@ describe('selectLegacyUserData', () => {
     expect(result).toEqual({ kind: 'redirect', target: '/custom/data', notice: true })
   })
 
+  it('keeps a fresh Windows portable build isolated from setup data', () => {
+    const result = selectLegacyUserData({
+      currentUserData: 'D:\\Portable\\data',
+      entries: [{ executablePath: 'C:\\Program Files\\CherryStudio\\CherryStudio.exe', dataPath: '/setup/data' }],
+      currentExe: 'D:\\Portable\\cherry-studio-portable.exe',
+      probe: probe({ hasV1Data: (d) => d === '/setup/data' })
+    })
+    expect(result).toEqual({ kind: 'default' })
+  })
+
+  it('keeps different Windows portable locations isolated without an exact mapping', () => {
+    const result = selectLegacyUserData({
+      currentUserData: 'D:\\NewPortable\\data',
+      entries: [{ executablePath: 'E:\\OldPortable\\cherry-studio-portable.exe', dataPath: 'E:\\OldPortable\\data' }],
+      currentExe: 'D:\\NewPortable\\cherry-studio-portable.exe',
+      probe: probe({ hasV1Data: (d) => d === 'E:\\OldPortable\\data' })
+    })
+    expect(result).toEqual({ kind: 'default' })
+  })
+
+  it('keeps a fresh Windows setup build isolated from portable data', () => {
+    const result = selectLegacyUserData({
+      currentUserData: 'C:\\Users\\Alice\\AppData\\Roaming\\CherryStudio',
+      entries: [{ executablePath: 'D:\\Portable\\cherry-studio-portable.exe', dataPath: 'D:\\Portable\\data' }],
+      currentExe: 'C:\\Program Files\\CherryStudio\\CherryStudio.exe',
+      probe: probe({ hasV1Data: (d) => d === 'D:\\Portable\\data' })
+    })
+    expect(result).toEqual({ kind: 'default' })
+  })
+
   it('B1: multiple eligible entries → picks the most-recently-used by mtime', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
@@ -329,6 +359,18 @@ beforeEach(() => {
 })
 
 describe('resolveMigrationPaths — legacy custom userData recovery', () => {
+  it('places v2-managed data under Data while retaining explicit v1 source paths', () => {
+    applyFs({ dirs: [DEFAULT_USER_DATA] })
+
+    const result = resolveMigrationPaths()
+
+    expect(result.paths.databaseFile).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'cherrystudio.sqlite'))
+    expect(result.paths.legacyClaudeConfigDir).toBe(path.join(DEFAULT_USER_DATA, '.claude'))
+    expect(result.paths.legacyClaudeProjectsDir).toBe(path.join(DEFAULT_USER_DATA, '.claude', 'projects'))
+    expect(result.paths.claudeConfigDir).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'Agents', '.claude'))
+    expect(result.paths.claudeProjectsDir).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'Agents', '.claude', 'projects'))
+  })
+
   it('redirects to the matching entry when the current exe matches exactly (regression guard)', () => {
     h.normalizedExe.mockReturnValue('D:\\Cherry Studio\\Cherry Studio.exe')
     applyFs({
@@ -483,7 +525,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     h.normalizedExe.mockReturnValue('/new/exe')
     applyFs({
       dirs: [DEFAULT_USER_DATA, '/stale/custom'],
-      sqlite: { [`${DEFAULT_USER_DATA}/cherrystudio.sqlite`]: 4096 },
+      sqlite: { [path.join(DEFAULT_USER_DATA, 'Data', 'cherrystudio.sqlite')]: 4096 },
       contents: {
         [CONFIG_FILE]: JSON.stringify({
           appDataPath: [{ executablePath: '/old/exe', dataPath: '/stale/custom' }]
@@ -502,7 +544,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     h.normalizedExe.mockReturnValue('/new/exe')
     applyFs({
       dirs: [DEFAULT_USER_DATA, '/custom/real'],
-      sqlite: { [`${DEFAULT_USER_DATA}/cherrystudio.sqlite`]: 0 }, // 0 bytes → invalid
+      sqlite: { [path.join(DEFAULT_USER_DATA, 'Data', 'cherrystudio.sqlite')]: 0 }, // 0 bytes → invalid
       contents: {
         [CONFIG_FILE]: JSON.stringify({
           appDataPath: [{ executablePath: '/old/exe', dataPath: '/custom/real' }]

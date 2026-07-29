@@ -1,4 +1,4 @@
-appId: com.cherryai.cherrystudio
+appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
 electronLanguages:
   - zh-CN
@@ -30,7 +30,6 @@ files:
   - "!src"
   - "!config"
   - "!patches"
-  - "!app-upgrade-config.json"
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
@@ -86,8 +85,11 @@ extraResources:
   - from: "packages/provider-registry/data"
     to: "provider-registry"
 win:
-  executableName: CherryStudio
+  executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  extraResources:
+    - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+      to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
@@ -152,40 +154,76 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.7 - Model Support & Bug Fixes
+    Cherry Studio 2.0.0-rc.1 - Backup & Restore, Painting Improvements & v2 Stabilization
 
     ✨ New Features
-    - [Models] Added support for grok-build-0.1 capabilities (reasoning, tool use, vision)
-    - [Providers] StepFun now supports Claude Code / Anthropic-compatible mode with auto-filled endpoint
-    - [Agents] DeepSeek V4 Flash and MiMo V2.5+ now properly support 1M context window in Claude Code
+    - [Paintings] Added a localized prompt-template gallery to the empty painting canvas, with editable concrete prompt tokens and an accessible prompt preview and copy action. The gallery disappears once image generation begins so completed results retain the standard image-only viewer.
 
     🐛 Bug Fixes
-    - [Web Search] Fixed ExaMCP web search not returning result content correctly
-    - [Code Viewer] Fixed code syntax highlighting issues where tokens could disappear in light theme
-    - [OpenCode] Fixed launch failures after CLI updates by using package-local executable
-    - [Agents] Fixed Agent mode not forwarding custom provider headers to Claude Code
-    - [Models] Fixed Grok 4.3 reasoning effort support in xAI responses
-    - [OpenClaw] Improved migration message clarity when external PATH installation is detected
-    - [Models] Fixed Gemini 3.x models using wrong UI and sending deprecated sampling parameters
-    - [Models] Fixed Qwen max series models incorrectly showing vision capability
-    - [Providers] Fixed AIHubMix reasoning effort configuration not working properly
+    - [Backup & Restore] action required: Create a fresh version 7 backup after upgrading from v1; local, WebDAV, Nutstore, and S3 backup and restore are available again, and partial backup is no longer offered.
+    - [Data] action required: The v2 database now lives at `Data/cherrystudio.sqlite`, Claude config is migrated to `Data/Agents/.claude`, and existing pre-alpha database files at the former root location are not imported automatically.
+    - [Agent] action required: New users who skip provider setup must configure a model before using the built-in Cherry Assistant. Choosing a model during onboarding configures it automatically.
+    - [Data Directory] action required: Removed special protection for the OS Music, Pictures, and Videos directories when choosing a data-directory relocation target; avoid selecting these shared media roots unless you intentionally want Cherry Studio to use them as its data directory.
+    - [Migration] Fixed v2 migration failure when an existing Claude config directory is present.
+    - [Migration] Fixed Windows Agent data migration failures when copied workspaces contain directory links.
+    - [Migration] Fixed v1-to-v2 migration so custom mini-apps are preserved, and aligned custom and Ant Ling launchpad icon sizing.
+    - [Search] Fixed global search losing keyboard focus after clearing the query.
+    - [Composer] Follow-up queue auto-send now stays paused for each conversation until the user explicitly resumes it.
+    - [File Preview] Fixed generated HTML and other Unicode text files being incorrectly reported as binary when previewed.
+    - [Agent] Skills created or installed by agents now appear reliably in the Skills library, and skill cards show the declared version when available.
+    - [Chat] Fixed blank space after regenerating long conversations and removed the message image-export menu flash.
+    - [Paintings] Fixed the Paintings preview so generation prompts remain fixed above the image and long prompts stay contained while the image is dragged, zoomed, or rotated.
+    - [Paintings] Fixed duplicate custom-size options and labels for image models that already declare custom dimensions.
+    - [Quick Assistant] Quick Assistant now keeps typed input separate from clipboard previews and renders sent user messages as compact right-aligned bubbles.
+    - [Chat] Fixed active responses losing streamed content when switching away from and back to a tab, and collapsed/expanded message sections resetting while a response streams.
+    - [Chat] Fixed empty assistant messages shown when a response is interrupted before the first content chunk.
+    - [Providers] Fixed AWS Bedrock authentication settings so users can switch between IAM credentials and Bedrock API keys in either direction.
+    - [macOS] Fixed toggling the Selection Assistant on no longer sending the whole app behind other apps or removing the Dock icon.
+    - [Providers] Fixed provider model lists to preserve distinct registry and OpenAI-compatible display names.
+    - [Build] Fixed a startup crash on Intel Macs caused by a missing native binary.
+    - [Chat] Fixed image copy and export for assistant topics and agent sessions, including captures with local avatars.
+    - [Windows] Fixed Windows portable builds omitting the sqlite-vec extension, which prevented users from creating knowledge bases.
+    - [Onboarding] Fixed onboarding model selection to exclude embedding, reranking, image, audio, and video-only models.
+    - [Notes] Fixed note imports so clicking the sidebar import hint opens the Markdown file picker.
+
+    💄 Improvements
+    - [Paintings] Improved painting generation feedback with a subtle color-sampled grid that gradually reveals the finished image.
+    - [UI] Refined the new conversation icon with thinner, consistently scaled strokes.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.7 - 模型支持与错误修复
+    Cherry Studio 2.0.0-rc.1 - 备份恢复、绘图改进与 v2 稳定化
 
     ✨ 新功能
-    - [模型] 支持 grok-build-0.1 模型能力（推理、工具调用、视觉）
-    - [提供商] StepFun 现在支持 Claude Code / Anthropic 兼容模式，并自动填充端点
-    - [智能体] DeepSeek V4 Flash 和 MiMo V2.5+ 现在在 Claude Code 中正确支持 1M 上下文窗口
+    - [绘图] 在空白的绘图画布上新增本地化提示词模板画廊，模板带可编辑的具体示例 Token，并提供无障碍的提示词预览与复制；开始生成后画廊自动消失，已完成结果仍使用原有纯图查看器。
 
     🐛 问题修复
-    - [网络搜索] 修复 ExaMCP 网络搜索无法正确返回结果内容的问题
-    - [代码查看器] 修复浅色主题下代码语法高亮标记可能消失的问题
-    - [OpenCode] 修复 CLI 更新后启动失败的问题，现在使用包本地可执行文件
-    - [智能体] 修复智能体模式未将自定义提供商标头转发给 Claude Code 的问题
-    - [模型] 修复 xAI 响应中 Grok 4.3 推理强度支持问题
-    - [OpenClaw] 改进检测到外部 PATH 安装时的迁移消息清晰度
-    - [模型] 修复 Gemini 3.x 模型使用错误 UI 并发送已弃用采样参数的问题
-    - [模型] 修复 Qwen max 系列模型错误显示视觉能力的问题
-    - [提供商] 修复 AIHubMix 推理强度配置无法正常工作的问题
+    - [备份与恢复] action required: 从 v1 升级后请重新创建 version 7 备份；本地、WebDAV、坚果云、S3 的备份与恢复已重新可用，不再提供部分备份。
+    - [数据] action required: v2 数据库现已位于 `Data/cherrystudio.sqlite`，Claude 配置迁移至 `Data/Agents/.claude`，原根目录下的预发布版数据库文件不会被自动导入。
+    - [智能体] action required: 跳过服务商配置的新用户需在使用内置 Cherry Assistant 前先配置一个模型；在引导流程中选择模型会自动完成配置。
+    - [数据目录] action required: 选择数据目录迁移目标时不再对系统“音乐”“图片”“视频”目录做特殊保护；除非确实希望将它们作为 Cherry Studio 的数据目录，请避免选择这些共享媒体根目录。
+    - [迁移] 修复了已存在 Claude 配置目录时 v2 迁移失败的问题。
+    - [迁移] 修复了 Windows 智能体数据迁移在复用的工作区包含目录链接时失败的问题。
+    - [迁移] 修复了 v1 到 v2 迁移时自定义小程序丢失的问题，并统一了自定义与 Ant Ling 启动台图标尺寸。
+    - [搜索] 修复了清空查询后全局搜索失去键盘焦点的问题。
+    - [输入框] 跟进队列的自动发送现在在每段对话中保持暂停，直至用户显式恢复。
+    - [文件预览] 修复了生成的 HTML 等 Unicode 文本文件被错误识别为二进制的问题。
+    - [智能体] 智能体创建或安装的技能现可可靠出现在技能库中，技能卡片在可用时显示声明的版本号。
+    - [聊天] 修复了重新生成长对话后出现的空白区域，并消除消息图片导出菜单的闪烁。
+    - [绘图] 修复了绘图预览：生成提示词固定在图像上方，拖动、缩放或旋转图像时长提示词不再溢出。
+    - [绘图] 修复了已声明自定义尺寸的图像模型出现重复自定义尺寸选项与标签的问题。
+    - [快捷助手] 快捷助手现在将键入内容与剪贴板预览分开显示，并将已发送的用户消息渲染为紧凑的右对齐气泡。
+    - [聊天] 修复了切换标签页再返回时当前回复丢失流式内容、以及流式输出时展开/折叠的消息段落被重置的问题。
+    - [聊天] 修复了回复在首个内容片段前被中断时显示空白助手消息的问题。
+    - [服务商] 修复了 AWS Bedrock 鉴权设置，用户可在 IAM 凭证与 Bedrock API Key 之间双向切换。
+    - [macOS] 修复了在 macOS 上开启选中助手时不再将整个应用置于其他应用之后或移除 Dock 图标的问题。
+    - [服务商] 修复了服务商模型列表，保留注册表与 OpenAI 兼容显示名的差异。
+    - [构建] 修复了 Intel Mac 上因缺少原生二进制导致的启动崩溃。
+    - [聊天] 修复了助手话题与智能体会话的图片复制与导出，包括带本地头像的截图。
+    - [Windows] 修复了 Windows 便携版构建遗漏 sqlite-vec 扩展导致用户无法创建知识库的问题。
+    - [引导] 修复了引导流程中模型选择，排除嵌入、重排、图像、音频与仅视频模型。
+    - [笔记] 修复了笔记导入：点击侧边栏导入提示会打开 Markdown 文件选择器。
+
+    💄 改进
+    - [绘图] 改进了绘图生成反馈：细腻的色样网格会逐渐揭示最终图像。
+    - [界面] 优化了新建对话图标，使用更细且均匀可缩放的描边。
     <!--LANG:END-->

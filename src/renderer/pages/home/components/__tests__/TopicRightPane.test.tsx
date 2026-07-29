@@ -70,7 +70,7 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => {
     ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
     ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
     ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-    ARTIFACT_RIGHT_PANE_MIN_WIDTH: 280,
+    ARTIFACT_RIGHT_PANE_MIN_WIDTH: 255,
     PersistentRightPaneHost: ({
       children,
       maximized,
@@ -129,9 +129,9 @@ describe('TopicRightPane', () => {
 
   it('registers the right sidebar keyboard shortcut for the branch pane', () => {
     render(
-      <TopicRightPane topicId="topic-a">
+      <TopicRightPane.Scope topicId="topic-a">
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     expect(useCommandHandlerMock).toHaveBeenCalledWith(
@@ -153,11 +153,11 @@ describe('TopicRightPane', () => {
 
   it('opens the resource pane from the right sidebar keyboard shortcut when resources are available', () => {
     render(
-      <TopicRightPane
+      <TopicRightPane.Scope
         topicId="topic-a"
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     act(triggerRightSidebarShortcut)
@@ -168,9 +168,9 @@ describe('TopicRightPane', () => {
 
   it('disables the right sidebar keyboard shortcut without a ready capability', () => {
     render(
-      <TopicRightPane>
+      <TopicRightPane.Scope>
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     expect(useCommandHandlerMock).toHaveBeenCalledWith(
@@ -182,18 +182,18 @@ describe('TopicRightPane', () => {
 
   it('hides environmental presentation without discarding topic pane intent or its visited instance', () => {
     const { rerender } = render(
-      <TopicRightPane topicId="topic-a">
+      <TopicRightPane.Scope topicId="topic-a">
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     act(triggerRightSidebarShortcut)
     const branchPane = screen.getByTestId('branch-pane')
 
     rerender(
-      <TopicRightPane topicId="topic-a" present={false}>
+      <TopicRightPane.Scope topicId="topic-a" present={false}>
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
@@ -206,9 +206,9 @@ describe('TopicRightPane', () => {
     )
 
     rerender(
-      <TopicRightPane topicId="topic-a">
+      <TopicRightPane.Scope topicId="topic-a">
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
@@ -216,18 +216,22 @@ describe('TopicRightPane', () => {
     expect(branchPane).toHaveAttribute('data-open', 'true')
   })
 
-  it('shows a permanent trace tab keyed on the container traceId when developer mode is on', () => {
+  it('loads the trace pane with the container traceId only when the trace tab is selected', async () => {
     render(
-      <TopicRightPane topicId="topic-a" traceId="trace-a">
+      <TopicRightPane.Scope topicId="topic-a" traceId="trace-a">
         <TopicRightPane.Shortcuts />
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
+
+    expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toBeInTheDocument()
+    expect(screen.queryByTestId('trace-pane')).toBeNull()
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
 
-    expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toBeInTheDocument()
-    expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-topic-id', 'topic-a')
+    expect(await screen.findByTestId('trace-pane')).toHaveAttribute('data-topic-id', 'topic-a')
     expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-trace-id', 'trace-a')
   })
 
@@ -235,10 +239,10 @@ describe('TopicRightPane', () => {
     developerModeEnabled.mockReturnValue(false)
 
     render(
-      <TopicRightPane topicId="topic-a" traceId="trace-a">
+      <TopicRightPane.Scope topicId="topic-a" traceId="trace-a">
         <TopicRightPane.Shortcuts />
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
@@ -252,10 +256,10 @@ describe('TopicRightPane', () => {
     const onLocateMessage = vi.fn()
 
     render(
-      <TopicRightPane topicId="topic-1" topicName="Topic">
+      <TopicRightPane.Scope topicId="topic-1" topicName="Topic">
         <TopicRightPane.Shortcuts />
         <TopicRightPane.Viewport onLocateMessage={onLocateMessage} />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
@@ -270,11 +274,11 @@ describe('TopicRightPane', () => {
 
   it('mounts the resource list pane open when requested', () => {
     render(
-      <TopicRightPane
+      <TopicRightPane.Scope
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}
         defaultOpen>
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
@@ -285,13 +289,13 @@ describe('TopicRightPane', () => {
 
   it('shows top shortcuts for the stable right-pane tabs while closed', () => {
     render(
-      <TopicRightPane
+      <TopicRightPane.Scope
         topicId="topic-a"
         traceId="trace-a"
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
         <TopicRightPane.Shortcuts />
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     expect(screen.queryByRole('button', { name: 'chat.topics.title' })).toBeNull()
@@ -309,10 +313,10 @@ describe('TopicRightPane', () => {
 
   it('collapses the active pane from the same tab shortcut while preserving the view label', () => {
     render(
-      <TopicRightPane topicId="topic-a" traceId="trace-a">
+      <TopicRightPane.Scope topicId="topic-a" traceId="trace-a">
         <TopicRightPane.Shortcuts />
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
@@ -332,10 +336,10 @@ describe('TopicRightPane', () => {
 
   it('switches to another pane entry without closing the docked pane', () => {
     render(
-      <TopicRightPane topicId="topic-a" traceId="trace-a">
+      <TopicRightPane.Scope topicId="topic-a" traceId="trace-a">
         <TopicRightPane.Shortcuts />
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
@@ -348,21 +352,25 @@ describe('TopicRightPane', () => {
     expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('keeps visited capabilities mounted across switches without offering maximize', () => {
+  it('keeps visited capabilities mounted across switches and offers maximize only for the branch pane', () => {
     render(
-      <TopicRightPane
+      <TopicRightPane.Scope
         topicId="topic-a"
         traceId="trace-a"
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
         <ResourcePaneCountButton label="chat.topics.title" count={3} />
         <TopicRightPane.Shortcuts />
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
     const branchPane = screen.getByTestId('branch-pane')
-    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-maximized', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-maximized', 'false')
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
 
@@ -384,11 +392,11 @@ describe('TopicRightPane', () => {
 
   it('keeps the resource count entry visible while docked open and lets it close the active resource view', () => {
     render(
-      <TopicRightPane
+      <TopicRightPane.Scope
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
         <ResourcePaneCountButton label="chat.topics.title" count={3} />
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     const resourceEntry = screen.getByRole('button', { name: 'chat.topics.title 3' })
@@ -407,21 +415,21 @@ describe('TopicRightPane', () => {
 
   it('reconciles an open resource capability to the next ready capability', () => {
     const { rerender } = render(
-      <TopicRightPane
+      <TopicRightPane.Scope
         topicId="topic-a"
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}
         defaultOpen>
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('resource-list')).toBeInTheDocument()
 
     rerender(
-      <TopicRightPane topicId="topic-a" defaultOpen>
+      <TopicRightPane.Scope topicId="topic-a" defaultOpen>
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
@@ -432,19 +440,19 @@ describe('TopicRightPane', () => {
   it('opens the resource pane on a locate reveal request', () => {
     const resourcePane = { node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }
     const { rerender } = render(
-      <TopicRightPane resourcePane={resourcePane}>
+      <TopicRightPane.Scope resourcePane={resourcePane}>
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
 
     rerender(
-      <TopicRightPane
+      <TopicRightPane.Scope
         resourcePane={resourcePane}
         revealRequest={{ itemId: 'topic-a', requestId: 1, clearFilters: true, clearQuery: true }}>
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
@@ -454,15 +462,15 @@ describe('TopicRightPane', () => {
   it('does not open the resource pane for a passive (non-locate) reveal request', () => {
     const resourcePane = { node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }
     const { rerender } = render(
-      <TopicRightPane resourcePane={resourcePane}>
+      <TopicRightPane.Scope resourcePane={resourcePane}>
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     rerender(
-      <TopicRightPane resourcePane={resourcePane} revealRequest={{ itemId: 'topic-a', requestId: 2 }}>
+      <TopicRightPane.Scope resourcePane={resourcePane} revealRequest={{ itemId: 'topic-a', requestId: 2 }}>
         <TopicRightPane.Viewport />
-      </TopicRightPane>
+      </TopicRightPane.Scope>
     )
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
@@ -471,10 +479,10 @@ describe('TopicRightPane', () => {
   it('does not open the resource list pane when the owning tab is revealed', async () => {
     render(
       <TabIdProvider tabId="chat-tab">
-        <TopicRightPane
+        <TopicRightPane.Scope
           resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
           <TopicRightPane.Viewport />
-        </TopicRightPane>
+        </TopicRightPane.Scope>
       </TabIdProvider>
     )
 

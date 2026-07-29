@@ -13,6 +13,13 @@ export interface StreamLifecycle {
   onCreated(stream: ActiveStream): void
   /** Called once on the first `pending → streaming` transition. */
   onPromotedToStreaming(stream: ActiveStream): void
+  /**
+   * Called when an execution's `pendingApprovalToolCallIds` gains its content or
+   * drains, WITHOUT a status transition — a tool approval can pause/resume a
+   * still-live stream, and cross-window consumers (e.g. the session list badge)
+   * only see the shared-cache entry, so it must be rebroadcast here.
+   */
+  onApprovalPendingChanged(stream: ActiveStream): void
   /** Called once when `isTopicDone` flips; read `stream.status` for the final status. */
   onTerminal(stream: ActiveStream): void
   /** Returning false short-circuits `attach` to `'not-found'`. */

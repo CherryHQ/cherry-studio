@@ -200,7 +200,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
 
   return (
     <div
-      className="relative m-0.5 flex h-[calc(100%-6px)] w-[calc(100%-6px)] flex-col overflow-hidden rounded-lg border border-border bg-popover shadow-[0_0_2px_var(--color-border)]"
+      className="relative m-0.5 flex h-[calc(100%-6px)] w-[calc(100%-6px)] flex-col overflow-hidden rounded-lg border border-border bg-popover shadow-[0_0_2px_var(--border)]"
       style={{ opacity: opacity / 100 }}>
       <div
         className={cn(
@@ -237,6 +237,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           {showOpacitySlider && (
             <div className="absolute top-full left-10 z-[80] mt-2 flex h-[120px] items-center justify-center rounded bg-popover px-2 pt-4 pb-3 opacity-100! shadow-md">
               <Slider
+                className="data-[orientation=vertical]:min-h-0"
                 orientation="vertical"
                 min={20}
                 max={100}
@@ -278,7 +279,7 @@ const WindowButton: FC<ComponentProps<typeof Button>> = ({ className, ...props }
     variant="ghost"
     size="icon-sm"
     className={cn(
-      'size-6 rounded border-0 bg-transparent p-0 text-icon shadow-none transition-colors hover:bg-accent hover:text-accent-foreground',
+      'size-6 rounded border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-accent-foreground',
       className
     )}
     {...props}

@@ -45,7 +45,7 @@ export interface MigrationPaths {
 
   // ── Derived from userData (pre-computed, consumers use directly) ──
 
-  /** {userData}/cherrystudio.sqlite */
+  /** {userData}/Data/cherrystudio.sqlite */
   readonly databaseFile: string
   /** {userData}/Data/KnowledgeBase */
   readonly knowledgeBaseDir: string
@@ -55,8 +55,18 @@ export interface MigrationPaths {
   readonly versionLogFile: string
   /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
   readonly legacyAgentDbFile: string
-  /** {userData}/Data/Agents — default v2 Claude Code workspace root. */
-  readonly agentWorkspacesDir: string
+  /** {userData}/.claude — v1 Claude Agent SDK config source. */
+  readonly legacyClaudeConfigDir: string
+  /** {userData}/.claude/projects — v1 Claude Agent SDK project-session source. */
+  readonly legacyClaudeProjectsDir: string
+  /** {userData}/Data/Agents — v2 agent identity/memory data and system-workspace root. */
+  readonly agentsDataDir: string
+  /** {userData}/Data/Agents/.claude — v2 Claude Agent SDK config destination. */
+  readonly claudeConfigDir: string
+  /** {userData}/Data/Agents/.claude/projects — v2 Claude Agent SDK project-session destination. */
+  readonly claudeProjectsDir: string
+  /** {userData}/Data/Agents/system — app-owned per-session workspace root. */
+  readonly agentSystemWorkspacesDir: string
   /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom miniapp records (logos stripped from Redux). */
   readonly customMiniAppsFile: string
 
@@ -207,12 +217,17 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   const paths: MigrationPaths = Object.freeze({
     userData: currentUserData,
     cherryHome: CHERRY_HOME,
-    databaseFile: path.join(currentUserData, DB_NAME),
+    databaseFile: path.join(currentUserData, 'Data', DB_NAME),
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
     filesDataDir,
     versionLogFile: path.join(currentUserData, 'version.log'),
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
-    agentWorkspacesDir: path.join(currentUserData, 'Data', 'Agents'),
+    legacyClaudeConfigDir: path.join(currentUserData, '.claude'),
+    legacyClaudeProjectsDir: path.join(currentUserData, '.claude', 'projects'),
+    agentsDataDir: path.join(currentUserData, 'Data', 'Agents'),
+    claudeConfigDir: path.join(currentUserData, 'Data', 'Agents', '.claude'),
+    claudeProjectsDir: path.join(currentUserData, 'Data', 'Agents', '.claude', 'projects'),
+    agentSystemWorkspacesDir: path.join(currentUserData, 'Data', 'Agents', 'system'),
     customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
@@ -306,8 +321,16 @@ export function selectLegacyUserData(input: {
       : { kind: 'redirect', target: exactEntry.dataPath, notice: false }
   }
 
-  // B — fuzzy fallback over all candidate dirs (default ∪ entry dataPaths).
-  const dirs = dedupeLocations([currentUserData, ...entries.map((e) => e.dataPath)])
+  // B — fuzzy fallback over compatible candidate dirs. v1 treats each
+  // Windows portable location as an isolated installation: without an exact
+  // executable mapping it uses that portable directory's own `data` folder.
+  // Preserve that contract here; setup builds may recover from other setup
+  // entries, but neither side may fuzzy-recover portable data.
+  const currentIsPortable = isWindowsPortableExecutable(currentExe)
+  const compatibleEntries = currentIsPortable
+    ? []
+    : entries.filter((entry) => !isWindowsPortableExecutable(entry.executablePath))
+  const dirs = dedupeLocations([currentUserData, ...compatibleEntries.map((e) => e.dataPath)])
   const candidates = dirs.filter((d) => probe.isUsableDir(d) && probe.hasV1Data(d))
 
   // B1 — eligible dirs (also version-ok): pick the most recently used.
@@ -326,7 +349,7 @@ export function selectLegacyUserData(input: {
 
   // B3 — no candidate, but a recorded dir is unreachable (unmounted / removed
   // / not read-writable). Prompt rather than silently start fresh on default.
-  const unreachable = entries
+  const unreachable = compatibleEntries
     .map((e) => e.dataPath)
     .find((d) => !sameLocation(d, currentUserData) && !probe.isUsableDir(d))
   if (unreachable) {
@@ -413,6 +436,11 @@ export function readLegacyEntries(configFile: string, currentExe: string): Legac
   return []
 }
 
+function isWindowsPortableExecutable(executablePath: string): boolean {
+  const normalized = executablePath.replaceAll('\\', '/')
+  return normalized.slice(normalized.lastIndexOf('/') + 1).toLowerCase() === 'cherry-studio-portable.exe'
+}
+
 /**
  * Whether a directory holds recognizable v1 data. Multi-marker on purpose:
  * pre-1.7 directories have no version.log, so we also accept Chromium storage
@@ -445,7 +473,7 @@ function configHasKeys(configFile: string): boolean {
  */
 function hasValidSqlite(dir: string): boolean {
   try {
-    const stat = fs.statSync(path.join(dir, DB_NAME))
+    const stat = fs.statSync(path.join(dir, 'Data', DB_NAME))
     return stat.isFile() && stat.size > 0
   } catch {
     return false

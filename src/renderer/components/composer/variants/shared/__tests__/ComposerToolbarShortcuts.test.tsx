@@ -1,3 +1,4 @@
+import { TopicType } from '@renderer/types/topic'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -5,7 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   launchers: [] as any[],
+  manifests: [] as any[],
+  resolveLaunchers: vi.fn(),
   dispatchLauncher: vi.fn(),
+  toastError: vi.fn(),
   reorderableProps: null as any,
   committedCustomizeOrders: [] as string[][]
 }))
@@ -17,10 +21,18 @@ vi.mock('react-i18next', async (importOriginal) => ({
 
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherController: () => ({
-    getLaunchers: vi.fn(() => mocks.launchers),
+    getLaunchers: vi.fn(() => mocks.resolveLaunchers()),
     dispatchLauncher: mocks.dispatchLauncher
   }),
   useComposerToolLauncherVersion: () => 1
+}))
+
+vi.mock('@renderer/components/composer/tools/toolbarManifests', () => ({
+  getComposerToolbarManifestsForScope: () => mocks.manifests
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
 }))
 
 // Local override of the global @cherrystudio/ui mock: exposes ReorderableList props
@@ -29,15 +41,25 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   return {
     Button: ({ children, ...props }: any) => React.createElement('button', props, children),
-    Tooltip: ({ children, content }: any) =>
-      React.createElement('span', { 'data-tooltip': typeof content === 'string' ? content : undefined }, children),
+    Tooltip: ({ children, content, isDisabled }: any) =>
+      React.createElement(
+        'span',
+        { 'data-tooltip': !isDisabled && typeof content === 'string' ? content : undefined },
+        children
+      ),
     Popover: ({ children, open }: any) =>
       React.createElement('div', { 'data-testid': 'popover', 'data-open': String(open) }, children),
     PopoverAnchor: ({ children }: { children: ReactNode }) => children,
-    PopoverContent: ({ children, className, 'aria-labelledby': ariaLabelledby }: any) =>
+    PopoverContent: ({ children, className, side, sideOffset, 'aria-labelledby': ariaLabelledby }: any) =>
       React.createElement(
         'div',
-        { 'data-testid': 'popover-content', className, 'aria-labelledby': ariaLabelledby },
+        {
+          'data-testid': 'popover-content',
+          'data-side': side,
+          'data-side-offset': sideOffset,
+          className,
+          'aria-labelledby': ariaLabelledby
+        },
         children
       ),
     ReorderableList: (props: any) => {
@@ -104,8 +126,17 @@ const attachmentLauncher = {
   sources: ['popover']
 }
 
+const thinkingManifest = {
+  id: 'thinking',
+  kind: 'group',
+  order: 60,
+  label: 'thinking-manifest-label',
+  icon: <span data-testid="icon-thinking-manifest" />
+}
+
 const renderShortcuts = (overrides: Partial<Parameters<typeof ComposerToolbarShortcuts>[0]> = {}) => {
   const props = {
+    scope: TopicType.Chat,
     pinnedIds: ['thinking', 'ghost', 'web-search'],
     onPinnedIdsChange: vi.fn(),
     onResetPinnedIds: vi.fn(),
@@ -122,7 +153,11 @@ const renderShortcuts = (overrides: Partial<Parameters<typeof ComposerToolbarSho
 describe('ComposerToolbarShortcuts', () => {
   beforeEach(() => {
     mocks.launchers = [thinkingLauncher, webSearchLauncher, knowledgeLauncher]
+    mocks.manifests = []
+    mocks.resolveLaunchers.mockReset()
+    mocks.resolveLaunchers.mockImplementation(() => mocks.launchers)
     mocks.dispatchLauncher.mockClear()
+    mocks.toastError.mockClear()
     mocks.reorderableProps = null
     mocks.committedCustomizeOrders = []
   })
@@ -143,6 +178,150 @@ describe('ComposerToolbarShortcuts', () => {
     expect(webSearchButton).not.toHaveAttribute('aria-haspopup')
     // Unpinned and unknown ids stay off the bar.
     expect(screen.queryByRole('button', { name: 'kb-label' })).not.toBeInTheDocument()
+  })
+
+  it('renders a known pinned manifest immediately while runtime state is unresolved', () => {
+    mocks.launchers = []
+    mocks.manifests = [
+      {
+        id: 'web-search',
+        kind: 'command',
+        order: 30,
+        label: 'web-search-label',
+        icon: <span data-testid="icon-web-search-fallback" />
+      }
+    ]
+
+    renderShortcuts({ pinnedIds: ['web-search'] })
+
+    const webSearchButton = screen.getByRole('button', { name: 'web-search-label' })
+    expect(webSearchButton).toBeDisabled()
+    expect(webSearchButton).toHaveClass('disabled:opacity-100')
+    expect(webSearchButton).not.toHaveAttribute('aria-pressed')
+    expect(within(webSearchButton).getByTestId('icon-web-search-fallback')).toBeInTheDocument()
+  })
+
+  it('routes every shortcut click to the shared model-required toast when no model is available', () => {
+    const onCustomSelect = vi.fn()
+    mocks.launchers = []
+    mocks.manifests = [
+      thinkingManifest,
+      {
+        id: 'quick-phrases',
+        kind: 'panel',
+        order: 70,
+        label: 'quick-phrases-label',
+        icon: <span />
+      }
+    ]
+
+    renderShortcuts({
+      pinnedIds: ['thinking', 'quick-phrases', 'new-conversation'],
+      customTools: [
+        {
+          id: 'new-conversation',
+          label: 'new-conversation-label',
+          icon: <span />,
+          requiresPanel: false,
+          onSelect: onCustomSelect
+        }
+      ],
+      isModelUnavailable: true
+    })
+
+    const buttons = [
+      screen.getByRole('button', { name: 'thinking-manifest-label' }),
+      screen.getByRole('button', { name: 'quick-phrases-label' }),
+      screen.getByRole('button', { name: 'new-conversation-label' })
+    ]
+    buttons.forEach((button) => {
+      expect(button).toBeEnabled()
+      expect(button.closest('[data-tooltip]')).toBeNull()
+      fireEvent.click(button)
+    })
+
+    expect(mocks.toastError).toHaveBeenCalledTimes(3)
+    expect(mocks.toastError).toHaveBeenCalledWith('code.model_required')
+    expect(onCustomSelect).not.toHaveBeenCalled()
+  })
+
+  it('runs model-independent custom tools when no model is available', () => {
+    const onCustomSelect = vi.fn()
+    mocks.launchers = []
+
+    renderShortcuts({
+      pinnedIds: ['clear-context'],
+      customTools: [
+        {
+          id: 'clear-context',
+          label: 'clear-context-label',
+          icon: <span />,
+          requiresPanel: false,
+          availableWithoutModel: true,
+          onSelect: onCustomSelect
+        }
+      ],
+      isModelUnavailable: true
+    })
+
+    const button = screen.getByRole('button', { name: 'clear-context-label' })
+    expect(button).toBeEnabled()
+    fireEvent.click(button)
+
+    expect(onCustomSelect).toHaveBeenCalledTimes(1)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('keeps manifest presentation stable while a launcher is cleared and re-registered', () => {
+    mocks.manifests = [thinkingManifest]
+    mocks.launchers = [thinkingLauncher]
+    const { props, rerender } = renderShortcuts({ pinnedIds: ['thinking'] })
+
+    const getThinkingButton = () => screen.getByRole('button', { name: 'thinking-manifest-label' })
+    expect(getThinkingButton()).toBeEnabled()
+    expect(getThinkingButton()).toHaveAttribute('aria-haspopup', 'menu')
+    expect(within(getThinkingButton()).getByTestId('icon-thinking')).toBeInTheDocument()
+    expect(within(getThinkingButton()).queryByTestId('icon-thinking-manifest')).not.toBeInTheDocument()
+
+    mocks.launchers = []
+    rerender(<ComposerToolbarShortcuts {...props} />)
+
+    expect(getThinkingButton()).toBeDisabled()
+    expect(getThinkingButton()).toHaveClass('disabled:opacity-100')
+    expect(within(getThinkingButton()).getByTestId('icon-thinking')).toBeInTheDocument()
+
+    const nextThinkingLauncher = {
+      ...thinkingLauncher,
+      label: 'next-thinking-label',
+      icon: <span data-testid="icon-thinking-next-runtime" />,
+      active: false
+    }
+    mocks.launchers = [nextThinkingLauncher]
+    rerender(<ComposerToolbarShortcuts {...props} />)
+
+    expect(getThinkingButton()).toBeEnabled()
+    expect(within(getThinkingButton()).getByTestId('icon-thinking-next-runtime')).toBeInTheDocument()
+    expect(within(getThinkingButton()).queryByTestId('icon-thinking')).not.toBeInTheDocument()
+
+    fireEvent.click(getThinkingButton())
+    expect(props.unifiedPanelControl.open).toHaveBeenCalledWith({
+      launcherId: 'thinking',
+      searchText: 'thinking-manifest-label'
+    })
+  })
+
+  it('does not loop when launcher icons are recreated during render', () => {
+    mocks.manifests = [thinkingManifest]
+    mocks.resolveLaunchers.mockImplementation(() => [
+      {
+        ...thinkingLauncher,
+        icon: <span data-testid="icon-thinking-live" />
+      }
+    ])
+
+    expect(() => renderShortcuts({ pinnedIds: ['thinking'] })).not.toThrow()
+    const thinkingButton = screen.getByRole('button', { name: 'thinking-manifest-label' })
+    expect(within(thinkingButton).getByTestId('icon-thinking-live')).toBeInTheDocument()
   })
 
   it('announces dialog launchers with aria-haspopup="dialog" and no toggle state', () => {
@@ -210,6 +389,74 @@ describe('ComposerToolbarShortcuts', () => {
 
     fireEvent.click(unpinnedSwitch)
     expect(props.onPinnedIdsChange).toHaveBeenCalledWith(['thinking', 'ghost', 'web-search', 'knowledge-base'])
+  })
+
+  it('treats non-panel custom actions like ordinary configurable toolbar tools', () => {
+    const onSelect = vi.fn()
+    const { props } = renderShortcuts({
+      customizeOpen: true,
+      pinnedIds: ['new-conversation'],
+      customTools: [
+        {
+          id: 'new-conversation',
+          label: 'new-conversation-label',
+          icon: <span />,
+          requiresPanel: false,
+          onSelect
+        }
+      ],
+      unifiedPanelControl: { available: false, open: vi.fn() }
+    })
+
+    const toolbarButton = screen.getByRole('button', { name: 'new-conversation-label' })
+    expect(toolbarButton).toBeEnabled()
+    expect(toolbarButton).not.toHaveAttribute('aria-haspopup')
+    fireEvent.click(toolbarButton)
+    expect(onSelect).toHaveBeenCalledTimes(1)
+
+    const configurableSwitch = within(screen.getByTestId('popover-content')).getByRole('checkbox', {
+      name: 'new-conversation-label'
+    })
+    expect(configurableSwitch).toBeChecked()
+    expect(configurableSwitch).toBeEnabled()
+    fireEvent.click(configurableSwitch)
+    expect(props.onPinnedIdsChange).toHaveBeenCalledWith([])
+    expect(mocks.reorderableProps.items).toContainEqual(expect.objectContaining({ id: 'new-conversation' }))
+  })
+
+  it('places leading custom tools first by default while keeping them reorderable', () => {
+    mocks.launchers = [thinkingLauncher]
+    const { props } = renderShortcuts({
+      customizeOpen: true,
+      pinnedIds: [],
+      customTools: [
+        {
+          id: 'new-conversation',
+          label: 'new-conversation-label',
+          icon: <span />,
+          customizePlacement: 'leading',
+          requiresPanel: false,
+          onSelect: vi.fn()
+        }
+      ]
+    })
+
+    expect(mocks.reorderableProps.items.map((row: any) => row.id)).toEqual(['new-conversation', 'thinking'])
+
+    act(() => {
+      mocks.reorderableProps.onReorder([...mocks.reorderableProps.items].reverse())
+    })
+
+    expect(mocks.reorderableProps.items.map((row: any) => row.id)).toEqual(['thinking', 'new-conversation'])
+    expect(props.onPinnedIdsChange).not.toHaveBeenCalled()
+  })
+
+  it('positions the customize popover above an empty shortcut bar without covering the plus trigger', () => {
+    renderShortcuts({ customizeOpen: true, pinnedIds: [] })
+
+    expect(screen.getByTestId('popover').firstElementChild).toHaveClass('min-h-8')
+    expect(screen.getByTestId('popover-content')).toHaveAttribute('data-side', 'top')
+    expect(screen.getByTestId('popover-content')).toHaveAttribute('data-side-offset', '8')
   })
 
   it('renders an always-visible, labelled drag handle for every resolved row', () => {

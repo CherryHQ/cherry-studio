@@ -12,7 +12,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { BOOT_CONFIG_PATH } from '@main/core/paths/constants'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
-import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
+import { bootConfigSchema, DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 
 import type { BootConfigLoadError } from './types'
@@ -71,13 +71,23 @@ export class BootConfigService {
 
   /**
    * Set configuration value by key (auto-saves with debounce).
+   *
+   * THROWS on a value that fails schema validation, before any state change.
+   * Callers are typed, but values also arrive from untrusted runtime inputs
+   * (the Preference IPC route, v1 data in BootConfigMigrator) — the throw is
+   * the single enforcement point for all of them.
    */
   public set<K extends BootConfigKey>(key: K, value: BootConfigSchema[K]): void {
+    const parsed = bootConfigSchema.shape[key].safeParse(value)
+    if (!parsed.success) {
+      throw new Error(`Invalid boot config value for "${key}": ${parsed.error.message}`)
+    }
+    const validValue = parsed.data as BootConfigSchema[K]
     const previousValue = this.config[key]
-    this.config[key] = value
+    this.config[key] = validValue
     this.dirty = true
     this.scheduleSave()
-    this.notifyListeners(key, value, previousValue)
+    this.notifyListeners(key, validValue, previousValue)
   }
 
   /**
@@ -98,6 +108,23 @@ export class BootConfigService {
     for (const key of Object.keys(previousConfig) as BootConfigKey[]) {
       this.notifyListeners(key, this.config[key], previousConfig[key])
     }
+  }
+
+  /**
+   * Persist the current in-memory config to disk, replacing the invalid file,
+   * and clear the load error.
+   *
+   * Recovery action for `validation_error`: after a per-key validation load,
+   * memory holds the valid keys plus defaults for the rejected ones — unlike
+   * {@link reset}, repairing keeps the valid keys (one corrupt flag must not
+   * erase a valid `app.user_data_path`). Strict write like {@link persist}:
+   * THROWS on fs failure, with the dirty flag and load error retained.
+   */
+  public repair(): void {
+    this.dirty = true
+    this.persist()
+    this.loadError = null
+    logger.info('Boot config repaired: valid keys persisted, invalid keys reset to defaults')
   }
 
   /**
@@ -224,8 +251,23 @@ export class BootConfigService {
 
       try {
         const parsed = JSON.parse(content)
-        const config = this.mergeDefaults(parsed)
-        logger.info(`Boot config loaded from ${this.filePath}`)
+        const { config, invalidKeys, invalidRoot } = this.mergeDefaults(parsed)
+        if (invalidRoot || invalidKeys.length > 0) {
+          const message = invalidRoot
+            ? 'root value is not an object'
+            : `values failed schema validation: ${invalidKeys.join(', ')}`
+          this.loadError = {
+            type: 'validation_error',
+            message,
+            filePath: this.filePath,
+            invalidKeys
+          }
+          logger.error(
+            `Boot config file ${this.filePath} contains invalid data (${message}); affected keys reset to defaults`
+          )
+        } else {
+          logger.info(`Boot config loaded from ${this.filePath}`)
+        }
         return config
       } catch (parseError) {
         const errorMessage = parseError instanceof Error ? parseError.message : String(parseError)
@@ -317,24 +359,37 @@ export class BootConfigService {
   }
 
   /**
-   * Merge loaded config with defaults to handle new/missing keys.
+   * Merge loaded config with defaults to handle new/missing keys, validating
+   * every present value against the zod schema. Unknown keys are dropped;
+   * invalid values fall back to defaults and are reported via `invalidKeys`
+   * (or `invalidRoot` when the file root is not an object) so the caller can
+   * surface a validation_error instead of silently adopting corrupt data.
    * No deep merge needed — flat key-value map with direct assignment.
    */
-  private mergeDefaults(loaded: unknown): BootConfigSchema {
+  private mergeDefaults(loaded: unknown): {
+    config: BootConfigSchema
+    invalidKeys: BootConfigKey[]
+    invalidRoot: boolean
+  } {
     if (typeof loaded !== 'object' || loaded === null || Array.isArray(loaded)) {
-      return { ...DefaultBootConfig }
+      return { config: { ...DefaultBootConfig }, invalidKeys: [], invalidRoot: true }
     }
 
-    const result = { ...DefaultBootConfig }
+    const config = { ...DefaultBootConfig }
+    const invalidKeys: BootConfigKey[] = []
     const loadedRecord = loaded as Record<string, unknown>
 
-    for (const key of Object.keys(result) as BootConfigKey[]) {
-      if (key in loadedRecord) {
-        ;(result as Record<string, unknown>)[key] = loadedRecord[key]
+    for (const key of Object.keys(config) as BootConfigKey[]) {
+      if (!(key in loadedRecord)) continue
+      const parsed = bootConfigSchema.shape[key].safeParse(loadedRecord[key])
+      if (parsed.success) {
+        ;(config as Record<string, unknown>)[key] = parsed.data
+      } else {
+        invalidKeys.push(key)
       }
     }
 
-    return result
+    return { config, invalidKeys, invalidRoot: false }
   }
 }
 

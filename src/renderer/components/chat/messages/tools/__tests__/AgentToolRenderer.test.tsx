@@ -1,6 +1,6 @@
 import type * as CherryUi from '@cherrystudio/ui'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +8,7 @@ import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
 import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
 import MessageTool from '../MessageTool'
+import MessageTools from '../MessageTools'
 
 vi.mock('@renderer/services/AssistantService', () => ({
   getDefaultAssistant: vi.fn(() => ({
@@ -28,6 +29,7 @@ const mockUseTranslation = vi.fn()
 // Parts map drives approval state post-migration. Default: no pending approvals.
 const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null => null))
 const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
+const mockGetToolResult = vi.hoisted(() => vi.fn())
 const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (importOriginal) => {
@@ -41,6 +43,11 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
   useOptionalMessageListUi: () => ({ externalCodeEditors: [] })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (...args: unknown[]) => mockGetToolResult(...args), on: () => () => {} },
+  useIpcOn: () => {}
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -161,6 +168,7 @@ describe('AgentToolRenderer', () => {
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
     'agent.sidebar_title': 'Agents',
+    'settings.tool.file_processing.features.document_to_markdown.title': 'Document Processing',
     'message.tools.status.done': 'Done',
     'message.tools.units.item_one': '{{count}} item',
     'message.tools.units.item_other': '{{count}} items',
@@ -439,6 +447,56 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('View')).toBeInTheDocument()
     })
 
+    it('resolves a deferred output before handing it to the card', async () => {
+      mockGetToolResult.mockResolvedValue({ found: true, output: { content: 'lazy file content' } })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/test.ts' },
+        response: { $deferredToolResult: { topicId: 'topic-1', messageId: 'message-1', toolCallId: 'call-defer-1' } }
+      })
+
+      render(<MessageTools toolResponse={toolResponse} />)
+
+      await waitFor(() =>
+        expect(mockGetToolResult).toHaveBeenCalledWith('ai.tool.get_result', {
+          topicId: 'topic-1',
+          messageId: 'message-1',
+          toolCallId: 'call-defer-1'
+        })
+      )
+      fireEvent.click(await screen.findByRole('button'))
+      expect(await screen.findByTestId('code-viewer')).toHaveTextContent('lazy file content')
+    })
+
+    it('surfaces an error when a deferred output can no longer be resolved', async () => {
+      mockGetToolResult.mockResolvedValue({ found: false })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/test.ts' },
+        response: { $deferredToolResult: { topicId: 'topic-1', messageId: 'message-1', toolCallId: 'call-defer-2' } }
+      })
+
+      render(<MessageTools toolResponse={toolResponse} />)
+
+      expect(await screen.findByText('Error')).toBeInTheDocument()
+    })
+
+    it('does not treat a small or empty output as deferred', async () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/empty.ts' },
+        response: ''
+      })
+
+      render(<MessageTools toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(mockGetToolResult).not.toHaveBeenCalled()
+    })
+
     it('should render error state correctly', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
@@ -451,7 +509,9 @@ describe('AgentToolRenderer', () => {
 
       // Should still render the tool component
       expect(screen.getByText('View')).toBeInTheDocument()
-      expect(screen.getByText('Error')).toHaveStyle('color: var(--color-foreground-secondary)')
+      expect(screen.getByText('Error')).toHaveStyle(
+        'color: color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+      )
       expect(
         screen.queryAllByTestId('tooltip-content').some((element) => element.textContent === 'File not found')
       ).toBe(false)
@@ -599,6 +659,51 @@ describe('AgentToolRenderer', () => {
       expect(container).toBeEmptyDOMElement()
     })
 
+    it('hides AskUserQuestion message card while its input is still streaming', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'streaming',
+        toolCallId: 'call-ask',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        }
+      })
+
+      const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(container).toBeEmptyDOMElement()
+    })
+
+    it('shows a completed AskUserQuestion message card when no answer was submitted', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'done',
+        toolCallId: 'call-ask',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Questions from Agent')).toBeInTheDocument()
+      expect(screen.getByText('Choose logger')).toBeInTheDocument()
+    })
+
     it('shows AskUserQuestion answers from tool output when input only has questions', () => {
       const questions = [
         {
@@ -649,8 +754,8 @@ describe('AgentToolRenderer', () => {
             type: 'tool-AskUserQuestion',
             toolName: 'AskUserQuestion',
             toolCallId: toolResponse.toolCallId,
-            state: 'approval-responded',
-            approval: { id: 'approval-ask', approved: true },
+            state: 'approval-requested',
+            approval: { id: 'approval-ask' },
             input: toolResponse.arguments
           }
         ]
@@ -731,6 +836,24 @@ describe('AgentToolRenderer', () => {
         path: '/app/agents',
         query: { sessionId: 'session-1' }
       })
+    })
+
+    it('uses the document processing feature title for the file-processing route', () => {
+      const toolResponse = createToolResponse({
+        tool: {
+          id: 'mcp__assistant__navigate',
+          name: 'mcp__assistant__navigate',
+          description: 'Navigate',
+          type: 'provider'
+        },
+        status: 'done',
+        arguments: { path: '/settings/file-processing' },
+        response: 'Navigate link created: /settings/file-processing'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText(/Document Processing/)).toBeInTheDocument()
     })
   })
 

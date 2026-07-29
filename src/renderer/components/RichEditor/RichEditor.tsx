@@ -144,6 +144,7 @@ const RichEditor = ({
   onMarkdownChange,
   onBlur,
   editable = true,
+  autoFocus = true,
   className = '',
   wrapperStyle,
   showToolbar = true,
@@ -168,6 +169,7 @@ const RichEditor = ({
     onBlur,
     placeholder,
     editable,
+    autoFocus,
     enableSpellCheck,
     scrollParent: () => scrollContainerRef.current,
     onShowTableActionMenu: ({ position, actions }) => {

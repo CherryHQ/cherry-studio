@@ -1,11 +1,11 @@
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
-import { type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
-import { isCherryAIProvider } from '@shared/utils/provider'
+import { isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
-function isCanonicalPresetProvider(provider: Provider): boolean {
+export function isCanonicalPresetProvider(provider: Provider): boolean {
   return provider.presetProviderId != null && provider.id === provider.presetProviderId
 }
 
@@ -15,6 +15,30 @@ export function isProviderSettingsListVisibleProvider(provider: Provider): boole
   // download card's in-use checks + weight cleanup. Its model still surfaces in
   // capability-filtered model pickers (e.g. the KB embedding picker).
   return !isCherryAIProvider(provider) && provider.id !== LOCAL_EMBEDDING_PROVIDER_ID
+}
+
+/**
+ * Canonical presets that can safely create an independent, URL-based instance
+ * through the generic duplicate form. Login-only, global-token, local-server,
+ * and cloud-account presets need their provider-specific setup instead.
+ */
+export function isProviderPresetInstanceSource(provider: Provider): boolean {
+  if (!isCanonicalPresetProvider(provider) || isLoginBasedProvider(provider) || provider.id === 'copilot') {
+    return false
+  }
+
+  if (provider.authType !== 'api-key' && provider.authType !== 'iam-azure') {
+    return false
+  }
+
+  const endpoint = provider.defaultChatEndpoint
+  if (endpoint != null) {
+    return provider.endpointConfigs?.[endpoint] != null
+  }
+
+  return (
+    provider.presetProviderId === 'new-api' && provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] != null
+  )
 }
 
 export function getFancyProviderName(provider: Provider): string {
@@ -48,7 +72,7 @@ export function matchKeywordsInProvider(keywords: string[], provider: Provider, 
 
 /**
  * Replace the domain (host) in all endpointConfigs baseUrls while preserving URL paths
- * and other EndpointConfig fields (reasoningFormatType, modelsApiUrls).
+ * and other EndpointConfig fields (modelsApiUrls, adapterFamily).
  * Used by CherryIN/DMXAPI domain switching.
  */
 export function replaceEndpointConfigDomain(

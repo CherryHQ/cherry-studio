@@ -7,6 +7,7 @@ import {
 } from '@data/db/schemas/agentSessionMessage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
@@ -14,18 +15,24 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   AgentSessionMessageEntity,
   CreateAgentSessionMessageDto,
-  CreateAgentSessionMessagesDto
-} from '@shared/data/api/schemas/agentSessions'
+  CreateAgentSessionMessagesDto,
+  UpdateAgentSessionMessageDto
+} from '@shared/data/api/schemas/agentSessionMessages'
 import {
   AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
   AGENT_SESSION_MESSAGES_MAX_LIMIT
-} from '@shared/data/api/schemas/agentSessions'
+} from '@shared/data/api/schemas/agentSessionMessages'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
+import {
+  AGENT_SESSION_MESSAGE_SEARCH_ROLES,
+  coerceSearchRole,
+  type MessageRuntimeStatsInput
+} from '@shared/data/types/message'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
+import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -58,6 +65,13 @@ type ListSessionMessagesOptions = {
   cursor?: string
   limit?: number
   messageId?: string
+}
+
+type SaveAgentSessionMessageParams = {
+  sessionId: string
+  runtimeResumeToken?: string
+  runtimeStats?: MessageRuntimeStatsInput
+  message: CreateAgentSessionMessageDto
 }
 
 export class AgentSessionMessageService {
@@ -218,6 +232,34 @@ export class AgentSessionMessageService {
     }
   }
 
+  getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
+    const database = application.get('DbService').getDb()
+    const row = this.findExistingMessageRow(database, sessionId, messageId)
+    if (!row) throw DataApiErrorFactory.notFound('Message', messageId)
+    return this.rowToEntity(row)
+  }
+
+  updateSessionMessage(
+    sessionId: string,
+    messageId: string,
+    dto: UpdateAgentSessionMessageDto
+  ): AgentSessionMessageEntity {
+    return application.get('DbService').withWriteTx((tx) => {
+      const existing = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
+
+      const updatedAt = Date.now()
+      const [updated] = tx
+        .update(sessionMessagesTable)
+        .set({ data: dto.data, updatedAt })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .returning()
+        .all()
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return this.rowToEntity(updated)
+    })
+  }
+
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
     const result = tx
       .delete(sessionMessagesTable)
@@ -305,10 +347,10 @@ export class AgentSessionMessageService {
 
   private upsertMessage(
     db: DbOrTx,
-    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
+    params: SaveAgentSessionMessageParams,
     timestampMs = Date.now()
   ): AgentSessionMessageEntity {
-    const { sessionId, runtimeResumeToken = null, message } = params
+    const { sessionId, runtimeResumeToken = null, runtimeStats, message } = params
     const messageId = message.id ?? uuidv7()
     const status = message.status ?? 'success'
 
@@ -328,7 +370,7 @@ export class AgentSessionMessageService {
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
       const messageSnapshot =
         message.messageSnapshot === undefined ? existingRow.messageSnapshot : message.messageSnapshot
-      const stats = message.stats === undefined ? existingRow.stats : message.stats
+      const stats = mergeMessageRuntimeStats(existingRow.stats, runtimeStats) ?? null
 
       withSqliteErrors(
         () =>
@@ -371,7 +413,7 @@ export class AgentSessionMessageService {
       data: message.data,
       modelId: message.modelId,
       messageSnapshot: message.messageSnapshot,
-      stats: message.stats,
+      stats: mergeMessageRuntimeStats(undefined, runtimeStats) ?? null,
       runtimeResumeToken,
       createdAt: timestampMs,
       updatedAt: timestampMs
@@ -381,41 +423,44 @@ export class AgentSessionMessageService {
     return this.rowToEntity(saved)
   }
 
-  private touchSessionUpdatedAt(db: DbOrTx, sessionId: string, timestampMs: number): void {
-    db.update(sessionTable).set({ updatedAt: timestampMs }).where(eq(sessionTable.id, sessionId)).run()
-  }
-
   private saveMessageTx(
     db: DbOrTx,
-    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
+    params: SaveAgentSessionMessageParams,
     timestampMs = Date.now()
   ): AgentSessionMessageEntity {
     const saved = this.upsertMessage(db, params, timestampMs)
-    this.touchSessionUpdatedAt(db, params.sessionId, timestampMs)
+    agentSessionService.touchUpdatedAtTx(db, params.sessionId, timestampMs)
     return saved
   }
 
-  saveMessage(
-    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
-    db?: DbOrTx
-  ): AgentSessionMessageEntity {
+  saveMessage(params: SaveAgentSessionMessageParams, db?: DbOrTx): AgentSessionMessageEntity {
     const timestampMs = Date.now()
     if (db) return this.saveMessageTx(db, params, timestampMs)
-    return application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    const saved = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    if (saved.role === 'assistant') {
+      aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: saved.id })
+    }
+    return saved
   }
 
   saveMessages(params: CreateAgentSessionMessagesDto): AgentSessionMessageEntity[] {
     const { sessionId, runtimeResumeToken, messages } = params
 
-    return application.get('DbService').withWriteTx((tx) => {
+    const saved = application.get('DbService').withWriteTx((tx) => {
       const timestampMs = Date.now()
-      const saved: AgentSessionMessageEntity[] = []
+      const result: AgentSessionMessageEntity[] = []
       for (const message of messages) {
-        saved.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
+        result.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
       }
-      this.touchSessionUpdatedAt(tx, sessionId, timestampMs)
-      return saved
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
+      return result
     })
+    for (const entity of saved) {
+      if (entity.role === 'assistant') {
+        aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: entity.id })
+      }
+    }
+    return saved
   }
 }
 

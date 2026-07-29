@@ -1,5 +1,6 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
@@ -129,7 +130,7 @@ export type UseCacheSchema = {
   'knowledge.recall.search_queries': Record<string, string[]>
 
   // Notes page state
-  'notes.active_file_path': string | undefined
+  'notes.active_file_path': AbsoluteFilePath | undefined
 
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
@@ -155,9 +156,6 @@ export type UseCacheSchema = {
   /** Whether translating input text */
   'translate.translating': CacheValueTypes.TranslatingState
 
-  // Assistant reasoning effort cache (per-assistant, not persisted to DB)
-  'assistant.reasoning_effort_cache.${assistantId}': string | undefined
-
   // Painting in-flight generation state, keyed by paintingId. Survives page
   // navigation so the spinner reappears when the user returns mid-run.
   'painting.generation.${paintingId}': CacheValueTypes.CachePaintingGenerationState | null
@@ -181,7 +179,12 @@ export type UseCacheSchema = {
   'message.streaming.block.${blockId}': any // MessageBlock
   'message.streaming.siblings_counter.${topicId}': number
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
-  'message.ui.${messageId}': { foldSelected?: boolean; multiModelMessageStyle?: string; useful?: boolean }
+  'message.ui.${messageId}': {
+    foldSelected?: boolean
+    multiModelMessageStyle?: string
+    useful?: boolean
+    disclosures?: Record<string, boolean>
+  }
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -228,9 +231,6 @@ export const DefaultUseCache: UseCacheSchema = {
     abortKey: null
   },
 
-  // Assistant reasoning effort cache
-  'assistant.reasoning_effort_cache.${assistantId}': undefined,
-
   'painting.generation.${paintingId}': null,
 
   // Template key examples (for testing and demonstration)
@@ -254,7 +254,10 @@ export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
+  // Runtime-only opt-out shared across windows; resets when the app exits.
+  'agent.model_switch_confirmation.skipped': boolean
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
+  'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
@@ -285,7 +288,9 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
+  'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
+  'agent.session.api_retry.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
   'topic.stream.statuses.${topicId}': null,
@@ -308,6 +313,10 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
+  // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
+  // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
+  'ui.tab.normal_tabs': CacheValueTypes.Tab[]
+  'ui.tab.active_tab_id': string
   'ui.global_search.recent_items': CacheValueTypes.GlobalSearchRecentEntry[]
   'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.width': number
@@ -317,7 +326,9 @@ export type RendererPersistCacheSchema = {
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
-  'ui.chat.right_pane_open': boolean
+  // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
+  // default; booleans preserve an explicit user choice across page re-entry.
+  'ui.chat.right_pane_open_override': boolean | null
   // Sidebar section/group collapse — one fixed key per display mode so toggling a group in one
   // mode never re-writes the others (avoids the whole-blob cross-mode/cross-window clobber).
   // Stores the flat list of collapsed section/group ids; empty = everything expanded.
@@ -327,16 +338,12 @@ export type RendererPersistCacheSchema = {
   'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
-  // Per-surface classic-layout right-pane open state (the agent counterpart of
-  // 'ui.chat.right_pane_open'); kept separate so the assistant and agent surfaces don't bleed.
-  'ui.agent.right_pane_open': boolean
+  // Kept separate so the assistant and agent surfaces don't bleed into each other.
+  'ui.agent.right_pane_open_override': boolean | null
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
-  'settings.provider.openai.alert.dismissed': boolean
-  'feature.mcp.is_uv_installed': boolean
-  'feature.mcp.is_bun_installed': boolean
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
   'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
@@ -346,6 +353,8 @@ export type RendererPersistCacheSchema = {
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
+  'ui.tab.normal_tabs': [],
+  'ui.tab.active_tab_id': '',
   'ui.global_search.recent_items': [],
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
@@ -354,20 +363,17 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
-  'ui.chat.right_pane_open': false,
+  'ui.chat.right_pane_open_override': null,
   'ui.topic.expansion.time': [],
   'ui.topic.expansion.assistant': null,
   'ui.agent.last_used_session_id': null,
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
-  'ui.agent.right_pane_open': false,
+  'ui.agent.right_pane_open_override': null,
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
-  'settings.provider.openai.alert.dismissed': false,
-  'feature.mcp.is_uv_installed': false,
-  'feature.mcp.is_bun_installed': false,
   'feature.mcp.provider_available_servers': {},
   'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': []

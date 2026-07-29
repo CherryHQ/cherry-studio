@@ -73,6 +73,13 @@ vi.mock('electron', async () => {
 const STATE_KEY = 'jobs.state.job-1' as const
 const PROGRESS_KEY = 'jobs.progress.job-1' as const
 
+// Trusted sender shape for the in-handler source-trust gate (validateSender);
+// the global application mock resolves getPath('app.root') to '/mock/app.root'.
+const trustedEvent = {
+  sender: { getType: () => 'window' },
+  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+} as unknown as IpcMainEvent
+
 const BASE = 1_000_000
 const TTL = 60_000
 
@@ -215,7 +222,7 @@ describe('CacheService shared-tier TTL sync', () => {
 
     it('path 4: getAllShared (renderer init sync)', () => {
       const handler = ipcHandlers.get(IpcChannel.Cache_GetAllShared)!
-      const all = handler({} as IpcMainEvent) as Record<string, unknown>
+      const all = handler(trustedEvent) as Record<string, unknown>
 
       expect(all[STATE_KEY]).toBeUndefined()
       expectSingleTombstone(STATE_KEY)
@@ -291,7 +298,7 @@ describe('CacheService shared-tier TTL sync', () => {
       otherSend.mockClear()
 
       const listener = ipcListeners.get(IpcChannel.Cache_Sync)!
-      listener({ sender: {} } as IpcMainEvent, { type: 'shared', key: STATE_KEY, value: undefined })
+      listener(trustedEvent, { type: 'shared', key: STATE_KEY, value: undefined })
 
       expect(senderSend).not.toHaveBeenCalled() // sender excluded
       expect(otherSend).toHaveBeenCalledTimes(1) // relayed exactly once — no extra eviction broadcast

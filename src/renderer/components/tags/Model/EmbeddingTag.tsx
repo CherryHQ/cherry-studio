@@ -1,4 +1,4 @@
-import { Code2 } from 'lucide-react'
+import { Boxes } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { CustomTagProps } from '../CustomTag'
@@ -16,7 +16,7 @@ export const EmbeddingTag = ({ size = 12, showTooltip, showLabel = true, ...rest
     <CustomTag
       size={size}
       color="#FFA500"
-      icon={<Code2 size={size} color="currentColor" className="text-current" />}
+      icon={<Boxes size={size} color="currentColor" className="text-current" />}
       tooltip={showTooltip ? t('models.type.embedding') : undefined}
       {...restProps}>
       {showLabel ? t('models.type.embedding') : ''}

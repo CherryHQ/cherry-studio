@@ -1,0 +1,108 @@
+import { isAbsolute, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { application } from '@application'
+import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
+
+/** Whether `childPath` is `parentDir` itself or nested inside it (no prefix-only matches). */
+function isPathInside(childPath: string, parentDir: string): boolean {
+  const rel = relative(parentDir, childPath)
+  // `..` escapes the parent; an absolute `rel` means they share no common root.
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
+}
+
+/**
+ * Whether a URL belongs to the app's own renderer.
+ *
+ * Two consumers: {@link validateSender} asks it about a *sender frame* URL, and the
+ * `will-navigate` guards (MainWindowService / QuickAssistantService) ask it about a
+ * *navigation target* — both are the same question, so they share one definition of
+ * "our own renderer" rather than each hand-rolling an origin check.
+ *
+ * Packaged builds load renderer pages with `loadFile()` → `file:` protocol, always
+ * inside the app root (asar bundle). The dev server loads them with
+ * `loadURL(`${ELECTRON_RENDERER_URL}/…`)`, so in dev we additionally trust exactly
+ * that origin.
+ *
+ * A `file:` URL is trusted only when its path is **inside `appRootDir`** — not any
+ * `file:` wholesale. Reaching IpcApi does not require the app preload (a
+ * `nodeIntegration` window can call `ipcRenderer.invoke` directly), so a
+ * downloaded/exported HTML opened in such a window would otherwise be trusted, and
+ * local HTML in a privileged context is a classic Electron RCE vector. Everything
+ * else — remote https origins reachable via MiniApp / `<webview>` — is rejected.
+ *
+ * The dev origin and app root default to the ambient ones but stay injectable, so
+ * the decision is verifiable without Electron.
+ */
+export function isAppRendererUrl(
+  url: string,
+  devServerUrl: string | null | undefined = process.env.ELECTRON_RENDERER_URL,
+  appRootDir: string = application.getPath('app.root')
+): boolean {
+  if (!url) return false
+
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+
+  if (parsed.protocol === 'file:') {
+    let filePath: string
+    try {
+      filePath = fileURLToPath(parsed)
+    } catch {
+      return false
+    }
+    return isPathInside(filePath, appRootDir)
+  }
+
+  if (devServerUrl) {
+    try {
+      return parsed.origin === new URL(devServerUrl).origin
+    } catch {
+      return false
+    }
+  }
+
+  return false
+}
+
+/**
+ * Source-trust gate for the renderer→main funnels wired to it: the IpcApi
+ * request channel (`IpcApiService`), the DataApi transport (`IpcAdapter`), the
+ * Preference/Cache subsystem handlers, and escape-hatch channels
+ * (`Tab_MoveWindow`). Legacy channels on the deprecated
+ * `BaseService.ipcHandle`/`ipcOn` sugar are not gated yet — they adopt this
+ * gate as they migrate into IpcApi.
+ *
+ * Each funnel validates the *caller* before the input: all web frames (including
+ * iframes and `<webview>` guests) can send IPC, and this app runs with
+ * `webviewTag: true` + `webSecurity: false` + MiniApps rendering arbitrary
+ * remote URLs. Per Electron's security checklist, verify `senderFrame`.
+ *
+ * `appRootDir` scopes the `file:` check to "the app's own renderer" rather than
+ * trusting any local file. It defaults to the app's own bundle root
+ * (`application.getPath('app.root')`), resolved per call so the gate stays a
+ * plain function; pass it explicitly only to trust a different root (tests do
+ * this to stay Electron-free).
+ */
+export function validateSender(
+  event: IpcMainInvokeEvent | IpcMainEvent,
+  appRootDir: string = application.getPath('app.root')
+): boolean {
+  // Embedded <webview> guests arrive as their own WebContents — never let them reach IpcApi.
+  if (event.sender.getType() === 'webview') return false
+
+  const frame = event.senderFrame
+  if (!frame) return false
+
+  // Only the top-level frame may reach IpcApi. A sub-frame (e.g. an <iframe>
+  // embedding content inside an app window, which shares the renderer with
+  // webSecurity:false) must be rejected even if its URL looks app-owned —
+  // `WebFrameMain.parent` is null only for the top frame.
+  if (frame.parent !== null) return false
+
+  return isAppRendererUrl(frame.url, process.env.ELECTRON_RENDERER_URL, appRootDir)
+}

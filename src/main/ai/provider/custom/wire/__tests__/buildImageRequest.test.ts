@@ -15,6 +15,37 @@ function engine(providerId: string, paramValues: Record<string, unknown>): Recor
   return buildVendorProviderOptions(providerId, paramValues, registration, vendorBag)
 }
 
+describe('buildVendorProviderOptions — OpenRouter image API', () => {
+  it('maps model-advertised parameters under the native OpenRouter provider key', () => {
+    expect(
+      engine('openrouter', {
+        resolution: '2K',
+        quality: 'high',
+        outputFormat: 'webp',
+        background: 'transparent',
+        outputCompression: 80,
+        seed: 42,
+        numImages: 2,
+        aspectRatio: '16:9'
+      })
+    ).toEqual({
+      openrouter: {
+        resolution: '2K',
+        quality: 'high',
+        output_format: 'webp',
+        background: 'transparent',
+        output_compression: 80
+      }
+    })
+  })
+
+  it('omits output compression unless the request explicitly selects jpeg or webp', () => {
+    expect(engine('openrouter', { quality: 'high', outputCompression: 0 })).toEqual({
+      openrouter: { quality: 'high' }
+    })
+  })
+})
+
 describe('buildVendorProviderOptions — diffusion family (passthrough)', () => {
   it('maps the snake_case sampling fields and forwards cfg via passthrough', () => {
     const paramValues = {
@@ -227,5 +258,25 @@ describe('buildVendorProviderOptions — Ollama (numInferenceSteps → steps; si
 
   it('returns {} when numInferenceSteps is unset', () => {
     expect(engine('ollama', {})).toEqual({})
+  })
+})
+
+describe('buildVendorProviderOptions — MiniMax image API', () => {
+  it('maps output, optimizer, and watermark fields under the MiniMax key', () => {
+    expect(
+      engine('minimax', {
+        numImages: 3,
+        aspectRatio: '16:9',
+        outputFormat: 'base64',
+        promptEnhancement: true,
+        addWatermark: true
+      })
+    ).toEqual({
+      minimax: {
+        response_format: 'base64',
+        prompt_optimizer: true,
+        aigc_watermark: true
+      }
+    })
   })
 })

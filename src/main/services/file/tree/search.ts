@@ -20,7 +20,7 @@ import * as path from 'node:path'
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
-import type { DirectoryEntry, DirectoryListOptions, FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath, DirectoryEntry, DirectoryListOptions } from '@shared/types/file'
 
 import { defaultRipgrepGlobArgs } from './gitignore'
 
@@ -491,7 +491,10 @@ async function listDirectoryWithRipgrep(resolvedPath: string, options: ResolvedO
  * default maxEntries is `Number.MAX_SAFE_INTEGER` — no truncation. In search
  * mode the caller decides the cap via `options.maxEntries`.
  */
-export async function listDirectory(dirPath: FilePath | string, options?: DirectoryListOptions): Promise<string[]> {
+export async function listDirectory(
+  dirPath: AbsoluteFilePath | string,
+  options?: DirectoryListOptions
+): Promise<string[]> {
   const mergedOptions: ResolvedOptions = {
     ...DEFAULT_DIRECTORY_LIST_OPTIONS,
     ...options
@@ -522,7 +525,7 @@ export async function listDirectory(dirPath: FilePath | string, options?: Direct
  * happen here, batched on the main side, instead of N renderer→main calls.
  */
 export async function listDirectoryEntries(
-  dirPath: FilePath | string,
+  dirPath: AbsoluteFilePath | string,
   options?: DirectoryListOptions
 ): Promise<DirectoryEntry[]> {
   const paths = await listDirectory(dirPath, options)
@@ -530,7 +533,7 @@ export async function listDirectoryEntries(
     paths.map(async (entryPath) => {
       try {
         const stat = await fs.promises.stat(entryPath)
-        return { path: entryPath as FilePath, isDirectory: stat.isDirectory() }
+        return { path: entryPath as AbsoluteFilePath, isDirectory: stat.isDirectory() }
       } catch {
         // Entry vanished between listing and stat — drop it (matches the
         // renderer's old per-entry isDirectory failure handling).

@@ -105,6 +105,23 @@ describe('CopyButton', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  it('should forward native button props for composition', () => {
+    render(
+      <CopyButton
+        textToCopy="test text"
+        className="size-6"
+        aria-label="Copy test text"
+        successFeedback="icon"
+        disabled
+      />
+    )
+
+    const button = screen.getByRole('button', { name: 'Copy test text' })
+    expect(button.tagName).toBe('BUTTON')
+    expect(button).toBeDisabled()
+    expect(button).toHaveClass('size-6')
+  })
+
   it('should show error message when copy fails', async () => {
     mockWriteText.mockRejectedValue(new Error('Clipboard access denied'))
 
