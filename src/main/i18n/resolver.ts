@@ -21,6 +21,7 @@ import roRO from './translate/ro-ro.json'
 import RuRu from './translate/ru-ru.json'
 import viVN from './translate/vi-vn.json'
 import ZhTw from './translate/zh-tw.json'
+import trTR from './translate/tr-tr.json'
 
 const locales = Object.fromEntries(
   [
@@ -35,7 +36,8 @@ const locales = Object.fromEntries(
     ['fr-FR', frFR],
     ['pt-PT', ptPT],
     ['ro-RO', roRO],
-    ['vi-VN', viVN]
+    ['vi-VN', viVN],
+    ['tr-TR', trTR]
   ].map(([locale, translation]) => [locale, { translation }])
 )
 
