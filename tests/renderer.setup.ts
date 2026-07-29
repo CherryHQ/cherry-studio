@@ -176,7 +176,13 @@ vi.mock('@cherrystudio/ui', () => {
   })
   const AccordionItemContext = React.createContext({ disabled: false, value: '' })
   const FormFieldNameContext = React.createContext(undefined)
+  // Mirrors @radix-ui/react-direction: 'ltr' when no provider is mounted.
+  const DirectionContext = React.createContext('ltr')
   return {
+    // Reading direction — real provider/consumer pair so components branching on
+    // `useDirection()` (resize handles, DirectionalIcon) are testable in both modes.
+    DirectionProvider: ({ dir, children }) => React.createElement(DirectionContext.Provider, { value: dir }, children),
+    useDirection: (localDir) => localDir ?? React.useContext(DirectionContext),
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
     Markdown: ({ children }) => React.createElement('div', null, children),
