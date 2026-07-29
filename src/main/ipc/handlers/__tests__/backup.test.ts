@@ -50,7 +50,7 @@ import {
   UnportableSourceError
 } from '@main/services/backup'
 
-import { backupHandlers } from '../backup'
+import { backupHandlers, defaultArchiveName } from '../backup'
 
 /**
  * The handlers own three things and nothing else: who may call (a managed
@@ -154,6 +154,23 @@ describe('backupHandlers', () => {
   })
 
   describe('export', () => {
+    it('suggests a name two same-day backups cannot collide on', async () => {
+      // Local time, to the second, fixed width — the export refuses to overwrite,
+      // so a date-only name made the second backup of a day fail on the name.
+      expect(defaultArchiveName(new Date(2026, 6, 29, 9, 4, 5))).toBe('cherry-studio-2026-07-29-090405')
+      expect(defaultArchiveName(new Date(2026, 6, 29, 17, 12, 40))).toBe('cherry-studio-2026-07-29-171240')
+
+      showSaveDialog.mockResolvedValue({ canceled: true, filePath: undefined })
+      await backupHandlers['backup.export'](undefined, ctx)
+
+      expect(showSaveDialog).toHaveBeenCalledWith(
+        windowMock,
+        expect.objectContaining({ defaultPath: expect.stringMatching(/^cherry-studio-[\d-]+\.cherrybackup$/) })
+      )
+      // `:` is legal in no win32 filename, and the dialog is shared across platforms.
+      expect(showSaveDialog.mock.calls[0][1].defaultPath).not.toContain(':')
+    })
+
     it('never takes a path from the caller — main asks, then exports what the user chose', async () => {
       showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
       service.export.mockResolvedValue({

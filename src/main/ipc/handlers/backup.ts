@@ -52,6 +52,23 @@ const logger = loggerService.withContext('IpcBackupHandlers')
 const ARCHIVE_EXTENSION = 'cherrybackup'
 
 /**
+ * Suggested archive name, to the second. The export refuses to overwrite, so two
+ * backups taken the same day used to collide on the date-only name and leave the
+ * user renaming by hand; seconds make same-day exports distinct by default.
+ *
+ * LOCAL time, not UTC: this name is read by the person who took the backup, and
+ * a UTC date lands on the wrong day for anyone far enough east or west. Padded
+ * fixed-width so names sort chronologically, and `:` never appears — it is a
+ * legal separator nowhere on win32.
+ */
+export function defaultArchiveName(now: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+  return `cherry-studio-${date}-${time}`
+}
+
+/**
  * Every route here either replaces the database or releases the material that
  * could undo one, so the caller must be a window this app manages. `senderId` is
  * null for anything WindowManager does not track — a detached webContents, a
@@ -328,7 +345,7 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     const { canceled, filePath } = await dialog.showSaveDialog(parent, {
       // The export never overwrites, so a name that already exists fails the
       // operation rather than the dialog — say so where the user is choosing.
-      defaultPath: `cherry-studio-${new Date().toISOString().slice(0, 10)}.${ARCHIVE_EXTENSION}`,
+      defaultPath: `${defaultArchiveName(new Date())}.${ARCHIVE_EXTENSION}`,
       filters: [{ name: t('dialog.cherry_backup_files'), extensions: [ARCHIVE_EXTENSION] }]
     })
     if (canceled || !filePath) {
