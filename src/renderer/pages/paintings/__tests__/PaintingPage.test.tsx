@@ -14,7 +14,8 @@ const mocks = vi.hoisted(() => ({
   persistedAt: undefined as string | undefined,
   saveCurrent: vi.fn(),
   submitting: false,
-  templates: [] as { id: string; imageUrl: string; label: string; prompt: string }[]
+  templates: [] as { id: string; imageUrl: string; label: string; prompt: string }[],
+  usePaintingTemplateCatalog: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -30,13 +31,20 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 }))
 
 vi.mock('../hooks/usePaintingTemplateCatalog', () => ({
-  usePaintingTemplateCatalog: () => ({
-    templates: mocks.templates
-  })
+  usePaintingTemplateCatalog: () => {
+    mocks.usePaintingTemplateCatalog()
+    return {
+      templates: mocks.templates
+    }
+  }
 }))
 
 vi.mock('../components/Artboard', () => ({
-  default: () => <div data-testid="painting-artboard" />
+  default: ({ painting }: { painting: { files: unknown[] } }) => {
+    // Read files.length to simulate the real component's behavior and catch regressions
+    const _len = painting.files.length
+    return <div data-testid="painting-artboard" />
+  }
 }))
 
 vi.mock('../components/PaintingTemplateShowcase', () => ({
@@ -177,6 +185,7 @@ describe('PaintingPage showcase', () => {
       label: index === 0 ? 'Motion Step' : `painting template ${index}`,
       prompt: index === 0 ? 'Create a poster for ${CITY RHYTHM}' : `painting prompt ${index}`
     }))
+    mocks.usePaintingTemplateCatalog.mockReset()
   })
 
   it('shows the template showcase only on the untouched blank page', () => {
@@ -202,6 +211,7 @@ describe('PaintingPage showcase', () => {
     expect(screen.queryByText('paintings.showcase.caption')).not.toBeInTheDocument()
     expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
     expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+    expect(mocks.usePaintingTemplateCatalog).not.toHaveBeenCalled()
   })
 
   it('keeps persisted empty paintings on the normal artboard', () => {
@@ -211,6 +221,7 @@ describe('PaintingPage showcase', () => {
 
     expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
     expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+    expect(mocks.usePaintingTemplateCatalog).not.toHaveBeenCalled()
   })
 
   it('keeps the showcase hidden until the initial history hydration is ready', () => {
@@ -282,6 +293,7 @@ describe('PaintingPage showcase', () => {
     expect(screen.queryByText('paintings.showcase.caption')).not.toBeInTheDocument()
     expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
     expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
+    expect(mocks.usePaintingTemplateCatalog).not.toHaveBeenCalled()
   })
 
   it('fills the prompt from a style choice without starting generation', () => {
