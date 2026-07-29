@@ -299,6 +299,19 @@ export function recoverResourceUnits(
         // the archive's copy. Park it back in the staging slot, which both
         // empties the target (the target-only preservation rule) and makes this
         // unit read as `discard-staged` if the pass is ever re-entered.
+        //
+        // Unless the journal says the target DID exist: then the aside that
+        // held the user's original is missing, `live` is the only copy of
+        // anything this unit still has, and taking it out would leave nothing
+        // behind. An entry with no `hadLive` (an earlier pre-release wrote it)
+        // keeps the original reading — the callers that must not act on a guess
+        // refuse before they get here.
+        if (entry.hadLive === true) {
+          throw new ResourceInstallError(
+            'aside-missing',
+            `${unit.liveRel} was replaced but its pre-restore copy is gone — refusing to remove the only copy left`
+          )
+        }
         batch.rename(unit.live, unit.staged)
         break
       case 'restore-aside':
@@ -322,6 +335,35 @@ export function recoverResourceUnits(
 
   const dirs = batch.flush()
   logger.warn('Recovered archive resources', { units: entries.length, phase, fsyncedDirs: dirs.length })
+}
+
+/**
+ * Why this completed restore's units cannot be reversed, or `null` if they can.
+ *
+ * Rollback moves the pre-restore copies OUT of their asides and the restored
+ * ones back into staging — a plan whose every step assumes the shape completion
+ * left behind. Proving that shape here, before consent is written, is the only
+ * place a failure is still free: once the reverse direction is armed, preboot
+ * has to carry it out, and a unit whose aside vanished can then only be
+ * discovered mid-pass, with some units already moved.
+ *
+ * The detail is for the log, never for the user: it names journal paths.
+ */
+export function findRollbackBlocker(entries: readonly ResourceInstallEntry[], userData: string): string | null {
+  for (const entry of entries) {
+    if (entry.hadLive === undefined) {
+      return `${entry.live}: written by an earlier build that did not record whether it replaced anything`
+    }
+    const facts = probe(resolveUnit(userData, entry))
+    if (!facts.live) return `${entry.live}: the restored node is no longer in its live slot`
+    if (facts.staged) return `${entry.live}: an archive copy still occupies the staging slot`
+    if (facts.aside !== entry.hadLive) {
+      return entry.hadLive
+        ? `${entry.live}: the pre-restore copy is missing from its aside`
+        : `${entry.live}: an aside exists although nothing was replaced here`
+    }
+  }
+  return null
 }
 
 /**
