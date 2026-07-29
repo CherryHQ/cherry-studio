@@ -173,7 +173,32 @@ vi.mock('../components', () => {
       }),
     MigrationWindowControls: () => null,
     MigratorProgressList: () => null,
-    SkipMigrationDialog: () => null,
+    // Mounted only while open; confirm forwards to onConfirm so tests can drive the skip flow.
+    SkipMigrationDialog: ({
+      open,
+      onConfirm,
+      onOpenChange
+    }: {
+      open?: boolean
+      onConfirm?: () => void
+      onOpenChange?: (open: boolean) => void
+    }) =>
+      open
+        ? React.createElement(
+            'div',
+            { 'data-testid': 'skip-migration-dialog' },
+            React.createElement(
+              'button',
+              { type: 'button', 'data-testid': 'skip-confirm-button', onClick: onConfirm },
+              'confirm-skip'
+            ),
+            React.createElement(
+              'button',
+              { type: 'button', 'data-testid': 'skip-dismiss-button', onClick: () => onOpenChange?.(false) },
+              'dismiss'
+            )
+          )
+        : null,
     // Mounted only while open, so its presence in the DOM is the "offer shown" signal.
     V1DownloadDialog: ({
       open,
@@ -651,6 +676,72 @@ describe('MigrationApp', () => {
 
       expect(toastErrorMock).toHaveBeenCalledWith('migration.error.v1_fallback.open_failed')
       expect(dialog()).toBeInTheDocument()
+    })
+  })
+
+  describe('error stage skip', () => {
+    const errorProgress = {
+      currentMessage: 'Failed',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'error'
+    }
+    const dialog = () => screen.queryByTestId('skip-migration-dialog')
+
+    it('orders the actions close / skip / retry and opens the confirm dialog from skip', () => {
+      migrationHookMock.progress = errorProgress
+
+      render(<MigrationApp />)
+
+      const [closeButton, skipButton, retryButton] = [
+        'migration.buttons.close',
+        'migration.buttons.skip_migration',
+        'migration.buttons.retry'
+      ].map((name) => screen.getByRole('button', { name }))
+      expect(closeButton.compareDocumentPosition(skipButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(skipButton.compareDocumentPosition(retryButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+      expect(dialog()).not.toBeInTheDocument()
+      fireEvent.click(skipButton)
+      expect(dialog()).toBeInTheDocument()
+    })
+
+    it('confirms through the shared skip action', async () => {
+      migrationHookMock.progress = errorProgress
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.skip_migration' }))
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('skip-confirm-button'))
+      })
+
+      expect(migrationHookMock.actions.skipMigration).toHaveBeenCalledOnce()
+      expect(toastErrorMock).not.toHaveBeenCalled()
+    })
+
+    it('dismisses without invoking the skip action', () => {
+      migrationHookMock.progress = errorProgress
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.skip_migration' }))
+
+      fireEvent.click(screen.getByTestId('skip-dismiss-button'))
+
+      expect(dialog()).not.toBeInTheDocument()
+      expect(migrationHookMock.actions.skipMigration).not.toHaveBeenCalled()
+    })
+
+    it('closes the dialog and shows a toast when the skip fails', async () => {
+      migrationHookMock.actions.skipMigration.mockRejectedValueOnce(new Error('cleanup failed'))
+      migrationHookMock.progress = errorProgress
+      render(<MigrationApp />)
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.skip_migration' }))
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('skip-confirm-button'))
+      })
+
+      expect(toastErrorMock).toHaveBeenCalledWith('migration.skip_dialog.failed')
+      expect(dialog()).not.toBeInTheDocument()
     })
   })
 

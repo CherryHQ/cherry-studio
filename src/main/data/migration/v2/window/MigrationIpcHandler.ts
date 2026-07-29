@@ -348,8 +348,15 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     }
   })
 
-  // Skip migration (version incompatible — user chose to use defaults)
+  // Skip migration (user chose to discard migrated data and use defaults)
   ipcMain.handle(MigrationIpcChannels.SkipMigration, async () => {
+    // Skip clears the migration target tables on the same connection a running
+    // migration writes through — never let the two interleave.
+    if (inFlightMigration) {
+      logger.warn(CONCURRENT_MIGRATION_ERROR)
+      throw new Error(CONCURRENT_MIGRATION_ERROR)
+    }
+
     try {
       logger.info('User chose to skip migration and use defaults')
       await migrationEngine.skipMigration()

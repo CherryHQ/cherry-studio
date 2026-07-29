@@ -1,10 +1,11 @@
 /**
  * Destructive confirmation for skipping migration.
  *
- * Shared by the introduction "Skip migration" entry and the version-incompatible
- * skip action. The confirm button is destructive and stays disabled for a 10s
- * countdown so the choice is deliberate. Confirming calls the existing
- * `migration:skip-migration` path (via the provided `onConfirm`).
+ * Shared by the introduction "Skip migration" entry, the version-incompatible
+ * skip action, and the error-stage "Skip migration" button. The confirm button
+ * is destructive and stays disabled for a 10s countdown so the choice is
+ * deliberate. Confirming calls the existing `migration:skip-migration` path
+ * (via the provided `onConfirm`).
  */
 
 import {
@@ -32,8 +33,11 @@ interface Props {
 export const SkipMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onConfirm }) => {
   const { t } = useTranslation()
   const [seconds, setSeconds] = useState(COUNTDOWN_SECONDS)
+  // On success main restarts the app, so pending never needs a reset besides reopen.
+  const [pending, setPending] = useState(false)
 
   useEffect(() => {
+    setPending(false)
     if (!open) {
       setSeconds(COUNTDOWN_SECONDS)
       return
@@ -73,6 +77,15 @@ export const SkipMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onCon
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
                   <span>
                     <strong className="font-medium text-foreground">
+                      {t('migration.skip_dialog.points.cleared_strong')}
+                    </strong>
+                    {t('migration.skip_dialog.points.cleared_rest')}
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-2 size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
+                  <span>
+                    <strong className="font-medium text-foreground">
                       {t('migration.skip_dialog.points.retained_strong')}
                     </strong>
                     {t('migration.skip_dialog.points.retained_rest')}
@@ -80,7 +93,7 @@ export const SkipMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onCon
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
-                  <span>{t('migration.skip_dialog.points.not_visible')}</span>
+                  <span>{t('migration.skip_dialog.points.files')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
@@ -100,7 +113,13 @@ export const SkipMigrationDialog: React.FC<Props> = ({ open, onOpenChange, onCon
           <DialogClose asChild>
             <Button variant="outline">{t('migration.skip_dialog.cancel')}</Button>
           </DialogClose>
-          <Button variant="destructive" disabled={counting} onClick={onConfirm}>
+          <Button
+            variant="destructive"
+            disabled={counting || pending}
+            onClick={() => {
+              setPending(true)
+              onConfirm()
+            }}>
             {counting ? t('migration.skip_dialog.confirm_countdown', { seconds }) : t('migration.skip_dialog.confirm')}
           </Button>
         </DialogFooter>

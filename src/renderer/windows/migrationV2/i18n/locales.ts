@@ -87,16 +87,19 @@ export const zhCN = {
       warning_prefix: '高危操作：',
       warning_body: '将以默认配置启动，并不再自动提示迁移。',
       points: {
-        retained_strong: '旧数据会保留在磁盘中',
-        retained_rest: '，但不会导入 V2。',
-        not_visible: '旧版对话、设置、知识库等内容不会出现在新版本中。',
+        cleared_strong: '已迁移到新版数据库的记录将被清除',
+        cleared_rest: '（如有），新版将以默认数据启动。',
+        retained_strong: '旧版原始数据不会被删除',
+        retained_rest: '，仍保留在磁盘中，但对话、设置、知识库等内容不会出现在新版中。',
+        files: '迁移过程中已复制的文件可能仍占用磁盘空间，但不会出现在新版中。',
         skip_before: '仅当你确定要',
         skip_strong: '放弃本次自动迁移',
         skip_after: '时继续。'
       },
       cancel: '取消',
       confirm: '已知晓风险，跳过并重启',
-      confirm_countdown: '已知晓风险，跳过并重启 ({{seconds}}s)'
+      confirm_countdown: '已知晓风险，跳过并重启 ({{seconds}}s)',
+      failed: '跳过迁移失败，数据未变动，请重试。'
     },
     migration: {
       title: '正在迁移数据...',
@@ -240,16 +243,21 @@ export const enUS = {
       warning_prefix: 'High-risk action: ',
       warning_body: 'Starts with default settings, and migration will not be prompted again.',
       points: {
-        retained_strong: 'Old data will remain on disk',
-        retained_rest: ', but it will not be imported into V2.',
-        not_visible: 'Legacy chats, settings, knowledge bases, and related content will not appear in the new version.',
+        cleared_strong: 'Records already migrated to the new database will be cleared',
+        cleared_rest: ' (if any), and the new version will start with default data.',
+        retained_strong: 'Original legacy data will not be deleted',
+        retained_rest:
+          ' and remains on disk, but chats, settings, knowledge bases, and related content will not appear in the new version.',
+        files:
+          'Files copied during migration may still take up disk space, but they will not appear in the new version.',
         skip_before: 'Continue only if you are sure you want to ',
         skip_strong: 'skip this automatic migration',
         skip_after: '.'
       },
       cancel: 'Cancel',
       confirm: 'I understand the risk, skip and restart',
-      confirm_countdown: 'I understand the risk, skip and restart ({{seconds}}s)'
+      confirm_countdown: 'I understand the risk, skip and restart ({{seconds}}s)',
+      failed: 'Failed to skip migration. No data was changed — please try again.'
     },
     migration: {
       title: 'Migrating Data...',

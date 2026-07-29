@@ -379,6 +379,17 @@ const MigrationApp: React.FC = () => {
     }
   }
 
+  // On success main restarts the app, so there is no resolve path to handle here.
+  const handleSkipConfirm = async () => {
+    try {
+      await actions.skipMigration()
+    } catch (error) {
+      logger.error('Failed to skip migration', error as Error)
+      setSkipOpen(false)
+      showErrorToast(t('migration.skip_dialog.failed'))
+    }
+  }
+
   const progressMessage = useMemo(() => {
     if (progress.i18nMessage) {
       return t(progress.i18nMessage.key, progress.i18nMessage.params)
@@ -580,6 +591,9 @@ const MigrationApp: React.FC = () => {
               <Button variant="outline" size="lg" onClick={() => actions.cancel()}>
                 {t('migration.buttons.close')}
               </Button>
+              <Button variant="destructive" size="lg" onClick={() => setSkipOpen(true)}>
+                {t('migration.buttons.skip_migration')}
+              </Button>
               <Button
                 variant="default"
                 size="lg"
@@ -692,7 +706,7 @@ const MigrationApp: React.FC = () => {
           </main>
         </div>
 
-        <SkipMigrationDialog open={skipOpen} onOpenChange={setSkipOpen} onConfirm={() => actions.skipMigration()} />
+        <SkipMigrationDialog open={skipOpen} onOpenChange={setSkipOpen} onConfirm={() => void handleSkipConfirm()} />
         <V1DownloadDialog
           open={v1DialogOpen}
           onOpenChange={setV1DialogOpen}
