@@ -131,7 +131,7 @@ describe('BackupV2Settings', () => {
             status: 'exported',
             archivePath: '/tmp/a.cherrybackup',
             resourceCount: 1,
-            degradations: [{ code: 'resource-changed', count: 2, paths: ['Data/Notes/a', 'Data/Notes/b'] }]
+            degradations: [{ code: 'external-reference', count: 2, paths: ['Data/Notes/a', 'Data/Notes/b'] }]
           }
         : { operation: null, restore: { kind: 'none' } }
     )
@@ -142,7 +142,7 @@ describe('BackupV2Settings', () => {
     await waitFor(() => expect(popup.info).toHaveBeenCalledOnce())
     const details = render(vi.mocked(popup.info).mock.calls[0][0].content as React.ReactElement)
     expect(details.getByText('settings.data.backup_v2.export.done_degraded')).toBeInTheDocument()
-    expect(details.getByText('settings.data.backup_v2.outcome.degradation.resource_changed')).toBeInTheDocument()
+    expect(details.getByText('settings.data.backup_v2.outcome.degradation.external_reference')).toBeInTheDocument()
     expect(details.getByText('Data/Notes/a')).toBeInTheDocument()
     expect(details.getByText('Data/Notes/b')).toBeInTheDocument()
     expect(toast.success).not.toHaveBeenCalled()
@@ -555,6 +555,105 @@ describe('BackupV2Settings', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup_v2.error.unexpected'))
     expect(popup.confirm).not.toHaveBeenCalled()
     expect(popup.info).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      { kind: 'quiesce-timeout', phase: 'profile-write-barrier' },
+      'settings.data.backup_v2.error.export_quiesce',
+      undefined
+    ],
+    [
+      { kind: 'source-changed', path: 'Data/Notes' },
+      'settings.data.backup_v2.error.export_source_changed_path',
+      { path: 'Data/Notes' }
+    ],
+    [{ kind: 'source-changed' }, 'settings.data.backup_v2.error.export_source_changed', undefined],
+    [
+      { kind: 'non-regular', path: 'Data/Notes/link' },
+      'settings.data.backup_v2.error.export_source_non_regular_path',
+      { path: 'Data/Notes/link' }
+    ],
+    [{ kind: 'non-regular' }, 'settings.data.backup_v2.error.export_source_non_regular', undefined],
+    [
+      { kind: 'unportable-path', reason: 'invalid-path', path: 'Data/Notes/CON' },
+      'settings.data.backup_v2.error.export_source_unportable_path',
+      { path: 'Data/Notes/CON' }
+    ],
+    [
+      { kind: 'unportable-path', reason: 'invalid-path' },
+      'settings.data.backup_v2.error.export_source_unportable',
+      undefined
+    ],
+    [
+      { kind: 'unportable-path', reason: 'name-collision', path: 'Data/Notes/Readme' },
+      'settings.data.backup_v2.error.export_source_collision_path',
+      { path: 'Data/Notes/Readme' }
+    ],
+    [
+      { kind: 'unportable-path', reason: 'name-collision' },
+      'settings.data.backup_v2.error.export_source_collision',
+      undefined
+    ],
+    [
+      { kind: 'limit-exceeded', limit: 'entry-count' },
+      'settings.data.backup_v2.error.export_source_limit_count',
+      undefined
+    ],
+    [
+      { kind: 'limit-exceeded', limit: 'resource-entries' },
+      'settings.data.backup_v2.error.export_source_limit_count',
+      undefined
+    ],
+    [
+      { kind: 'limit-exceeded', limit: 'entry-bytes' },
+      'settings.data.backup_v2.error.export_source_limit_entry',
+      undefined
+    ],
+    [
+      { kind: 'limit-exceeded', limit: 'total-bytes' },
+      'settings.data.backup_v2.error.export_source_limit_total',
+      undefined
+    ],
+    [
+      { kind: 'limit-exceeded', limit: 'manifest-bytes' },
+      'settings.data.backup_v2.error.export_source_limit_manifest',
+      undefined
+    ],
+    [{ kind: 'limit-exceeded', limit: 'unknown' }, 'settings.data.backup_v2.error.export_source_limit', undefined]
+  ])('turns an export-source diagnostic into specific guidance', async (diagnostic, message, interpolation) => {
+    requestMock.mockImplementation(async (route: string) => {
+      if (route === 'backup.export') {
+        throw new IpcError(backupErrorCodes.EXPORT_SOURCE, 'refused', diagnostic)
+      }
+      return { operation: null, restore: { kind: 'none' } }
+    })
+    await renderSettings()
+
+    click('settings.general.backup.button')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(message))
+    if (interpolation) {
+      expect(tMock).toHaveBeenCalledWith(message, interpolation)
+    }
+  })
+
+  it('does not render a forged absolute diagnostic path', async () => {
+    requestMock.mockImplementation(async (route: string) => {
+      if (route === 'backup.export') {
+        throw new IpcError(backupErrorCodes.EXPORT_SOURCE, 'refused', {
+          kind: 'source-changed',
+          path: '/Users/private/notes'
+        })
+      }
+      return { operation: null, restore: { kind: 'none' } }
+    })
+    await renderSettings()
+
+    click('settings.general.backup.button')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup_v2.error.export_source'))
+    expect(tMock).not.toHaveBeenCalledWith(expect.anything(), { path: '/Users/private/notes' })
   })
 
   it.each([

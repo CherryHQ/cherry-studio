@@ -5,6 +5,7 @@ import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
 import { MockMainFileManagerExport } from './FileManager'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
+import { MockMainProfileWriteBarrierServiceExport } from './ProfileWriteBarrierService'
 
 /**
  * Unified mock application factory for main process testing.
@@ -72,10 +73,29 @@ const mockIpcApiService = {
   broadcastToType: vi.fn()
 }
 
-/** Minimal JobManager mock for handler registration and startup enqueues. */
+const quiesceHold = () => ({ dispose: vi.fn() })
+function createMockDrainableWriter() {
+  return {
+    pause: vi.fn(quiesceHold),
+    drainInFlight: vi.fn(async () => ({ stragglerIds: [] as string[] })),
+    listActiveWork: vi.fn(() => [])
+  }
+}
+const mockAiStreamManager = createMockDrainableWriter()
+const mockAgentSessionRuntimeService = createMockDrainableWriter()
+const mockClaudeCodeWarmQueryManager = createMockDrainableWriter()
+const mockMcpRuntimeService = createMockDrainableWriter()
+const mockChannelManager = {
+  ...createMockDrainableWriter(),
+  pauseAdapterRuntime: vi.fn(quiesceHold),
+  drainAdapterRuntimeInFlight: vi.fn(async () => ({ stragglerIds: [] as string[] })),
+  listActiveAdapterWork: vi.fn(() => [])
+}
 export const mockJobManager = {
+  ...createMockDrainableWriter(),
   registerHandler: vi.fn(),
-  enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
+  enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) })),
+  drainInFlight: vi.fn(async () => ({ stragglerIds: [] as string[], startupRecoveryPending: false }))
 }
 
 /** Default service instances from existing mock files */
@@ -84,11 +104,17 @@ export const defaultServiceInstances = {
   CacheService: MockMainCacheServiceExport.cacheService,
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
+  ProfileWriteBarrierService: MockMainProfileWriteBarrierServiceExport.profileWriteBarrierService,
   FileManager: MockMainFileManagerExport.fileManager,
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
-  JobManager: mockJobManager
+  ChannelManager: mockChannelManager,
+  AiStreamManager: mockAiStreamManager,
+  AgentSessionRuntimeService: mockAgentSessionRuntimeService,
+  JobManager: mockJobManager,
+  ClaudeCodeWarmQueryManager: mockClaudeCodeWarmQueryManager,
+  McpRuntimeService: mockMcpRuntimeService
 } as const
 
 /** Type for per-service overrides */

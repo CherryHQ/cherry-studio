@@ -34,74 +34,75 @@ export async function startAgentSessionRun(input: {
   const manager = application.get('AiStreamManager')
   let result: StartAgentSessionRunResult = { mode: 'not-started', reason: 'session-invalid' }
 
-  await manager.withDispatchLock(topicId, async () => {
-    if (manager.isWriteQuiesced) {
-      throw new Error(
-        'AiStreamManager is write-quiesced (backup restore in progress); refusing a new agent-session turn'
-      )
-    }
+  for (;;) {
+    await manager.waitForWriteResume()
+    const admitted = await manager.withDispatchLock(topicId, async () => {
+      if (manager.isWriteQuiesced) return false
 
-    if (input.requireIdle) {
-      if (
-        manager.hasLiveStream(topicId) ||
-        application.get('AgentSessionRuntimeService').isSessionBusy(input.sessionId)
-      ) {
-        result = { mode: 'not-started', reason: 'busy' }
-        return
-      }
-      try {
-        const session = agentSessionService.getById(input.sessionId)
-        if (session.agentId !== input.requireIdle.expectedAgentId) {
-          result = { mode: 'not-started', reason: 'session-invalid' }
-          return
+      if (input.requireIdle) {
+        if (
+          manager.hasLiveStream(topicId) ||
+          application.get('AgentSessionRuntimeService').isSessionBusy(input.sessionId)
+        ) {
+          result = { mode: 'not-started', reason: 'busy' }
+          return true
         }
+        try {
+          const session = agentSessionService.getById(input.sessionId)
+          if (session.agentId !== input.requireIdle.expectedAgentId) {
+            result = { mode: 'not-started', reason: 'session-invalid' }
+            return true
+          }
+        } catch (error) {
+          if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+            result = { mode: 'not-started', reason: 'session-invalid' }
+            return true
+          }
+          throw error
+        }
+      }
+
+      let prepared
+      try {
+        prepared = await agentChatContextProvider.prepareDispatch(
+          primary,
+          {
+            trigger: 'submit-message',
+            topicId,
+            userMessageParts: input.userParts,
+            headless: input.headless === true
+          },
+          {
+            hasLiveStream: false,
+            requireIdle: input.requireIdle !== undefined,
+            expectedAgentId: input.requireIdle?.expectedAgentId
+          }
+        )
       } catch (error) {
-        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.RESOURCE_LOCKED) {
+          result = { mode: 'not-started', reason: 'busy' }
+          return true
+        }
+        if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
           result = { mode: 'not-started', reason: 'session-invalid' }
-          return
+          return true
         }
         throw error
       }
-    }
 
-    let prepared
-    try {
-      prepared = await agentChatContextProvider.prepareDispatch(
-        primary,
-        {
-          trigger: 'submit-message',
-          topicId,
-          userMessageParts: input.userParts,
-          headless: input.headless === true
-        },
-        {
-          hasLiveStream: false,
-          requireIdle: input.requireIdle !== undefined,
-          expectedAgentId: input.requireIdle?.expectedAgentId
-        }
-      )
-    } catch (error) {
-      if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.RESOURCE_LOCKED) {
-        result = { mode: 'not-started', reason: 'busy' }
-        return
-      }
-      if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-        result = { mode: 'not-started', reason: 'session-invalid' }
-        return
-      }
-      throw error
-    }
-
-    manager.send({
-      topicId: prepared.topicId,
-      models: prepared.models,
-      listeners: input.requireIdle
-        ? [primary, ...extras, ...prepared.listeners.filter((listener) => listener.id !== primary.id)]
-        : [...prepared.listeners, ...extras],
-      siblingsGroupId: prepared.siblingsGroupId,
-      lifecycle: prepared.lifecycle
+      manager.send({
+        topicId: prepared.topicId,
+        models: prepared.models,
+        listeners: input.requireIdle
+          ? [primary, ...extras, ...prepared.listeners.filter((listener) => listener.id !== primary.id)]
+          : [...prepared.listeners, ...extras],
+        siblingsGroupId: prepared.siblingsGroupId,
+        lifecycle: prepared.lifecycle
+      })
+      result = { mode: 'started' }
+      return true
     })
-    result = { mode: 'started' }
-  })
-  return result
+
+    if (admitted) return result
+  }
 }

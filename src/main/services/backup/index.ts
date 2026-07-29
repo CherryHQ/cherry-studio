@@ -8,6 +8,7 @@ export {
   type BackupMigrationCompatibility,
   BackupMigrationCompatibilityError,
   type BackupMigrationTip,
+  BackupQuiesceError,
   CeilingExceededError,
   DiskFullError,
   HardLinkUnsupportedError,

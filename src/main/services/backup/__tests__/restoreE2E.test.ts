@@ -1,11 +1,14 @@
 import {
   createWriteStream,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
+  symlinkSync,
   writeFileSync
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -35,7 +38,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { acknowledgeRestore } from '../acknowledgeRestore'
 import { presentJournalDegradations } from '../degradationReport'
-import { ArchiveAdmissionError } from '../errors'
+import { ArchiveAdmissionError, SourceDriftError } from '../errors'
 import { exportArchive } from '../exportArchive'
 import { armPreparedRestore, prepareRestore } from '../prepareRestore'
 import { driftHooks } from '../sourceDrift'
@@ -81,7 +84,11 @@ function pathFor(key: string, filename?: string): string {
     'feature.notes.data': join(activeUserData, 'Data', 'Notes'),
     'feature.agents.data': join(activeUserData, 'Data', 'Agents'),
     'feature.agents.system_workspaces': join(activeUserData, 'Data', 'Agents', 'system'),
-    'feature.agents.skills': join(activeUserData, 'Data', 'Skills')
+    'feature.agents.skills': join(activeUserData, 'Data', 'Skills'),
+    'feature.mcp.workspace': join(activeUserData, 'Data', 'Workspace'),
+    'feature.mcp.memory_file': join(activeUserData, 'Data', 'Mcp', 'memory.json'),
+    'feature.agents.channels': join(activeUserData, 'Data', 'Channels'),
+    'feature.agents.claude.root': join(activeUserData, 'Data', 'Agents', '.claude')
   }
   const base = bases[key]
   if (!base) throw new Error(`Unexpected path key in restore E2E test: ${key}`)
@@ -170,6 +177,11 @@ function seedSourceResources(): void {
   write(join('Data', 'Agents', AGENT_ID, 'memory', 'profile.md'), 'SOURCE-MEMORY')
   write(join('Data', 'Agents', 'system', 's-1', 'session.json'), 'SOURCE-WS')
   write(join('Data', 'Skills', 'skill-1', 'SKILL.md'), 'SOURCE-SKILL')
+  write(join('Data', 'Workspace', 'draft.md'), 'SOURCE-MCP-WORKSPACE')
+  write(join('Data', 'Mcp', 'memory.json'), '{"entities":[],"relations":[]}')
+  write(join('Data', 'Channels', 'weixin_bot_channel-1.json'), 'SOURCE-CHANNEL')
+  write(join('Data', 'Agents', '.claude', 'settings.json'), 'SOURCE-RUNTIME')
+  write(join('Data', 'Agents', '.claude', 'skills', 'skill-1', 'SKILL.md'), 'DERIVED-MIRROR')
 }
 
 async function exportFrom(name: string): Promise<string> {
@@ -323,7 +335,7 @@ describe('Full restore, empty target device', () => {
     activeUserData = targetUserData
     const preview = await prepareRestore({ archivePath: archive })
     // Nothing to park on a device that has none of them.
-    expect(preview.resources).toEqual({ install: 6, replace: 0 })
+    expect(preview.resources).toEqual({ install: 10, replace: 0 })
     armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 
@@ -339,6 +351,22 @@ describe('Full restore, empty target device', () => {
       'SOURCE-WS'
     )
     expect(readFileSync(join(targetUserData, 'Data', 'Skills', 'skill-1', 'SKILL.md'), 'utf8')).toBe('SOURCE-SKILL')
+    expect(readFileSync(join(targetUserData, 'Data', 'Workspace', 'draft.md'), 'utf8')).toBe('SOURCE-MCP-WORKSPACE')
+    expect(readFileSync(join(targetUserData, 'Data', 'Mcp', 'memory.json'), 'utf8')).toBe(
+      '{"entities":[],"relations":[]}'
+    )
+    expect(readFileSync(join(targetUserData, 'Data', 'Channels', 'weixin_bot_channel-1.json'), 'utf8')).toBe(
+      'SOURCE-CHANNEL'
+    )
+    expect(readFileSync(join(targetUserData, 'Data', 'Agents', '.claude', 'settings.json'), 'utf8')).toBe(
+      'SOURCE-RUNTIME'
+    )
+    expect(existsSync(join(targetUserData, 'Data', 'Agents', '.claude', 'skills'))).toBe(false)
+    if (process.platform !== 'win32') {
+      expect(statSync(join(targetUserData, 'Data', 'Channels')).mode & 0o777).toBe(0o700)
+      expect(statSync(join(targetUserData, 'Data', 'Channels', 'weixin_bot_channel-1.json')).mode & 0o777).toBe(0o600)
+      expect(statSync(join(targetUserData, 'Data', 'Agents', '.claude')).mode & 0o777).toBe(0o700)
+    }
 
     const read = readRestoreJournalV2()
     if (read.kind !== 'ok') throw new Error('expected a terminal journal')
@@ -359,43 +387,76 @@ describe('Full restore, empty target device', () => {
     if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
     expect(read.journal.summary?.knowledgeBaseIds).toEqual(['kb-1'])
   })
+
+  it('restores internal links as ordinary bytes and keeps every omitted reference disclosed', async () => {
+    seedSourceResources()
+    const notes = join(sourceUserData, 'Data', 'Notes')
+    const external = join(workDir, 'outside-note.md')
+    writeFileSync(external, 'OUTSIDE')
+    symlinkSync('a.md', join(notes, 'alias.md'))
+    symlinkSync(external, join(notes, 'external.md'))
+    symlinkSync('missing.md', join(notes, 'dangling.md'))
+    mkdirSync(join(notes, 'nested'))
+    symlinkSync('..', join(notes, 'nested', 'back'))
+    const archive = await exportFrom('full-links')
+
+    activeUserData = targetUserData
+    const preview = await prepareRestore({ archivePath: archive })
+    expect(preview.degradations).toEqual(
+      expect.arrayContaining([
+        {
+          kind: 'resource-entry:note-root',
+          livePath: 'Data/Notes/dangling.md',
+          reason: 'dangling-reference'
+        },
+        {
+          kind: 'resource-entry:note-root',
+          livePath: 'Data/Notes/external.md',
+          reason: 'external-reference'
+        },
+        {
+          kind: 'resource-entry:note-root',
+          livePath: 'Data/Notes/nested/back',
+          reason: 'cyclic-reference'
+        }
+      ])
+    )
+    armPreparedRestore(preview.restoreId)
+    await runRestorePromotionV2()
+
+    const restoredAlias = join(targetUserData, 'Data', 'Notes', 'alias.md')
+    expect(lstatSync(restoredAlias).isFile()).toBe(true)
+    expect(lstatSync(restoredAlias).isSymbolicLink()).toBe(false)
+    expect(readFileSync(restoredAlias, 'utf8')).toBe('# source note')
+    expect(existsSync(join(targetUserData, 'Data', 'Notes', 'external.md'))).toBe(false)
+    expect(existsSync(join(targetUserData, 'Data', 'Notes', 'dangling.md'))).toBe(false)
+    expect(existsSync(join(targetUserData, 'Data', 'Notes', 'nested', 'back'))).toBe(false)
+
+    const read = readRestoreJournalV2()
+    if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
+    expect(presentJournalDegradations(read.journal.degradations ?? [])).toEqual(
+      expect.arrayContaining([
+        { code: 'external-reference', count: 1, paths: ['Data/Notes/external.md'] },
+        { code: 'dangling-reference', count: 1, paths: ['Data/Notes/dangling.md'] },
+        { code: 'cyclic-reference', count: 1, paths: ['Data/Notes/nested/back'] }
+      ])
+    )
+  })
 })
 
-describe('Full restore with an atomically excluded source unit', () => {
-  it('promotes the complete database, installs stable resources, and leaves the omitted target unit untouched', async () => {
+describe('Full export with source drift after the sealed baseline', () => {
+  it('fails the export and publishes no partial archive', async () => {
     seedSourceResources()
     driftHooks.afterStagePreVerify = async (sourcePath) => {
       if (sourcePath === join(sourceUserData, 'Data', 'Notes', 'a.md')) {
         writeFileSync(join(sourceUserData, 'Data', 'Notes', 'changed-during-export.md'), 'DRIFT')
       }
     }
-    const archive = await exportFrom('full-with-exclusion')
-    driftHooks.afterStagePreVerify = async () => {}
+    activeUserData = sourceUserData
+    const archive = join(workDir, 'out', 'full-with-drift.cherrybackup')
 
-    mkdirSync(join(targetUserData, 'Data', 'Notes'), { recursive: true })
-    writeFileSync(join(targetUserData, 'Data', 'Notes', 'a.md'), '# target note')
-
-    activeUserData = targetUserData
-    const preview = await prepareRestore({ archivePath: archive })
-    expect(preview.degradations).toEqual(
-      expect.arrayContaining([{ kind: 'resource:note-root', livePath: 'Data/Notes', reason: 'changed-after-snapshot' }])
-    )
-    expect(preview.resources).toEqual({ install: 5, replace: 0 })
-
-    armPreparedRestore(preview.restoreId)
-    await runRestorePromotionV2()
-
-    expect(query(liveDbPath(), 'SELECT id FROM note WHERE id = ?', 'n-1')).toBeDefined()
-    expect(query(liveDbPath(), 'SELECT key FROM app_state WHERE key = ?', TARGET_MARKER)).toBeUndefined()
-    expect(readFileSync(join(targetUserData, 'Data', 'Files', `${FILE_ID}.pdf`), 'utf8')).toBe('SOURCE-BLOB')
-    expect(readFileSync(join(targetUserData, 'Data', 'Notes', 'a.md'), 'utf8')).toBe('# target note')
-    expect(existsSync(join(targetUserData, 'Data', 'Notes', 'changed-during-export.md'))).toBe(false)
-
-    const read = readRestoreJournalV2()
-    if (read.kind !== 'ok' || read.journal.state !== 'completed') throw new Error('expected a completed journal')
-    expect(presentJournalDegradations(read.journal.degradations ?? [])).toEqual([
-      { code: 'resource-changed', count: 1, paths: ['Data/Notes'] }
-    ])
+    await expect(exportArchive({ outPath: archive })).rejects.toBeInstanceOf(SourceDriftError)
+    expect(existsSync(archive)).toBe(false)
   })
 })
 
@@ -414,7 +475,7 @@ describe('Full restore, same device with content already there', () => {
 
     activeUserData = targetUserData
     const preview = await prepareRestore({ archivePath: archive })
-    expect(preview.resources).toEqual({ install: 0, replace: 6 })
+    expect(preview.resources).toEqual({ install: 0, replace: 10 })
     armPreparedRestore(preview.restoreId)
     await runRestorePromotionV2()
 

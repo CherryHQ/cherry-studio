@@ -29,9 +29,12 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { noteTable } from '@data/db/schemas/note'
 import type { DbOrTx } from '@data/db/types'
+import { isAgentRuntimeConfigCaptureExcluded, isWorkspaceManagedSkillProjection } from '@main/ai/skills/capturePolicy'
+import { isKnowledgeCaptureExcluded } from '@main/features/knowledge'
 import { isSafeRelativeSubpath } from '@main/utils/relativePath'
 import { eq, isNull, sql } from 'drizzle-orm'
 
+import type { CapturePolicy } from '../dirScan'
 import type { ResourceRequirement } from '../manifest'
 import { type BackupPlatform, isPathContainedIn } from '../portability/managedPathRebase'
 
@@ -55,6 +58,14 @@ export interface ResourceRoots {
   readonly systemWorkspaces: string
   /** `feature.agents.skills` — installed skill library. */
   readonly skills: string
+  /** `feature.mcp.workspace` — default built-in filesystem MCP workspace. */
+  readonly mcpWorkspace: string
+  /** `feature.mcp.memory_file` — built-in memory MCP knowledge graph. */
+  readonly mcpMemory: string
+  /** `feature.agents.channels` — managed channel credentials and continuity state. */
+  readonly agentChannels: string
+  /** `feature.agents.claude.root` — profile-owned agent runtime configuration. */
+  readonly agentRuntimeConfig: string
 }
 
 export interface SnapshotReadContext {
@@ -79,7 +90,11 @@ export const BACKUP_RESOURCE_KINDS = [
   'note-root',
   'agent-data',
   'agent-workspace',
-  'skill'
+  'skill',
+  'mcp-workspace',
+  'mcp-memory',
+  'agent-channel-state',
+  'agent-runtime-config'
 ] as const
 
 export type BackupResourceKind = (typeof BACKUP_RESOURCE_KINDS)[number]
@@ -91,7 +106,11 @@ export const RESOURCE_ROOT_BY_KIND = Object.freeze({
   'note-root': 'notes',
   'agent-data': 'agentData',
   'agent-workspace': 'systemWorkspaces',
-  skill: 'skills'
+  skill: 'skills',
+  'mcp-workspace': 'mcpWorkspace',
+  'mcp-memory': 'mcpMemory',
+  'agent-channel-state': 'agentChannels',
+  'agent-runtime-config': 'agentRuntimeConfig'
 } as const satisfies Record<BackupResourceKind, keyof ResourceRoots>)
 
 /**
@@ -135,6 +154,7 @@ export const REBUILDABLE_RESOURCE_KINDS: ReadonlySet<string> = new Set<BackupRes
 
 export interface BackupResourceAdapter {
   readonly kind: BackupResourceKind
+  readonly capturePolicy?: (roots: ResourceRoots | undefined) => CapturePolicy
   collectRequirements(ctx: SnapshotReadContext): AdapterInventory
 }
 
@@ -280,6 +300,7 @@ function knowledgeMaterialsByBase(ctx: SnapshotReadContext): Map<string, UnitCon
  */
 const knowledgeBaseAdapter: BackupResourceAdapter = {
   kind: 'knowledge-base',
+  capturePolicy: () => ({ excludeRelativePath: isKnowledgeCaptureExcluded }),
   collectRequirements(ctx) {
     const rows = ctx.db.select({ id: knowledgeBaseTable.id }).from(knowledgeBaseTable).all()
     const materials = knowledgeMaterialsByBase(ctx)
@@ -298,6 +319,47 @@ const knowledgeBaseAdapter: BackupResourceAdapter = {
       requiredContent.set(livePath, materials.has(row.id) ? materials.get(row.id)! : [])
     }
     return { requirements, unverifiable, requiredContent }
+  }
+}
+
+function fixedManagedResource(
+  ctx: SnapshotReadContext,
+  kind: BackupResourceKind,
+  root: string,
+  resourceType: 'file' | 'directory'
+): AdapterInventory {
+  const livePath = managedLivePath(ctx, ctx.userDataPath, root)
+  return livePath
+    ? { requirements: [{ kind, resourceType, livePath }], unverifiable: 0 }
+    : { requirements: [], unverifiable: 1 }
+}
+
+const mcpWorkspaceAdapter: BackupResourceAdapter = {
+  kind: 'mcp-workspace',
+  collectRequirements(ctx) {
+    return fixedManagedResource(ctx, this.kind, ctx.roots.mcpWorkspace, 'directory')
+  }
+}
+
+const mcpMemoryAdapter: BackupResourceAdapter = {
+  kind: 'mcp-memory',
+  collectRequirements(ctx) {
+    return fixedManagedResource(ctx, this.kind, ctx.roots.mcpMemory, 'file')
+  }
+}
+
+const agentChannelStateAdapter: BackupResourceAdapter = {
+  kind: 'agent-channel-state',
+  collectRequirements(ctx) {
+    return fixedManagedResource(ctx, this.kind, ctx.roots.agentChannels, 'directory')
+  }
+}
+
+const agentRuntimeConfigAdapter: BackupResourceAdapter = {
+  kind: 'agent-runtime-config',
+  capturePolicy: () => ({ excludeRelativePath: isAgentRuntimeConfigCaptureExcluded }),
+  collectRequirements(ctx) {
+    return fixedManagedResource(ctx, this.kind, ctx.roots.agentRuntimeConfig, 'directory')
   }
 }
 
@@ -370,6 +432,19 @@ const agentDataAdapter: BackupResourceAdapter = {
  */
 const agentWorkspaceAdapter: BackupResourceAdapter = {
   kind: 'agent-workspace',
+  capturePolicy: (roots) => ({
+    decideNode(context) {
+      if (
+        context.nodeKind === 'symlink' &&
+        context.resolvedTargetPath &&
+        roots &&
+        isWorkspaceManagedSkillProjection(context.relativePath, context.resolvedTargetPath, roots.skills)
+      ) {
+        return { kind: 'exclude-derived' }
+      }
+      return context.defaultDecision
+    }
+  }),
   collectRequirements(ctx) {
     const rows = ctx.db.select({ path: agentWorkspaceTable.path }).from(agentWorkspaceTable).all()
 
@@ -421,7 +496,15 @@ export const RESOURCE_ADAPTERS: readonly BackupResourceAdapter[] = [
   fileBlobAdapter,
   knowledgeBaseAdapter,
   noteRootAdapter,
+  mcpWorkspaceAdapter,
+  mcpMemoryAdapter,
+  agentChannelStateAdapter,
+  agentRuntimeConfigAdapter,
   agentDataAdapter,
   agentWorkspaceAdapter,
   skillAdapter
 ]
+
+export function capturePolicyForKind(kind: string, roots?: ResourceRoots): CapturePolicy {
+  return RESOURCE_ADAPTERS.find((adapter) => adapter.kind === kind)?.capturePolicy?.(roots) ?? {}
+}

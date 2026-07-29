@@ -107,6 +107,9 @@ const directoryTreeManager = {
 const senderWebContents = { id: 7 }
 const windowManager = { getWindow: vi.fn() }
 
+const profileWriteBarrier = {
+  runWrite: vi.fn(async <T>(_label: string, operation: () => T | Promise<T>): Promise<T> => operation())
+}
 beforeEach(() => {
   vi.clearAllMocks()
   windowManager.getWindow.mockImplementation((id: string) =>
@@ -116,6 +119,7 @@ beforeEach(() => {
     if (name === 'FileManager') return fileManager
     if (name === 'DirectoryTreeManager') return directoryTreeManager
     if (name === 'WindowManager') return windowManager
+    if (name === 'ProfileWriteBarrierService') return profileWriteBarrier
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -179,6 +183,10 @@ describe('fileHandlers', () => {
 
     expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/report.md')
     expect(writeIfUnchangedByPathMock).toHaveBeenCalledWith('/tmp/report.md', data, expectedVersion, undefined)
+    expect(profileWriteBarrier.runWrite).toHaveBeenCalledWith(
+      'file-manager:path-write-if-unchanged',
+      expect.any(Function)
+    )
   })
 
   it('writes a managed entry through FileManager', async () => {

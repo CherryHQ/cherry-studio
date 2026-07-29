@@ -63,7 +63,11 @@ export function resolveResourceRoots(): ResourceRoots {
     notes: application.getPath('feature.notes.data'),
     agentData: application.getPath('feature.agents.data'),
     systemWorkspaces: application.getPath('feature.agents.system_workspaces'),
-    skills: application.getPath('feature.agents.skills')
+    skills: application.getPath('feature.agents.skills'),
+    mcpWorkspace: application.getPath('feature.mcp.workspace'),
+    mcpMemory: application.getPath('feature.mcp.memory_file'),
+    agentChannels: application.getPath('feature.agents.channels'),
+    agentRuntimeConfig: application.getPath('feature.agents.claude.root')
   }
 }
 

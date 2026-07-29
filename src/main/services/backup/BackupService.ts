@@ -7,6 +7,7 @@ import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhas
 import { abandonKnowledgeRebuild, acknowledgeRestore, type AcknowledgeResult } from './acknowledgeRestore'
 import { BackupBusyError, BackupCancelledError } from './errors'
 import { exportArchive, type ExportArchiveResult } from './exportArchive'
+import { sweepStaleExportOperations } from './exportOperation'
 import { runPostPromotionWork } from './postPromotion'
 import { armPreparedRestore, cancelPreparedRestore, prepareRestore, type RestorePreview } from './prepareRestore'
 import { armRestoreRollback } from './rollbackRestore'
@@ -107,6 +108,7 @@ export class BackupService extends BaseService {
   private shuttingDown = false
   /** The current bounded reconciliation pass, tracked so `onStop` can join it (§6.7). */
   private postPromotionWork: Promise<unknown> | null = null
+  private exportCleanupWork: Promise<void> | null = null
   private postPromotionPoll: Disposable | null = null
   private postPromotionSuppressed = false
 
@@ -114,6 +116,7 @@ export class BackupService extends BaseService {
     // Lifecycle services may be restarted on the same instance.
     this.shuttingDown = false
     this.postPromotionSuppressed = false
+    this.exportCleanupWork = null
   }
 
   /**
@@ -151,8 +154,23 @@ export class BackupService extends BaseService {
    * `shuttingDown` re-check covers the shutdown that races the callback itself.
    */
   protected onAllReady(): void {
+    void this.startExportCleanup()
     const handle = setTimeout(() => this.startPostPromotionPass(), POST_PROMOTION_START_DELAY_MS)
     this.registerDisposable(() => clearTimeout(handle))
+  }
+
+  private startExportCleanup(): Promise<void> {
+    if (this.exportCleanupWork) return this.exportCleanupWork
+    this.exportCleanupWork = sweepStaleExportOperations(application.getPath('feature.backup.temp'))
+      .then((removed) => {
+        if (removed > 0) logger.info('Removed stale backup export operations', { removed })
+      })
+      .catch((error) => {
+        // Ownership validation is fail-closed. Residue can stay for a later
+        // retry, but cleanup must never keep backup/restore unavailable.
+        logger.warn('Could not sweep stale backup export operations', error as Error)
+      })
+    return this.exportCleanupWork
   }
 
   private startPostPromotionPass(): void {
@@ -191,6 +209,7 @@ export class BackupService extends BaseService {
       waits.push(this.inFlight.settled)
     }
     if (this.postPromotionWork) waits.push(this.postPromotionWork)
+    if (this.exportCleanupWork) waits.push(this.exportCleanupWork)
     await Promise.all(waits)
   }
 
@@ -203,7 +222,10 @@ export class BackupService extends BaseService {
    * overwrites a prior backup.
    */
   public export(outPath: string): Promise<ExportArchiveResult> {
-    return this.runExclusive('export', (signal) => exportArchive({ outPath, signal }))
+    return this.runExclusive('export', async (signal) => {
+      await this.startExportCleanup()
+      return exportArchive({ outPath, signal })
+    })
   }
 
   /**

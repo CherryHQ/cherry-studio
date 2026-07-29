@@ -156,6 +156,23 @@ export class SourceDriftError extends Error {
   }
 }
 
+/**
+ * The profile could not reach a sealed write-free view inside the export
+ * deadline. Straggler ids are diagnostic only and intentionally stay out of
+ * the user-facing message.
+ */
+export class BackupQuiesceError extends Error {
+  readonly phase: string
+  readonly stragglerIds: readonly string[]
+
+  constructor(phase: string, stragglerIds: readonly string[] = []) {
+    super('active profile writes did not quiesce before the backup snapshot deadline')
+    this.name = 'BackupQuiesceError'
+    this.phase = phase
+    this.stragglerIds = [...stragglerIds]
+  }
+}
+
 /** Restore preparation cannot safely rename one admitted resource into place. */
 export class ResourceInstallPlanError extends Error {
   readonly code: string
@@ -181,6 +198,8 @@ export class NonRegularSourceError extends Error {
   }
 }
 
+export type UnportableSourceReason = 'invalid-path' | 'name-collision'
+
 /**
  * Thrown when a source-tree relative path cannot be represented in a portable
  * archive (fails the Phase-1a portable-path rules — absolute/escaping, control
@@ -190,12 +209,16 @@ export class NonRegularSourceError extends Error {
  */
 export class UnportableSourceError extends Error {
   readonly relPath: string
-  readonly reason: string
-  constructor(relPath: string, reason: string) {
-    super(`source path is not portable (${reason}): ${relPath}`)
+  readonly reason: UnportableSourceReason
+  readonly sourceRoot?: string
+  constructor(relPath: string, reason: UnportableSourceReason, sourceRoot?: string) {
+    const detail =
+      reason === 'name-collision' ? 'case/NFC-collides with another entry' : 'not a portable relative subpath'
+    super(`source path is not portable (${detail}): ${relPath}`)
     this.name = 'UnportableSourceError'
     this.relPath = relPath
     this.reason = reason
+    this.sourceRoot = sourceRoot
   }
 }
 

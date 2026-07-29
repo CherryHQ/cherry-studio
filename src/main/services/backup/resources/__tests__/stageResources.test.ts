@@ -14,10 +14,11 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { CeilingExceededError } from '../../errors'
+import { CeilingExceededError, SourceDriftError } from '../../errors'
 import { hashDirectoryUnit, sha256File } from '../../hashing'
 import type { ResourceRequirement } from '../../manifest'
 import { driftHooks } from '../../sourceDrift'
+import type { ResourceRoots } from '../adapters'
 import {
   captureResourceStageBaseline,
   measureResourceStageBytes,
@@ -49,7 +50,9 @@ describe('stageResources', () => {
     rmSync(root, { recursive: true, force: true })
     driftHooks.afterStagePreVerify = async () => {}
     driftHooks.beforeAncestorVerify = async () => {}
+    driftHooks.afterAncestorVerify = async () => {}
     stageResourceHooks.afterBaselineInspect = async () => {}
+    stageResourceHooks.afterBaselineScan = async () => {}
   })
 
   function req(kind: string, resourceType: 'file' | 'directory', livePath: string): ResourceRequirement {
@@ -63,8 +66,23 @@ describe('stageResources', () => {
     return abs
   }
 
-  function stage(requirements: readonly ResourceRequirement[], signal?: AbortSignal) {
-    return stageResources({ requirements, userDataPath: userData, resourcesDir, signal })
+  function roots(): ResourceRoots {
+    return {
+      files: join(userData, 'Data', 'Files'),
+      knowledge: join(userData, 'Data', 'KnowledgeBase'),
+      notes: join(userData, 'Data', 'Notes'),
+      agentData: join(userData, 'Data', 'Agents'),
+      systemWorkspaces: join(userData, 'Data', 'Agents', 'system'),
+      skills: join(userData, 'Data', 'Skills'),
+      mcpWorkspace: join(userData, 'Data', 'Workspace'),
+      mcpMemory: join(userData, 'Data', 'Mcp', 'memory.json'),
+      agentChannels: join(userData, 'Data', 'Channels'),
+      agentRuntimeConfig: join(userData, 'Data', 'Agents', '.claude')
+    }
+  }
+
+  function stage(requirements: readonly ResourceRequirement[], signal?: AbortSignal, resourceRoots?: ResourceRoots) {
+    return stageResources({ requirements, userDataPath: userData, resourcesDir, roots: resourceRoots, signal })
   }
 
   it('measures file and directory work without creating staging output', async () => {
@@ -113,21 +131,30 @@ describe('stageResources', () => {
     expect(statSync(join(resourcesDir, 'Data', 'Files', 'tool.sh')).mode & 0o777).toBe(0o700)
   })
 
-  it('omits a directory that disappears between root inspection and baseline scan', async () => {
+  it('fails when a directory disappears between root inspection and baseline scan', async () => {
     writeSource('Data/Notes/a.md', 'A')
     stageResourceHooks.afterBaselineInspect = async (sourcePath) => {
       rmSync(sourcePath, { recursive: true, force: true })
     }
 
-    const result = await stage([req('note-root', 'directory', 'Data/Notes')])
-
-    expect(result.payloads).toEqual([])
-    expect(result.degradations).toEqual([
-      { kind: 'resource:note-root', livePath: 'Data/Notes', reason: 'changed-after-snapshot' }
-    ])
+    await expect(stage([req('note-root', 'directory', 'Data/Notes')])).rejects.toBeInstanceOf(SourceDriftError)
   })
 
-  it('omits a source changed after the database snapshot baseline', async () => {
+  it('immediately rechecks a directory tree before accepting its baseline', async () => {
+    writeSource('Data/Notes/a.md', 'A')
+    stageResourceHooks.afterBaselineScan = async () => {
+      writeSource('Data/Notes/b.md', 'B')
+    }
+
+    await expect(
+      captureResourceStageBaseline({
+        requirements: [req('note-root', 'directory', 'Data/Notes')],
+        userDataPath: userData
+      })
+    ).rejects.toBeInstanceOf(SourceDriftError)
+  })
+
+  it('fails the whole staging pass when a source changes after the sealed baseline', async () => {
     const source = writeSource('Data/Files/blob.pdf', 'BEFORE')
     const requirements = [req('file-blob', 'file', 'Data/Files/blob.pdf')]
     const baseline = await captureResourceStageBaseline({ requirements, userDataPath: userData })
@@ -135,10 +162,7 @@ describe('stageResources', () => {
 
     await expect(
       stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
-    ).resolves.toMatchObject({
-      payloads: [],
-      degradations: [{ livePath: 'Data/Files/blob.pdf', reason: 'changed-after-snapshot' }]
-    })
+    ).rejects.toBeInstanceOf(SourceDriftError)
   })
 
   it('content-addresses a directory unit with the canonical unit hash', async () => {
@@ -245,6 +269,19 @@ describe('stageResources', () => {
     })
   })
 
+  it('uses the agent owner policy to omit the generated skill mirror from runtime config', async () => {
+    writeSource('Data/Agents/.claude/settings.json', '{"theme":"dark"}')
+    writeSource('Data/Agents/.claude/skills/pdf/SKILL.md', 'DERIVED MIRROR')
+
+    const result = await stage([req('agent-runtime-config', 'directory', 'Data/Agents/.claude')])
+
+    expect(result.payloads).toHaveLength(1)
+    expect(readFileSync(join(resourcesDir, 'Data', 'Agents', '.claude', 'settings.json'), 'utf8')).toBe(
+      '{"theme":"dark"}'
+    )
+    expect(existsSync(join(resourcesDir, 'Data', 'Agents', '.claude', 'skills'))).toBe(false)
+  })
+
   it('discloses a resource that is already gone instead of failing the export', async () => {
     writeSource('Data/Files/here.pdf', 'HERE')
 
@@ -260,80 +297,172 @@ describe('stageResources', () => {
     ])
   })
 
-  it.each([
-    ['a symlink', 'symlink'],
-    ['a file', 'file']
-  ])('discloses %s standing where a managed directory belongs', async (_label, kind) => {
+  it('fails if a seal-time degradation becomes a real resource before staging', async () => {
+    const requirements = [req('file-blob', 'file', 'Data/Files/late.pdf')]
+    const baseline = await captureResourceStageBaseline({ requirements, userDataPath: userData })
+    writeSource('Data/Files/late.pdf', 'LATE')
+
+    await expect(
+      stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
+    ).rejects.toBeInstanceOf(SourceDriftError)
+  })
+
+  it('omits a symlink standing where a managed directory belongs and discloses the whole unit', async () => {
     mkdirSync(join(userData, 'Data', 'KnowledgeBase'), { recursive: true })
     const target = join(userData, 'Data', 'KnowledgeBase', 'kb-1')
-    if (kind === 'symlink') {
-      mkdirSync(join(root, 'elsewhere'))
-      symlinkSync(join(root, 'elsewhere'), target)
-    } else {
-      writeFileSync(target, 'NOT A BASE')
-    }
+    mkdirSync(join(root, 'elsewhere'))
+    symlinkSync(join(root, 'elsewhere'), target)
 
     const result = await stage([req('knowledge-base', 'directory', 'Data/KnowledgeBase/kb-1')])
 
-    // Same rule the restoring device applies in `coverage.ts`: a node that is not
-    // the declared kind is not that resource.
+    expect(result).toEqual({
+      payloads: [],
+      degradations: [
+        {
+          kind: 'resource:knowledge-base',
+          livePath: 'Data/KnowledgeBase/kb-1',
+          reason: 'external-reference'
+        }
+      ],
+      staged: false
+    })
+  })
+
+  it('materializes an internal link as ordinary payload bytes', async () => {
+    writeSource('Data/Notes/targets/source.md', 'SOURCE')
+    symlinkSync('targets/source.md', join(userData, 'Data', 'Notes', 'alias.md'))
+
+    const result = await stage([req('note-root', 'directory', 'Data/Notes')])
+
+    expect(result.degradations).toEqual([])
+    expect(readFileSync(join(resourcesDir, 'Data', 'Notes', 'alias.md'), 'utf8')).toBe('SOURCE')
+    expect(statSync(join(resourcesDir, 'Data', 'Notes', 'alias.md')).isFile()).toBe(true)
+  })
+
+  it('omits bad reference edges individually while preserving the rest of a directory payload', async () => {
+    const external = join(root, 'external.txt')
+    writeFileSync(external, 'EXTERNAL')
+    writeSource('Data/Notes/kept.md', 'KEPT')
+    mkdirSync(join(userData, 'Data', 'Notes', 'nested'))
+    symlinkSync(external, join(userData, 'Data', 'Notes', 'external.md'))
+    symlinkSync('missing.md', join(userData, 'Data', 'Notes', 'dangling.md'))
+    symlinkSync('..', join(userData, 'Data', 'Notes', 'nested', 'back'))
+
+    const result = await stage([req('note-root', 'directory', 'Data/Notes')])
+
+    expect(result.payloads).toHaveLength(1)
+    expect(readFileSync(join(resourcesDir, 'Data', 'Notes', 'kept.md'), 'utf8')).toBe('KEPT')
+    expect(result.degradations).toEqual([
+      {
+        kind: 'resource-entry:note-root',
+        livePath: 'Data/Notes/dangling.md',
+        reason: 'dangling-reference'
+      },
+      {
+        kind: 'resource-entry:note-root',
+        livePath: 'Data/Notes/external.md',
+        reason: 'external-reference'
+      },
+      {
+        kind: 'resource-entry:note-root',
+        livePath: 'Data/Notes/nested/back',
+        reason: 'cyclic-reference'
+      }
+    ])
+  })
+
+  it('excludes only a managed workspace skill projection while preserving a real same-name directory', async () => {
+    writeSource('Data/Skills/find-skills/SKILL.md', 'CANONICAL')
+    writeSource('Data/Agents/system/session/workspace.txt', 'WORKSPACE')
+    mkdirSync(join(userData, 'Data', 'Agents', 'system', 'session', '.claude', 'skills'), { recursive: true })
+    symlinkSync(
+      join(userData, 'Data', 'Skills', 'find-skills'),
+      join(userData, 'Data', 'Agents', 'system', 'session', '.claude', 'skills', 'find-skills')
+    )
+    writeSource('Data/Agents/system/session/.claude/skills/local-skill/SKILL.md', 'REAL WORKSPACE-LOCAL DIRECTORY')
+
+    const result = await stage([req('agent-workspace', 'directory', 'Data/Agents/system/session')], undefined, roots())
+
+    expect(result.degradations).toEqual([])
+    expect(
+      existsSync(join(resourcesDir, 'Data', 'Agents', 'system', 'session', '.claude', 'skills', 'find-skills'))
+    ).toBe(false)
+    expect(
+      readFileSync(
+        join(resourcesDir, 'Data', 'Agents', 'system', 'session', '.claude', 'skills', 'local-skill', 'SKILL.md'),
+        'utf8'
+      )
+    ).toBe('REAL WORKSPACE-LOCAL DIRECTORY')
+  })
+
+  it('fails if an omitted reference changes after the sealed baseline', async () => {
+    const first = join(root, 'first.txt')
+    const second = join(root, 'second.txt')
+    writeFileSync(first, 'FIRST')
+    writeFileSync(second, 'SECOND')
+    writeSource('Data/Notes/kept.md', 'KEPT')
+    const link = join(userData, 'Data', 'Notes', 'external.md')
+    symlinkSync(first, link)
+    const requirements = [req('note-root', 'directory', 'Data/Notes')]
+    const baseline = await captureResourceStageBaseline({ requirements, userDataPath: userData })
+
+    rmSync(link)
+    symlinkSync(second, link)
+
+    await expect(
+      stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
+    ).rejects.toBeInstanceOf(SourceDriftError)
+    expect(existsSync(join(resourcesDir, 'Data', 'Notes'))).toBe(false)
+  })
+
+  it('discloses an ordinary file standing where a managed directory belongs', async () => {
+    mkdirSync(join(userData, 'Data', 'KnowledgeBase'), { recursive: true })
+    writeFileSync(join(userData, 'Data', 'KnowledgeBase', 'kb-1'), 'NOT A BASE')
+
+    const result = await stage([req('knowledge-base', 'directory', 'Data/KnowledgeBase/kb-1')])
     expect(result.payloads).toEqual([])
     expect(result.degradations[0].reason).toBe('type-mismatch-at-snapshot')
   })
 
-  it('omits a file that changes while it is being staged', async () => {
+  it('fails when a file changes while it is being staged', async () => {
     const source = writeSource('Data/Files/blob.pdf', 'ORIGINAL')
     driftHooks.afterStagePreVerify = async () => {
       writeFileSync(source, 'REWRITTEN')
     }
 
-    await expect(stage([req('file-blob', 'file', 'Data/Files/blob.pdf')])).resolves.toMatchObject({
-      payloads: [],
-      degradations: [{ livePath: 'Data/Files/blob.pdf', reason: 'changed-after-snapshot' }]
-    })
+    await expect(stage([req('file-blob', 'file', 'Data/Files/blob.pdf')])).rejects.toBeInstanceOf(SourceDriftError)
   })
 
-  it('omits a directory whose next ancestor disappears during staging', async () => {
+  it('fails when a directory ancestor disappears during staging', async () => {
     writeSource('Data/Notes/a/1.md', 'ONE')
     writeSource('Data/Notes/b/2.md', 'TWO')
     driftHooks.beforeAncestorVerify = async (_sourceDir, fileRel) => {
       if (fileRel === 'b/2.md') rmSync(join(userData, 'Data', 'Notes'), { recursive: true })
     }
 
-    const result = await stage([req('note-root', 'directory', 'Data/Notes')])
-
-    expect(result.payloads).toEqual([])
-    expect(result.degradations).toEqual([
-      { kind: 'resource:note-root', livePath: 'Data/Notes', reason: 'changed-after-snapshot' }
-    ])
+    await expect(stage([req('note-root', 'directory', 'Data/Notes')])).rejects.toBeInstanceOf(SourceDriftError)
     expect(() => readFileSync(join(resourcesDir, 'Data', 'Notes', 'a', '1.md'))).toThrow()
   })
 
-  it('removes orphaned structural parents after omitting a deeply nested unit', async () => {
+  it('removes a failed deeply nested unit before propagating source drift', async () => {
     writeSource('Data/Files/stable.pdf', 'STABLE')
     writeSource('Data/Agents/system/2026-07-28/session-1/session.json', 'SESSION')
     driftHooks.afterStagePreVerify = async (sourcePath) => {
       if (sourcePath.endsWith('session.json')) writeSource('Data/Agents/system/2026-07-28/session-1/new.json', 'NEW')
     }
 
-    const result = await stage([
-      req('file-blob', 'file', 'Data/Files/stable.pdf'),
-      req('agent-workspace', 'directory', 'Data/Agents/system/2026-07-28/session-1')
-    ])
+    await expect(
+      stage([
+        req('file-blob', 'file', 'Data/Files/stable.pdf'),
+        req('agent-workspace', 'directory', 'Data/Agents/system/2026-07-28/session-1')
+      ])
+    ).rejects.toBeInstanceOf(SourceDriftError)
 
-    expect(result.payloads.map((payload) => payload.livePath)).toEqual(['Data/Files/stable.pdf'])
-    expect(result.degradations).toEqual([
-      {
-        kind: 'resource:agent-workspace',
-        livePath: 'Data/Agents/system/2026-07-28/session-1',
-        reason: 'changed-after-snapshot'
-      }
-    ])
     expect(existsSync(join(resourcesDir, 'Data', 'Agents'))).toBe(false)
     expect(existsSync(join(resourcesDir, 'Data', 'Files', 'stable.pdf'))).toBe(true)
   })
 
-  it('omits a changed directory as one atomic unit while retaining a stable later unit', async () => {
+  it('rejects a changed directory instead of publishing the stable prefix alone', async () => {
     const stable = writeSource('Data/Files/stable.pdf', 'STABLE')
     writeSource('Data/Notes/a.md', 'A')
     const requirements = [
@@ -345,12 +474,10 @@ describe('stageResources', () => {
       if (sourcePath.endsWith('Data/Notes/a.md')) writeSource('Data/Notes/new.md', 'NEW')
     }
 
-    const result = await stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
+    await expect(
+      stageResources({ requirements, userDataPath: userData, resourcesDir, baseline })
+    ).rejects.toBeInstanceOf(SourceDriftError)
 
-    expect(result.payloads.map((payload) => payload.livePath)).toEqual(['Data/Files/stable.pdf'])
-    expect(result.degradations).toEqual([
-      { kind: 'resource:note-root', livePath: 'Data/Notes', reason: 'changed-after-snapshot' }
-    ])
     expect(readFileSync(stable, 'utf8')).toBe('STABLE')
     expect(() => readFileSync(join(resourcesDir, 'Data', 'Notes', 'a.md'))).toThrow()
   })

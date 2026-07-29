@@ -3,16 +3,10 @@ import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { isKnowledgeCaptureExcluded } from '@main/features/knowledge'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import {
-  fileSizeBytes,
-  hashDirectoryUnit,
-  hashStreamHooks,
-  isKnowledgeDerivedIndexPath,
-  sha256File,
-  sha256FileCancellable
-} from '../hashing'
+import { fileSizeBytes, hashDirectoryUnit, hashStreamHooks, sha256File, sha256FileCancellable } from '../hashing'
 
 let dir: string
 
@@ -66,16 +60,16 @@ describe('sha256FileCancellable', () => {
   })
 })
 
-describe('isKnowledgeDerivedIndexPath', () => {
+describe('Knowledge capture policy', () => {
   it('matches ONLY the exact unit-root Knowledge index artifacts', () => {
-    expect(isKnowledgeDerivedIndexPath('.cherry/index.sqlite')).toBe(true)
-    expect(isKnowledgeDerivedIndexPath('.cherry/index.sqlite-wal')).toBe(true)
-    expect(isKnowledgeDerivedIndexPath('.cherry/index.sqlite-shm')).toBe(true)
+    expect(isKnowledgeCaptureExcluded('.cherry/index.sqlite')).toBe(true)
+    expect(isKnowledgeCaptureExcluded('.cherry/index.sqlite-wal')).toBe(true)
+    expect(isKnowledgeCaptureExcluded('.cherry/index.sqlite-shm')).toBe(true)
     // Nested / non-root .cherry content is authoritative and NOT matched.
-    expect(isKnowledgeDerivedIndexPath('base-1/.cherry/index.sqlite')).toBe(false)
-    expect(isKnowledgeDerivedIndexPath('sub/.cherry/index.sqlite')).toBe(false)
-    expect(isKnowledgeDerivedIndexPath('.cherry/other.db')).toBe(false)
-    expect(isKnowledgeDerivedIndexPath('index.sqlite')).toBe(false)
+    expect(isKnowledgeCaptureExcluded('base-1/.cherry/index.sqlite')).toBe(false)
+    expect(isKnowledgeCaptureExcluded('sub/.cherry/index.sqlite')).toBe(false)
+    expect(isKnowledgeCaptureExcluded('.cherry/other.db')).toBe(false)
+    expect(isKnowledgeCaptureExcluded('index.sqlite')).toBe(false)
   })
 })
 
@@ -144,22 +138,6 @@ describe('hashDirectoryUnit', () => {
     await write('.cherry/index.sqlite', 'INDEX')
     const result = await hashDirectoryUnit(dir)
     expect(result.files.map((f) => f.relPath).sort()).toEqual(['.cherry/index.sqlite', 'doc.md'])
-  })
-
-  it('excludes .cherry index artifacts ONLY when the caller opts in (and only at the unit root)', async () => {
-    await write('doc.md', 'body')
-    const withoutIndex = await hashDirectoryUnit(dir, { excludeKnowledgeDerivedIndex: true })
-    await write('.cherry/index.sqlite', 'INDEX')
-    await write('.cherry/index.sqlite-wal', 'WAL')
-    const withIndexExcluded = await hashDirectoryUnit(dir, { excludeKnowledgeDerivedIndex: true })
-    expect(withIndexExcluded.hash).toBe(withoutIndex.hash)
-    expect(withIndexExcluded.files.map((f) => f.relPath)).toEqual(['doc.md'])
-  })
-
-  it('does NOT exclude a NESTED .cherry index even when opted in (authoritative)', async () => {
-    await write('sub/.cherry/index.sqlite', 'NESTED')
-    const result = await hashDirectoryUnit(dir, { excludeKnowledgeDerivedIndex: true })
-    expect(result.files.map((f) => f.relPath)).toEqual(['sub/.cherry/index.sqlite'])
   })
 
   it('rejects a symlink inside the unit', async () => {

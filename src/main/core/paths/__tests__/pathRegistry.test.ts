@@ -13,6 +13,7 @@ vi.mock('electron', () => ({
   }
 }))
 
+import { CHERRY_HOME } from '../constants'
 import { buildPathRegistry, shouldAutoEnsure } from '../pathRegistry'
 
 // Pure data-rule tests for `shouldAutoEnsure`. Decoupled from
@@ -51,6 +52,13 @@ describe('buildPathRegistry', () => {
 
     expect(registry['feature.agents.pi.root']).toBe(piRoot)
     expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
+  })
+
+  it('keeps MCP memory in the active profile and retains the old path as a read-only migration source', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.mcp.memory_file']).toBe(path.join('/mock/userData', 'Data', 'Mcp', 'memory.json'))
+    expect(registry['feature.mcp.memory_legacy_file']).toBe(path.join(CHERRY_HOME, 'config', 'memory.json'))
   })
 
   it('keeps the isolated mise tree under the userData toolchain', () => {
@@ -252,6 +260,10 @@ describe('pathRegistry.shouldAutoEnsure', () => {
   describe('NO_ENSURE exact keys — read-only build artifacts', () => {
     it('returns false for the system-workspace root so DataApi can store paths without creating directories', () => {
       expect(shouldAutoEnsure('feature.agents.system_workspaces')).toBe(false)
+    })
+
+    it('returns false for the read-only legacy MCP memory source', () => {
+      expect(shouldAutoEnsure('feature.mcp.memory_legacy_file')).toBe(false)
     })
 
     it('returns false for app.exe_file', () => {

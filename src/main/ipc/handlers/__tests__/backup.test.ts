@@ -20,10 +20,11 @@ const applicationGet = vi.hoisted(() =>
     return service
   })
 )
+const applicationGetPath = vi.hoisted(() => vi.fn(() => '/profile'))
 const showSaveDialog = vi.hoisted(() => vi.fn())
 const showOpenDialog = vi.hoisted(() => vi.fn())
 
-vi.mock('@application', () => ({ application: { get: applicationGet } }))
+vi.mock('@application', () => ({ application: { get: applicationGet, getPath: applicationGetPath } }))
 vi.mock('@main/i18n', () => ({ t: () => 'Cherry Studio Backup' }))
 vi.mock('electron', () => ({
   app: { getVersion: () => '2.0.0-beta.3', isPackaged: true },
@@ -36,12 +37,16 @@ import {
   BackupCancelledError,
   BackupFormatCompatibilityError,
   BackupMigrationCompatibilityError,
+  BackupQuiesceError,
+  CeilingExceededError,
   HardLinkUnsupportedError,
   InsufficientDiskSpaceError,
+  NonRegularSourceError,
   OutputPathExistsError,
   ResourceInstallPlanError,
   RestoreStateError,
-  SourceDriftError
+  SourceDriftError,
+  UnportableSourceError
 } from '@main/services/backup'
 
 import { backupHandlers } from '../backup'
@@ -201,18 +206,30 @@ describe('backupHandlers', () => {
           resourcePayloads: [],
           degradations: [
             ...['a', 'b', 'c', 'd'].map((name) => ({
-              kind: 'resource:note-root',
-              reason: 'changed-after-snapshot',
+              kind: 'resource-entry:note-root',
+              reason: 'external-reference',
               livePath: `Data/Notes/${name}`
             })),
             {
-              kind: 'resource:note-root',
-              reason: 'changed-after-snapshot',
+              kind: 'resource-entry:note-root',
+              reason: 'external-reference',
               livePath: '/Users/private/note'
             },
-            { kind: 'resource:knowledge-base', reason: 'non-regular-source', livePath: 'Data/KnowledgeBase/k1' },
-            { kind: 'resource:knowledge-base', reason: 'unportable-source', livePath: 'Data/KnowledgeBase/k2' },
-            { kind: 'resource:file-blob', reason: 'resource-ceiling-exceeded', livePath: 'Data/Files/big' }
+            {
+              kind: 'resource-entry:knowledge-base',
+              reason: 'dangling-reference',
+              livePath: 'Data/KnowledgeBase/k1/missing'
+            },
+            {
+              kind: 'resource-entry:agent-workspace',
+              reason: 'cyclic-reference',
+              livePath: 'Data/Agents/system/a/loop'
+            },
+            {
+              kind: 'resource-entry:skill',
+              reason: 'unclassified-reference',
+              livePath: 'Data/Skills/bad/device'
+            }
           ]
         }
       })
@@ -222,13 +239,14 @@ describe('backupHandlers', () => {
       expect(result.status).toBe('exported')
       if (result.status !== 'exported') return
       expect(result.degradations).toEqual([
-        { code: 'resource-changed', count: 5, paths: ['Data/Notes/a', 'Data/Notes/b', 'Data/Notes/c'] },
         {
-          code: 'resource-nonportable',
-          count: 2,
-          paths: ['Data/KnowledgeBase/k1', 'Data/KnowledgeBase/k2']
+          code: 'external-reference',
+          count: 5,
+          paths: ['Data/Notes/a', 'Data/Notes/b', 'Data/Notes/c']
         },
-        { code: 'resource-limit', count: 1, paths: ['Data/Files/big'] }
+        { code: 'dangling-reference', count: 1, paths: ['Data/KnowledgeBase/k1/missing'] },
+        { code: 'cyclic-reference', count: 1, paths: ['Data/Agents/system/a/loop'] },
+        { code: 'unclassified-reference', count: 1, paths: ['Data/Skills/bad/device'] }
       ])
       expect(JSON.stringify(result)).not.toContain('/Users/private')
     })
@@ -251,12 +269,84 @@ describe('backupHandlers', () => {
       })
     })
 
-    it('maps source drift to an actionable export-source code', async () => {
+    it.each([
+      [
+        'source drift',
+        new SourceDriftError('/profile/Data/Notes', 'tree changed'),
+        { kind: 'source-changed', path: 'Data/Notes' }
+      ],
+      [
+        'quiesce timeout',
+        new BackupQuiesceError('profile-write-barrier', ['profile-write-1']),
+        { kind: 'quiesce-timeout', phase: 'profile-write-barrier' }
+      ],
+      [
+        'symlink or special file',
+        new NonRegularSourceError('/profile/Data/Notes/link'),
+        { kind: 'non-regular', path: 'Data/Notes/link' }
+      ],
+      [
+        'unportable path',
+        new UnportableSourceError('CON', 'invalid-path', '/profile/Data/Notes'),
+        { kind: 'unportable-path', reason: 'invalid-path', path: 'Data/Notes/CON' }
+      ],
+      [
+        'portable-name collision',
+        new UnportableSourceError('Readme', 'name-collision', '/profile/Data/Notes'),
+        { kind: 'unportable-path', reason: 'name-collision', path: 'Data/Notes/Readme' }
+      ],
+      [
+        'source ceiling',
+        new CeilingExceededError('entry-bytes', 'too large'),
+        { kind: 'limit-exceeded', limit: 'entry-bytes' }
+      ]
+    ])('maps %s to a validated export-source diagnostic', async (_label, failure, diagnostic) => {
       showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
-      service.export.mockRejectedValue(new SourceDriftError('/profile/Data/Notes', 'tree changed'))
+      service.export.mockRejectedValue(failure)
 
       await expect(backupHandlers['backup.export'](undefined, ctx)).rejects.toMatchObject({
-        code: backupErrorCodes.EXPORT_SOURCE
+        code: backupErrorCodes.EXPORT_SOURCE,
+        data: diagnostic
+      })
+    })
+
+    it('never forwards an export source path outside userData', async () => {
+      showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
+      service.export.mockRejectedValue(new SourceDriftError('/Users/private/notes', 'tree changed'))
+
+      const error = await backupHandlers['backup.export'](undefined, ctx).catch((cause) => cause)
+
+      expect(error).toMatchObject({
+        code: backupErrorCodes.EXPORT_SOURCE,
+        data: { kind: 'source-changed' }
+      })
+      expect(JSON.stringify((error as IpcError).toJSON())).not.toContain('/Users/private')
+    })
+
+    it('omits an unportable path when its profile root is unknown', async () => {
+      showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
+      service.export.mockRejectedValue(new UnportableSourceError('/Users/private/CON', 'invalid-path'))
+
+      const error = await backupHandlers['backup.export'](undefined, ctx).catch((cause) => cause)
+
+      expect(error).toMatchObject({
+        code: backupErrorCodes.EXPORT_SOURCE,
+        data: { kind: 'unportable-path', reason: 'invalid-path' }
+      })
+      expect(JSON.stringify((error as IpcError).toJSON())).not.toContain('/Users/private')
+    })
+
+    it('bounds internal quiesce and ceiling labels before sending them over IPC', async () => {
+      showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/backup.cherrybackup' })
+      service.export
+        .mockRejectedValueOnce(new BackupQuiesceError('/Users/private', []))
+        .mockRejectedValueOnce(new CeilingExceededError('/Users/private', 'too large'))
+
+      await expect(backupHandlers['backup.export'](undefined, ctx)).rejects.toMatchObject({
+        data: { kind: 'quiesce-timeout', phase: 'unknown' }
+      })
+      await expect(backupHandlers['backup.export'](undefined, ctx)).rejects.toMatchObject({
+        data: { kind: 'limit-exceeded', limit: 'unknown' }
       })
     })
 

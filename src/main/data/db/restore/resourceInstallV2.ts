@@ -190,7 +190,7 @@ class DirBatch {
     }
 
     for (const directory of missing.reverse()) {
-      fs.mkdirSync(directory)
+      fs.mkdirSync(directory, { mode: 0o700 })
       // Creating a directory changes its parent's entry; syncing only the new
       // directory does not make that parent entry durable.
       this.dirs.add(path.dirname(directory))

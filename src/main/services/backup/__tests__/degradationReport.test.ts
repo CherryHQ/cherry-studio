@@ -57,4 +57,40 @@ describe('backup degradation presentation', () => {
       { code: 'path-unportable', count: 2 }
     ])
   })
+
+  it('groups capture omissions by reason and exposes at most three safe relative samples', () => {
+    const degradations = [
+      ...Array.from({ length: 4 }, (_, index) => ({
+        kind: 'resource-entry:note-root',
+        reason: 'external-reference',
+        livePath: `Data/Notes/external-${index}`
+      })),
+      {
+        kind: 'resource-entry:note-root',
+        reason: 'dangling-reference',
+        livePath: 'Data/Notes/dangling'
+      },
+      {
+        kind: 'resource-entry:note-root',
+        reason: 'cyclic-reference',
+        livePath: 'Data/Notes/cycle'
+      },
+      {
+        kind: 'resource-entry:note-root',
+        reason: 'unclassified-reference',
+        livePath: '/Users/private/not-safe'
+      }
+    ]
+
+    expect(presentDegradations(degradations)).toEqual([
+      {
+        code: 'external-reference',
+        count: 4,
+        paths: ['Data/Notes/external-0', 'Data/Notes/external-1', 'Data/Notes/external-2']
+      },
+      { code: 'dangling-reference', count: 1, paths: ['Data/Notes/dangling'] },
+      { code: 'cyclic-reference', count: 1, paths: ['Data/Notes/cycle'] },
+      { code: 'unclassified-reference', count: 1 }
+    ])
+  })
 })

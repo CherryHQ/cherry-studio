@@ -23,12 +23,14 @@ vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     listChannels: vi.fn().mockReturnValue([]),
     getChannel: vi.fn(),
-    updateChannel: vi.fn()
+    updateChannel: vi.fn(),
+    addActiveChatId: vi.fn()
   }
 }))
 
 vi.mock('../ChannelMessageHandler', () => ({
   channelMessageHandler: {
+    runWhenResumed: vi.fn((work: () => unknown) => Promise.resolve().then(work)),
     handleIncoming: vi.fn(),
     handleCommand: vi.fn(),
     clearSessionTracker: vi.fn()
@@ -103,6 +105,25 @@ describe('ChannelManager', () => {
 
     expect(createdAdapters).toHaveLength(1)
     expect(createdAdapters[0].connect).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes inbound messages through the resumable intake gate before persisting chat state', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    await channelManager.start()
+
+    const message = {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'hello'
+    }
+    createdAdapters[0].emit('message', message)
+
+    expect(channelMessageHandler.runWhenResumed).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => {
+      expect(channelService.addActiveChatId).toHaveBeenCalledWith('ch-1', 'chat-1')
+      expect(channelMessageHandler.handleIncoming).toHaveBeenCalledWith(createdAdapters[0], message)
+    })
   })
 
   it('stop() disconnects all adapters', async () => {

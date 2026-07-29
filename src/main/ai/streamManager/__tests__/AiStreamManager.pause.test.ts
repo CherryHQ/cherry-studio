@@ -2,9 +2,8 @@
  * pause() / drainInFlight() write-quiesce contract tests (backup restore, issue #16849).
  *
  * Contract: `pause(reason?): Disposable` gates new-turn ADMISSION — `dispatch()`
- * resolves `{mode:'blocked', reason:'paused'}` (re-checked under the per-topic
- * lock), `startAgentSessionRun` throws before `prepareDispatch` writes rows, and
- * queued steer continuations are suppressed (not consumed). `steer-continuation`
+ * and `startAgentSessionRun` wait without writing (re-checked under the per-topic
+ * lock), while queued steer continuations are suppressed (not consumed). `steer-continuation`
  * dispatches are exempt (grandfathered launches are drain-visible instead).
  * `drainInFlight({timeoutMs})` awaits gate-admitted dispatches through stream
  * handoff, persistence-bearing loop promises, in-flight steer-continuation
@@ -199,33 +198,46 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
   })
 
   // -------------------------------------------------------------------------
-  // Blocked surface while paused
+  // Deferred surface while paused
   // -------------------------------------------------------------------------
 
-  describe('blocked surface while paused', () => {
-    it('blocks dispatch — resolves {mode:"blocked", reason:"paused"} without reaching dispatchStreamRequest', async () => {
-      mgr.pause('test: restore')
+  describe('deferred surface while paused', () => {
+    it('defers dispatch without reaching dispatchStreamRequest, then admits it after resume', async () => {
+      const hold = mgr.pause('test: restore')
 
-      const res = await mgr.dispatch(fakeSubscriber, openReq('t'))
-      expect(res).toEqual({ mode: 'blocked', reason: 'paused' })
+      const dispatch = trackSettled(mgr.dispatch(fakeSubscriber, openReq('t')))
+      await flush()
+      expect(dispatch.isSettled()).toBe(false)
       expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+
+      hold.dispose()
+      await flush()
+      expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
+      dispatchResolvers[0]()
+      await expect(dispatch.promise).resolves.toMatchObject({ mode: 'started' })
     })
 
-    it('re-checks the pause flag under the per-topic lock — a dispatch queued behind a live one is still rejected', async () => {
+    it('re-checks under the per-topic lock and waits outside the mutex when pause wins the race', async () => {
       // A acquires the lock and parks inside the deferred dispatchStreamRequest; B waits on the mutex.
       const pA = mgr.dispatch(fakeSubscriber, openReq('t'))
-      const pB = mgr.dispatch(fakeSubscriber, openReq('t'))
+      const pB = trackSettled(mgr.dispatch(fakeSubscriber, openReq('t')))
       await flush()
       expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
 
-      // Pause lands while B is parked — the post-mutex re-check must reject it.
-      mgr.pause('test: mutex race')
+      // Pause lands while B is parked — the post-mutex re-check must release the lock and defer it.
+      const hold = mgr.pause('test: mutex race')
       dispatchResolvers[0]()
       await flush()
 
       await expect(pA).resolves.toMatchObject({ mode: 'started' })
-      await expect(pB).resolves.toMatchObject({ mode: 'blocked', reason: 'paused' })
+      expect(pB.isSettled()).toBe(false)
       expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
+
+      hold.dispose()
+      await flush()
+      expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(2)
+      dispatchResolvers[1]()
+      await expect(pB.promise).resolves.toMatchObject({ mode: 'started' })
     })
 
     it('exempts steer-continuation dispatches — a grandfathered launch still reaches dispatchStreamRequest', async () => {
@@ -252,13 +264,28 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
       expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
     })
 
-    it('rejects a paused startAgentSessionRun before prepareDispatch writes any rows', async () => {
-      mgr.pause('test: agent-session gate')
+    it('defers a paused startAgentSessionRun before prepareDispatch writes any rows', async () => {
+      prepareDispatchMock.mockResolvedValueOnce({
+        topicId: 'agent-session:s1',
+        models: [],
+        listeners: [],
+        siblingsGroupId: undefined,
+        lifecycle: {}
+      })
+      const send = vi.spyOn(mgr, 'send').mockReturnValue({ mode: 'injected', executionIds: [] })
+      const hold = mgr.pause('test: agent-session gate')
 
-      await expect(
+      const dispatch = trackSettled(
         startAgentSessionRun({ sessionId: 's1', userParts: [], listeners: [streamListener('l1')] })
-      ).rejects.toThrow(/write-quiesced/)
+      )
+      await flush()
+      expect(dispatch.isSettled()).toBe(false)
       expect(prepareDispatchMock).not.toHaveBeenCalled()
+
+      hold.dispose()
+      await expect(dispatch.promise).resolves.toBeUndefined()
+      expect(prepareDispatchMock).toHaveBeenCalledTimes(1)
+      expect(send).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -499,13 +526,19 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
       await flush()
     })
 
-    it('fails closed — a dropped (never disposed) hold keeps admission blocked', async () => {
-      mgr.pause('test: dropped hold')
+    it('fails closed — an undisposed hold keeps admission pending', async () => {
+      const hold = mgr.pause('test: dropped hold')
       expect(mgr.isWriteQuiesced).toBe(true)
 
-      const res = await mgr.dispatch(fakeSubscriber, openReq('t'))
-      expect(res).toMatchObject({ mode: 'blocked', reason: 'paused' })
+      const dispatch = trackSettled(mgr.dispatch(fakeSubscriber, openReq('t')))
+      await flush()
+      expect(dispatch.isSettled()).toBe(false)
       expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+
+      hold.dispose()
+      await flush()
+      dispatchResolvers[0]()
+      await expect(dispatch.promise).resolves.toMatchObject({ mode: 'started' })
     })
   })
 })

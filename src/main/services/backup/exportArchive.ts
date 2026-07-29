@@ -20,7 +20,7 @@
  * survives (`publishArchive` enforces no-clobber independently).
  */
 
-import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { lstat, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -31,13 +31,15 @@ import { app } from 'electron'
 
 import { publishArchive } from './archivePublish'
 import { assertDiskHeadroom } from './diskPreflight'
-import { BackupCancelledError } from './errors'
+import { BackupCancelledError, OutputPathExistsError } from './errors'
+import { createExportOperation } from './exportOperation'
+import { captureSealedProfileView } from './exportQuiesce'
 import { BACKUP_FORMAT_VERSION, type BackupManifest, type ManagedRootIdentity } from './manifest'
 import { currentBackupPlatform } from './platform'
 import { REBASABLE_MANAGED_ROOT_KEYS } from './portability/managedPathRebase'
 import type { MaterializationSummary } from './portability/materializeDatabase'
 import { materializePortableDatabase, summarizeMaterializationDegradations } from './portability/materializeDatabase'
-import { collectResourceRequirements } from './resources/collectRequirements'
+import { collectResourceRequirements, resolveResourceRoots } from './resources/collectRequirements'
 import { captureResourceStageBaseline, type ResourceStageBaseline, stageResources } from './resources/stageResources'
 
 const logger = loggerService.withContext('backupExport')
@@ -61,6 +63,16 @@ export interface ExportArchiveResult {
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new BackupCancelledError('backup export cancelled')
+}
+
+async function assertOutputAbsent(outPath: string): Promise<void> {
+  try {
+    await lstat(outPath)
+    throw new OutputPathExistsError(outPath)
+  } catch (error) {
+    if (error instanceof OutputPathExistsError) throw error
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
 }
 
 /**
@@ -88,7 +100,8 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
   const { outPath, signal } = inputs
   throwIfAborted(signal)
 
-  const stagingRoot = await mkdtemp(path.join(application.getPath('feature.backup.temp'), 'export-'))
+  const operation = await createExportOperation(application.getPath('feature.backup.temp'), outPath)
+  const { stagingRoot } = operation
   try {
     const stagedDbPath = path.join(stagingRoot, STAGED_DB_NAME)
 
@@ -99,36 +112,38 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     const dbService = application.get('DbService')
     const liveDbBytes = (await stat(application.getPath('app.database.file'))).size
     await assertDiskHeadroom({ target: stagingRoot, neededBytes: liveDbBytes })
+    await assertDiskHeadroom({ target: outPath, neededBytes: liveDbBytes })
+    await assertOutputAbsent(outPath)
 
     const userDataPath = application.getPath('app.userdata')
-    // Snapshot SQLite, then capture the identity of every resource that
-    // snapshot names. The two steps are ordered but NOT atomic: concurrent
-    // writers can still touch the filesystem in between, so this is a known
-    // window rather than a consistency point.
-    //
-    // What covers the window: a unit deleted before the baseline reads it is
-    // detected as ENOENT and degraded out of the archive (`absent-at-snapshot`);
-    // anything that changes after the baseline is caught by the per-unit drift
-    // check in `stageResources`, which omits the whole unit. What remains is a
-    // byte-level DB↔FS tearing window — a resource written after the snapshot
-    // but before the baseline can be captured in a state the exported database
-    // does not describe. Closing that fully needs a cross-store barrier and is
-    // deliberately left to a follow-up PR.
-    dbService.createSnapshot(stagedDbPath)
-    const snapshotInventory = collectResourceRequirements({ dbPath: stagedDbPath })
-    const snapshotRequirements = snapshotInventory.requirements
-    const resourceBaseline: ResourceStageBaseline = await captureResourceStageBaseline({
-      requirements: snapshotRequirements,
-      userDataPath,
-      requiredContent: snapshotInventory.requiredContent,
-      signal
+    const resourceRoots = resolveResourceRoots()
+    // The only stop-the-world section: every parent writer drains before the
+    // shared profile gate, MCP drains last, then the detached DB and file-tree
+    // identities are captured from the same write-free view.
+    const sealed = await captureSealedProfileView<
+      ReturnType<typeof collectResourceRequirements>,
+      ResourceStageBaseline
+    >({
+      signal,
+      createSnapshot: () => dbService.createSnapshot(stagedDbPath),
+      inspectSnapshot: () => collectResourceRequirements({ dbPath: stagedDbPath, roots: resourceRoots, userDataPath }),
+      captureBaseline: (snapshotInventory, captureSignal) =>
+        captureResourceStageBaseline({
+          requirements: snapshotInventory.requirements,
+          userDataPath,
+          roots: resourceRoots,
+          requiredContent: snapshotInventory.requiredContent,
+          signal: captureSignal
+        })
     })
+    const snapshotRequirements = sealed.snapshot.requirements
+    const resourceBaseline = sealed.baseline
     throwIfAborted(signal)
 
     const materialized = await materializePortableDatabase({ dbPath: stagedDbPath, mode: { kind: 'export' }, signal })
     throwIfAborted(signal)
 
-    const inventory = collectResourceRequirements({ dbPath: stagedDbPath })
+    const inventory = collectResourceRequirements({ dbPath: stagedDbPath, roots: resourceRoots, userDataPath })
     if (JSON.stringify(inventory.requirements) !== JSON.stringify(snapshotRequirements)) {
       throw new Error('portable database materialization changed the managed resource closure')
     }
@@ -140,6 +155,7 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
     const resources = await stageResources({
       requirements: inventory.requirements,
       userDataPath,
+      roots: resourceRoots,
       resourcesDir,
       baseline: resourceBaseline,
       signal
@@ -175,6 +191,7 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
       manifest,
       dbCopyPath: stagedDbPath,
       resourcesDir: resources.staged ? resourcesDir : undefined,
+      tempObserver: operation.publishObserver,
       signal
     })
 
@@ -189,8 +206,9 @@ export async function exportArchive(inputs: ExportArchiveInputs): Promise<Export
 
     return { outPath, manifest, summary: materialized.summary }
   } finally {
-    // Owned tree only. `force` keeps cleanup idempotent when a failure happened
-    // before anything was written into it.
-    await rm(stagingRoot, { recursive: true, force: true })
+    // Cleanup debt must not reverse a committed export or hide the original
+    // export failure. An ownership marker keeps any residue recoverable by the
+    // next startup sweep.
+    await operation.cleanup()
   }
 }

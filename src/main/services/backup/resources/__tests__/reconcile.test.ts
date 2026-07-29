@@ -73,6 +73,21 @@ describe('reconcileRestoreResources', () => {
     expect(() => reconcileRestoreResources(manifest(), [REQUIRED], [])).toThrow(/payload-missing/)
   })
 
+  it('does not let a resource-entry degradation authorize a missing whole payload', () => {
+    const partiallyDegraded = manifest({
+      degradations: [
+        {
+          kind: 'resource-entry:knowledge-base',
+          livePath: `${REQUIRED.livePath}/external-link`,
+          reason: 'external-reference'
+        }
+      ]
+    })
+
+    expect(() => reconcileRestoreResources(partiallyDegraded, [REQUIRED], [])).toThrow(/payload-missing/)
+    expect(reconcileRestoreResources(partiallyDegraded, [REQUIRED], [admitted()])).toHaveLength(1)
+  })
+
   it('rejects duplicate declarations instead of treating a set as a multiset', () => {
     expect(() =>
       reconcileRestoreResources(manifest({ resourceRequirements: [REQUIRED, REQUIRED] }), [REQUIRED], [])

@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs'
-import { link, lstat, mkdtemp, rm, stat } from 'node:fs/promises'
+import { chmod, link, lstat, mkdtemp, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { finished } from 'node:stream/promises'
 
@@ -8,6 +8,7 @@ import { ZipArchive } from 'archiver'
 
 import { archiveDurability } from './archiveDurability'
 import { DB_ENTRY, MANIFEST_ENTRY, RESOURCES_PREFIX } from './archiveLayout'
+import { verifyArchiveReadback } from './archiveReadback'
 import { BACKUP_CEILINGS, FIXED_ARCHIVE_ENTRIES } from './ceilings'
 import { type DirScanLimits, scanDirectoryUnit } from './dirScan'
 import {
@@ -81,6 +82,13 @@ const DEFAULT_PRODUCER_CEILINGS: ProducerCeilings = Object.freeze({
 export const publishSeams = {
   hardLink(tmpPath: string, outPath: string): Promise<void> {
     return link(tmpPath, outPath)
+  },
+  async beforeReadback(tmpPath: string): Promise<void> {
+    // Test seam: production leaves the completed temp archive untouched.
+    void tmpPath
+  },
+  removeTemp(tempDir: string): Promise<void> {
+    return rm(tempDir, { recursive: true, force: true })
   }
 }
 
@@ -94,6 +102,11 @@ export interface PublishArchiveInputs {
   /** Optional staged resource tree → walked + scanned, then stored under `resources/`. */
   readonly resourcesDir?: string
   readonly signal?: AbortSignal
+  /** Durable ownership handshake for destination-side crash cleanup. */
+  readonly tempObserver?: {
+    onTempCreated(tempDir: string): Promise<void>
+    onTempRemoved(tempDir: string): Promise<void>
+  }
 }
 
 export function publishArchive(inputs: PublishArchiveInputs): Promise<void> {
@@ -185,7 +198,7 @@ export async function publishArchiveWithCeilings(
   inputs: PublishArchiveInputs,
   ceilings: ProducerCeilings
 ): Promise<void> {
-  const { outPath, manifest, dbCopyPath, resourcesDir, signal } = inputs
+  const { outPath, manifest, dbCopyPath, resourcesDir, signal, tempObserver } = inputs
 
   // --- Publication-contract validation (everything provable before writing) ---
   const parsed = parseBackupManifest(manifest)
@@ -237,7 +250,6 @@ export async function publishArchiveWithCeilings(
     }
     const resScan = await scanDirectoryUnit(resourcesDir, {
       signal,
-      excludeKnowledgeDerivedIndex: false,
       limits: scanLimits
     })
     resourceTotalBytes = resScan.totalBytes
@@ -268,6 +280,21 @@ export async function publishArchiveWithCeilings(
   const tmpFile = path.join(tempDir, 'archive.zip')
 
   try {
+    const created = await lstat(tempDir, { bigint: true })
+    if (created.isSymbolicLink() || !created.isDirectory()) {
+      throw new Error(`backup publish temp is not a real directory: ${tempDir}`)
+    }
+    await chmod(tempDir, 0o700)
+    const secured = await lstat(tempDir, { bigint: true })
+    if (
+      secured.isSymbolicLink() ||
+      !secured.isDirectory() ||
+      secured.dev !== created.dev ||
+      secured.ino !== created.ino
+    ) {
+      throw new Error(`backup publish temp changed during initialization: ${tempDir}`)
+    }
+    await tempObserver?.onTempCreated(tempDir)
     const archive = new ZipArchive({ zlib: { level: 1 }, zip64: true })
     const output = createWriteStream(tmpFile, { flags: 'wx', mode: 0o600 })
 
@@ -305,6 +332,18 @@ export async function publishArchiveWithCeilings(
     // Durability BEFORE publish: flush the temp inode.
     await archiveDurability.fsyncFile(tmpFile)
 
+    // Re-open the exact ZIP inode we are about to publish and stream every
+    // entry back through the manifest hashes. Verifying only dbCopyPath and
+    // resourcesDir cannot detect a truncated/corrupt packaging write.
+    await publishSeams.beforeReadback(tmpFile)
+    await verifyArchiveReadback({
+      archivePath: tmpFile,
+      manifest: validated,
+      manifestBytes,
+      ceilings,
+      signal
+    })
+
     // Re-check cancellation immediately before the commit point.
     if (signal?.aborted) throw new BackupCancelledError()
 
@@ -331,6 +370,18 @@ export async function publishArchiveWithCeilings(
   } finally {
     // Owned-only cleanup: removes our temp tree (and, on success, the extra hard
     // link — outPath survives). Never touches anything outside tempDir.
-    await rm(tempDir, { recursive: true, force: true }).catch(() => {})
+    try {
+      await publishSeams.removeTemp(tempDir)
+      await tempObserver?.onTempRemoved(tempDir).catch((error) => {
+        // The temp is already gone. A stale staging marker is harmless and the
+        // startup sweep will observe the missing temp before deleting it.
+        logger.warn('archive temp was removed but its cleanup marker could not be cleared', error as Error)
+      })
+    } catch (error) {
+      // A pre-commit error remains the rejection; a post-commit cleanup error
+      // must not turn a published archive into a reported rollback. The
+      // operation marker retains the exact owned path for the next startup.
+      logger.warn('archive publish temp cleanup deferred to startup', error as Error)
+    }
   }
 }

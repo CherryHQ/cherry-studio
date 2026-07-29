@@ -47,6 +47,36 @@ const SCHEMA_UNDER_POLICY = {
   preference: preferenceTable
 } as const satisfies Record<string, SQLiteTable>
 
+const REVIEWED_REFERENCE_SURFACES = [
+  'agent.configuration',
+  'agent_channel.config',
+  'agent_channel.workspace',
+  'agent_global_skill.folderName',
+  'agent_global_skill.sourceUrl',
+  'agent_workspace.path',
+  'file_entry.externalPath',
+  'job.input',
+  'job.metadata',
+  'job_schedule.jobInputTemplate',
+  'job_schedule.metadata',
+  'knowledge_item.data',
+  'mcp_server.args',
+  'mcp_server.baseUrl',
+  'mcp_server.command',
+  'mcp_server.configSample',
+  'mcp_server.dxtPath',
+  'mcp_server.env',
+  'mcp_server.headers',
+  'mcp_server.logoUrl',
+  'mcp_server.providerUrl',
+  'mcp_server.reference',
+  'mcp_server.registryUrl',
+  'note.path',
+  'note.rootPath',
+  'preference.key',
+  'preference.value'
+] as const
+
 function columnNamesOf(table: SQLiteTable): string[] {
   return Object.keys(getTableColumns(table))
 }
@@ -71,6 +101,32 @@ describe('policy ↔ production schema', () => {
       const columns = columnNamesOf(table)
       for (const column of entry.columns) {
         expect(columns, `${entry.table}.${column}`).toContain(column)
+      }
+      for (const reference of entry.references ?? []) {
+        for (const column of reference.columns) {
+          expect(columns, `${entry.table}.${column} reference policy`).toContain(column)
+        }
+      }
+    }
+  })
+
+  it('covers the complete reviewed path, URL, workspace, and reference-bearing JSON ledger', () => {
+    const actual = PORTABLE_DB_POLICIES.flatMap((entry) =>
+      (entry.references ?? []).flatMap((reference) => reference.columns.map((column) => `${entry.table}.${column}`))
+    ).sort()
+
+    expect(new Set(actual).size).toBe(actual.length)
+    expect(actual).toEqual([...REVIEWED_REFERENCE_SURFACES].sort())
+  })
+
+  it('declares a safe disposition and checkable owner evidence for every reference surface', () => {
+    for (const entry of PORTABLE_DB_POLICIES) {
+      for (const reference of entry.references ?? []) {
+        expect(['preserve-inert', 'rebase', 'reset', 'deactivate', 'drop']).toContain(reference.disposition)
+        expect(reference.evidence.length, `${entry.table}.${reference.columns.join(',')}`).toBeGreaterThan(100)
+        expect(reference.evidence, `${entry.table}.${reference.columns.join(',')}`).toMatch(
+          /\.ts\b|unknown|malformed|reject/i
+        )
       }
     }
   })
