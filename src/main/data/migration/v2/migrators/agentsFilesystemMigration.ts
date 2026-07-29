@@ -1247,6 +1247,60 @@ async function copyWorkspaceEntry(
   }
 }
 
+async function resolveWindowsSkillCopySource(sourcePath: string): Promise<string | undefined> {
+  try {
+    return await realpath(sourcePath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    logger.warn('Skipping missing Windows skill during Agent workspace migration', { sourcePath })
+    return undefined
+  }
+}
+
+/** Materialize v1 workspace skill entries on Windows instead of linking them into the destination. */
+async function copyWindowsSkillWorkspaceContent(
+  agentsDataRoot: string,
+  sourceSkillsPath: string,
+  destinationSkillsPath: string,
+  agentDataPath: string
+): Promise<boolean> {
+  if (!isWin) return false
+
+  const sourceStat = await lstatIfExists(sourceSkillsPath)
+  if (!sourceStat) return true
+  if (sourceStat.isSymbolicLink()) {
+    const resolvedSource = await resolveWindowsSkillCopySource(sourceSkillsPath)
+    if (!resolvedSource) return true
+    await copyWorkspaceEntry(
+      resolvedSource,
+      destinationSkillsPath,
+      resolvedSource,
+      destinationSkillsPath,
+      agentDataPath
+    )
+    return true
+  }
+  if (!sourceStat.isDirectory()) return false
+
+  await ensureAgentStorageDirectory(agentsDataRoot, destinationSkillsPath)
+  for (const entry of await readdir(sourceSkillsPath)) {
+    const sourcePath = path.join(sourceSkillsPath, entry)
+    const destinationPath = path.join(destinationSkillsPath, entry)
+    const entryStat = await lstatIfExists(sourcePath)
+    if (!entryStat) continue
+
+    if (entryStat.isSymbolicLink()) {
+      const resolvedSource = await resolveWindowsSkillCopySource(sourcePath)
+      if (!resolvedSource) continue
+      await copyWorkspaceEntry(resolvedSource, destinationPath, resolvedSource, destinationPath, agentDataPath)
+      continue
+    }
+
+    await copyWorkspaceEntry(sourcePath, destinationPath, sourceSkillsPath, destinationSkillsPath, agentDataPath)
+  }
+  return true
+}
+
 async function copyOrdinaryWorkspaceContent(
   agentsDataRoot: string,
   sourceWorkspacePath: string,
@@ -1259,6 +1313,17 @@ async function copyOrdinaryWorkspaceContent(
   await ensureAgentStorageDirectory(agentsDataRoot, destinationWorkspacePath)
   for (const entry of await readdir(sourceWorkspacePath)) {
     if (IDENTITY_ENTRY_NAMES.has(entry.toLowerCase())) continue
+    if (
+      entry.toLowerCase() === 'skills' &&
+      (await copyWindowsSkillWorkspaceContent(
+        agentsDataRoot,
+        path.join(sourceWorkspacePath, entry),
+        path.join(destinationWorkspacePath, entry),
+        agentDataPath
+      ))
+    ) {
+      continue
+    }
     const destinationPath = path.join(destinationWorkspacePath, entry)
     await copyWorkspaceEntry(
       path.join(sourceWorkspacePath, entry),

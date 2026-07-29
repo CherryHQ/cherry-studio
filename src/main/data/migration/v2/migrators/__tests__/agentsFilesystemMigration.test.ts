@@ -396,15 +396,18 @@ describe('agentsFilesystemMigration', () => {
   })
 
   it.runIf(process.platform !== 'win32')(
-    'recreates copied directory links as Windows junctions without asking fs.cp to copy the link',
+    'copies Windows skill links as real filesystem entries without creating links',
     async () => {
       const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
       const skillSource = path.join(tempRoot, 'Data', 'Skills', 'find-skills')
-      const sourceLink = path.join(legacyWorkspace, 'skills', 'find-skills')
+      const skillFileSource = path.join(tempRoot, 'Data', 'Skills', 'skill-note.md')
+      const sourceSkillsDirectory = path.join(legacyWorkspace, 'skills')
       await mkdir(skillSource, { recursive: true })
       await writeFile(path.join(skillSource, 'SKILL.md'), '# Find Skills')
-      await mkdir(path.dirname(sourceLink), { recursive: true })
-      await symlink(skillSource, sourceLink, 'dir')
+      await writeFile(skillFileSource, 'skill note')
+      await mkdir(sourceSkillsDirectory, { recursive: true })
+      await symlink(skillSource, path.join(sourceSkillsDirectory, 'find-skills'), 'dir')
+      await symlink(skillFileSource, path.join(sourceSkillsDirectory, 'skill-note.md'), 'file')
       copyMutation.symlinkCalls.length = 0
       platformState.isWin = true
 
@@ -421,13 +424,54 @@ describe('agentsFilesystemMigration', () => {
         sessions: [latestSession]
       })
 
-      const destinationLink = path.join(latestSession.systemWorkspacePath!, 'skills', 'find-skills')
-      expect(await readlink(destinationLink)).toBe(skillSource)
-      expect(copyMutation.symlinkCalls).toContainEqual([
-        skillSource,
-        expect.stringMatching(/[\\/]\.01257168-34a7-5ff9-994d-bf78596c777c\.migration-[^\\/]+[\\/]find-skills$/),
-        'junction'
-      ])
+      const destinationSkill = path.join(latestSession.systemWorkspacePath!, 'skills', 'find-skills')
+      const destinationSkillFile = path.join(latestSession.systemWorkspacePath!, 'skills', 'skill-note.md')
+      expect((await lstat(destinationSkill)).isSymbolicLink()).toBe(false)
+      expect((await lstat(destinationSkill)).isDirectory()).toBe(true)
+      expect(await readFile(path.join(destinationSkill, 'SKILL.md'), 'utf8')).toBe('# Find Skills')
+      expect((await lstat(destinationSkillFile)).isSymbolicLink()).toBe(false)
+      expect(await readFile(destinationSkillFile, 'utf8')).toBe('skill note')
+      expect(copyMutation.symlinkCalls).toEqual([])
+
+      await expect(
+        stageLegacyAgentFiles({
+          agentsDataRoot,
+          agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+          sessions: [latestSession]
+        })
+      ).resolves.toBeUndefined()
+    }
+  )
+
+  it.runIf(process.platform !== 'win32')(
+    'skips a missing Windows skill link target without failing migration',
+    async () => {
+      const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
+      const sourceSkillsDirectory = path.join(legacyWorkspace, 'skills')
+      await mkdir(sourceSkillsDirectory, { recursive: true })
+      await symlink(
+        path.join(tempRoot, 'Data', 'Skills', 'missing-skill'),
+        path.join(sourceSkillsDirectory, 'missing-skill'),
+        'dir'
+      )
+      platformState.isWin = true
+
+      const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+        sourceSessionId: 'session_latest',
+        finalSessionId: FINAL_LATEST_SESSION_ID,
+        createdAt: Date.parse('2026-07-22T00:00:00Z'),
+        updatedAt: Date.parse('2026-07-23T00:00:00Z')
+      })
+
+      await expect(
+        stageLegacyAgentFiles({
+          agentsDataRoot,
+          agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+          sessions: [latestSession]
+        })
+      ).resolves.toBeUndefined()
+
+      await expect(lstat(path.join(latestSession.systemWorkspacePath!, 'skills', 'missing-skill'))).rejects.toThrow()
     }
   )
 
