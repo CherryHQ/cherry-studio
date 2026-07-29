@@ -316,9 +316,7 @@ describe('utils/image', () => {
       expect(image.getAttribute('srcset')).toBe('file:///tmp/avatar@2x.webp 2x')
     })
 
-    it('should restore styles when html-to-image capture fails', async () => {
-      vi.mocked(htmlToImage.toCanvas).mockRejectedValueOnce(new Error('capture failed'))
-
+    it('applies full-content styles only to the html-to-image clone', async () => {
       const div = document.createElement('div')
       div.style.height = '120px'
       div.style.maxHeight = '240px'
@@ -326,18 +324,32 @@ describe('utils/image', () => {
       div.style.position = 'relative'
       div.scrollTop = 32
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
-      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 360, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
 
-      await expect(captureScrollable(ref)).rejects.toThrow('capture failed')
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (_node, options) => {
+        expect(options).toMatchObject({
+          width: 100,
+          height: 360,
+          canvasWidth: 100,
+          canvasHeight: 360,
+          style: {
+            height: 'auto',
+            maxHeight: 'none',
+            overflow: 'visible',
+            position: 'static',
+            scrollbarWidth: 'none'
+          }
+        })
+        expect(div.style.height).toBe('120px')
+        expect(div.style.maxHeight).toBe('240px')
+        expect(div.style.overflow).toBe('auto')
+        expect(div.style.position).toBe('relative')
+        expect(div.scrollTop).toBe(32)
+        return { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      })
 
-      expect(div.style.height).toBe('120px')
-      expect(div.style.maxHeight).toBe('240px')
-      expect(div.style.overflow).toBe('auto')
-      expect(div.style.position).toBe('relative')
-      expect(div.classList.contains('hide-scrollbar')).toBe(false)
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      expect(div.scrollTop).toBe(32)
+      await captureScrollable(ref)
     })
 
     it('should return undefined when elRef.current is null', async () => {
@@ -352,7 +364,6 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollHeight', { value: 40000, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
       await expect(captureScrollable(ref)).rejects.toThrow()
-      expect(div.classList.contains('hide-scrollbar')).toBe(false)
     })
   })
 

@@ -139,6 +139,7 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
   const handlers = {
     painting: makePainting(),
     generating: false,
+    submitting: false,
     onPromptChange,
     onInputFilesChange: vi.fn(),
     onGenerate,
@@ -148,8 +149,15 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
     onGenerateRandomSeed: vi.fn(),
     ...props
   }
-  render(<PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} />)
-  return { onPromptChange, onGenerate }
+  const view = render(<PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} />)
+  return {
+    onPromptChange,
+    onGenerate,
+    rerenderPainting: (painting: PaintingData) =>
+      view.rerender(
+        <PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} painting={painting} />
+      )
+  }
 }
 
 describe('PaintingComposer', () => {
@@ -240,6 +248,14 @@ describe('PaintingComposer', () => {
     expect(onPromptChange).toHaveBeenCalledWith('a cat')
   })
 
+  it('syncs an externally selected prompt into the composer', () => {
+    const { rerenderPainting } = renderComposer()
+
+    rerenderPainting(makePainting({ prompt: 'a cinematic coastal house' }))
+
+    expect(screen.getByLabelText('prompt')).toHaveValue('a cinematic coastal house')
+  })
+
   it('triggers generation on send', () => {
     const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
     fireEvent.click(screen.getByLabelText('send'))
@@ -249,6 +265,16 @@ describe('PaintingComposer', () => {
   it('disables send while generating', () => {
     renderComposer({ generating: true, painting: makePainting({ prompt: 'a cat' }) })
     expect(screen.getByLabelText('send')).toBeDisabled()
+  })
+
+  it('disables and guards send while validation is pending without showing generation loading', () => {
+    const { onGenerate } = renderComposer({ submitting: true, painting: makePainting({ prompt: 'a cat' }) })
+
+    expect(screen.getByLabelText('send')).toBeDisabled()
+    expect(captured.surfaceProps?.isLoading).toBe(false)
+
+    void captured.surfaceProps?.onSendDraft({ text: 'a cat', tokens: [] })
+    expect(onGenerate).not.toHaveBeenCalled()
   })
 
   it('does not render the image params button when imageGeneration support is missing', () => {

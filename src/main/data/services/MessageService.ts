@@ -32,6 +32,8 @@ import {
   coerceSearchRole,
   type Message,
   type MessageData,
+  type MessageRuntimeStatsInput,
+  type MessageStats,
   type SiblingsGroup,
   toContentRole,
   TOPIC_MESSAGE_SEARCH_ROLES,
@@ -39,10 +41,11 @@ import {
   type TreeResponse
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { readCherryMeta } from '@shared/data/types/uiParts'
+import { hasClearContextPart, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
+import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { timestampToISO } from './utils/rowMappers'
@@ -134,6 +137,29 @@ function rowToMessage(row: MessageRow): Message {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+function completeApprovalWait(
+  existing: MessageStats | null | undefined,
+  approvalId: string,
+  completedAt: number
+): MessageStats | undefined {
+  const runtimeTiming = existing?.runtimeTiming
+  if (!runtimeTiming) return existing ?? undefined
+
+  const spans = runtimeTiming.spans.map((span) =>
+    span.kind === 'approval-wait' && span.approvalId === approvalId && span.completedAt === undefined
+      ? { ...span, completedAt: Math.max(span.startedAt, completedAt) }
+      : span
+  )
+  if (spans.every((span, index) => span === runtimeTiming.spans[index])) return existing ?? undefined
+
+  return mergeMessageRuntimeStats(existing, {
+    runtimeTiming: {
+      ...runtimeTiming,
+      spans
+    }
+  })
 }
 
 /**
@@ -253,6 +279,7 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
     // Tree nodes carry content roles only; toContentRole narrows (the root never reaches
     // here — guarded above) and 'system' is surfaced as 'assistant' for display.
     role: message.role === 'system' ? 'assistant' : toContentRole(message.role),
+    isContextBoundary: hasClearContextPart(message.data.parts) || undefined,
     preview: extractPreview(message),
     modelId: message.modelId,
     status: message.status,
@@ -1023,8 +1050,7 @@ export class MessageService {
           status: dto.status ?? 'pending',
           siblingsGroupId: dto.siblingsGroupId,
           modelId: dto.modelId ?? null,
-          messageSnapshot: dto.messageSnapshot,
-          stats: dto.stats
+          messageSnapshot: dto.messageSnapshot
         })
         .returning()
         .all()
@@ -1104,8 +1130,7 @@ export class MessageService {
             status: dto.status ?? 'pending',
             ...(dto.siblingsGroupId !== undefined ? { siblingsGroupId: dto.siblingsGroupId } : {}),
             modelId: dto.modelId,
-            messageSnapshot: dto.messageSnapshot,
-            stats: dto.stats
+            messageSnapshot: dto.messageSnapshot
           })
           .returning()
           .all()
@@ -1147,8 +1172,7 @@ export class MessageService {
             status: p.status ?? 'pending',
             ...(input.siblingsGroupId !== undefined ? { siblingsGroupId: input.siblingsGroupId } : {}),
             modelId: p.modelId,
-            messageSnapshot: p.messageSnapshot,
-            stats: p.stats
+            messageSnapshot: p.messageSnapshot
           })
           .returning()
           .all()
@@ -1189,7 +1213,7 @@ export class MessageService {
       }
     }
 
-    return application.get('DbService').withWriteTx((tx) => {
+    const message = application.get('DbService').withWriteTx((tx) => {
       // Get existing message within transaction
       const [existingRow] = tx.select().from(messageTable).where(eq(messageTable.id, id)).limit(1).all()
 
@@ -1233,7 +1257,6 @@ export class MessageService {
       if (dto.parentId !== undefined) updates.parentId = dto.parentId
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
       if (dto.status !== undefined) updates.status = dto.status
-      if (dto.stats !== undefined) updates.stats = dto.stats
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
       if (dto.data !== undefined) {
@@ -1244,6 +1267,45 @@ export class MessageService {
 
       return rowToMessage(row)
     })
+
+    return message
+  }
+
+  /**
+   * Internal AI-runtime finalizer. Content/status and runtime stats are
+   * message-owned; the merge preserves the existing record-owned usage
+   * projection and never accepts usage/cost from this caller.
+   */
+  finalizeAssistantMessage(
+    id: string,
+    input: {
+      data: MessageData
+      status: Extract<Message['status'], 'success' | 'paused' | 'error'>
+      runtimeStats?: MessageRuntimeStatsInput
+    }
+  ): Message {
+    application.get('DbService').withWriteTx((tx) => {
+      const row = tx.select().from(messageTable).where(eq(messageTable.id, id)).get()
+      if (!row) throw DataApiErrorFactory.notFound('Message', id)
+      if (row.role !== 'assistant') {
+        throw DataApiErrorFactory.invalidOperation('finalize message', 'only assistant messages can be finalized')
+      }
+
+      const stats = mergeMessageRuntimeStats(row.stats, input.runtimeStats)
+      tx.update(messageTable)
+        .set({
+          data: input.data,
+          status: input.status,
+          stats: stats ?? null
+        })
+        .where(eq(messageTable.id, id))
+        .run()
+      replaceChatMessageFileRefsTx(tx, id, input.data)
+    })
+    aiUsageRecordService.refreshMessageProjection({ kind: 'chat', id })
+    const finalized = this.getById(id)
+    if (!finalized) throw DataApiErrorFactory.notFound('Message', id)
+    return finalized
   }
 
   /**
@@ -1270,6 +1332,7 @@ export class MessageService {
     appliedApprovalIds: string[]
     alreadySettledApprovalIds: string[]
   } | null {
+    const completedAt = Date.now()
     return application.get('DbService').withWriteTx((tx) => {
       const [row] = tx.select().from(messageTable).where(eq(messageTable.id, anchorId)).limit(1).all()
       if (!row) return null
@@ -1293,8 +1356,12 @@ export class MessageService {
       const alreadySettledApprovalIds = decisions.map((d) => d.approvalId).filter((id) => settledIds.has(id))
       const targetPresent = appliedApprovalIds.length > 0
       if (targetPresent) {
+        const stats = appliedApprovalIds.reduce(
+          (current, approvalId) => completeApprovalWait(current, approvalId, completedAt),
+          existing.stats ?? undefined
+        )
         tx.update(messageTable)
-          .set({ data: { ...existing.data, parts: after } })
+          .set({ data: { ...existing.data, parts: after }, stats: stats ?? null })
           .where(eq(messageTable.id, anchorId))
           .run()
       }
@@ -1596,9 +1663,11 @@ export class MessageService {
    *
    * `rows` must be the ordered chain returned by `getPathRowsToNodeTx`; callers
    * should not pass arbitrary or forked message sets. The copy preserves the
-   * renderable message content and terminal runtime metadata, but intentionally
-   * does not copy `traceId`: trace links describe the original conversation run,
-   * while the duplicated topic starts without trace linkage.
+   * renderable message content and message-owned timings, but not usage/cost:
+   * those remain projected from records associated with the original message
+   * ids. It also intentionally does not copy `traceId`: trace links describe
+   * the original conversation run, while the duplicated topic starts without
+   * trace linkage.
    */
   copyPathRowsTx(
     tx: DbOrTx,
@@ -1617,6 +1686,18 @@ export class MessageService {
     let copiedActiveNodeId = ''
 
     for (const sourceMessage of rows) {
+      const copiedStats: MessageStats = {
+        ...(sourceMessage.stats?.timeFirstTokenMs !== undefined
+          ? { timeFirstTokenMs: sourceMessage.stats.timeFirstTokenMs }
+          : {}),
+        ...(sourceMessage.stats?.timeCompletionMs !== undefined
+          ? { timeCompletionMs: sourceMessage.stats.timeCompletionMs }
+          : {}),
+        ...(sourceMessage.stats?.timeThinkingMs !== undefined
+          ? { timeThinkingMs: sourceMessage.stats.timeThinkingMs }
+          : {}),
+        ...(sourceMessage.stats?.runtimeTiming ? { runtimeTiming: sourceMessage.stats.runtimeTiming } : {})
+      }
       let copiedParentId: string
       if (sourceMessage.parentId && copiedMessageIds.has(sourceMessage.parentId)) {
         copiedParentId = copiedMessageIds.get(sourceMessage.parentId)!
@@ -1637,7 +1718,7 @@ export class MessageService {
           siblingsGroupId: 0,
           modelId: sourceMessage.modelId,
           messageSnapshot: sourceMessage.messageSnapshot,
-          stats: sourceMessage.stats
+          stats: Object.keys(copiedStats).length > 0 ? copiedStats : null
         })
         .returning()
         .all()

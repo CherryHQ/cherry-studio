@@ -7,6 +7,7 @@
  */
 
 import { application } from '@application'
+import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
 import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/schemas/userProvider'
@@ -15,20 +16,18 @@ import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { buildApiFeaturesBaseline, diffApiFeatures } from '@data/services/ProviderRegistryService'
+import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import {
   clearSingleFileRefTx,
-  getLogoFileId,
+  getSingleFileRefId,
   type LogoBindInput,
   reconcileLogoSlotTx
-} from '@data/services/utils/logoRef'
-import { resolveLogoSrc } from '@data/services/utils/logoSrc'
-import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
+} from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
-import { providerLogoRef } from '@shared/data/types/file'
 import type { EndpointType } from '@shared/data/types/model'
 import type {
   ApiKeyEntry,
@@ -40,6 +39,7 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { maskApiKey } from '@shared/utils/api'
 import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -53,6 +53,39 @@ type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
  * passes a `LogoBindInput` here after creating the `file_entry`.
  */
 export type UpdateProviderInput = UpdateProviderDto & { logo?: LogoBindInput }
+
+/** Safe identity snapshot for the API key selected for one provider request. */
+export interface ProviderApiKeySnapshot {
+  id: string
+  label?: string
+  masked: string
+}
+
+/**
+ * Non-secret result of ProviderService's API-key selection.
+ *
+ * ProviderService owns stored-key selection only. Provider SDK configuration
+ * owns the final serving-credential receipt because a builder may replace this
+ * selection with OAuth, IAM, or another provider-level credential.
+ */
+export type ProviderApiKeySelection =
+  | ({ attribution: 'explicit' | 'matched' } & ProviderApiKeySnapshot)
+  | { attribution: 'unknown' }
+
+/** The selected API-key value and its safe identity, resolved atomically. */
+export interface ResolvedProviderApiKey {
+  value: string
+  apiKeySelection: ProviderApiKeySelection
+}
+
+/**
+ * Persisted credential receipts must never retain a raw short key, even
+ * though the transient display helper intentionally leaves it recognizable.
+ */
+function maskApiKeyForSnapshot(key: string): string {
+  const masked = maskApiKey(key)
+  return masked === key ? '****' : masked
+}
 
 function assertManagedCherryAiProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
   if (!isManagedCherryAiProviderId(providerId) || Object.keys(dto).length === 0) {
@@ -99,6 +132,29 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
     seenIds.add(normalized.id)
     return normalized
   })
+}
+
+function toResolvedProviderApiKey(
+  value: string,
+  attribution: 'explicit' | 'matched',
+  entry: ApiKeyEntry
+): ResolvedProviderApiKey {
+  return {
+    value,
+    apiKeySelection: {
+      attribution,
+      id: entry.id,
+      ...(entry.label ? { label: entry.label } : {}),
+      masked: maskApiKeyForSnapshot(entry.key)
+    }
+  }
+}
+
+function unknownCredential(value: string): ResolvedProviderApiKey {
+  return {
+    value,
+    apiKeySelection: { attribution: 'unknown' }
+  }
 }
 
 /**
@@ -174,16 +230,20 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     ...(row.providerSettings as Partial<ProviderSettings> | null)
   }
 
+  // An uploaded logo's file id lives in the ref table (single source of truth);
+  // resolve it main-side so the renderer never reconstructs a disk path. Empty
+  // slot → no lookup. A present id is never dangling (the ref row's
+  // `file_entry_id` FK is `on delete cascade`), so letting `getUrl` throw
+  // surfaces a real invariant break instead of swallowing it.
+  const logoFileId = getSingleFileRefId(providerLogoFileRefTable, row.providerId)
+
   return {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
-    // Preset icon key stays on `logo`; an uploaded logo's file id lives in the
-    // ref table (single source of truth) and resolves main-side to a ready
-    // `file://` URL on `logoSrc` (mutually exclusive with `logo`) so the
-    // renderer never reconstructs a disk path.
+    // Preset icon key stays on `logo`, an uploaded one on `logoSrc` — mutually exclusive.
     logo: row.logoKey ?? undefined,
-    logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(row.providerId))),
+    logoSrc: logoFileId ? application.get('FileManager').getUrl(logoFileId) : undefined,
     description: presetMetadata.description,
     websites: presetMetadata.websites,
     // Registry-owned connection facts (adapterFamily, modelsApiUrls, the
@@ -198,6 +258,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,
     authOptional: presetMetadata.authOptional,
+    ...(presetMetadata.reportedCostCurrency ? { reportedCostCurrency: presetMetadata.reportedCostCurrency } : {}),
     apiKeys,
     authType,
     apiFeatures,
@@ -206,9 +267,9 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
   }
 }
 
-/** The provider logo slot for a given providerId. */
-function logoSlot(providerId: string) {
-  return { sourceType: providerLogoRef.sourceType, sourceId: providerId }
+/** Internal cache key holding the rotation pointer (id of the key last handed out). */
+function rotationCacheKey(providerId: string): string {
+  return `settings.provider.${providerId}.last_used_key_id`
 }
 
 class ProviderService {
@@ -285,7 +346,7 @@ class ProviderService {
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
-          const logoCols = reconcileLogoSlotTx(tx, logoSlot(dto.providerId), dto.logo) ?? {
+          const logoCols = reconcileLogoSlotTx(tx, providerLogoFileRefTable, dto.providerId, dto.logo) ?? {
             logoKey: null
           }
           const values: NewUserProviderInput = {
@@ -354,7 +415,7 @@ class ProviderService {
 
       if (dto.name !== undefined) updates.name = dto.name
       // DB-only logo reconcile: replace the slot's file_ref + set the logo key.
-      const logoCols = reconcileLogoSlotTx(tx, logoSlot(providerId), dto.logo)
+      const logoCols = reconcileLogoSlotTx(tx, providerLogoFileRefTable, providerId, dto.logo)
       if (logoCols) {
         updates.logoKey = logoCols.logoKey
       }
@@ -453,10 +514,12 @@ class ProviderService {
   }
 
   /**
-   * Get a rotated API key for a provider (round-robin across enabled keys).
-   * Returns empty string for providers that don't have keys.
+   * Select an API-key candidate and capture its identity atomically. The
+   * provider config builder decides whether this value or provider-level auth
+   * actually serves the request. An explicit override is never rotated, but is
+   * matched back to a stored key when possible.
    */
-  getRotatedApiKey(providerId: string): string {
+  resolveApiKey(providerId: string, override?: string): ResolvedProviderApiKey {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
@@ -464,24 +527,30 @@ class ProviderService {
       throw DataApiErrorFactory.notFound('Provider', providerId)
     }
 
-    const enabledKeys = (row.apiKeys ?? []).filter((k) => k.isEnabled)
+    const allKeys = row.apiKeys ?? []
+    if (override !== undefined) {
+      const matched = allKeys.find((entry) => entry.key === override)
+      return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
+    }
+
+    const enabledKeys = allKeys.filter((k) => k.isEnabled)
 
     if (enabledKeys.length === 0) {
-      return ''
+      return unknownCredential('')
     }
 
     if (enabledKeys.length === 1) {
-      return enabledKeys[0].key
+      return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
     }
 
     // Round-robin using CacheService
     const cache = application.get('CacheService')
-    const cacheKey = `settings.provider.${providerId}.last_used_key_id`
+    const cacheKey = rotationCacheKey(providerId)
     const lastUsedKeyId = cache.get<string>(cacheKey)
 
     if (!lastUsedKeyId) {
       cache.set(cacheKey, enabledKeys[0].id)
-      return enabledKeys[0].key
+      return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
     }
 
     const currentIndex = enabledKeys.findIndex((k) => k.id === lastUsedKeyId)
@@ -489,7 +558,15 @@ class ProviderService {
     const nextKey = enabledKeys[nextIndex]
     cache.set(cacheKey, nextKey.id)
 
-    return nextKey.key
+    return toResolvedProviderApiKey(nextKey.key, 'explicit', nextKey)
+  }
+
+  /**
+   * Compatibility wrapper for consumers that only need the credential value.
+   * Billing-aware callers should use {@link resolveApiKey}.
+   */
+  getRotatedApiKey(providerId: string): string {
+    return this.resolveApiKey(providerId).value
   }
 
   /**
@@ -773,7 +850,7 @@ class ProviderService {
       // DB-only: drop the logo slot's ref (the file is preserved per the
       // file layer's policy). The FK cascade would also clear it on row delete;
       // the explicit clear keeps the intent local to this flow.
-      clearSingleFileRefTx(tx, logoSlot(providerId))
+      clearSingleFileRefTx(tx, providerLogoFileRefTable, providerId)
 
       const deleted = tx
         .delete(userProviderTable)

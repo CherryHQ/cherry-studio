@@ -233,6 +233,22 @@ describe('imageGenerationToFields', () => {
     expect((byKey.customSize as unknown as { validation: { minWidth: number } }).validation.minWidth).toBe(512)
   })
 
+  it('size + paired customSize: reuses an existing custom option with its localized label', () => {
+    const items = imageGenerationToFields({
+      modes: {
+        generate: {
+          supports: {
+            size: { type: 'enum', options: ['custom'] },
+            customSize: { type: 'size', minSide: 512, maxSide: 2048, pairedEnumKey: 'size' }
+          }
+        }
+      }
+    })
+    const size = items.find((item) => item.key === 'size')
+
+    expect(size?.options).toEqual([{ labelKey: 'paintings.custom_size', value: 'custom' }])
+  })
+
   it('size without paired customSize: no custom chip', () => {
     const items = imageGenerationToFields({
       modes: {

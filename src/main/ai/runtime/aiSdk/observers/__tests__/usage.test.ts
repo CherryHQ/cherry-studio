@@ -70,10 +70,10 @@ describe('attachUsageObserver', () => {
     const meta = (lastChunk as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
 
     // totalTokens must be the running SUM (15 + 28 = 43)
-    expect(meta?.totalTokens).toBe(43)
+    expect(meta?.stats?.totalTokens).toBe(43)
 
     // contextTokens must be the LAST step's totalTokens (28), not the sum
-    expect(meta?.contextTokens).toBe(28)
+    expect(meta?.stats?.contextTokens).toBe(28)
   })
 
   it('emits contextTokens as undefined when inputTokens is absent (output-only provider shape)', () => {
@@ -99,10 +99,10 @@ describe('attachUsageObserver', () => {
     expect(written).toHaveLength(1)
     const meta = (written[0] as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
 
-    // completionTokens must still be summed (200)
-    expect(meta?.completionTokens).toBe(200)
+    // outputTokens must still be summed (200)
+    expect(meta?.stats?.outputTokens).toBe(200)
     // contextTokens must be undefined — no bogus output-only anchor
-    expect(meta?.contextTokens).toBeUndefined()
+    expect(meta?.stats?.contextTokens).toBeUndefined()
   })
 
   it('resets contextTokens on onStart so a new turn does not carry forward the previous value', () => {
@@ -123,7 +123,8 @@ describe('attachUsageObserver', () => {
     // After two steps, contextTokens should be 28.
     const afterSecondStep = written[1]
     expect(
-      (afterSecondStep as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata?.contextTokens
+      (afterSecondStep as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata?.stats
+        ?.contextTokens
     ).toBe(28)
 
     // Second turn — onStart resets everything
@@ -137,9 +138,9 @@ describe('attachUsageObserver', () => {
     const meta = (lastChunk as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
 
     // totalTokens resets: only step C = 9
-    expect(meta?.totalTokens).toBe(9)
+    expect(meta?.stats?.totalTokens).toBe(9)
     // contextTokens resets: should be 9, not 28 + 9
-    expect(meta?.contextTokens).toBe(9)
+    expect(meta?.stats?.contextTokens).toBe(9)
   })
 
   it('emits accumulated cache token details in message metadata', () => {
@@ -165,14 +166,14 @@ describe('attachUsageObserver', () => {
     // inputTokens is present → contextTokens anchors on the last-step totalTokens (14);
     // cache-token details accumulate alongside the base counters.
     expect(meta).toEqual({
-      totalTokens: 14,
-      promptTokens: 10,
-      completionTokens: 4,
-      thoughtsTokens: 1,
-      contextTokens: 14,
-      noCacheTokens: 3,
-      cacheReadTokens: 5,
-      cacheWriteTokens: 2
+      stats: {
+        inputTokens: 10,
+        outputTokens: 4,
+        totalTokens: 14,
+        contextTokens: 14,
+        inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 5, cacheWriteTokens: 2 },
+        outputTokenDetails: { reasoningTokens: 1 }
+      }
     })
   })
 })

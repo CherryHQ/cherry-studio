@@ -23,7 +23,7 @@ import {
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 import type { ModelMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
@@ -418,6 +418,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         models: [
           {
             modelId: model.id,
+            runtimeTimingSeed: anchor.stats?.runtimeTiming,
             request: this.buildStreamRequest(
               req.topicId,
               assistantId,
@@ -557,10 +558,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
   /**
    * Build the model-facing history for a turn, applying durable compaction.
-   * 1. Load the full path as raw rows (with ids/roles/compactionSummary).
-   * 2. Apply the DEEPEST marker on the path (a marker not on this path is ignored
+   * 1. Load the full path and discard rows through the latest explicit clear-context marker.
+   * 2. Preserve the remaining rows with ids/roles/compactionSummary.
+   * 3. Apply the DEEPEST marker on the path (a marker not on this path is ignored
    *    → branch switches stay correct).
-   * 3. If over the trigger budget AND compression is enabled, snap a new keep
+   * 4. If over the trigger budget AND compression is enabled, snap a new keep
    *    boundary to a `user` row, summarize everything older (folding the prior
    *    summary), persist the summary onto the new boundary row, and serve the
    *    compacted view. The tree is never structurally mutated; only a column is set.
@@ -572,7 +574,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   ): Promise<CherryUIMessage[]> {
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
-    const rawMsgs = messageService.getPathToNode(anchorMessageId)
+    const messagePath = messageService.getPathToNode(anchorMessageId)
+    const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
+    const rawMsgs = messagePath.slice(lastClearIndex + 1)
     const rows = rawMsgs.map((m) => this.toRow(m))
     const effective = applyDeepestMarker(rows)
 

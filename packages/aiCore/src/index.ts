@@ -9,7 +9,15 @@
 export { createAgent, createExecutor, embedMany, generateImage, generateText, rerank, streamText } from './core/runtime'
 
 // ==================== Embedding 类型 ====================
-export type { CreateAgentOptions, EmbedManyParams, EmbedManyResult, RerankParams, RerankResult } from './core/runtime'
+export type {
+  CreateAgentOptions,
+  EmbedManyParams,
+  EmbedManyResult,
+  RerankParams,
+  RerankResult,
+  RuntimeProviderCallEvent,
+  RuntimeProviderCallHandler
+} from './core/runtime'
 
 // ==================== 高级API ====================
 export { isV2Model, isV3Model } from './core/models'
