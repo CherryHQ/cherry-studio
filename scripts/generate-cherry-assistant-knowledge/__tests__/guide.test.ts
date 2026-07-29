@@ -85,6 +85,24 @@ describe('Cherry Assistant guide', () => {
     expect(soul).toContain('rephrase instead of repeating yourself')
   })
 
+  it('refuses destructive abuse and routes ordinary deletion through the operating-system trash', () => {
+    const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
+      instructions: Record<'en-US' | 'zh-CN', string>
+    }
+    const soul = fs.readFileSync(SOUL_PATH, 'utf-8')
+
+    expect(agent.instructions['en-US']).toContain('including a Windows system drive such as C:')
+    expect(agent.instructions['en-US']).toContain('mcp__assistant-files__move_to_trash')
+    expect(agent.instructions['en-US']).toContain('Never use permanent deletion')
+    expect(agent.instructions['en-US']).toContain('unauthorized access, malware, credential theft')
+    expect(agent.instructions['zh-CN']).toContain('C 盘等系统盘')
+    expect(agent.instructions['zh-CN']).toContain('取得第二次明确确认')
+    expect(agent.instructions['zh-CN']).toContain('绝不永久删除')
+    expect(agent.instructions['zh-CN']).toContain('安全、合法、防御性的替代方案')
+    expect(soul).toContain('Never permanently delete user files')
+    expect(soul).toContain('mcp__assistant-files__move_to_trash')
+  })
+
   it('searches skills before declaring a capability unsupported and delegates creation to skill-creator', () => {
     const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
       instructions: Record<'en-US' | 'zh-CN', string>

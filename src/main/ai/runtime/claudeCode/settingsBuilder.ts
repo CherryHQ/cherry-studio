@@ -84,6 +84,7 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
+import { detectDestructiveAssistantCommand, isPermanentDeletionToolName } from './assistantCommandSafety'
 import { detectGlobalInstall } from './dependencyGuard'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
@@ -973,6 +974,36 @@ async function buildToolPermissions(
     }
   }
 
+  // Cherry Assistant may edit automatically, but it must never turn that convenience into
+  // irreversible deletion. Block permanent deletion tools and common destructive Bash operations
+  // under every permission mode; confirmed workspace deletion goes through the dedicated
+  // move-to-trash tool, which independently protects critical paths.
+  const assistantDestructiveOperationHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!isAssistant || !input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    let reason: string | undefined
+
+    if (toolName === 'Bash') {
+      const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+      const command = toolInput?.command
+      if (typeof command === 'string') reason = detectDestructiveAssistantCommand(command)
+    } else if (isPermanentDeletionToolName(toolName)) {
+      reason = 'permanent deletion tool'
+    }
+
+    if (!reason) return {}
+    logger.info('Blocked destructive Cherry Assistant operation', { sessionId: session.id, toolName, reason })
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          `Cherry Assistant blocked ${reason}. It must never permanently delete data or bypass this safeguard. ` +
+          'For a confirmed file or directory inside the session workspace, use mcp__assistant-files__move_to_trash; protected paths cannot be deleted.'
+      }
+    }
+  }
+
   // `canUseTool` is skipped by the SDK under bypassPermissions and other auto-approved paths.
   // Mirror the explicit per-call approval list into PreToolUse so those tools can never inherit the
   // session's blanket permission mode.
@@ -1099,6 +1130,7 @@ async function buildToolPermissions(
             headlessConfigMutationHook,
             headlessSkillInstallHook,
             disabledToolHook,
+            assistantDestructiveOperationHook,
             approvalRequiredToolHook,
             workspacePathHook,
             dependencyIsolationHook,

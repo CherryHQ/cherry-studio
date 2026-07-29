@@ -1,12 +1,14 @@
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import type * as ExportOfficeModule from '@main/ai/tools/exportOffice'
 import type * as FileLookupModule from '@main/ai/tools/fileLookup'
+import type * as MoveToTrashModule from '@main/ai/tools/moveToTrash'
 import type * as SaveAttachmentModule from '@main/ai/tools/saveAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   exportOfficeArtifact: vi.fn(),
   listSessionMessages: vi.fn(),
+  moveWorkspaceItemToTrash: vi.fn(),
   readFile: vi.fn(),
   saveAttachmentToWorkspace: vi.fn()
 }))
@@ -29,6 +31,11 @@ vi.mock('@main/ai/tools/saveAttachment', async (importOriginal) => ({
 vi.mock('@main/ai/tools/exportOffice', async (importOriginal) => ({
   ...(await importOriginal<typeof ExportOfficeModule>()),
   exportOfficeArtifact: mocks.exportOfficeArtifact
+}))
+
+vi.mock('@main/ai/tools/moveToTrash', async (importOriginal) => ({
+  ...(await importOriginal<typeof MoveToTrashModule>()),
+  moveWorkspaceItemToTrash: mocks.moveWorkspaceItemToTrash
 }))
 
 const { AssistantFileToolsServer } = await import('../AssistantFileToolsServer')
@@ -79,6 +86,7 @@ describe('AssistantFileToolsServer', () => {
 
     expect(result.tools.map((tool: { name: string }) => tool.name).sort()).toEqual([
       'export_office',
+      'move_to_trash',
       'read_file',
       'save_attachment'
     ])
@@ -150,6 +158,25 @@ describe('AssistantFileToolsServer', () => {
     const result = await callTool(server, 'export_office', input)
 
     expect(mocks.exportOfficeArtifact).toHaveBeenCalledWith('/workspace', input, expect.any(AbortSignal))
+    expect(mocks.listSessionMessages).not.toHaveBeenCalled()
+    expect(result.isError).not.toBe(true)
+  })
+
+  it('moves a confirmed workspace path to trash without reading the transcript', async () => {
+    mocks.moveWorkspaceItemToTrash.mockResolvedValue({
+      path: 'old-draft.md',
+      type: 'file',
+      destination: 'trash'
+    })
+    const server = new AssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
+
+    const result = await callTool(server, 'move_to_trash', { path: 'old-draft.md' })
+
+    expect(mocks.moveWorkspaceItemToTrash).toHaveBeenCalledWith(
+      '/workspace',
+      { path: 'old-draft.md' },
+      expect.any(AbortSignal)
+    )
     expect(mocks.listSessionMessages).not.toHaveBeenCalled()
     expect(result.isError).not.toBe(true)
   })

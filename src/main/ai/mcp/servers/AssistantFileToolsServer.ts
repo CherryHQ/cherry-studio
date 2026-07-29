@@ -10,6 +10,12 @@ import {
 } from '@main/ai/tools/exportOffice'
 import { READ_FILE_DESCRIPTION, readFile, readFileModelOutput } from '@main/ai/tools/fileLookup'
 import {
+  MOVE_TO_TRASH_DESCRIPTION,
+  MOVE_TO_TRASH_TOOL_NAME,
+  moveToTrashInputSchema,
+  moveWorkspaceItemToTrash
+} from '@main/ai/tools/moveToTrash'
+import {
   SAVE_ATTACHMENT_DESCRIPTION,
   SAVE_ATTACHMENT_TOOL_NAME,
   saveAttachmentInputSchema,
@@ -89,6 +95,12 @@ export class AssistantFileToolsServer {
             listSessionAttachments(context.sessionId),
             signal
           )
+      },
+      [MOVE_TO_TRASH_TOOL_NAME]: {
+        description: MOVE_TO_TRASH_DESCRIPTION,
+        inputSchema: moveToTrashInputSchema,
+        run: async (args, signal) =>
+          moveWorkspaceItemToTrash(context.workspacePath, moveToTrashInputSchema.parse(args), signal)
       },
       [EXPORT_OFFICE_TOOL_NAME]: {
         description: EXPORT_OFFICE_DESCRIPTION,

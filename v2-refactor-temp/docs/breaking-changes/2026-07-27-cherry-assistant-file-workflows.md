@@ -10,12 +10,14 @@ date: 2026-07-27
 
 Cherry Assistant can read conversation attachments through opaque handles and, after approval, save their original bytes or export new DOCX, PDF, PPTX, and XLSX files. Its bundled workflows include four Cherry-PPT templates, document and data-analysis Skills, and Skill discovery and creation guidance.
 
+Confirmed deletion of ordinary workspace files and directories now moves them to the operating-system trash. Cherry Assistant refuses permanent deletion commands, protected roots and critical user/system data, and requests that enable unlawful or destructive abuse.
+
 Ordinary Agents can also attach ZIP, RAR, 7Z, TAR, GZ, TGZ, BZ2, and XZ archives as tool-readable workspace files.
 
 ## Why this matters to the user
 
-Users can complete document, presentation, spreadsheet, and attachment tasks inside an Agent session. Generic Office conversions rebuild content and do not preserve advanced source formatting, macros, animations, or formulas; Cherry-PPT uses its bundled red, enterprise-blue, Young, or CY2K template.
+Users can complete document, presentation, spreadsheet, attachment, and recoverable workspace-cleanup tasks inside an Agent session without giving automatic edit mode permission to permanently erase files. Generic Office conversions rebuild content and do not preserve advanced source formatting, macros, animations, or formulas; Cherry-PPT uses its bundled red, enterprise-blue, Young, or CY2K template.
 
 ## What the user should do
 
-Nothing - the workflows are available automatically. Cherry Assistant still asks before saving attachment bytes, exporting files, or installing third-party Skills.
+Nothing - the workflows are available automatically. Cherry Assistant still asks before saving attachment bytes, exporting files, moving a workspace item to trash, or installing third-party Skills.
