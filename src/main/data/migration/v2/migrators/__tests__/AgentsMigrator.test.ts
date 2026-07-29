@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -57,7 +61,11 @@ function createSchemaInfo() {
 function createMigrationContext(overrides: Record<string, unknown> = {}) {
   return {
     paths: {
-      legacyAgentDbFile: '/mock/Data/agents.db'
+      legacyAgentDbFile: '/mock/Data/agents.db',
+      legacyClaudeConfigDir: '/mock/.claude',
+      legacyClaudeProjectsDir: '/mock/.claude/projects',
+      claudeConfigDir: '/mock/Data/Agents/.claude',
+      claudeProjectsDir: '/mock/Data/Agents/.claude/projects'
     },
     sharedData: new Map(),
     ...overrides
@@ -66,6 +74,13 @@ function createMigrationContext(overrides: Record<string, unknown> = {}) {
 
 function getExecutedSql(run: ReturnType<typeof vi.fn>) {
   return run.mock.calls.map(([statement]) => statement.queryChunks[0]?.value?.[0])
+}
+
+function withSynchronousTransaction<T extends object>(members: T) {
+  const transaction = vi.fn()
+  const db = { ...members, transaction }
+  transaction.mockImplementation((callback: (tx: typeof db) => unknown) => callback(db))
+  return db
 }
 
 describe('AgentsMigrator', () => {
@@ -84,6 +99,34 @@ describe('AgentsMigrator', () => {
     expect(result.success).toBe(true)
     expect(result.itemCount).toBe(0)
     expect(result.warnings).toEqual(['agents.db not found - no agents data to migrate'])
+  })
+
+  it('copies the legacy Claude config even when no legacy agents db exists', async () => {
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue(null)
+    const tempRoot = await mkdtemp(join(tmpdir(), 'agents-migrator-claude-config-'))
+    const source = join(tempRoot, '.claude')
+    const destination = join(tempRoot, 'Data', 'Agents', '.claude')
+    await mkdir(source)
+    await writeFile(join(source, 'settings.json'), '{"migrated":true}')
+
+    try {
+      await migrator.execute(
+        createMigrationContext({
+          paths: {
+            legacyAgentDbFile: join(tempRoot, 'Data', 'agents.db'),
+            legacyClaudeConfigDir: source,
+            legacyClaudeProjectsDir: join(source, 'projects'),
+            claudeConfigDir: destination,
+            claudeProjectsDir: join(destination, 'projects')
+          }
+        })
+      )
+
+      expect(await readFile(join(destination, 'settings.json'), 'utf8')).toBe('{"migrated":true}')
+      expect(await readFile(join(source, 'settings.json'), 'utf8')).toBe('{"migrated":true}')
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true })
+    }
   })
 
   it('prepare counts all legacy agents rows', async () => {
@@ -134,9 +177,8 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
-    const result = await migrator.execute(
-      createMigrationContext({ db: { run, select, update, all, delete: del, insert } })
-    )
+    const db = withSynchronousTransaction({ run, select, update, all, delete: del, insert })
+    const result = await migrator.execute(createMigrationContext({ db }))
 
     expect(result.success).toBe(true)
     // sourceCounts now sums only the 6 importStatement-driven specs (the 3
@@ -367,7 +409,7 @@ describe('AgentsMigrator', () => {
     })
     const all = vi.fn().mockReturnValue([])
     const migrationContext = createMigrationContext({
-      db: { run, select, update, all, delete: del, insert }
+      db: withSynchronousTransaction({ run, select, update, all, delete: del, insert })
     })
 
     await migrator.prepare(migrationContext)

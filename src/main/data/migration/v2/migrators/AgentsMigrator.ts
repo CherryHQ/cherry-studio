@@ -28,6 +28,8 @@ import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import {
   type AgentFileSessionPlan,
+  copyLegacyClaudeConfig,
+  copyLegacyClaudeSessionData,
   isManagedLegacyAgentWorkspace,
   legacyAgentWorkspacePath,
   stageLegacyAgentFiles
@@ -79,7 +81,7 @@ const logger = loggerService.withContext('AgentsMigrator')
 export class AgentsMigrator extends BaseMigrator {
   readonly id = 'agents'
   readonly name = 'Agents'
-  readonly description = 'Migrate legacy agents.db data into the main SQLite database'
+  readonly description = 'Migrate legacy Agent data and Claude config into v2 storage'
   readonly order = 2.5
 
   private sourceCounts: AgentsTableRowCounts = this.createEmptyCounts()
@@ -127,6 +129,11 @@ export class AgentsMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
+    const copiedLegacyClaudeConfig = await copyLegacyClaudeConfig(
+      ctx.paths.legacyClaudeConfigDir,
+      ctx.paths.claudeConfigDir
+    )
+
     const reader = this.createReader(ctx)
     const dbPath = this.resolveSourceDbPath(reader)
 
@@ -217,13 +224,22 @@ export class AgentsMigrator extends BaseMigrator {
       const idRemap = remapAgentPrefixIds(ctx.db)
       const finalSessionWorkspaces = finalizeSessionWorkspaces(ctx, derivedSessionWorkspaces, idRemap)
       ctx.sharedData.set(DERIVED_SESSION_WORKSPACES_KEY, finalSessionWorkspaces)
+      const fileSessionPlans = toAgentFileSessionPlans(finalSessionWorkspaces, preparedSessionMessages)
       await stageLegacyAgentFiles({
         agentsDataRoot: ctx.paths.agentsDataDir,
         agents: legacyAgentIds.map((sourceAgentId) => ({
           sourceAgentId,
           finalAgentId: idRemap.agentIds.get(sourceAgentId) ?? sourceAgentId
         })),
-        sessions: toAgentFileSessionPlans(finalSessionWorkspaces)
+        sessions: fileSessionPlans
+      })
+      await copyLegacyClaudeSessionData({
+        agentsDataRoot: ctx.paths.agentsDataDir,
+        sourceProjectsDirectories: copiedLegacyClaudeConfig
+          ? [ctx.paths.legacyClaudeProjectsDir]
+          : [ctx.paths.legacyClaudeProjectsDir, ctx.paths.claudeProjectsDir],
+        destinationProjectsDirectory: ctx.paths.claudeProjectsDir,
+        sessions: fileSessionPlans
       })
       // Self-check agent-domain referential integrity after import + remap. FK is OFF for
       // the whole migration, so violations only surface here (and at the engine's final
@@ -774,7 +790,13 @@ function legacyTimestampToMs(value: string | number | null, fallback: number): n
     return value > 0 && value < 10_000_000_000 ? value * 1000 : value
   }
   if (typeof value === 'string') {
-    const parsed = Date.parse(value)
+    const trimmed = value.trim()
+    if (!trimmed) return fallback
+    const numericValue = Number(trimmed)
+    if (Number.isFinite(numericValue)) {
+      return numericValue > 0 && numericValue < 10_000_000_000 ? numericValue * 1000 : numericValue
+    }
+    const parsed = Date.parse(trimmed)
     if (Number.isFinite(parsed)) {
       return parsed
     }
@@ -800,7 +822,7 @@ async function deriveSessionWorkspaces(
   const rows = selectSessionWorkspaceSourceRows(ctx.db, schemaInfo)
   const byPath = new Map<string, DerivedWorkspace>()
   const mappings: DerivedSessionWorkspaceMap[] = []
-  const now = Date.now()
+  const migrationStartedAtMs = Date.now()
   const agentsDataDir = ctx.paths.agentsDataDir
   const systemWorkspacesDir = ctx.paths.agentSystemWorkspacesDir
 
@@ -810,7 +832,7 @@ async function deriveSessionWorkspaces(
       extractPrimaryWorkspacePath(row.agent_accessible_paths, 'agent')
     const sourceWorkspacePath = explicitWorkspacePath ?? legacyAgentWorkspacePath(agentsDataDir, row.agent_id)
     const isManagedDefault = await isManagedLegacyAgentWorkspace(agentsDataDir, row.agent_id, sourceWorkspacePath)
-    const createdAt = legacyTimestampToMs(row.created_at, now)
+    const createdAt = legacyTimestampToMs(row.created_at, migrationStartedAtMs)
     const updatedAt = legacyTimestampToMs(row.updated_at, createdAt)
     const workspacePath = isManagedDefault
       ? agentWorkspaceService.buildSystemWorkspacePath(systemWorkspacesDir, row.session_id, createdAt)
@@ -905,8 +927,22 @@ function finalizeSessionWorkspaces(
   return { workspaces: Array.from(workspacesById.values()), mappings }
 }
 
-function toAgentFileSessionPlans(derived: DerivedSessionWorkspaces): AgentFileSessionPlan[] {
+function toAgentFileSessionPlans(
+  derived: DerivedSessionWorkspaces,
+  preparedSessionMessages: PreparedLegacySessionMessage[]
+): AgentFileSessionPlan[] {
   const workspacesById = new Map(derived.workspaces.map((workspace) => [workspace.id, workspace]))
+  const runtimeResumeTokensBySessionId = new Map<string, Set<string>>()
+  const latestRuntimeResumeTokenBySessionId = new Map<string, string>()
+  for (const message of preparedSessionMessages) {
+    if (message.runtimeResumeToken) {
+      const runtimeResumeTokens = runtimeResumeTokensBySessionId.get(message.sessionId) ?? new Set<string>()
+      runtimeResumeTokens.add(message.runtimeResumeToken)
+      runtimeResumeTokensBySessionId.set(message.sessionId, runtimeResumeTokens)
+      latestRuntimeResumeTokenBySessionId.set(message.sessionId, message.runtimeResumeToken)
+    }
+  }
+
   return derived.mappings.map((mapping) => {
     const workspace = workspacesById.get(mapping.workspaceId)
     if (!workspace) throw new Error(`Missing derived workspace for session ${mapping.sessionId}`)
@@ -918,6 +954,8 @@ function toAgentFileSessionPlans(derived: DerivedSessionWorkspaces): AgentFileSe
       sourceWorkspacePath: mapping.sourceWorkspacePath,
       isManagedDefault: mapping.isManagedDefault,
       systemWorkspacePath: workspace.type === 'system' ? workspace.path : undefined,
+      latestRuntimeResumeToken: latestRuntimeResumeTokenBySessionId.get(mapping.sessionId),
+      runtimeResumeTokens: Array.from(runtimeResumeTokensBySessionId.get(mapping.sessionId) ?? []).sort(),
       createdAt: mapping.createdAt,
       updatedAt: mapping.updatedAt
     }

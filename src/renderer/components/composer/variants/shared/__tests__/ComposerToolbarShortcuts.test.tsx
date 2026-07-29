@@ -245,6 +245,33 @@ describe('ComposerToolbarShortcuts', () => {
     expect(onCustomSelect).not.toHaveBeenCalled()
   })
 
+  it('runs model-independent custom tools when no model is available', () => {
+    const onCustomSelect = vi.fn()
+    mocks.launchers = []
+
+    renderShortcuts({
+      pinnedIds: ['clear-context'],
+      customTools: [
+        {
+          id: 'clear-context',
+          label: 'clear-context-label',
+          icon: <span />,
+          requiresPanel: false,
+          availableWithoutModel: true,
+          onSelect: onCustomSelect
+        }
+      ],
+      isModelUnavailable: true
+    })
+
+    const button = screen.getByRole('button', { name: 'clear-context-label' })
+    expect(button).toBeEnabled()
+    fireEvent.click(button)
+
+    expect(onCustomSelect).toHaveBeenCalledTimes(1)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('keeps manifest presentation stable while a launcher is cleared and re-registered', () => {
     mocks.manifests = [thinkingManifest]
     mocks.launchers = [thinkingLauncher]

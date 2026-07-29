@@ -247,7 +247,10 @@ describe('OnboardingPage', () => {
     expect(screen.getByRole('button', { name: /onboarding\.select_model\.start/ })).toBeDisabled()
   })
 
-  it('replaces the sole seeded assistant and agent models after selecting the default model', async () => {
+  it.each([
+    ['an unconfigured seeded agent', null],
+    ['a legacy CherryAI-seeded agent', CHERRYAI_DEFAULT_UNIQUE_MODEL_ID]
+  ])('configures %s after the user selects a default model', async (_description, seededAgentModel) => {
     dataApiMocks.get.mockImplementation(async (path: string) => {
       if (path === '/assistants') {
         return {
@@ -257,7 +260,7 @@ describe('OnboardingPage', () => {
       }
       if (path === '/agents') {
         return {
-          items: [{ id: 'agent-1', model: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }],
+          items: [{ id: 'agent-1', model: seededAgentModel, configuration: { builtin_role: 'assistant' } }],
           total: 1
         }
       }
@@ -297,7 +300,7 @@ describe('OnboardingPage', () => {
       }
       if (path === '/agents') {
         return {
-          items: [{ id: 'agent-1', model: 'openai::existing' }],
+          items: [{ id: 'agent-1', model: null, configuration: {} }],
           total: 1
         }
       }

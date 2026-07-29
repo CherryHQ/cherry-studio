@@ -9,9 +9,9 @@ export const paintingClasses = {
   surface: 'relative isolate flex min-w-0 flex-1 overflow-hidden rounded-none bg-background',
   centerPane: 'relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
   /** Fills space between mode tabs and prompt; keeps canvas in the flex-shrink chain. */
-  centerStage: 'flex min-h-0 min-w-0 flex-1 flex-col',
+  centerStage: 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
   /** Pins the prompt visually to the bottom of the middle column. */
-  promptDock: 'shrink-0 bg-background px-2 pt-2 pb-2',
+  promptDock: 'relative z-20 shrink-0 bg-background px-2 pt-2 pb-2',
   historyStrip:
     'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto border-border-subtle border-r bg-background px-2 py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
   historyAddButton:
