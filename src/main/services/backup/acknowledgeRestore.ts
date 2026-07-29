@@ -21,10 +21,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
-import { clearRestoreJournalV2, readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
+import { findUnsafeAncestor } from '@data/db/restore/pathSafety'
+import {
+  clearRestoreJournalV2,
+  dbAsideRelPathV2,
+  readRestoreJournalV2,
+  writeRestoreJournalV2
+} from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 
 import { RestoreStateError } from './errors'
+import { resourceAsideRoot } from './resources/planInstalls'
 
 const logger = loggerService.withContext('backupAcknowledgeRestore')
 
@@ -61,6 +68,62 @@ export function abandonKnowledgeRebuild(): AbandonedKnowledgeRebuild {
   return { restoreId: journal.restoreId, pendingBaseIds }
 }
 
+function lstatOrNull(target: string): fs.Stats | null {
+  try {
+    return fs.lstatSync(target)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
+  }
+}
+
+/**
+ * Prove the journal is describing THIS restore's own park slots before anything
+ * is deleted.
+ *
+ * The journal is app-written, but it is also the one input to a recursive
+ * delete, and it survives on disk across crashes and app versions. Recomputing
+ * both owners from the path registry and the restore id — rather than reading
+ * the strings back — is what keeps a hand-edited or stale journal from pointing
+ * the cleanup at an arbitrary userData subtree.
+ */
+function assertRestoreOwnsArtifacts(
+  restoreId: string,
+  dbAside: string,
+  resourceInstalls: readonly { readonly aside: string }[]
+): void {
+  if (dbAside !== dbAsideRelPathV2(restoreId)) {
+    throw new RestoreStateError('unsafe-artifact', 'the restore journal does not describe this device’s park slot')
+  }
+  const owned = `${resourceAsideRoot(restoreId)}/`
+  for (const entry of resourceInstalls) {
+    if (!entry.aside.startsWith(owned)) {
+      throw new RestoreStateError('unsafe-artifact', 'a recovery artifact does not belong to this restore')
+    }
+  }
+}
+
+/**
+ * Prove the path a delete is about to follow, at the moment it is followed.
+ *
+ * Install and recovery re-prove their ancestors for the same reason; a delete
+ * has to as well, and later: acknowledgement can run days after the promotion,
+ * long enough for an ancestor to become a symlink pointing anywhere. Refusing
+ * leaves the journal — and therefore the retry — in place, so removing the
+ * interloper and acknowledging again finishes the job.
+ */
+function assertReleasable(userData: string, relative: string, stats: fs.Stats): void {
+  const unsafe = findUnsafeAncestor(userData, relative)
+  if (unsafe !== null) {
+    logger.error('Refusing to release a recovery artifact through an unsafe ancestor', { relative, unsafe })
+    throw new RestoreStateError('unsafe-artifact', 'a recovery artifact is no longer where this restore left it')
+  }
+  if (stats.isSymbolicLink() || !(stats.isFile() || stats.isDirectory())) {
+    logger.error('Refusing to release a recovery artifact that is no longer a plain file or directory', { relative })
+    throw new RestoreStateError('unsafe-artifact', 'a recovery artifact is no longer where this restore left it')
+  }
+}
+
 /** What the acknowledgement removed, for the caller to report. */
 export interface AcknowledgeResult {
   /** False when there was nothing to acknowledge (already done, or no restore ran). */
@@ -86,7 +149,8 @@ export function acknowledgeRestore(): AcknowledgeResult {
     journal.state === 'prepared' ||
     journal.state === 'armed' ||
     journal.state === 'promoting' ||
-    journal.state === 'rollback-armed'
+    journal.state === 'rollback-armed' ||
+    journal.state === 'reverting'
   ) {
     // Acknowledging a restore that has not finished would release GC protection
     // over a database the promotion is still about to move.
@@ -145,11 +209,14 @@ export function acknowledgeRestore(): AcknowledgeResult {
     // tree belonged to this restore.
     `${path.basename(application.getPath('feature.backup.restore.staging'))}/${journal.restoreId}`
   ]
+  assertRestoreOwnsArtifacts(journal.restoreId, journal.db.aside, journal.resourceInstalls)
 
   let removed = 0
   for (const relative of artifacts) {
     const target = path.resolve(userData, relative)
-    if (!fs.existsSync(target)) continue
+    const stats = lstatOrNull(target)
+    if (stats === null) continue
+    assertReleasable(userData, relative, stats)
     fs.rmSync(target, { recursive: true, force: true })
     removed++
   }

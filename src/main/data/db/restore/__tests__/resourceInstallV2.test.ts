@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 type NodeFs = typeof nodeFs
 
 /** The one fault a real filesystem will not produce on demand: a cross-device rename. */
-const { crossDevice } = vi.hoisted(() => ({ crossDevice: { on: false } }))
+const { crossDevice, foreign } = vi.hoisted(() => ({ crossDevice: { on: false }, foreign: { segment: '' } }))
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<NodeFs & { default: NodeFs }>()
@@ -26,7 +26,14 @@ vi.mock('node:fs', async (importOriginal) => {
     error.code = 'EXDEV'
     throw error
   }
-  return { ...actual, renameSync, default: { ...actual.default, renameSync } }
+  // The other half of the same fault, visible BEFORE any rename is attempted:
+  // a slot whose nearest existing ancestor reports a different device.
+  const statSync = ((target: never, options: never) => {
+    const stats = actual.statSync(target, options)
+    if (foreign.segment === '' || !String(target).includes(foreign.segment)) return stats
+    return Object.assign(Object.create(Object.getPrototypeOf(stats)), stats, { dev: stats.dev + 1 })
+  }) as NodeFs['statSync']
+  return { ...actual, renameSync, statSync, default: { ...actual.default, renameSync, statSync } }
 })
 
 /**
@@ -83,6 +90,7 @@ describe('resourceInstallV2', () => {
 
   afterEach(() => {
     crossDevice.on = false
+    foreign.segment = ''
     vi.restoreAllMocks()
     rmSync(userData, { recursive: true, force: true })
   })
@@ -210,6 +218,65 @@ describe('resourceInstallV2', () => {
 
       expect(() => installResourceUnits([unit], userData)).toThrow(/cross-filesystem/)
       expect(readUnit(unit.staging)).toBe('ARCHIVE')
+    })
+
+    /**
+     * The contract's promise is to fail BEFORE any mutation, so the fault always
+     * sits on the SECOND unit here: the assertion that matters is that the first
+     * unit — the one a per-unit check would have moved already — is untouched.
+     */
+    describe('proving every slot before the first rename', () => {
+      function twoUnits(): ResourceInstallEntry[] {
+        const units = [entry('Data/KnowledgeBase/base-1'), entry('Data/KnowledgeBase/base-2')]
+        makeDirUnit(units[0].staging, 'A1')
+        makeDirUnit(units[0].live, 'T1')
+        makeDirUnit(units[1].staging, 'A2')
+        return units
+      }
+
+      function expectNothingMoved(units: readonly ResourceInstallEntry[]): void {
+        expect(readUnit(units[0].live)).toBe('T1')
+        expect(readUnit(units[0].staging)).toBe('A1')
+        expect(existsSync(abs(units[0].aside))).toBe(false)
+      }
+
+      it('refuses when a later unit reaches its target through a symlinked ancestor', () => {
+        const units = twoUnits()
+        mkdirSync(abs('elsewhere'), { recursive: true })
+        rmSync(abs('Data/KnowledgeBase'), { recursive: true })
+        mkdirSync(abs('Data'), { recursive: true })
+        symlinkSync(abs('elsewhere'), abs('Data/KnowledgeBase'))
+
+        expect(() => installResourceUnits(units, userData)).toThrow(/unsafe-ancestor/)
+        expect(existsSync(abs('elsewhere/base-1'))).toBe(false)
+      })
+
+      it('refuses when the staging tree turns out to be on another filesystem', () => {
+        const units = twoUnits()
+        foreign.segment = 'restore-staging'
+
+        expect(() => installResourceUnits(units, userData)).toThrow(/cross-filesystem/)
+        expectNothingMoved(units)
+      })
+
+      it('refuses when the aside root turns out to be on another filesystem', () => {
+        const units = twoUnits()
+        mkdirSync(abs(`restore-aside/${RID}`), { recursive: true })
+        foreign.segment = 'restore-aside'
+
+        expect(() => installResourceUnits(units, userData)).toThrow(/cross-filesystem/)
+        expectNothingMoved(units)
+      })
+
+      it('refuses a rollback pass on the same proof, before it undoes anything', () => {
+        const units = twoUnits()
+        installResourceUnits(units, userData)
+        foreign.segment = 'restore-staging'
+
+        expect(() => recoverResourceUnits(units, userData, 'pre-commit')).toThrow(/cross-filesystem/)
+        expect(readUnit(units[0].live)).toBe('A1')
+        expect(readUnit(units[0].aside)).toBe('T1')
+      })
     })
 
     it('installs many units and files alike in one pass', () => {
