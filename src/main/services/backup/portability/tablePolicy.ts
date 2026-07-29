@@ -107,7 +107,7 @@ export const PORTABLE_DB_POLICIES: readonly TablePolicyEntry[] = Object.freeze([
     policy: 'reset',
     columns: ['isActive', 'isTrusted', 'trustedAt', 'dxtPath'],
     evidence:
-      '§3.1 dangerous capabilities. See ./capabilityReset.ts (sanitizeMcpServerCapability) for the per-column evidence: an active server is auto-connected and a stdio server SPAWNS `command`; `dxtPath` becomes a spawn cwd. `command`, `args`, `env`, `baseUrl`, `headers`, `configSample` and the disabled-tool lists are PRESERVED as inert configuration.',
+      '§3.1 dangerous capabilities. See src/main/ai/mcp/portableProfilePolicy.ts (sanitizeMcpServerCapability): an active server is auto-connected and a stdio server SPAWNS `command`; `dxtPath` becomes a spawn cwd. `command`, `args`, `env`, `baseUrl`, `headers`, `configSample` and the disabled-tool lists are PRESERVED as inert configuration.',
     references: [
       {
         columns: [
@@ -130,7 +130,7 @@ export const PORTABLE_DB_POLICIES: readonly TablePolicyEntry[] = Object.freeze([
         columns: ['dxtPath'],
         disposition: 'reset',
         evidence:
-          'dxtPath is a device-local package directory used as a process working directory (src/main/services/backup/portability/capabilityReset.ts). It is always cleared rather than transported or followed on the target.'
+          'dxtPath is a device-local package directory used as a process working directory (src/main/ai/mcp/portableProfilePolicy.ts). It is always cleared rather than transported or followed on the target.'
       }
     ]
   },
@@ -139,7 +139,7 @@ export const PORTABLE_DB_POLICIES: readonly TablePolicyEntry[] = Object.freeze([
     policy: 'reset',
     columns: ['configuration'],
     evidence:
-      '§3.1 agent automation. See ./capabilityReset.ts (sanitizeAgentAutomation): heartbeat_enabled must be written `false` because the reader skips only on an explicit false (src/main/ai/agents/runAgentTask.ts:89); scheduler_enabled is reset with it; permission_mode `bypassPermissions` is dropped. Instructions, models, env_vars and unknown keys are PRESERVED.',
+      '§3.1 agent automation. See src/main/ai/agents/portableProfilePolicy.ts (sanitizeAgentAutomation): heartbeat_enabled must be written `false` because the reader skips only on an explicit false (src/main/ai/agents/runAgentTask.ts:89); scheduler_enabled is reset with it; permission_mode `bypassPermissions` is dropped. Instructions, models, env_vars and unknown keys are PRESERVED.',
     references: [
       {
         columns: ['configuration'],
@@ -176,13 +176,13 @@ export const PORTABLE_DB_POLICIES: readonly TablePolicyEntry[] = Object.freeze([
     policy: 'rebase',
     columns: ['path', 'type'],
     evidence:
-      '§3.1 names managed `agent_workspace.path` as a rebase target. `path` is a NOT NULL absolute path with a byte-exact unique index (src/main/data/db/schemas/agentWorkspace.ts:9,20). A path under a registered managed root rebases; a user-chosen workspace outside every managed root is `external` and stays inert (§4 — never created, followed, or auto-activated).',
+      '§3.1 names managed `agent_workspace.path` as a rebase target. `path` is a NOT NULL absolute path with a byte-exact unique index (src/main/data/db/schemas/agentWorkspace.ts:9,20). A path under a registered managed root rebases; a user-chosen, malformed, or colliding workspace is replaced by an inert target-local placeholder supplied by the Agent owner (§4 — never created or followed).',
     references: [
       {
         columns: ['path'],
         disposition: 'rebase',
         evidence:
-          'Managed workspace paths are component-checked and rebased through managedPathRebase.ts. Unknown, malformed, or external values are rejected or preserved as inert metadata and never become resource requirements.'
+          'Managed workspace paths are component-checked and rebased through managedPathRebase.ts. Unknown, malformed, external, or colliding values are reset to a non-existent target-local placeholder derived by src/main/ai/agents/portableProfilePolicy.ts and never become resource requirements.'
       }
     ]
   },

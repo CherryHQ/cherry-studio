@@ -12,11 +12,12 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { noteTable } from '@data/db/schemas/note'
 import { preferenceTable } from '@data/db/schemas/preference'
+import { sanitizeAgentChannelCapability } from '@main/ai/channelPortableProfilePolicy'
+import { sanitizeMcpServerCapability } from '@main/ai/mcp/portableProfilePolicy'
 import { getTableColumns, getTableName } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { describe, expect, it } from 'vitest'
 
-import { sanitizeAgentChannelCapability, sanitizeMcpServerCapability } from '../capabilityReset'
 import {
   isJobRowResettable,
   JOB_SCHEDULE_AUTOMATION_PATCH,
@@ -374,10 +375,15 @@ describe('module purity', () => {
    * must be consciously classified, and a new policy module cannot quietly
    * escape the purity walk by simply not being pure.
    */
-  const POLICY_MODULES = ['managedPathRebase.ts', 'capabilityReset.ts', 'preferenceResetPolicy.ts', 'tablePolicy.ts']
+  const POLICY_MODULES = ['managedPathRebase.ts', 'preferenceResetPolicy.ts', 'tablePolicy.ts']
+  const OWNER_POLICY_MODULES = [
+    path.join(REPO_SRC, 'main/ai/agents/portableProfilePolicy.ts'),
+    path.join(REPO_SRC, 'main/ai/channelPortableProfilePolicy.ts'),
+    path.join(REPO_SRC, 'main/ai/mcp/portableProfilePolicy.ts')
+  ]
   const EFFECTFUL_MODULES = ['materializeDatabase.ts']
 
-  const shippedFiles = POLICY_MODULES.map((name) => path.join(PORTABILITY_DIR, name))
+  const shippedFiles = [...POLICY_MODULES.map((name) => path.join(PORTABILITY_DIR, name)), ...OWNER_POLICY_MODULES]
 
   it('classifies every shipped module as either policy or effectful', () => {
     const actual = fs
@@ -424,6 +430,12 @@ describe('module purity', () => {
     expect([...dependencies].sort()).toEqual(PURE_DEPENDENCIES)
     // The walk must actually have followed the graph, not stopped at the roots.
     expect(visited.size).toBeGreaterThan(shippedFiles.length * 2)
+  })
+
+  it('keeps owner policy source independent of Backup types and state machines', () => {
+    for (const file of OWNER_POLICY_MODULES) {
+      expect(fs.readFileSync(file, 'utf8'), path.relative(REPO_SRC, file)).not.toMatch(/services\/backup/)
+    }
   })
 
   it('detects a forbidden import when one is introduced', () => {
