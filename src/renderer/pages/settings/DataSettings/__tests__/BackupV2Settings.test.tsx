@@ -174,7 +174,9 @@ describe('BackupV2Settings', () => {
     click('settings.general.restore.button')
 
     await waitFor(() => expect(screen.getByText('settings.data.backup_v2.preview.destructive')).toBeInTheDocument())
-    expect(screen.getByText('settings.data.backup_v2.preview.coverage_counts')).toBeInTheDocument()
+    // The coverage buckets are the pipeline's taxonomy, not a decision the user
+    // makes here, so the preview must not surface them.
+    expect(screen.queryByText('settings.data.backup_v2.preview.coverage_counts')).not.toBeInTheDocument()
     expect(screen.getByText('settings.data.backup_v2.preview.resources_counts')).toBeInTheDocument()
     expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.preview.resources_counts', {
       install: 3,
