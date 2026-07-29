@@ -507,7 +507,7 @@ const ShortcutSettings: FC = () => {
                 <Kbd
                   key={key}
                   className={cn(
-                    'min-w-6 rounded-md border border-border/60 bg-card px-1.5 py-0.75 text-foreground text-xs shadow-none',
+                    'min-w-6 rounded-md border border-border/60 bg-card px-1.5 py-0.75 text-card-foreground text-xs shadow-none',
                     hasSystemConflict && 'border-error-border text-error'
                   )}>
                   {formatKeyDisplay(key, isMac)}

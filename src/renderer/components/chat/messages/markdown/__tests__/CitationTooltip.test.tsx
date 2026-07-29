@@ -76,7 +76,7 @@ describe('CitationTooltip', () => {
       const citation = createCitationData()
       renderCitationTooltip(citation)
 
-      expect(screen.getByTestId('tooltip-wrapper')).toHaveClass('bg-card', 'text-foreground')
+      expect(screen.getByTestId('tooltip-wrapper')).toHaveClass('bg-card', 'text-card-foreground')
     })
 
     it('should render Favicon with correct props', () => {

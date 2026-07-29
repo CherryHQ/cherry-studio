@@ -676,7 +676,10 @@ const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>)
 )
 
 const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('rounded-lg border border-border bg-card px-3 py-2.5 text-foreground', className)} {...props} />
+  <div
+    className={cn('rounded-lg border border-border bg-card px-3 py-2.5 text-card-foreground', className)}
+    {...props}
+  />
 )
 
 const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
