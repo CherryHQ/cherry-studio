@@ -4,12 +4,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { SafeExtSchema } from '@shared/types/file'
-import { sql } from 'drizzle-orm'
+import { inArray, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -227,6 +228,37 @@ function toFileEntry(
   }
 
   return entry
+}
+
+/** Ids per UPDATE … IN (…) statement — stays well under SQLite's bound-parameter cap. */
+const CLEANUP_UPDATE_CHUNK_SIZE = 500
+
+/**
+ * Flip already-inserted `file_entry` rows to `cleanup_policy =
+ * 'delete_when_unreferenced'` (file-entry-cleanup.md §7.2 — classification by
+ * reference state).
+ *
+ * It lives here because it is the second half of this migrator's story about
+ * `cleanup_policy`: `FileMigrator` inserts every v1 file as `'manual'` (it has
+ * no way to know what will reference it), and this flips the ones that turn out
+ * to be referenced once the chat / painting migrators have written their refs.
+ *
+ * This is an UPDATE by design, not a value the ref-row inserts could carry:
+ * `cleanup_policy` is a `file_entry` column, while the chat/painting migrators
+ * insert into their *ref* tables — the entry rows themselves were inserted
+ * earlier by FileMigrator (as `'manual'`), before referenced-ness is known.
+ * Idempotent, so a retried batch (or a ref insert skipped by
+ * `onConflictDoNothing`) is safe. Call inside the same transaction as the ref
+ * inserts so referenced-ness and policy commit atomically.
+ */
+export function markEntriesAutoCleanup(tx: DbOrTx, entryIds: Iterable<string>): void {
+  const ids = [...new Set(entryIds)]
+  for (let i = 0; i < ids.length; i += CLEANUP_UPDATE_CHUNK_SIZE) {
+    tx.update(fileEntryTable)
+      .set({ cleanupPolicy: 'delete_when_unreferenced' })
+      .where(inArray(fileEntryTable.id, ids.slice(i, i + CLEANUP_UPDATE_CHUNK_SIZE)))
+      .run()
+  }
 }
 
 export class FileMigrator extends BaseMigrator {

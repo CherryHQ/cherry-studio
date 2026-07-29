@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
+import { markEntriesAutoCleanup } from './FileMigrator'
 import {
   LEGACY_PAINTING_NAMESPACES,
   type LegacyPaintingFileRefs,
@@ -16,7 +17,6 @@ import {
   type NormalizedPaintingRow,
   transformLegacyPaintingRecord
 } from './mappings/PaintingMappings'
-import { markEntriesAutoCleanup } from './markEntriesAutoCleanup'
 
 const logger = loggerService.withContext('PaintingMigrator')
 

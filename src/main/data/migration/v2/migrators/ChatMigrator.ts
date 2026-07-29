@@ -78,6 +78,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
+import { markEntriesAutoCleanup } from './FileMigrator'
 import {
   buildAssistantSnapshot,
   buildMessageTree,
@@ -93,7 +94,6 @@ import {
   transformMessage,
   transformTopic
 } from './mappings/ChatMappings'
-import { markEntriesAutoCleanup } from './markEntriesAutoCleanup'
 import { resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('ChatMigrator')
