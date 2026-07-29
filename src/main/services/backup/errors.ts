@@ -61,6 +61,13 @@ export type RestoreStateErrorCode =
    * only copy and may not be released. Temporary: the next boot retries.
    */
   | 'recovery-incomplete'
+  /**
+   * A recovery artifact is not where this restore left it — an ancestor became a
+   * symlink, or the artifact itself is no longer a plain file or directory — so
+   * releasing it could delete something outside userData. The detail stays in
+   * the log; the user's repair is to remove the interloper by hand.
+   */
+  | 'unsafe-artifact'
 
 export class RestoreStateError extends Error {
   readonly code: RestoreStateErrorCode

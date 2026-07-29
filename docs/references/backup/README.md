@@ -165,7 +165,9 @@ release):
 
 - Symlink / special-file managed roots (validated via `lstat`/`realpath` on every existing
   ancestor).
-- Cross-device (`EXDEV`) installs — same-filesystem rename eligibility is required.
+- Cross-device (`EXDEV`) installs — same-filesystem rename eligibility is required, proven for
+  all three slots a unit renames between (staging, live, aside) at sealing AND again at preboot,
+  for every unit before the first one moves.
 - Journal entries whose live paths are not pairwise distinct, or where one live path is an
   ancestor of another.
 
@@ -593,7 +595,11 @@ indexes; that choice is written to the journal before jobs are cancelled, surviv
 and permits acknowledgement without making provider availability a storage/GC hostage.
 Cleanup idempotently removes operation-owned artifacts **first**, clears the journal **last**,
 then releases GC protection. A crash before the last step leaves protection active and cleanup
-resumable.
+resumable. Ownership is proven before the first unlink — each park slot must be the one this
+device's registry and this restore's id would produce, not merely the one the journal names —
+and every artifact is re-proven as it is reached: no symlinked ancestor below userData, and the
+artifact itself a plain file or directory. A refusal leaves the journal, and therefore the
+retry, in place.
 
 **No newly executed path terminalizes an incomplete direction.** A blocked pre-commit
 rollback remains `promoting`; a blocked post-commit reverse remains `reverting`; a blocked
