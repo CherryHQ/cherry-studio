@@ -216,7 +216,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
       id: 'autoApprove',
       header: () => (
         <Flex className="items-center justify-center gap-1">
-          <Zap size={14} color="red" />
+          <Zap size={14} color="var(--error)" />
           <span className="font-medium">{t('settings.mcp.tools.autoApprove.label')}</span>
         </Flex>
       ),
