@@ -909,13 +909,8 @@ describe('KnowledgePage', () => {
     })
 
     const resizeButton = screen.getByTestId('navigator-resize-start')
-    const navigator = resizeButton.parentElement
 
-    if (!navigator) {
-      throw new Error('Expected knowledge page navigator')
-    }
-
-    vi.spyOn(navigator, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 250, 500))
+    // Resizing is delta-based: +70px from the 250px default lands on 320px.
     fireEvent.mouseDown(resizeButton, { clientX: 250 })
     fireEvent.mouseMove(document, { clientX: 320 })
     fireEvent.mouseUp(document)
@@ -1740,15 +1735,8 @@ describe('KnowledgePage', () => {
     render(<KnowledgePage />)
 
     const resizeButton = screen.getByTestId('navigator-resize-start')
-    const content = resizeButton.parentElement?.parentElement?.parentElement
 
-    if (!content) {
-      throw new Error('Expected knowledge page content container')
-    }
-
-    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 500))
-
-    fireEvent.mouseDown(resizeButton, { clientX: 180 })
+    fireEvent.mouseDown(resizeButton, { clientX: 250 })
     expect(document.body.style.cursor).toBe('col-resize')
     expect(document.body.style.userSelect).toBe('none')
 
@@ -1779,20 +1767,14 @@ describe('KnowledgePage', () => {
     mockDetailHeaderRender.mockClear()
 
     const resizeButton = screen.getByTestId('navigator-resize-start')
-    const content = resizeButton.parentElement?.parentElement?.parentElement
-
-    if (!content) {
-      throw new Error('Expected knowledge page content container')
-    }
-
-    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(new DOMRect(40, 0, 800, 500))
 
     expect(screen.getByTestId('navigator-width')).toHaveTextContent('250')
 
-    fireEvent.mouseDown(resizeButton)
-    fireEvent.mouseMove(document, { clientX: 360 })
+    fireEvent.mouseDown(resizeButton, { clientX: 250 })
+    fireEvent.mouseMove(document, { clientX: 320 })
     expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
 
+    // Clamped at both ends of the allowed range.
     fireEvent.mouseMove(document, { clientX: 100 })
     expect(screen.getByTestId('navigator-width')).toHaveTextContent('220')
 
