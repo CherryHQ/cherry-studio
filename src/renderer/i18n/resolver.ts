@@ -26,10 +26,10 @@ const logger = loggerService.withContext('I18N')
 // chunk, so a window entry bundles zero translation JSON up front — i18next pulls
 // the current language (and the en-US fallback) on demand inside initI18n().
 const localeLoaders = {
-  'ar-YE': () => import('./locales/ar-ye.json'),
   'en-US': () => import('./locales/en-us.json'),
   'zh-CN': () => import('./locales/zh-cn.json'),
   'zh-TW': () => import('./translate/zh-tw.json'),
+  'ar-YE': () => import('./translate/ar-ye.json'),
   'de-DE': () => import('./translate/de-de.json'),
   'el-GR': () => import('./translate/el-gr.json'),
   'es-ES': () => import('./translate/es-es.json'),
