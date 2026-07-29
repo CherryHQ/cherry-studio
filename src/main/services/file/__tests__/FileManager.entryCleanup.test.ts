@@ -125,6 +125,109 @@ describe('FileManager entry-cleanup wiring', () => {
     expect(cleanup).toHaveBeenCalledTimes(1)
   })
 
+  // The weekly floor prices the scan (`listAllIds()` + a full readdir + per-file
+  // stat), so only a pass that actually paid that cost may spend it. Stamping
+  // before the await charged a stand-aside the same as a full sweep.
+  describe('the weekly floor is only spent by a pass that did the work', () => {
+    const tickOf = (m: InstanceType<typeof FileManager>) =>
+      (m as unknown as { entryCleanupTick(): Promise<void> }).entryCleanupTick.bind(m)
+
+    beforeEach(() => {
+      powerState.idleSeconds = 120
+      vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
+      // Keep the idle gate open across repeated ticks in the same test.
+      ;(fm as unknown as { lastCleanupCompletedAt: number }).lastCleanupCompletedAt = 0
+    })
+
+    it('retries on the next idle tick after standing aside for a pending restore', async () => {
+      // The reported failure: the first tick of a session correctly defers to a
+      // staged restore, then — with the timestamp already advanced — crash
+      // orphans from the previous session sit untouched for a week after that
+      // restore completes.
+      fileSweepMock.mockResolvedValueOnce({ outcome: 'aborted', abortReason: 'pending-restore' })
+      const tick = tickOf(fm)
+
+      await tick()
+      expect(fileSweepMock).toHaveBeenCalledTimes(1)
+
+      // Restore has since promoted; the very next tick must sweep, not wait.
+      fileSweepMock.mockResolvedValue({ outcome: 'completed' })
+      await tick()
+      expect(fileSweepMock).toHaveBeenCalledTimes(2)
+
+      // …and that completed pass does claim the window.
+      await tick()
+      expect(fileSweepMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('retries on the next idle tick after a failed pass', async () => {
+      fileSweepMock.mockResolvedValueOnce({ outcome: 'failed', errorMessage: 'readdir EIO' })
+      const tick = tickOf(fm)
+
+      await tick()
+      await tick()
+
+      expect(fileSweepMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('retries on the next idle tick after the sweep rejects', async () => {
+      fileSweepMock.mockRejectedValueOnce(new Error('readdir boom'))
+      const tick = tickOf(fm)
+
+      await tick()
+      await tick()
+
+      expect(fileSweepMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('spends the window on a partial pass rather than rescanning every tick', async () => {
+      // A file that cannot be unlinked (EACCES / EBUSY) does not become
+      // unlinkable half an hour later. Retrying would turn one stuck blob into a
+      // full-tree scan on every idle tick, forever; the next scheduled sweep
+      // picks it up.
+      fileSweepMock.mockResolvedValue({ outcome: 'partial', failedDeleteCount: 1, failedSamples: ['a.png'] })
+      const tick = tickOf(fm)
+
+      await tick()
+      await tick()
+
+      expect(fileSweepMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('spends the window on a safety-threshold abort', async () => {
+      // Unlike a stand-aside, the threshold verdict comes *after* the tree was
+      // enumerated — the cost was paid, and the state it read will not have
+      // changed by the next tick.
+      fileSweepMock.mockResolvedValue({ outcome: 'aborted', abortReason: 'count-fraction' })
+      const tick = tickOf(fm)
+
+      await tick()
+      await tick()
+
+      expect(fileSweepMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not start a second sweep while one is still running', async () => {
+      // The old code got this for free by stamping before the await. Moving the
+      // stamp to the end has to keep it, or a slow scan would be re-entered by
+      // the next tick.
+      let release!: () => void
+      fileSweepMock.mockReturnValueOnce(
+        new Promise((resolve) => {
+          release = () => resolve({ outcome: 'completed' })
+        })
+      )
+      const tick = tickOf(fm)
+
+      const first = tick()
+      await tick()
+      expect(fileSweepMock).toHaveBeenCalledTimes(1)
+
+      release()
+      await first
+    })
+  })
+
   it('interval tick skips when the user is active and lastRun is recent', async () => {
     powerState.idleSeconds = 5
     const spy = vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())

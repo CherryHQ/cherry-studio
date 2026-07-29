@@ -200,8 +200,31 @@ A failed candidate is logged and simply retried on the next pass — no attempt 
 | Crash after row delete, before unlink | Blob becomes an FS orphan; `runFileSweep` reclaims it on the weekly floor in `FileManager.fileSweepTick` (the `File_RunSweep` IPC has no renderer caller). |
 | Unlink fails outright (EACCES / EBUSY / EIO) | Row is still deleted and `unlinkFailures` incremented — the row is the source of truth, and keeping it would retry the same failing unlink forever. Same FS-orphan fate as the row above. |
 | Staged restore pending when the pass fires | Gate closed (§5.5): outcome `'skipped'`, nothing examined. A restore's blobs are on disk but not yet referenced by the live DB — exactly what the pass would reclaim. |
+| Staged restore pending when the **FS sweep** fires | Same stand-aside (`aborted` / `pending-restore`), and it deliberately does **not** consume the weekly floor — see below. The next idle tick retries, so the previous session's crash orphans are collected as soon as the restore promotes rather than a week later. |
 | Crash mid-pass | No state to recover; the next pass re-derives candidates. |
 | Classification/migration bug creates a huge candidate set | No volume abort (§5.3): reclamation proceeds. The residual risk is bounded structurally — no runtime `manual → auto` path (§4.2), coverage guarded by the registry + reflection test (§5.1 / §9), creation surfaces `cleanupPolicy`-required + value-locked. |
+
+### 6.1 What spends the FS sweep's weekly floor
+
+The floor exists to price the scan — `listAllIds()` plus a full `readdir` and a
+per-file `stat` of the Files tree — so it may only be charged to a run that
+actually paid it. The question is not "did the sweep succeed" but "did it look
+at the tree":
+
+| Outcome | Spends the week | Why |
+|---|---|---|
+| `completed` | yes | Tree enumerated, plan executed. |
+| `partial` | yes | Tree enumerated; only individual unlinks failed. A file that is EACCES/EBUSY now will not be unlinkable half an hour later, and retrying would turn one stuck blob into a full-tree scan every idle tick. The next scheduled sweep picks it up. |
+| `aborted` (`count-fraction` / `byte-fraction`) | yes | The threshold verdict comes *after* planning, so the scan was paid for, and the state it read will not have changed by the next tick. |
+| `aborted` (`pending-restore`) | **no** | Returns before enumerating anything. A stand-aside is not a sweep. |
+| `failed` / throw | **no** | The scan collapsed; nothing was reclaimed and the cause may be transient. |
+
+Concurrency is guarded separately (`fileSweepInFlight`), not by the timestamp:
+an earlier revision stamped `lastFileSweepAt` before awaiting the sweep, which
+made the stamp double as an in-flight guard and, in doing so, charged a full
+week to passes that reclaimed nothing. The worst case was the stand-aside — the
+first tick of a session defers to a staged restore, and the previous session's
+crash orphans then wait a week past that restore's completion.
 
 ## 7. Migration & Rollout
 

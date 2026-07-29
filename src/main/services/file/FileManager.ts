@@ -215,6 +215,41 @@ function summariseFsSweepIssue(report: FileSweepReport): string | undefined {
   }
 }
 
+/**
+ * Whether a sweep earned the weekly interval before the next one may run.
+ *
+ * The floor prices the scan — `listAllIds()` plus a full `readdir` and per-file
+ * `stat` of the Files tree — so the question is not "did it succeed" but **did
+ * it actually pay that cost**. A pass that never looked at the tree has spent
+ * nothing and must not spend the window either.
+ *
+ * - `completed` / `partial` — the tree was enumerated and the plan executed.
+ *   `partial` counts: a stuck file (EACCES, EBUSY) does not get better by
+ *   rescanning everything half an hour later, and treating it as retryable
+ *   would turn one unlinkable blob into a full-tree scan every idle tick,
+ *   forever. The next scheduled sweep retries it.
+ * - `aborted` by a safety threshold — the tree *was* enumerated; refusing is
+ *   the considered verdict of a completed plan phase, and the state it reads
+ *   will not have changed by the next tick.
+ * - `aborted` for `pending-restore` — returns before enumerating anything. A
+ *   stand-aside is not a sweep. This is the case that made the bug visible:
+ *   the first tick of a session correctly defers to a staged restore, and the
+ *   previous session's crash orphans then wait a week past its completion.
+ * - `failed` — the scan collapsed; nothing was reclaimed and the cause may be
+ *   transient, so the next idle tick should try again.
+ */
+function sweepConsumedItsWindow(report: FileSweepReport): boolean {
+  switch (report.outcome) {
+    case 'completed':
+    case 'partial':
+      return true
+    case 'aborted':
+      return report.abortReason !== 'pending-restore'
+    case 'failed':
+      return false
+  }
+}
+
 // Main-side parameter types are structurally identical to the IPC variants —
 // `CreateInternalEntryIpcParams` is a discriminated union on `source`
 // (`'path' | 'url' | 'base64' | 'bytes'`) that type-gates which of
@@ -667,6 +702,14 @@ export class FileManager extends BaseService implements IFileManager {
 
   private lastCleanupCompletedAt = 0
   private lastFileSweepAt = 0
+  /**
+   * Separate from `lastFileSweepAt` on purpose. The timestamp answers "when may
+   * the next sweep run"; this answers "is one running right now". They used to
+   * be the same field — stamping before the await made the interval double as a
+   * concurrency guard, which is exactly what tied the retry cadence to a pass
+   * that had not finished (let alone succeeded) yet.
+   */
+  private fileSweepInFlight = false
 
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
@@ -719,13 +762,29 @@ export class FileManager extends BaseService implements IFileManager {
    * a session sweeps once — that is what collects the previous session's crash
    * orphans. Failures are swallowed here (already logged inside): a hygiene pass
    * must never break the entry cleanup it runs alongside.
+   *
+   * **A week is only spent on a pass that did the work.** The floor exists to
+   * price the scan (`listAllIds()` + a full `readdir` + per-file `stat`), so it
+   * may only be charged for a run that actually paid it — see
+   * `sweepConsumedItsWindow`. Stamping up front instead made a stand-aside cost
+   * as much as a full sweep: the first tick after startup correctly defers to a
+   * pending restore, and then crash orphans sit untouched for seven days after
+   * that restore completes.
    */
   private async fileSweepTick(): Promise<void> {
+    if (this.fileSweepInFlight) return
     if (Date.now() - this.lastFileSweepAt < FileManager.FILE_SWEEP_MIN_INTERVAL_MS) return
-    this.lastFileSweepAt = Date.now()
-    await runFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
-      fileManagerLogger.error('Scheduled file sweep failed', err)
-    })
+    this.fileSweepInFlight = true
+    try {
+      const report = await runFileSweep({ fileEntryService: this.deps.fileEntryService })
+      if (sweepConsumedItsWindow(report)) this.lastFileSweepAt = Date.now()
+    } catch (err) {
+      // A throw means the scan never returned a verdict, so the window stays
+      // open and the next idle tick retries.
+      fileManagerLogger.error('Scheduled file sweep failed', err as Error)
+    } finally {
+      this.fileSweepInFlight = false
+    }
   }
 
   /**
