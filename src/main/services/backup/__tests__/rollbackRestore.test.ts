@@ -6,8 +6,11 @@ import type { RestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { readRestoreJournalV2, writeRestoreJournalV2 } from '@data/db/restore/restoreJournalV2'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { relaunchMock } = vi.hoisted(() => ({
-  relaunchMock: vi.fn<() => void>()
+const { forceExitMock, holdDisposeMock, relaunchAfterShutdownMock, shutdownMock } = vi.hoisted(() => ({
+  forceExitMock: vi.fn(),
+  holdDisposeMock: vi.fn(),
+  relaunchAfterShutdownMock: vi.fn<() => Promise<void>>(async () => undefined),
+  shutdownMock: vi.fn(async () => undefined)
 }))
 let userData = ''
 
@@ -23,8 +26,19 @@ vi.mock('@application', () => ({
       if (!base) throw new Error(`unexpected path key: ${key}`)
       return filename ? join(base, filename) : base
     }),
-    relaunch: relaunchMock
+    forceExit: forceExitMock,
+    relaunchAfterShutdown: relaunchAfterShutdownMock,
+    shutdown: shutdownMock
   }
+}))
+
+vi.mock('../exportQuiesce', () => ({
+  acquireProfileQuiescence: vi.fn(async () => ({
+    checkpoint: vi.fn(),
+    dispose: holdDisposeMock,
+    signal: new AbortController().signal,
+    waitFor: vi.fn()
+  }))
 }))
 
 vi.mock('@logger', () => ({
@@ -67,55 +81,60 @@ describe('armRestoreRollback', () => {
   beforeEach(() => {
     userData = mkdtempSync(join(tmpdir(), 'cs-rollback-arm-'))
     writeFileSync(join(userData, `cherrystudio.sqlite.pre-restore-${RESTORE_ID}`), 'PREVIOUS')
-    relaunchMock.mockReset()
+    forceExitMock.mockReset()
+    holdDisposeMock.mockReset()
+    relaunchAfterShutdownMock.mockReset()
+    relaunchAfterShutdownMock.mockResolvedValue(undefined)
+    shutdownMock.mockReset()
+    shutdownMock.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
     rmSync(userData, { recursive: true, force: true })
   })
 
-  it('durably arms a completed restore before requesting relaunch', () => {
+  it('durably arms a completed restore before requesting relaunch', async () => {
     writeRestoreJournalV2(completedJournal())
 
-    armRestoreRollback()
+    await armRestoreRollback()
 
     expect(readRestoreJournalV2()).toMatchObject({
       kind: 'ok',
       journal: { state: 'rollback-armed' }
     })
-    expect(relaunchMock).toHaveBeenCalledOnce()
+    expect(relaunchAfterShutdownMock).toHaveBeenCalledOnce()
   })
 
-  it('refuses a restore that has not completed', () => {
+  it('refuses a restore that has not completed', async () => {
     writeRestoreJournalV2({
       ...completedJournal(),
       state: 'prepared'
     } as RestoreJournalV2)
 
-    expect(() => armRestoreRollback()).toThrowError(RestoreStateError)
-    expect(relaunchMock).not.toHaveBeenCalled()
+    await expect(armRestoreRollback()).rejects.toThrowError(RestoreStateError)
+    expect(relaunchAfterShutdownMock).not.toHaveBeenCalled()
   })
 
-  it('refuses while completed resources are still being repaired', () => {
+  it('refuses while completed resources are still being repaired', async () => {
     writeRestoreJournalV2(completedJournal({ resourcesIncomplete: true }))
 
-    expect(() => armRestoreRollback()).toThrowError(
+    await expect(armRestoreRollback()).rejects.toThrowError(
       expect.objectContaining<Partial<RestoreStateError>>({
         code: 'recovery-incomplete'
       })
     )
-    expect(relaunchMock).not.toHaveBeenCalled()
+    expect(relaunchAfterShutdownMock).not.toHaveBeenCalled()
   })
 
-  it('refuses to arm after acknowledgement already removed the rollback database', () => {
+  it('refuses to arm after acknowledgement already removed the rollback database', async () => {
     writeRestoreJournalV2(completedJournal())
     rmSync(join(userData, `cherrystudio.sqlite.pre-restore-${RESTORE_ID}`))
 
-    expect(() => armRestoreRollback()).toThrowError(
+    await expect(armRestoreRollback()).rejects.toThrowError(
       expect.objectContaining<Partial<RestoreStateError>>({ code: 'rollback-unavailable' })
     )
     expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'completed' } })
-    expect(relaunchMock).not.toHaveBeenCalled()
+    expect(relaunchAfterShutdownMock).not.toHaveBeenCalled()
   })
 
   /**
@@ -154,20 +173,20 @@ describe('armRestoreRollback', () => {
       writeRestoreJournalV2(completedJournal({ resourceInstalls: units }))
     }
 
-    it('arms when every unit is where completion left it', () => {
+    it('arms when every unit is where completion left it', async () => {
       arrangeCompleted(replacedUnits())
 
-      armRestoreRollback()
+      await armRestoreRollback()
 
       expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'rollback-armed' } })
     })
 
-    it('refuses when the LAST unit lost the aside holding its pre-restore copy', () => {
+    it('refuses when the LAST unit lost the aside holding its pre-restore copy', async () => {
       const units = replacedUnits()
       arrangeCompleted(units)
       rmSync(join(userData, ...units[1].aside.split('/')), { recursive: true })
 
-      expect(() => armRestoreRollback()).toThrowError(
+      await expect(armRestoreRollback()).rejects.toThrowError(
         expect.objectContaining<Partial<RestoreStateError>>({ code: 'rollback-unavailable' })
       )
       // Nothing was armed and nothing moved: the first unit, whose own aside is
@@ -175,52 +194,52 @@ describe('armRestoreRollback', () => {
       expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'completed' } })
       expect(existsSync(join(userData, ...units[0].aside.split('/')))).toBe(true)
       expect(existsSync(join(userData, ...units[0].live.split('/')))).toBe(true)
-      expect(relaunchMock).not.toHaveBeenCalled()
+      expect(relaunchAfterShutdownMock).not.toHaveBeenCalled()
     })
 
-    it('refuses when a unit that replaced nothing somehow has an aside', () => {
+    it('refuses when a unit that replaced nothing somehow has an aside', async () => {
       const units = replacedUnits().map((unit) => ({ ...unit, hadLive: false }))
       arrangeCompleted(units)
       makeDir(units[0].aside)
 
-      expect(() => armRestoreRollback()).toThrowError(
+      await expect(armRestoreRollback()).rejects.toThrowError(
         expect.objectContaining<Partial<RestoreStateError>>({ code: 'rollback-unavailable' })
       )
-      expect(relaunchMock).not.toHaveBeenCalled()
+      expect(relaunchAfterShutdownMock).not.toHaveBeenCalled()
     })
 
-    it('refuses when the restored node is gone from its live slot', () => {
+    it('refuses when the restored node is gone from its live slot', async () => {
       const units = replacedUnits()
       arrangeCompleted(units)
       rmSync(join(userData, ...units[0].live.split('/')), { recursive: true })
 
-      expect(() => armRestoreRollback()).toThrowError(
+      await expect(armRestoreRollback()).rejects.toThrowError(
         expect.objectContaining<Partial<RestoreStateError>>({ code: 'rollback-unavailable' })
       )
-      expect(relaunchMock).not.toHaveBeenCalled()
+      expect(relaunchAfterShutdownMock).not.toHaveBeenCalled()
     })
 
-    it('refuses a journal from a build that never recorded what each unit replaced', () => {
+    it('refuses a journal from a build that never recorded what each unit replaced', async () => {
       const units = replacedUnits().map(withoutHadLive)
       arrangeCompleted(units)
 
       // The app still starts and the restore stays usable — only this one
       // irreversible action is withheld.
-      expect(() => armRestoreRollback()).toThrowError(
+      await expect(armRestoreRollback()).rejects.toThrowError(
         expect.objectContaining<Partial<RestoreStateError>>({ code: 'rollback-unavailable' })
       )
       expect(readRestoreJournalV2()).toMatchObject({ kind: 'ok', journal: { state: 'completed' } })
-      expect(relaunchMock).not.toHaveBeenCalled()
+      expect(relaunchAfterShutdownMock).not.toHaveBeenCalled()
     })
   })
 
-  it('restores completed when relaunch initiation fails', () => {
+  it('restores completed when relaunch initiation fails', async () => {
     writeRestoreJournalV2(completedJournal())
-    relaunchMock.mockImplementation(() => {
+    relaunchAfterShutdownMock.mockImplementation(async () => {
       throw new Error('relaunch unavailable')
     })
 
-    expect(() => armRestoreRollback()).toThrowError(
+    await expect(armRestoreRollback()).rejects.toThrowError(
       expect.objectContaining<Partial<RestoreStateError>>({
         code: 'relaunch-failed'
       })
@@ -229,5 +248,6 @@ describe('armRestoreRollback', () => {
       kind: 'ok',
       journal: { state: 'completed' }
     })
+    expect(holdDisposeMock).toHaveBeenCalledOnce()
   })
 })

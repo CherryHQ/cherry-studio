@@ -27,13 +27,23 @@ const POST_PROMOTION_POLL_MS = 10_000
 const POST_PROMOTION_START_DELAY_MS = 5_000
 
 /** The mutually exclusive long-running operations this service owns. */
-export type BackupOperation = 'export' | 'prepare-restore'
+export type BackupOperation = 'export' | 'prepare-restore' | 'arm-restore' | 'rollback-restore'
 export type KnowledgeRebuildAcknowledgement = 'require-complete' | 'abandon'
 
 interface InFlightOperation {
   readonly operation: BackupOperation
   readonly controller: AbortController
+  readonly cancellable: boolean
   readonly settled: Promise<void>
+  shutdownOwned: boolean
+}
+
+export interface BackupOperationControl {
+  /**
+   * Once a durable journal transition owns process shutdown, BackupService
+   * must not wait for that same operation from inside its own `onStop`.
+   */
+  setShutdownOwned(owned: boolean): void
 }
 
 /**
@@ -205,8 +215,8 @@ export class BackupService extends BaseService {
     this.postPromotionPoll = null
     const waits: Promise<unknown>[] = []
     if (this.inFlight) {
-      this.inFlight.controller.abort()
-      waits.push(this.inFlight.settled)
+      if (this.inFlight.cancellable) this.inFlight.controller.abort()
+      if (!this.inFlight.shutdownOwned) waits.push(this.inFlight.settled)
     }
     if (this.postPromotionWork) waits.push(this.postPromotionWork)
     if (this.exportCleanupWork) waits.push(this.exportCleanupWork)
@@ -249,7 +259,7 @@ export class BackupService extends BaseService {
    * not "it has stopped". The originating call reports the outcome.
    */
   public cancelOperation(): boolean {
-    if (this.inFlight === null) {
+    if (this.inFlight === null || !this.inFlight.cancellable) {
       return false
     }
     logger.info('Cancelling backup operation', { operation: this.inFlight.operation })
@@ -267,13 +277,27 @@ export class BackupService extends BaseService {
   }
 
   /** Confirm exactly the prepared restore whose preview the user accepted. */
-  public armRestore(restoreId: string): void {
-    armPreparedRestore(restoreId)
+  public armRestore(restoreId: string): Promise<void> {
+    return this.runExclusive(
+      'arm-restore',
+      (_signal, control) =>
+        armPreparedRestore(restoreId, (owned) => {
+          control.setShutdownOwned(owned)
+        }),
+      { cancellable: false }
+    )
   }
 
   /** Restore the data retained before the last completed restore, then relaunch. */
-  public rollbackRestore(): void {
-    armRestoreRollback()
+  public rollbackRestore(): Promise<void> {
+    return this.runExclusive(
+      'rollback-restore',
+      (_signal, control) =>
+        armRestoreRollback((owned) => {
+          control.setShutdownOwned(owned)
+        }),
+      { cancellable: false }
+    )
   }
 
   /**
@@ -327,7 +351,11 @@ export class BackupService extends BaseService {
    * here so the claim and the abort handle have exactly the same lifetime: a
    * cancellation can never reach the operation that replaced the one it targeted.
    */
-  public async runExclusive<T>(operation: BackupOperation, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  public async runExclusive<T>(
+    operation: BackupOperation,
+    work: (signal: AbortSignal, control: BackupOperationControl) => Promise<T>,
+    options: { readonly cancellable?: boolean } = {}
+  ): Promise<T> {
     if (this.shuttingDown) throw new BackupCancelledError('backup service is shutting down')
     if (this.inFlight !== null) {
       throw new BackupBusyError(this.inFlight.operation, operation)
@@ -337,13 +365,20 @@ export class BackupService extends BaseService {
     const claim: InFlightOperation = {
       operation,
       controller,
+      cancellable: options.cancellable ?? true,
       settled: new Promise<void>((resolve) => {
         markSettled = resolve
-      })
+      }),
+      shutdownOwned: false
+    }
+    const control: BackupOperationControl = {
+      setShutdownOwned: (owned) => {
+        if (this.inFlight === claim) claim.shutdownOwned = owned
+      }
     }
     this.inFlight = claim
     try {
-      return await work(controller.signal)
+      return await work(controller.signal, control)
     } finally {
       if (this.inFlight === claim) this.inFlight = null
       markSettled()
