@@ -45,6 +45,7 @@ import {
 import { validateResourcePathSet } from '../resourcePaths'
 import { scansEqual, stageDirectoryWithDriftCheck, stageFileWithDriftCheck } from '../sourceDrift'
 import { capturePolicyForKind, type ResourceRoots, type UnitContentRequirement } from './adapters'
+import { carriesRequiredContent } from './contentProof'
 
 const logger = loggerService.withContext('backupStageResources')
 
@@ -262,19 +263,6 @@ async function assertExcludedSourceStillMatches(
   }
 }
 
-/**
- * Whether a scanned unit carries every file its database rows say it must, so a
- * restoring device can rebuild the derived state the archive excludes (§5.4).
- * A unit with nothing to declare passes; one whose declaration is unsatisfiable
- * (`null`) never can.
- */
-function carriesRequiredContent(scan: DirScanResult, required: UnitContentRequirement | undefined): boolean {
-  if (required === undefined) return true
-  if (required === null) return false
-  const present = new Set(scan.entries.map((entry) => entry.relPath))
-  return required.every((relPath) => present.has(relPath))
-}
-
 function assertRequirementSet(requirements: readonly ResourceRequirement[]): void {
   if (requirements.length > BACKUP_CEILINGS.maxResourceInstallEntries) {
     // Producing it would produce an archive no device could restore: the journal
@@ -386,7 +374,12 @@ export async function captureResourceStageBaseline(
       if (!scansEqual(scan, verification)) {
         throw new SourceDriftError(sourcePath, 'directory changed during baseline capture')
       }
-      if (!carriesRequiredContent(scan, requiredContent?.get(requirement.livePath))) {
+      if (
+        !carriesRequiredContent(
+          scan.entries.map((entry) => entry.relPath),
+          requiredContent?.get(requirement.livePath)
+        )
+      ) {
         units.set(requirement.livePath, {
           kind: 'excluded',
           reason: 'unrebuildable-content',

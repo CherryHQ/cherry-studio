@@ -1,6 +1,8 @@
 import type { AdmittedResource } from '../admission/verify'
 import { ArchiveAdmissionError } from '../errors'
 import type { BackupManifest, ResourceRequirement } from '../manifest'
+import type { ResourceInventory } from './collectRequirements'
+import { carriesRequiredContent } from './contentProof'
 
 /**
  * Bind an untrusted archive's resource declarations to the authoritative
@@ -51,9 +53,10 @@ function uniqueIdentities(
  */
 export function reconcileRestoreResources(
   manifest: BackupManifest,
-  authoritative: readonly ResourceRequirement[],
+  inventory: ResourceInventory,
   admitted: readonly AdmittedResource[]
 ): readonly AdmittedResource[] {
+  const authoritative = inventory.requirements
   const expected = uniqueIdentities(authoritative, 'materialized database')
   const declared = uniqueIdentities(manifest.resourceRequirements, 'manifest requirements')
 
@@ -70,6 +73,12 @@ export function reconcileRestoreResources(
       throw new ResourceAuthorityError(
         'payload-target',
         'an admitted payload is not required by the materialized database'
+      )
+    }
+    if (!carriesRequiredContent(resource.contentPaths, inventory.requiredContent.get(resource.livePath))) {
+      throw new ResourceAuthorityError(
+        'required-content',
+        'an admitted payload lacks database-required rebuild material'
       )
     }
   }

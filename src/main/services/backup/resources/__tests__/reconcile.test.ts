@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { AdmittedResource } from '../../admission/verify'
 import type { BackupManifest, ResourceRequirement } from '../../manifest'
+import type { ResourceInventory } from '../collectRequirements'
 import { reconcileRestoreResources } from '../reconcile'
 
 const REQUIRED: ResourceRequirement = {
@@ -18,7 +19,27 @@ function admitted(overrides: Partial<AdmittedResource> = {}): AdmittedResource {
     stagedPath: '/owned/resources/Data/KnowledgeBase/kb-1',
     sizeBytes: 1,
     hash: 'a'.repeat(64),
+    contentPaths: ['raw/source.pdf'],
     ...overrides
+  }
+}
+
+function inventory(requiredContent: ResourceInventory['requiredContent'] = new Map()): ResourceInventory {
+  return {
+    requirements: [REQUIRED],
+    requiredContent,
+    unverifiableByKind: {
+      'file-blob': 0,
+      'knowledge-base': 0,
+      'note-root': 0,
+      'agent-data': 0,
+      'agent-workspace': 0,
+      skill: 0,
+      'mcp-workspace': 0,
+      'mcp-memory': 0,
+      'agent-channel-state': 0,
+      'agent-runtime-config': 0
+    }
   }
 }
 
@@ -41,25 +62,25 @@ describe('reconcileRestoreResources', () => {
   it('accepts a payload whose kind, type, and target exactly match the materialized database', () => {
     const resource = admitted()
 
-    expect(reconcileRestoreResources(manifest(), [REQUIRED], [resource])).toEqual([resource])
+    expect(reconcileRestoreResources(manifest(), inventory(), [resource])).toEqual([resource])
   })
 
   it('rejects a manifest requirement set that is not the materialized database closure', () => {
     const redirected = { ...REQUIRED, livePath: 'Data/KnowledgeBase/unrelated' }
 
-    expect(() => reconcileRestoreResources(manifest({ resourceRequirements: [redirected] }), [REQUIRED], [])).toThrow(
+    expect(() => reconcileRestoreResources(manifest({ resourceRequirements: [redirected] }), inventory(), [])).toThrow(
       /requirement-set/
     )
   })
 
   it('rejects a correctly hashed payload redirected to an unrelated managed target', () => {
     expect(() =>
-      reconcileRestoreResources(manifest(), [REQUIRED], [admitted({ livePath: 'Data/KnowledgeBase/unrelated' })])
+      reconcileRestoreResources(manifest(), inventory(), [admitted({ livePath: 'Data/KnowledgeBase/unrelated' })])
     ).toThrow(/payload-target/)
   })
 
   it('rejects changing the kind while keeping the same live path', () => {
-    expect(() => reconcileRestoreResources(manifest(), [REQUIRED], [admitted({ kind: 'agent-data' })])).toThrow(
+    expect(() => reconcileRestoreResources(manifest(), inventory(), [admitted({ kind: 'agent-data' })])).toThrow(
       /payload-target/
     )
   })
@@ -69,8 +90,8 @@ describe('reconcileRestoreResources', () => {
       degradations: [{ kind: 'resource:knowledge-base', livePath: REQUIRED.livePath, reason: 'absent' }]
     })
 
-    expect(reconcileRestoreResources(degraded, [REQUIRED], [])).toEqual([])
-    expect(() => reconcileRestoreResources(manifest(), [REQUIRED], [])).toThrow(/payload-missing/)
+    expect(reconcileRestoreResources(degraded, inventory(), [])).toEqual([])
+    expect(() => reconcileRestoreResources(manifest(), inventory(), [])).toThrow(/payload-missing/)
   })
 
   it('does not let a resource-entry degradation authorize a missing whole payload', () => {
@@ -84,13 +105,40 @@ describe('reconcileRestoreResources', () => {
       ]
     })
 
-    expect(() => reconcileRestoreResources(partiallyDegraded, [REQUIRED], [])).toThrow(/payload-missing/)
-    expect(reconcileRestoreResources(partiallyDegraded, [REQUIRED], [admitted()])).toHaveLength(1)
+    expect(() => reconcileRestoreResources(partiallyDegraded, inventory(), [])).toThrow(/payload-missing/)
+    expect(reconcileRestoreResources(partiallyDegraded, inventory(), [admitted()])).toHaveLength(1)
   })
 
   it('rejects duplicate declarations instead of treating a set as a multiset', () => {
     expect(() =>
-      reconcileRestoreResources(manifest({ resourceRequirements: [REQUIRED, REQUIRED] }), [REQUIRED], [])
+      reconcileRestoreResources(manifest({ resourceRequirements: [REQUIRED, REQUIRED] }), inventory(), [])
     ).toThrow(/duplicate/)
+  })
+
+  it('requires every database-declared rebuild material path in the admitted payload', () => {
+    const requiredContent = new Map([[REQUIRED.livePath, ['raw/source.pdf', 'raw/metadata.json']]])
+
+    expect(() => reconcileRestoreResources(manifest(), inventory(requiredContent), [admitted()])).toThrow(
+      /required-content/
+    )
+    expect(
+      reconcileRestoreResources(manifest(), inventory(requiredContent), [
+        admitted({ contentPaths: ['raw/source.pdf', 'raw/metadata.json'] })
+      ])
+    ).toHaveLength(1)
+  })
+
+  it('rejects an explicitly unsatisfiable required-content proof without exposing paths', () => {
+    let thrown: unknown
+    try {
+      reconcileRestoreResources(manifest(), inventory(new Map([[REQUIRED.livePath, null]])), [
+        admitted({ stagedPath: '/secret/archive/staging' })
+      ])
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toMatchObject({ code: 'required-content' })
+    expect(String(thrown)).not.toContain('/secret/archive/staging')
   })
 })

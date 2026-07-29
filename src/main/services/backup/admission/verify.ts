@@ -36,6 +36,8 @@ export interface AdmittedResource {
   readonly livePath: string
   readonly sizeBytes: number
   readonly hash: string
+  /** Safe unit-relative regular-file paths proven while hashing this payload. */
+  readonly contentPaths: readonly string[]
 }
 
 function isContained(resolved: string, root: string): boolean {
@@ -117,7 +119,7 @@ async function verifyDirectoryUnit(
   archiveFiles: readonly NormalizedEntry[],
   dirScanLimits: DirScanLimits,
   signal: AbortSignal | undefined
-): Promise<{ hash: string; sizeBytes: number }> {
+): Promise<{ hash: string; sizeBytes: number; contentPaths: readonly string[] }> {
   let result: Awaited<ReturnType<typeof hashDirectoryUnit>>
   try {
     const prefix = `${unit.payload.archivePath}/`
@@ -137,7 +139,11 @@ async function verifyDirectoryUnit(
     )
   }
   const sizeBytes = result.files.reduce((sum, file) => sum + file.size, 0)
-  return { hash: result.hash, sizeBytes }
+  return {
+    hash: result.hash,
+    sizeBytes,
+    contentPaths: result.files.map((file) => file.relPath)
+  }
 }
 
 async function verifyFileUnit(
@@ -145,7 +151,7 @@ async function verifyFileUnit(
   unit: CoverageUnit,
   archiveFiles: readonly NormalizedEntry[],
   signal: AbortSignal | undefined
-): Promise<{ hash: string; sizeBytes: number }> {
+): Promise<{ hash: string; sizeBytes: number; contentPaths: readonly string[] }> {
   const st = await lstat(stagedPath)
   const label = renderUntrustedName(unit.payload.archivePath)
   if (!st.isFile()) {
@@ -162,7 +168,7 @@ async function verifyFileUnit(
     throw new ArchiveAdmissionError('payload-mismatch', `file unit ${label} executable flag mismatch`)
   }
   const hash = await sha256FileCancellable(stagedPath, signal)
-  return { hash, sizeBytes: st.size }
+  return { hash, sizeBytes: st.size, contentPaths: [] }
 }
 
 /**
@@ -204,7 +210,8 @@ export async function verifyResourcePayloads(
       stagedPath,
       livePath: unit.payload.livePath,
       sizeBytes: computed.sizeBytes,
-      hash: computed.hash
+      hash: computed.hash,
+      contentPaths: computed.contentPaths
     })
   }
 

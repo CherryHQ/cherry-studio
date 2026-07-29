@@ -5,6 +5,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { DEFAULT_DIR_SCAN_LIMITS } from '../../dirScan'
+import { hashDirectoryUnit } from '../../hashing'
 import type { ResourcePayload } from '../../manifest'
 import type { CoverageUnit } from '../layout'
 import { verifyResourcePayloads, verifyStagedTree } from '../verify'
@@ -50,6 +51,45 @@ describe('verifyStagedTree', () => {
 })
 
 describe('verifyResourcePayloads — type mismatch', () => {
+  it('returns verified unit-relative content paths for directory payload proofs', async () => {
+    const directory = path.join(staging, 'resources', 'kb')
+    await mkdir(path.join(directory, 'raw'), { recursive: true })
+    await writeFile(path.join(directory, 'raw', 'source.pdf'), 'source')
+    await writeFile(path.join(directory, 'metadata.json'), '{}')
+    const computed = await hashDirectoryUnit(directory)
+    const payload: ResourcePayload = {
+      ...unit('resources/kb', 'directory').payload,
+      hash: computed.hash,
+      sizeBytes: computed.files.reduce((sum, file) => sum + file.size, 0)
+    }
+
+    const result = await verifyResourcePayloads(
+      staging,
+      [{ payload, isDirectory: true }],
+      ['resources/kb/raw/source.pdf', 'resources/kb/metadata.json'],
+      [
+        {
+          path: 'resources/kb/raw/source.pdf',
+          isDirectory: false,
+          uncompressedSize: 6,
+          executable: false,
+          zipEntry: null as never
+        },
+        {
+          path: 'resources/kb/metadata.json',
+          isDirectory: false,
+          uncompressedSize: 2,
+          executable: false,
+          zipEntry: null as never
+        }
+      ],
+      DEFAULT_DIR_SCAN_LIMITS,
+      undefined
+    )
+
+    expect(result[0].contentPaths.toSorted()).toEqual(['metadata.json', 'raw/source.pdf'])
+  })
+
   it('rejects ZIP executable metadata that disagrees with a file manifest', async () => {
     await mkdir(path.join(staging, 'resources'), { recursive: true })
     await writeFile(path.join(staging, 'resources', 'blob'), '')
