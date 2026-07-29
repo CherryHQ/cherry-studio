@@ -14,6 +14,17 @@ import { armRestoreRollback } from './rollbackRestore'
 const logger = loggerService.withContext('BackupService')
 const POST_PROMOTION_POLL_MS = 10_000
 
+/**
+ * Quiet window between `onAllReady` and the first reconciliation pass.
+ *
+ * `onAllReady` is a post-bootstrap supplement the framework does not await
+ * (docs/references/lifecycle/lifecycle-usage.md), so work started inside it
+ * lands on top of cold-start IO. This pass reads the database and talks to
+ * `KnowledgeService`; nothing it produces is urgent — the jobs it enqueues wait
+ * on JobManager's own 60s startup window regardless — so it yields the boot.
+ */
+const POST_PROMOTION_START_DELAY_MS = 5_000
+
 /** The mutually exclusive long-running operations this service owns. */
 export type BackupOperation = 'export' | 'prepare-restore'
 export type KnowledgeRebuildAcknowledgement = 'require-complete' | 'abandon'
@@ -134,9 +145,14 @@ export class BackupService extends BaseService {
    * Rebuild what a completed restore left derived (§6.7). Runs here rather than
    * in the promotion because it needs the restored database live, the Knowledge
    * service running, and the job queue open — none of which exist at preboot.
+   *
+   * Scheduled, not run: see {@link POST_PROMOTION_START_DELAY_MS}. The timer is
+   * handed to `BaseService` so a shutdown inside the window cancels it, and the
+   * `shuttingDown` re-check covers the shutdown that races the callback itself.
    */
   protected onAllReady(): void {
-    this.startPostPromotionPass()
+    const handle = setTimeout(() => this.startPostPromotionPass(), POST_PROMOTION_START_DELAY_MS)
+    this.registerDisposable(() => clearTimeout(handle))
   }
 
   private startPostPromotionPass(): void {
