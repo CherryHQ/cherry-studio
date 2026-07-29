@@ -456,11 +456,18 @@ export const webSearchOutputItemSchema = z.object({
 export const webSearchOutputSchema = z.array(webSearchOutputItemSchema)
 
 export const webFetchInputSchema = z.object({
+  // Plain strings, not `.url()`: WebFetchTool runs with `strict: true`, and `.url()` emits
+  // `format: "uri"`, which strict OpenAI-compatible providers reject outright — the whole request
+  // 400s ("Invalid schema for function 'web_fetch': ... 'uri' is not a valid format"), taking every
+  // other tool in the turn down with it. The URL contract lives in the description instead, and
+  // `remoteUrlSafety` parses and validates every URL at fetch time regardless of what the model sent.
   urls: z
-    .array(z.string().trim().url('URL must be valid'))
+    .array(z.string().trim().min(1))
     .min(1)
     .max(20, 'Fetch at most 20 URLs per call')
-    .describe('Absolute web page URLs to fetch and summarize. Use web_search first when you do not know the URL.')
+    .describe(
+      'Absolute http(s) web page URLs to fetch and summarize. Use web_search first when you do not know the URL.'
+    )
 })
 
 export const webFetchOutputSchema = webSearchOutputSchema

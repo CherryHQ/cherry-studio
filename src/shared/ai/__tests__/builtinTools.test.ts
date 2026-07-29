@@ -54,6 +54,19 @@ describe('builtin tool contracts', () => {
     expect(description).not.toContain('web__search')
   })
 
+  it('keeps `format` out of the web_fetch schema so strict providers accept it', () => {
+    // WebFetchTool runs with `strict: true`. Zod's `.url()` emits `format: "uri"`, which strict
+    // OpenAI-compatible providers reject with a 400 that kills the whole request, not just this
+    // tool ("Invalid schema for function 'web_fetch': ... 'uri' is not a valid format").
+    // URLs are validated at fetch time by remoteUrlSafety instead.
+    const json = z.toJSONSchema(webFetchInputSchema) as {
+      properties?: { urls?: { items?: { format?: unknown } } }
+    }
+
+    expect(json.properties?.urls?.items?.format).toBeUndefined()
+    expect(webFetchInputSchema.safeParse({ urls: ['https://example.com'] }).success).toBe(true)
+  })
+
   it('keeps kb_list strict-path fields in `required` so strict providers accept the schema', () => {
     // AI-SDK strict mode must satisfy both OpenAI-compatible providers (every property required) and
     // Gemini (every property directly typed, with no nullable `anyOf`). Sentinels preserve optional
