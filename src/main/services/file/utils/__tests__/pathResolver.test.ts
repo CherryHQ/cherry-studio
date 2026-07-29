@@ -10,8 +10,9 @@ vi.mock('@application', async () => {
 
 import type { AbsoluteFilePath } from '@shared/types/file'
 
+import { getExtSuffix } from '../../portableProfilePolicy'
 import type { PathResolvableEntry } from '../pathResolver'
-import { getExtSuffix, resolvePhysicalPath } from '../pathResolver'
+import { resolvePhysicalPath } from '../pathResolver'
 
 describe('getExtSuffix', () => {
   it('returns dot-prefixed extension for non-null ext', () => {
