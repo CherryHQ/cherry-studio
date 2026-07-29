@@ -252,7 +252,6 @@ describe('Topics helpers', () => {
         ['assistant-1', { id: 'assistant-1', name: 'Research' }],
         ['assistant-2', { id: 'assistant-2', name: 'Writing' }]
       ]),
-      defaultAssistant: { name: 'Default Assistant' },
       labels: TOPIC_GROUP_LABELS,
       mode: 'assistant'
     })
@@ -261,9 +260,9 @@ describe('Topics helpers', () => {
       id: 'topic:pinned',
       label: 'Pinned'
     })
-    expect(groupTopic(createTopic({ id: 'default', assistantId: undefined }))).toEqual({
+    expect(groupTopic(createTopic({ id: 'unlinked', assistantId: undefined }))).toEqual({
       id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
-      label: 'Default Assistant'
+      label: 'Unlinked Assistant'
     })
     expect(groupTopic(createTopic({ id: 'known', assistantId: 'assistant-2' }))).toEqual({
       id: 'topic:assistant:assistant-2',
@@ -293,7 +292,7 @@ describe('Topics helpers', () => {
         ]),
         mode: 'assistant'
       }).map((topic) => topic.id)
-    ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'default-1', 'unknown-1'])
+    ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'unknown-1', 'default-1'])
   })
 
   it('sorts assistant group topics by raw persisted orderKey ascending when available', () => {

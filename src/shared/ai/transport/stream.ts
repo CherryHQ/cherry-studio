@@ -278,3 +278,8 @@ export type AiStreamOpenResponse =
       reason: 'agent-session-workspace'
       message: string
     }
+  | {
+      mode: 'blocked'
+      /** Main-side write quiesce (backup restore in progress). Renderer maps this reason to i18n. */
+      reason: 'paused'
+    }

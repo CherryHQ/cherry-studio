@@ -85,7 +85,7 @@ const api = {
   backup: {
     restore: (path: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, path),
     // Direct backup methods (copy IndexedDB/LocalStorage directories directly)
-    backup: (fileName: string, destinationPath: string, skipBackupFile: boolean) =>
+    backup: (fileName: string, destinationPath: string, skipBackupFile?: boolean) =>
       ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, destinationPath, skipBackupFile),
     backupToWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, webdavConfig),
     restoreFromWebdav: (webdavConfig: WebDavConfig) =>

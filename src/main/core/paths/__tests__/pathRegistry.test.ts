@@ -22,6 +22,22 @@ import { buildPathRegistry, shouldAutoEnsure } from '../pathRegistry'
 // local Electron mock also lets the path-layout test exercise the real registry.
 
 describe('buildPathRegistry', () => {
+  it('keeps the database and restore journal together under userData Data', () => {
+    const registry = buildPathRegistry()
+    const dataRoot = path.join('/mock/userData', 'Data')
+
+    expect(registry['app.database.file']).toBe(path.join(dataRoot, 'cherrystudio.sqlite'))
+    expect(registry['feature.backup.restore.file']).toBe(path.join(dataRoot, 'restore-journal.json'))
+  })
+
+  it('keeps the Claude config under the Agents data directory', () => {
+    const registry = buildPathRegistry()
+    const claudeRoot = path.join('/mock/userData', 'Data', 'Agents', '.claude')
+
+    expect(registry['feature.agents.claude.root']).toBe(claudeRoot)
+    expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
+  })
+
   it('keeps the isolated mise tree under the userData toolchain', () => {
     const registry = buildPathRegistry()
     const miseRoot = path.join('/mock/userData', 'Toolchain', 'mise')

@@ -131,6 +131,27 @@ describe('catalog invariants (data/*.json)', () => {
     expect(orderDependent).toEqual([])
   })
 
+  // `[1m]` is a Claude Code CLI suffix that raises the session's context budget: it never reaches an
+  // API, so it may only appear as an apiModelId, only on that provider, only paired with the plain
+  // row users pick when they don't want the extended window, and only on a model that has 1M to give.
+  it('every [1m] apiModelId is a claude-code twin of a plain 1M-context row', () => {
+    const contextWindowById = new Map(models.map((m) => [m.id, m.contextWindow]))
+    const plainRows = new Set(
+      overrides.filter((o) => (o.apiModelId ?? o.modelId) === o.modelId).map((o) => `${o.providerId}::${o.modelId}`)
+    )
+    const broken = overrides
+      .filter((o) => (o.apiModelId ?? '').endsWith('[1m]'))
+      .filter(
+        (o) =>
+          o.providerId !== 'claude-code' ||
+          o.apiModelId !== `${o.modelId}[1m]` ||
+          !plainRows.has(`${o.providerId}::${o.modelId}`) ||
+          (contextWindowById.get(o.modelId) ?? 0) < 1_000_000
+      )
+      .map((o) => `${o.providerId}/${o.apiModelId}`)
+    expect(broken).toEqual([])
+  })
+
   // sequentialImageGeneration is a string enum in the central catalog
   // (imageParamCatalog.ts) and the Doubao API only accepts 'auto'/'disabled' — a
   // `switch` support spec here renders a boolean UI control that gets coerced

@@ -22,7 +22,7 @@ export type S3Config = {
   secretAccessKey: string
   root?: string
   fileName?: string
-  skipBackupFile: boolean
+  skipBackupFile?: boolean
   autoSync: boolean
   syncInterval: number
   maxBackups: number

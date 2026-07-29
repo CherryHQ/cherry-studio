@@ -16,28 +16,41 @@ export function usePaintingHistory(): {
   hasMore: boolean
   loadMore: () => void
 } {
-  const { pages, isLoading, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/paintings', { limit: PAGE_SIZE })
+  const {
+    pages,
+    isLoading: isQueryLoading,
+    isRefreshing,
+    hasNext,
+    loadNext
+  } = useInfiniteQuery('/paintings', { limit: PAGE_SIZE })
   const records = useInfiniteFlatItems(pages)
 
-  const [items, setItems] = useState<PaintingStripEntry[]>([])
+  const [hydration, setHydration] = useState<{
+    records: typeof records
+    items: PaintingStripEntry[]
+  } | null>(null)
 
   useEffect(() => {
     let cancelled = false
     void recordsToPaintingDataList(records)
       .then((mapped) => {
-        if (!cancelled) setItems(mapped)
+        if (!cancelled) setHydration({ records, items: mapped })
       })
       .catch((error) => {
+        if (cancelled) return
         logger.error('Failed to hydrate painting history', error as Error)
+        setHydration({ records, items: [] })
       })
     return () => {
       cancelled = true
     }
   }, [records])
 
+  const currentHydration = hydration?.records === records ? hydration : null
+
   return {
-    items,
-    isLoading: isLoading || isRefreshing,
+    items: hydration?.items ?? [],
+    isLoading: isQueryLoading || isRefreshing || !currentHydration,
     hasMore: hasNext,
     loadMore: loadNext
   }
