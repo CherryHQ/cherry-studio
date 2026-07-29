@@ -225,13 +225,10 @@ export type {
   UITools
 }
 
+//FIXME [v2] 注意，以下类型只是占位，接口未稳定，随时会变
+
 // ============================================================================
-// Content Reference Types (frozen legacy format)
-//
-// 仅由 v1→v2 迁移器（ChatMappings.ts）生产，仅由渲染层遗留路径
-// （cherry-meta references 分支）消费，用于渲染迁移自 v1 的历史消息。
-// 请勿新增生产者 —— 新消息的引用直接从工具 parts 在渲染时解析
-// （见 renderer messageCitations.ts）。
+// Content Reference Types
 // ============================================================================
 
 /**
